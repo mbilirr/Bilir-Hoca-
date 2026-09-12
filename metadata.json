@@ -1,0 +1,6 @@
+{
+  "name": "Eğitim & Öğrenci Takip Sistemi",
+  "description": "Öğretmen ve öğrenciler için sınıf yönetimi, kazanım odaklı ödev çizelgesi, devamsızlık ve not takibi, etüt planlama ve mesajlaşma platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
