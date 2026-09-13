@@ -60,7 +60,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // New class form state
   const [className, setClassName] = useState('');
   const [classBranch, setClassBranch] = useState('');
-  const [classAcademicYear, setClassAcademicYear] = useState('2025-2026');
+  const [classAcademicYear, setClassAcademicYear] = useState('2026-2027');
   const [classDescription, setClassDescription] = useState('');
 
   // Filter students
@@ -166,9 +166,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <Users className="w-5 h-5 text-indigo-400" />
             <span>Kullanıcı & Sınıf Yönetim Merkezi</span>
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Öğrenci kayıtlarını inceleyin, yeni sınıflar açın ve öğrencileri sınıflara atayın.
-          </p>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -248,13 +245,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div>
                 <h4 className="text-sm font-bold text-white flex items-center space-x-2">
                   <span>Excel / CSV ile Toplu Öğrenci Aktarımı</span>
-                  <span className="text-[10px] px-2 py-0.2 bg-emerald-500/20 text-emerald-300 rounded-full font-medium">
-                    Hızlı İçe Aktarma
-                  </span>
                 </h4>
-                <p className="text-xs text-slate-400">
-                  Öğrenci listesini Excel dosyasından yükleyin veya kopyalayıp yapıştırın; isim, soyisim ve sınıflar otomatik tanımlansın.
-                </p>
               </div>
             </div>
 

@@ -235,7 +235,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-indigo-400 group-hover:text-indigo-300">
-            <span>Kazanım & Ödev Çizelgesi</span>
+            <span>Ödev Kontrol</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
         </div>
@@ -366,7 +366,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-rose-400 group-hover:text-rose-300">
-            <span>Ödev Çizelgesi & Kazanımlar</span>
+            <span>Ödev Kontrol</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
         </div>

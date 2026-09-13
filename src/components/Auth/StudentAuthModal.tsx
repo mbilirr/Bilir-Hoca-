@@ -46,11 +46,12 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   // Register Form state
   const [regName, setRegName] = useState('');
   const [regUsername, setRegUsername] = useState('');
+  const [regClassId, setRegClassId] = useState(classes[0]?.id || '');
+  const [regBranch, setRegBranch] = useState('');
+  const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regClassId, setRegClassId] = useState(classes[0]?.id || '');
-  const [regStudentNumber, setRegStudentNumber] = useState('');
-  const [regPhone, setRegPhone] = useState('');
+  const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [selectedAvatarSeed, setSelectedAvatarSeed] = useState('Zeynep');
 
   // Login Form state
@@ -58,7 +59,6 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
 
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -78,31 +78,56 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    if (!regName.trim() || !regEmail.trim() || !regPassword.trim()) {
-      setError('Lütfen tüm zorunlu alanları doldurunuz.');
+    if (!regName.trim()) {
+      setError('Lütfen Adı Soyadı alanını doldurunuz.');
+      return;
+    }
+    if (!regUsername.trim()) {
+      setError('Lütfen Kullanıcı Adı alanını doldurunuz.');
+      return;
+    }
+    if (!regClassId.trim()) {
+      setError('Lütfen Sınıf seçiniz.');
+      return;
+    }
+    if (!regPassword.trim()) {
+      setError('Lütfen Şifre alanını doldurunuz.');
+      return;
+    }
+    if (!regConfirmPassword.trim()) {
+      setError('Lütfen Şifre Tekrar alanını doldurunuz.');
+      return;
+    }
+    if (regPassword.length < 3) {
+      setError('Şifre en az 3 karakter olmalıdır.');
+      return;
+    }
+    if (regPassword !== regConfirmPassword) {
+      setError('Girdiğiniz şifreler birbiriyle uyuşmuyor.');
       return;
     }
 
-    const selectedClass = classes.find((c) => c.id === regClassId) || classes[0];
+    try {
+      const selectedClass = classes.find((c) => c.id === regClassId || c.name === regClassId);
 
-    const newStudent = dataService.registerStudent({
-      name: regName.trim(),
-      username: regUsername.trim() || regEmail.split('@')[0],
-      email: regEmail.trim(),
-      password: regPassword,
-      classId: selectedClass ? selectedClass.id : 'class-12a',
-      className: selectedClass ? selectedClass.name : '12-A Sayısal',
-      studentNumber: regStudentNumber.trim() || `${Math.floor(1000 + Math.random() * 9000)}`,
-      phone: regPhone.trim() || '0555 000 0000',
-      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-        selectedAvatarSeed || regName
-      )}`,
-    });
+      const newStudent = dataService.registerStudent({
+        name: regName.trim(),
+        username: regUsername.trim().toLowerCase(),
+        email: regEmail.trim() || '',
+        password: regPassword,
+        classId: selectedClass ? selectedClass.id : 'class-12a',
+        className: selectedClass ? selectedClass.name : (regClassId || '12-A Sayısal'),
+        branch: regBranch.trim() || (selectedClass ? selectedClass.branch : ''),
+        phone: regPhone.trim() || '',
+        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+          selectedAvatarSeed || regName
+        )}`,
+      });
 
-    setSuccessMsg('Kayıt başarıyla tamamlandı! Sisteme yönlendiriliyorsunuz...');
-    setTimeout(() => {
       handleAuthCompleted(newStudent);
-    }, 600);
+    } catch (err: any) {
+      setError(err.message || 'Kayıt sırasında bir hata oluştu.');
+    }
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -112,24 +137,20 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     const term = loginIdentifier.trim().toLowerCase();
     const student = currentExistingStudents.find(
       (s) =>
-        s.email.toLowerCase() === term ||
-        s.username?.toLowerCase() === term ||
-        s.studentNumber === term
+        (s.email && s.email.toLowerCase() === term) ||
+        (s.username && s.username.toLowerCase() === term) ||
+        (s.studentNumber && s.studentNumber === term)
     );
 
     if (student) {
-      if (student.password && student.password !== loginPassword && loginPassword !== '123') {
-        setError('Şifre hatalı! (Varsayılan şifre: 123)');
+      if (student.password && student.password !== loginPassword) {
+        setError('Şifre hatalı! Lütfen kontrol ediniz.');
         return;
       }
       handleAuthCompleted(student);
     } else {
-      setError('Öğrenci bulunamadı. Lütfen e-posta veya öğrenci numaranızı kontrol edin veya yeni kayıt oluşturun.');
+      setError('Öğrenci bulunamadı. Lütfen bilgilerinizi kontrol edin veya yeni kayıt oluşturun.');
     }
-  };
-
-  const handleQuickStudentSelect = (student: Student) => {
-    handleAuthCompleted(student);
   };
 
   return (
@@ -184,23 +205,9 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             </div>
           )}
 
-          {successMsg && (
-            <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center space-x-3 text-emerald-300 text-sm">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
           {activeTab === 'register' ? (
             /* REGISTER FORM */
             <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <p className="text-xs text-indigo-400 font-medium mb-3 flex items-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Dışarıdan kayıt olan öğrenciler anında sisteme ve sınıfa dahil olur; tüm genel ödev ve etütleri görebilir.</span>
-                </p>
-              </div>
-
               {/* Avatar Selector */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
@@ -228,10 +235,11 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 </div>
               </div>
 
+              {/* 1. Ad Soyad & Kullanıcı Adı (Zorunlu) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Ad Soyad *
+                    Adı Soyadı *
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -248,66 +256,37 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Kullanıcı Adı
+                    Kullanıcı Adı *
                   </label>
-                  <input
-                    type="text"
-                    value={regUsername}
-                    onChange={(e) => setRegUsername(e.target.value)}
-                    placeholder="melisaydin"
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
+                  <div className="relative">
+                    <Hash className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="text"
+                      required
+                      value={regUsername}
+                      onChange={(e) => setRegUsername(e.target.value)}
+                      placeholder="melisaydin"
+                      className="w-full pl-10 pr-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* 2. Sınıf (Zorunlu) & Şube (İsteğe Bağlı) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    E-Posta Adresi *
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                    <input
-                      type="email"
-                      required
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="melis@ornek.k12.tr"
-                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Şifre Belirleyin *
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-                    <input
-                      type="password"
-                      required
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Sınıf Seçimi *
+                    Sınıf *
                   </label>
                   <div className="relative">
                     <School className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <select
+                      required
                       value={regClassId}
                       onChange={(e) => setRegClassId(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none"
+                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer"
                     >
+                      <option value="">Sınıf Seçiniz *</option>
                       {classes.map((cls) => (
                         <option key={cls.id} value={cls.id}>
                           {cls.name}
@@ -319,15 +298,32 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Öğrenci No
+                    Şube (İsteğe Bağlı)
+                  </label>
+                  <input
+                    type="text"
+                    value={regBranch}
+                    onChange={(e) => setRegBranch(e.target.value)}
+                    placeholder="Örn: A, B veya Sayısal"
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Şifre * & Şifre Tekrar * (Zorunlu) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Şifre *
                   </label>
                   <div className="relative">
-                    <Hash className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
-                      type="text"
-                      value={regStudentNumber}
-                      onChange={(e) => setRegStudentNumber(e.target.value)}
-                      placeholder="Örn: 1450"
+                      type="password"
+                      required
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      placeholder="En az 3 karakter"
                       className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
@@ -335,15 +331,51 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Telefon
+                    Şifre Tekrar *
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="password"
+                      required
+                      value={regConfirmPassword}
+                      onChange={(e) => setRegConfirmPassword(e.target.value)}
+                      placeholder="Şifreyi onaylayın"
+                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Telefon (İsteğe Bağlı) & Mail (İsteğe Bağlı) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Telefon (İsteğe Bağlı)
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
                     <input
-                      type="text"
+                      type="tel"
                       value={regPhone}
                       onChange={(e) => setRegPhone(e.target.value)}
                       placeholder="05xx xxx xx xx"
+                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Mail (İsteğe Bağlı)
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+                    <input
+                      type="email"
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="ornek@mail.com"
                       className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
@@ -353,10 +385,10 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
               <button
                 type="submit"
                 id="student-register-submit"
-                className="w-full mt-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2"
+                className="w-full mt-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>Kaydı Tamamla ve Öğrenci Paneline Gir</span>
+                <span>Kayıt Ol</span>
               </button>
             </form>
           ) : (
@@ -364,7 +396,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  E-Posta veya Öğrenci Numarası
+                  Kullanıcı Adı, E-Posta veya Öğrenci No
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -373,7 +405,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                     required
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="zeynep.kaya@ornek.k12.tr veya 1042"
+                    placeholder="Kullanıcı adı, e-posta veya no"
                     className="w-full pl-10 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
@@ -381,7 +413,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Şifre (Varsayılan: 123)
+                  Şifre
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
@@ -399,36 +431,11 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
               <button
                 type="submit"
                 id="student-login-submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition-all shadow-md flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Öğrenci Girişi Yap</span>
+                <span>Giriş Yap</span>
               </button>
-
-              {/* Fast Selector for sample students */}
-              <div className="mt-6 pt-4 border-t border-slate-800">
-                <p className="text-xs font-semibold text-slate-400 mb-2">Hızlı Öğrenci Seçimi (Demo):</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {currentExistingStudents.slice(0, 4).map((std) => (
-                    <button
-                      key={std.id}
-                      type="button"
-                      onClick={() => handleQuickStudentSelect(std)}
-                      className="flex items-center space-x-2.5 p-2 bg-slate-800/60 hover:bg-slate-800 border border-slate-700 rounded-xl text-left transition-colors"
-                    >
-                      <img
-                        src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
-                        alt={std.name}
-                        className="w-7 h-7 rounded-full bg-slate-700"
-                      />
-                      <div className="truncate">
-                        <p className="text-xs font-semibold text-white truncate">{std.name}</p>
-                        <p className="text-[10px] text-indigo-300">{std.className}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </form>
           )}
         </div>

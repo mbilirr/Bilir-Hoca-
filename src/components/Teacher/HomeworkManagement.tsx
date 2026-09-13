@@ -37,10 +37,7 @@ import { createGoogleCalendarUrlForHomework, downloadIcsFile } from '../../lib/c
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
-import { ExcelDocxOutcomeImporterModal } from './ExcelDocxOutcomeImporterModal';
 import { EditHomeworkModal } from './EditHomeworkModal';
-import { SentCommunicationsModal } from './SentCommunicationsModal';
-import { Mail } from 'lucide-react';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -49,6 +46,11 @@ interface HomeworkManagementProps {
   classes: ClassGroup[];
   onNavigateToEtut?: (subject: string, outcome: string) => void;
 }
+
+const SCHOOL_SUBJECTS: Record<'Ortaokul' | 'Lise', string[]> = {
+  Ortaokul: ['Matematik', 'Türkçe', 'Fen Bilgisi', 'Sosyal Bilgiler', 'İngilizce'],
+  Lise: ['Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Coğrafya', 'Tarih', 'Edebiyat'],
+};
 
 export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   homeworks,
@@ -76,8 +78,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [draftCheckStatuses, setDraftCheckStatuses] = useState<Record<string, HomeworkCheckStatus>>({});
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
-  const [isOutcomeImporterOpen, setIsOutcomeImporterOpen] = useState(false);
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
   const [expandedHwId, setExpandedHwId] = useState<string | null>(homeworks[0]?.id || null);
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
@@ -92,55 +92,22 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [isHwSearchDropdownOpen, setIsHwSearchDropdownOpen] = useState(false);
 
   // Form State
+  const [schoolLevel, setSchoolLevel] = useState<'Ortaokul' | 'Lise'>('Ortaokul');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Matematik');
-  const [outcomesText, setOutcomesText] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [targetClassIds, setTargetClassIds] = useState<string[]>(classes.map((c) => c.id));
   const [assigneeMode, setAssigneeMode] = useState<'all' | 'custom'>('all');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [targetClassIds, setTargetClassIds] = useState<string[]>(classes.map((c) => c.id));
-  const [attachmentUrl, setAttachmentUrl] = useState('');
   const [resources, setResources] = useState<HomeworkResource[]>([]);
-  const [isGlobalForNewStudents, setIsGlobalForNewStudents] = useState(true);
 
-  const handleImportOutcomesToForm = (data: {
-    subject: string;
-    topic: string;
-    outcomes: string[];
-  }) => {
-    setSubject(data.subject);
-    setTitle(data.topic);
-    setOutcomesText(data.outcomes.join('\n'));
-    setIsOutcomeImporterOpen(false);
-    setIsCreateModalOpen(true);
-  };
-
-  // Quick Preset Outcomes
-  const SUBJECT_OUTCOMES_PRESETS: Record<string, string[]> = {
-    Matematik: [
-      'M.12.1: Fonksiyonların türevini hesaplar ve teğet denklemini yorumlar.',
-      'M.12.2: Belirli ve belirsiz integral kavramını alan hesabında uygular.',
-      'M.11.3: Trigonometrik fonksiyonların periyot ve grafiklerini analiz eder.',
-    ],
-    Fizik: [
-      'F.11.2: Manyetik alanda akım geçen tele etki eden kuvveti ve indüksiyon akımını hesaplar.',
-      'F.12.1: Düzgün çembersel hareket dinamiklerini yorumlar.',
-      'F.10.3: Dalga mekaniğinde kırınım ve girişim olaylarını inceler.',
-    ],
-    Kimya: [
-      'K.12.2: Alkan, alken ve alkinlerin IUPAC adlandırmasını ve izomerlerini belirler.',
-      'K.11.4: Kimyasal tepkimelerde dengeyi etkileyen faktörleri (Le Chatelier) açıklar.',
-      'K.10.1: Mol kavramı ve kimyasal hesaplamaları yapar.',
-    ],
-    Biyoloji: [
-      'B.12.1: Nükleik asitlerin yapısını, DNA replikasyonunu ve protein sentezini açıklar.',
-      'B.11.2: İnsan fizyolojisinde sinir ve endokrin sistem koordinasyonunu kavrar.',
-    ],
-    Türkçe: [
-      'T.12.1: Paragrafın ana düşüncesini ve yapı unsurlarını analiz eder.',
-      'T.11.2: Cumhuriyet dönemi edebiyatında toplumcu gerçekçi eserleri değerlendirir.',
-    ],
+  const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
+    setSchoolLevel(level);
+    const subjects = SCHOOL_SUBJECTS[level];
+    if (!subjects.includes(subject)) {
+      setSubject(subjects[0]);
+    }
   };
 
   const handleSelectAllStudents = () => {
@@ -163,23 +130,18 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     e.preventDefault();
     if (!title.trim() || !dueDate) return;
 
-    const outcomes = outcomesText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
     const currentTeacher = dataService.getCurrentTeacher();
     const newHw = dataService.createHomework({
-      title,
+      title: title.trim(),
       subject,
-      outcomes: outcomes.length > 0 ? outcomes : ['Müfredat kazanımı pekiştirme ve soru çözümü'],
-      description,
+      schoolLevel,
+      description: description.trim(),
       dueDate,
+      outcomes: [],
       assignedTo: assigneeMode === 'all' ? 'all' : selectedStudentIds,
-      targetClassIds,
-      attachmentUrl: attachmentUrl.trim() || undefined,
+      targetClassIds: targetClassIds.length > 0 ? targetClassIds : undefined,
       resources,
-      isGlobalForNewStudents,
+      isGlobalForNewStudents: true,
       createdByName: currentTeacher?.name || 'Öğretmen',
       teacherId: currentTeacher?.id,
     });
@@ -192,17 +154,19 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
     setIsCreateModalOpen(false);
     resetForm();
+    setActiveTab('all');
     setExpandedHwId(newHw.id);
   };
 
   const resetForm = () => {
     setTitle('');
+    setSchoolLevel('Ortaokul');
+    setSubject('Matematik');
     setDescription('');
-    setOutcomesText('');
     setDueDate('');
+    setTargetClassIds(classes.map((c) => c.id));
     setAssigneeMode('all');
     setSelectedStudentIds([]);
-    setAttachmentUrl('');
     setResources([]);
   };
 
@@ -218,10 +182,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       });
       setEditingResourcesHw(null);
     }
-  };
-
-  const handleAddPresetOutcome = (preset: string) => {
-    setOutcomesText((prev) => (prev ? `${prev}\n${preset}` : preset));
   };
 
   // Selected Homework for Tracking
@@ -338,87 +298,64 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
+      {/* Top Banner & 3 Action Buttons Side-by-Side */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-        <div>
-          <div className="flex items-center space-x-2">
-            <Target className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-white">Kazanım Odaklı Ödev & Teslim Çizelgesi</h2>
-          </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Ödevleri kontrol edin, sınıf/öğrenci bazında yaptı/yapmadı/eksik/gelmedi olarak işaretleyin ve yeni kazanımlı ödevler oluşturun.
-          </p>
+        <div className="flex items-center space-x-2.5">
+          <Target className="w-5 h-5 text-indigo-400" />
+          <h2 className="text-xl font-bold text-white">Ödev Yönetimi</h2>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* 3 Buttons Side by Side: Ödev Oluştur, Ödev Kontrol, Tüm Oluşturulan Ödevler */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={() => setIsSentCommunicationsOpen(true)}
-            className="flex items-center space-x-2 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            title="Öğrencilere gönderilen tüm otomatik e-posta ve bildirim kayıtları"
-          >
-            <Mail className="w-4 h-4 text-indigo-400" />
-            <span>Giden E-Posta & Bildirimler</span>
-          </button>
-
-          <button
-            onClick={() => setIsOutcomeImporterOpen(true)}
-            className="flex items-center space-x-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>Excel / Word'den Kazanım Yükle</span>
-          </button>
-
-          <button
             onClick={() => {
               resetForm();
               setIsCreateModalOpen(true);
             }}
-            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
+            id="btn-create-homework"
+            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-indigo-600/25 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            <span>Yeni Kazanımlı Ödev Oluştur</span>
+            <span>Ödev Oluştur</span>
           </button>
-        </div>
-      </div>
 
-      {/* PRIMARY SECTION TABS */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-3">
-        <div className="flex items-center space-x-2 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
           <button
             type="button"
             onClick={() => setActiveTab('tracker')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            id="btn-tab-tracker"
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
               activeTab === 'tracker'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/20'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>Ödev Kontrol & Yoklama Çizelgesi</span>
+            <span>Ödev Kontrol</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            id="btn-tab-all"
+            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
               activeTab === 'all'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/20'
+                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Tüm Oluşturulan Ödevler ({homeworks.length})</span>
+            <span>Tüm Oluşturulan Ödevler</span>
           </button>
         </div>
-
-        {saveFeedback && (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-semibold animate-in fade-in">
-            <Check className="w-3.5 h-3.5" />
-            <span>{saveFeedback}</span>
-          </div>
-        )}
       </div>
+
+      {saveFeedback && (
+        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-semibold animate-in fade-in">
+          <Check className="w-3.5 h-3.5" />
+          <span>{saveFeedback}</span>
+        </div>
+      )}
 
       {/* TAB 1: TRACKER / CHECK VIEW */}
       {activeTab === 'tracker' && (
@@ -1218,6 +1155,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80">
                 <div className="space-y-2 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
+                    {hw.schoolLevel && (
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        {hw.schoolLevel}
+                      </span>
+                    )}
                     <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                       {hw.subject}
                     </span>
@@ -1321,25 +1263,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </div>
               )}
 
-              {/* Outcomes Section always visible */}
-              <div className="px-5 py-3 bg-slate-950/40 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-indigo-400 font-semibold flex items-center space-x-1">
-                  <Target className="w-3.5 h-3.5" />
-                  <span>Kazanımlar:</span>
-                </span>
-                {hw.outcomes && hw.outcomes.length > 0 ? (
-                  hw.outcomes.map((outcome, idx) => (
+              {/* Outcomes Section if present */}
+              {hw.outcomes && hw.outcomes.length > 0 && (
+                <div className="px-5 py-2.5 bg-slate-950/40 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-indigo-400 font-semibold flex items-center space-x-1">
+                    <Target className="w-3.5 h-3.5" />
+                    <span>Kazanımlar:</span>
+                  </span>
+                  {hw.outcomes.map((outcome, idx) => (
                     <span
                       key={idx}
-                      className="bg-slate-800/90 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 font-mono text-[11px]"
+                      className="bg-slate-800/90 text-slate-300 px-2.5 py-0.5 rounded-lg border border-slate-700 font-mono text-[11px]"
                     >
                       {outcome}
                     </span>
-                  ))
-                ) : (
-                  <span className="text-slate-500 italic">Genel pekiştirme kazanımı</span>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* Expandable Submissions Tracker */}
               {isExpanded && (
@@ -1567,126 +1507,153 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             </div>
 
             <form onSubmit={handleCreateHomework} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="sm:col-span-2">
+              {/* Okul ve Dersler Açılır Pencereleri */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Ödev Başlığı *
+                    Okul *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Örn: Türev Alma Kuralları ve Teğet Denklemi"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
+                  <select
+                    value={schoolLevel}
+                    onChange={(e) =>
+                      handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')
+                    }
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer font-medium"
+                  >
+                    <option value="Ortaokul">Ortaokul</option>
+                    <option value="Lise">Lise</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Ders *</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Dersler *
+                  </label>
                   <select
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer font-medium"
                   >
-                    <option value="Matematik">Matematik</option>
-                    <option value="Fizik">Fizik</option>
-                    <option value="Kimya">Kimya</option>
-                    <option value="Biyoloji">Biyoloji</option>
-                    <option value="Türkçe">Türkçe / Edebiyat</option>
-                    <option value="Tarih">Tarih</option>
-                    <option value="Coğrafya">Coğrafya</option>
-                    <option value="İngilizce">İngilizce</option>
+                    {SCHOOL_SUBJECTS[schoolLevel].map((subj) => (
+                      <option key={subj} value={subj}>
+                        {subj}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              {/* Outcomes (Kazanımlar) */}
+              {/* Ödev Başlığı */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Öğrenme Kazanımları (Her satıra bir kazanım)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsOutcomeImporterOpen(true)}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center space-x-1 underline"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5" />
-                    <span>Excel / Word'den Yükle</span>
-                  </button>
-                </div>
-
-                {/* Quick Presets based on selected subject */}
-                {SUBJECT_OUTCOMES_PRESETS[subject] && (
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {SUBJECT_OUTCOMES_PRESETS[subject].map((p, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleAddPresetOutcome(p)}
-                        className="text-[10px] bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded transition-colors"
-                      >
-                        + {p.slice(0, 35)}...
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <textarea
-                  rows={3}
-                  value={outcomesText}
-                  onChange={(e) => setOutcomesText(e.target.value)}
-                  placeholder="M.12.5.1: Bir fonksiyonun bir noktadaki türevini hesaplar...&#10;M.12.5.2: Çarpım ve bölümün türev kuralını uygular..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500"
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Ödev Başlığı *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ödev başlığını giriniz..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
-              {/* Description */}
+              {/* Ödev Açıklaması */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Ödev Detayları & Açıklama
+                  Ödev Açıklaması
                 </label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Hangi sayfalardaki hangi soruların çözüleceği, formüller, teslim şartları vb..."
+                  placeholder="Ödev açıklaması, teslim şartları ve detayları..."
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Son Teslim Tarihi ve Saati *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
+              {/* Tarih (Son Teslim) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Tarih (Son Teslim Tarihi ve Saati) *
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                />
               </div>
 
-              {/* RICH HOMEWORK RESOURCES: VIDEO, WEB LINK, PDF */}
+              {/* Video Ekleme, İnternet Linki Ekleme, PDF Ekleme */}
               <HomeworkResourceUploader
                 resources={resources}
                 onChange={setResources}
               />
 
-              {/* Student Assignment: All vs Manual Selection */}
-              <div className="pt-2">
+              {/* Sınıf Seçme */}
+              <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Ödevin Atanacağı Öğrenciler:
+                  Sınıf Seçimi
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (targetClassIds.length === classes.length) {
+                        setTargetClassIds([]);
+                      } else {
+                        setTargetClassIds(classes.map((c) => c.id));
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                      targetClassIds.length === classes.length
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Tüm Sınıflar ({classes.length})
+                  </button>
+                  {classes.map((cls) => {
+                    const isSelected = targetClassIds.includes(cls.id);
+                    return (
+                      <button
+                        key={cls.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setTargetClassIds(targetClassIds.filter((id) => id !== cls.id));
+                          } else {
+                            setTargetClassIds([...targetClassIds, cls.id]);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
+                            : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200'
+                        }`}
+                      >
+                        {cls.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Öğrenci Seçme */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2">
+                  Öğrenci Seçimi
                 </label>
                 <div className="flex items-center space-x-3 mb-3">
                   <button
                     type="button"
-                    onClick={() => setAssigneeMode('all')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                    onClick={() => {
+                      setAssigneeMode('all');
+                      setSelectedStudentIds([]);
+                    }}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                       assigneeMode === 'all'
                         ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
@@ -1697,13 +1664,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={() => setAssigneeMode('custom')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
                       assigneeMode === 'custom'
                         ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🎯 Öğrencileri Elle Tek Tek Seç ({selectedStudentIds.length})
+                    🎯 Öğrenci Seç ({selectedStudentIds.length})
                   </button>
                 </div>
 
@@ -1714,65 +1681,43 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       <button
                         type="button"
                         onClick={handleSelectAllStudents}
-                        className="text-xs text-indigo-400 hover:underline font-semibold"
+                        className="text-xs text-indigo-400 hover:underline font-semibold cursor-pointer"
                       >
                         {selectedStudentIds.length === students.length ? 'Seçimi Kaldır' : 'Tümünü Seç'}
                       </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {students.map((std) => (
-                        <label
-                          key={std.id}
-                          className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer text-xs"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedStudentIds.includes(std.id)}
-                            onChange={() => handleToggleStudent(std.id)}
-                            className="rounded text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <span className="text-white truncate">{std.name}</span>
-                          <span className="text-slate-400 text-[10px]">({std.className})</span>
-                        </label>
-                      ))}
+                      {students
+                        .filter(
+                          (std) =>
+                            targetClassIds.length === 0 ||
+                            (std.classId && targetClassIds.includes(std.classId))
+                        )
+                        .map((std) => (
+                          <label
+                            key={std.id}
+                            className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedStudentIds.includes(std.id)}
+                              onChange={() => handleToggleStudent(std.id)}
+                              className="rounded text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-white truncate">{std.name}</span>
+                            <span className="text-slate-400 text-[10px]">({std.className})</span>
+                          </label>
+                        ))}
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* Requirement Feature Checkbox: Sonradan kayıt olan öğrenci ödevi görebilsin */}
-              <div className="p-3 bg-indigo-950/30 border border-indigo-500/20 rounded-xl flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="global-registration-access"
-                  checked={isGlobalForNewStudents}
-                  onChange={(e) => setIsGlobalForNewStudents(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"
-                />
-                <label htmlFor="global-registration-access" className="text-xs text-slate-300 cursor-pointer">
-                  <strong className="text-indigo-300">Geçmiş Ödev Erişimi:</strong> Sonradan dışarıdan kayıt
-                  olan yeni öğrenciler de bu ödevi otomatik olarak görsün.
-                </label>
-              </div>
-
-              {/* Otomatik Bildirim & E-Posta Bilgilendirme Notu */}
-              <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl flex items-start space-x-2.5 text-xs text-indigo-200">
-                <Mail className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold text-white block">
-                    🔔 Otomatik Sistem Bildirimi ve E-Posta İletimi
-                  </span>
-                  <span>
-                    Bu ödev kaydedildiğinde hedef sınıftaki/seçilen tüm öğrencilere sistem üzerinden anında bildirim düşer ve zengin HTML e-posta otomatik olarak iletilir.
-                  </span>
-                </div>
               </div>
 
               <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1781,7 +1726,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-2 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Ödevi Kaydet & Yayınla</span>
+                  <span>Ödevi Kaydet</span>
                 </button>
               </div>
             </form>
@@ -1803,7 +1748,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </div>
               <button
                 onClick={() => setEditingResourcesHw(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg"
+                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1819,14 +1764,14 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingResourcesHw(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveEditedResources}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5"
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Materyalleri Kaydet</span>
@@ -1836,15 +1781,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           </div>
         </div>
       )}
-
-      {/* EXCEL / DOCX OUTCOME IMPORTER MODAL */}
-      <ExcelDocxOutcomeImporterModal
-        isOpen={isOutcomeImporterOpen}
-        onClose={() => setIsOutcomeImporterOpen(false)}
-        classes={classes}
-        students={students}
-        onImportToNewHomework={handleImportOutcomesToForm}
-      />
 
       {/* EDIT HOMEWORK MODAL */}
       <EditHomeworkModal
@@ -1880,12 +1816,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         itemBadge={homeworkToDelete ? `${homeworkToDelete.subject} • Son Teslim: ${new Date(homeworkToDelete.dueDate).toLocaleDateString('tr-TR')}` : undefined}
         description={`"${homeworkToDelete?.title}" başlıklı ödevi silmek istediğinize emin misiniz? Bu ödeve ait tüm öğrenci teslimleri ve değerlendirmeler de silinecektir.`}
         confirmButtonText="Ödevi Sil"
-      />
-
-      {/* Giden E-Posta & Bildirim İletim Günlüğü */}
-      <SentCommunicationsModal
-        isOpen={isSentCommunicationsOpen}
-        onClose={() => setIsSentCommunicationsOpen(false)}
       />
     </div>
   );

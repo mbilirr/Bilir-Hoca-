@@ -120,7 +120,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const [sessionTimeoutNotice, setSessionTimeoutNotice] = useState<string | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
 
   // 5 Dakika Kullanılmadığında Oturumu Otomatik Sonlandırma
@@ -142,9 +141,6 @@ export default function App() {
           setAuthSession(null);
           setCurrentStudent(null);
           setRole('teacher');
-          setSessionTimeoutNotice(
-            '5 dakika boyunca işlem yapılmadığı için oturumunuz güvenlik nedeniyle otomatik olarak sonlandırılmıştır. Lütfen tekrar giriş yapınız.'
-          );
         }
       }
     }, 5000);
@@ -157,7 +153,6 @@ export default function App() {
 
   // Handle successful login or registration from AuthPortal
   const handleAuthSuccess = (session: AuthSession) => {
-    setSessionTimeoutNotice(null);
     setAuthSession(session);
     if (session.role === 'teacher') {
       setRole('teacher');
@@ -192,7 +187,6 @@ export default function App() {
     setAuthSession(null);
     setCurrentStudent(null);
     setRole('teacher');
-    setSessionTimeoutNotice(null);
   };
 
   const handleOpenStudentLogin = () => {
@@ -224,7 +218,6 @@ export default function App() {
         classes={classes}
         students={students}
         teachers={dataService.getTeachers()}
-        sessionTimeoutMessage={sessionTimeoutNotice}
       />
     );
   }
@@ -320,18 +313,9 @@ export default function App() {
             {/* SEÇİLİ ÇALIŞMA MODÜLÜ: Çalışma modülü butonundan hangi bölüm seçildiyse sayfada SADECE o bölüm gözükür */}
             {teacherTab !== 'home' && (
               <div className="space-y-4">
-                {/* Ana Sayfaya Dönüş Üst Çubuğu / Navigasyon Başlığı */}
+                {/* Navigasyon Başlığı & Ana Sayfaya Dönüş */}
                 <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3 shadow-md">
-                  <div className="flex items-center space-x-2.5 text-xs sm:text-sm">
-                    <button
-                      type="button"
-                      onClick={() => setTeacherTab('home')}
-                      className="flex items-center space-x-1.5 text-indigo-400 hover:text-indigo-300 font-bold transition-colors cursor-pointer"
-                    >
-                      <Home className="w-4 h-4" />
-                      <span>Ana Sayfa</span>
-                    </button>
-                    <span className="text-slate-600">/</span>
+                  <div className="flex items-center space-x-2 text-xs sm:text-sm">
                     <span className="text-white font-black tracking-wide">
                       {teacherTab === 'students' && 'Öğrenci & Sınıf Yönetimi'}
                       {teacherTab === 'homework' && 'Kazanım & Ödev Takibi'}
@@ -348,7 +332,7 @@ export default function App() {
                     className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white text-xs font-bold transition-all border border-slate-700 hover:border-slate-600 cursor-pointer shadow-sm"
                   >
                     <ArrowLeft className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Ana Sayfaya Dön (Ajanda & Özetler)</span>
+                    <span>Ana Sayfaya Dön</span>
                   </button>
                 </div>
 

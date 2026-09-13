@@ -293,9 +293,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     : 'Sınıf & Ders Seçiniz'}
                 </span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Sınav notlarını ve yoklama kayıtlarını iç içe açılır akordeon menülerden sade ve hızlıca yönetin.
-              </p>
             </div>
           </div>
         </div>
@@ -744,9 +741,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     <h3 className="text-xs sm:text-sm font-bold text-white flex items-center space-x-2">
                       <span>Sınıf Not Giriş Çizelgesi ({classStudents.length} Öğrenci)</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">
-                      Öğrencilerin notlarını giriniz ve kaydetmek için sayfanın altındaki "Notları Kaydet" butonuna tıklayınız.
-                    </p>
                   </div>
                 </div>
 
@@ -910,9 +904,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       </span>
                     )}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Öğrenci durumlarını seçip sağ üstteki butondan tek tıkla kaydedin.
-                  </p>
                 </div>
               </button>
 
@@ -1146,9 +1137,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       {classAttendanceRecords.length} Oturum
                     </span>
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Tarihe göre gruplanmış kayıtları aşağı doğru açarak öğrenci bazında detayları inceleyin.
-                  </p>
                 </div>
               </div>
 

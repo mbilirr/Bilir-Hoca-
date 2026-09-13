@@ -34,11 +34,12 @@ export interface Student {
   id: string;
   name: string;
   username: string;
-  email: string;
+  email?: string;
   password?: string;
   classId: string;
   className: string;
-  studentNumber: string;
+  branch?: string;
+  studentNumber?: string;
   phone?: string;
   avatar?: string;
   createdAt: string;
@@ -79,6 +80,7 @@ export interface Homework {
   assignedTo: 'all' | string[]; // 'all' or student IDs
   targetClassIds?: string[]; // Target class IDs (if class-scoped)
   attachmentUrl?: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
   resources?: HomeworkResource[]; // Video, Internet Link, and PDF resources
   isGlobalForNewStudents: boolean; // Bir öğrenci sonradan kayıt olmuş ise daha önceki ödevleri de görebilir
   createdByName?: string;
@@ -231,6 +233,7 @@ export interface TeacherDocument {
   uploadedBy: string;
   authorName?: string;
   academicYear?: string;
+  schoolType?: 'Ortaokul' | 'Lise' | 'Diğer';
   subject: string;
   gradeLevel?: string;
   tags?: string[];

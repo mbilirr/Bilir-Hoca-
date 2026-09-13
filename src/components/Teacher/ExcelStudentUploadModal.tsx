@@ -454,9 +454,6 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                   .xlsx / .xls / .csv
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Öğrencilerin isim, soyisim ve sınıflarını tek seferde toplu olarak aktarın ve yönetin.
-              </p>
             </div>
           </div>
 
@@ -577,11 +574,8 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600/20 to-indigo-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-inner">
                 <FileSpreadsheet className="w-8 h-8" />
               </div>
-              <p className="text-base font-semibold text-white mb-1">
+              <p className="text-base font-semibold text-white mb-3">
                 {fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
-              </p>
-              <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-                veya bilgisayarınızdan dosya seçmek için tıklayın. İsim, Soyisim, Sınıf ve No sütunları otomatik tanınır.
               </p>
               <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-indigo-300 border border-slate-700">
                 <Upload className="w-3.5 h-3.5" />
@@ -624,9 +618,6 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     <Users className="w-4 h-4 text-indigo-400" />
                     <span>Önizleme ve Aktarım Ayarları ({parsedRows.length} Öğrenci)</span>
                   </h4>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Sınıfı bulunmayan öğrenciler için varsayılan sınıfı seçebilir veya yeni sınıfların otomatik açılmasını sağlayabilirsiniz.
-                  </p>
                 </div>
 
                 <div className="flex items-center space-x-3">

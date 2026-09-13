@@ -61,6 +61,7 @@ export interface NavbarProps {
 interface NavItemConfig {
   id: TeacherTabType;
   title: string;
+  shortTitle: string;
   icon: React.ComponentType<{ className?: string }>;
   accentColor: string;
 }
@@ -69,36 +70,42 @@ const NAV_ITEMS: NavItemConfig[] = [
   {
     id: 'students',
     title: 'Öğrenci & Sınıf Yönetimi',
+    shortTitle: 'Öğrenci & Sınıf',
     icon: Users,
     accentColor: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
   },
   {
     id: 'homework',
-    title: 'Kazanım Odaklı Ödev Çizelgesi',
+    title: 'Ödev Kontrol',
+    shortTitle: 'Ödev Kontrol',
     icon: BookOpen,
     accentColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
   },
   {
     id: 'etuts',
     title: 'Etüt & Birebir Takip',
+    shortTitle: 'Etüt Takip',
     icon: CalendarDays,
     accentColor: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
   },
   {
     id: 'grades',
     title: 'Ders Notları & Devamsızlık',
+    shortTitle: 'Not & Devamsızlık',
     icon: FileSpreadsheet,
     accentColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
   },
   {
     id: 'messages',
     title: 'Öğrenci Soruları & Mesajlaşma',
+    shortTitle: 'Mesajlar',
     icon: MessageSquare,
     accentColor: 'text-rose-400 bg-rose-500/15 border-rose-500/30',
   },
   {
     id: 'archive',
     title: 'Plan & Zümre Arşivi',
+    shortTitle: 'Zümre Arşivi',
     icon: FolderArchive,
     accentColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
   },
@@ -156,10 +163,26 @@ export const Navbar: React.FC<NavbarProps> = ({
   const activeModuleItem = NAV_ITEMS.find((item) => item.id === activeModuleId);
   const DisplayModuleIcon = activeModuleItem ? activeModuleItem.icon : LayoutGrid;
   const buttonDisplayTitle = activeModuleItem ? activeModuleItem.title : 'Çalışma Alanını Seçiniz';
+  const buttonShortDisplayTitle = activeModuleItem ? activeModuleItem.shortTitle : 'Çalışma Alanı';
   const isHomeActive = activeTeacherTab === 'home' || (!activeTeacherTab && !selectedTeacherTab);
 
   const currentTeacher = isTeacherSession ? (authSession.user as Teacher) : null;
   const activeStudent = isStudentSession ? (authSession.user as Student) : currentStudent;
+
+  const teacherName = currentTeacher?.name || '';
+  const teacherBranch = currentTeacher?.branch || 'Fen Bilgisi Öğretmeni';
+  const nameLen = teacherName.length;
+  const teacherNameFontClass =
+    nameLen > 24
+      ? 'text-[10px] sm:text-[11px] md:text-xs'
+      : nameLen > 16
+      ? 'text-[11px] sm:text-xs md:text-[13px]'
+      : 'text-xs sm:text-[13px] md:text-sm';
+  const branchLen = teacherBranch.length;
+  const teacherBranchFontClass =
+    branchLen > 22
+      ? 'text-[8.5px] sm:text-[9px] md:text-[10px]'
+      : 'text-[9px] sm:text-[10px] md:text-[11px]';
 
   const teacherInitials = currentTeacher?.name
     ? currentTeacher.name
@@ -223,42 +246,51 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-[4.25rem] py-2 gap-3">
+      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between min-h-[4rem] py-1.5 gap-2 sm:gap-3 flex-nowrap w-full">
           {/* Logo & Modül Butonu: Kep Resminin Yanında Tam Solda Çalışma Modülü */}
-          <div className="flex items-center space-x-2.5 sm:space-x-3.5 flex-wrap">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-nowrap min-w-0 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTeacherTab(null);
+                onSelectTeacherTab && onSelectTeacherTab('home');
+              }}
+              title="Ana Sayfaya Git (Ajanda & Özetler)"
+              className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all"
+            >
+              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            </button>
 
             {isTeacherSession && currentTeacher ? (
-              <div className="flex items-center space-x-2 sm:space-x-2.5 flex-wrap gap-y-1.5">
+              <div className="flex items-center space-x-2 flex-nowrap min-w-0">
                 {/* Öğretmen Çalışma Modül Butonu: Tam Solda, Turuncu Yanan Sönen Işık Efektli */}
                 {onSelectTeacherTab && (
-                  <div className="relative" ref={moduleDropdownRef}>
+                  <div className="relative shrink-0" ref={moduleDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setIsModuleOpen(!isModuleOpen)}
                       aria-expanded={isModuleOpen}
                       aria-haspopup="true"
                       id="teacher-module-sticky-btn"
-                      className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-2 sm:space-x-2.5 transition-all cursor-pointer border-2 shadow-lg ${
+                      className={`px-2 sm:px-3 lg:px-3.5 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer border-2 shadow-lg whitespace-nowrap shrink-0 ${
                         isModuleOpen
-                          ? 'bg-orange-600 text-white border-orange-400 shadow-orange-500/50 ring-2 ring-orange-400/60 scale-[1.02]'
+                          ? 'bg-orange-600 text-white border-orange-400 shadow-orange-500/50 ring-2 ring-orange-400/60 scale-[1.01]'
                           : 'bg-gradient-to-r from-orange-950/70 via-slate-900 to-orange-950/70 hover:from-orange-900/80 hover:to-slate-850 text-white border-orange-500/85 hover:border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.45)] hover:shadow-[0_0_30px_rgba(249,115,22,0.7)]'
                       }`}
                     >
                       {/* Turuncu Yanıp Sönen Canlı Işık Efekti */}
-                      <span className="relative flex h-3.5 w-3.5 shrink-0" title="Aktif Çalışma Işığı">
+                      <span className="relative flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 shrink-0" title="Aktif Çalışma Işığı">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-90 duration-1000"></span>
                         <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-[0_0_14px_#f97316] ring-2 ring-amber-200"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-[0_0_14px_#f97316] ring-2 ring-amber-200"></span>
                       </span>
 
-                      <div className="flex items-center space-x-2">
-                        <span className="px-2.5 py-1 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 font-black text-xs sm:text-sm shadow-md flex items-center space-x-1.5">
+                      <div className="flex items-center space-x-1 sm:space-x-1.5">
+                        <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 font-black text-[11px] sm:text-xs md:text-sm shadow-md flex items-center space-x-1 sm:space-x-1.5">
                           <DisplayModuleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950 stroke-[2.5]" />
-                          <span className="tracking-tight">{buttonDisplayTitle}</span>
+                          <span className="hidden lg:inline tracking-tight">{buttonDisplayTitle}</span>
+                          <span className="lg:hidden tracking-tight">{buttonShortDisplayTitle}</span>
                         </span>
                       </div>
 
@@ -274,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       )}
 
                       <ChevronDown
-                        className={`w-4 h-4 text-orange-300 transition-transform duration-200 shrink-0 ${
+                        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-300 transition-transform duration-200 shrink-0 ${
                           isModuleOpen ? 'rotate-180 text-white' : ''
                         }`}
                       />
@@ -290,31 +322,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <span>Öğretmen Çalışma Modülleri</span>
                           <span className="text-[10px] text-indigo-400 font-semibold">6 Modül</span>
                         </div>
-
-                        {/* Hızlı Ana Sayfa Seçeneği */}
-                        <button
-                          role="menuitem"
-                          type="button"
-                          onClick={() => {
-                            setSelectedTeacherTab(null);
-                            onSelectTeacherTab('home');
-                            setIsModuleOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between group cursor-pointer mb-1 border ${
-                            isHomeActive
-                              ? 'bg-indigo-600/30 text-indigo-200 border-indigo-500/50 shadow-sm'
-                              : 'text-slate-300 hover:text-white hover:bg-slate-800/80 border-slate-800/80'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <div className="w-6 h-6 rounded-lg flex items-center justify-center border shrink-0 text-indigo-300 bg-indigo-500/20 border-indigo-500/40">
-                              <Home className="w-3.5 h-3.5" />
-                            </div>
-                            <span className="font-extrabold text-white">Ana Sayfa (Ajanda & Özetler)</span>
-                          </div>
-                          {isHomeActive && <Check className="w-4 h-4 text-indigo-400 font-black shrink-0" />}
-                        </button>
-                        <div className="h-px bg-slate-800 my-1.5" />
 
                         <div className="space-y-1">
                           {NAV_ITEMS.map((item, index) => {
@@ -372,27 +379,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     )}
                   </div>
                 )}
-
-                {/* Ana Sayfa Butonu: Modül Butonunun Yanında */}
-                {onSelectTeacherTab && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTeacherTab(null);
-                      onSelectTeacherTab('home');
-                    }}
-                    id="teacher-navbar-home-btn"
-                    className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer border-2 shadow-md ${
-                      isHomeActive
-                        ? 'bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-600 text-white border-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.5)] ring-2 ring-indigo-400/50 scale-[1.02]'
-                        : 'bg-slate-800/90 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700 hover:border-slate-600'
-                    }`}
-                    title="Ana Sayfa (Ajanda ve Durum Özetleri Duvarı)"
-                  >
-                    <Home className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isHomeActive ? 'text-white' : 'text-indigo-400'}`} />
-                    <span>Ana Sayfa</span>
-                  </button>
-                )}
               </div>
             ) : isStudentSession && activeStudent ? (
               <div className="flex flex-col text-left">
@@ -425,19 +411,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Calendar className="w-4 h-4" />
             </a>
 
-            {/* Admin Pending Teachers Notification Button */}
-            {isTeacherSession && currentTeacher?.isAdmin && pendingTeachersCount > 0 && (
+            {/* Admin Teachers & Permissions Management Button */}
+            {isTeacherSession && currentTeacher?.isAdmin && (
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all animate-pulse cursor-pointer shadow-sm shadow-amber-500/20"
-                title="Onay Bekleyen Öğretmen Başvuruları"
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                  pendingTeachersCount > 0
+                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 animate-pulse shadow-amber-500/20'
+                    : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
+                }`}
+                title="Öğretmen Başvuruları & Yönetici Yetkilendirme"
               >
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-                <span className="hidden sm:inline">Onay Bekleyen:</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-extrabold">
-                  {pendingTeachersCount}
+                <ShieldCheck className={`w-4 h-4 ${pendingTeachersCount > 0 ? 'text-amber-400' : 'text-indigo-400'}`} />
+                <span className="hidden sm:inline">
+                  {pendingTeachersCount > 0 ? 'Onay Bekleyen:' : 'Öğretmen Yönetimi'}
                 </span>
+                {pendingTeachersCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-extrabold">
+                    {pendingTeachersCount}
+                  </span>
+                )}
               </button>
             )}
 
@@ -492,11 +486,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 {/* 2. Öğretmen Bilgileri ve Menü Butonu (İçinden Resim Silindi) */}
-                <div className="relative" ref={teacherMenuRef}>
+                <div className="relative shrink-0" ref={teacherMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsTeacherMenuOpen(!isTeacherMenuOpen)}
-                    className={`flex items-center space-x-2.5 px-3 py-1.5 sm:py-2 rounded-2xl border transition-all cursor-pointer shadow-sm ${
+                    className={`flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0 ${
                       isTeacherMenuOpen
                         ? 'bg-slate-800/95 border-indigo-500 text-white ring-2 ring-indigo-500/30'
                         : 'bg-gradient-to-b from-slate-850 to-slate-900 hover:from-slate-800 hover:to-slate-850 border-slate-700/80 hover:border-indigo-400 text-slate-200 hover:text-white'
@@ -505,16 +499,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     id="navbar-teacher-profile-dropdown-btn"
                   >
                     {/* Öğretmen İsmi ve Branş Yazısı */}
-                    <div className="flex flex-col text-left justify-center min-w-0 pr-1">
-                      <span className="text-xs sm:text-sm font-black text-white tracking-wide uppercase leading-tight truncate">
-                        {currentTeacher.name}
+                    <div className="flex flex-col text-left justify-center min-w-max pr-0.5">
+                      <span className={`${teacherNameFontClass} font-black text-white tracking-tight uppercase leading-tight whitespace-nowrap`}>
+                        {teacherName}
                       </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-amber-300 leading-tight truncate mt-0.5">
-                        {currentTeacher.branch
-                          ? currentTeacher.branch.includes('Öğretmen')
-                            ? currentTeacher.branch
-                            : `${currentTeacher.branch} Öğretmeni`
-                          : 'Öğretmen Hesabı'}
+                      <span className={`${teacherBranchFontClass} font-bold text-amber-300 leading-tight whitespace-nowrap mt-0.5`}>
+                        {teacherBranch}
                       </span>
                     </div>
 

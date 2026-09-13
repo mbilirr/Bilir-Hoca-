@@ -34,7 +34,6 @@ interface AuthPortalProps {
   classes: ClassGroup[];
   students: Student[];
   teachers: Teacher[];
-  sessionTimeoutMessage?: string | null;
 }
 
 export const AuthPortal: React.FC<AuthPortalProps> = ({
@@ -42,7 +41,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   classes,
   students,
   teachers,
-  sessionTimeoutMessage,
 }) => {
   // Main view mode: 'login' | 'register'
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -77,11 +75,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [loginUsername, setLoginUsername] = useState(() => {
     const rem = dataService.getRememberedUser();
     if (rem?.role === 'teacher') return rem.identifier;
-    return primaryTeacher?.username || 'mbilir';
+    return '';
   });
-  const [loginPassword, setLoginPassword] = useState(() => {
-    return primaryTeacher?.password || '1234';
-  });
+  const [loginPassword, setLoginPassword] = useState('');
 
   // --- TEACHER REGISTER STATE ---
   const [tRegName, setTRegName] = useState('');
@@ -95,9 +91,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [sRegName, setSRegName] = useState('');
   const [sRegUsername, setSRegUsername] = useState('');
   const [sRegClassId, setSRegClassId] = useState(classes[0]?.id || '');
-  const [sRegStudentNumber, setSRegStudentNumber] = useState('');
-  const [sRegEmail, setSRegEmail] = useState('');
+  const [sRegBranch, setSRegBranch] = useState('');
   const [sRegPhone, setSRegPhone] = useState('');
+  const [sRegEmail, setSRegEmail] = useState('');
   const [sRegPassword, setSRegPassword] = useState('');
   const [sRegConfirmPassword, setSRegConfirmPassword] = useState('');
   const [selectedAvatarSeed, setSelectedAvatarSeed] = useState('Zeynep');
@@ -109,15 +105,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setSelectedRole(role);
     setError(null);
     setSuccessMsg(null);
-    if (role === 'teacher') {
-      const activeTeach = teachers.find((t) => t.status === 'approved') || teachers[0];
-      setLoginUsername(rememberedUser?.role === 'teacher' ? rememberedUser.identifier : (activeTeach?.username || 'mbilir'));
-      setLoginPassword(activeTeach?.password || '1234');
+    if (rememberedUser?.role === role) {
+      setLoginUsername(rememberedUser.identifier);
     } else {
-      const activeStd = students[0];
-      setLoginUsername(rememberedUser?.role === 'student' ? rememberedUser.identifier : (activeStd?.username || 'zeynepk'));
-      setLoginPassword('123');
+      setLoginUsername('');
     }
+    setLoginPassword('');
   };
 
   // --- QUICK LOGIN FOR REMEMBERED USER ---
@@ -223,7 +216,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             setSuccessMsg(`Hoş geldiniz Sn. ${teacher.name}! Panele yönlendiriliyorsunuz...`);
             setTimeout(() => onAuthSuccess(session), 400);
           } else {
-            setError('Öğretmen kullanıcı adı veya şifre hatalı! (Varsayılan test: mbilir / 1234)');
+            setError('Öğretmen kullanıcı adı veya şifre hatalı! Lütfen kontrol edip tekrar deneyiniz.');
           }
         } catch (err: any) {
           setError(err.message || 'Giriş yapılamadı.');
@@ -252,7 +245,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           setTimeout(() => onAuthSuccess(session), 400);
         } else {
           setError(
-            'Öğrenci bulunamadı veya şifre hatalı! (Kullanıcı adı, e-posta veya öğrenci no kullanabilirsiniz. Test: zeynepk / 123)'
+            'Öğrenci bulunamadı veya şifre hatalı! Lütfen bilgilerinizi kontrol ediniz.'
           );
         }
       }
@@ -303,13 +296,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       }
 
       setIsLoading(false);
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
 
       // In accordance with: "yeni kayıt olan öğretmenler kayıt olduktan sonra admin tarafından onaylanmadan sayfa açılmasın."
-      // Do NOT log in automatically. Direct to login tab with clear explanation banner.
-      setSuccessMsg(
-        `🎉 Tebrikler Sn. ${newTeacher.name}! Öğretmen kayıt başvurunuz başarıyla oluşturuldu. Güvenlik politikamız gereğince hesabınız yönetici (admin) tarafından onaylandıktan sonra aktif olacaktır. Onaylandıktan sonra bu ekrandan şifrenizle giriş yapabilirsiniz.`
-      );
+      setSuccessMsg('Kayıt başvurunuz alındı. Yönetici onayından sonra giriş yapabilirsiniz.');
       setAuthMode('login');
       setSelectedRole('teacher');
       setLoginUsername(newTeacher.username);
@@ -326,8 +315,25 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    if (!sRegName.trim() || !sRegUsername.trim() || !sRegPassword.trim()) {
-      setError('Lütfen zorunlu alanları (Ad Soyad, Kullanıcı Adı, Şifre) doldurunuz.');
+    // Zorunlu alanlar: Adı Soyadı, Kullanıcı Adı, Sınıf, Şifre, Şifre Tekrar
+    if (!sRegName.trim()) {
+      setError('Lütfen Adı Soyadı alanını doldurunuz.');
+      return;
+    }
+    if (!sRegUsername.trim()) {
+      setError('Lütfen Kullanıcı Adı alanını doldurunuz.');
+      return;
+    }
+    if (!sRegClassId.trim()) {
+      setError('Lütfen Sınıf seçiniz.');
+      return;
+    }
+    if (!sRegPassword.trim()) {
+      setError('Lütfen Şifre alanını doldurunuz.');
+      return;
+    }
+    if (!sRegConfirmPassword.trim()) {
+      setError('Lütfen Şifre Tekrar alanını doldurunuz.');
       return;
     }
 
@@ -341,24 +347,19 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       return;
     }
 
-    const selectedClass = classes.find((c) => c.id === sRegClassId) || classes[0];
+    const selectedClass = classes.find((c) => c.id === sRegClassId || c.name === sRegClassId);
 
     try {
       setIsLoading(true);
-      const generatedNumber =
-        sRegStudentNumber.trim() || `${Math.floor(1000 + Math.random() * 9000)}`;
-      const fallbackEmail =
-        sRegEmail.trim() ||
-        `${sRegUsername.trim().toLowerCase()}${Math.floor(10 + Math.random() * 90)}@okul.k12.tr`;
 
       const newStudent = dataService.registerStudent({
         name: sRegName.trim(),
         username: sRegUsername.trim().toLowerCase(),
-        email: fallbackEmail,
+        email: sRegEmail.trim() || '',
         password: sRegPassword,
         classId: selectedClass ? selectedClass.id : 'class-12a',
-        className: selectedClass ? selectedClass.name : '12-A Sayısal',
-        studentNumber: generatedNumber,
+        className: selectedClass ? selectedClass.name : (sRegClassId || '12-A Sayısal'),
+        branch: sRegBranch.trim() || (selectedClass ? selectedClass.branch : ''),
         phone: sRegPhone.trim() || '',
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
           selectedAvatarSeed || sRegName
@@ -379,9 +380,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       const session: AuthSession = { role: 'student', user: newStudent };
       dataService.setAuthSession(session);
 
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
-      setSuccessMsg(`Tebrikler ${newStudent.name}, öğrenci kaydınız tamamlandı! Portala aktarılıyorsunuz...`);
-      setTimeout(() => onAuthSuccess(session), 600);
+      onAuthSuccess(session);
     } catch (err: any) {
       setIsLoading(false);
       setError(err.message || 'Öğrenci kaydı sırasında bir hata oluştu.');
@@ -423,14 +422,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             </p>
           </div>
         </div>
-
-        {/* Quick Demo Helper Hint */}
-        <div className="hidden md:flex items-center space-x-2 text-xs text-slate-200 bg-slate-900/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-indigo-500/30 shadow-lg">
-          <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
-          <span>Öğretmen: <strong className="text-indigo-300">{primaryTeacher ? primaryTeacher.username : 'mbilir'}</strong> / <strong className="text-indigo-300">{primaryTeacher ? (primaryTeacher.password || '1234') : '1234'}</strong></span>
-          <span className="text-slate-600">•</span>
-          <span>Öğrenci: <strong className="text-pink-300">{primaryStudent ? primaryStudent.username : 'zeynepk'}</strong> / <strong className="text-pink-300">{primaryStudent ? (primaryStudent.password || '123') : '123'}</strong></span>
-        </div>
       </header>
 
       {/* Main Center Authentication Card */}
@@ -439,18 +430,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           {/* Top Decorative Color Line */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
-          {/* SESSION TIMEOUT WARNING (5 Dakika Hareketsizlik Uyarısı) */}
-          {sessionTimeoutMessage && (
-            <div className="mb-5 p-4 bg-amber-500/15 border-2 border-amber-500/40 rounded-2xl flex items-start space-x-3 text-amber-200 text-xs sm:text-sm animate-bounce shadow-lg shadow-amber-500/10">
-              <Clock className="w-5 h-5 flex-shrink-0 text-amber-400 mt-0.5" />
-              <div>
-                <p className="font-bold text-amber-300">Oturum Süresi Doldu</p>
-                <p className="text-amber-200/90 mt-0.5">{sessionTimeoutMessage}</p>
-              </div>
-            </div>
-          )}
-
-          {/* BENİ HATIRLA - KOLAY HIZLI GİRİŞ KARTI */}
+          {/* BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
           {rememberedUser && (
             <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-indigo-950/80 via-purple-950/60 to-slate-900/90 border-2 border-indigo-500/40 shadow-xl relative overflow-hidden">
               <div className="flex items-center justify-between">
@@ -490,10 +470,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     onClick={handleQuickRememberedLogin}
                     disabled={isLoading}
                     className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-400 hover:via-orange-400 hover:to-rose-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/25 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
-                    title="Şifre girmeden tek tıkla kolay giriş yap"
                   >
                     <Zap className="w-4 h-4 fill-slate-950" />
-                    <span>Kolay Giriş Yap</span>
+                    <span>Giriş Yap</span>
                   </button>
 
                   <button
@@ -621,7 +600,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     value={loginUsername}
                     onChange={(e) => setLoginUsername(e.target.value)}
                     placeholder={
-                      selectedRole === 'teacher' ? 'mbilir veya m.bilirr@gmail.com' : 'zeynepk veya 1042'
+                      selectedRole === 'teacher' ? 'Kullanıcı adı veya e-posta' : 'Kullanıcı adı, e-posta veya no'
                     }
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
@@ -631,9 +610,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-bold text-slate-200">Şifre *</label>
-                  <span className="text-[11px] text-slate-400">
-                    {selectedRole === 'teacher' ? 'Varsayılan: 1234' : 'Varsayılan: 123'}
-                  </span>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -666,11 +642,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950/80 cursor-pointer accent-indigo-600"
                   />
-                  <span>Beni Hatırla (Sonraki girişlerde kolay tek tıkla bağlan)</span>
+                  <span>Beni Hatırla</span>
                 </label>
               </div>
 
-              {/* Submit Button (Canlı & Enerjik Buton) */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -683,55 +659,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   </span>
                 ) : (
                   <>
-                    <span>
-                      {selectedRole === 'teacher' ? 'Öğretmen Paneline Giriş Yap' : 'Öğrenci Portalı Girişi'}
-                    </span>
+                    <span>Giriş Yap</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
-
-              {/* Fast Test Credentials Pill Buttons */}
-              <div className="pt-4 border-t border-slate-800/80">
-                <p className="text-[11px] text-slate-400 mb-2 font-semibold">Hızlı Test İçin Tek Tıkla Doldur:</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole('teacher');
-                      setLoginUsername('mbilir');
-                      setLoginPassword('1234');
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    👑 Öğretmen: mbilir / 1234
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole('student');
-                      setLoginUsername('zeynepk');
-                      setLoginPassword('123');
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-pink-500/15 hover:bg-pink-500/25 border border-pink-500/30 text-pink-300 text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    🎒 Öğrenci: zeynepk / 123
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRole('student');
-                      setLoginUsername('emirb');
-                      setLoginPassword('123');
-                    }}
-                    className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-xs font-semibold transition-all cursor-pointer"
-                  >
-                    🎒 Öğrenci: emirb / 123
-                  </button>
-                </div>
-              </div>
             </form>
           )}
 
@@ -872,7 +804,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 cursor-pointer accent-indigo-600"
                     />
                     <label htmlFor="t-remember" className="text-xs font-semibold text-slate-300 cursor-pointer">
-                      Beni hatırla (Kayıt olduktan sonra bilgileri bu tarayıcıda sakla)
+                      Beni Hatırla
                     </label>
                   </div>
 
@@ -882,30 +814,31 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-extrabold rounded-2xl shadow-xl shadow-indigo-600/30 flex items-center justify-center space-x-2 text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Öğretmen Başvurusunu Tamamla (Admin Onayına Gönder)</span>
+                    <span>Kayıt Ol</span>
                   </button>
                 </form>
               ) : (
                 /* STUDENT REGISTRATION FORM */
                 <form onSubmit={handleStudentRegister} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1">
-                      Öğrenci Ad Soyad *
-                    </label>
-                    <div className="relative">
-                      <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                      <input
-                        type="text"
-                        required
-                        value={sRegName}
-                        onChange={(e) => setSRegName(e.target.value)}
-                        placeholder="Örn: Mert Yılmaz"
-                        className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                      />
-                    </div>
-                  </div>
-
+                  {/* 1. Adı Soyadı & Kullanıcı Adı (Zorunlu) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-200 mb-1">
+                        Adı Soyadı *
+                      </label>
+                      <div className="relative">
+                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="text"
+                          required
+                          value={sRegName}
+                          onChange={(e) => setSRegName(e.target.value)}
+                          placeholder="Ad Soyad"
+                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-bold text-slate-200 mb-1">
                         Kullanıcı Adı *
@@ -917,65 +850,50 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           required
                           value={sRegUsername}
                           onChange={(e) => setSRegUsername(e.target.value)}
-                          placeholder="merty"
+                          placeholder="kullaniciadi"
                           className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
                         />
                       </div>
                     </div>
+                  </div>
 
+                  {/* 2. Sınıf (Zorunlu) & Şube (İsteğe Bağlı) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Sınıf Şubesi *</label>
+                      <label className="block text-xs font-bold text-slate-200 mb-1">Sınıf *</label>
                       <div className="relative">
                         <School className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                         <select
+                          required
                           value={sRegClassId}
                           onChange={(e) => setSRegClassId(e.target.value)}
                           className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
                         >
+                          <option value="">Sınıf Seçiniz *</option>
                           {classes.map((cls) => (
                             <option key={cls.id} value={cls.id}>
-                              {cls.name} ({cls.branch})
+                              {cls.name}
                             </option>
                           ))}
                         </select>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Okul / Öğrenci No (Opsiyonel)
-                      </label>
-                      <div className="relative">
-                        <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="text"
-                          value={sRegStudentNumber}
-                          onChange={(e) => setSRegStudentNumber(e.target.value)}
-                          placeholder="Örn: 2045"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </div>
 
                     <div>
                       <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Telefon (Veli / Öğrenci)
+                        Şube (İsteğe Bağlı)
                       </label>
-                      <div className="relative">
-                        <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="tel"
-                          value={sRegPhone}
-                          onChange={(e) => setSRegPhone(e.target.value)}
-                          placeholder="05XX XXX XX XX"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
+                      <input
+                        type="text"
+                        value={sRegBranch}
+                        onChange={(e) => setSRegBranch(e.target.value)}
+                        placeholder="Örn: A, B veya Sayısal"
+                        className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
+                      />
                     </div>
                   </div>
 
+                  {/* 3. Şifre * & Şifre Tekrar * (Zorunlu) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-200 mb-1">Şifre *</label>
@@ -1022,6 +940,41 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </div>
                   </div>
 
+                  {/* 4. Telefon (İsteğe Bağlı) & Mail (İsteğe Bağlı) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-200 mb-1">
+                        Telefon (İsteğe Bağlı)
+                      </label>
+                      <div className="relative">
+                        <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="tel"
+                          value={sRegPhone}
+                          onChange={(e) => setSRegPhone(e.target.value)}
+                          placeholder="05XX XXX XX XX"
+                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-200 mb-1">
+                        Mail (İsteğe Bağlı)
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                        <input
+                          type="email"
+                          value={sRegEmail}
+                          onChange={(e) => setSRegEmail(e.target.value)}
+                          placeholder="ornek@mail.com"
+                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Avatar Seçimi */}
                   <div>
                     <label className="block text-xs font-bold text-slate-200 mb-1.5">
@@ -1061,7 +1014,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       className="w-4 h-4 rounded border-slate-700 text-pink-600 focus:ring-pink-500 bg-slate-950 cursor-pointer accent-pink-600"
                     />
                     <label htmlFor="s-remember" className="text-xs font-semibold text-slate-300 cursor-pointer">
-                      Beni hatırla (Kayıt olduktan sonra kolay giriş için cihazda sakla)
+                      Beni Hatırla
                     </label>
                   </div>
 
@@ -1071,7 +1024,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl shadow-xl shadow-pink-600/30 flex items-center justify-center space-x-2 text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                   >
                     <BookOpen className="w-4 h-4" />
-                    <span>Öğrenci Olarak Kayıt Ol & Doğrudan Başla</span>
+                    <span>Kayıt Ol</span>
                   </button>
                 </form>
               )}

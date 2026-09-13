@@ -60,13 +60,6 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Helper for quick presets
-  const handleApplyPresetLink = (preset: { title: string; url: string; desc: string }) => {
-    setLinkTitle(preset.title);
-    setLinkUrl(preset.url);
-    setLinkDescription(preset.desc);
-  };
-
   // Video File Upload Handler
   const handleVideoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -251,11 +244,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center space-x-2">
             <Film className="w-4 h-4 text-indigo-400" />
-            <span>Ödev Materyalleri (Video, Link, PDF)</span>
+            <span>Ödev Materyalleri (Video, İnternet Linki, PDF)</span>
           </span>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            Öğrencilerin ödevi yaparken faydalanacağı video dersleri, kaynak linkleri ve PDF testlerini ekleyin.
-          </p>
         </div>
 
         {resources.length > 0 && (
@@ -297,7 +287,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }`}
         >
           <Video className="w-3.5 h-3.5" />
-          <span>1. Video Ekle</span>
+          <span>Video Ekle</span>
         </button>
 
         <button
@@ -313,7 +303,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }`}
         >
           <Globe className="w-3.5 h-3.5" />
-          <span>2. İnternet Linki</span>
+          <span>İnternet Linki Ekle</span>
         </button>
 
         <button
@@ -329,7 +319,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>3. PDF Yükle</span>
+          <span>PDF Ekle</span>
         </button>
       </div>
 
@@ -445,62 +435,6 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       {/* TAB CONTENT 2: WEB LINK */}
       {activeTab === 'link' && (
         <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
-          <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-400">
-            <span>Hızlı Şablonlar:</span>
-            <button
-              type="button"
-              onClick={() =>
-                handleApplyPresetLink({
-                  title: 'MEB Ölçme & Değerlendirme Kazanım Testleri',
-                  url: 'https://odsgm.meb.gov.tr/kurslar/',
-                  desc: 'Milli Eğitim Bakanlığı resmi kazanım kavrama testleri havuzu',
-                })
-              }
-              className="px-2 py-0.5 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-500/30 rounded transition-colors"
-            >
-              MEB Kazanım Testleri
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleApplyPresetLink({
-                  title: 'EBA Eğitim Bilişim Ağı Ders İçeriği',
-                  url: 'https://www.eba.gov.tr',
-                  desc: 'EBA interaktif konu anlatım ve soru havuzu',
-                })
-              }
-              className="px-2 py-0.5 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-500/30 rounded transition-colors"
-            >
-              EBA
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleApplyPresetLink({
-                  title: 'GeoGebra İnteraktif Matematik & Geometri',
-                  url: 'https://www.geogebra.org/calculator',
-                  desc: 'Fonksiyon grafiği çizimi ve dinamik matematik simülasyonu',
-                })
-              }
-              className="px-2 py-0.5 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-500/30 rounded transition-colors"
-            >
-              GeoGebra
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleApplyPresetLink({
-                  title: 'PhET İnteraktif Fizik/Kimya Simülasyonu',
-                  url: 'https://phet.colorado.edu/tr/',
-                  desc: 'Deney simülasyonları ve interaktif görselleştirme laboratuvarı',
-                })
-              }
-              className="px-2 py-0.5 bg-blue-950/60 hover:bg-blue-900/80 text-blue-300 border border-blue-500/30 rounded transition-colors"
-            >
-              PhET Simülasyon
-            </button>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               type="text"

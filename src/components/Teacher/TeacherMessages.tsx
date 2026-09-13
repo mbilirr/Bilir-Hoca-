@@ -60,9 +60,6 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
             <MessageSquare className="w-5 h-5 text-indigo-400" />
             <h2 className="text-xl font-bold text-white">Öğrenci Soru & Mesaj Merkezi</h2>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Öğrencilerin gönderdiği sorular ve soru bağlantıları (Yalnızca öğretmen görebilir).
-          </p>
         </div>
 
         <div className="flex items-center space-x-2 bg-indigo-950/40 border border-indigo-500/20 px-3 py-1.5 rounded-xl text-xs text-indigo-300">

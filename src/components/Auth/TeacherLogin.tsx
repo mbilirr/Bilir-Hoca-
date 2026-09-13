@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, User, ShieldCheck, AlertCircle, Sparkles, ArrowRight, X } from 'lucide-react';
+import { dataService } from '../../services/dataService';
 
 interface TeacherLoginProps {
   isOpen?: boolean;
@@ -14,8 +15,9 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
   onSuccess,
   onSwitchToStudent,
 }) => {
-  const [username, setUsername] = useState('mbilir');
-  const [password, setPassword] = useState('1234');
+  const rememberedUser = dataService.getRememberedUser();
+  const [username, setUsername] = useState(rememberedUser?.role === 'teacher' ? rememberedUser.identifier : '');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,22 +30,25 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      // Required credentials: username 'mbilir', password '1234'
-      if (username.trim() === 'mbilir' && password === '1234') {
+      try {
+        const teacher = dataService.authenticateTeacher(username.trim(), password);
+        if (teacher) {
+          dataService.setAuthSession({
+            role: 'teacher',
+            user: teacher,
+          });
+          setIsLoading(false);
+          onSuccess();
+          if (onClose) onClose();
+        } else {
+          setIsLoading(false);
+          setError('Geçersiz kullanıcı adı veya şifre! Lütfen kontrol ediniz.');
+        }
+      } catch (err: unknown) {
         setIsLoading(false);
-        onSuccess();
-        if (onClose) onClose();
-      } else {
-        setIsLoading(false);
-        setError('Geçersiz kullanıcı adı veya şifre! (Varsayılan: mbilir / 1234)');
+        setError(err instanceof Error ? err.message : 'Giriş yapılamadı.');
       }
-    }, 300);
-  };
-
-  const handleQuickFill = () => {
-    setUsername('mbilir');
-    setPassword('1234');
-    setError(null);
+    }, 250);
   };
 
   const formContent = (
@@ -82,7 +87,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
       <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
         <div>
           <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-            Kullanıcı Adı
+            Kullanıcı Adı veya E-posta
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -94,7 +99,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              placeholder="mbilir"
+              placeholder="Kullanıcı adı veya e-posta"
               className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
             />
           </div>
@@ -105,13 +110,6 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
               Şifre
             </label>
-            <button
-              type="button"
-              onClick={handleQuickFill}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              Hızlı Doldur (1234)
-            </button>
           </div>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -123,7 +121,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              placeholder="••••"
+              placeholder="••••••••"
               className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
             />
           </div>
@@ -139,23 +137,16 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
             <>
-              <span>Öğretmen Paneline Giriş</span>
+              <span>Giriş Yap</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}
         </button>
       </form>
 
-      {/* Quick Credentials Info & Switch to Student */}
-      <div className="mt-8 pt-6 border-t border-slate-800 text-center space-y-4">
-        <div className="p-3 bg-slate-800/50 rounded-xl border border-slate-700/60 text-xs text-slate-400">
-          <span className="text-slate-300 font-semibold">Giriş Bilgileri:</span> Kullanıcı:{' '}
-          <code className="text-indigo-300 font-mono bg-indigo-950/60 px-1 py-0.5 rounded">mbilir</code>{' '}
-          / Şifre:{' '}
-          <code className="text-indigo-300 font-mono bg-indigo-950/60 px-1 py-0.5 rounded">1234</code>
-        </div>
-
-        {onSwitchToStudent && (
+      {/* Switch to Student */}
+      {onSwitchToStudent && (
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
           <button
             type="button"
             onClick={() => {
@@ -165,10 +156,10 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
             className="inline-flex items-center space-x-2 text-sm text-slate-400 hover:text-indigo-400 font-medium transition-colors"
           >
             <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span>Öğrenci misiniz? Kayıt Olun veya Giriş Yapın</span>
+            <span>Öğrenci Portalı</span>
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 

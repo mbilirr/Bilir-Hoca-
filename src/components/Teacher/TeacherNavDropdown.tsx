@@ -49,7 +49,7 @@ const NAV_ITEMS: NavItemConfig[] = [
   },
   {
     id: 'homework',
-    title: 'Kazanım Odaklı Ödev Çizelgesi',
+    title: 'Ödev Kontrol',
     icon: BookOpen,
     accentColor: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
   },

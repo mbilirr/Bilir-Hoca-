@@ -27,6 +27,11 @@ interface EditHomeworkModalProps {
   onSuccess?: () => void;
 }
 
+const SCHOOL_SUBJECTS: Record<'Ortaokul' | 'Lise', string[]> = {
+  Ortaokul: ['Matematik', 'Türkçe', 'Fen Bilgisi', 'Sosyal Bilgiler', 'İngilizce'],
+  Lise: ['Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Coğrafya', 'Tarih', 'Edebiyat'],
+};
+
 export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
   isOpen,
   onClose,
@@ -36,10 +41,10 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
   onSuccess,
 }) => {
   const [title, setTitle] = useState('');
+  const [schoolLevel, setSchoolLevel] = useState<'Ortaokul' | 'Lise'>('Ortaokul');
   const [subject, setSubject] = useState('Matematik');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [outcomesText, setOutcomesText] = useState('');
   const [assigneeMode, setAssigneeMode] = useState<'all' | 'custom'>('all');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [targetClassIds, setTargetClassIds] = useState<string[]>([]);
@@ -70,15 +75,11 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
   useEffect(() => {
     if (homework) {
       setTitle(homework.title || '');
+      const hwSchool = homework.schoolLevel || 'Ortaokul';
+      setSchoolLevel(hwSchool);
       setSubject(homework.subject || 'Matematik');
       setDescription(homework.description || '');
       setDueDate(formatForDateTimeInput(homework.dueDate));
-      setOutcomesText(
-        (homework.outcomes && homework.outcomes.length > 0
-          ? homework.outcomes
-          : homework.learningOutcomes || []
-        ).join('\n')
-      );
       if (homework.assignedTo === 'all') {
         setAssigneeMode('all');
         setSelectedStudentIds([]);
@@ -96,6 +97,14 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
   }, [homework, classes]);
 
   if (!isOpen || !homework) return null;
+
+  const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
+    setSchoolLevel(level);
+    const subjects = SCHOOL_SUBJECTS[level];
+    if (!subjects.includes(subject)) {
+      setSubject(subjects[0]);
+    }
+  };
 
   const handleToggleStudent = (studentId: string) => {
     if (selectedStudentIds.includes(studentId)) {
@@ -141,17 +150,12 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
     e.preventDefault();
     if (!title.trim() || !dueDate) return;
 
-    const outcomes = outcomesText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
     const updates: Partial<Homework> = {
       title: title.trim(),
       subject,
+      schoolLevel,
       description: description.trim(),
       dueDate: new Date(dueDate).toISOString(),
-      outcomes: outcomes.length > 0 ? outcomes : ['Müfredat pekiştirme ve soru çözümü'],
       assignedTo: assigneeMode === 'all' ? 'all' : selectedStudentIds,
       targetClassIds,
       isGlobalForNewStudents,
@@ -190,39 +194,49 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Ödev Başlığı *
+                Okul *
               </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Örn: Newton Hareket Yasaları Testi"
-                className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-              />
+              <select
+                value={schoolLevel}
+                onChange={(e) => handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="Ortaokul">Ortaokul</option>
+                <option value="Lise">Lise</option>
+              </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Ders *</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Dersler *</label>
               <select
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="Fen Bilimleri">Fen Bilimleri</option>
-                <option value="Matematik">Matematik</option>
-                <option value="Fizik">Fizik</option>
-                <option value="Kimya">Kimya</option>
-                <option value="Biyoloji">Biyoloji</option>
-                <option value="Türkçe">Türkçe / Edebiyat</option>
-                <option value="Tarih">Tarih</option>
-                <option value="Coğrafya">Coğrafya</option>
-                <option value="İngilizce">İngilizce</option>
+                {SCHOOL_SUBJECTS[schoolLevel].map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Ödev Başlığı *
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ödev başlığını giriniz"
+              className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+            />
           </div>
 
           {/* Son Teslim Tarihi */}
@@ -244,7 +258,7 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
               <FileText className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Ödev Açıklaması ve Öğrenci Talimatları</span>
+              <span>Ödev Açıklaması</span>
             </label>
             <textarea
               rows={3}
@@ -252,23 +266,6 @@ export const EditHomeworkModal: React.FC<EditHomeworkModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Ödev ile ilgili açıklama, sayfa numaraları veya soru aralıkları..."
               className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          {/* Outcomes (Kazanımlar) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                <Target className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Ödev Kazanımları (Her satıra bir kazanım yazınız)</span>
-              </label>
-            </div>
-            <textarea
-              rows={3}
-              value={outcomesText}
-              onChange={(e) => setOutcomesText(e.target.value)}
-              placeholder="Örn: F.8.1: Mevsimlerin oluşumuna yönelik tahminlerde bulunur.&#10;F.8.2: İklim ve hava olayları arasındaki farkı açıklar."
-              className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-mono focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 

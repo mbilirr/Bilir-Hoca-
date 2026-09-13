@@ -117,7 +117,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                   {document.fileFormat.toUpperCase()}
                 </span>
                 <span className="text-xs text-slate-400">
-                  {document.subject} • {document.academicYear || '2025-2026'}
+                  {document.subject} • {document.academicYear || '2026-2027'}
                 </span>
               </div>
               <h2 className="text-base font-bold text-white truncate max-w-lg sm:max-w-xl">
@@ -423,17 +423,34 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
         </div>
 
         {/* MODAL FOOTER */}
-        <div className="px-5 py-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
+        <div className="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 shrink-0">
           <div className="flex items-center space-x-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>Belge Sayfaya Uyumlu Güvenli Önizleme Modunda Açıldı</span>
+            <span className="hidden sm:inline">Belge Sayfaya Uyumlu Güvenli Önizleme Modunda Açıldı</span>
+            <span className="sm:hidden text-white font-medium truncate max-w-[180px]">{document.fileName}</span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
-          >
-            Pencereyi Kapat
-          </button>
+
+          <div className="flex items-center space-x-2.5">
+            {/* SAYFA ALTINDA İNDİR BUTONU */}
+            <button
+              type="button"
+              onClick={() => onDownload(document)}
+              id="btn-download-doc-modal-footer"
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center space-x-2 shadow-md shadow-indigo-600/30 transition-all cursor-pointer hover:scale-105"
+              title="Belgeyi Bilgisayara İndir"
+            >
+              <Download className="w-4 h-4" />
+              <span>Belgeyi İndir ({document.fileFormat.toUpperCase()})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-colors cursor-pointer"
+            >
+              Pencereyi Kapat
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -13,6 +13,9 @@ import {
   BookOpen,
   Info,
   Save,
+  GraduationCap,
+  Building2,
+  School,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
@@ -25,6 +28,38 @@ interface UploadDocumentModalProps {
   onUploadSuccess: (newDoc: Omit<TeacherDocument, 'id' | 'uploadedAt'>) => void;
 }
 
+const ORTAOKUL_SUBJECTS = [
+  'Matematik',
+  'Türkçe',
+  'Fen Bilgisi',
+  'Sosyal Bilgiler',
+  'İngilizce',
+];
+
+const LISE_SUBJECTS = [
+  'Matematik',
+  'Fizik',
+  'Kimya',
+  'Biyoloji',
+  'Coğrafya',
+  'Tarih',
+  'Edebiyat',
+];
+
+const ALL_SUBJECTS = [
+  'Matematik',
+  'Türkçe',
+  'Fen Bilgisi',
+  'Sosyal Bilgiler',
+  'İngilizce',
+  'Fizik',
+  'Kimya',
+  'Biyoloji',
+  'Coğrafya',
+  'Tarih',
+  'Edebiyat',
+];
+
 export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
   isOpen,
   onClose,
@@ -36,9 +71,10 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
 
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<DocumentCategory>('yearly_plan');
-  const [subject, setSubject] = useState('Matematik');
-  const [gradeLevel, setGradeLevel] = useState('12. Sınıf');
-  const [academicYear, setAcademicYear] = useState('2025 - 2026');
+  const [schoolType, setSchoolType] = useState<'Ortaokul' | 'Lise' | 'Diğer'>('Ortaokul');
+  const [subject, setSubject] = useState('Fen Bilgisi');
+  const [gradeLevel, setGradeLevel] = useState('5. Sınıf');
+  const [academicYear, setAcademicYear] = useState('2026-2027');
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('');
 
@@ -48,6 +84,33 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Switch school type and adapt subject / grade automatically
+  const handleSchoolTypeChange = (newSchool: 'Ortaokul' | 'Lise' | 'Diğer') => {
+    setSchoolType(newSchool);
+    if (newSchool === 'Ortaokul') {
+      if (!ORTAOKUL_SUBJECTS.includes(subject)) {
+        setSubject('Fen Bilgisi');
+      }
+      if (['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'].includes(gradeLevel)) {
+        setGradeLevel('5. Sınıf');
+      }
+    } else if (newSchool === 'Lise') {
+      if (!LISE_SUBJECTS.includes(subject)) {
+        setSubject('Matematik');
+      }
+      if (['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'].includes(gradeLevel)) {
+        setGradeLevel('9. Sınıf');
+      }
+    }
+  };
+
+  const availableSubjects =
+    schoolType === 'Ortaokul'
+      ? ORTAOKUL_SUBJECTS
+      : schoolType === 'Lise'
+      ? LISE_SUBJECTS
+      : ALL_SUBJECTS;
 
   // Auto file processor
   const handleProcessFile = async (file: File) => {
@@ -169,9 +232,10 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
         fileData,
         uploadedBy: 'Öğretmen',
         academicYear,
+        schoolType,
         subject,
         gradeLevel,
-        tags: tags.length > 0 ? tags : [subject, category],
+        tags: tags.length > 0 ? tags : [subject, category, schoolType, gradeLevel],
         htmlPreview,
         tableSheets,
       });
@@ -292,12 +356,60 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Örn: 2025-2026 Matematik 12. Sınıf Yıllık Planı"
+              placeholder="Örn: 2026-2027 Fen Bilgisi 8. Sınıf Yıllık Planı"
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
             />
           </div>
 
-          {/* CATEGORY & SUBJECT GRID */}
+          {/* OKUL BUTONLARI (School Type Selector) */}
+          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-white flex items-center space-x-1.5">
+                <School className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Okul / Kademe Seçimi *</span>
+              </label>
+              <span className="text-[11px] text-slate-400">
+                Seçime göre ders ve sınıf listesi otomatik güncellenir
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleSchoolTypeChange('Ortaokul')}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                  schoolType === 'Ortaokul'
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
+                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                }`}
+              >
+                <span>🏫 Ortaokul</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSchoolTypeChange('Lise')}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                  schoolType === 'Lise'
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
+                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                }`}
+              >
+                <span>🎓 Lise</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSchoolTypeChange('Diğer')}
+                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                  schoolType === 'Diğer'
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
+                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                }`}
+              >
+                <span>🏛️ Diğer / Tümü</span>
+              </button>
+            </div>
+          </div>
+
+          {/* CATEGORY & DERSLER (SUBJECT) GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -318,43 +430,51 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Ders / Alan *
+              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                <span>Dersler *</span>
+                <span className="text-[10px] text-indigo-300 font-normal">
+                  ({schoolType})
+                </span>
               </label>
               <select
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
               >
-                <option value="Matematik">Matematik</option>
-                <option value="Fizik">Fizik</option>
-                <option value="Kimya">Kimya</option>
-                <option value="Biyoloji">Biyoloji</option>
-                <option value="Türk Dili ve Edebiyatı">Türk Dili ve Edebiyatı</option>
-                <option value="Tarih">Tarih</option>
-                <option value="Coğrafya">Coğrafya</option>
-                <option value="İngilizce">İngilizce</option>
-                <option value="Rehberlik / Zümre">Rehberlik / Zümre</option>
+                {availableSubjects.map((subj) => (
+                  <option key={subj} value={subj}>
+                    {subj}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* GRADE LEVEL & ACADEMIC YEAR */}
+          {/* SINIF AÇILIR PENCERESİ & EĞİTİM ÖĞRETİM YILI */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Sınıf / Düzey
+                Sınıf Açılır Penceresi *
               </label>
               <select
                 value={gradeLevel}
                 onChange={(e) => setGradeLevel(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
               >
-                <option value="12. Sınıf">12. Sınıf</option>
-                <option value="11. Sınıf">11. Sınıf</option>
-                <option value="10. Sınıf">10. Sınıf</option>
-                <option value="9. Sınıf">9. Sınıf</option>
-                <option value="Tüm Sınıflar">Tüm Sınıflar</option>
+                {/* 5.Sınıf - 12.Sınıf tam listesi */}
+                <optgroup label="Ortaokul Sınıfları (5-8)">
+                  <option value="5. Sınıf">5. Sınıf</option>
+                  <option value="6. Sınıf">6. Sınıf</option>
+                  <option value="7. Sınıf">7. Sınıf</option>
+                  <option value="8. Sınıf">8. Sınıf</option>
+                </optgroup>
+                <optgroup label="Lise Sınıfları (9-12)">
+                  <option value="9. Sınıf">9. Sınıf</option>
+                  <option value="10. Sınıf">10. Sınıf</option>
+                  <option value="11. Sınıf">11. Sınıf</option>
+                  <option value="12. Sınıf">12. Sınıf</option>
+                </optgroup>
+                <option value="Tüm Sınıflar">Tüm Sınıflar (Genel)</option>
               </select>
             </div>
 
@@ -366,7 +486,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                 type="text"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
               />
             </div>
           </div>

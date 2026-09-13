@@ -18,6 +18,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
+import { compressImageToDataUrl } from '../../lib/imageCompressor';
 
 interface TeacherAvatarModalProps {
   isOpen: boolean;
@@ -150,7 +151,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
         .toUpperCase() || 'ÖĞ'
     : 'ÖĞ';
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -159,23 +160,15 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
       return;
     }
 
-    if (file.size > 6 * 1024 * 1024) {
-      setErrorMsg('Resim boyutu en fazla 6MB olabilir.');
-      return;
+    try {
+      setErrorMsg(null);
+      // Automatically resize & compress photo to lightweight web-safe size (~15KB)
+      const compressedDataUrl = await compressImageToDataUrl(file, 200, 200, 0.8);
+      setAvatarUrl(compressedDataUrl);
+      setSuccessMsg('Fotoğraf başarıyla işlendi ve optimize edildi! Kaydet butonuna basarak onaylayabilirsiniz.');
+    } catch {
+      setErrorMsg('Dosya işlenirken bir hata meydana geldi.');
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarUrl(reader.result);
-        setErrorMsg(null);
-        setSuccessMsg('Fotoğraf yüklendi! Kaydet butonuna basarak onaylayabilirsiniz.');
-      }
-    };
-    reader.onerror = () => {
-      setErrorMsg('Dosya okunurken bir hata meydana geldi.');
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSelectEmoji = (preset: TeacherEmojiPreset) => {
@@ -358,7 +351,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
             }`}
           >
             <Upload className="w-4 h-4 text-cyan-400" />
-            <span>📷 Fotoğraf Yükle & Link</span>
+            <span>💻 Bilgisayardan Fotoğraf Ekle</span>
           </button>
 
           <button

@@ -251,8 +251,8 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
                     ? currentTeacher.branch.includes('Öğretmen')
                       ? currentTeacher.branch
                       : `${currentTeacher.branch} Öğretmeni`
-                    : 'Branş Öğretmeni'}{' '}
-                  • 2025-2026 Akademik Takvim
+                    : 'Fen Bilgisi Öğretmeni'}{' '}
+                  • 2026-2027 Akademik Takvim
                 </p>
               </div>
             </div>
@@ -309,7 +309,7 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
                   <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
                     {TURKISH_MONTHS[viewMonth]} {viewYear}
                   </h3>
-                  <p className="text-[11px] text-slate-400 font-medium">Akademik Aylık Ajanda</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Akademik Aylık Ajanda • 2026-2027</p>
                 </div>
               </div>
 

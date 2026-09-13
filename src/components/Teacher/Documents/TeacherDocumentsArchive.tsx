@@ -19,6 +19,7 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Plus,
   ChevronsUpDown,
 } from 'lucide-react';
@@ -110,6 +111,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedArchiveCategory, setSelectedArchiveCategory] = useState<string>('all');
+  const [selectedSchool, setSelectedSchool] = useState<string>('all');
   const [selectedFormat, setSelectedFormat] = useState<string>('all');
 
   // Track which category accordions are expanded
@@ -149,11 +151,28 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     setExpandedCategories(nextState);
   };
 
+  const scrollCategoryTrack = (catId: string, distance: number) => {
+    const el = document.getElementById(`doc-track-${catId}`);
+    if (el) {
+      el.scrollBy({ left: distance, behavior: 'smooth' });
+    }
+  };
+
   // Filtered documents
   const filteredDocuments = documents.filter((doc) => {
     const docCat = getDocCategoryKey(doc);
     if (selectedArchiveCategory !== 'all' && docCat !== selectedArchiveCategory) return false;
     if (selectedFormat !== 'all' && doc.fileFormat !== selectedFormat) return false;
+
+    if (selectedSchool !== 'all') {
+      if (doc.schoolType && doc.schoolType !== selectedSchool) return false;
+      if (!doc.schoolType) {
+        const isOrtaGrade = ['5.', '6.', '7.', '8.'].some((g) => (doc.gradeLevel || '').includes(g));
+        const isLiseGrade = ['9.', '10.', '11.', '12.'].some((g) => (doc.gradeLevel || '').includes(g));
+        if (selectedSchool === 'Ortaokul' && isLiseGrade) return false;
+        if (selectedSchool === 'Lise' && isOrtaGrade) return false;
+      }
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -263,9 +282,6 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   {documents.length} Doküman
                 </span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Yıllık ve haftalık planları, yazılı sınavları ve zümre tutanaklarını iç içe klasör menüsünden yönetin.
-              </p>
             </div>
           </div>
         </div>
@@ -319,11 +335,22 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
             </select>
           </div>
 
+          {/* School Kademe Filter */}
+          <select
+            value={selectedSchool}
+            onChange={(e) => setSelectedSchool(e.target.value)}
+            className="bg-slate-950 border border-slate-700/80 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+          >
+            <option value="all">Tüm Kademeler</option>
+            <option value="Ortaokul">🏫 Ortaokul</option>
+            <option value="Lise">🎓 Lise</option>
+          </select>
+
           {/* Format Filter */}
           <select
             value={selectedFormat}
             onChange={(e) => setSelectedFormat(e.target.value)}
-            className="bg-slate-950 border border-slate-700/80 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500"
+            className="bg-slate-950 border border-slate-700/80 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
           >
             <option value="all">Tüm Formatlar</option>
             <option value="pdf">PDF</option>
@@ -413,7 +440,35 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-3 shrink-0 ml-3">
+                <div className="flex items-center space-x-2 shrink-0 ml-3">
+                  {/* Horizontal Scroll Controls */}
+                  {categoryDocs.length > 1 && (
+                    <div className="flex items-center space-x-1 bg-slate-800/80 p-0.5 rounded-lg border border-slate-700/60">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollCategoryTrack(category.id, -340);
+                        }}
+                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                        title="Sola Kaydır"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollCategoryTrack(category.id, 340);
+                        }}
+                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                        title="Sağa Kaydır"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
                   <span className="text-xs text-slate-500 hidden sm:inline">
                     {isExpanded ? 'Gizle' : 'Genişlet'}
                   </span>
@@ -427,101 +482,145 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                 </div>
               </button>
 
-              {/* Collapsible Documents Table/List */}
+              {/* Collapsible Documents Track: YAN YANA KAYAN ÖZET SAYFALAR */}
               {isExpanded && (
-                <div className="border-t border-slate-800/80 bg-slate-950/40">
+                <div className="border-t border-slate-800/80 bg-slate-950/50">
                   {categoryDocs.length > 0 ? (
-                    <div className="divide-y divide-slate-800/60">
-                      {categoryDocs.map((doc) => {
-                        const formatBadge = getFormatBadge(doc.fileFormat);
-                        const FormatIcon = formatBadge.icon;
+                    <div className="relative">
+                      {/* Kaydırma İpucu */}
+                      <div className="px-5 pt-2.5 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="flex items-center space-x-1.5">
+                          <span>👉</span>
+                          <span>Yan yana kayan özet sayfalar ({categoryDocs.length} belge). 'Görüntüle' butonuyla tam sayfayı açıp sayfa altından indirebilirsiniz.</span>
+                        </span>
+                        <span className="hidden sm:inline font-mono">Kaydır ⇄</span>
+                      </div>
 
-                        return (
-                          <div
-                            key={doc.id}
-                            className="p-3.5 sm:px-5 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/40 transition-colors"
-                          >
-                            {/* Left: Document Info */}
-                            <div className="flex items-start sm:items-center space-x-3 min-w-0">
-                              <div
-                                className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 mt-0.5 sm:mt-0 ${formatBadge.bg}`}
-                              >
-                                <FormatIcon className="w-4 h-4" />
-                              </div>
+                      {/* Yan Yana Kayan Özet Sayfalar Konteyneri */}
+                      <div
+                        id={`doc-track-${category.id}`}
+                        className="flex items-stretch space-x-4 overflow-x-auto p-4 sm:p-5 scrollbar-thin snap-x snap-mandatory scroll-smooth"
+                      >
+                        {categoryDocs.map((doc) => {
+                          const formatBadge = getFormatBadge(doc.fileFormat);
+                          const FormatIcon = formatBadge.icon;
 
-                              <div className="min-w-0">
-                                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                                  <h4 className="text-xs sm:text-sm font-semibold text-white truncate max-w-sm sm:max-w-md">
-                                    {doc.title}
-                                  </h4>
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${formatBadge.bg}`}
-                                  >
-                                    {formatBadge.label}
-                                  </span>
+                          return (
+                            <div
+                              key={doc.id}
+                              className="w-80 sm:w-88 shrink-0 snap-start bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-lg transition-all group hover:shadow-indigo-500/10 hover:-translate-y-0.5"
+                            >
+                              {/* Üst Kısım: Rozetler & Başlık */}
+                              <div>
+                                <div className="flex items-center justify-between gap-2 mb-2.5">
+                                  <div className="flex items-center space-x-1.5 flex-wrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center space-x-1 ${formatBadge.bg}`}
+                                    >
+                                      <FormatIcon className="w-3 h-3 mr-1 inline" />
+                                      <span>{formatBadge.label}</span>
+                                    </span>
+
+                                    {doc.schoolType && (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
+                                        {doc.schoolType === 'Ortaokul'
+                                          ? '🏫 Ortaokul'
+                                          : doc.schoolType === 'Lise'
+                                          ? '🎓 Lise'
+                                          : doc.schoolType}
+                                      </span>
+                                    )}
+                                  </div>
+
                                   {doc.gradeLevel && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
                                       {doc.gradeLevel}
                                     </span>
                                   )}
                                 </div>
 
-                                <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5 flex-wrap gap-y-1">
-                                  <span className="font-medium text-indigo-400">{doc.subject}</span>
-                                  <span>•</span>
-                                  <span>{doc.academicYear}</span>
-                                  <span>•</span>
-                                  <span>Yükleyen: {doc.authorName}</span>
-                                  {doc.fileSize && (
-                                    <>
-                                      <span>•</span>
-                                      <span>{doc.fileSize}</span>
-                                    </>
-                                  )}
-                                  {doc.description && (
-                                    <>
-                                      <span className="hidden md:inline">•</span>
-                                      <span className="text-slate-500 italic truncate max-w-xs hidden md:inline">
-                                        {doc.description}
-                                      </span>
-                                    </>
+                                {/* Belge Başlığı */}
+                                <h4
+                                  className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
+                                  title={doc.title}
+                                >
+                                  {doc.title}
+                                </h4>
+
+                                {/* Özet Sayfa Görsel Kartı (Mini A4 Doküman Şablonu) */}
+                                <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800/80 mb-3 space-y-1.5 relative overflow-hidden">
+                                  {/* Dekoratif mini köşe çizgisi */}
+                                  <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-500/20" />
+
+                                  <div className="flex items-center justify-between text-[11px] text-indigo-400 font-semibold border-b border-slate-800/70 pb-1 pr-6">
+                                    <span>{doc.subject}</span>
+                                    <span className="text-slate-400 font-mono">{doc.academicYear || '2026-2027'}</span>
+                                  </div>
+
+                                  <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
+                                    {doc.description ||
+                                      'MEB müfredat standartlarına uygun 2026-2027 yıllık/haftalık plan ve zümre kararları özeti.'}
+                                  </p>
+
+                                  {doc.tags && doc.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 pt-1">
+                                      {doc.tags.slice(0, 3).map((tag, idx) => (
+                                        <span
+                                          key={idx}
+                                          className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700/50"
+                                        >
+                                          #{tag}
+                                        </span>
+                                      ))}
+                                    </div>
                                   )}
                                 </div>
+
+                                {/* Yazar & Dosya Boyutu Bilgisi */}
+                                <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3 px-0.5">
+                                  <span className="truncate max-w-[170px]" title={doc.authorName}>
+                                    ✍️ {doc.authorName || 'Mustafa Bilir'}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-slate-500">
+                                    {doc.fileSize || 'Belge'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Alt Aksiyon Butonları: Görüntüle, İndir, Sil */}
+                              <div className="pt-3 border-t border-slate-800 flex items-center space-x-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveViewingDoc(doc)}
+                                  className="flex-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
+                                  title="Tam Sayfa Olarak Aç ve İncele"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Görüntüle</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownload(doc)}
+                                  className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs border border-slate-700 transition-colors cursor-pointer"
+                                  title="Belgeyi Bilgisayara İndir"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setDocToDelete(doc)}
+                                  className="p-2 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-xl text-xs border border-slate-700 transition-colors cursor-pointer"
+                                  title="Belgeyi Sil"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
-
-                            {/* Right: Actions */}
-                            <div className="flex items-center space-x-2 self-end sm:self-center shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setActiveViewingDoc(doc)}
-                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                                <span>Görüntüle</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleDownload(doc)}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs border border-slate-700 transition-colors cursor-pointer"
-                                title="Belgeyi İndir"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => setDocToDelete(doc)}
-                                className="p-1.5 bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg text-xs border border-slate-700 transition-colors cursor-pointer"
-                                title="Belgeyi Sil"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
                     <div className="p-6 text-center text-slate-500 text-xs">

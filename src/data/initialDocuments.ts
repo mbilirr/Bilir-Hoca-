@@ -3,17 +3,18 @@ import { TeacherDocument } from '../types';
 export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
   {
     id: 'doc-1',
-    title: '2025-2026 12. Sınıf İleri Düzey Matematik Yıllık Planı',
+    title: '2026-2027 12. Sınıf İleri Düzey Matematik Yıllık Planı',
     description: 'MEB güncel müfredatına uygun haftalık ünite dağılımı, kazanım kodları, yazılı tarihleri ve zümre kararları.',
     category: 'yearly_plan',
     fileFormat: 'xlsx',
-    fileName: '12_Matematik_Yillik_Ders_Plani_2025_2026.xlsx',
+    fileName: '12_Matematik_Yillik_Ders_Plani_2026_2027.xlsx',
     fileSize: '48.5 KB',
-    uploadedAt: '2025-09-08T09:30:00Z',
-    uploadedBy: 'Ahmet Yılmaz (Zümre Başkanı)',
-    academicYear: '2025 - 2026',
+    uploadedAt: '2026-09-08T09:30:00Z',
+    uploadedBy: 'Mustafa Bilir (Zümre Başkanı)',
+    academicYear: '2026 - 2027',
     subject: 'Matematik',
     gradeLevel: '12. Sınıf',
+    schoolType: 'Lise',
     tags: ['Yıllık Plan', 'Türev', 'İntegral', 'MEB Müfredatı'],
     tableSheets: [
       {
@@ -51,17 +52,18 @@ export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
     fileFormat: 'pdf',
     fileName: '12_Matematik_1Donem_1Yazili_Senaryo2_Cozumlu.pdf',
     fileSize: '312 KB',
-    uploadedAt: '2025-10-15T14:10:00Z',
-    uploadedBy: 'Ahmet Yılmaz',
-    academicYear: '2025 - 2026',
+    uploadedAt: '2026-10-15T14:10:00Z',
+    uploadedBy: 'Mustafa Bilir',
+    academicYear: '2026 - 2027',
     subject: 'Matematik',
     gradeLevel: '12. Sınıf',
+    schoolType: 'Lise',
     tags: ['Yazılı Sınav', 'Senaryo 2', 'Açık Uçlu', 'Cevap Anahtarı'],
     htmlPreview: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
         <div style="border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 20px; text-align: center;">
           <h2 style="margin: 0; font-size: 18px; font-weight: bold; color: #0f172a;">T.C. MİLLÎ EĞİTİM BAKANLIĞI</h2>
-          <h3 style="margin: 4px 0; font-size: 16px; font-weight: 600; color: #334155;">2025-2026 EĞİTİM-ÖĞRETİM YILI 12. SINIF MATEMATİK DERSİ</h3>
+          <h3 style="margin: 4px 0; font-size: 16px; font-weight: 600; color: #334155;">2026-2027 EĞİTİM-ÖĞRETİM YILI 12. SINIF MATEMATİK DERSİ</h3>
           <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #475569;">1. DÖNEM 1. ORTAK YAZILI DEĞERLENDİRME SINAVI (SENARYO 2)</h4>
         </div>
 
@@ -100,28 +102,29 @@ export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
   },
   {
     id: 'doc-3',
-    title: '2025-2026 Sene Başı Matematik Zümre Öğretmenler Kurulu Karar Tutanağı',
+    title: '2026-2027 Sene Başı Matematik Zümre Öğretmenler Kurulu Karar Tutanağı',
     description: 'Yıllık planlama, ortak sınav tarihleri, ödev takip prensipleri ve öğrenci başarısını artırma tedbirleri toplantı tutanağı.',
     category: 'meeting_minutes',
     fileFormat: 'docx',
-    fileName: '2025_2026_Matematik_Sene_Basi_Zumre_Tutanagi.docx',
+    fileName: '2026_2027_Matematik_Sene_Basi_Zumre_Tutanagi.docx',
     fileSize: '84.2 KB',
-    uploadedAt: '2025-09-04T11:00:00Z',
-    uploadedBy: 'Ahmet Yılmaz',
-    academicYear: '2025 - 2026',
+    uploadedAt: '2026-09-04T11:00:00Z',
+    uploadedBy: 'Mustafa Bilir',
+    academicYear: '2026 - 2027',
     subject: 'Matematik',
     gradeLevel: 'Tüm Sınıflar',
+    schoolType: 'Lise',
     tags: ['Zümre', 'Karar Tutanağı', 'Sene Başı', 'Sınav Tarihleri'],
     htmlPreview: `
       <div style="font-family: Arial, sans-serif; line-height: 1.7; color: #1e293b;">
         <h2 style="text-align: center; font-size: 17px; font-weight: bold; border-bottom: 2px solid #334155; padding-bottom: 8px; margin-bottom: 16px;">
-          2025-2026 EĞİTİM VE ÖĞRETİM YILI MATEMATİK DERSİ SENE BAŞI ZÜMRE ÖĞRETMENLER KURULU TOPLANTI TUTANAĞI
+          2026-2027 EĞİTİM VE ÖĞRETİM YILI MATEMATİK DERSİ SENE BAŞI ZÜMRE ÖĞRETMENLER KURULU TOPLANTI TUTANAĞI
         </h2>
         
         <p><strong>Toplantı No:</strong> 1</p>
-        <p><strong>Toplantı Tarihi ve Saati:</strong> 04 Eylül 2025 - 10:00</p>
+        <p><strong>Toplantı Tarihi ve Saati:</strong> 04 Eylül 2026 - 10:00</p>
         <p><strong>Toplantı Yeri:</strong> Öğretmenler Kurulu Odası</p>
-        <p><strong>Toplantıya Katılanlar:</strong> Ahmet Yılmaz (Zümre Bşk.), Mehmet Kaya, Fatma Yıldırım</p>
+        <p><strong>Toplantıya Katılanlar:</strong> Mustafa Bilir (Zümre Bşk.), Mehmet Kaya, Fatma Yıldırım</p>
         
         <h3 style="margin-top: 20px; font-size: 15px; font-weight: bold; color: #4338ca;">GÜNDEM MADDELERİ:</h3>
         <ol style="padding-left: 20px;">
@@ -135,14 +138,14 @@ export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
 
         <h3 style="margin-top: 20px; font-size: 15px; font-weight: bold; color: #4338ca;">ALINAN KARARLAR:</h3>
         <ul style="padding-left: 20px;">
-          <li><strong>Karar 1:</strong> 12. sınıflarda YKS ve okul başarısı hedeflenerek haftalık ödev takibi dijital portal üzerinden öğrenci bazlı kazanım odaklı yürütülecektir.</li>
-          <li><strong>Karar 2:</strong> 1. Dönem 1. Ortak Yazılı Sınavı 28 Ekim 2025 haftasında, 2. Yazılı Sınavı ise 05 Ocak 2026 haftasında yapılacaktır.</li>
+          <li><strong>Karar 1:</strong> Öğrenci başarısı hedeflenerek haftalık ödev takibi dijital portal üzerinden öğrenci bazlı kazanım odaklı yürütülecektir.</li>
+          <li><strong>Karar 2:</strong> 1. Dönem 1. Ortak Yazılı Sınavı Ekim ayının son haftasında, 2. Yazılı Sınavı ise Ocak ayının ilk haftasında yapılacaktır.</li>
           <li><strong>Karar 3:</strong> Ödev teslimini geciktiren veya kazanım kavrama oranı %65'in altında kalan öğrenciler için haftalık birebir ve grup etütleri düzenlenecektir.</li>
           <li><strong>Karar 4:</strong> Ders defterlerine işlenen kazanımların yıllık plan ile tam paralel ilerlemesi sağlanacaktır.</li>
         </ul>
 
         <div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 13px;">
-          <div style="text-align: center;"><strong>Ahmet YILMAZ</strong><br>Zümre Başkanı</div>
+          <div style="text-align: center;"><strong>Mustafa BİLİR</strong><br>Zümre Başkanı</div>
           <div style="text-align: center;"><strong>Mehmet KAYA</strong><br>Matematik Öğretmeni</div>
           <div style="text-align: center;"><strong>Fatma YILDIRIM</strong><br>Matematik Öğretmeni</div>
         </div>
@@ -157,11 +160,12 @@ export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
     fileFormat: 'docx',
     fileName: '12A_Fizik_Haftalik_Uygulama_ve_Deney_Plani.docx',
     fileSize: '62.0 KB',
-    uploadedAt: '2025-10-02T16:20:00Z',
-    uploadedBy: 'Mehmet Demir',
-    academicYear: '2025 - 2026',
+    uploadedAt: '2026-10-02T16:20:00Z',
+    uploadedBy: 'Mustafa Bilir',
+    academicYear: '2026 - 2027',
     subject: 'Fizik',
     gradeLevel: '12. Sınıf',
+    schoolType: 'Lise',
     tags: ['Haftalık Plan', 'Fizik', 'Laboratuvar', 'İndüksiyon'],
     htmlPreview: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b;">
@@ -180,5 +184,37 @@ export const INITIAL_TEACHER_DOCUMENTS: TeacherDocument[] = [
         </ul>
       </div>
     `,
+  },
+  {
+    id: 'doc-5',
+    title: '2026-2027 7. Sınıf Fen Bilgisi Yıllık Ders Planı',
+    description: 'Güneş Sistemi ve Ötesi, Hücre ve Bölünmeler, Kuvvet ve Enerji ünitelerine ait haftalık kazanım ve deney planı.',
+    category: 'yearly_plan',
+    fileFormat: 'pdf',
+    fileName: '7_Fen_Bilgisi_Yillik_Plani_2026_2027.pdf',
+    fileSize: '145.2 KB',
+    uploadedAt: '2026-09-10T10:15:00Z',
+    uploadedBy: 'Mustafa Bilir (Fen Bilgisi Öğretmeni)',
+    academicYear: '2026 - 2027',
+    subject: 'Fen Bilgisi',
+    gradeLevel: '7. Sınıf',
+    schoolType: 'Ortaokul',
+    tags: ['Yıllık Plan', 'Fen Bilgisi', 'Hücre', 'Kuvvet'],
+  },
+  {
+    id: 'doc-6',
+    title: '8. Sınıf LGS Fen Bilgisi 1. Dönem Ortak Yazılı Değerlendirme Sınavı',
+    description: 'Mevsimler ve İklim, DNA ve Genetik Kod ünitelerine ait MEB senaryolarına uygun yeni nesil yazılı soruları ve cevap anahtarı.',
+    category: 'sample_exam',
+    fileFormat: 'docx',
+    fileName: '8_Fen_LGS_1Yazili_Cevapli_2026_2027.docx',
+    fileSize: '210.8 KB',
+    uploadedAt: '2026-10-18T11:45:00Z',
+    uploadedBy: 'Mustafa Bilir',
+    academicYear: '2026 - 2027',
+    subject: 'Fen Bilgisi',
+    gradeLevel: '8. Sınıf',
+    schoolType: 'Ortaokul',
+    tags: ['LGS', 'Fen Bilgisi', 'Yazılı', 'Cevap Anahtarı'],
   },
 ];

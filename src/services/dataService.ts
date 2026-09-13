@@ -27,518 +27,83 @@ import {
 } from '../lib/emailTemplates';
 import { sendBrowserNotification } from '../lib/browserNotifications';
 
-// INITIAL SEED DATA
-export const INITIAL_CLASSES: ClassGroup[] = [
-  {
-    id: 'class-12a',
-    name: '12-A Sayısal',
-    branch: 'Fen Bilimleri / YKS',
-    academicYear: '2025-2026',
-    description: 'YKS İleri Düzey Matematik ve Fen Grubu',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'class-12b',
-    name: '12-B Eşit Ağırlık',
-    branch: 'Türkçe - Matematik',
-    academicYear: '2025-2026',
-    description: 'YKS EA Derece Hazırlık Sınıfı',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'class-11a',
-    name: '11-A Fen',
-    branch: 'Sayısal',
-    academicYear: '2025-2026',
-    description: '11. Sınıf Müfredat ve Temel Yeterlilik',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'class-10a',
-    name: '10-A Anadolu',
-    branch: 'Genel Lise',
-    academicYear: '2025-2026',
-    description: '10. Sınıf Akademik Takip Grubu',
-    createdTeacherId: 'teacher-1',
-  },
-];
+// INITIAL SEED DATA (Empty by default per user request, only designated admin initialized)
+export const INITIAL_CLASSES: ClassGroup[] = [];
 
-export const INITIAL_STUDENTS: Student[] = [
-  {
-    id: 'std-1',
-    name: 'Zeynep Kaya',
-    username: 'zeynepk',
-    email: 'zeynep.kaya@ornek.k12.tr',
-    password: '123',
-    classId: 'class-12a',
-    className: '12-A Sayısal',
-    studentNumber: '1042',
-    phone: '0532 111 2233',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-01T08:00:00.000Z',
-    status: 'active',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'std-2',
-    name: 'Emir Demir',
-    username: 'emirdemir',
-    email: 'emir.demir@ornek.k12.tr',
-    password: '123',
-    classId: 'class-12a',
-    className: '12-A Sayısal',
-    studentNumber: '1088',
-    phone: '0544 222 3344',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-01T08:00:00.000Z',
-    status: 'active',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'std-3',
-    name: 'Elif Sena Yıldız',
-    username: 'elifsena',
-    email: 'elif.yildiz@ornek.k12.tr',
-    password: '123',
-    classId: 'class-12b',
-    className: '12-B Eşit Ağırlık',
-    studentNumber: '1120',
-    phone: '0555 333 4455',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-02T09:30:00.000Z',
-    status: 'active',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'std-4',
-    name: 'Burak Can Şahin',
-    username: 'burakcan',
-    email: 'burak.sahin@ornek.k12.tr',
-    password: '123',
-    classId: 'class-11a',
-    className: '11-A Fen',
-    studentNumber: '1205',
-    phone: '0505 444 5566',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-05T11:00:00.000Z',
-    status: 'active',
-    createdTeacherId: 'teacher-1',
-  },
-  {
-    id: 'std-5',
-    name: 'Ayşe Nur Çelik',
-    username: 'aysenur',
-    email: 'ayse.celik@ornek.k12.tr',
-    password: '123',
-    classId: 'class-10a',
-    className: '10-A Anadolu',
-    studentNumber: '1350',
-    phone: '0533 555 6677',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-10T14:15:00.000Z',
-    status: 'active',
-    createdTeacherId: 'teacher-1',
-  },
-];
+export const INITIAL_STUDENTS: Student[] = [];
 
-// Calculate dynamic dates for upcoming notifications
-const now = new Date();
-const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-const inThreeDays = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
-const pastThreeDays = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+export const INITIAL_HOMEWORK: Homework[] = [];
 
-export const INITIAL_HOMEWORK: Homework[] = [
-  {
-    id: 'hw-1',
-    title: 'Türev Alma Kuralları ve Teğet Denklemi',
-    subject: 'Matematik',
-    outcomes: [
-      'M.12.5.1: Bir fonksiyonun bir noktadaki türevini hesaplar ve geometrik anlamını açıklar.',
-      'M.12.5.2: Fonksiyonların çarpım ve bölümünün türev alma kurallarını uygular.',
-      'M.12.5.3: Eğriye teğet ve normal denklemlerini kurar.',
-    ],
-    description:
-      'ÖSYM soru bankası Sayfa 142-158 arasındaki 50 adet analitik türev sorusunun çözümü ve teğet denklemi grafiklerinin çıkartılması. Eklenen video dersi ve PDF soru fasikülünü inceleyiniz.',
-    dueDate: tomorrow.toISOString().slice(0, 16),
-    createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    assignedTo: 'all',
-    targetClassIds: ['class-12a', 'class-12b'],
-    isGlobalForNewStudents: true,
-    attachmentUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    resources: [
-      {
-        id: 'res-1',
-        type: 'video',
-        title: 'Türev Alma Kuralları ve Teğet Anlatımı',
-        url: 'https://www.youtube.com/watch?v=1b5pPz9nQ-M',
-        description: 'Türev kuralları konu anlatımı ve örnek soru çözümleri',
-      },
-      {
-        id: 'res-2',
-        type: 'pdf',
-        title: 'YKS Türev Çalışma Fasikülü & Ödev Soruları',
-        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-        fileSize: '2.4 MB',
-        fileName: 'turev_calisma_yapraklari.pdf',
-        description: '50 Adet ÖSYM Tipi Analitik Soru Havuzu',
-      },
-      {
-        id: 'res-3',
-        type: 'link',
-        title: 'GeoGebra İnteraktif Teğet Denklemi Simülatörü',
-        url: 'https://www.geogebra.org/m/kpxkghz9',
-        description: 'Fonksiyon teğetinin dinamik eğim hesabı simülasyonu',
-      },
-    ],
-    createdByName: 'M. Bilir',
-  },
-  {
-    id: 'hw-2',
-    title: 'Elektromanyetik İndüksiyon ve Lenz Kanunu',
-    subject: 'Fizik',
-    outcomes: [
-      'F.11.2.4: Manyetik akı değişiminin indüksiyon emk’si oluşturduğunu açıklar.',
-      'F.11.2.5: Lenz Kanunu ile indüksiyon akımının yönünü belirler.',
-    ],
-    description:
-      'Manyetik alan altındaki iletken çerçevenin dönme hareketi deney simülasyonu raporu hazırlanacak. PhET simülasyon linki ve PDF deney kılavuzu üzerinden veriler tabloya dökülecektir.',
-    dueDate: inThreeDays.toISOString().slice(0, 16),
-    createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    assignedTo: 'all',
-    targetClassIds: ['class-12a', 'class-11a'],
-    isGlobalForNewStudents: true,
-    resources: [
-      {
-        id: 'res-4',
-        type: 'link',
-        title: 'PhET Faraday & Elektromanyetik İndüksiyon Simülasyonu',
-        url: 'https://phet.colorado.edu/tr/simulations/faradays-law',
-        description: 'Mıknatıs hareketi ve manyetik akı deneyi',
-      },
-      {
-        id: 'res-5',
-        type: 'pdf',
-        title: 'Lenz Kanunu Deney Rapor Şablonu (PDF)',
-        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-        fileSize: '1.1 MB',
-        fileName: 'fizik_lenz_deney_raporu.pdf',
-        description: 'Öğrenci doldurma ve grafik çizim kılavuzu',
-      },
-    ],
-    createdByName: 'M. Bilir',
-  },
-  {
-    id: 'hw-3',
-    title: 'Organik Kimya - Alkanlar ve İsimlendirme (IUPAC)',
-    subject: 'Kimya',
-    outcomes: [
-      'K.12.2.1: Hidrokarbonları sınıflandırarak alkanların genel özelliklerini açıklar.',
-      'K.12.2.2: Alkanları IUPAC kurallarına göre adlandırır.',
-    ],
-    description:
-      'Verilen 30 karmaşık dallanmış hidrokarbon yapısının sistematik adlandırılması ve izomerlerinin çizimi.',
-    dueDate: pastThreeDays.toISOString().slice(0, 16),
-    createdAt: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-    assignedTo: ['std-1', 'std-2', 'std-4'],
-    targetClassIds: ['class-12a'],
-    isGlobalForNewStudents: true,
-    resources: [
-      {
-        id: 'res-6',
-        type: 'video',
-        title: 'Alkanların İsimlendirilmesi - IUPAC Kuralları',
-        url: 'https://www.youtube.com/watch?v=0k5Lp3aP96k',
-        description: 'Adım adım hidrokarbon isimlendirme anlatımı',
-      },
-      {
-        id: 'res-7',
-        type: 'link',
-        title: 'MEB EBA Organik Kimya Soru Havuzu',
-        url: 'https://www.eba.gov.tr',
-        description: 'Alkanlar ve halkalı hidrokarbonlar online test',
-      },
-    ],
-    createdByName: 'M. Bilir',
-  },
-  {
-    id: 'hw-4',
-    title: 'Paragrafta Anlam ve Yapı Stratejileri',
-    subject: 'Türkçe',
-    outcomes: [
-      'T.12.1.4: Metindeki ana fikir, yardımcı fikirler ve anlatım tekniklerini analiz eder.',
-      'T.12.1.8: Paragraf tamamlama ve düşüncenin akışını bozan cümleleri tespit eder.',
-    ],
-    description:
-      'TYT Türkçe Soru Bankası Test 12-16 arasındaki 80 paragraf sorusunun süreli (maksimum 60 dakika) çözülmesi ve yanlış analiz defterine not edilmesi.',
-    dueDate: inThreeDays.toISOString().slice(0, 16),
-    createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    assignedTo: 'all',
-    targetClassIds: ['class-12a', 'class-12b', 'class-11a', 'class-10a'],
-    isGlobalForNewStudents: true,
-    resources: [
-      {
-        id: 'res-8',
-        type: 'pdf',
-        title: 'TYT Paragraf Çıkmış Sorular & Taktik Dokümanı (PDF)',
-        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-        fileSize: '3.8 MB',
-        fileName: 'tyt_paragraf_taktikler.pdf',
-        description: 'Ana fikir ve anlatım biçimleri özet tablosu',
-      },
-    ],
-    createdByName: 'M. Bilir',
-  },
-];
+export const INITIAL_SUBMISSIONS: HomeworkSubmission[] = [];
 
-export const INITIAL_SUBMISSIONS: HomeworkSubmission[] = [
-  {
-    id: 'sub-1',
-    homeworkId: 'hw-3',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    submittedAt: new Date(pastThreeDays.getTime() - 12 * 3600 * 1000).toISOString(),
-    status: 'on_time',
-    notes: 'Tüm 30 organik bileşiğin IUPAC kurallarına göre açık formülleri ve izomerleri çıkarıldı. Harika bir pekiştirme oldu!',
-    attachmentLink: 'https://drive.google.com/open?id=zeynep-kimya-odev',
-    score: 100,
-    feedback: 'Tebrikler Zeynep, izomer çizimlerin ve isimlendirmelerin eksiksiz.',
-  },
-  {
-    id: 'sub-2',
-    homeworkId: 'hw-3',
-    studentId: 'std-2',
-    studentName: 'Emir Demir',
-    submittedAt: new Date(pastThreeDays.getTime() + 14 * 3600 * 1000).toISOString(),
-    status: 'late',
-    notes: 'Hocam kusura bakmayın biraz geciktim, deneme sınavı sonrasında tamamlayabildim.',
-    attachmentLink: 'https://drive.google.com/emir-kimya-odevi.pdf',
-    score: 85,
-    feedback: 'Sorular doğru fakat teslim süresine dikkat etmelisin Emir.',
-  },
-  {
-    id: 'sub-3',
-    homeworkId: 'hw-1',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    submittedAt: new Date(now.getTime() - 4 * 3600 * 1000).toISOString(),
-    status: 'on_time',
-    notes: 'Türev testindeki 50 sorunun tamamı çözüldü, teğet eğimi formülleri ektedir.',
-    attachmentLink: 'https://github.com/zeynep-notes/math-calc',
-    score: 95,
-    feedback: 'Harika hız ve titiz çalışma!',
-  },
-];
+export const INITIAL_ETUTS: Etut[] = [];
 
-export const INITIAL_ETUTS: Etut[] = [
-  {
-    id: 'etut-today',
-    subject: 'Matematik',
-    topic: 'Türevde Ekstremum Noktalar & Geometrik Yorumlama',
-    date: now.toISOString().slice(0, 10),
-    time: '16:30',
-    duration: 60,
-    assignedStudentIds: ['std-1', 'std-2', 'std-4'],
-    location: 'Matematik Laboratuvarı 204',
-    notes: 'Bugün yapılacak etüt: Öğrenciler yanlarında son denemedeki türev sorularını getirsinler.',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'etut-1',
-    subject: 'Fizik',
-    topic: 'Manyetizma ve Alternatif Akım Soru Çözümü',
-    date: tomorrow.toISOString().slice(0, 10),
-    time: '15:15',
-    duration: 45,
-    assignedStudentIds: 'all',
-    location: 'Konferans Salonu B',
-    notes: 'Tüm sınıfın katılımı zorunludur. Konu özeti dağıtılacaktır.',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'etut-2',
-    subject: 'Kimya',
-    topic: 'Organik Reaksiyon Mekanizmaları ve Elektrofilik Katılma',
-    date: inThreeDays.toISOString().slice(0, 10),
-    time: '17:00',
-    duration: 50,
-    assignedStudentIds: ['std-1', 'std-3'],
-    location: 'Birebir Etüt Odası 3',
-    notes: 'Hedef YKS ilk 1000 odaklı ileri düzey soru çözümü.',
-    createdAt: new Date().toISOString(),
-  },
-];
+export const INITIAL_ATTENDANCE: AttendanceRecord[] = [];
 
-export const INITIAL_ATTENDANCE: AttendanceRecord[] = [
-  {
-    id: 'att-1',
-    date: new Date().toISOString().slice(0, 10),
-    classId: 'class-12a',
-    subject: 'Matematik',
-    records: [
-      { studentId: 'std-1', studentName: 'Zeynep Kaya', status: 'present' },
-      { studentId: 'std-2', studentName: 'Emir Demir', status: 'late', note: '10 dk geç geldi (Trafik)' },
-    ],
-  },
-  {
-    id: 'att-2',
-    date: new Date(now.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10),
-    classId: 'class-12a',
-    subject: 'Fizik',
-    records: [
-      { studentId: 'std-1', studentName: 'Zeynep Kaya', status: 'present' },
-      { studentId: 'std-2', studentName: 'Emir Demir', status: 'present' },
-    ],
-  },
-];
+export const INITIAL_GRADES: GradeRecord[] = [];
 
-export const INITIAL_GRADES: GradeRecord[] = [
-  {
-    id: 'gr-1',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    classId: 'class-12a',
-    subject: 'Matematik',
-    examType: '1. Yazılı',
-    score: 98,
-    maxScore: 100,
-    date: '2025-11-15',
-    remarks: 'Mükemmel analitik çözüm becerisi.',
-  },
-  {
-    id: 'gr-2',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    classId: 'class-12a',
-    subject: 'Fizik',
-    examType: '1. Yazılı',
-    score: 92,
-    maxScore: 100,
-    date: '2025-11-18',
-    remarks: 'Formül uygulamaları başarılı.',
-  },
-  {
-    id: 'gr-3',
-    studentId: 'std-2',
-    studentName: 'Emir Demir',
-    classId: 'class-12a',
-    subject: 'Matematik',
-    examType: '1. Yazılı',
-    score: 84,
-    maxScore: 100,
-    date: '2025-11-15',
-    remarks: 'İşlem hatalarına dikkat edilmeli.',
-  },
-  {
-    id: 'gr-4',
-    studentId: 'std-3',
-    studentName: 'Elif Sena Yıldız',
-    classId: 'class-12b',
-    subject: 'Türkçe',
-    examType: '1. Yazılı',
-    score: 95,
-    maxScore: 100,
-    date: '2025-11-12',
-    remarks: 'Kompozisyon ve paragraf analizleri çok kuvvetli.',
-  },
-  {
-    id: 'gr-5',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    classId: 'class-12a',
-    subject: 'Matematik',
-    examType: 'Deneme Sınavı',
-    score: 38,
-    maxScore: 40,
-    date: '2025-12-05',
-    remarks: 'TYT Matematik 38 Net',
-  },
-];
-
-export const INITIAL_MESSAGES: StudentMessage[] = [
-  {
-    id: 'msg-1',
-    studentId: 'std-1',
-    studentName: 'Zeynep Kaya',
-    studentClass: '12-A Sayısal',
-    studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    subject: 'Türev testindeki 34. soru hakkında takıldığım nokta',
-    text: 'Hocam iyi günler, türev testinde parametrik denklemle verilen fonksiyonun ikinci türevini alırken zincir kuralını uygularken bir işaret hatası alıyorum. Soru görseli ve çözümüm linktedir, bakabilir misiniz?',
-    linkUrl: 'https://drive.google.com/file/d/turev-soru-cozumu/view',
-    createdAt: new Date(now.getTime() - 5 * 3600 * 1000).toISOString(),
-    read: true,
-    teacherReply:
-      'Zeynep tebrikler güzel bir soru yakalamışsın. İkinci türevde d(dy/dx)/dt ifadesini tekrar dx/dt ye bölmeyi unutmuşsun. Yarın etütte ayrıntılı çözelim.',
-    repliedAt: new Date(now.getTime() - 2 * 3600 * 1000).toISOString(),
-  },
-  {
-    id: 'msg-2',
-    studentId: 'std-2',
-    studentName: 'Emir Demir',
-    studentClass: '12-A Sayısal',
-    studentAvatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-    subject: 'Fizik Deney Raporu Kaynak Linki',
-    text: 'Hocam ödev için kullandığım PhET manyetizma simülasyonunun kayıt linkini ve hazırladığım excel tablosunu iletiyorum.',
-    linkUrl: 'https://phet.colorado.edu/tr/simulations/faradays-law',
-    createdAt: new Date(now.getTime() - 1 * 3600 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'msg-3',
-    studentId: 'std-3',
-    studentName: 'Elif Sena Yıldız',
-    studentClass: '12-B Eşit Ağırlık',
-    studentAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-    subject: 'Edebiyat Dönem Tablosu İnceleme İsteği',
-    text: 'Hocam Tanzimat 1. ve 2. Dönem karşılaştırmalı kavram haritası hazırladım. Not defterimdeki drive linki buradadır.',
-    linkUrl: 'https://notlar.ornek.edu.tr/elif-tanzimat-tablo',
-    createdAt: new Date(now.getTime() - 26 * 3600 * 1000).toISOString(),
-    read: true,
-    teacherReply: 'Eline sağlık Elif Sena, sınıf panosuna asılacak kadar düzenli ve net olmuş.',
-    repliedAt: new Date(now.getTime() - 20 * 3600 * 1000).toISOString(),
-  },
-];
+export const INITIAL_MESSAGES: StudentMessage[] = [];
 
 export const INITIAL_TEACHERS: Teacher[] = [
   {
     id: 'teacher-1',
-    name: 'M. Bilir',
-    username: 'mbilir',
-    password: '1234',
+    name: 'Mustafa Bilir',
+    username: 'Mustafa Bilir',
+    password: '8745412',
     email: 'm.bilirr@gmail.com',
-    branch: 'Matematik & Fen Bilimleri',
+    branch: 'Fen Bilgisi Öğretmeni',
     avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
     createdAt: '2025-09-01T08:00:00.000Z',
     role: 'teacher',
     status: 'approved',
     isAdmin: true,
-    assignedClassIds: ['class-12a', 'class-12b', 'class-11a', 'class-10a'],
+    assignedClassIds: [],
   },
 ];
 
 // DATA STORE LOCAL STORAGE KEYS
 const STORAGE_KEYS = {
-  IS_SEEDED: 'edu_sys_seeded_v5',
-  DELETED_STUDENTS: 'edu_sys_deleted_students_v5',
-  DELETED_CLASSES: 'edu_sys_deleted_classes_v5',
-  DELETED_HOMEWORK: 'edu_sys_deleted_homework_v5',
-  DELETED_ETUTS: 'edu_sys_deleted_etuts_v5',
-  REMEMBER_ME: 'edu_sys_remember_me_v5',
-  TEACHERS: 'edu_sys_teachers_v5',
-  AUTH_SESSION: 'edu_sys_auth_session_v5',
-  CLASSES: 'edu_sys_classes_v5',
-  STUDENTS: 'edu_sys_students_v5',
-  HOMEWORK: 'edu_sys_homework_v5',
-  SUBMISSIONS: 'edu_sys_submissions_v5',
-  ETUTS: 'edu_sys_etuts_v5',
-  ATTENDANCE: 'edu_sys_attendance_v5',
-  GRADES: 'edu_sys_grades_v5',
-  MESSAGES: 'edu_sys_messages_v5',
-  DOCUMENTS: 'edu_sys_documents_v5',
-  STUDENT_NOTIFICATIONS: 'edu_sys_student_notifications_v5',
-  SENT_EMAILS: 'edu_sys_sent_emails_v5',
+  IS_SEEDED: 'edu_sys_seeded_v6',
+  DELETED_TEACHERS: 'edu_sys_deleted_teachers_v6',
+  DELETED_STUDENTS: 'edu_sys_deleted_students_v6',
+  DELETED_CLASSES: 'edu_sys_deleted_classes_v6',
+  DELETED_HOMEWORK: 'edu_sys_deleted_homework_v6',
+  DELETED_ETUTS: 'edu_sys_deleted_etuts_v6',
+  REMEMBER_ME: 'edu_sys_remember_me_v6',
+  TEACHERS: 'edu_sys_teachers_v6',
+  AUTH_SESSION: 'edu_sys_auth_session_v6',
+  CLASSES: 'edu_sys_classes_v6',
+  STUDENTS: 'edu_sys_students_v6',
+  HOMEWORK: 'edu_sys_homework_v6',
+  SUBMISSIONS: 'edu_sys_submissions_v6',
+  ETUTS: 'edu_sys_etuts_v6',
+  ATTENDANCE: 'edu_sys_attendance_v6',
+  GRADES: 'edu_sys_grades_v6',
+  MESSAGES: 'edu_sys_messages_v6',
+  DOCUMENTS: 'edu_sys_documents_v6',
+  STUDENT_NOTIFICATIONS: 'edu_sys_student_notifications_v6',
+  SENT_EMAILS: 'edu_sys_sent_emails_v6',
 };
 
 const LEGACY_VERSIONS = ['_v5', '_v4', '_v3', '_v2', '_v1', ''];
+
+// Safely clean up old versioned keys to free storage quota and prevent browser storage errors
+function cleanUpLegacyKeys(): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.includes('_v1') || k.includes('_v2') || k.includes('_v3') || k.includes('_v4') || k.includes('_v5'))) {
+        keysToRemove.push(k);
+      }
+    }
+    for (const k of keysToRemove) {
+      localStorage.removeItem(k);
+    }
+  } catch (e) {
+    console.error('Error cleaning legacy storage keys:', e);
+  }
+}
 
 // Safe storage getter and setter with multi-version fallback and auto-migration
 function loadData<T>(key: string, defaultValue: T): T {
@@ -559,7 +124,9 @@ function loadDataWithLegacyFallback<T>(key: string, defaultValue: T): T {
       return JSON.parse(direct);
     }
     for (const ver of LEGACY_VERSIONS) {
+      if (!ver) continue;
       const legacyKey = key.replace(/_v\d+$/, ver);
+      if (legacyKey === key) continue;
       const legacyVal = localStorage.getItem(legacyKey);
       if (legacyVal !== null && legacyVal !== undefined) {
         const parsed = JSON.parse(legacyVal);
@@ -619,7 +186,13 @@ function saveData<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (e) {
-    console.error(`Error saving key ${key}:`, e);
+    console.warn(`Quota or write issue when saving ${key}. Freeing legacy storage and retrying...`, e);
+    try {
+      cleanUpLegacyKeys();
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (retryErr) {
+      console.error(`Persistent save error for ${key}:`, retryErr);
+    }
   }
 }
 
@@ -638,6 +211,7 @@ export class DataService {
   public documents: TeacherDocument[] = [];
   public studentNotifications: StudentNotification[] = [];
   public sentEmails: SentEmailLog[] = [];
+  public deletedTeacherIds: Set<string> = new Set();
   public deletedStudentIds: Set<string> = new Set();
   public deletedClassIds: Set<string> = new Set();
   public deletedHomeworkIds: Set<string> = new Set();
@@ -657,6 +231,7 @@ export class DataService {
   }
 
   private initData() {
+    this.deletedTeacherIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_TEACHERS, []));
     this.deletedStudentIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_STUDENTS, []));
     this.deletedClassIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_CLASSES, []));
     this.deletedHomeworkIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_HOMEWORK, []));
@@ -708,26 +283,90 @@ export class DataService {
       this.sentEmails = loadDataWithLegacyFallback(STORAGE_KEYS.SENT_EMAILS, []);
 
       // Filter out any IDs recorded as deleted
+      this.teachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
       this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
       this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       this.homeworks = this.homeworks.filter((h) => !this.deletedHomeworkIds.has(h.id));
       this.etuts = this.etuts.filter((e) => !this.deletedEtutIds.has(e.id));
 
-      // Migration: Ensure teachers have isAdmin and assignedClassIds configured
-      let hasAdmin = false;
+      // Apply any saved custom teacher profile overrides from dedicated local storage
       this.teachers = this.teachers.map((t) => {
-        const isAdmin = t.isAdmin ?? (t.username === 'mbilir' || t.id === 'teacher-1');
-        if (isAdmin) hasAdmin = true;
+        try {
+          const specific = localStorage.getItem(`edu_sys_teacher_custom_profile_${t.id}`);
+          if (specific) {
+            const parsed = JSON.parse(specific);
+            return { ...t, ...parsed };
+          }
+          if (t.isAdmin || t.id === 'teacher-1' || t.username?.toLowerCase() === 'mustafa bilir') {
+            const adminData = localStorage.getItem('edu_sys_teacher_custom_profile_admin');
+            if (adminData) {
+              const parsed = JSON.parse(adminData);
+              return { ...t, ...parsed };
+            }
+          }
+        } catch {
+          // ignore
+        }
+        return t;
+      });
+
+      // Migration: Ensure the designated administrator 'Mustafa Bilir' is configured as admin without overriding custom profile changes
+      let adminFound = false;
+      this.teachers = this.teachers.map((t) => {
+        const isTargetAdmin =
+          t.username.toLowerCase() === 'mustafa bilir' ||
+          t.username.toLowerCase() === 'mustafabilir' ||
+          t.username.toLowerCase() === 'mbilir' ||
+          t.name.toLowerCase() === 'mustafa bilir' ||
+          t.id === 'teacher-1' ||
+          (t.email && t.email.toLowerCase() === 'm.bilirr@gmail.com');
+
+        if (isTargetAdmin) {
+          adminFound = true;
+          // If branch is still the old default "Matematik & Fen Bilimleri" or "Genel Branş", migrate it to "Fen Bilgisi Öğretmeni"
+          let branchToUse = t.branch;
+          if (!branchToUse || branchToUse === 'Matematik & Fen Bilimleri' || branchToUse === 'Genel Branş') {
+            branchToUse = 'Fen Bilgisi Öğretmeni';
+          }
+          return {
+            ...t,
+            name: t.name || 'Mustafa Bilir',
+            username: t.username || 'Mustafa Bilir',
+            password: t.password || '8745412',
+            email: t.email || 'm.bilirr@gmail.com',
+            branch: branchToUse,
+            isAdmin: true,
+            status: 'approved' as const,
+            assignedClassIds: t.assignedClassIds?.length ? t.assignedClassIds : this.classes.map((c) => c.id),
+          };
+        }
+
+        // Other teachers must NOT automatically be administrators unless explicitly granted admin rights
         return {
           ...t,
-          isAdmin,
-          assignedClassIds: t.assignedClassIds || (isAdmin ? this.classes.map((c) => c.id) : []),
+          isAdmin: t.isAdmin === true && t.status === 'approved' ? true : false,
+          assignedClassIds: t.assignedClassIds || [],
         };
       });
-      if (!hasAdmin && this.teachers.length > 0) {
-        this.teachers[0].isAdmin = true;
-        this.teachers[0].assignedClassIds = this.classes.map((c) => c.id);
+
+      if (!adminFound) {
+        const primaryAdmin: Teacher = {
+          id: 'teacher-1',
+          name: 'Mustafa Bilir',
+          username: 'Mustafa Bilir',
+          password: '8745412',
+          email: 'm.bilirr@gmail.com',
+          branch: 'Fen Bilgisi Öğretmeni',
+          avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
+          createdAt: '2025-09-01T08:00:00.000Z',
+          role: 'teacher',
+          status: 'approved',
+          isAdmin: true,
+          assignedClassIds: this.classes.map((c) => c.id),
+        };
+        this.teachers.unshift(primaryAdmin);
       }
+
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
 
       // Migration: Ensure students have createdTeacherId if missing (default to teacher-1)
@@ -758,6 +397,9 @@ export class DataService {
 
       saveData(STORAGE_KEYS.IS_SEEDED, 'true');
     }
+
+    // Clean up any old duplicate legacy version keys to keep storage lean and prevent quota limit errors
+    cleanUpLegacyKeys();
 
     if (this.studentNotifications.length === 0 && this.homeworks.length > 0) {
       this.seedInitialNotifications();
@@ -846,6 +488,8 @@ export class DataService {
   }
 
   public deleteTeacher(teacherId: string): void {
+    this.deletedTeacherIds.add(teacherId);
+    saveData(STORAGE_KEYS.DELETED_TEACHERS, Array.from(this.deletedTeacherIds));
     this.teachers = this.teachers.filter((t) => t.id !== teacherId);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     this.notify();
@@ -914,11 +558,15 @@ export class DataService {
       throw new Error('Bu kullanıcı adı veya e-posta ile kayıtlı bir öğretmen zaten mevcut.');
     }
 
+    if (!data.password || !data.password.trim()) {
+      throw new Error('Lütfen geçerli bir şifre belirleyiniz.');
+    }
+
     const newTeacher: Teacher = {
       id: `teacher-${Date.now()}`,
       name: data.name.trim(),
       username: cleanUsername,
-      password: data.password || '1234',
+      password: data.password.trim(),
       email: cleanEmail,
       branch: data.branch?.trim() || 'Genel Branş',
       avatar:
@@ -947,12 +595,23 @@ export class DataService {
     this.teachers[idx] = updated;
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
 
+    // Save dedicated teacher profile override to protect against storage quota issues or re-migrations
+    try {
+      localStorage.setItem(`edu_sys_teacher_custom_profile_${teacherId}`, JSON.stringify(updated));
+      if (updated.isAdmin || teacherId === 'teacher-1' || updated.username?.toLowerCase() === 'mustafa bilir') {
+        localStorage.setItem('edu_sys_teacher_custom_profile_admin', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.warn('Could not write custom teacher profile override:', e);
+    }
+
     // Oturumdaki kullanıcıyı da anında güncelle
     const currentSession = this.getAuthSession();
     if (
       currentSession?.role === 'teacher' &&
       (currentSession.user.id === teacherId ||
-        currentSession.user.username?.toLowerCase() === previousTeacher.username?.toLowerCase())
+        currentSession.user.username?.toLowerCase() === previousTeacher.username?.toLowerCase() ||
+        (currentSession.user as Teacher).email?.toLowerCase() === previousTeacher.email?.toLowerCase())
     ) {
       this.setAuthSession({
         role: 'teacher',
@@ -995,14 +654,26 @@ export class DataService {
 
   public authenticateTeacher(usernameOrEmail: string, password: string): Teacher | null {
     const term = usernameOrEmail.trim().toLowerCase();
-    const teacher = this.teachers.find(
-      (t) => t.username.toLowerCase() === term || t.email.toLowerCase() === term
-    );
+    const termNoSpaces = term.replace(/\s+/g, '');
+    const teacher = this.teachers.find((t) => {
+      const u = t.username.toLowerCase();
+      const uNoSpaces = u.replace(/\s+/g, '');
+      const e = (t.email || '').toLowerCase();
+      const n = (t.name || '').toLowerCase();
+      const nNoSpaces = n.replace(/\s+/g, '');
+      return (
+        u === term ||
+        uNoSpaces === termNoSpaces ||
+        e === term ||
+        n === term ||
+        nNoSpaces === termNoSpaces
+      );
+    });
     if (!teacher) return null;
     if (teacher.password && teacher.password !== password) return null;
 
     if (teacher.status === 'pending') {
-      throw new Error('Hesabınız henüz yönetici (admin) tarafından onaylanmamıştır. Onay verildikten sonra sisteme giriş yapabilirsiniz.');
+      throw new Error('Hesabınız henüz kurum yöneticisi (Mustafa Bilir) tarafından onaylanmamıştır. Onay verildikten sonra sisteme giriş yapabilirsiniz.');
     }
     if (teacher.status === 'rejected') {
       throw new Error('Hesap başvurunuz onaylanmamıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
@@ -1020,28 +691,50 @@ export class DataService {
         s.studentNumber.toLowerCase() === term
     );
     if (!student) return null;
-    if (student.password && student.password !== password && password !== '123') return null;
+    if (student.password && student.password !== password) return null;
     return student;
   }
 
   public getAuthSession(): AuthSession | null {
     const saved = loadData<AuthSession | null>(STORAGE_KEYS.AUTH_SESSION, null);
     if (saved && saved.user) {
-      // Re-hydrate session user object from the current state so updates to name/branch are never lost
+      // Re-hydrate session user object from the current state so updates to name/username/branch/avatar are never lost
       if (saved.role === 'teacher') {
         const freshTeacher = this.teachers.find(
           (t) =>
             t.id === saved.user.id ||
-            t.username?.toLowerCase() === saved.user.username?.toLowerCase()
+            t.username?.toLowerCase() === (saved.user as Teacher).username?.toLowerCase() ||
+            (t.email && (saved.user as Teacher).email && t.email.toLowerCase() === (saved.user as Teacher).email?.toLowerCase())
         );
         if (freshTeacher) {
           saved.user = freshTeacher;
+        }
+
+        // Apply any dedicated profile overrides stored in local storage
+        try {
+          const specific = localStorage.getItem(`edu_sys_teacher_custom_profile_${saved.user.id}`);
+          if (specific) {
+            saved.user = { ...saved.user, ...JSON.parse(specific) };
+          } else if ((saved.user as Teacher).isAdmin || saved.user.id === 'teacher-1' || (saved.user as Teacher).username?.toLowerCase() === 'mustafa bilir') {
+            const adminData = localStorage.getItem('edu_sys_teacher_custom_profile_admin');
+            if (adminData) {
+              saved.user = { ...saved.user, ...JSON.parse(adminData) };
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        // Ensure legacy default branch is migrated to Fen Bilgisi Öğretmeni
+        if ((saved.user as Teacher).branch === 'Matematik & Fen Bilimleri' || !(saved.user as Teacher).branch) {
+          (saved.user as Teacher).branch = 'Fen Bilgisi Öğretmeni';
         }
       } else if (saved.role === 'student') {
         const freshStudent = this.students.find(
           (s) =>
             s.id === saved.user.id ||
-            s.username?.toLowerCase() === saved.user.username?.toLowerCase()
+            s.username?.toLowerCase() === (saved.user as Student).username?.toLowerCase() ||
+            (s.studentNumber && (saved.user as Student).studentNumber && s.studentNumber.toLowerCase() === (saved.user as Student).studentNumber?.toLowerCase())
         );
         if (freshStudent) {
           saved.user = freshStudent;
@@ -1078,7 +771,53 @@ export class DataService {
     branch?: string;
     className?: string;
   } | null {
-    return loadData(STORAGE_KEYS.REMEMBER_ME, null);
+    const saved = loadData<{
+      role: UserRole;
+      identifier: string;
+      name: string;
+      avatar?: string;
+      branch?: string;
+      className?: string;
+    } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+
+    if (!saved) return null;
+
+    if (saved.role === 'teacher') {
+      const liveTeacher = this.teachers.find(
+        (t) =>
+          t.username.toLowerCase() === saved.identifier.toLowerCase() ||
+          t.name.toLowerCase() === saved.name.toLowerCase() ||
+          t.id === saved.identifier
+      );
+      if (liveTeacher) {
+        return {
+          role: 'teacher',
+          identifier: liveTeacher.username,
+          name: liveTeacher.name,
+          avatar: liveTeacher.avatar,
+          branch: liveTeacher.branch,
+        };
+      }
+    } else if (saved.role === 'student') {
+      const liveStudent = this.students.find(
+        (s) =>
+          s.username.toLowerCase() === saved.identifier.toLowerCase() ||
+          s.studentNumber.toLowerCase() === saved.identifier.toLowerCase() ||
+          s.name.toLowerCase() === saved.name.toLowerCase() ||
+          s.id === saved.identifier
+      );
+      if (liveStudent) {
+        return {
+          role: 'student',
+          identifier: liveStudent.username,
+          name: liveStudent.name,
+          avatar: liveStudent.avatar,
+          className: liveStudent.className,
+        };
+      }
+    }
+
+    return saved;
   }
 
   public setRememberedUser(data: {
@@ -1157,11 +896,23 @@ export class DataService {
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
 
-    const classObj = this.classes.find((c) => c.id === studentData.classId);
+    const cleanUsername = studentData.username?.trim().toLowerCase();
+    if (cleanUsername && this.students.some((s) => s.username?.toLowerCase() === cleanUsername)) {
+      throw new Error('Bu kullanıcı adı ile kayıtlı bir öğrenci zaten mevcut. Lütfen başka bir kullanıcı adı seçiniz.');
+    }
+
+    const classObj = this.classes.find(
+      (c) => c.id === studentData.classId || c.name.toLowerCase() === (studentData.className || '').toLowerCase()
+    );
     const newStudent: Student = {
       ...studentData,
       id: `std-${Date.now()}`,
+      username: cleanUsername,
+      email: studentData.email?.trim() || '',
       className: classObj ? classObj.name : studentData.className || '12-A Sayısal',
+      classId: classObj ? classObj.id : (studentData.classId || 'class-custom'),
+      branch: studentData.branch?.trim() || (classObj ? classObj.branch : ''),
+      studentNumber: studentData.studentNumber?.trim() || `${Math.floor(1000 + Math.random() * 9000)}`,
       createdAt: new Date().toISOString(),
       status: 'active',
       createdTeacherId: currentTeacherId,
@@ -1204,7 +955,7 @@ export class DataService {
           id: newClassId,
           name: item.className.trim(),
           branch: 'Genel',
-          academicYear: '2025-2026',
+          academicYear: '2026-2027',
           description: 'Excel yüklemesi ile otomatik oluşturuldu',
           createdTeacherId: currentTeacherId,
         };
@@ -1600,6 +1351,12 @@ export class DataService {
           }
         : m
     );
+    saveData(STORAGE_KEYS.MESSAGES, this.messages);
+    this.notify();
+  }
+
+  public deleteMessage(id: string): void {
+    this.messages = this.messages.filter((m) => m.id !== id);
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
   }

@@ -63,6 +63,10 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   };
 
   const handleDelete = (teacherId: string, name: string) => {
+    if (name === 'Mustafa Bilir') {
+      alert('Baş yönetici Mustafa Bilir hesabı silinemez.');
+      return;
+    }
     if (window.confirm(`${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?`)) {
       dataService.deleteTeacher(teacherId);
       setActionMsg(`${name} kaydı silindi.`);
@@ -100,6 +104,10 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const handleToggleAdmin = (teacher: Teacher) => {
     const newStatus = !teacher.isAdmin;
     if (!newStatus) {
+      if (teacher.username === 'Mustafa Bilir' || teacher.name === 'Mustafa Bilir') {
+        alert('Baş yönetici Mustafa Bilir yetkisi kaldırılamaz.');
+        return;
+      }
       const adminCount = allTeachers.filter((t) => t.isAdmin).length;
       if (adminCount <= 1) {
         alert('Sistemde en az 1 yönetici (admin) bulunmalıdır. Bu öğretmenden yöneticilik yetkisi alınamaz.');

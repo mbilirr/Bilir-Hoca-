@@ -150,9 +150,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             <CalendarDays className="w-5 h-5 text-indigo-400" />
             <h2 className="text-xl font-bold text-white">Etüt & Birebir Takip Planlama</h2>
           </div>
-          <p className="text-sm text-slate-400 mt-1">
-            Ders, konu ve öğrenci bazlı etütler oluşturun; haftalık takvim veya kart görünümünde takip edin.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
