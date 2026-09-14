@@ -66,9 +66,16 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
-          {/* Header */}
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
+        onClick={onClose}
+      >
+        <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+          <div
+            className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
@@ -250,6 +257,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
           </div>
         </div>
       </div>
+    </div>
 
       <EmailPreviewModal
         isOpen={!!selectedEmail}

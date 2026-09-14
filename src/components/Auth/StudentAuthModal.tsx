@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   User,
@@ -12,9 +12,18 @@ import {
   AlertCircle,
   LogIn,
   UserPlus,
+  Upload,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
+import { compressImageToDataUrl } from '../../lib/imageCompressor';
+import {
+  SCHOOL_LEVELS,
+  BRANCH_OPTIONS,
+  getGradesForSchoolLevel,
+} from '../../constants/schoolConstants';
 
 export interface StudentAuthModalProps {
   isOpen: boolean;
@@ -46,13 +55,36 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   // Register Form state
   const [regName, setRegName] = useState('');
   const [regUsername, setRegUsername] = useState('');
-  const [regClassId, setRegClassId] = useState(classes[0]?.id || '');
+  const [regSchool, setRegSchool] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
+  const [regGrade, setRegGrade] = useState('5. Sınıf');
   const [regBranch, setRegBranch] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
   const [selectedAvatarSeed, setSelectedAvatarSeed] = useState('Zeynep');
+  const [customAvatarUrl, setCustomAvatarUrl] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleCustomPhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Lütfen geçerli bir resim dosyası seçiniz (PNG, JPG, WebP).');
+      return;
+    }
+    try {
+      setIsUploadingPhoto(true);
+      setError(null);
+      const compressed = await compressImageToDataUrl(file, 200, 200, 0.82);
+      setCustomAvatarUrl(compressed);
+    } catch {
+      setError('Resim işlenirken bir hata oluştu.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   // Login Form state
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -86,7 +118,11 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       setError('Lütfen Kullanıcı Adı alanını doldurunuz.');
       return;
     }
-    if (!regClassId.trim()) {
+    if (!regSchool) {
+      setError('Lütfen Okul kademesini seçiniz (Ortaokul veya Lise).');
+      return;
+    }
+    if (!regGrade) {
       setError('Lütfen Sınıf seçiniz.');
       return;
     }
@@ -107,21 +143,48 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       return;
     }
 
-    try {
-      const selectedClass = classes.find((c) => c.id === regClassId || c.name === regClassId);
+    const constructedClassName = regBranch ? `${regGrade} - ${regBranch}` : regGrade;
+    let matchedClass = classes.find(
+      (c) =>
+        c.gradeLevel === regGrade &&
+        (!regBranch || c.branch === regBranch) &&
+        (!c.schoolLevel || c.schoolLevel === regSchool)
+    );
 
+    if (!matchedClass) {
+      matchedClass = classes.find((c) => c.name.toLowerCase().includes(regGrade.toLowerCase()));
+    }
+
+    let targetClassId = matchedClass?.id;
+    if (!targetClassId) {
+      const newCls = dataService.addClass({
+        name: constructedClassName,
+        branch: regBranch || 'Genel',
+        schoolLevel: regSchool,
+        gradeLevel: regGrade,
+        academicYear: '2026-2027',
+        description: `${regSchool} ${regGrade} ${regBranch ? `(${regBranch})` : ''} öğrenci grubu`,
+      });
+      targetClassId = newCls.id;
+    }
+
+    try {
       const newStudent = dataService.registerStudent({
         name: regName.trim(),
         username: regUsername.trim().toLowerCase(),
         email: regEmail.trim() || '',
         password: regPassword,
-        classId: selectedClass ? selectedClass.id : 'class-12a',
-        className: selectedClass ? selectedClass.name : (regClassId || '12-A Sayısal'),
-        branch: regBranch.trim() || (selectedClass ? selectedClass.branch : ''),
+        classId: targetClassId,
+        className: constructedClassName,
+        schoolLevel: regSchool,
+        gradeLevel: regGrade,
+        branch: regBranch.trim() || '',
         phone: regPhone.trim() || '',
-        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-          selectedAvatarSeed || regName
-        )}`,
+        avatar:
+          customAvatarUrl ||
+          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+            selectedAvatarSeed || regName
+          )}`,
       });
 
       handleAuthCompleted(newStudent);
@@ -154,10 +217,10 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200">
+      <div className="relative my-auto w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header Tabs */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-6 py-4 shrink-0">
           <div className="flex space-x-2">
             <button
               onClick={() => {
@@ -197,7 +260,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {error && (
             <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-3 text-rose-300 text-sm">
               <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
@@ -209,30 +272,76 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
             /* REGISTER FORM */
             <form onSubmit={handleRegister} className="space-y-4">
               {/* Avatar Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
-                  Profil Karakteri Seçin
-                </label>
-                <div className="flex items-center space-x-3 overflow-x-auto pb-2">
-                  {avatarSeeds.map((seed) => (
-                    <button
-                      key={seed}
-                      type="button"
-                      onClick={() => setSelectedAvatarSeed(seed)}
-                      className={`relative rounded-full p-0.5 transition-all flex-shrink-0 ${
-                        selectedAvatarSeed === seed
-                          ? 'ring-2 ring-indigo-500 scale-105 shadow-md shadow-indigo-500/30'
-                          : 'opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img
-                        src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}`}
-                        alt={seed}
-                        className="w-10 h-10 rounded-full bg-slate-800"
-                      />
-                    </button>
-                  ))}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                    Öğrenci Fotoğrafı / Karakteri
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    onChange={handleCustomPhotoSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="flex items-center space-x-1.5 px-2.5 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isUploadingPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
+                  </button>
                 </div>
+
+                {customAvatarUrl ? (
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/80 border border-indigo-500/40">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={customAvatarUrl}
+                        alt="Yüklenen Fotoğraf"
+                        className="w-12 h-12 rounded-xl object-cover ring-2 ring-indigo-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">💻 Bilgisayarınızdan Yüklendi</span>
+                        <span className="text-[11px] text-emerald-400">Fotoğraf hazır</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomAvatarUrl('')}
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+                      title="Kaldır"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-3 overflow-x-auto pb-1">
+                    {avatarSeeds.map((seed) => (
+                      <button
+                        key={seed}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAvatarSeed(seed);
+                          setCustomAvatarUrl('');
+                        }}
+                        className={`relative rounded-full p-0.5 transition-all flex-shrink-0 cursor-pointer ${
+                          selectedAvatarSeed === seed && !customAvatarUrl
+                            ? 'ring-2 ring-indigo-500 scale-105 shadow-md shadow-indigo-500/30'
+                            : 'opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}`}
+                          alt={seed}
+                          className="w-10 h-10 rounded-full bg-slate-800"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* 1. Ad Soyad & Kullanıcı Adı (Zorunlu) */}
@@ -272,41 +381,80 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 </div>
               </div>
 
-              {/* 2. Sınıf (Zorunlu) & Şube (İsteğe Bağlı) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Sınıf *
-                  </label>
-                  <div className="relative">
-                    <School className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              {/* 2. Okul (Mecburi), Sınıf (Mecburi) & Şube (İsteğe Bağlı) */}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <School className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Okul, Sınıf ve Şube Bilgileri</span>
+                  </span>
+                  <span className="text-[10px] text-amber-400 font-semibold">Okul & Sınıf Zorunlu</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Okul *
+                    </label>
                     <select
                       required
-                      value={regClassId}
-                      onChange={(e) => setRegClassId(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none appearance-none cursor-pointer"
+                      value={regSchool}
+                      onChange={(e) => {
+                        const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
+                        setRegSchool(newSchool);
+                        if (newSchool === 'Ortaokul') {
+                          setRegGrade('5. Sınıf');
+                        } else if (newSchool === 'Lise') {
+                          setRegGrade('9. Sınıf');
+                        }
+                      }}
+                      className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                     >
-                      <option value="">Sınıf Seçiniz *</option>
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name}
+                      <option value="">Okul Seçiniz *</option>
+                      <option value="Ortaokul">Ortaokul</option>
+                      <option value="Lise">Lise</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Sınıf *
+                    </label>
+                    <select
+                      required
+                      value={regGrade}
+                      onChange={(e) => setRegGrade(e.target.value)}
+                      className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
+                    >
+                      {!regSchool ? (
+                        <option value="">Önce Okul Seçiniz *</option>
+                      ) : (
+                        getGradesForSchoolLevel(regSchool).map((g) => (
+                          <option key={g} value={g}>
+                            {g}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Şube (İsteğe Bağlı)
+                    </label>
+                    <select
+                      value={regBranch}
+                      onChange={(e) => setRegBranch(e.target.value)}
+                      className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
+                    >
+                      <option value="">Şube Seçiniz (İsteğe Bağlı)</option>
+                      {BRANCH_OPTIONS.map((b) => (
+                        <option key={b.id} value={b.label}>
+                          {b.label}
                         </option>
                       ))}
                     </select>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Şube (İsteğe Bağlı)
-                  </label>
-                  <input
-                    type="text"
-                    value={regBranch}
-                    onChange={(e) => setRegBranch(e.target.value)}
-                    placeholder="Örn: A, B veya Sayısal"
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  />
                 </div>
               </div>
 

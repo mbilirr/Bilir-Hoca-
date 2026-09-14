@@ -96,10 +96,10 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   return (
     <div
       id="document-viewer-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-950/80 backdrop-blur-md overflow-hidden animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
     >
       <div
-        className={`bg-slate-900 border border-slate-700 rounded-2xl flex flex-col shadow-2xl transition-all duration-300 ${
+        className={`relative my-auto bg-slate-900 border border-slate-700 rounded-2xl flex flex-col shadow-2xl transition-all duration-300 ${
           isFullScreen
             ? 'w-full h-full rounded-none'
             : 'w-full max-w-6xl max-h-[92vh] h-[90vh]'

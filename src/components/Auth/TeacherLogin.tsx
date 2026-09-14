@@ -15,8 +15,8 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
   onSuccess,
   onSwitchToStudent,
 }) => {
-  const rememberedUser = dataService.getRememberedUser();
-  const [username, setUsername] = useState(rememberedUser?.role === 'teacher' ? rememberedUser.identifier : '');
+  const rememberedUser = dataService.getRememberedUser('teacher');
+  const [username, setUsername] = useState(rememberedUser?.identifier || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

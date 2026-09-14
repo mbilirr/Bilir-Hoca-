@@ -38,6 +38,8 @@ export interface Student {
   password?: string;
   classId: string;
   className: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
+  gradeLevel?: string;
   branch?: string;
   studentNumber?: string;
   phone?: string;
@@ -50,6 +52,8 @@ export interface Student {
 export interface ClassGroup {
   id: string;
   name: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
+  gradeLevel?: string;
   branch: string;
   academicYear: string;
   description?: string;
@@ -109,6 +113,8 @@ export interface Etut {
   id: string;
   subject: string;
   topic: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
+  gradeLevel?: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   duration: number; // minutes

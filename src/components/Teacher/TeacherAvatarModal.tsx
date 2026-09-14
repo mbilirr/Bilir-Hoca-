@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Camera,
@@ -120,7 +121,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
   onClose,
   teacher,
 }) => {
-  const [activeTab, setActiveTab] = useState<'emoji' | 'upload' | 'preset'>('emoji');
+  const [activeTab, setActiveTab] = useState<'upload' | 'emoji' | 'preset'>('upload');
   const [emojiCategory, setEmojiCategory] = useState<'Tümü' | 'Öğretmen' | 'Branş & Ders' | 'Akademi & Başarı'>('Tümü');
   const [avatarUrl, setAvatarUrl] = useState(teacher.avatar || '');
   const [customEmojiInput, setCustomEmojiInput] = useState('');
@@ -234,33 +235,39 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
     ? TEACHER_EMOJI_PRESETS
     : TEACHER_EMOJI_PRESETS.filter((item) => item.category === emojiCategory);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div
-        className="w-full max-w-xl bg-slate-900 border border-slate-750 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="px-5 sm:px-6 py-4 bg-slate-850 border-b border-slate-750 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 shadow-inner">
-              <Smile className="w-5 h-5" />
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6 w-full max-w-xl">
+        <div
+          className="relative w-full bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Modal Header */}
+          <div className="px-5 sm:px-6 py-4 bg-slate-850 border-b border-slate-750 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 shadow-inner">
+                <Smile className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-white">Öğretmen Profil Resmi & Emojileri</h3>
+                <p className="text-[11px] sm:text-xs text-slate-400">
+                  Bilgisayarınızdan profil fotoğrafınızı yükleyin veya eğlenceli emojilerden seçin
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-black text-white">Öğretmen Profil Resmi & Emojileri</h3>
-              <p className="text-[11px] sm:text-xs text-slate-400">
-                Öğretmen profiliniz için eğlenceli emoji resimleri veya kendi fotoğrafınızı seçin
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-750 rounded-xl transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-750 rounded-xl transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
         {/* Live Preview Card */}
         <div className="px-5 sm:px-6 py-3.5 bg-slate-950/70 border-b border-slate-800 shrink-0">
@@ -330,6 +337,19 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
         <div className="px-5 sm:px-6 pt-3 bg-slate-900 border-b border-slate-800 flex space-x-2 shrink-0 overflow-x-auto">
           <button
             type="button"
+            onClick={() => setActiveTab('upload')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-t-xl text-xs sm:text-sm font-black border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'upload'
+                ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Upload className="w-4 h-4 text-cyan-400" />
+            <span>💻 Bilgisayardan Resim Seç</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('emoji')}
             className={`flex items-center space-x-2 px-3.5 py-2 rounded-t-xl text-xs sm:text-sm font-black border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'emoji'
@@ -339,19 +359,6 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
           >
             <Smile className="w-4 h-4 text-amber-400" />
             <span>🎭 Öğretmen Emojileri ({TEACHER_EMOJI_PRESETS.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('upload')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-t-xl text-xs sm:text-sm font-black border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-              activeTab === 'upload'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Upload className="w-4 h-4 text-cyan-400" />
-            <span>💻 Bilgisayardan Fotoğraf Ekle</span>
           </button>
 
           <button
@@ -471,10 +478,15 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
           {/* TAB 2: UPLOAD & URL */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-2">
-                  1. Cihazınızdan Kendi Resminizi Seçin
-                </label>
+              <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-white flex items-center space-x-1.5">
+                    <Upload className="w-4 h-4 text-indigo-400" />
+                    <span>Bilgisayardan Resim Seç</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">PNG, JPG, WebP</span>
+                </div>
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -482,17 +494,33 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
                   onChange={handleFileChange}
                   className="hidden"
                 />
+
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-5 px-4 bg-slate-800/80 hover:bg-slate-750 border-2 border-dashed border-slate-600 hover:border-indigo-400 rounded-2xl text-xs font-bold text-slate-200 hover:text-white flex flex-col items-center justify-center space-y-1.5 transition-all cursor-pointer group"
+                  className="w-full py-6 px-4 bg-slate-800/90 hover:bg-slate-750 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 rounded-2xl text-xs font-bold text-slate-200 hover:text-white flex flex-col items-center justify-center space-y-2 transition-all cursor-pointer group shadow-inner"
                 >
-                  <Upload className="w-6 h-6 text-indigo-400 group-hover:scale-110 transition-transform" />
-                  <span>Bilgisayar veya Telefondan Fotoğraf Yükle</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    Desteklenen formatlar: JPG, PNG, WebP (Maks. 6MB)
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <span className="text-sm font-black text-white">
+                    Bilgisayardan Resim Seç
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    Fotoğraf dosyanızı seçmek için buraya tıklayın (Otomatik optimize edilir)
                   </span>
                 </button>
+
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-2 shadow-md shadow-indigo-600/25 transition-all cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>📁 Bilgisayardan Dosya Seç</span>
+                  </button>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-800">
@@ -593,5 +621,8 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

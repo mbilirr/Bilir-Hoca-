@@ -33,6 +33,8 @@ import { TeacherApprovalModal } from './Teacher/TeacherApprovalModal';
 import { SentCommunicationsModal } from './Teacher/SentCommunicationsModal';
 import { StudentNotificationCenterModal } from './Student/StudentNotificationCenterModal';
 import { TeacherAvatarModal } from './Teacher/TeacherAvatarModal';
+import { StudentAvatarModal } from './Student/StudentAvatarModal';
+import { StudentProfileEditModal, StudentPasswordModal } from './Student/StudentProfileModals';
 import { dataService } from '../services/dataService';
 
 export interface NavbarProps {
@@ -147,7 +149,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isStudentNotificationOpen, setIsStudentNotificationOpen] = useState(false);
   const [studentUnreadNotifCount, setStudentUnreadNotifCount] = useState(0);
+
+  // Student specific menu and modals state
+  const [isStudentMenuOpen, setIsStudentMenuOpen] = useState(false);
+  const [isStudentEditProfileOpen, setIsStudentEditProfileOpen] = useState(false);
+  const [isStudentChangePasswordOpen, setIsStudentChangePasswordOpen] = useState(false);
+  const [isStudentAvatarModalOpen, setIsStudentAvatarModalOpen] = useState(false);
+
   const teacherMenuRef = useRef<HTMLDivElement | null>(null);
+  const studentMenuRef = useRef<HTMLDivElement | null>(null);
   const moduleDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const pendingTeachersCount = isTeacherSession ? dataService.getPendingTeachers().length : 0;
@@ -201,17 +211,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       if (teacherMenuRef.current && !teacherMenuRef.current.contains(target)) {
         setIsTeacherMenuOpen(false);
       }
+      if (studentMenuRef.current && !studentMenuRef.current.contains(target)) {
+        setIsStudentMenuOpen(false);
+      }
       if (moduleDropdownRef.current && !moduleDropdownRef.current.contains(target)) {
         setIsModuleOpen(false);
       }
     };
-    if (isTeacherMenuOpen || isModuleOpen) {
+    if (isTeacherMenuOpen || isStudentMenuOpen || isModuleOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isTeacherMenuOpen, isModuleOpen]);
+  }, [isTeacherMenuOpen, isStudentMenuOpen, isModuleOpen]);
 
   // Listen to student notifications if student is active
   useEffect(() => {
@@ -644,25 +657,140 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             ) : isStudentSession && activeStudent ? (
-              /* STUDENT LOGGED IN (CANNOT SWITCH TO TEACHER) */
-              <div className="flex items-center space-x-2 pl-2 border-l border-slate-700">
-                <img
-                  src={
-                    activeStudent.avatar ||
-                    `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                      activeStudent.name
-                    )}`
-                  }
-                  alt={activeStudent.name}
-                  className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-400/40 bg-slate-800"
-                />
-                <div className="hidden sm:block text-left">
-                  <p className="text-xs font-semibold text-white leading-none">
-                    {activeStudent.name}
-                  </p>
-                  <p className="text-[10px] text-indigo-300 leading-tight">
-                    {activeStudent.className || 'Öğrenci'} • No: {activeStudent.studentNumber}
-                  </p>
+              /* STUDENT LOGGED IN WITH PROFILE DROPDOWN MENU */
+              <div className="flex items-center space-x-2 sm:space-x-3 pl-2 border-l border-slate-700">
+                {/* 1. Öğrenci Profil Resmi (Değiştirmek için Tıklanabilir) */}
+                <div
+                  className="relative group cursor-pointer shrink-0"
+                  onClick={() => setIsStudentAvatarModalOpen(true)}
+                  title="Profil Resmini Değiştir / Fotoğraf Yükle (Tıklayın)"
+                  id="navbar-student-avatar-trigger"
+                >
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-cyan-500 ring-2 ring-indigo-400/80 hover:ring-indigo-300 shadow-md flex items-center justify-center overflow-hidden transition-all group-hover:scale-105">
+                    {activeStudent.avatar ? (
+                      activeStudent.avatar.startsWith('http') || activeStudent.avatar.startsWith('data:') ? (
+                        <img
+                          src={activeStudent.avatar}
+                          alt={activeStudent.name}
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <span className="text-lg select-none leading-none">
+                          {activeStudent.avatar}
+                        </span>
+                      )
+                    ) : (
+                      <span className="font-black text-xs text-white">
+                        {activeStudent.name.slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Fotoğraf Değiştir İpucu */}
+                  <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-3.5 h-3.5 text-white drop-shadow-md" />
+                  </div>
+
+                  {/* Kamera Rozeti */}
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm transition-transform group-hover:scale-110">
+                    <Camera className="w-2.5 h-2.5" />
+                  </div>
+                </div>
+
+                {/* 2. Öğrenci Resminin Yanında Açılır Menü Butonu */}
+                <div className="relative" ref={studentMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsStudentMenuOpen(!isStudentMenuOpen)}
+                    id="navbar-student-menu-dropdown-btn"
+                    className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-left transition-all cursor-pointer group shadow-sm hover:border-indigo-500/50"
+                    title="Öğrenci Menüsü (Bilgileri Güncelle, Şifre Değiştir, Profil Resmi Değiştir)"
+                  >
+                    <div className="hidden sm:block text-left">
+                      <p className="text-xs font-bold text-white leading-tight group-hover:text-indigo-300 transition-colors truncate max-w-[140px]">
+                        {activeStudent.name}
+                      </p>
+                      <p className="text-[10px] text-indigo-300 font-medium leading-tight truncate">
+                        {activeStudent.className || 'Öğrenci'} • #{activeStudent.studentNumber || activeStudent.id}
+                      </p>
+                    </div>
+                    <span className="text-[11px] font-bold text-indigo-300 sm:hidden">
+                      İşlemler
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-indigo-400 transition-transform duration-200 ${
+                        isStudentMenuOpen ? 'rotate-180 text-white' : ''
+                      }`}
+                    />
+                  </button>
+
+                  {/* Açılır Menü İçeriği */}
+                  {isStudentMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                      <div className="px-4 py-2.5 border-b border-slate-800 mb-1">
+                        <p className="text-xs font-bold text-white truncate">
+                          {activeStudent.name}
+                        </p>
+                        <p className="text-[11px] text-indigo-300 font-medium truncate mt-0.5">
+                          {activeStudent.className} • No: #{activeStudent.studentNumber || activeStudent.id}
+                        </p>
+                      </div>
+
+                      {/* Bilgilerini Güncelle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStudentMenuOpen(false);
+                          setIsStudentEditProfileOpen(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                      >
+                        <UserCog className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <span>Bilgilerimi Güncelle</span>
+                      </button>
+
+                      {/* Şifre Değiştir */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStudentMenuOpen(false);
+                          setIsStudentChangePasswordOpen(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                      >
+                        <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Şifre Değiştir</span>
+                      </button>
+
+                      {/* Profil Resmi Değiştir / Yükle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStudentMenuOpen(false);
+                          setIsStudentAvatarModalOpen(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                      >
+                        <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
+                        <span>Profil Resmi Değiştir / Yükle</span>
+                      </button>
+
+                      <div className="my-1 border-t border-slate-800" />
+
+                      {/* Güvenli Çıkış Yap */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStudentMenuOpen(false);
+                          handleLogoutAction();
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 shrink-0" />
+                        <span>Güvenli Çıkış Yap</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Student Notification Center Bell Button */}
@@ -680,15 +808,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </button>
 
-                {/* Student Logout */}
+                {/* Quick Logout Button */}
                 <button
                   onClick={handleLogoutAction}
                   id="navbar-student-logout-btn"
-                  className="flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors ml-1 border border-slate-700/60"
+                  className="flex items-center space-x-1 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60 cursor-pointer"
                   title="Öğrenci Çıkışı Yap"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Çıkış Yap</span>
+                  <span className="hidden sm:inline">Çıkış</span>
                 </button>
               </div>
             ) : null}
@@ -731,11 +859,28 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Student Notification Center Modal */}
       {isStudentSession && activeStudent && (
-        <StudentNotificationCenterModal
-          isOpen={isStudentNotificationOpen}
-          onClose={() => setIsStudentNotificationOpen(false)}
-          currentStudent={activeStudent}
-        />
+        <>
+          <StudentNotificationCenterModal
+            isOpen={isStudentNotificationOpen}
+            onClose={() => setIsStudentNotificationOpen(false)}
+            currentStudent={activeStudent}
+          />
+          <StudentAvatarModal
+            isOpen={isStudentAvatarModalOpen}
+            onClose={() => setIsStudentAvatarModalOpen(false)}
+            student={activeStudent}
+          />
+          <StudentProfileEditModal
+            isOpen={isStudentEditProfileOpen}
+            onClose={() => setIsStudentEditProfileOpen(false)}
+            student={activeStudent}
+          />
+          <StudentPasswordModal
+            isOpen={isStudentChangePasswordOpen}
+            onClose={() => setIsStudentChangePasswordOpen(false)}
+            student={activeStudent}
+          />
+        </>
       )}
     </header>
   );

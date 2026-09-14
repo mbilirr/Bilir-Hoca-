@@ -70,6 +70,8 @@ const STORAGE_KEYS = {
   DELETED_HOMEWORK: 'edu_sys_deleted_homework_v6',
   DELETED_ETUTS: 'edu_sys_deleted_etuts_v6',
   REMEMBER_ME: 'edu_sys_remember_me_v6',
+  REMEMBER_ME_TEACHER: 'edu_sys_remember_me_teacher_v6',
+  REMEMBER_ME_STUDENT: 'edu_sys_remember_me_student_v6',
   TEACHERS: 'edu_sys_teachers_v6',
   AUTH_SESSION: 'edu_sys_auth_session_v6',
   CLASSES: 'edu_sys_classes_v6',
@@ -763,7 +765,7 @@ export class DataService {
   }
 
   // --- BENİ HATIRLA / KOLAY GİRİŞ ---
-  public getRememberedUser(): {
+  public getRememberedUser(role?: UserRole): {
     role: UserRole;
     identifier: string;
     name: string;
@@ -771,23 +773,43 @@ export class DataService {
     branch?: string;
     className?: string;
   } | null {
-    const saved = loadData<{
+    let saved: {
       role: UserRole;
       identifier: string;
       name: string;
       avatar?: string;
       branch?: string;
       className?: string;
-    } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+    } | null = null;
+
+    if (role === 'teacher') {
+      saved = loadData(STORAGE_KEYS.REMEMBER_ME_TEACHER, null);
+      if (!saved) {
+        const general = loadData<{ role: UserRole; identifier: string; name: string; avatar?: string; branch?: string; className?: string } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+        if (general?.role === 'teacher') saved = general;
+      }
+    } else if (role === 'student') {
+      saved = loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
+      if (!saved) {
+        const general = loadData<{ role: UserRole; identifier: string; name: string; avatar?: string; branch?: string; className?: string } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+        if (general?.role === 'student') saved = general;
+      }
+    } else {
+      saved = loadData(STORAGE_KEYS.REMEMBER_ME, null);
+      if (!saved) {
+        saved = loadData(STORAGE_KEYS.REMEMBER_ME_TEACHER, null) || loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
+      }
+    }
 
     if (!saved) return null;
 
     if (saved.role === 'teacher') {
       const liveTeacher = this.teachers.find(
         (t) =>
-          t.username.toLowerCase() === saved.identifier.toLowerCase() ||
-          t.name.toLowerCase() === saved.name.toLowerCase() ||
-          t.id === saved.identifier
+          (t.username && t.username.toLowerCase() === saved!.identifier.toLowerCase()) ||
+          (t.email && t.email.toLowerCase() === saved!.identifier.toLowerCase()) ||
+          (t.name && t.name.toLowerCase() === saved!.name.toLowerCase()) ||
+          t.id === saved!.identifier
       );
       if (liveTeacher) {
         return {
@@ -798,13 +820,15 @@ export class DataService {
           branch: liveTeacher.branch,
         };
       }
+      return null;
     } else if (saved.role === 'student') {
       const liveStudent = this.students.find(
         (s) =>
-          s.username.toLowerCase() === saved.identifier.toLowerCase() ||
-          s.studentNumber.toLowerCase() === saved.identifier.toLowerCase() ||
-          s.name.toLowerCase() === saved.name.toLowerCase() ||
-          s.id === saved.identifier
+          (s.username && s.username.toLowerCase() === saved!.identifier.toLowerCase()) ||
+          (s.studentNumber && s.studentNumber.toLowerCase() === saved!.identifier.toLowerCase()) ||
+          (s.email && s.email.toLowerCase() === saved!.identifier.toLowerCase()) ||
+          (s.name && s.name.toLowerCase() === saved!.name.toLowerCase()) ||
+          s.id === saved!.identifier
       );
       if (liveStudent) {
         return {
@@ -815,26 +839,77 @@ export class DataService {
           className: liveStudent.className,
         };
       }
+      return null;
     }
 
     return saved;
   }
 
-  public setRememberedUser(data: {
-    role: UserRole;
-    identifier: string;
-    name: string;
-    avatar?: string;
-    branch?: string;
-    className?: string;
-  } | null): void {
+  public getRememberedTeacher() {
+    return this.getRememberedUser('teacher');
+  }
+
+  public getRememberedStudent() {
+    return this.getRememberedUser('student');
+  }
+
+  public setRememberedUser(
+    data: {
+      role: UserRole;
+      identifier: string;
+      name: string;
+      avatar?: string;
+      branch?: string;
+      className?: string;
+    } | null,
+    targetRole?: UserRole
+  ): void {
     if (data) {
       saveData(STORAGE_KEYS.REMEMBER_ME, data);
+      if (data.role === 'teacher') {
+        saveData(STORAGE_KEYS.REMEMBER_ME_TEACHER, data);
+      } else if (data.role === 'student') {
+        saveData(STORAGE_KEYS.REMEMBER_ME_STUDENT, data);
+      }
     } else {
-      try {
-        localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-      } catch (e) {
-        console.error(e);
+      if (targetRole === 'teacher') {
+        try {
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
+          const general = loadData<any>(STORAGE_KEYS.REMEMBER_ME, null);
+          if (general?.role === 'teacher') {
+            const studentSaved = loadData<any>(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
+            if (studentSaved) {
+              saveData(STORAGE_KEYS.REMEMBER_ME, studentSaved);
+            } else {
+              localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else if (targetRole === 'student') {
+        try {
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
+          const general = loadData<any>(STORAGE_KEYS.REMEMBER_ME, null);
+          if (general?.role === 'student') {
+            const teacherSaved = loadData<any>(STORAGE_KEYS.REMEMBER_ME_TEACHER, null);
+            if (teacherSaved) {
+              saveData(STORAGE_KEYS.REMEMBER_ME, teacherSaved);
+            } else {
+              localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        try {
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
   }
@@ -1025,6 +1100,18 @@ export class DataService {
     }
     this.students = this.students.map((s) => (s.id === id ? { ...s, ...updates } : s));
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+
+    const currentSession = this.getAuthSession();
+    if (currentSession?.role === 'student' && currentSession.user.id === id) {
+      const updatedStudent = this.students.find((s) => s.id === id);
+      if (updatedStudent) {
+        this.setAuthSession({
+          ...currentSession,
+          user: updatedStudent,
+        });
+      }
+    }
+
     this.notify();
   }
 

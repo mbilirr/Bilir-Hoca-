@@ -56,9 +56,13 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
 
   // Submissions for this homework
   const hwSubmissions = submissions.filter((s) => s.homeworkId === homework.id);
-  const yaptiCount = hwSubmissions.filter((s) => s.status === 'approved').length;
-  const yapmadiCount = hwSubmissions.filter((s) => s.status === 'rejected').length;
-  const eksikCount = hwSubmissions.filter((s) => s.status === 'needs_revision').length;
+  const yaptiCount = hwSubmissions.filter(
+    (s) => s.checkStatus === 'yapti' || s.status === 'on_time' || s.status === 'late'
+  ).length;
+  const yapmadiCount = hwSubmissions.filter(
+    (s) => s.checkStatus === 'yapmadi' || s.status === 'not_submitted'
+  ).length;
+  const eksikCount = hwSubmissions.filter((s) => s.checkStatus === 'eksik').length;
 
   const dueDateFormatted = new Date(homework.dueDate).toLocaleDateString('tr-TR', {
     day: 'numeric',
@@ -162,9 +166,16 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-750 w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        {/* MODAL HEADER */}
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+        <div
+          className="relative bg-slate-900 border border-slate-750 w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* MODAL HEADER */}
         <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3 min-w-0">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
@@ -383,5 +394,6 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
 };

@@ -161,107 +161,111 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div
-        className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Öğretmen Bilgilerimi Güncelle</h3>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMsg}</span>
-            </div>
-          )}
-
-          {/* Profil Fotoğrafı & Öğretmen Emojileri */}
-          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
-            <div className="flex items-center space-x-4">
-              <div className="relative group shrink-0">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 ring-2 ring-indigo-400/50 flex items-center justify-center overflow-hidden shadow-md">
-                  {avatar ? (
-                    avatar.startsWith('http') || avatar.startsWith('data:') ? (
-                      <img src={avatar} alt={name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-3xl select-none leading-none">{avatar}</span>
-                    )
-                  ) : (
-                    <span className="text-lg font-extrabold text-white tracking-wider">{initials}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full border border-slate-900 shadow-md cursor-pointer transition-transform hover:scale-110"
-                  title="Bilgisayardan Fotoğraf Seç"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                </button>
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+        <div
+          className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                <User className="w-5 h-5" />
               </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Öğretmen Bilgilerimi Güncelle</h3>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-white mb-0.5">Profil Fotoğrafı & Öğretmen Emojileri</p>
-                <p className="text-[11px] text-slate-400 mb-2">
-                  Bilgisayarınızdan fotoğraf yükleyin veya branşınıza uygun öğretmen emojisi seçin:
-                </p>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/jpg"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+            {successMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
 
-                <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+            {/* Profil Fotoğrafı & Öğretmen Emojileri */}
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+              <div className="flex items-center space-x-4">
+                <div className="relative group shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 ring-2 ring-indigo-400/50 flex items-center justify-center overflow-hidden shadow-md">
+                    {avatar ? (
+                      avatar.startsWith('http') || avatar.startsWith('data:') ? (
+                        <img src={avatar} alt={name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-3xl select-none leading-none">{avatar}</span>
+                      )
+                    ) : (
+                      <span className="text-lg font-extrabold text-white tracking-wider">{initials}</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
+                    className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full border border-slate-900 shadow-md cursor-pointer transition-transform hover:scale-110"
+                    title="Bilgisayardan Fotoğraf Seç"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>💻 Bilgisayardan Fotoğraf Ekle</span>
+                    <Camera className="w-3.5 h-3.5" />
                   </button>
-                  {avatar && (
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white mb-0.5">Profil Fotoğrafı & Öğretmen Emojileri</p>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    Bilgisayarınızdan fotoğraf yükleyin veya branşınıza uygun öğretmen emojisi seçin:
+                  </p>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
                     <button
                       type="button"
-                      onClick={() => setAvatar('')}
-                      className="px-2.5 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Kaldır ({initials})</span>
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>💻 Bilgisayardan Resim Seç</span>
                     </button>
-                  )}
+                    {avatar && (
+                      <button
+                        type="button"
+                        onClick={() => setAvatar('')}
+                        className="px-2.5 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Kaldır ({initials})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
             {/* Öğretmen Profiline Uygun Emojiler */}
             <div className="pt-2.5 border-t border-slate-800/80 space-y-1.5">
@@ -451,7 +455,8 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
         </form>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 interface TeacherPasswordModalProps {
@@ -519,32 +524,36 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div
-        className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <KeyRound className="w-5 h-5" />
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+        <div
+          className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Şifre Değiştir</h3>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Şifre Değiştir</h3>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -647,5 +656,6 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
         </form>
       </div>
     </div>
-  );
+  </div>
+);
 };

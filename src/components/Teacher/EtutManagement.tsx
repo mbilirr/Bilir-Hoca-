@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CalendarDays,
   LayoutGrid,
@@ -15,6 +15,9 @@ import {
   BookOpen,
   Save,
   Mail,
+  School,
+  GraduationCap,
+  Filter,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup } from '../../types';
@@ -23,6 +26,16 @@ import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calen
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { WeeklyEtutCalendar } from './WeeklyEtutCalendar';
 import { SentCommunicationsModal } from './SentCommunicationsModal';
+import {
+  SCHOOL_LEVELS,
+  MIDDLE_SCHOOL_GRADES,
+  HIGH_SCHOOL_GRADES,
+  MIDDLE_SCHOOL_SUBJECTS,
+  HIGH_SCHOOL_SUBJECTS,
+  SchoolLevelType,
+  getGradesForSchoolLevel,
+  getSubjectsForSchoolLevel,
+} from '../../constants/schoolConstants';
 
 interface EtutManagementProps {
   etuts: Etut[];
@@ -37,7 +50,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [editingEtut, setEditingEtut] = useState<Etut | null>(null);
   const [etutToDelete, setEtutToDelete] = useState<Etut | null>(null);
 
-  // Form states
+  // Form states - Okul, Sınıf ve Dersler (Dinamik)
+  const [schoolLevel, setSchoolLevel] = useState<SchoolLevelType>('Ortaokul');
+  const [gradeLevel, setGradeLevel] = useState<string>('5. Sınıf');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('Şube');
   const [subject, setSubject] = useState('Matematik');
   const [topic, setTopic] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -48,11 +64,131 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [assigneeMode, setAssigneeMode] = useState<'all' | 'custom'>('custom');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
-  const handleSelectAllStudents = () => {
-    if (selectedStudentIds.length === students.length) {
-      setSelectedStudentIds([]);
+  // Okul değiştiğinde sınıf ve ders listesini otomatik güncelle
+  const handleSchoolChange = (newSchool: SchoolLevelType) => {
+    setSchoolLevel(newSchool);
+    const availableGrades = getGradesForSchoolLevel(newSchool);
+    setGradeLevel(availableGrades[0]);
+    setSelectedBranchFilter('Şube');
+    const availableSubjects = getSubjectsForSchoolLevel(newSchool);
+    if (!availableSubjects.includes(subject)) {
+      setSubject(availableSubjects[0]);
+    }
+  };
+
+  const currentAvailableGrades = getGradesForSchoolLevel(schoolLevel);
+  const currentAvailableSubjects = getSubjectsForSchoolLevel(schoolLevel);
+
+  // Öğrencinin seçili sınıf kademesine (örn. '5. Sınıf', '8. Sınıf') ait olup olmadığını belirleme
+  const isStudentInGrade = (std: Student, targetGrade: string): boolean => {
+    if (!targetGrade) return true;
+    const targetNum = targetGrade.match(/\d+/)?.[0];
+    if (!targetNum) return true;
+
+    // 1. Öğrencinin doğrudan gradeLevel alanı
+    if (std.gradeLevel) {
+      const sNum = std.gradeLevel.match(/\d+/)?.[0];
+      if (sNum === targetNum) return true;
+    }
+
+    // 2. Öğrencinin bağlı olduğu sınıfın gradeLevel alanı
+    const parentClass = classes.find((c) => c.id === std.classId);
+    if (parentClass?.gradeLevel) {
+      const cNum = parentClass.gradeLevel.match(/\d+/)?.[0];
+      if (cNum === targetNum) return true;
+    }
+
+    // 3. className alanı (Örn: "5. Sınıf - Şube A", "5-A", "8/B", "10-C")
+    if (std.className) {
+      const classNumMatch = std.className.match(/\b\d+\b/);
+      if (classNumMatch && classNumMatch[0] === targetNum) return true;
+      if (
+        std.className.startsWith(`${targetNum}.`) ||
+        std.className.startsWith(`${targetNum}-`) ||
+        std.className.startsWith(`${targetNum}/`) ||
+        std.className.startsWith(`${targetNum} `)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Öğrencinin seçili şubeye ait olup olmadığını belirleme ('Şube', 'Şube A', 'Şube B', ...)
+  const isStudentInBranch = (std: Student, filterBranch: string): boolean => {
+    if (!filterBranch || filterBranch === 'Şube' || filterBranch === 'all') return true;
+
+    const letterMatch = filterBranch.match(/([A-F])/i);
+    const targetLetter = letterMatch ? letterMatch[1].toUpperCase() : '';
+    if (!targetLetter) return true;
+
+    // 1. Öğrencinin doğrudan branch alanı
+    if (std.branch) {
+      const bUpper = std.branch.toUpperCase();
+      if (
+        bUpper === filterBranch.toUpperCase() ||
+        bUpper === targetLetter ||
+        bUpper.includes(`ŞUBE ${targetLetter}`) ||
+        bUpper.includes(`SUBE ${targetLetter}`) ||
+        bUpper.endsWith(targetLetter)
+      ) {
+        return true;
+      }
+    }
+
+    // 2. Bağlı olduğu sınıfın branch alanı
+    const parentClass = classes.find((c) => c.id === std.classId);
+    if (parentClass?.branch) {
+      const cbUpper = parentClass.branch.toUpperCase();
+      if (
+        cbUpper === filterBranch.toUpperCase() ||
+        cbUpper === targetLetter ||
+        cbUpper.includes(`ŞUBE ${targetLetter}`) ||
+        cbUpper.includes(`SUBE ${targetLetter}`) ||
+        cbUpper.endsWith(targetLetter)
+      ) {
+        return true;
+      }
+    }
+
+    // 3. className dizesi (Örn: "5. Sınıf - Şube A", "5-A", "8A", "9/A")
+    if (std.className) {
+      const cnUpper = std.className.toUpperCase();
+      const regex = new RegExp(`(^|\\s|[-_\\/.])(ŞUBE\\s*)?${targetLetter}(\\s|[-_\\/.]|$)`, 'i');
+      if (
+        regex.test(cnUpper) ||
+        cnUpper.includes(`ŞUBE ${targetLetter}`) ||
+        cnUpper.includes(`SUBE ${targetLetter}`) ||
+        cnUpper.endsWith(`-${targetLetter}`) ||
+        cnUpper.endsWith(` ${targetLetter}`)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Sadece seçili sınıf kademesine ait öğrenciler
+  const gradeStudents = useMemo(() => {
+    return students.filter((s) => isStudentInGrade(s, gradeLevel));
+  }, [students, gradeLevel, classes]);
+
+  // Şube açılır penceresi filtresine göre nihai gösterilecek öğrenciler
+  const filteredStudents = useMemo(() => {
+    return gradeStudents.filter((s) => isStudentInBranch(s, selectedBranchFilter));
+  }, [gradeStudents, selectedBranchFilter, classes]);
+
+  const handleToggleAllFiltered = () => {
+    if (filteredStudents.length === 0) return;
+    const filteredIds = filteredStudents.map((s) => s.id);
+    const allSelected = filteredIds.every((id) => selectedStudentIds.includes(id));
+
+    if (allSelected) {
+      setSelectedStudentIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
     } else {
-      setSelectedStudentIds(students.map((s) => s.id));
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
     }
   };
 
@@ -68,8 +204,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     e.preventDefault();
     if (!topic.trim() || !date || !time) return;
 
+    // Kademe öğrencileri listesi
+    const targetAssigned =
+      assigneeMode === 'all'
+        ? (gradeStudents.length > 0 ? gradeStudents.map((s) => s.id) : 'all')
+        : selectedStudentIds;
+
     if (editingEtut) {
       dataService.updateEtut(editingEtut.id, {
+        schoolLevel,
+        gradeLevel,
         subject,
         topic,
         date,
@@ -77,11 +221,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         duration: Number(duration),
         location,
         notes,
-        assignedStudentIds: assigneeMode === 'all' ? 'all' : selectedStudentIds,
+        assignedStudentIds: targetAssigned,
       });
       setEditingEtut(null);
     } else {
       dataService.createEtut({
+        schoolLevel,
+        gradeLevel,
         subject,
         topic,
         date,
@@ -89,7 +235,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         duration: Number(duration),
         location,
         notes,
-        assignedStudentIds: assigneeMode === 'all' ? 'all' : selectedStudentIds,
+        assignedStudentIds: targetAssigned,
       });
 
       confetti({
@@ -104,6 +250,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   };
 
   const resetForm = () => {
+    setSchoolLevel('Ortaokul');
+    setGradeLevel('5. Sınıf');
+    setSelectedBranchFilter('Şube');
     setSubject('Matematik');
     setTopic('');
     setDate(new Date().toISOString().slice(0, 10));
@@ -117,6 +266,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
   const openEdit = (etut: Etut) => {
     setEditingEtut(etut);
+    const sLevel = etut.schoolLevel || 'Ortaokul';
+    setSchoolLevel(sLevel);
+    setGradeLevel(etut.gradeLevel || getGradesForSchoolLevel(sLevel)[0]);
+    setSelectedBranchFilter('Şube');
     setSubject(etut.subject);
     setTopic(etut.topic);
     setDate(etut.date);
@@ -232,9 +385,21 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <div>
                   {/* Header */}
                   <div className="flex items-center justify-between mb-3">
-                    <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {etut.subject}
-                    </span>
+                    <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {etut.subject}
+                      </span>
+                      {etut.schoolLevel && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                          {etut.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
+                        </span>
+                      )}
+                      {etut.gradeLevel && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                          {etut.gradeLevel}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center space-x-1">
                       <button
                         onClick={() => openEdit(etut)}
@@ -333,55 +498,109 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
       {/* CREATE/EDIT ETUT MODAL */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-              <div className="flex items-center space-x-2">
-                <CalendarDays className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-lg font-bold text-white">
-                  {editingEtut ? 'Etüt Bilgilerini Düzenle' : 'Yeni Etüt Oluştur'}
-                </h3>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+            <div
+              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                <div className="flex items-center space-x-2">
+                  <CalendarDays className="w-5 h-5 text-indigo-400" />
+                  <h3 className="text-lg font-bold text-white">
+                    {editingEtut ? 'Etüt Bilgilerini Düzenle' : 'Yeni Etüt Oluştur'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
             <form onSubmit={handleSaveEtut} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Ders *</label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="Matematik">Matematik</option>
-                    <option value="Geometri">Geometri</option>
-                    <option value="Fizik">Fizik</option>
-                    <option value="Kimya">Kimya</option>
-                    <option value="Biyoloji">Biyoloji</option>
-                    <option value="Türkçe">Türkçe / Edebiyat</option>
-                    <option value="Tarih">Tarih</option>
-                    <option value="Coğrafya">Coğrafya</option>
-                    <option value="Felsefe">Felsefe & Din</option>
-                  </select>
+              {/* Okul, Sınıf ve Ders Seçimi */}
+              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-400" />
+                    <span>Okul, Sınıf ve Branş Seçimi</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Seçtiğiniz okula göre sınıflar ve dersler otomatik filtrelenir
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Konu *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Örn: Türev Geometrik Yorum & Soru Çözümü"
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Okul Açılır Penceresi */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Okul *
+                    </label>
+                    <select
+                      value={schoolLevel}
+                      onChange={(e) => handleSchoolChange(e.target.value as SchoolLevelType)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="Ortaokul">🏫 Ortaokul</option>
+                      <option value="Lise">🎓 Lise</option>
+                    </select>
+                  </div>
+
+                  {/* Sınıf Açılır Penceresi */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Sınıf *
+                    </label>
+                    <select
+                      value={gradeLevel}
+                      onChange={(e) => setGradeLevel(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      {currentAvailableGrades.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Ders Açılır Penceresi */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Ders *
+                    </label>
+                    <select
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      {currentAvailableSubjects.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Etüt Konusu & Kazanım *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Örn: Paragrafta Anlam ve Soru Çözümü / İkinci Dereceden Denklemler"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -446,9 +665,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
               {/* Student Assignment: Tümü vs Ayrı Ayrı Seçim */}
               <div className="pt-2">
-                <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Etüte Katılacak Öğrenciler:
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Etüte Katılacak Öğrenciler:
+                  </label>
+                  <span className="text-[11px] text-indigo-300 font-medium">
+                    {gradeLevel} Kademesi Filtreli
+                  </span>
+                </div>
+
                 <div className="flex items-center space-x-3 mb-3">
                   <button
                     type="button"
@@ -459,7 +684,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    👥 Tüm Öğrenciler ({students.length})
+                    👥 Tüm {gradeLevel} Öğrencileri ({gradeStudents.length})
                   </button>
                   <button
                     type="button"
@@ -470,38 +695,102 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🎯 Listeden Ayrı Ayrı Seç ({selectedStudentIds.length})
+                    🎯 Listeden Ayrı Ayrı Seç ({selectedStudentIds.filter((id) => gradeStudents.some((s) => s.id === id)).length})
                   </button>
                 </div>
 
                 {assigneeMode === 'custom' && (
-                  <div className="p-3 bg-slate-800/70 border border-slate-700 rounded-xl space-y-2 max-h-48 overflow-y-auto">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-700">
-                      <span className="text-xs text-slate-400 font-medium">Öğrenci Seçimi:</span>
-                      <button
-                        type="button"
-                        onClick={handleSelectAllStudents}
-                        className="text-xs text-indigo-400 hover:underline font-semibold"
-                      >
-                        {selectedStudentIds.length === students.length ? 'Seçimi Kaldır' : 'Tümünü Seç'}
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {students.map((std) => (
-                        <label
-                          key={std.id}
-                          className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer text-xs"
+                  <div className="p-3 bg-slate-800/70 border border-slate-700 rounded-xl space-y-3">
+                    {/* Filtreleme ve Seçim Üst Barı */}
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-700 flex-wrap gap-2">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-slate-300 font-semibold">Öğrenci Seçimi:</span>
+                        <span className="text-[11px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/30 font-medium">
+                          {gradeLevel}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          ({filteredStudents.length} gösteriliyor)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        {/* Şube Açılır Penceresi */}
+                        <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">
+                          <Filter className="w-3.5 h-3.5 text-indigo-400" />
+                          <select
+                            id="etut-branch-filter"
+                            value={selectedBranchFilter}
+                            onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                            className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
+                          >
+                            <option value="Şube" className="bg-slate-900 text-white">Şube</option>
+                            <option value="Şube A" className="bg-slate-900 text-white">Şube A</option>
+                            <option value="Şube B" className="bg-slate-900 text-white">Şube B</option>
+                            <option value="Şube C" className="bg-slate-900 text-white">Şube C</option>
+                            <option value="Şube D" className="bg-slate-900 text-white">Şube D</option>
+                            <option value="Şube E" className="bg-slate-900 text-white">Şube E</option>
+                            <option value="Şube F" className="bg-slate-900 text-white">Şube F</option>
+                          </select>
+                        </div>
+
+                        {/* Hızlı Seçim Butonu */}
+                        <button
+                          type="button"
+                          onClick={handleToggleAllFiltered}
+                          disabled={filteredStudents.length === 0}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline font-semibold cursor-pointer disabled:opacity-40 disabled:no-underline"
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedStudentIds.includes(std.id)}
-                            onChange={() => handleToggleStudent(std.id)}
-                            className="rounded text-indigo-600 focus:ring-indigo-500"
-                          />
-                          <span className="text-white truncate">{std.name}</span>
-                          <span className="text-slate-400 text-[10px]">({std.className})</span>
-                        </label>
-                      ))}
+                          {filteredStudents.length > 0 &&
+                          filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+                            ? 'Seçimi Kaldır'
+                            : 'Tümünü Seç'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Öğrenci Listesi */}
+                    <div className="max-h-52 overflow-y-auto pr-1">
+                      {filteredStudents.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {filteredStudents.map((std) => {
+                            const isChecked = selectedStudentIds.includes(std.id);
+                            return (
+                              <label
+                                key={std.id}
+                                className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
+                                  isChecked
+                                    ? 'bg-indigo-600/15 border-indigo-500/40 text-white shadow-sm'
+                                    : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/60 text-slate-300'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleStudent(std.id)}
+                                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-white font-medium truncate">{std.name}</div>
+                                  <div className="text-slate-400 text-[10px] flex items-center space-x-1">
+                                    <span>{std.className || gradeLevel}</span>
+                                    {std.branch && (
+                                      <span className="text-indigo-300">({std.branch})</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center rounded-xl bg-slate-900/50 border border-slate-800 text-xs text-slate-400">
+                          <Users className="w-6 h-6 mx-auto mb-1 text-slate-500 opacity-60" />
+                          <p className="font-semibold text-slate-300">Bu Kriterlere Uygun Öğrenci Bulunamadı</p>
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            {gradeLevel} {selectedBranchFilter !== 'Şube' ? `• ${selectedBranchFilter}` : ''} için kayıtlı öğrenci bulunmuyor. Farklı bir sınıf kademesi veya şube seçebilirsiniz.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -524,7 +813,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
                 >
                   İptal
                 </button>
@@ -539,6 +828,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             </form>
           </div>
         </div>
+      </div>
       )}
 
       {/* CONFIRM DELETE ETUT MODAL */}

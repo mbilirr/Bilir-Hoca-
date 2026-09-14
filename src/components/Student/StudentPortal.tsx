@@ -23,6 +23,13 @@ import {
   Paperclip,
   Bell,
   Mail,
+  Camera,
+  Home,
+  ArrowLeft,
+  ChevronDown,
+  UserCog,
+  KeyRound,
+  ShieldCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource } from '../../types';
@@ -31,6 +38,10 @@ import { createGoogleCalendarUrlForHomework, createGoogleCalendarUrlForEtut, dow
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
 import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
+import { StudentAvatarModal } from './StudentAvatarModal';
+import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
+import { StudentStatsOverview } from './StudentStatsOverview';
+import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -51,7 +62,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   messages,
   submissions: propSubmissions,
 }) => {
-  const [activeTab, setActiveTab] = useState<'homework' | 'etuts' | 'grades' | 'messages'>('homework');
+  const [activeTab, setActiveTab] = useState<StudentTabType>('home');
+
+  // Profile and Avatar Modals state
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
   // Submit modal state
   const [submittingHw, setSubmittingHw] = useState<Homework | null>(null);
@@ -67,6 +84,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   // Notification center modal state
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [studentAvatar, setStudentAvatar] = useState<string>(currentStudent.avatar || '');
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(() =>
     dataService.getUnreadNotificationsCount(currentStudent.id)
   );
@@ -194,163 +212,271 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner / Student Greeting */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center space-x-4">
-            <img
-              src={currentStudent.avatar}
-              alt={currentStudent.name}
-              className="w-16 h-16 rounded-2xl bg-slate-800 ring-2 ring-indigo-500/30 object-cover shadow-lg"
-            />
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold text-white tracking-tight">
-                  Merhaba, {currentStudent.name}! 👋
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  {currentStudent.className}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Öğrenci No: <span className="font-mono text-slate-300">#{currentStudent.studentNumber}</span> • Danışman: <span className="text-indigo-300 font-medium">M. Bilir Öğretmen</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Metrics & Notification Center */}
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsNotificationModalOpen(true)}
-              className="flex items-center space-x-2 px-3.5 py-2.5 bg-slate-950/80 hover:bg-slate-850 text-slate-200 border border-slate-700/80 hover:border-indigo-500/50 rounded-2xl transition-all shadow-md group cursor-pointer relative"
-              title="Gelen Bildirimler ve E-Postalar"
-            >
-              <div className="relative">
-                <Bell className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-                {unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center ring-2 ring-slate-900 animate-bounce">
-                    {unreadNotifsCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs font-bold text-white hidden sm:inline">
-                Bildirim & E-Posta
-              </span>
-            </button>
-
-            <div className="flex items-center space-x-3 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
-              <div className="text-center px-3 border-r border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Ödevler</span>
-                <p className="text-lg font-bold text-white">{myHomeworks.length}</p>
-              </div>
-              <div className="text-center px-3 border-r border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Etütler</span>
-                <p className="text-lg font-bold text-indigo-400">{myEtuts.length}</p>
-              </div>
-              <div className="text-center px-3">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Devam</span>
-                <p className="text-lg font-bold text-emerald-400">{presentDays} Gün</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Unread Notifications / Email Alerts Banner */}
-      {unreadNotifsCount > 0 && (
-        <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-indigo-950/40 border border-indigo-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-100 shadow-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
-              <Mail className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="font-bold text-sm block text-white flex items-center space-x-2">
-                <span>📬 {unreadNotifsCount} Yeni Bildirim & E-Postanız Var</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white">YENİ</span>
-              </span>
-              <span className="text-xs text-indigo-200/90">
-                Öğretmeniniz tarafından yeni ödev veya etüt tanımlandı. Detayları ve e-postayı görüntüleyebilirsiniz.
-              </span>
-            </div>
-          </div>
+      {/* Top Navigation & Profile Bar for Student */}
+      <div className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-2xl p-2.5 sm:p-3 shadow-lg flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        {/* Navigation Tabs */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setActiveTab('home')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'home'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+            }`}
+          >
+            <Home className="w-4 h-4" />
+            <span>Ana Sayfa</span>
+          </button>
 
           <button
             type="button"
-            onClick={() => setIsNotificationModalOpen(true)}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+            onClick={() => setActiveTab('homework')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'homework'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+            }`}
           >
-            Bildirimleri & E-Postaları Gör
+            <BookOpen className="w-4 h-4" />
+            <span>Ödevlerim ({myHomeworks.length})</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('etuts')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'etuts'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            <span>Etüt Programım ({myEtuts.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('grades')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'grades'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            <span>Notlarım & Devamsızlık</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('messages')}
+            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              activeTab === 'messages'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Öğretmene Soru Sor ({myMessages.length})</span>
+          </button>
+        </div>
+
+        {/* Right Side Actions: Notification Bell + Student Actions Dropdown */}
+        <div className="flex items-center justify-end space-x-2 shrink-0">
+          {/* Notification & Email Button */}
+          <button
+            type="button"
+            onClick={() => setIsNotificationModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl transition-all shadow-sm cursor-pointer relative"
+            title="Gelen Bildirimler ve E-Postalar"
+          >
+            <div className="relative">
+              <Bell className="w-4 h-4 text-indigo-400" />
+              {unreadNotifsCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center ring-2 ring-slate-900 animate-bounce">
+                  {unreadNotifsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-bold text-white hidden sm:inline">
+              Bildirimler
+            </span>
+          </button>
+
+          {/* Student Profile Dropdown Button */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsStudentDropdownOpen(!isStudentDropdownOpen)}
+              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 transition-all cursor-pointer group"
+              title="Öğrenci Profil İşlemleri"
+            >
+              <div className="w-6 h-6 rounded-full overflow-hidden ring-1 ring-indigo-400/60 bg-slate-800 shrink-0">
+                <img
+                  src={studentAvatar || currentStudent.avatar}
+                  alt={currentStudent.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="text-xs font-bold text-white hidden sm:inline">
+                İşlemler
+              </span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-indigo-400 transition-transform ${
+                  isStudentDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {isStudentDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-60 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-4 py-2.5 border-b border-slate-800 mb-1">
+                  <p className="text-xs font-bold text-white truncate">{currentStudent.name}</p>
+                  <p className="text-[11px] text-indigo-300 font-medium truncate mt-0.5">
+                    {currentStudent.className} • No: #{currentStudent.studentNumber || currentStudent.id}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStudentDropdownOpen(false);
+                    setIsProfileModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                >
+                  <UserCog className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <span>Bilgilerimi Güncelle</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStudentDropdownOpen(false);
+                    setIsPasswordModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                >
+                  <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Şifre Değiştir</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStudentDropdownOpen(false);
+                    setIsAvatarModalOpen(true);
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span>Profil Resmi Değiştir / Yükle</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          VIEW 1: HOME (ÖĞRETMEN ANA SAYFASININ ÖĞRENCİYE ÖZGÜ TAM KARŞILIĞI)
+         ========================================================================= */}
+      {activeTab === 'home' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Wall 1: Öğrenci Karşılama ve Güncel Ayı Gösteren İnteraktif Ajanda Duvarı */}
+          <StudentHeroBanner
+            student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
+            homeworks={myHomeworks}
+            etuts={myEtuts}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
+            onOpenProfileModal={() => setIsProfileModalOpen(true)}
+            onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
+          />
+
+          {/* Unread Notifications / Email Alerts Banner */}
+          {unreadNotifsCount > 0 && (
+            <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-indigo-950/40 border border-indigo-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-100 shadow-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="font-bold text-sm block text-white flex items-center space-x-2">
+                    <span>📬 {unreadNotifsCount} Yeni Bildirim & E-Postanız Var</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white">YENİ</span>
+                  </span>
+                  <span className="text-xs text-indigo-200/90">
+                    Öğretmeniniz tarafından yeni ödev veya etüt tanımlandı. Detayları ve e-postayı görüntüleyebilirsiniz.
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsNotificationModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+              >
+                Bildirimleri & E-Postaları Gör
+              </button>
+            </div>
+          )}
+
+          {/* Upcoming Homeworks Urgency Banner */}
+          {upcomingAlerts.length > 0 && (
+            <div className="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-start space-x-3 text-amber-200 animate-pulse">
+              <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 text-xs">
+                <span className="font-bold text-sm block text-amber-300">
+                  ⏰ Yaklaşan Ödev Uyarısı ({upcomingAlerts.length} Ödev)
+                </span>
+                <span>
+                  Son teslim tarihi yaklaşan ödevleriniz var: &quot;
+                  {upcomingAlerts.map((h) => h.title).join(', ')}&quot;. Lütfen zamanında teslim etmeyi unutmayın!
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Wall 2: Öğrenci Durum Özetleri, İstatistikler, Rozetler ve Hızlı Geçiş Duvarı */}
+          <StudentStatsOverview
+            student={currentStudent}
+            homeworks={myHomeworks}
+            submissions={getSubmissionsList()}
+            etuts={myEtuts}
+            grades={grades}
+            attendance={attendance}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+          />
         </div>
       )}
 
-      {/* Upcoming Alerts Banner */}
-      {upcomingAlerts.length > 0 && (
-        <div className="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-start space-x-3 text-amber-200 animate-pulse">
-          <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1 text-xs">
-            <span className="font-bold text-sm block text-amber-300">
-              ⏰ Yaklaşan Ödev Uyarısı ({upcomingAlerts.length} Ödev)
-            </span>
-            <span>
-              Son teslim tarihi yaklaşan ödevleriniz var: &quot;
-              {upcomingAlerts.map((h) => h.title).join(', ')}&quot;. Lütfen zamanında teslim etmeyi unutmayın!
-            </span>
+      {/* Sub-Pages Header Banner when NOT on Home */}
+      {activeTab !== 'home' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-md">
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-indigo-300 hover:text-white font-bold text-xs border border-slate-700 transition-colors cursor-pointer group shadow-sm"
+              title="Öğrenci Ana Sayfasına Dön"
+            >
+              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span>Ana Sayfaya Dön</span>
+            </button>
+            <div className="h-5 w-[1px] bg-slate-700 hidden sm:block" />
+            <div>
+              <h2 className="text-sm sm:text-base font-black text-white">
+                {activeTab === 'homework' && 'Ödevlerim & Kazanımlarım'}
+                {activeTab === 'etuts' && 'Etüt ve Birebir Ders Programım'}
+                {activeTab === 'grades' && 'Akademik Notlarım ve Devamsızlık Durumum'}
+                {activeTab === 'messages' && 'Öğretmenlerime Soru Sor ve Mesajlaşma'}
+              </h2>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Nav Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-3 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('homework')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-            activeTab === 'homework'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Ödevlerim & Kazanımlar ({myHomeworks.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('etuts')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-            activeTab === 'etuts'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          <span>Etüt Programım ({myEtuts.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('grades')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-            activeTab === 'grades'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-        >
-          <Award className="w-4 h-4" />
-          <span>Notlarım & Devamsızlık</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('messages')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-            activeTab === 'messages'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Öğretmene Soru Sor ({myMessages.length})</span>
-        </button>
-      </div>
 
       {/* TAB 1: HOMEWORKS */}
       {activeTab === 'homework' && (
@@ -864,6 +990,28 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         onClose={() => setIsNotificationModalOpen(false)}
         currentStudent={currentStudent}
         onNavigateTab={(tab) => setActiveTab(tab)}
+      />
+
+      {/* Student Profile Photo / Avatar Modal */}
+      <StudentAvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        student={currentStudent}
+        onAvatarUpdated={(newAvatar) => setStudentAvatar(newAvatar)}
+      />
+
+      {/* Student Profile Information Edit Modal */}
+      <StudentProfileEditModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        student={currentStudent}
+      />
+
+      {/* Student Password Change Modal */}
+      <StudentPasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        student={currentStudent}
       />
     </div>
   );

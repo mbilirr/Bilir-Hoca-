@@ -96,6 +96,30 @@ const SUBJECT_COLORS: Record<string, { bg: string; text: string; border: string;
     border: 'border-teal-500/30',
     badge: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
   },
+  'Fen Bilgisi': {
+    bg: 'bg-emerald-950/40',
+    text: 'text-emerald-300',
+    border: 'border-emerald-500/30',
+    badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  },
+  'Sosyal Bilgiler': {
+    bg: 'bg-yellow-950/40',
+    text: 'text-yellow-300',
+    border: 'border-yellow-500/30',
+    badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+  },
+  İngilizce: {
+    bg: 'bg-sky-950/40',
+    text: 'text-sky-300',
+    border: 'border-sky-500/30',
+    badge: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  },
+  Edebiyat: {
+    bg: 'bg-purple-950/40',
+    text: 'text-purple-300',
+    border: 'border-purple-500/30',
+    badge: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+  },
 };
 
 export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({

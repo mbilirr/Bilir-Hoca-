@@ -28,6 +28,11 @@ import {
 import confetti from 'canvas-confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
+import {
+  SCHOOL_LEVELS,
+  BRANCH_OPTIONS,
+  getGradesForSchoolLevel,
+} from '../../constants/schoolConstants';
 
 interface AuthPortalProps {
   onAuthSuccess: (session: AuthSession) => void;
@@ -56,26 +61,30 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Remember Me & Easy Login
+  // Remember Me & Easy Login (Role-specific separation)
   const [rememberMe, setRememberMe] = useState(true);
-  const [rememberedUser, setRememberedUser] = useState(() => dataService.getRememberedUser());
+  const [rememberedTeacher, setRememberedTeacher] = useState(() => dataService.getRememberedUser('teacher'));
+  const [rememberedStudent, setRememberedStudent] = useState(() => dataService.getRememberedUser('student'));
 
-  // Listen to dataService updates so rememberedUser & teachers stay synchronized
+  // Listen to dataService updates so remembered users & teachers stay synchronized
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
-      setRememberedUser(dataService.getRememberedUser());
+      setRememberedTeacher(dataService.getRememberedUser('teacher'));
+      setRememberedStudent(dataService.getRememberedUser('student'));
     });
     return () => unsub();
   }, []);
+
+  // Active remembered user strictly matches selectedRole
+  const activeRememberedUser = selectedRole === 'teacher' ? rememberedTeacher : rememberedStudent;
 
   const primaryTeacher = teachers.find((t) => t.status === 'approved') || teachers[0];
   const primaryStudent = students[0];
 
   // --- LOGIN FORM STATE ---
   const [loginUsername, setLoginUsername] = useState(() => {
-    const rem = dataService.getRememberedUser();
-    if (rem?.role === 'teacher') return rem.identifier;
-    return '';
+    const rem = dataService.getRememberedUser('teacher');
+    return rem?.identifier || '';
   });
   const [loginPassword, setLoginPassword] = useState('');
 
@@ -90,7 +99,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   // --- STUDENT REGISTER STATE ---
   const [sRegName, setSRegName] = useState('');
   const [sRegUsername, setSRegUsername] = useState('');
-  const [sRegClassId, setSRegClassId] = useState(classes[0]?.id || '');
+  const [sRegSchool, setSRegSchool] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
+  const [sRegGrade, setSRegGrade] = useState('5. Sınıf');
   const [sRegBranch, setSRegBranch] = useState('');
   const [sRegPhone, setSRegPhone] = useState('');
   const [sRegEmail, setSRegEmail] = useState('');
@@ -105,28 +115,44 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setSelectedRole(role);
     setError(null);
     setSuccessMsg(null);
-    if (rememberedUser?.role === role) {
-      setLoginUsername(rememberedUser.identifier);
+    const rem = dataService.getRememberedUser(role);
+    if (rem) {
+      setLoginUsername(rem.identifier);
     } else {
       setLoginUsername('');
     }
     setLoginPassword('');
   };
 
-  // --- QUICK LOGIN FOR REMEMBERED USER ---
+  // --- QUICK LOGIN FOR REMEMBERED USER (Strictly Role-Checked) ---
   const handleQuickRememberedLogin = () => {
-    if (!rememberedUser) return;
+    const targetUser = selectedRole === 'teacher' ? rememberedTeacher : rememberedStudent;
+    if (!targetUser) {
+      setError(
+        selectedRole === 'teacher'
+          ? 'Kayıtlı öğretmen profili bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.'
+          : 'Kayıtlı öğrenci profili bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.'
+      );
+      return;
+    }
+
+    // Strict integrity check: selectedRole must match targetUser.role
+    if (targetUser.role !== selectedRole) {
+      setError('Seçilen rol ile kayıtlı profil türü uyuşmuyor.');
+      return;
+    }
+
     setError(null);
     setSuccessMsg(null);
     setIsLoading(true);
 
     setTimeout(() => {
       setIsLoading(false);
-      if (rememberedUser.role === 'teacher') {
+      if (selectedRole === 'teacher') {
         const teacher = dataService.getTeachers().find(
           (t) =>
-            t.username.toLowerCase() === rememberedUser.identifier.toLowerCase() ||
-            t.email.toLowerCase() === rememberedUser.identifier.toLowerCase()
+            t.username.toLowerCase() === targetUser.identifier.toLowerCase() ||
+            (t.email && t.email.toLowerCase() === targetUser.identifier.toLowerCase())
         );
 
         if (!teacher) {
@@ -149,9 +175,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       } else {
         const student = dataService.getStudents().find(
           (s) =>
-            s.username.toLowerCase() === rememberedUser.identifier.toLowerCase() ||
-            s.studentNumber.toLowerCase() === rememberedUser.identifier.toLowerCase() ||
-            s.email.toLowerCase() === rememberedUser.identifier.toLowerCase()
+            s.username.toLowerCase() === targetUser.identifier.toLowerCase() ||
+            (s.studentNumber && s.studentNumber.toLowerCase() === targetUser.identifier.toLowerCase()) ||
+            (s.email && s.email.toLowerCase() === targetUser.identifier.toLowerCase())
         );
 
         if (!student) {
@@ -169,8 +195,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   const handleForgetRememberedUser = () => {
-    dataService.setRememberedUser(null);
-    setRememberedUser(null);
+    dataService.setRememberedUser(null, selectedRole);
+    if (selectedRole === 'teacher') {
+      setRememberedTeacher(null);
+    } else {
+      setRememberedStudent(null);
+    }
+    setLoginUsername('');
   };
 
   // --- SUBMIT LOGIN ---
@@ -204,10 +235,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 avatar: teacher.avatar,
                 branch: teacher.branch,
               });
-              setRememberedUser(dataService.getRememberedUser());
+              setRememberedTeacher(dataService.getRememberedUser('teacher'));
             } else {
-              dataService.setRememberedUser(null);
-              setRememberedUser(null);
+              dataService.setRememberedUser(null, 'teacher');
+              setRememberedTeacher(null);
             }
 
             const session: AuthSession = { role: 'teacher', user: teacher };
@@ -232,10 +263,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               avatar: student.avatar,
               className: student.className,
             });
-            setRememberedUser(dataService.getRememberedUser());
+            setRememberedStudent(dataService.getRememberedUser('student'));
           } else {
-            dataService.setRememberedUser(null);
-            setRememberedUser(null);
+            dataService.setRememberedUser(null, 'student');
+            setRememberedStudent(null);
           }
 
           const session: AuthSession = { role: 'student', user: student };
@@ -292,7 +323,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           avatar: newTeacher.avatar,
           branch: newTeacher.branch,
         });
-        setRememberedUser(dataService.getRememberedUser());
+        setRememberedTeacher(dataService.getRememberedUser('teacher'));
       }
 
       setIsLoading(false);
@@ -315,7 +346,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    // Zorunlu alanlar: Adı Soyadı, Kullanıcı Adı, Sınıf, Şifre, Şifre Tekrar
+    // Zorunlu alanlar: Adı Soyadı, Kullanıcı Adı, Okul, Sınıf, Şifre, Şifre Tekrar (Şube isteğe bağlı)
     if (!sRegName.trim()) {
       setError('Lütfen Adı Soyadı alanını doldurunuz.');
       return;
@@ -324,8 +355,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       setError('Lütfen Kullanıcı Adı alanını doldurunuz.');
       return;
     }
-    if (!sRegClassId.trim()) {
-      setError('Lütfen Sınıf seçiniz.');
+    if (!sRegSchool) {
+      setError('Lütfen Okul kademesini seçiniz (Ortaokul veya Lise).');
+      return;
+    }
+    if (!sRegGrade) {
+      setError('Lütfen Sınıf seviyesini seçiniz.');
       return;
     }
     if (!sRegPassword.trim()) {
@@ -347,7 +382,30 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       return;
     }
 
-    const selectedClass = classes.find((c) => c.id === sRegClassId || c.name === sRegClassId);
+    const constructedClassName = sRegBranch ? `${sRegGrade} - ${sRegBranch}` : sRegGrade;
+    let matchedClass = classes.find(
+      (c) =>
+        c.gradeLevel === sRegGrade &&
+        (!sRegBranch || c.branch === sRegBranch) &&
+        (!c.schoolLevel || c.schoolLevel === sRegSchool)
+    );
+
+    if (!matchedClass) {
+      matchedClass = classes.find((c) => c.name.toLowerCase().includes(sRegGrade.toLowerCase()));
+    }
+
+    let targetClassId = matchedClass?.id;
+    if (!targetClassId) {
+      const newCls = dataService.addClass({
+        name: constructedClassName,
+        branch: sRegBranch || 'Genel',
+        schoolLevel: sRegSchool,
+        gradeLevel: sRegGrade,
+        academicYear: '2026-2027',
+        description: `${sRegSchool} ${sRegGrade} ${sRegBranch ? `(${sRegBranch})` : ''} öğrenci grubu`,
+      });
+      targetClassId = newCls.id;
+    }
 
     try {
       setIsLoading(true);
@@ -357,9 +415,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         username: sRegUsername.trim().toLowerCase(),
         email: sRegEmail.trim() || '',
         password: sRegPassword,
-        classId: selectedClass ? selectedClass.id : 'class-12a',
-        className: selectedClass ? selectedClass.name : (sRegClassId || '12-A Sayısal'),
-        branch: sRegBranch.trim() || (selectedClass ? selectedClass.branch : ''),
+        classId: targetClassId,
+        className: constructedClassName,
+        schoolLevel: sRegSchool,
+        gradeLevel: sRegGrade,
+        branch: sRegBranch.trim() || '',
         phone: sRegPhone.trim() || '',
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
           selectedAvatarSeed || sRegName
@@ -374,7 +434,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           avatar: newStudent.avatar,
           className: newStudent.className,
         });
-        setRememberedUser(dataService.getRememberedUser());
+        setRememberedStudent(dataService.getRememberedUser('student'));
       }
 
       const session: AuthSession = { role: 'student', user: newStudent };
@@ -429,63 +489,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         <div className="w-full max-w-xl bg-slate-900/90 backdrop-blur-2xl border-2 border-indigo-500/40 rounded-3xl shadow-2xl shadow-indigo-950/80 overflow-hidden p-6 sm:p-8 transition-all relative">
           {/* Top Decorative Color Line */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-
-          {/* BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
-          {rememberedUser && (
-            <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-indigo-950/80 via-purple-950/60 to-slate-900/90 border-2 border-indigo-500/40 shadow-xl relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3.5">
-                  <img
-                    src={
-                      rememberedUser.avatar ||
-                      `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                        rememberedUser.name
-                      )}`
-                    }
-                    alt={rememberedUser.name}
-                    className="w-12 h-12 rounded-2xl bg-slate-800 border-2 border-indigo-400/50 shadow-md object-cover"
-                  />
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-amber-400 flex items-center space-x-1">
-                        <Zap className="w-3.5 h-3.5 fill-amber-400" />
-                        <span>Kayıtlı Profil:</span>
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
-                        {rememberedUser.role === 'teacher' ? 'Öğretmen' : 'Öğrenci'}
-                      </span>
-                    </div>
-                    <div className="text-base font-bold text-white tracking-tight">
-                      {rememberedUser.name}
-                    </div>
-                    <div className="text-xs text-slate-300">
-                      {rememberedUser.branch || rememberedUser.className || rememberedUser.identifier}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end space-y-1.5">
-                  <button
-                    type="button"
-                    onClick={handleQuickRememberedLogin}
-                    disabled={isLoading}
-                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-400 hover:via-orange-400 hover:to-rose-400 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/25 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <Zap className="w-4 h-4 fill-slate-950" />
-                    <span>Giriş Yap</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleForgetRememberedUser}
-                    className="text-[11px] text-slate-400 hover:text-slate-200 underline cursor-pointer"
-                  >
-                    Beni Unut
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Main Auth Mode Tabs (Giriş Yap vs Kayıt Ol) */}
           <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 mb-6">
@@ -583,7 +586,88 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {/* ================= MODE 1: LOGIN ================= */}
           {authMode === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div className="space-y-5">
+              {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
+              {activeRememberedUser && (
+                <div
+                  className={`p-4 rounded-2xl border-2 shadow-xl relative overflow-hidden transition-all ${
+                    selectedRole === 'teacher'
+                      ? 'bg-gradient-to-r from-indigo-950/90 via-slate-900/90 to-purple-950/80 border-indigo-500/50 shadow-indigo-950/50'
+                      : 'bg-gradient-to-r from-pink-950/90 via-slate-900/90 to-purple-950/80 border-pink-500/50 shadow-pink-950/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center space-x-3.5 min-w-0">
+                      <img
+                        src={
+                          activeRememberedUser.avatar ||
+                          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+                            activeRememberedUser.name
+                          )}`
+                        }
+                        alt={activeRememberedUser.name}
+                        className={`w-12 h-12 rounded-2xl bg-slate-800 border-2 shadow-md object-cover flex-shrink-0 ${
+                          selectedRole === 'teacher' ? 'border-indigo-400/60' : 'border-pink-400/60'
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[11px] font-bold text-amber-400 flex items-center space-x-1">
+                            <Zap className="w-3.5 h-3.5 fill-amber-400" />
+                            <span>Kayıtlı Profil:</span>
+                          </span>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                              selectedRole === 'teacher'
+                                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                : 'bg-pink-500/20 text-pink-300 border-pink-500/30'
+                            }`}
+                          >
+                            {selectedRole === 'teacher' ? 'Öğretmen Hesabı' : 'Öğrenci Hesabı'}
+                          </span>
+                        </div>
+                        <div className="text-base font-bold text-white tracking-tight truncate">
+                          {activeRememberedUser.name}
+                        </div>
+                        <div className="text-xs text-slate-300 truncate">
+                          {activeRememberedUser.branch || activeRememberedUser.className || activeRememberedUser.identifier}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={handleQuickRememberedLogin}
+                        disabled={isLoading}
+                        className={`flex items-center space-x-2 px-3.5 py-2 font-black rounded-xl text-xs shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${
+                          selectedRole === 'teacher'
+                            ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 shadow-amber-500/25'
+                            : 'bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white shadow-pink-500/25'
+                        }`}
+                      >
+                        <Zap className={`w-4 h-4 ${selectedRole === 'teacher' ? 'fill-slate-950' : 'fill-white'}`} />
+                        <span>Hızlı Giriş Yap</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleForgetRememberedUser}
+                        className="text-[11px] text-slate-400 hover:text-rose-400 px-2.5 py-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Bu rol için kayıtlı profili kaldır"
+                      >
+                        Unut
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                    <span>Farklı hesap bilgileriyle girmek için aşağıdaki formu kullanınız:</span>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-200 mb-1.5">
                   {selectedRole === 'teacher'
@@ -665,7 +749,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 )}
               </button>
             </form>
-          )}
+          </div>
+        )}
 
           {/* ================= MODE 2: REGISTER ================= */}
           {authMode === 'register' && (
@@ -857,39 +942,83 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </div>
                   </div>
 
-                  {/* 2. Sınıf (Zorunlu) & Şube (İsteğe Bağlı) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Sınıf *</label>
-                      <div className="relative">
-                        <School className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  {/* 2. Okul (Mecburi), Sınıf (Mecburi) & Şube (İsteğe Bağlı) */}
+                  <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-pink-300 flex items-center space-x-1.5">
+                        <School className="w-3.5 h-3.5 text-pink-400" />
+                        <span>Okul, Sınıf ve Şube Bilgileri</span>
+                      </span>
+                      <span className="text-[11px] text-amber-400 font-semibold">Okul & Sınıf Zorunlu</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* Okul Açılır Buton (Mecburi) */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                          Okul *
+                        </label>
                         <select
                           required
-                          value={sRegClassId}
-                          onChange={(e) => setSRegClassId(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                          value={sRegSchool}
+                          onChange={(e) => {
+                            const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
+                            setSRegSchool(newSchool);
+                            if (newSchool === 'Ortaokul') {
+                              setSRegGrade('5. Sınıf');
+                            } else if (newSchool === 'Lise') {
+                              setSRegGrade('9. Sınıf');
+                            }
+                          }}
+                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
                         >
-                          <option value="">Sınıf Seçiniz *</option>
-                          {classes.map((cls) => (
-                            <option key={cls.id} value={cls.id}>
-                              {cls.name}
+                          <option value="">Okul Seçiniz *</option>
+                          <option value="Ortaokul">Ortaokul</option>
+                          <option value="Lise">Lise</option>
+                        </select>
+                      </div>
+
+                      {/* Sınıf Açılır Penceresi (Mecburi) */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                          Sınıf *
+                        </label>
+                        <select
+                          required
+                          value={sRegGrade}
+                          onChange={(e) => setSRegGrade(e.target.value)}
+                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                        >
+                          {!sRegSchool ? (
+                            <option value="">Önce Okul Seçiniz *</option>
+                          ) : (
+                            getGradesForSchoolLevel(sRegSchool).map((g) => (
+                              <option key={g} value={g}>
+                                {g}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Şube Açılır Buton (İsteğe Bağlı) */}
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                          Şube (İsteğe Bağlı)
+                        </label>
+                        <select
+                          value={sRegBranch}
+                          onChange={(e) => setSRegBranch(e.target.value)}
+                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                        >
+                          <option value="">Şube Seçiniz (İsteğe Bağlı)</option>
+                          {BRANCH_OPTIONS.map((b) => (
+                            <option key={b.id} value={b.label}>
+                              {b.label}
                             </option>
                           ))}
                         </select>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Şube (İsteğe Bağlı)
-                      </label>
-                      <input
-                        type="text"
-                        value={sRegBranch}
-                        onChange={(e) => setSRegBranch(e.target.value)}
-                        placeholder="Örn: A, B veya Sayısal"
-                        className="w-full px-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                      />
                     </div>
                   </div>
 

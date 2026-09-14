@@ -25,10 +25,17 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+        <div
+          className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between mb-4">
           <div className="flex items-center space-x-3">
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -90,5 +97,6 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
 };

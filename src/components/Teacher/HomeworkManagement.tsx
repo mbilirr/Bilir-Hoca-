@@ -29,6 +29,10 @@ import {
   GraduationCap,
   Save,
   Edit3,
+  Download,
+  Eye,
+  ChevronLeft,
+  Printer,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Homework, HomeworkSubmission, Student, ClassGroup, HomeworkResource, HomeworkCheckStatus } from '../../types';
@@ -38,6 +42,7 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { EditHomeworkModal } from './EditHomeworkModal';
+import { HomeworkDetailModal } from './HomeworkDetailModal';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -90,6 +95,135 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [hwFilterSubject, setHwFilterSubject] = useState('all');
   const [hwFilterClassId, setHwFilterClassId] = useState('all');
   const [isHwSearchDropdownOpen, setIsHwSearchDropdownOpen] = useState(false);
+
+  // Ödev Kontrol Bölümü Buton Seçimleri: Tüm Ödevler, Tüm Sınıflar, Tüm Dersler
+  const [trackerFilterHwId, setTrackerFilterHwId] = useState<string>('all');
+  const [trackerFilterClassId, setTrackerFilterClassId] = useState<string>('all');
+  const [trackerFilterSubject, setTrackerFilterSubject] = useState<string>('all');
+  const [isTrackerCarouselVisible, setIsTrackerCarouselVisible] = useState<boolean>(true);
+
+  // Sayfanın Hepsi Açılsın Modal State'i (Görüntüle Butonu)
+  const [activeViewingHomework, setActiveViewingHomework] = useState<Homework | null>(null);
+
+  const scrollTrackerHwTrack = (distance: number) => {
+    const el = document.getElementById('tracker-hw-carousel-track');
+    if (el) {
+      el.scrollBy({ left: distance, behavior: 'smooth' });
+    }
+  };
+
+  const scrollAllHwTrack = (distance: number) => {
+    const el = document.getElementById('all-hw-carousel-track');
+    if (el) {
+      el.scrollBy({ left: distance, behavior: 'smooth' });
+    }
+  };
+
+  // Ödev Belgesini Temiz Word / Yazdırma Belgesi Olarak İndirme Fonksiyonu
+  const handleDownloadHomeworkDoc = (hw: Homework) => {
+    const targetClassNames = (hw.targetClassIds || [])
+      .map((cid) => classes.find((c) => c.id === cid)?.name)
+      .filter(Boolean);
+
+    const assignedCount =
+      hw.assignedTo === 'all'
+        ? students.length
+        : Array.isArray(hw.assignedTo)
+        ? hw.assignedTo.length
+        : 0;
+
+    const dueDateFormatted = new Date(hw.dueDate).toLocaleDateString('tr-TR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const dueTimeFormatted = new Date(hw.dueDate).toLocaleTimeString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const docHtml = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>${hw.title}</title>
+        <style>
+          body { font-family: 'Calibri', 'Arial', sans-serif; line-height: 1.6; color: #1e293b; padding: 40px; margin: 0; }
+          .header { text-align: center; border-bottom: 2px solid #334155; padding-bottom: 15px; margin-bottom: 25px; }
+          .header h2 { margin: 0; font-size: 18pt; color: #0f172a; text-transform: uppercase; }
+          .header h3 { margin: 5px 0; font-size: 14pt; color: #334155; font-weight: 600; }
+          .header h4 { margin: 0; font-size: 12pt; color: #475569; }
+          .meta-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+          .meta-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 11pt; }
+          .section-title { font-size: 13pt; font-weight: bold; color: #4338ca; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin-top: 25px; margin-bottom: 12px; }
+          .description-box { font-size: 11pt; line-height: 1.8; background: #ffffff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; }
+          .outcomes-list { padding-left: 20px; margin: 10px 0; }
+          .outcomes-list li { margin-bottom: 6px; font-size: 10.5pt; color: #334155; }
+          .signature-area { margin-top: 50px; display: flex; justify-content: space-between; }
+          .sig-box { text-align: center; width: 220px; border-top: 1px solid #94a3b8; padding-top: 8px; font-size: 10pt; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>T.C. MİLLÎ EĞİTİM BAKANLIĞI</h2>
+          <h3>2026-2027 EĞİTİM-ÖĞRETİM YILI</h3>
+          <h4>KAZANIM ODAKLI ÖDEV VE ÇALIŞMA FORMU</h4>
+        </div>
+
+        <div class="meta-box">
+          <div class="meta-row"><strong>Ödev Başlığı:</strong> ${hw.title}</div>
+          <div class="meta-row"><strong>Ders / Kademe:</strong> ${hw.subject} (${hw.schoolLevel || 'Ortaokul / Lise'})</div>
+          <div class="meta-row"><strong>Hedef Sınıflar:</strong> ${targetClassNames.join(', ') || 'Tüm Şubeler'}</div>
+          <div class="meta-row"><strong>Son Teslim Tarihi:</strong> ${dueDateFormatted} - ${dueTimeFormatted}</div>
+          <div class="meta-row"><strong>Hedef Öğrenci Sayısı:</strong> ${assignedCount} Öğrenci</div>
+        </div>
+
+        <div class="section-title">ÖDEV YÖNERGESİ VE TALİMATLAR</div>
+        <div class="description-box">
+          ${(hw.description || 'Belirtilmedi').replace(/\n/g, '<br/>')}
+        </div>
+
+        ${
+          hw.outcomes && hw.outcomes.length > 0
+            ? `
+          <div class="section-title">HEDEFLENEN KAZANIMLAR VE ÖĞRENME ALANLARI</div>
+          <ul class="outcomes-list">
+            ${hw.outcomes.map((o) => `<li>${o}</li>`).join('')}
+          </ul>
+        `
+            : ''
+        }
+
+        <div class="signature-area">
+          <div class="sig-box">
+            <strong>Ders Öğretmeni</strong><br>
+            Mustafa BİLİR<br>
+            İmza
+          </div>
+          <div class="sig-box">
+            <strong>Zümre Başkanı / Okul İdaresi</strong><br>
+            Kontrol & Onay<br>
+            İmza
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([docHtml], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeTitle = hw.title.replace(/[^a-zA-Z0-9çÇğĞıİöÖşŞüÜ_-]/g, '_');
+    link.href = url;
+    link.download = `${safeTitle}_Odev_Belgesi_2026_2027.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setSaveFeedback(`"${hw.title}" ödev belgesi başarıyla indirildi.`);
+    setTimeout(() => setSaveFeedback(null), 3000);
+  };
 
   // Form State
   const [schoolLevel, setSchoolLevel] = useState<'Ortaokul' | 'Lise'>('Ortaokul');
@@ -187,6 +321,24 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   // Selected Homework for Tracking
   const selectedHomework =
     homeworks.find((h) => h.id === selectedHomeworkId) || homeworks[0] || null;
+
+  // Ödev Kontrol Filtreleme Seçenekleri ve Listesi
+  const trackerAvailableSubjects = Array.from(new Set(homeworks.map((h) => h.subject))).filter(Boolean);
+
+  const filteredTrackerHomeworks = homeworks.filter((hw) => {
+    if (trackerFilterHwId !== 'all' && hw.id !== trackerFilterHwId) {
+      return false;
+    }
+    if (trackerFilterSubject !== 'all' && hw.subject !== trackerFilterSubject) {
+      return false;
+    }
+    if (trackerFilterClassId !== 'all') {
+      if (hw.targetClassIds && hw.targetClassIds.length > 0) {
+        if (!hw.targetClassIds.includes(trackerFilterClassId)) return false;
+      }
+    }
+    return true;
+  });
 
   // Is any class or student selected? (Açılır pencerelerden biri seçilmeden sayfa altında ödev bilgileri çıkmasın)
   const isSelectionActive = Boolean(
@@ -360,11 +512,332 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {/* TAB 1: TRACKER / CHECK VIEW */}
       {activeTab === 'tracker' && (
         <div className="space-y-5">
+          {/* 3 Ana Seçim Butonu: TÜM ÖDEVLER, TÜM SINIFLAR, TÜM DERSLER */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                  <span>Ödev Kontrol & Filtreleme Butonları</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Aşağıdaki butonlardan seçim yaparak ilgili ödevleri yan yana kayan özet sayfalar halinde görüntüleyin.
+                </p>
+              </div>
+
+              {/* Buton Seçim Durumu Rozeti */}
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  {filteredTrackerHomeworks.length} Ödev Görünüyor
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTrackerFilterHwId('all');
+                    setTrackerFilterClassId('all');
+                    setTrackerFilterSubject('all');
+                    setIsTrackerCarouselVisible(true);
+                  }}
+                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Tümünü Göster
+                </button>
+              </div>
+            </div>
+
+            {/* 3 Buton Izgarası */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* 1. TÜM ÖDEVLER BUTONU */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Tüm Ödevler Butonu</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {trackerFilterHwId === 'all' ? 'Tümü Açık' : '1 Ödev Seçili'}
+                  </span>
+                </div>
+                <div className="relative">
+                  <select
+                    value={trackerFilterHwId}
+                    onChange={(e) => {
+                      setTrackerFilterHwId(e.target.value);
+                      setIsTrackerCarouselVisible(true);
+                      if (e.target.value !== 'all') {
+                        setSelectedHomeworkId(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
+                  >
+                    <option value="all">📚 Tüm Ödevler ({homeworks.length})</option>
+                    {homeworks.map((hw) => (
+                      <option key={hw.id} value={hw.id}>
+                        {hw.title} ({hw.subject})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 2. TÜM SINIFLAR BUTONU */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <Users className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Tüm Sınıflar Butonu</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {trackerFilterClassId === 'all' ? 'Tüm Sınıflar' : classes.find((c) => c.id === trackerFilterClassId)?.name}
+                  </span>
+                </div>
+                <div className="relative">
+                  <select
+                    value={trackerFilterClassId}
+                    onChange={(e) => {
+                      setTrackerFilterClassId(e.target.value);
+                      setIsTrackerCarouselVisible(true);
+                      if (e.target.value !== 'all') {
+                        setSelectedClassIdForCheck(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
+                  >
+                    <option value="all">🏫 Tüm Sınıflar ({classes.length})</option>
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name} ({cls.academicYear})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 3. TÜM DERSLER BUTONU */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <Target className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Tüm Dersler Butonu</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {trackerFilterSubject === 'all' ? 'Tüm Dersler' : trackerFilterSubject}
+                  </span>
+                </div>
+                <div className="relative">
+                  <select
+                    value={trackerFilterSubject}
+                    onChange={(e) => {
+                      setTrackerFilterSubject(e.target.value);
+                      setIsTrackerCarouselVisible(true);
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
+                  >
+                    <option value="all">📖 Tüm Dersler</option>
+                    {trackerAvailableSubjects.map((sbj) => (
+                      <option key={sbj} value={sbj}>
+                        {sbj}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* YAN YANA KAYAN ÖZET SAYFALAR (AÇILAN ÖDEVLER) */}
+          {isTrackerCarouselVisible && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              {/* Carousel Başlık & Sağa/Sola Kaydırma Butonları */}
+              <div className="p-4 sm:px-5 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/50">
+                <div className="flex items-center space-x-2">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  <span className="text-sm font-bold text-white">
+                    Açılan Ödevler (Yan Yana Kayan Özet Sayfalar)
+                  </span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold">
+                    {filteredTrackerHomeworks.length} Özet Sayfa
+                  </span>
+                </div>
+
+                {/* Kaydırma Kontrolleri */}
+                <div className="flex items-center space-x-1.5">
+                  <button
+                    type="button"
+                    onClick={() => scrollTrackerHwTrack(-340)}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Sola Kaydır"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollTrackerHwTrack(340)}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Sağa Kaydır"
+                  >
+                    <ChevronDown className="w-4 h-4 -rotate-90" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Yatay Kayar Parça / Carousel Track */}
+              {filteredTrackerHomeworks.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 text-xs">
+                  Seçilen buton kriterlerine uygun ödev bulunamadı. Lütfen "Tümünü Göster" butonuna tıklayarak filtreleri sıfırlayabilirsiniz.
+                </div>
+              ) : (
+                <div
+                  id="tracker-hw-carousel-track"
+                  className="flex items-stretch space-x-4 overflow-x-auto p-4 sm:p-5 scrollbar-thin snap-x snap-mandatory scroll-smooth"
+                >
+                  {filteredTrackerHomeworks.map((hw) => {
+                    const isSelectedForCheck = selectedHomeworkId === hw.id;
+                    const targetClasses = (hw.targetClassIds || [])
+                      .map((cid) => classes.find((c) => c.id === cid)?.name)
+                      .filter(Boolean);
+
+                    const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
+                    const doneCount = hwSubmissions.filter(
+                      (s) => s.checkStatus === 'yapti' || s.status === 'on_time' || s.status === 'late'
+                    ).length;
+                    const missingCount = hwSubmissions.filter(
+                      (s) => s.checkStatus === 'eksik'
+                    ).length;
+                    const notDoneCount = hwSubmissions.filter(
+                      (s) => s.checkStatus === 'yapmadi' || s.status === 'not_submitted'
+                    ).length;
+
+                    return (
+                      <div
+                        key={hw.id}
+                        className={`w-84 sm:w-92 shrink-0 snap-start bg-slate-900/95 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-lg transition-all border group hover:shadow-indigo-500/10 hover:-translate-y-0.5 ${
+                          isSelectedForCheck
+                            ? 'border-indigo-500 ring-2 ring-indigo-500/30'
+                            : 'border-slate-800 hover:border-indigo-500/40'
+                        }`}
+                      >
+                        {/* Sayfa Başlığı ve Rozetler */}
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center space-x-1.5 flex-wrap">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+                                {hw.subject}
+                              </span>
+                              {hw.schoolLevel && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
+                                  {hw.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                              2026-2027
+                            </span>
+                          </div>
+
+                          <h4
+                            className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[38px] mb-2 leading-snug"
+                            title={hw.title}
+                          >
+                            {hw.title}
+                          </h4>
+
+                          {/* Özet Sayfa Kartı (Mini A4 Doküman Görünümü) */}
+                          <div className="bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 mb-3 space-y-2 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-500/20" />
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-slate-800">
+                              <span className="flex items-center space-x-1">
+                                <Clock className="w-3 h-3 text-amber-400" />
+                                <span>{new Date(hw.dueDate).toLocaleDateString('tr-TR')}</span>
+                              </span>
+                              <span className="font-semibold text-indigo-300 truncate max-w-[120px]">
+                                {targetClasses.join(', ') || 'Tüm Şubeler'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
+                              {hw.description || 'Kazanım odaklı çalışma ve ödev föyü talimatları.'}
+                            </p>
+
+                            {/* Kontrol İstatistikleri */}
+                            <div className="flex items-center justify-between pt-1 text-[10px] font-bold border-t border-slate-900">
+                              <span className="text-emerald-400 flex items-center space-x-0.5">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>{doneCount} Yaptı</span>
+                              </span>
+                              <span className="text-rose-400 flex items-center space-x-0.5">
+                                <X className="w-3 h-3" />
+                                <span>{notDoneCount} Yapmadı</span>
+                              </span>
+                              <span className="text-amber-400 flex items-center space-x-0.5">
+                                <AlertTriangle className="w-3 h-3" />
+                                <span>{missingCount} Eksik</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Aksiyon Butonları: Görüntüle, İndir, Kontrol Et */}
+                        <div className="space-y-2 pt-2 border-t border-slate-800/60">
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* GÖRÜNTÜLE BUTONU (Sayfanın hepsi açılır, sayfa altında indir butonu vardır) */}
+                            <button
+                              type="button"
+                              onClick={() => setActiveViewingHomework(hw)}
+                              className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-sm cursor-pointer"
+                              title="Ödev Sayfasının Hepsini Aç"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Görüntüle</span>
+                            </button>
+
+                            {/* İNDİR BUTONU */}
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadHomeworkDoc(hw)}
+                              className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                              title="Ödev Belgesini İndir (.doc)"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>İndir</span>
+                            </button>
+                          </div>
+
+                          {/* Kontrol Et Butonu */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedHomeworkId(hw.id);
+                              if (hw.targetClassIds && hw.targetClassIds.length > 0) {
+                                setSelectedClassIdForCheck(hw.targetClassIds[0]);
+                              }
+                              setDraftCheckStatuses({});
+                              setSaveFeedback(null);
+                            }}
+                            className={`w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer border ${
+                              isSelectedForCheck
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{isSelectedForCheck ? '✓ Bu Ödev Seçili (Aşağıda Kontrol Ediliyor)' : 'Bu Ödevi Kontrol Çizelgesinde Seç'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Controls Bar: Ödev Seçiniz, Sınıf Seçiniz, Öğrenci Seçiniz, Öğrenci Arama */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md">
             <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center space-x-2">
               <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Ödev Kontrol Seçim Menüsü</span>
+              <span>Öğrenci Değerlendirme & Kontrol Çizelgesi</span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1192,7 +1665,29 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </div>
 
                 {/* Header Action Buttons */}
-                <div className="flex items-center space-x-2 self-end md:self-center">
+                <div className="flex items-center space-x-2 self-end md:self-center flex-wrap gap-y-2">
+                  {/* GÖRÜNTÜLE BUTONU (Sayfanın hepsi açılır, sayfa altında indir butonu vardır) */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveViewingHomework(hw)}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    title="Ödev Sayfasının Hepsini Aç"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Görüntüle</span>
+                  </button>
+
+                  {/* İNDİR BUTONU */}
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadHomeworkDoc(hw)}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    title="Ödev Belgesini İndir (.doc)"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">İndir</span>
+                  </button>
+
                   <button
                     onClick={() => handleOpenEditResources(hw)}
                     className="flex items-center space-x-1.5 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold transition-all"
@@ -1491,20 +1986,27 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
       {/* CREATE HOMEWORK MODAL */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-              <div className="flex items-center space-x-2">
-                <Target className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-lg font-bold text-white">Yeni Kazanımlı Ödev Tanımla</h3>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          onClick={() => setIsCreateModalOpen(false)}
+        >
+          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+            <div
+              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                <div className="flex items-center space-x-2">
+                  <Target className="w-5 h-5 text-indigo-400" />
+                  <h3 className="text-lg font-bold text-white">Yeni Kazanımlı Ödev Tanımla</h3>
+                </div>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
             <form onSubmit={handleCreateHomework} className="space-y-4">
               {/* Okul ve Dersler Açılır Pencereleri */}
@@ -1732,50 +2234,59 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             </form>
           </div>
         </div>
+      </div>
       )}
 
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-              <div className="flex items-center space-x-2">
-                <Paperclip className="w-5 h-5 text-indigo-400" />
-                <div>
-                  <h3 className="text-lg font-bold text-white">Ödev Materyallerini Düzenle</h3>
-                  <p className="text-xs text-slate-400 truncate max-w-md">{editingResourcesHw.title}</p>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          onClick={() => setEditingResourcesHw(null)}
+        >
+          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+            <div
+              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                <div className="flex items-center space-x-2">
+                  <Paperclip className="w-5 h-5 text-indigo-400" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Ödev Materyallerini Düzenle</h3>
+                    <p className="text-xs text-slate-400 truncate max-w-md">{editingResourcesHw.title}</p>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => setEditingResourcesHw(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <HomeworkResourceUploader
-                resources={editingResourcesList}
-                onChange={setEditingResourcesList}
-              />
-
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
                 <button
-                  type="button"
                   onClick={() => setEditingResourcesHw(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
                 >
-                  İptal
+                  <X className="w-5 h-5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSaveEditedResources}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Materyalleri Kaydet</span>
-                </button>
+              </div>
+
+              <div className="space-y-4">
+                <HomeworkResourceUploader
+                  resources={editingResourcesList}
+                  onChange={setEditingResourcesList}
+                />
+
+                <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingResourcesHw(null)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEditedResources}
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Materyalleri Kaydet</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1816,6 +2327,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         itemBadge={homeworkToDelete ? `${homeworkToDelete.subject} • Son Teslim: ${new Date(homeworkToDelete.dueDate).toLocaleDateString('tr-TR')}` : undefined}
         description={`"${homeworkToDelete?.title}" başlıklı ödevi silmek istediğinize emin misiniz? Bu ödeve ait tüm öğrenci teslimleri ve değerlendirmeler de silinecektir.`}
         confirmButtonText="Ödevi Sil"
+      />
+      {/* HOMEWORK DETAIL MODAL (Sayfanın hepsi açılır, sayfa altında indir butonu vardır) */}
+      <HomeworkDetailModal
+        isOpen={!!activeViewingHomework}
+        onClose={() => setActiveViewingHomework(null)}
+        homework={activeViewingHomework}
+        students={students}
+        classes={classes}
+        submissions={submissions}
       />
     </div>
   );
