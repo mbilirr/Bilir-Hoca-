@@ -32,6 +32,7 @@ import { TeacherStatsOverview } from './components/Teacher/TeacherStatsOverview'
 import { TeacherHeroBanner } from './components/Teacher/TeacherHeroBanner';
 import { TeacherEtutBell } from './components/Teacher/TeacherEtutBell';
 import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherDocumentsArchive';
+import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
 import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { dataService } from './services/dataService';
@@ -323,6 +324,7 @@ export default function App() {
                       {teacherTab === 'grades' && 'Ders Notları & Devamsızlık'}
                       {teacherTab === 'messages' && 'Öğrenci Soruları & Mesajlaşma'}
                       {teacherTab === 'archive' && 'Plan & Zümre Arşivi'}
+                      {teacherTab === 'question_tracking' && 'Soru Sayısı Takip & Analiz'}
                     </span>
                   </div>
 
@@ -382,6 +384,13 @@ export default function App() {
                   <TeacherDocumentsArchive
                     documents={documents}
                     onDocumentsChange={() => setDocuments(dataService.getTeacherDocuments())}
+                  />
+                )}
+
+                {teacherTab === 'question_tracking' && (
+                  <QuestionTrackingView
+                    classes={classes}
+                    students={students}
                   />
                 )}
               </div>

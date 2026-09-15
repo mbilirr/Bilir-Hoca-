@@ -18,6 +18,8 @@ import {
   School,
   GraduationCap,
   Filter,
+  BarChart3,
+  FileText,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup } from '../../types';
@@ -26,6 +28,7 @@ import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calen
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { WeeklyEtutCalendar } from './WeeklyEtutCalendar';
 import { SentCommunicationsModal } from './SentCommunicationsModal';
+import { EtutAnalysisReportModal } from './EtutAnalysisReportModal';
 import {
   SCHOOL_LEVELS,
   MIDDLE_SCHOOL_GRADES,
@@ -47,6 +50,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [viewMode, setViewMode] = useState<'calendar' | 'cards'>('calendar');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
   const [editingEtut, setEditingEtut] = useState<Etut | null>(null);
   const [etutToDelete, setEtutToDelete] = useState<Etut | null>(null);
 
@@ -334,6 +339,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             </button>
           </div>
 
+          {/* Etüt Analiz & Çıktı Raporu Butonu */}
+          <button
+            type="button"
+            onClick={() => {
+              setReportSelectedStudentId(undefined);
+              setIsReportModalOpen(true);
+            }}
+            className="flex items-center space-x-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            title="Öğrenci bazlı etüt katılım analizi, ders/konu istatistiği ve PDF/DOCX raporu indir"
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <span>Etüt Analiz & Belge Çıktısı (PDF/DOCX)</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsSentCommunicationsOpen(true)}
@@ -449,13 +468,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </p>
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                       {assignedStudents.map((std) => (
-                        <span
+                        <button
+                          type="button"
                           key={std.id}
-                          className="inline-flex items-center space-x-1 text-[11px] bg-slate-800 text-slate-200 px-2 py-0.5 rounded-md border border-slate-700"
+                          onClick={() => {
+                            setReportSelectedStudentId(std.id);
+                            setIsReportModalOpen(true);
+                          }}
+                          className="inline-flex items-center space-x-1 text-[11px] bg-slate-800 hover:bg-indigo-950/80 hover:text-indigo-200 hover:border-indigo-500/50 text-slate-200 px-2 py-0.5 rounded-md border border-slate-700 transition-colors cursor-pointer"
+                          title={`${std.name} için etüt analizini ve PDF/DOCX raporunu görüntüle`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
                           <span>{std.name}</span>
-                        </span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -850,6 +875,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       <SentCommunicationsModal
         isOpen={isSentCommunicationsOpen}
         onClose={() => setIsSentCommunicationsOpen(false)}
+      />
+
+      {/* Etüt Analiz & Belge Çıktısı (PDF/DOCX) Modalı */}
+      <EtutAnalysisReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => {
+          setIsReportModalOpen(false);
+          setReportSelectedStudentId(undefined);
+        }}
+        etuts={etuts}
+        students={students}
+        classes={classes}
+        preselectedStudentId={reportSelectedStudentId}
       />
     </div>
   );

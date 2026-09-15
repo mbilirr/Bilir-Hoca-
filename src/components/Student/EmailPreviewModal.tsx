@@ -24,7 +24,7 @@ interface EmailPreviewModalProps {
     sentAt: string;
     htmlContent: string;
     textContent: string;
-    type?: 'homework_assigned' | 'etut_assigned';
+    type?: 'homework_assigned' | 'etut_assigned' | 'student_welcome';
     onNavigateAction?: () => void;
     actionLabel?: string;
   } | null;

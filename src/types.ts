@@ -7,7 +7,8 @@ export type TeacherTabType =
   | 'etuts'
   | 'grades'
   | 'messages'
-  | 'archive';
+  | 'archive'
+  | 'question_tracking';
 
 export interface Teacher {
   id: string;
@@ -190,7 +191,7 @@ export interface StudentNotification {
   teacherName?: string;
   createdAt: string;
   read: boolean;
-  linkTab?: 'homework' | 'etuts' | 'grades' | 'messages';
+  linkTab?: 'home' | 'homework' | 'etuts' | 'grades' | 'messages';
   emailSent?: boolean;
   emailRecipient?: string;
   emailDetails?: {
@@ -206,7 +207,7 @@ export interface SentEmailLog {
   recipientName: string;
   recipientRole: 'student';
   studentId: string;
-  type: 'homework_assigned' | 'etut_assigned';
+  type: 'homework_assigned' | 'etut_assigned' | 'student_welcome';
   subject: string;
   htmlContent: string;
   textContent: string;
@@ -259,4 +260,30 @@ export interface ExtractedOutcomeItem {
   gradeLevel?: string;
   week?: string;
 }
+
+export interface QuestionLogSubjectEntry {
+  subject: string; // e.g., 'Matematik', 'Türkçe', 'Fizik', 'Kimya', 'Biyoloji', 'Geometri', 'Tarih', 'Coğrafya', 'Felsefe', 'Din Kültürü', 'İngilizce'
+  questionCount: number;
+  correctCount?: number;
+  wrongCount?: number;
+  emptyCount?: number;
+  topic?: string;
+}
+
+export interface StudentQuestionLog {
+  id: string;
+  studentId: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  date: string; // YYYY-MM-DD
+  entries: QuestionLogSubjectEntry[];
+  totalQuestions: number;
+  totalCorrect?: number;
+  totalWrong?: number;
+  totalEmpty?: number;
+  notes?: string;
+  createdAt: string;
+}
+
 

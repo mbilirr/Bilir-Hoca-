@@ -19,6 +19,11 @@ import {
   Upload,
   Camera,
   AlertCircle,
+  Lock,
+  Eye,
+  EyeOff,
+  Key,
+  Copy,
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -26,6 +31,11 @@ import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
 import { ExcelClassUploadModal } from './ExcelClassUploadModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
+import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
+import {
+  generateStudentWelcomeEmail,
+  createGmailComposeLink,
+} from '../../lib/emailTemplates';
 import {
   SCHOOL_LEVELS,
   BRANCH_OPTIONS,
@@ -61,11 +71,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Delete modals state
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
+  const [selectedCredentialsStudent, setSelectedCredentialsStudent] = useState<Student | null>(null);
 
   // New student form state
   const [studentName, setStudentName] = useState('');
   const [studentUsername, setStudentUsername] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
+  const [studentPassword, setStudentPassword] = useState('123456');
+  const [showStudentPassword, setShowStudentPassword] = useState(false);
+  const [autoOpenEmail, setAutoOpenEmail] = useState(true);
+  const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
+  const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
   const [studentSchoolLevel, setStudentSchoolLevel] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
   const [studentGradeLevel, setStudentGradeLevel] = useState('5. Sınıf');
@@ -160,6 +176,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         name: studentName,
         username: studentUsername,
         email: studentEmail,
+        password: studentPassword || editingStudent.password || '123456',
         classId: targetClassId,
         className: constructedClassName,
         schoolLevel: studentSchoolLevel,
@@ -169,12 +186,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         phone: studentPhone,
         avatar: studentAvatar || editingStudent.avatar,
       });
+      setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla güncellendi.`);
+      setTimeout(() => setStudentSuccessFeedback(null), 4000);
       setEditingStudent(null);
     } else {
-      dataService.registerStudent({
+      const createdStudent = dataService.registerStudent({
         name: studentName,
         username: studentUsername || studentEmail.split('@')[0],
         email: studentEmail,
+        password: studentPassword || '123456',
         classId: targetClassId,
         className: constructedClassName,
         schoolLevel: studentSchoolLevel,
@@ -187,6 +207,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
       });
       setIsAddStudentOpen(false);
+      setSelectedCredentialsStudent(createdStudent);
+      if (studentEmail) {
+        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-posta ekranında hazırlandı.`);
+        if (autoOpenEmail) {
+          try {
+            const emailContent = generateStudentWelcomeEmail({
+              studentName: createdStudent.name,
+              studentEmail: createdStudent.email,
+              username: createdStudent.username,
+              studentNumber: createdStudent.studentNumber,
+              password: createdStudent.password,
+              className: createdStudent.className,
+              teacherName: 'Öğretmen',
+            });
+            const gmailUrl = createGmailComposeLink(
+              createdStudent.email,
+              emailContent.subject,
+              emailContent.text
+            );
+            window.open(gmailUrl, '_blank');
+          } catch (e) {
+            console.warn('E-posta penceresi açılamadı:', e);
+          }
+        }
+      } else {
+        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş şifresi: ${studentPassword || '123456'}`);
+      }
+      setTimeout(() => setStudentSuccessFeedback(null), 5000);
     }
     resetStudentForm();
   };
@@ -195,6 +243,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentName('');
     setStudentUsername('');
     setStudentEmail('');
+    setStudentPassword('123456');
+    setShowStudentPassword(false);
     setStudentNumber('');
     setStudentPhone('');
     setStudentAvatar('');
@@ -210,6 +260,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentName(student.name);
     setStudentUsername(student.username);
     setStudentEmail(student.email);
+    setStudentPassword(student.password || '123456');
+    setShowStudentPassword(false);
     setStudentClassId(student.classId);
     setStudentNumber(student.studentNumber);
     setStudentPhone(student.phone || '');
@@ -502,6 +554,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Success Notification Alert */}
+      {studentSuccessFeedback && (
+        <div className="p-4 bg-emerald-950/80 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-emerald-200 text-sm shadow-xl shadow-emerald-950/30 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+              <Check className="w-4 h-4" />
+            </div>
+            <span className="font-medium">{studentSuccessFeedback}</span>
+          </div>
+          <button
+            onClick={() => setStudentSuccessFeedback(null)}
+            className="p-1 text-emerald-400 hover:text-white rounded-lg cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
         <div>
@@ -654,7 +724,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <th className="px-6 py-3.5 font-semibold">Öğrenci</th>
                   <th className="px-6 py-3.5 font-semibold">Sınıf / Şube</th>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci No</th>
-                  <th className="px-6 py-3.5 font-semibold">İletişim</th>
+                  <th className="px-6 py-3.5 font-semibold">Giriş Şifresi</th>
+                  <th className="px-6 py-3.5 font-semibold">İletişim & E-posta</th>
                   <th className="px-6 py-3.5 font-semibold">Kayıt Durumu</th>
                   <th className="px-6 py-3.5 font-semibold text-right">İşlemler</th>
                 </tr>
@@ -662,7 +733,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <tbody className="divide-y divide-slate-800/60">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                       Arama kriterlerine uygun öğrenci bulunamadı.
                     </td>
                   </tr>
@@ -698,6 +769,30 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         #{std.studentNumber}
                       </td>
 
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                            {std.password || '123456'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(std.password || '123456');
+                              setCopiedPasswordId(std.id);
+                              setTimeout(() => setCopiedPasswordId(null), 2000);
+                            }}
+                            className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Şifreyi Kopyala"
+                          >
+                            {copiedPasswordId === std.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+
                       <td className="px-6 py-4 text-xs space-y-1">
                         <div className="flex items-center space-x-1.5 text-slate-300">
                           <Mail className="w-3.5 h-3.5 text-slate-500" />
@@ -720,6 +815,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => setSelectedCredentialsStudent(std)}
+                            className="p-1.5 bg-slate-800 hover:bg-indigo-600/30 text-slate-400 hover:text-indigo-300 rounded-lg transition-colors cursor-pointer"
+                            title="Giriş Bilgilerini & Şifreyi Mail / WhatsApp İle Gönder"
+                          >
+                            <Mail className="w-4 h-4 text-indigo-400" />
+                          </button>
                           <button
                             onClick={() => openEditStudent(std)}
                             className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
@@ -1016,6 +1118,62 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   placeholder="0555 123 4567"
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
                 />
+              </div>
+
+              {/* Öğrenci Giriş Şifresi ve E-posta Bildirimi */}
+              <div className="p-3.5 bg-indigo-950/40 rounded-xl border border-indigo-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-indigo-200 flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Öğrenci Giriş Şifresi *</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setStudentPassword(Math.floor(100000 + Math.random() * 900000).toString())}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline cursor-pointer"
+                  >
+                    🎲 Rastgele Şifre Oluştur
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showStudentPassword ? 'text' : 'password'}
+                    required
+                    value={studentPassword}
+                    onChange={(e) => setStudentPassword(e.target.value)}
+                    placeholder="Örn: 123456"
+                    className="w-full pl-3 pr-10 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-mono tracking-wider focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowStudentPassword(!showStudentPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+                    title={showStudentPassword ? 'Gizle' : 'Göster'}
+                  >
+                    {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div className="p-2.5 bg-emerald-950/30 border border-emerald-500/30 rounded-lg text-xs text-emerald-300 space-y-1.5">
+                  <div className="flex items-center space-x-1.5 font-semibold text-emerald-400">
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Otomatik E-posta & Giriş Bildirimi</span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi maili hazırlar. Öğrenci bu kullanıcı adı ve şifreyle "Öğrenci Girişi" panelinden sisteme erişebilir.
+                  </p>
+                  <label className="flex items-center space-x-2 pt-1 text-[11px] text-slate-200 cursor-pointer select-none">
+                    <input
+                      id="student-auto-open-email-chk"
+                      type="checkbox"
+                      checked={autoOpenEmail}
+                      onChange={(e) => setAutoOpenEmail(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-emerald-300 font-medium">
+                      Kayıt tamamlandığında Gmail gönderme penceresini otomatik aç
+                    </span>
+                  </label>
+                </div>
               </div>
 
               {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
@@ -1472,6 +1630,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         itemBadge={classToDelete?.branch}
         description={`"${classToDelete?.name}" sınıfını silmek istediğinize emin misiniz? Bu sınıfa kayıtlı öğrencilerin sınıf atamaları sıfırlanacaktır.`}
         confirmButtonText="Sınıfı Sil"
+      />
+
+      {/* STUDENT WELCOME CREDENTIALS & EMAIL DISPATCH MODAL */}
+      <StudentWelcomeCredentialsModal
+        isOpen={!!selectedCredentialsStudent}
+        onClose={() => setSelectedCredentialsStudent(null)}
+        student={selectedCredentialsStudent}
       />
     </div>
   );

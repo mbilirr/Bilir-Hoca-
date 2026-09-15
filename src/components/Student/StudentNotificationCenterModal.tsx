@@ -23,7 +23,7 @@ interface StudentNotificationCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentStudent: Student;
-  onNavigateTab?: (tab: 'homework' | 'etuts' | 'grades' | 'messages') => void;
+  onNavigateTab?: (tab: 'home' | 'homework' | 'etuts' | 'grades' | 'messages') => void;
 }
 
 export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterModalProps> = ({
@@ -44,7 +44,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
     sentAt: string;
     htmlContent: string;
     textContent: string;
-    type?: 'homework_assigned' | 'etut_assigned';
+    type?: 'homework_assigned' | 'etut_assigned' | 'student_welcome';
     onNavigateAction?: () => void;
     actionLabel?: string;
   } | null>(null);
@@ -128,11 +128,18 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
         onClose();
         if (email.type === 'homework_assigned') {
           onNavigateTab?.('homework');
-        } else {
+        } else if (email.type === 'etut_assigned') {
           onNavigateTab?.('etuts');
+        } else {
+          onNavigateTab?.('home');
         }
       },
-      actionLabel: email.type === 'homework_assigned' ? 'Ödev Detayına Git' : 'Etüt Takvimine Git',
+      actionLabel:
+        email.type === 'homework_assigned'
+          ? 'Ödev Detayına Git'
+          : email.type === 'etut_assigned'
+          ? 'Etüt Takvimine Git'
+          : 'Ana Sayfaya Git',
     });
   };
 

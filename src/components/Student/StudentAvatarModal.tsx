@@ -37,6 +37,7 @@ export const createStudentEmojiSvgDataUrl = (
   bgHex1 = '#4338ca',
   bgHex2 = '#1e40af'
 ) => {
+  // Tam kare şeklinde, kenarları dolduran modern SVG (yuvarlak kırpma yok)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
     <defs>
       <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -44,7 +45,7 @@ export const createStudentEmojiSvgDataUrl = (
         <stop offset="100%" stop-color="${bgHex2}" />
       </linearGradient>
     </defs>
-    <rect width="120" height="120" rx="60" fill="url(#g)" />
+    <rect width="120" height="120" fill="url(#g)" />
     <text x="50%" y="54%" font-size="58" dominant-baseline="central" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -138,6 +139,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
   const [activeTab, setActiveTab] = useState<'upload' | 'emoji' | 'preset'>('upload');
   const [emojiCategory, setEmojiCategory] = useState<'Tümü' | StudentEmojiPreset['category']>('Tümü');
   const [selectedBg, setSelectedBg] = useState(BG_COLORS[0]);
+  const [activeEmoji, setActiveEmoji] = useState<string | null>('👨‍🎓');
   const [customEmoji, setCustomEmoji] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string>(student.avatar || '');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -158,6 +160,31 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleSelectBg = (bg: typeof BG_COLORS[0]) => {
+    setSelectedBg(bg);
+    let emojiToUse = activeEmoji;
+    if (!emojiToUse && avatarUrl && avatarUrl.includes('data:image/svg')) {
+      try {
+        const decoded = decodeURIComponent(avatarUrl);
+        const match = decoded.match(/<text[^>]*>([^<]+)<\/text>/);
+        if (match && match[1]) {
+          emojiToUse = match[1];
+          setActiveEmoji(match[1]);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (emojiToUse) {
+      const dataUrl = createStudentEmojiSvgDataUrl(emojiToUse, bg.hex1, bg.hex2);
+      setAvatarUrl(dataUrl);
+      setSuccessMsg(`Arka plan rengi "${bg.name}" olarak değiştirildi.`);
+    } else {
+      setSuccessMsg(`Arka plan rengi seçildi: ${bg.name}`);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -172,6 +199,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
       setErrorMsg(null);
       const compressedDataUrl = await compressImageToDataUrl(file, 220, 220, 0.85);
       setAvatarUrl(compressedDataUrl);
+      setActiveEmoji(null);
       setSuccessMsg('Fotoğrafınız bilgisayardan seçildi! "Kaydet ve Uygula" butonuna tıklayarak onaylayabilirsiniz.');
     } catch {
       setErrorMsg('Fotoğraf işlenirken bir sorun oluştu.');
@@ -181,6 +209,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
   };
 
   const handleSelectEmoji = (preset: StudentEmojiPreset) => {
+    setActiveEmoji(preset.emoji);
     const dataUrl = createStudentEmojiSvgDataUrl(preset.emoji, selectedBg.hex1, selectedBg.hex2);
     setAvatarUrl(dataUrl);
     setSuccessMsg(`"${preset.label}" emojisi seçildi.`);
@@ -191,6 +220,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
       setErrorMsg('Lütfen bir emoji yazınız veya klavyeden seçiniz.');
       return;
     }
+    setActiveEmoji(customEmoji.trim());
     const dataUrl = createStudentEmojiSvgDataUrl(customEmoji.trim(), selectedBg.hex1, selectedBg.hex2);
     setAvatarUrl(dataUrl);
     setSuccessMsg('Özel emoji profil resmi olarak ayarlandı.');
@@ -275,13 +305,13 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                   <img
                     src={avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`}
                     alt={student.name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded-xl"
                     onError={() => {
                       setAvatarUrl(`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`);
                     }}
                   />
                 </div>
-                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-white shadow-md">
+                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-lg bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-white shadow-md">
                   <Check className="w-3 h-3 stroke-[3]" />
                 </span>
               </div>
@@ -312,6 +342,33 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
               <Trash2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Varsayılana Dön</span>
             </button>
+          </div>
+        </div>
+
+        {/* Arka Plan Rengi / Gradyanı Değiştir (Tüm Sekmelerde Geçerli) */}
+        <div className="px-5 sm:px-6 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Arka Plan Rengi:</span>
+            <span className="text-[11px] text-indigo-400 font-semibold">({selectedBg.name})</span>
+          </span>
+          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+            {BG_COLORS.map((bg) => (
+              <button
+                key={bg.id}
+                type="button"
+                onClick={() => handleSelectBg(bg)}
+                className={`w-6 h-6 rounded-lg transition-transform cursor-pointer shadow-sm ${
+                  selectedBg.id === bg.id
+                    ? 'ring-2 ring-white scale-110 shadow-indigo-500/50'
+                    : 'hover:scale-105 opacity-80 hover:opacity-100'
+                }`}
+                style={{
+                  background: `linear-gradient(135deg, ${bg.hex1}, ${bg.hex2})`,
+                }}
+                title={bg.name}
+              />
+            ))}
           </div>
         </div>
 
@@ -451,7 +508,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                     <button
                       key={bg.id}
                       type="button"
-                      onClick={() => setSelectedBg(bg)}
+                      onClick={() => handleSelectBg(bg)}
                       className={`w-6 h-6 rounded-full transition-transform cursor-pointer ring-2 ${
                         selectedBg.id === bg.id ? 'ring-white scale-110 shadow-md' : 'ring-transparent opacity-80 hover:opacity-100'
                       }`}

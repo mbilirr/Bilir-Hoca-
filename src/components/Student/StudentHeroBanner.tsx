@@ -14,10 +14,11 @@ import {
   ArrowRight,
   UserCheck,
   Award,
+  HelpCircle,
 } from 'lucide-react';
 import { Student, Etut, Homework } from '../../types';
 
-export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages';
+export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
 
 interface StudentHeroBannerProps {
   student: Student;
@@ -219,18 +220,18 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             )}
           </div>
 
-          {/* Student Profile Block with Live Avatar Changer */}
+          {/* Student Profile Block with Live Avatar Changer (Tam Kare Şekilde) */}
           <div className="flex items-start sm:items-center space-x-4">
             <div className="relative group shrink-0">
               <div
                 onClick={onOpenAvatarModal}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-cyan-500 p-1 ring-4 ring-indigo-500/30 shadow-xl overflow-hidden cursor-pointer transition-all duration-300 group-hover:scale-105 group-hover:ring-indigo-400"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-cyan-500 p-0.5 ring-4 ring-indigo-500/30 shadow-xl overflow-hidden cursor-pointer transition-all duration-300 group-hover:scale-105 group-hover:ring-indigo-400"
                 title="Profil Resmini Değiştir / Bilgisayardan Fotoğraf Yükle"
               >
                 <img
                   src={studentAvatarUrl}
                   alt={student.name}
-                  className="w-full h-full object-cover rounded-[20px] bg-slate-900"
+                  className="w-full h-full object-cover rounded-xl bg-slate-900"
                 />
               </div>
 
@@ -299,37 +300,6 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                 — Günün İlham Verici Tavsiyesi
               </span>
             </div>
-          </div>
-
-          {/* Quick Action Navigation Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => onNavigateTab('homework')}
-              className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-indigo-900/60 to-indigo-800/40 hover:from-indigo-900/80 hover:to-indigo-800/60 border border-indigo-500/30 text-white font-bold text-xs sm:text-sm transition-all shadow-lg hover:shadow-indigo-500/10 cursor-pointer group"
-            >
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:scale-110 transition-transform">
-                  <BookOpen className="w-4 h-4" />
-                </div>
-                <span>Ödevlerimi Aç</span>
-              </div>
-              <ArrowRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-1 transition-transform" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab('etuts')}
-              className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-cyan-900/50 to-blue-900/40 hover:from-cyan-900/70 hover:to-blue-900/60 border border-cyan-500/30 text-white font-bold text-xs sm:text-sm transition-all shadow-lg hover:shadow-cyan-500/10 cursor-pointer group"
-            >
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-300 group-hover:scale-110 transition-transform">
-                  <CalendarIcon className="w-4 h-4" />
-                </div>
-                <span>Etüt Programım</span>
-              </div>
-              <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:translate-x-1 transition-transform" />
-            </button>
           </div>
         </div>
 

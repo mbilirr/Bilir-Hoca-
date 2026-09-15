@@ -11,8 +11,10 @@ import {
   CalendarDays,
   Sparkles,
   GraduationCap,
+  HelpCircle,
 } from 'lucide-react';
 import { Student, ClassGroup, Homework, HomeworkSubmission, Etut, TeacherTabType } from '../../types';
+import { dataService } from '../../services/dataService';
 
 interface TeacherStatsOverviewProps {
   students: Student[];
@@ -123,6 +125,18 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
 
   const completedRate = 100 - uncompletedRate;
 
+  // 4. BU HAFTA ÇÖZÜLEN SORU HESABI
+  const questionLogs = dataService.getQuestionLogs();
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAgoStr = weekAgo.toISOString().slice(0, 10);
+  const currentWeekQuestions = questionLogs
+    .filter((log) => log.date >= weekAgoStr)
+    .reduce((sum, log) => sum + (log.totalQuestions || 0), 0);
+  const activeStudentsCount = new Set(
+    questionLogs.filter((l) => l.date >= weekAgoStr && l.totalQuestions > 0).map((l) => l.studentId)
+  ).size;
+
   return (
     <div className="bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl transition-all">
       {/* Top Banner Bar with Title, Profile Role Switcher, and Right Slot (Bell, etc.) */}
@@ -181,8 +195,8 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
         )}
       </div>
 
-      {/* 3 Main Statistics Bento Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4">
+      {/* 4 Main Statistics Bento Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
         {/* ================= CARD 1: YAKLAŞAN ÖDEVLER ================= */}
         <div
           onClick={() => onNavigateTab('homework')}
@@ -367,6 +381,41 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
 
           <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-rose-400 group-hover:text-rose-300">
             <span>Ödev Kontrol</span>
+            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* ================= CARD 4: ÖĞRENCİ SORU SAYISI TAKİP ================= */}
+        <div
+          onClick={() => onNavigateTab('question_tracking')}
+          className="group relative bg-slate-950/60 hover:bg-slate-950 border border-slate-800/90 hover:border-purple-500/50 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-purple-500/10 flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Soru Çözüm Takibi
+              </span>
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+            </div>
+
+            <div className="flex items-baseline space-x-2.5">
+              <span className="text-3xl font-extrabold text-white tracking-tight">
+                {currentWeekQuestions}
+              </span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-md border bg-purple-500/20 text-purple-300 border-purple-500/30">
+                Bu Hafta Çözüldü
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-400 mt-2">
+              <span className="text-purple-400 font-medium">{activeStudentsCount} öğrenci</span> bu hafta aktif soru çözdü
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-purple-400 group-hover:text-purple-300">
+            <span>Grafik & Analizleri Aç</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </div>
         </div>

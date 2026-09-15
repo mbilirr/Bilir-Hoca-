@@ -26,6 +26,7 @@ import {
   Camera,
   LayoutGrid,
   Home,
+  HelpCircle,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { TeacherProfileEditModal, TeacherPasswordModal } from './Teacher/TeacherProfileModals';
@@ -110,6 +111,13 @@ const NAV_ITEMS: NavItemConfig[] = [
     shortTitle: 'Zümre Arşivi',
     icon: FolderArchive,
     accentColor: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
+  },
+  {
+    id: 'question_tracking',
+    title: 'Soru Sayısı Takip & Analiz',
+    shortTitle: 'Soru Takip',
+    icon: HelpCircle,
+    accentColor: 'text-violet-400 bg-violet-500/15 border-violet-500/30',
   },
 ];
 
@@ -333,7 +341,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <div className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between mb-1.5">
                           <span>Öğretmen Çalışma Modülleri</span>
-                          <span className="text-[10px] text-indigo-400 font-semibold">6 Modül</span>
+                          <span className="text-[10px] text-indigo-400 font-semibold">{NAV_ITEMS.length} Modül</span>
                         </div>
 
                         <div className="space-y-1">

@@ -26,6 +26,7 @@ import {
   Camera,
   Home,
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   UserCog,
   KeyRound,
@@ -42,6 +43,7 @@ import { StudentAvatarModal } from './StudentAvatarModal';
 import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
 import { StudentStatsOverview } from './StudentStatsOverview';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
+import { StudentQuestionModule } from './StudentQuestionModule';
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -212,169 +214,158 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Navigation & Profile Bar for Student */}
-      <div className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-2xl p-2.5 sm:p-3 shadow-lg flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Navigation Tabs */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+      {/* Top Navigation Wall for Student */}
+      <div id="student-top-navigation-wall" className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-xl space-y-3.5">
+        {/* Row 1: Moved and styled Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
+        <div id="student-action-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          {/* 1. Ödevlerim */}
           <button
-            type="button"
-            onClick={() => setActiveTab('home')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'home'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
-            }`}
-          >
-            <Home className="w-4 h-4" />
-            <span>Ana Sayfa</span>
-          </button>
-
-          <button
+            id="student-nav-homework-card-btn"
             type="button"
             onClick={() => setActiveTab('homework')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'homework'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
-            }`}
+            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-indigo-900/60 to-indigo-800/40 hover:from-indigo-900/80 hover:to-indigo-800/60 border ${
+              activeTab === 'homework' ? 'border-indigo-400 ring-2 ring-indigo-500/40 shadow-indigo-500/20' : 'border-indigo-500/30'
+            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-indigo-500/10 cursor-pointer group`}
           >
-            <BookOpen className="w-4 h-4" />
-            <span>Ödevlerim ({myHomeworks.length})</span>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:scale-110 transition-transform">
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white">Ödevlerim</div>
+                <div className="text-[10px] text-indigo-300 font-normal">
+                  {myHomeworks.length} Ödev Atandı
+                </div>
+              </div>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-1 transition-transform" />
           </button>
 
+          {/* 2. Etütlerim */}
           <button
+            id="student-nav-etuts-card-btn"
             type="button"
             onClick={() => setActiveTab('etuts')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'etuts'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
-            }`}
+            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-cyan-900/50 to-blue-900/40 hover:from-cyan-900/70 hover:to-blue-900/60 border ${
+              activeTab === 'etuts' ? 'border-cyan-400 ring-2 ring-cyan-500/40 shadow-cyan-500/20' : 'border-cyan-500/30'
+            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-cyan-500/10 cursor-pointer group`}
           >
-            <Calendar className="w-4 h-4" />
-            <span>Etüt Programım ({myEtuts.length})</span>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-300 group-hover:scale-110 transition-transform">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white">Etütlerim</div>
+                <div className="text-[10px] text-cyan-300 font-normal">
+                  {myEtuts.length} Etüt Planlandı
+                </div>
+              </div>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-cyan-400 group-hover:translate-x-1 transition-transform" />
           </button>
 
+          {/* 3. Soru Sayısı */}
           <button
+            id="student-nav-questions-card-btn"
+            type="button"
+            onClick={() => setActiveTab('questions')}
+            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-purple-900/50 to-pink-900/40 hover:from-purple-900/70 hover:to-pink-900/60 border ${
+              activeTab === 'questions' ? 'border-purple-400 ring-2 ring-purple-500/40 shadow-purple-500/20' : 'border-purple-500/30'
+            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-purple-500/10 cursor-pointer group`}
+          >
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white">Soru Sayısı</div>
+                <div className="text-[10px] text-purple-300 font-normal">Günlük & Haftalık Takip</div>
+              </div>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-purple-400 group-hover:translate-x-1 transition-transform" />
+          </button>
+
+          {/* 4. Not-Devamsızlık */}
+          <button
+            id="student-nav-grades-card-btn"
             type="button"
             onClick={() => setActiveTab('grades')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'grades'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
-            }`}
+            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-emerald-900/50 to-teal-900/40 hover:from-emerald-900/70 hover:to-teal-900/60 border ${
+              activeTab === 'grades' ? 'border-emerald-400 ring-2 ring-emerald-500/40 shadow-emerald-500/20' : 'border-emerald-500/30'
+            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-emerald-500/10 cursor-pointer group`}
           >
-            <Award className="w-4 h-4" />
-            <span>Notlarım & Devamsızlık</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('messages')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              activeTab === 'messages'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Öğretmene Soru Sor ({myMessages.length})</span>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-300 group-hover:scale-110 transition-transform">
+                <Award className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-xs font-bold text-white">Not-Devamsızlık</div>
+                <div className="text-[10px] text-emerald-300 font-normal">Sınavlar & Devamsızlık</div>
+              </div>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
-        {/* Right Side Actions: Notification Bell + Student Actions Dropdown */}
-        <div className="flex items-center justify-end space-x-2 shrink-0">
-          {/* Notification & Email Button */}
-          <button
-            type="button"
-            onClick={() => setIsNotificationModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl transition-all shadow-sm cursor-pointer relative"
-            title="Gelen Bildirimler ve E-Postalar"
-          >
-            <div className="relative">
-              <Bell className="w-4 h-4 text-indigo-400" />
-              {unreadNotifsCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-black flex items-center justify-center ring-2 ring-slate-900 animate-bounce">
-                  {unreadNotifsCount}
-                </span>
-              )}
-            </div>
-            <span className="text-xs font-bold text-white hidden sm:inline">
-              Bildirimler
-            </span>
-          </button>
-
-          {/* Student Profile Dropdown Button */}
-          <div className="relative">
+        {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
+        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+            {/* Küçültülmüş Ana Sayfa Butonu */}
             <button
+              id="student-subnav-home-btn"
               type="button"
-              onClick={() => setIsStudentDropdownOpen(!isStudentDropdownOpen)}
-              className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-850 hover:bg-slate-800 border border-slate-700/80 hover:border-indigo-500/50 transition-all cursor-pointer group"
-              title="Öğrenci Profil İşlemleri"
+              onClick={() => setActiveTab('home')}
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'home'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                  : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-750 border border-slate-700/60'
+              }`}
             >
-              <div className="w-6 h-6 rounded-full overflow-hidden ring-1 ring-indigo-400/60 bg-slate-800 shrink-0">
-                <img
-                  src={studentAvatar || currentStudent.avatar}
-                  alt={currentStudent.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="text-xs font-bold text-white hidden sm:inline">
-                İşlemler
-              </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-indigo-400 transition-transform ${
-                  isStudentDropdownOpen ? 'rotate-180' : ''
-                }`}
-              />
+              <Home className="w-3.5 h-3.5" />
+              <span>Ana Sayfa</span>
             </button>
 
-            {isStudentDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-60 bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                <div className="px-4 py-2.5 border-b border-slate-800 mb-1">
-                  <p className="text-xs font-bold text-white truncate">{currentStudent.name}</p>
-                  <p className="text-[11px] text-indigo-300 font-medium truncate mt-0.5">
-                    {currentStudent.className} • No: #{currentStudent.studentNumber || currentStudent.id}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsStudentDropdownOpen(false);
-                    setIsProfileModalOpen(true);
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
-                >
-                  <UserCog className="w-4 h-4 text-indigo-400 shrink-0" />
-                  <span>Bilgilerimi Güncelle</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsStudentDropdownOpen(false);
-                    setIsPasswordModalOpen(true);
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
-                >
-                  <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span>Şifre Değiştir</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsStudentDropdownOpen(false);
-                    setIsAvatarModalOpen(true);
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-xs text-slate-300 hover:text-white hover:bg-slate-800 flex items-center space-x-2.5 transition-colors cursor-pointer"
-                >
-                  <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
-                  <span>Profil Resmi Değiştir / Yükle</span>
-                </button>
+            {/* Küçültülmüş Bildirimler Butonu */}
+            <button
+              id="student-subnav-notifications-btn"
+              type="button"
+              onClick={() => setIsNotificationModalOpen(true)}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700/60 transition-all cursor-pointer relative"
+              title="Gelen Bildirimler ve E-Postalar"
+            >
+              <div className="relative">
+                <Bell className="w-3.5 h-3.5 text-indigo-400" />
+                {unreadNotifsCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center ring-1 ring-slate-900 animate-bounce">
+                    {unreadNotifsCount}
+                  </span>
+                )}
               </div>
-            )}
+              <span>Bildirimler</span>
+            </button>
+
+            {/* Öğretmene Soru Sor Butonu */}
+            <button
+              id="student-subnav-messages-btn"
+              type="button"
+              onClick={() => setActiveTab('messages')}
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'messages'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
+                  : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-750 border border-slate-700/60'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Öğretmene Soru Sor ({myMessages.length})</span>
+            </button>
+          </div>
+
+          {/* Sınıf ve Öğrenci Bilgisi */}
+          <div id="student-class-info-badge" className="hidden sm:flex items-center space-x-2 text-xs text-slate-400 font-medium">
+            <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-300">
+              {currentStudent.className}
+            </span>
+            {currentStudent.studentNumber && <span>#{currentStudent.studentNumber}</span>}
           </div>
         </div>
       </div>
@@ -472,6 +463,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 {activeTab === 'etuts' && 'Etüt ve Birebir Ders Programım'}
                 {activeTab === 'grades' && 'Akademik Notlarım ve Devamsızlık Durumum'}
                 {activeTab === 'messages' && 'Öğretmenlerime Soru Sor ve Mesajlaşma'}
+                {activeTab === 'questions' && 'Soru Sayısı Çalışma ve Takip Modülü'}
               </h2>
             </div>
           </div>
@@ -928,6 +920,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          VIEW 6: QUESTIONS (ÖĞRENCİ SORU SAYISI KAYIT VE ANALİZ MODÜLÜ)
+         ========================================================================= */}
+      {activeTab === 'questions' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <StudentQuestionModule
+            currentStudent={currentStudent}
+            classes={dataService.getClasses()}
+            students={dataService.getStudents()}
+          />
         </div>
       )}
 

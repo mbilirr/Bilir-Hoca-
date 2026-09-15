@@ -10,6 +10,7 @@ import {
   ExternalLink,
   ChevronRight,
   Filter,
+  User,
 } from 'lucide-react';
 import { SentEmailLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -26,7 +27,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
 }) => {
   const [emails, setEmails] = useState<SentEmailLog[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'homework' | 'etut'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'homework' | 'etut' | 'welcome'>('all');
   const [selectedEmail, setSelectedEmail] = useState<{
     subject: string;
     senderName: string;
@@ -36,7 +37,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
     sentAt: string;
     htmlContent: string;
     textContent: string;
-    type?: 'homework_assigned' | 'etut_assigned';
+    type?: 'homework_assigned' | 'etut_assigned' | 'student_welcome';
   } | null>(null);
 
   useEffect(() => {
@@ -59,7 +60,9 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
         ? true
         : typeFilter === 'homework'
         ? item.type === 'homework_assigned'
-        : item.type === 'etut_assigned';
+        : typeFilter === 'etut'
+        ? item.type === 'etut_assigned'
+        : item.type === 'student_welcome';
 
     return matchesSearch && matchesType;
   });
@@ -150,6 +153,19 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Etütler</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setTypeFilter('welcome')}
+                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
+                  typeFilter === 'welcome'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Giriş & Kayıt</span>
+              </button>
             </div>
           </div>
 
@@ -186,13 +202,17 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
                           className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                             item.type === 'homework_assigned'
                               ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                              : 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+                              : item.type === 'etut_assigned'
+                              ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+                              : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                           }`}
                         >
                           {item.type === 'homework_assigned' ? (
                             <BookOpen className="w-4 h-4" />
-                          ) : (
+                          ) : item.type === 'etut_assigned' ? (
                             <Calendar className="w-4 h-4" />
+                          ) : (
+                            <User className="w-4 h-4" />
                           )}
                         </div>
 

@@ -35,11 +35,32 @@ export interface TeacherEmojiPreset {
   bgHex2: string;
 }
 
+export interface AvatarBgColor {
+  id: string;
+  name: string;
+  hex1: string;
+  hex2: string;
+}
+
+export const AVATAR_BG_COLORS: AvatarBgColor[] = [
+  { id: 'indigo-blue', name: 'İndigo Gece', hex1: '#4338ca', hex2: '#1e40af' },
+  { id: 'violet-purple', name: 'Zarif Mor', hex1: '#7c3aed', hex2: '#4f46e5' },
+  { id: 'sky-ocean', name: 'Gök & Deniz', hex1: '#0284c7', hex2: '#0369a1' },
+  { id: 'emerald-mint', name: 'Zümrüt Yeşil', hex1: '#059669', hex2: '#047857' },
+  { id: 'amber-gold', name: 'Altın Amber', hex1: '#d97706', hex2: '#b45309' },
+  { id: 'rose-ruby', name: 'Yakut Kırmızı', hex1: '#e11d48', hex2: '#be123c' },
+  { id: 'pink-magenta', name: 'Canlı Pembe', hex1: '#db2777', hex2: '#9d174d' },
+  { id: 'slate-dark', name: 'Asil Grafit', hex1: '#334155', hex2: '#0f172a' },
+  { id: 'teal-cyan', name: 'Turkuaz Okyanus', hex1: '#0d9488', hex2: '#0891b2' },
+  { id: 'sunset-orange', name: 'Gün Batımı', hex1: '#ea580c', hex2: '#c2410c' },
+];
+
 export const createEmojiSvgDataUrl = (
   emoji: string,
   bgHex1 = '#4338ca',
   bgHex2 = '#1e40af'
 ) => {
+  // Tam kare şeklinde, kenarları dolduran modern SVG tasarımı (yuvarlak kırpma yok)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
     <defs>
       <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -47,7 +68,7 @@ export const createEmojiSvgDataUrl = (
         <stop offset="100%" stop-color="${bgHex2}" />
       </linearGradient>
     </defs>
-    <rect width="120" height="120" rx="60" fill="url(#g)" />
+    <rect width="120" height="120" fill="url(#g)" />
     <text x="50%" y="54%" font-size="58" dominant-baseline="central" text-anchor="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif">${emoji}</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -124,6 +145,8 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
   const [activeTab, setActiveTab] = useState<'upload' | 'emoji' | 'preset'>('upload');
   const [emojiCategory, setEmojiCategory] = useState<'Tümü' | 'Öğretmen' | 'Branş & Ders' | 'Akademi & Başarı'>('Tümü');
   const [avatarUrl, setAvatarUrl] = useState(teacher.avatar || '');
+  const [selectedBg, setSelectedBg] = useState<AvatarBgColor>(AVATAR_BG_COLORS[0]);
+  const [activeEmoji, setActiveEmoji] = useState<string | null>('👨‍🏫');
   const [customEmojiInput, setCustomEmojiInput] = useState('');
   const [customLinkInput, setCustomLinkInput] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -166,17 +189,44 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
       // Automatically resize & compress photo to lightweight web-safe size (~15KB)
       const compressedDataUrl = await compressImageToDataUrl(file, 200, 200, 0.8);
       setAvatarUrl(compressedDataUrl);
-      setSuccessMsg('Fotoğraf başarıyla işlendi ve optimize edildi! Kaydet butonuna basarak onaylayabilirsiniz.');
+      setActiveEmoji(null);
+      setSuccessMsg('Fotoğraf başarıyla yüklendi ve optimize edildi! Kaydet butonuna basarak onaylayabilirsiniz.');
     } catch {
       setErrorMsg('Dosya işlenirken bir hata meydana geldi.');
     }
   };
 
   const handleSelectEmoji = (preset: TeacherEmojiPreset) => {
-    const generatedUrl = createEmojiSvgDataUrl(preset.emoji, preset.bgHex1, preset.bgHex2);
+    setActiveEmoji(preset.emoji);
+    const generatedUrl = createEmojiSvgDataUrl(preset.emoji, selectedBg.hex1, selectedBg.hex2);
     setAvatarUrl(generatedUrl);
     setErrorMsg(null);
     setSuccessMsg(`${preset.emoji} ${preset.label} emoji resmi seçildi.`);
+  };
+
+  const handleSelectBackgroundColor = (bg: AvatarBgColor) => {
+    setSelectedBg(bg);
+    let emojiToUse = activeEmoji;
+    if (!emojiToUse && avatarUrl && avatarUrl.includes('data:image/svg')) {
+      try {
+        const decoded = decodeURIComponent(avatarUrl);
+        const match = decoded.match(/<text[^>]*>([^<]+)<\/text>/);
+        if (match && match[1]) {
+          emojiToUse = match[1];
+          setActiveEmoji(match[1]);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (emojiToUse) {
+      const generatedUrl = createEmojiSvgDataUrl(emojiToUse, bg.hex1, bg.hex2);
+      setAvatarUrl(generatedUrl);
+      setSuccessMsg(`Arka plan rengi "${bg.name}" olarak güncellendi.`);
+    } else {
+      setSuccessMsg(`Arka plan rengi seçildi: ${bg.name}`);
+    }
   };
 
   const handleApplyCustomEmoji = () => {
@@ -185,7 +235,8 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
       setErrorMsg('Lütfen bir emoji simgesi yazın veya yapıştırın.');
       return;
     }
-    const generatedUrl = createEmojiSvgDataUrl(trimmed, '#4f46e5', '#2563eb');
+    setActiveEmoji(trimmed);
+    const generatedUrl = createEmojiSvgDataUrl(trimmed, selectedBg.hex1, selectedBg.hex2);
     setAvatarUrl(generatedUrl);
     setCustomEmojiInput('');
     setErrorMsg(null);
@@ -199,6 +250,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
       return;
     }
     setAvatarUrl(trimmed);
+    setActiveEmoji(null);
     setCustomLinkInput('');
     setErrorMsg(null);
     setSuccessMsg('Görsel bağlantısı eklendi!');
@@ -206,6 +258,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
 
   const handleRemovePhoto = () => {
     setAvatarUrl('');
+    setActiveEmoji(null);
     setErrorMsg(null);
     setSuccessMsg(`Profil resmi kaldırıldı. Varsayılan '${initials}' baş harfleri görünecek.`);
   };
@@ -269,19 +322,19 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
             </button>
           </div>
 
-        {/* Live Preview Card */}
+        {/* Live Preview Card (Kare Şekilli Modern Önizleme) */}
         <div className="px-5 sm:px-6 py-3.5 bg-slate-950/70 border-b border-slate-800 shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3.5">
-              {/* Round Avatar Preview */}
+              {/* Kare Şeklinde Profil Resmi Önizlemesi */}
               <div className="relative group shrink-0">
-                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-4 ring-indigo-500/40 shadow-xl flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-2 ring-indigo-500/40 shadow-xl flex items-center justify-center overflow-hidden">
                   {avatarUrl ? (
                     avatarUrl.startsWith('http') || avatarUrl.startsWith('data:') ? (
                       <img
                         src={avatarUrl}
                         alt={teacher.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover rounded-xl"
                         onError={() => {
                           setErrorMsg('Resim yüklenemedi. Lütfen başka bir emoji veya resim seçiniz.');
                           setAvatarUrl('');
@@ -299,7 +352,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
                   )}
                 </div>
 
-                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-white shadow-md">
+                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-lg bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-white shadow-md">
                   <Check className="w-3 h-3 stroke-[3]" />
                 </span>
               </div>
@@ -330,6 +383,33 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
                 <span className="hidden sm:inline">Kaldır</span>
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Arka Plan Rengi / Gradyanı Değiştir */}
+        <div className="px-5 sm:px-6 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Arka Plan Rengi:</span>
+            <span className="text-[11px] text-indigo-400 font-semibold">({selectedBg.name})</span>
+          </span>
+          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+            {AVATAR_BG_COLORS.map((bg) => (
+              <button
+                key={bg.id}
+                type="button"
+                onClick={() => handleSelectBackgroundColor(bg)}
+                className={`w-6 h-6 rounded-lg transition-transform cursor-pointer shadow-sm ${
+                  selectedBg.id === bg.id
+                    ? 'ring-2 ring-white scale-110 shadow-indigo-500/50'
+                    : 'hover:scale-105 opacity-80 hover:opacity-100'
+                }`}
+                style={{
+                  background: `linear-gradient(135deg, ${bg.hex1}, ${bg.hex2})`,
+                }}
+                title={bg.name}
+              />
+            ))}
           </div>
         </div>
 
