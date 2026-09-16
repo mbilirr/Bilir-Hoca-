@@ -20,6 +20,7 @@ import {
   Filter,
   BarChart3,
   FileText,
+  MessageCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup } from '../../types';
@@ -29,6 +30,7 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { WeeklyEtutCalendar } from './WeeklyEtutCalendar';
 import { SentCommunicationsModal } from './SentCommunicationsModal';
 import { EtutAnalysisReportModal } from './EtutAnalysisReportModal';
+import { EtutNotificationModal } from './EtutNotificationModal';
 import {
   SCHOOL_LEVELS,
   MIDDLE_SCHOOL_GRADES,
@@ -54,6 +56,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
   const [editingEtut, setEditingEtut] = useState<Etut | null>(null);
   const [etutToDelete, setEtutToDelete] = useState<Etut | null>(null);
+  const [selectedEtutForDispatch, setSelectedEtutForDispatch] = useState<Etut | null>(null);
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
 
   // Form states - Okul, Sınıf ve Dersler (Dinamik)
   const [schoolLevel, setSchoolLevel] = useState<SchoolLevelType>('Ortaokul');
@@ -230,7 +234,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       });
       setEditingEtut(null);
     } else {
-      dataService.createEtut({
+      const createdEtut = dataService.createEtut({
         schoolLevel,
         gradeLevel,
         subject,
@@ -248,6 +252,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         spread: 50,
         origin: { y: 0.7 },
       });
+
+      // Otomatik e-posta bildirim & WhatsApp iletim ekranını aç
+      setSelectedEtutForDispatch(createdEtut);
+      setIsDispatchModalOpen(true);
     }
 
     setIsCreateModalOpen(false);
@@ -386,6 +394,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           onAddEtutForDate={handleAddEtutForDate}
           onEditEtut={openEdit}
           onDeleteEtut={(etut) => setEtutToDelete(etut)}
+          onNotifyEtut={(etut) => {
+            setSelectedEtutForDispatch(etut);
+            setIsDispatchModalOpen(true);
+          }}
         />
       ) : (
         /* Etüt List */
@@ -488,14 +500,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                 {/* Action Buttons */}
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEtutForDispatch(etut);
+                      setIsDispatchModalOpen(true);
+                    }}
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    title="WhatsApp ve Mail ile İlet"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>WhatsApp / Mail</span>
+                  </button>
+
                   <a
                     href={createGoogleCalendarUrlForEtut(etut)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-semibold transition-all"
+                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-medium transition-all"
+                    title="Google Takvime Ekle"
                   >
                     <CalendarCheck className="w-3.5 h-3.5" />
-                    <span>Google Takvime Ekle</span>
                   </a>
 
                   <button
@@ -509,7 +534,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         etut.location
                       )
                     }
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
+                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
                     title=".ics Takvim İndir"
                   >
                     <CalendarDays className="w-3.5 h-3.5" />
@@ -888,6 +913,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         students={students}
         classes={classes}
         preselectedStudentId={reportSelectedStudentId}
+      />
+
+      {/* Etüt Bilgilendirme ve İletişim (WhatsApp & Otomatik Mail) Modalı */}
+      <EtutNotificationModal
+        isOpen={isDispatchModalOpen}
+        onClose={() => {
+          setIsDispatchModalOpen(false);
+          setSelectedEtutForDispatch(null);
+        }}
+        etut={selectedEtutForDispatch}
+        students={students}
       />
     </div>
   );

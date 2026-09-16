@@ -801,21 +801,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
 
-                {/* Student Notification Center Bell Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsStudentNotificationOpen(true)}
-                  className="relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-700/60 cursor-pointer"
-                  title="Gelen Bildirimler ve E-Postalar"
-                >
-                  <Bell className="w-4 h-4 text-indigo-400" />
-                  {studentUnreadNotifCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center animate-bounce">
-                      {studentUnreadNotifCount}
-                    </span>
-                  )}
-                </button>
-
                 {/* Quick Logout Button */}
                 <button
                   onClick={handleLogoutAction}

@@ -83,6 +83,9 @@ export default function App() {
   // Teacher active navigation tab (Varsayılan olarak 'home' - Sadece Ajanda ve Durum Özetleri)
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>('home');
 
+  // 5 dakika işlem yapılmadığında gösterilecek uyarı mesajı
+  const [inactivityNotice, setInactivityNotice] = useState(false);
+
   // Mobile drawer state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -125,36 +128,74 @@ export default function App() {
 
   // 5 Dakika Kullanılmadığında Oturumu Otomatik Sonlandırma
   useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('edu_sys_last_activity_ts');
+      if (stored) {
+        const num = parseInt(stored, 10);
+        if (!isNaN(num) && num > 0) {
+          lastActivityRef.current = num;
+        }
+      }
+    } catch {}
+
+    let lastMarkTime = 0;
     const markActivity = () => {
-      lastActivityRef.current = Date.now();
+      const now = Date.now();
+      // Throttle event updates to every 2.5 seconds for performance
+      if (now - lastMarkTime > 2500) {
+        lastMarkTime = now;
+        lastActivityRef.current = now;
+        try {
+          sessionStorage.setItem('edu_sys_last_activity_ts', String(now));
+        } catch {}
+      }
     };
 
-    const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-    trackedEvents.forEach((evt) => window.addEventListener(evt, markActivity, { passive: true }));
-
-    const inactivityInterval = setInterval(() => {
+    const performInactivityCheck = () => {
       const activeSession = dataService.getAuthSession();
       if (activeSession) {
-        const diff = Date.now() - lastActivityRef.current;
-        // 5 dakika = 5 * 60 * 1000 = 300000 ms
+        const now = Date.now();
+        const diff = now - lastActivityRef.current;
+        // 5 dakika = 5 * 60 * 1000 = 300,000 ms
         if (diff >= 5 * 60 * 1000) {
           dataService.logout();
           setAuthSession(null);
           setCurrentStudent(null);
           setRole('teacher');
           setTeacherTab('home');
+          setInactivityNotice(true);
         }
       }
-    }, 5000);
+    };
+
+    // İlk açılışta hemen kontrol et
+    performInactivityCheck();
+
+    const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    trackedEvents.forEach((evt) => window.addEventListener(evt, markActivity, { passive: true }));
+
+    // Kullanıcı sekmeden ayrılıp geri geldiğinde beklemeden anında kontrol et
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        performInactivityCheck();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', performInactivityCheck);
+
+    const inactivityInterval = setInterval(performInactivityCheck, 3000);
 
     return () => {
       trackedEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', performInactivityCheck);
       clearInterval(inactivityInterval);
     };
   }, []);
 
   // Handle successful login or registration from AuthPortal
   const handleAuthSuccess = (session: AuthSession) => {
+    setInactivityNotice(false);
     setAuthSession(session);
     setTeacherTab('home');
     if (session.role === 'teacher') {
@@ -219,12 +260,31 @@ export default function App() {
   // If not authenticated, render the initial entrance login/register portal before the app opens
   if (!authSession) {
     return (
-      <AuthPortal
-        onAuthSuccess={handleAuthSuccess}
-        classes={classes}
-        students={students}
-        teachers={dataService.getTeachers()}
-      />
+      <div className="relative min-h-screen">
+        {inactivityNotice && (
+          <div className="bg-amber-950/95 border-b border-amber-500/50 px-4 py-3 text-amber-200 text-xs sm:text-sm flex items-center justify-between shadow-2xl sticky top-0 z-50 animate-fade-in backdrop-blur-md">
+            <div className="flex items-center space-x-2.5 max-w-4xl mx-auto">
+              <span className="text-base">⏱️</span>
+              <span>
+                <strong>Oturum Zaman Aşımı:</strong> 5 dakika boyunca herhangi bir işlem yapılmadığı için oturumunuz güvenlik nedeniyle otomatik olarak kapatıldı. Lütfen tekrar giriş yapınız.
+              </span>
+            </div>
+            <button
+              onClick={() => setInactivityNotice(false)}
+              className="text-amber-300 hover:text-white p-1 rounded hover:bg-amber-800/40 text-xs font-bold cursor-pointer transition-colors"
+              title="Kapat"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+        <AuthPortal
+          onAuthSuccess={handleAuthSuccess}
+          classes={classes}
+          students={students}
+          teachers={dataService.getTeachers()}
+        />
+      </div>
     );
   }
 

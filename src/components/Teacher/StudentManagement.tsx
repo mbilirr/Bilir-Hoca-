@@ -24,6 +24,7 @@ import {
   EyeOff,
   Key,
   Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -79,7 +80,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentEmail, setStudentEmail] = useState('');
   const [studentPassword, setStudentPassword] = useState('123456');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
-  const [autoOpenEmail, setAutoOpenEmail] = useState(true);
   const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
   const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
@@ -209,28 +209,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setIsAddStudentOpen(false);
       setSelectedCredentialsStudent(createdStudent);
       if (studentEmail) {
-        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-posta ekranında hazırlandı.`);
-        if (autoOpenEmail) {
-          try {
-            const emailContent = generateStudentWelcomeEmail({
-              studentName: createdStudent.name,
-              studentEmail: createdStudent.email,
-              username: createdStudent.username,
-              studentNumber: createdStudent.studentNumber,
-              password: createdStudent.password,
-              className: createdStudent.className,
-              teacherName: 'Öğretmen',
-            });
-            const gmailUrl = createGmailComposeLink(
-              createdStudent.email,
-              emailContent.subject,
-              emailContent.text
-            );
-            window.open(gmailUrl, '_blank');
-          } catch (e) {
-            console.warn('E-posta penceresi açılamadı:', e);
-          }
-        }
+        setStudentSuccessFeedback(`✅ Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-postası öğrenciye sistem tarafından otomatik olarak gönderildi.`);
       } else {
         setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş şifresi: ${studentPassword || '123456'}`);
       }
@@ -1109,20 +1088,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <span>Otomatik E-posta & Giriş Bildirimi</span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi maili hazırlar. Öğrenci bu kullanıcı adı ve şifreyle "Öğrenci Girişi" panelinden sisteme erişebilir.
+                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi mailini anında öğrencinin adresine iletir. Öğrenci bu kullanıcı adı ve şifreyle "Öğrenci Girişi" panelinden sisteme erişebilir.
                   </p>
-                  <label className="flex items-center space-x-2 pt-1 text-[11px] text-slate-200 cursor-pointer select-none">
-                    <input
-                      id="student-auto-open-email-chk"
-                      type="checkbox"
-                      checked={autoOpenEmail}
-                      onChange={(e) => setAutoOpenEmail(e.target.checked)}
-                      className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                    />
-                    <span className="text-emerald-300 font-medium">
-                      Kayıt tamamlandığında Gmail gönderme penceresini otomatik aç
-                    </span>
-                  </label>
+                  <div className="flex items-center space-x-2 pt-1 text-[11px] text-emerald-300 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Giriş bilgileri e-postası kayıt sonrasında sistem tarafından otomatik olarak gönderilir.</span>
+                  </div>
                 </div>
               </div>
 

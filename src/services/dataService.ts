@@ -979,8 +979,25 @@ export class DataService {
     return student;
   }
 
+
+
   public getAuthSession(): AuthSession | null {
-    const saved = loadData<AuthSession | null>(STORAGE_KEYS.AUTH_SESSION, null);
+    // Sayfa kapatılıp açıldığında oturumu kapatmak için sessionStorage kullanılır
+    let saved: AuthSession | null = null;
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+      if (raw) {
+        saved = JSON.parse(raw);
+      }
+    } catch (e) {
+      console.error('SessionStorage parse error:', e);
+    }
+
+    // Eski kalıntı localStorage oturum anahtarını temizle
+    try {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    } catch {}
+
     if (saved && saved.user) {
       // Re-hydrate session user object from the current state so updates to name/username/branch/avatar are never lost
       if (saved.role === 'teacher') {
@@ -1031,19 +1048,27 @@ export class DataService {
 
   public setAuthSession(session: AuthSession | null): void {
     if (session) {
-      saveData(STORAGE_KEYS.AUTH_SESSION, session);
+      try {
+        sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
+      } catch (e) {
+        console.error('SessionStorage set error:', e);
+      }
     } else {
       try {
-        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-      } catch (e) {
-        console.error(e);
-      }
+        sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      } catch {}
     }
+    try {
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    } catch {}
     this.notify();
   }
 
   public logout(): void {
     this.setAuthSession(null);
+    try {
+      sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    } catch {}
   }
 
   // --- BENİ HATIRLA / KOLAY GİRİŞ ---

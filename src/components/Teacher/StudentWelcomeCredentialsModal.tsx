@@ -13,6 +13,7 @@ import {
   Send,
   MessageCircle,
   Share2,
+  CheckCircle2,
 } from 'lucide-react';
 import { Student } from '../../types';
 import {
@@ -200,6 +201,24 @@ export const StudentWelcomeCredentialsModal: React.FC<StudentWelcomeCredentialsM
             </div>
           </div>
 
+          {/* Automatic Email Confirmation Banner */}
+          {student.email ? (
+            <div className="p-3.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-start space-x-3 text-xs text-emerald-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-emerald-300">E-Posta Sistem Tarafından Otomatik Gönderildi:</span>
+                <p className="text-[11.5px] text-slate-300 mt-0.5">
+                  Giriş bilgileri ve hoş geldin e-postası <strong>{student.email}</strong> adresine başarıyla iletildi. Öğrenci ayrıca kendi portal bildirimlerinde bu şifreyi görebilir.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300 flex items-center space-x-2">
+              <span className="text-sm">⚠️</span>
+              <span>Öğrencinin e-posta adresi kayıtlı olmadığından otomatik mail gönderilemedi. Bilgileri WhatsApp ile iletebilirsiniz.</span>
+            </div>
+          )}
+
           {/* Dispatch Status Feedback */}
           {dispatchStatus && (
             <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl flex items-center space-x-2 text-xs text-emerald-300 animate-in fade-in">
@@ -208,42 +227,11 @@ export const StudentWelcomeCredentialsModal: React.FC<StudentWelcomeCredentialsM
             </div>
           )}
 
-          {/* Email Dispatch Actions */}
+          {/* Email & WhatsApp Dispatch Actions */}
           <div className="space-y-2.5">
             <span className="text-xs font-bold text-slate-300 block">
-              Giriş Bilgilerini Öğrenciye İletme Seçenekleri:
+              Öğrenciye WhatsApp veya Ekstra Kanalla İletin:
             </span>
-
-            {student.email ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* Gmail Web Compose Button */}
-                <button
-                  id="credentials-modal-gmail-btn"
-                  type="button"
-                  onClick={handleOpenGmail}
-                  className="flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all shadow-md shadow-red-600/20 cursor-pointer text-center"
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>Gmail ile Gönder</span>
-                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-                </button>
-
-                {/* Default Mail Client (mailto) */}
-                <button
-                  id="credentials-modal-mailto-btn"
-                  type="button"
-                  onClick={handleOpenMailto}
-                  className="flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer text-center"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Mail İstemcisiyle Gönder</span>
-                </button>
-              </div>
-            ) : (
-              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-300">
-                Öğrenciye ait bir e-posta adresi bulunmadığı için doğrudan mail gönderilemiyor. Bilgileri kopyalayarak WhatsApp veya SMS ile iletebilirsiniz.
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {/* WhatsApp Direct Share */}
@@ -277,6 +265,34 @@ export const StudentWelcomeCredentialsModal: React.FC<StudentWelcomeCredentialsM
                 )}
               </button>
             </div>
+
+            {student.email && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Gmail Web Compose Button */}
+                <button
+                  id="credentials-modal-gmail-btn"
+                  type="button"
+                  onClick={handleOpenGmail}
+                  className="flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-slate-800 hover:bg-red-900/40 text-slate-300 hover:text-red-200 border border-slate-700 hover:border-red-500/40 text-xs font-medium transition-all cursor-pointer text-center"
+                  title="Manuel olarak Gmail üzerinden de göndermek için"
+                >
+                  <Mail className="w-3.5 h-3.5 text-red-400" />
+                  <span>Gmail ile Manuel Aç</span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </button>
+
+                {/* Default Mail Client (mailto) */}
+                <button
+                  id="credentials-modal-mailto-btn"
+                  type="button"
+                  onClick={handleOpenMailto}
+                  className="flex items-center justify-center space-x-2 py-2 px-3 rounded-xl bg-slate-800 hover:bg-indigo-900/40 text-slate-300 hover:text-indigo-200 border border-slate-700 hover:border-indigo-500/40 text-xs font-medium transition-all cursor-pointer text-center"
+                >
+                  <Send className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Mail İstemcisiyle Aç</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Email Preview Accordion */}

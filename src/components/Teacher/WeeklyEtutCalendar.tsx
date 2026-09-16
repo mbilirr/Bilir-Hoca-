@@ -13,6 +13,7 @@ import {
   Sparkles,
   Filter,
   Calendar as CalendarIcon,
+  MessageCircle,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
@@ -24,6 +25,7 @@ interface WeeklyEtutCalendarProps {
   onAddEtutForDate: (dateStr: string) => void;
   onEditEtut: (etut: Etut) => void;
   onDeleteEtut: (etut: Etut) => void;
+  onNotifyEtut?: (etut: Etut) => void;
 }
 
 // Helper to get Monday of the week
@@ -129,6 +131,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   onAddEtutForDate,
   onEditEtut,
   onDeleteEtut,
+  onNotifyEtut,
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
@@ -432,6 +435,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                           <span className="text-slate-500 font-mono">{etut.duration} dk</span>
 
                           <div className="flex items-center space-x-1 opacity-90 group-hover:opacity-100">
+                            {/* WhatsApp / Mail Bilgilendirme */}
+                            {onNotifyEtut && (
+                              <button
+                                type="button"
+                                onClick={() => onNotifyEtut(etut)}
+                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors"
+                                title="WhatsApp ve Mail ile İlet"
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                              </button>
+                            )}
+
                             {/* Google Calendar */}
                             <a
                               href={createGoogleCalendarUrlForEtut(etut)}
