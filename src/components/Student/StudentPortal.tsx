@@ -217,31 +217,38 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Navigation Wall for Student */}
-      <div id="student-top-navigation-wall" className="sticky top-16 sm:top-[4.25rem] z-30 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-2xl space-y-3.5 transition-all">
-        {/* Row 1: Moved and styled Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
+      {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
+      <div id="student-top-navigation-wall" className="sticky top-16 sm:top-[4.25rem] z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+        {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
         <div id="student-action-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {/* 1. Ödevlerim */}
           <button
             id="student-nav-homework-card-btn"
             type="button"
             onClick={() => setActiveTab('homework')}
-            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-indigo-900/60 to-indigo-800/40 hover:from-indigo-900/80 hover:to-indigo-800/60 border ${
-              activeTab === 'homework' ? 'border-indigo-400 ring-2 ring-indigo-500/40 shadow-indigo-500/20' : 'border-indigo-500/30'
-            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-indigo-500/10 cursor-pointer group`}
+            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-amber text-white shadow-sm ${
+              activeTab === 'homework'
+                ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 border-white ring-4 ring-amber-300/90 shadow-md scale-[1.01]'
+                : 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400/80 hover:from-amber-600 hover:to-orange-600'
+            }`}
           >
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:scale-110 transition-transform">
-                <BookOpen className="w-4 h-4" />
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+              >
+                <BookOpen className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs font-bold text-white">Ödevlerim</div>
-                <div className="text-[10px] text-indigo-300 font-normal">
-                  {myHomeworks.length} Ödev Atandı
+                <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-100 transition-colors drop-shadow-xs">
+                  Ödevlerim
                 </div>
               </div>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-indigo-400 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight
+              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+                activeTab === 'homework' ? 'font-black' : 'opacity-90'
+              }`}
+            />
           </button>
 
           {/* 2. Etütlerim */}
@@ -249,22 +256,29 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-etuts-card-btn"
             type="button"
             onClick={() => setActiveTab('etuts')}
-            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-cyan-900/50 to-blue-900/40 hover:from-cyan-900/70 hover:to-blue-900/60 border ${
-              activeTab === 'etuts' ? 'border-cyan-400 ring-2 ring-cyan-500/40 shadow-cyan-500/20' : 'border-cyan-500/30'
-            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-cyan-500/10 cursor-pointer group`}
+            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-blue text-white shadow-sm ${
+              activeTab === 'etuts'
+                ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 border-white ring-4 ring-blue-300/90 shadow-md scale-[1.01]'
+                : 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-400/80 hover:from-blue-700 hover:to-indigo-700'
+            }`}
           >
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center text-cyan-300 group-hover:scale-110 transition-transform">
-                <Calendar className="w-4 h-4" />
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+              >
+                <Calendar className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs font-bold text-white">Etütlerim</div>
-                <div className="text-[10px] text-cyan-300 font-normal">
-                  {myEtuts.length} Etüt Planlandı
+                <div className="text-xs sm:text-sm font-black text-white group-hover:text-blue-100 transition-colors drop-shadow-xs">
+                  Etütlerim
                 </div>
               </div>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-cyan-400 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight
+              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+                activeTab === 'etuts' ? 'font-black' : 'opacity-90'
+              }`}
+            />
           </button>
 
           {/* 3. Soru Sayısı */}
@@ -272,20 +286,29 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-questions-card-btn"
             type="button"
             onClick={() => setActiveTab('questions')}
-            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-purple-900/50 to-pink-900/40 hover:from-purple-900/70 hover:to-pink-900/60 border ${
-              activeTab === 'questions' ? 'border-purple-400 ring-2 ring-purple-500/40 shadow-purple-500/20' : 'border-purple-500/30'
-            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-purple-500/10 cursor-pointer group`}
+            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-emerald text-white shadow-sm ${
+              activeTab === 'questions'
+                ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-600 border-white ring-4 ring-emerald-300/90 shadow-md scale-[1.01]'
+                : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-400/80 hover:from-emerald-700 hover:to-teal-700'
+            }`}
           >
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 group-hover:scale-110 transition-transform">
-                <HelpCircle className="w-4 h-4" />
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+              >
+                <HelpCircle className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs font-bold text-white">Soru Sayısı</div>
-                <div className="text-[10px] text-purple-300 font-normal">Günlük & Haftalık Takip</div>
+                <div className="text-xs sm:text-sm font-black text-white group-hover:text-emerald-100 transition-colors drop-shadow-xs">
+                  Soru Sayısı
+                </div>
               </div>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-purple-400 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight
+              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+                activeTab === 'questions' ? 'font-black' : 'opacity-90'
+              }`}
+            />
           </button>
 
           {/* 4. Not-Devamsızlık */}
@@ -293,38 +316,47 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-grades-card-btn"
             type="button"
             onClick={() => setActiveTab('grades')}
-            className={`flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-emerald-900/50 to-teal-900/40 hover:from-emerald-900/70 hover:to-teal-900/60 border ${
-              activeTab === 'grades' ? 'border-emerald-400 ring-2 ring-emerald-500/40 shadow-emerald-500/20' : 'border-emerald-500/30'
-            } text-white font-bold text-xs transition-all shadow-lg hover:shadow-emerald-500/10 cursor-pointer group`}
+            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-purple text-white shadow-sm ${
+              activeTab === 'grades'
+                ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-violet-600 border-white ring-4 ring-purple-300/90 shadow-md scale-[1.01]'
+                : 'bg-gradient-to-r from-purple-600 to-purple-700 border-purple-400/80 hover:from-purple-700 hover:to-violet-700'
+            }`}
           >
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-600/30 border border-emerald-500/40 flex items-center justify-center text-emerald-300 group-hover:scale-110 transition-transform">
-                <Award className="w-4 h-4" />
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+              >
+                <Award className="w-4 h-4 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs font-bold text-white">Not-Devamsızlık</div>
-                <div className="text-[10px] text-emerald-300 font-normal">Sınavlar & Devamsızlık</div>
+                <div className="text-xs sm:text-sm font-black text-white group-hover:text-purple-100 transition-colors drop-shadow-xs">
+                  Not-Devamsızlık
+                </div>
               </div>
             </div>
-            <ArrowRight className="w-3.5 h-3.5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight
+              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+                activeTab === 'grades' ? 'font-black' : 'opacity-90'
+              }`}
+            />
           </button>
         </div>
 
         {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
-        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-1 border-t border-slate-800/80">
+        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-2 border-t border-slate-100">
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             {/* Küçültülmüş Ana Sayfa Butonu */}
             <button
               id="student-subnav-home-btn"
               type="button"
               onClick={() => setActiveTab('home')}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'home'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
-                  : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-750 border border-slate-700/60'
+                  ? 'bg-[#0f172a] text-white shadow-xs'
+                  : 'bg-[#f1f5f9] text-[#334155] hover:text-[#0f172a] hover:bg-slate-200 border border-slate-200'
               }`}
             >
-              <Home className="w-3.5 h-3.5" />
+              <Home className="w-3.5 h-3.5 text-orange-400" />
               <span>Ana Sayfa</span>
             </button>
 
@@ -333,13 +365,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-notifications-btn"
               type="button"
               onClick={() => setIsNotificationModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700/60 transition-all cursor-pointer relative"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#f1f5f9] hover:bg-slate-200 text-[#334155] hover:text-[#0f172a] border border-slate-200 transition-all cursor-pointer relative"
               title="Gelen Bildirimler ve E-Postalar"
             >
               <div className="relative">
-                <Bell className="w-3.5 h-3.5 text-indigo-400" />
+                <Bell className="w-3.5 h-3.5 text-orange-500" />
                 {unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[8px] font-black flex items-center justify-center ring-1 ring-slate-900 animate-bounce">
+                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-orange-600 text-white rounded-full text-[8px] font-black flex items-center justify-center ring-1 ring-white animate-bounce">
                     {unreadNotifsCount}
                   </span>
                 )}
@@ -352,23 +384,23 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-messages-btn"
               type="button"
               onClick={() => setActiveTab('messages')}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'messages'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-1 ring-indigo-400'
-                  : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-750 border border-slate-700/60'
+                  ? 'bg-[#0f172a] text-white shadow-xs'
+                  : 'bg-[#f1f5f9] text-[#334155] hover:text-[#0f172a] hover:bg-slate-200 border border-slate-200'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+              <MessageSquare className="w-3.5 h-3.5 text-orange-400" />
               <span>Öğretmene Soru Sor ({myMessages.length})</span>
             </button>
           </div>
 
           {/* Sınıf ve Öğrenci Bilgisi */}
-          <div id="student-class-info-badge" className="hidden sm:flex items-center space-x-2 text-xs text-slate-400 font-medium">
-            <span className="px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-300">
+          <div id="student-class-info-badge" className="hidden sm:flex items-center space-x-2 text-xs text-slate-500 font-medium">
+            <span className="px-2.5 py-1 rounded-lg bg-[#f1f5f9] border border-slate-200 text-[#0f172a] font-bold">
               {currentStudent.className}
             </span>
-            {currentStudent.studentNumber && <span>#{currentStudent.studentNumber}</span>}
+            {currentStudent.studentNumber && <span className="font-semibold text-slate-500">#{currentStudent.studentNumber}</span>}
           </div>
         </div>
       </div>
@@ -774,9 +806,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <HelpCircle className="w-4 h-4 text-indigo-400" />
                 <span>Öğretmene Soru / Mesaj İlet</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Çözemediğiniz soruları, linkleri veya notları iletebilirsiniz. Mesajınızı sadece öğretmeniniz görebilir.
-              </p>
             </div>
 
             {messageSentFeedback && (

@@ -16,3 +16,75 @@
 .animate-beacon {
   animation: beaconGlow 1.4s ease-in-out infinite;
 }
+
+/* ========================================================================= */
+/* ÖĞRENCİ ANA SAYFA BUTONLARI YANIP SÖNEN IŞIK EFEKTLERİ (HOVER GLOW PULSE) */
+/* ========================================================================= */
+@keyframes studentGlowAmber {
+  0%, 100% {
+    box-shadow: 0 0 10px 2px rgba(251, 191, 36, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 32px 10px rgba(245, 158, 11, 0.95), 0 0 55px 18px rgba(251, 191, 36, 0.65), 0 0 0 3px rgba(254, 243, 199, 0.9);
+    filter: brightness(1.22);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes studentGlowBlue {
+  0%, 100% {
+    box-shadow: 0 0 10px 2px rgba(96, 165, 250, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 32px 10px rgba(59, 130, 246, 0.95), 0 0 55px 18px rgba(96, 165, 250, 0.65), 0 0 0 3px rgba(219, 234, 254, 0.9);
+    filter: brightness(1.22);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes studentGlowEmerald {
+  0%, 100% {
+    box-shadow: 0 0 10px 2px rgba(52, 211, 153, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 32px 10px rgba(16, 185, 129, 0.95), 0 0 55px 18px rgba(52, 211, 153, 0.65), 0 0 0 3px rgba(209, 250, 229, 0.9);
+    filter: brightness(1.22);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes studentGlowPurple {
+  0%, 100% {
+    box-shadow: 0 0 10px 2px rgba(192, 132, 252, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 32px 10px rgba(168, 85, 247, 0.95), 0 0 55px 18px rgba(192, 132, 252, 0.65), 0 0 0 3px rgba(243, 232, 255, 0.9);
+    filter: brightness(1.22);
+    transform: translateY(-1px);
+  }
+}
+
+.hover-glow-amber:hover {
+  animation: studentGlowAmber 0.95s ease-in-out infinite !important;
+}
+
+.hover-glow-blue:hover {
+  animation: studentGlowBlue 0.95s ease-in-out infinite !important;
+}
+
+.hover-glow-emerald:hover {
+  animation: studentGlowEmerald 0.95s ease-in-out infinite !important;
+}
+
+.hover-glow-purple:hover {
+  animation: studentGlowPurple 0.95s ease-in-out infinite !important;
+}
+

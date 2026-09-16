@@ -245,47 +245,10 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               </button>
             </div>
 
-            <div className="space-y-1">
+            <div>
               <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
                 Hoş Geldin, <span className="bg-gradient-to-r from-indigo-300 to-cyan-300 bg-clip-text text-transparent">{student.name}</span>! 🚀
               </h1>
-              <p className="text-xs sm:text-sm text-slate-300 font-medium">
-                Ders programını, ödevlerini ve etütlerini buradan kolayca takip edebilirsin.
-              </p>
-              <div className="flex items-center space-x-2 pt-1">
-                <button
-                  type="button"
-                  onClick={onOpenAvatarModal}
-                  className="inline-flex items-center space-x-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer transition-colors"
-                >
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Resmimi Değiştir / Yükle</span>
-                </button>
-                {onOpenProfileModal && (
-                  <>
-                    <span className="text-slate-600">•</span>
-                    <button
-                      type="button"
-                      onClick={onOpenProfileModal}
-                      className="inline-flex items-center text-xs text-slate-400 hover:text-slate-200 font-semibold cursor-pointer transition-colors"
-                    >
-                      Bilgileri Güncelle
-                    </button>
-                  </>
-                )}
-                {onOpenPasswordModal && (
-                  <>
-                    <span className="text-slate-600">•</span>
-                    <button
-                      type="button"
-                      onClick={onOpenPasswordModal}
-                      className="inline-flex items-center text-xs text-amber-400 hover:text-amber-300 font-semibold cursor-pointer transition-colors"
-                    >
-                      Şifre Değiştir
-                    </button>
-                  </>
-                )}
-              </div>
             </div>
           </div>
 

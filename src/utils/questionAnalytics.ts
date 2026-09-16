@@ -621,7 +621,7 @@ export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics): string {
   // Legend
   ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   // Active pill
-  ctx.fillStyle = '#4f46e5';
+  ctx.fillStyle = '#ea580c';
   ctx.beginPath();
   ctx.roundRect(canvas.width - 560, 50, 22, 22, 6);
   ctx.fill();
@@ -683,8 +683,8 @@ export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics): string {
     // Gradient bar fill
     if (hasQuestions) {
       const grad = ctx.createLinearGradient(x, y, x, chartBottom);
-      grad.addColorStop(0, '#6366f1');
-      grad.addColorStop(1, '#4338ca');
+      grad.addColorStop(0, '#f97316');
+      grad.addColorStop(1, '#ea580c');
       ctx.fillStyle = grad;
     } else {
       ctx.fillStyle = '#fee2e2'; // Rose 100
@@ -703,7 +703,7 @@ export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics): string {
     ctx.fill();
 
     // Subtle outline
-    ctx.strokeStyle = hasQuestions ? '#4338ca' : '#fca5a5';
+    ctx.strokeStyle = hasQuestions ? '#c2410c' : '#fca5a5';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -714,14 +714,14 @@ export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics): string {
       const badgeText = `${day.totalQuestions} Soru`;
       ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
       const textWidth = ctx.measureText(badgeText).width;
-      ctx.fillStyle = '#eef2ff';
+      ctx.fillStyle = '#fff7ed';
       ctx.beginPath();
       ctx.roundRect(x + barWidth / 2 - textWidth / 2 - 10, y - 36, textWidth + 20, 26, 8);
       ctx.fill();
-      ctx.strokeStyle = '#c7d2fe';
+      ctx.strokeStyle = '#fed7aa';
       ctx.stroke();
 
-      ctx.fillStyle = '#3730a3';
+      ctx.fillStyle = '#9a3412';
       ctx.fillText(badgeText, x + barWidth / 2, y - 18);
     } else {
       ctx.fillStyle = '#e11d48';
@@ -790,7 +790,7 @@ export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string 
 
   // Legend
   ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#7c3aed';
+  ctx.fillStyle = '#ea580c';
   ctx.beginPath();
   ctx.roundRect(canvas.width - 440, 50, 22, 22, 6);
   ctx.fill();
@@ -843,8 +843,8 @@ export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string 
 
     if (hasQuestions) {
       const grad = ctx.createLinearGradient(x, y, x, chartBottom);
-      grad.addColorStop(0, '#8b5cf6');
-      grad.addColorStop(1, '#6d28d9');
+      grad.addColorStop(0, '#f97316');
+      grad.addColorStop(1, '#ea580c');
       ctx.fillStyle = grad;
     } else {
       ctx.fillStyle = '#e2e8f0';
@@ -861,7 +861,7 @@ export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string 
     ctx.closePath();
     ctx.fill();
 
-    ctx.strokeStyle = hasQuestions ? '#6d28d9' : '#cbd5e1';
+    ctx.strokeStyle = hasQuestions ? '#c2410c' : '#cbd5e1';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -870,14 +870,14 @@ export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string 
     const badgeText = `${week.totalQuestions} Soru`;
     ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     const textWidth = ctx.measureText(badgeText).width;
-    ctx.fillStyle = '#f5f3ff';
+    ctx.fillStyle = '#fff7ed';
     ctx.beginPath();
     ctx.roundRect(x + barWidth / 2 - textWidth / 2 - 10, y - 36, textWidth + 20, 26, 8);
     ctx.fill();
-    ctx.strokeStyle = '#ddd6fe';
+    ctx.strokeStyle = '#fed7aa';
     ctx.stroke();
 
-    ctx.fillStyle = '#5b21b6';
+    ctx.fillStyle = '#9a3412';
     ctx.fillText(badgeText, x + barWidth / 2, y - 18);
 
     // Week Label
@@ -973,7 +973,7 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
     44.5
   );
 
-  // KPI Summary Metrics AutoTable (startY: 52mm)
+  // KPI Summary Metrics AutoTable (startY: 50mm)
   const metricsData = [
     [
       sanitizeForPdf('Toplam Cozulen Soru'),
@@ -1000,7 +1000,7 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
   ];
 
   autoTable(doc, {
-    startY: 52,
+    startY: 50,
     margin: { left: margin, right: margin },
     body: metricsData,
     theme: 'grid',
@@ -1011,41 +1011,42 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
     },
     columnStyles: {
       0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      1: { fontStyle: 'bold', textColor: [79, 70, 229], cellWidth: 46.5 },
+      1: { fontStyle: 'bold', textColor: [234, 88, 12], cellWidth: 46.5 },
       2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
       3: { fontStyle: 'bold', cellWidth: 46.5 },
     },
   });
 
-  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Canvas Chart, Y: 74mm, Height: 92mm)
-  const chartY = 74;
-  const chartHeight = 92;
+  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Dinamik Konumlandırma - Tablonun altına tam oturur, asla üstüne binmez)
+  const metricsTableEnd = (doc as any).lastAutoTable?.finalY || 76;
+  const chartY = metricsTableEnd + 4;
+  const chartHeight = 74;
   const chartImg = generateWeeklyChartCanvas(analytics);
   if (chartImg) {
     doc.addImage(chartImg, 'PNG', margin, chartY, contentWidth, chartHeight);
   }
 
-  // Pedagogical Assessment & Progress Card (Y: 170 to 220mm)
-  const reportBoxY = 170;
-  const reportBoxHeight = 48;
+  // Pedagogical Assessment & Progress Card (Grafiğin hemen altına dinamik olarak yerleşir)
+  const reportBoxY = chartY + chartHeight + 4;
+  const reportBoxHeight = 44;
   doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(79, 70, 229);
+  doc.setDrawColor(234, 88, 12);
   doc.setLineWidth(0.6);
   doc.roundedRect(margin, reportBoxY, contentWidth, reportBoxHeight, 2.5, 2.5, 'FD');
 
   // Badge bar inside assessment card
-  doc.setFillColor(238, 242, 255);
-  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 8.5, 'F');
+  doc.setFillColor(255, 247, 237);
+  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 7.5, 'F');
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(67, 56, 202);
+  doc.setTextColor(194, 65, 12);
   doc.text(
     sanitizeForPdf(
       `PEDAGOJIK DEGERLENDIRME VE BASARI DURUMU: ${analytics.statusAssessment.badgeText.toUpperCase()}`
     ),
     margin + 4,
-    reportBoxY + 6.2
+    reportBoxY + 5.5
   );
 
   doc.setFontSize(8);
@@ -1055,12 +1056,12 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
     sanitizeForPdf(analytics.statusAssessment.reportSummary),
     contentWidth - 8
   );
-  doc.text(splitText, margin + 4, reportBoxY + 14);
+  doc.text(splitText, margin + 4, reportBoxY + 12);
 
   // Weekly study habit recommendation note
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(71, 85, 105);
-  doc.text(sanitizeForPdf('Akademik Disiplin & Hedef:'), margin + 4, reportBoxY + 34);
+  doc.text(sanitizeForPdf('Akademik Disiplin & Hedef:'), margin + 4, reportBoxY + 28);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
@@ -1071,11 +1072,11 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
         )}) duzenli soru cozumu alişkanligi kazanilmasi tavsiye edilir.`
       : `Haftanin 7 gunu kesintisiz ve duzenli soru cozumu gerceklestirildi. Harika bir calisma disiplini sergilenmektedir.`;
   const splitHabit = doc.splitTextToSize(sanitizeForPdf(habitNote), contentWidth - 8);
-  doc.text(splitHabit, margin + 4, reportBoxY + 39);
+  doc.text(splitHabit, margin + 4, reportBoxY + 33);
 
-  // Quick Highlights Card (Y: 222 to 268mm)
-  const highY = 222;
-  const highHeight = 46;
+  // Quick Highlights Card (Dinamik olarak değerlendirme kartının altına yerleşir)
+  const highY = reportBoxY + reportBoxHeight + 4;
+  const highHeight = 40;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
@@ -1084,7 +1085,7 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('HAFTALIK ONEMLI PERFORMANS DETAYLARI'), margin + 4, highY + 6.5);
+  doc.text(sanitizeForPdf('HAFTALIK ONEMLI PERFORMANS DETAYLARI'), margin + 4, highY + 6);
 
   const bestDay = [...analytics.days].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
   const topSubject = analytics.subjectBreakdown[0];
@@ -1100,7 +1101,7 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
   highlights.forEach((h, idx) => {
-    doc.text(sanitizeForPdf(h), margin + 4, highY + 14 + idx * 7.5);
+    doc.text(sanitizeForPdf(h), margin + 4, highY + 13 + idx * 6.5);
   });
 
   // Page 1 Footer
@@ -1267,9 +1268,9 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
   });
 
   // Guidance Recommendations Note Box
-  const afterSubjectY = (doc as any).lastAutoTable.finalY + 5;
-  const guideBoxY = Math.min(afterSubjectY, 196);
-  const guideBoxHeight = 36;
+  const afterSubjectY = (doc as any).lastAutoTable?.finalY || 140;
+  const guideBoxY = afterSubjectY + 5;
+  const guideBoxHeight = 32;
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
@@ -1277,7 +1278,7 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(79, 70, 229);
+  doc.setTextColor(234, 88, 12);
   doc.text(
     sanitizeForPdf('REHBERLIK VE HAFTALIK CALISMA TAVSIYELERI'),
     margin + 4,
@@ -1294,11 +1295,11 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
   guideNotes.forEach((n, idx) => {
-    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 6.5);
+    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 5.8);
   });
 
-  // Official Institutional Signatures Box
-  const sigY = 244;
+  // Official Institutional Signatures Box (Dinamik olarak rehberlik kutusunun altına yerleşir)
+  const sigY = Math.max(guideBoxY + guideBoxHeight + 6, 240);
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(margin, sigY, contentWidth, 36, 2, 2, 'FD');
@@ -1438,7 +1439,7 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
   ];
 
   autoTable(doc, {
-    startY: 52,
+    startY: 50,
     margin: { left: margin, right: margin },
     body: metricsData,
     theme: 'grid',
@@ -1449,40 +1450,41 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
     },
     columnStyles: {
       0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      1: { fontStyle: 'bold', textColor: [124, 58, 237], cellWidth: 46.5 },
+      1: { fontStyle: 'bold', textColor: [234, 88, 12], cellWidth: 46.5 },
       2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
       3: { fontStyle: 'bold', cellWidth: 46.5 },
     },
   });
 
-  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Canvas Chart, Y: 74mm, Height: 92mm)
-  const chartY = 74;
-  const chartHeight = 92;
+  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Dinamik Konumlandırma - Tablonun altına tam oturur, asla üstüne binmez)
+  const metricsTableEnd = (doc as any).lastAutoTable?.finalY || 76;
+  const chartY = metricsTableEnd + 4;
+  const chartHeight = 74;
   const chartImg = generateMonthlyChartCanvas(analytics);
   if (chartImg) {
     doc.addImage(chartImg, 'PNG', margin, chartY, contentWidth, chartHeight);
   }
 
-  // Monthly Pedagogical Assessment Card (Y: 170 to 220mm)
-  const reportBoxY = 170;
-  const reportBoxHeight = 48;
+  // Monthly Pedagogical Assessment Card (Grafiğin hemen altına dinamik olarak yerleşir)
+  const reportBoxY = chartY + chartHeight + 4;
+  const reportBoxHeight = 44;
   doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(124, 58, 237);
+  doc.setDrawColor(234, 88, 12);
   doc.setLineWidth(0.6);
   doc.roundedRect(margin, reportBoxY, contentWidth, reportBoxHeight, 2.5, 2.5, 'FD');
 
-  doc.setFillColor(245, 243, 255);
-  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 8.5, 'F');
+  doc.setFillColor(255, 247, 237);
+  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 7.5, 'F');
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(109, 40, 217);
+  doc.setTextColor(194, 65, 12);
   doc.text(
     sanitizeForPdf(
       `AYLIK PEDAGOJIK DEGERLENDIRME VE BASARI: ${analytics.statusAssessment.badgeText.toUpperCase()}`
     ),
     margin + 4,
-    reportBoxY + 6.2
+    reportBoxY + 5.5
   );
 
   doc.setFontSize(8);
@@ -1492,11 +1494,11 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
     sanitizeForPdf(analytics.statusAssessment.reportSummary),
     contentWidth - 8
   );
-  doc.text(splitText, margin + 4, reportBoxY + 14);
+  doc.text(splitText, margin + 4, reportBoxY + 12);
 
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(71, 85, 105);
-  doc.text(sanitizeForPdf('Aylik Gelisim Hedefi:'), margin + 4, reportBoxY + 34);
+  doc.text(sanitizeForPdf('Aylik Gelisim Hedefi:'), margin + 4, reportBoxY + 28);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
@@ -1504,11 +1506,11 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
     analytics.weeklyAverage * 1.1
   )} soruya ulasmak onerilir.`;
   const splitMonthlyHabit = doc.splitTextToSize(sanitizeForPdf(monthlyHabitNote), contentWidth - 8);
-  doc.text(splitMonthlyHabit, margin + 4, reportBoxY + 39);
+  doc.text(splitMonthlyHabit, margin + 4, reportBoxY + 33);
 
-  // Highlights Card (Y: 222 to 268mm)
-  const highY = 222;
-  const highHeight = 46;
+  // Highlights Card (Dinamik olarak değerlendirme kartının altına yerleşir)
+  const highY = reportBoxY + reportBoxHeight + 4;
+  const highHeight = 40;
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
@@ -1517,7 +1519,7 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('AYLIK ONEMLI BASARI VE ODOS DETAYLARI'), margin + 4, highY + 6.5);
+  doc.text(sanitizeForPdf('AYLIK ONEMLI BASARI VE ODOS DETAYLARI'), margin + 4, highY + 6);
 
   const topWeek = [...analytics.weeks].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
   const topMonthlySubject = analytics.subjectBreakdown[0];
@@ -1533,7 +1535,7 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
   monthlyHighlights.forEach((h, idx) => {
-    doc.text(sanitizeForPdf(h), margin + 4, highY + 14 + idx * 7.5);
+    doc.text(sanitizeForPdf(h), margin + 4, highY + 13 + idx * 6.5);
   });
 
   // Page 1 Footer
@@ -1690,9 +1692,9 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
   });
 
   // Monthly Study Recommendations Note Box
-  const afterSubjectY = (doc as any).lastAutoTable.finalY + 5;
-  const guideBoxY = Math.min(afterSubjectY, 196);
-  const guideBoxHeight = 36;
+  const afterSubjectY = (doc as any).lastAutoTable?.finalY || 140;
+  const guideBoxY = afterSubjectY + 5;
+  const guideBoxHeight = 32;
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
@@ -1700,7 +1702,7 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(124, 58, 237);
+  doc.setTextColor(234, 88, 12);
   doc.text(
     sanitizeForPdf('REHBERLIK VE GELECEK AY CALISMA PLANLAMASI'),
     margin + 4,
@@ -1717,11 +1719,11 @@ export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Studen
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(51, 65, 85);
   guideNotes.forEach((n, idx) => {
-    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 6.5);
+    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 5.8);
   });
 
-  // Official Institutional Signatures Box
-  const sigY = 244;
+  // Official Institutional Signatures Box (Dinamik olarak rehberlik kutusunun altına yerleşir)
+  const sigY = Math.max(guideBoxY + guideBoxHeight + 6, 240);
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(margin, sigY, contentWidth, 36, 2, 2, 'FD');

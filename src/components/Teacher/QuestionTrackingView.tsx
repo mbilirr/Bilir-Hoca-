@@ -10,6 +10,9 @@ import {
   TrendingDown,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  RotateCcw,
+  X,
   BarChart3,
   CalendarDays,
   CheckCircle2,
@@ -54,6 +57,7 @@ import {
   downloadMonthlyPDF,
   formatTurkishDate,
   formatDateISO,
+  getMondayOfWeek,
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
 
@@ -113,6 +117,27 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     month: new Date().getMonth(),
   });
 
+  // Açılır pencere (Geçmiş Hafta ve Geçmiş Ay Seçici Modal) durumları
+  const [isWeekModalOpen, setIsWeekModalOpen] = useState<boolean>(false);
+  const [weekFilterTab, setWeekFilterTab] = useState<'all' | 'with_questions'>('all');
+  const [weekSearchQuery, setWeekSearchQuery] = useState<string>('');
+
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState<boolean>(false);
+  const [monthFilterTab, setMonthFilterTab] = useState<'all' | 'with_questions'>('all');
+  const [monthSearchQuery, setMonthSearchQuery] = useState<string>('');
+
+  // ESC tuşu ile açılır pencereleri kapatma
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isWeekModalOpen) setIsWeekModalOpen(false);
+        if (isMonthModalOpen) setIsMonthModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isWeekModalOpen, isMonthModalOpen]);
+
   // Soru logları
   const [allLogs, setAllLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
 
@@ -140,6 +165,195 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       targetWeekDate
     );
   }, [allLogs, activeStudent, activeClass, targetWeekDate]);
+
+  // Öğrencinin geçmiş haftaları ve soru sayıları (Açılır pencere için)
+  const pastWeeksList = useMemo(() => {
+    const currentMonday = getMondayOfWeek(new Date());
+    const studentLogs = allLogs.filter((l) => l.studentId === activeStudent?.id);
+
+    // En az 26 hafta (yaklaşık 6 ay), eğer daha eski log varsa listeyi o tarihe kadar genişlet
+    let maxPastWeeks = 26;
+    if (studentLogs.length > 0) {
+      studentLogs.forEach((l) => {
+        if (l.date) {
+          const logDate = new Date(l.date + 'T00:00:00');
+          if (!isNaN(logDate.getTime())) {
+            const logMonday = getMondayOfWeek(logDate);
+            const diffDays = Math.round((currentMonday.getTime() - logMonday.getTime()) / (1000 * 60 * 60 * 24));
+            const off = Math.round(diffDays / 7);
+            if (off > maxPastWeeks && off < 104) {
+              maxPastWeeks = off + 2;
+            }
+          }
+        }
+      });
+    }
+
+    const list = [];
+    for (let i = 0; i <= maxPastWeeks; i++) {
+      const offset = -i;
+      const mon = new Date(currentMonday);
+      mon.setDate(currentMonday.getDate() + offset * 7);
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+
+      const sStr = formatDateISO(mon);
+      const eStr = formatDateISO(sun);
+
+      let weekTotal = 0;
+      let weekCorrect = 0;
+      let weekWrong = 0;
+      const activeDays = new Set<string>();
+
+      studentLogs.forEach((l) => {
+        if (l.date >= sStr && l.date <= eStr) {
+          weekTotal += l.totalQuestions || 0;
+          weekCorrect += l.totalCorrect || 0;
+          weekWrong += l.totalWrong || 0;
+          if ((l.totalQuestions || 0) > 0) {
+            activeDays.add(l.date);
+          }
+        }
+      });
+
+      const relativeLabel =
+        offset === 0
+          ? 'Bu Hafta (Güncel)'
+          : offset === -1
+          ? 'Geçen Hafta'
+          : `${Math.abs(offset)} Hafta Önce`;
+
+      // Sadece güncel hafta veya soru sayısı > 0 olan geçmiş haftalar eklenir; soru sayısı olmayan geçmiş haftalar tamamen silinir
+      if (offset === 0 || weekTotal > 0) {
+        list.push({
+          offset,
+          startDateStr: sStr,
+          endDateStr: eStr,
+          weekLabel: `${formatTurkishDate(sStr)} - ${formatTurkishDate(eStr)}`,
+          relativeLabel,
+          totalQuestions: weekTotal,
+          totalCorrect: weekCorrect,
+          totalWrong: weekWrong,
+          activeDaysCount: activeDays.size,
+          hasActivity: weekTotal > 0,
+        });
+      }
+    }
+
+    return list;
+  }, [allLogs, activeStudent?.id]);
+
+  // Filtrelenmiş geçmiş haftalar
+  const filteredPastWeeks = useMemo(() => {
+    return pastWeeksList.filter((item) => {
+      if (weekFilterTab === 'with_questions' && !item.hasActivity) {
+        return false;
+      }
+      if (weekSearchQuery.trim()) {
+        const q = weekSearchQuery.toLowerCase().trim();
+        const matchesLabel = item.weekLabel.toLowerCase().includes(q);
+        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        return matchesLabel || matchesRel;
+      }
+      return true;
+    });
+  }, [pastWeeksList, weekFilterTab, weekSearchQuery]);
+
+  const activeWeeksCount = useMemo(() => {
+    return pastWeeksList.filter((w) => w.hasActivity).length;
+  }, [pastWeeksList]);
+
+  // Geçmiş aylar listesi (Son 24 ay)
+  const pastMonthsList = useMemo(() => {
+    if (!activeStudent) return [];
+    const studentLogs = allLogs.filter((l) => l.studentId === activeStudent.id);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const list: Array<{
+      year: number;
+      month: number;
+      monthLabel: string;
+      relativeLabel: string;
+      totalQuestions: number;
+      totalCorrect: number;
+      totalWrong: number;
+      activeDaysCount: number;
+      hasActivity: boolean;
+    }> = [];
+
+    for (let offset = 0; offset < 24; offset++) {
+      const d = new Date(currentYear, currentMonth - offset, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const sStr = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      const eStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+
+      let monthTotal = 0;
+      let monthCorrect = 0;
+      let monthWrong = 0;
+      const activeDays = new Set<string>();
+
+      studentLogs.forEach((l) => {
+        if (l.date >= sStr && l.date <= eStr) {
+          monthTotal += l.totalQuestions || 0;
+          monthCorrect += l.totalCorrect || 0;
+          monthWrong += l.totalWrong || 0;
+          if ((l.totalQuestions || 0) > 0) {
+            activeDays.add(l.date);
+          }
+        }
+      });
+
+      const relativeLabel =
+        offset === 0
+          ? 'Bu Ay (Güncel)'
+          : offset === 1
+          ? 'Geçen Ay'
+          : `${offset} Ay Önce`;
+
+      const monthName = TURKISH_MONTHS[m] || '';
+      const monthLabel = `${monthName} ${y}`;
+
+      // Sadece güncel ay veya soru sayısı > 0 olan geçmiş aylar eklenir; soru sayısı olmayan geçmiş aylar tamamen silinir
+      if (offset === 0 || monthTotal > 0) {
+        list.push({
+          year: y,
+          month: m,
+          monthLabel,
+          relativeLabel,
+          totalQuestions: monthTotal,
+          totalCorrect: monthCorrect,
+          totalWrong: monthWrong,
+          activeDaysCount: activeDays.size,
+          hasActivity: monthTotal > 0,
+        });
+      }
+    }
+
+    return list;
+  }, [allLogs, activeStudent?.id]);
+
+  const filteredPastMonths = useMemo(() => {
+    return pastMonthsList.filter((item) => {
+      if (monthFilterTab === 'with_questions' && !item.hasActivity) {
+        return false;
+      }
+      if (monthSearchQuery.trim()) {
+        const q = monthSearchQuery.toLowerCase().trim();
+        const matchesLabel = item.monthLabel.toLowerCase().includes(q);
+        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        return matchesLabel || matchesRel;
+      }
+      return true;
+    });
+  }, [pastMonthsList, monthFilterTab, monthSearchQuery]);
+
+  const activeMonthsCount = useMemo(() => {
+    return pastMonthsList.filter((m) => m.hasActivity).length;
+  }, [pastMonthsList]);
 
   // Aktif öğrenci için aylık analitik
   const monthlyAnalytics = useMemo(() => {
@@ -452,34 +666,60 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <div className="space-y-6">
               {/* Hafta Gezinme ve Öğrenci Kimlik Kartı */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
+                {/* Açılır Pencere ile Hafta Seçimi (İleri / Geri Tuşları Yerine Açılır Pencere) */}
+                <div className="flex flex-wrap items-center gap-2.5">
                   <button
-                    onClick={() => setWeekOffset((prev) => prev - 1)}
-                    className="p-2 bg-[#f8fafc] hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-xl transition-colors cursor-pointer"
-                    title="Önceki Hafta"
+                    id="btn-open-week-picker-modal"
+                    type="button"
+                    onClick={() => setIsWeekModalOpen(true)}
+                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-[#f8fafc] hover:bg-orange-50/60 border border-slate-300 hover:border-orange-500 rounded-2xl transition-all shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    title="Geçmiş haftaları ve çözülen soruları görüntülemek için açılır pencereyi açın"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-orange-100/80 group-hover:bg-orange-600 text-orange-600 group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-extrabold text-orange-600 uppercase tracking-wider">
+                          {weekOffset === 0 ? 'Güncel Dönem' : weekOffset === -1 ? 'Geçen Hafta' : `${Math.abs(weekOffset)} Hafta Önce`}
+                        </span>
+                        {weekOffset !== 0 ? (
+                          <span className="text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded-md">
+                            Geçmiş Hafta
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                            Aktif Hafta
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-xs sm:text-sm font-bold text-[#0f172a] flex items-center gap-1.5">
+                        <span className="hidden xs:inline text-slate-500 font-medium">İncelenen Hafta:</span>
+                        <span className="text-[#1e3a8a] underline decoration-orange-400/60 decoration-2 underline-offset-2">
+                          {weeklyAnalytics.weekLabel}
+                        </span>
+                      </h3>
+                    </div>
+                    <div className="ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 text-slate-400 group-hover:text-orange-600 flex items-center gap-1 text-xs font-semibold shrink-0">
+                      <span className="hidden md:inline text-[11px] text-slate-500 group-hover:text-orange-700 font-medium">
+                        Açılır Pencere
+                      </span>
+                      <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 md:text-slate-400" />
+                    </div>
                   </button>
-                  <div>
-                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block">
-                      {weekOffset === 0 ? 'Güncel Dönem' : weekOffset === -1 ? 'Geçen Hafta' : `${Math.abs(weekOffset)} Hafta Önce`}
-                    </span>
-                    <h3 className="text-sm font-bold text-[#0f172a]">
-                      İncelenen Hafta: <span className="text-[#1e3a8a]">{weeklyAnalytics.weekLabel}</span>
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => setWeekOffset((prev) => Math.min(0, prev + 1))}
-                    disabled={weekOffset >= 0}
-                    className={`p-2 rounded-xl transition-colors ${
-                      weekOffset >= 0
-                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                        : 'bg-[#f8fafc] hover:bg-slate-200 border border-slate-300 text-slate-700 cursor-pointer'
-                    }`}
-                    title="Sonraki Hafta"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+
+                  {weekOffset !== 0 && (
+                    <button
+                      id="btn-reset-current-week"
+                      type="button"
+                      onClick={() => setWeekOffset(0)}
+                      className="px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      title="Bugünün güncel haftasına dön"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Güncel Haftaya Dön</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
@@ -985,47 +1225,60 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <div className="space-y-6">
               {/* Ay Gezinme ve Öğrenci Kimlik Kartı */}
               <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
+                {/* Açılır Pencere ile Ay Seçimi (İleri / Geri Tuşları Yerine Açılır Pencere) */}
+                <div className="flex flex-wrap items-center gap-2.5">
                   <button
-                    onClick={() => {
-                      setMonthDate((prev) => {
-                        if (prev.month === 0) {
-                          return { year: prev.year - 1, month: 11 };
-                        }
-                        return { year: prev.year, month: prev.month - 1 };
-                      });
-                    }}
-                    className="p-2 bg-[#f8fafc] hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-xl transition-colors cursor-pointer"
-                    title="Önceki Ay"
+                    id="btn-open-month-picker-modal"
+                    type="button"
+                    onClick={() => setIsMonthModalOpen(true)}
+                    className="group flex items-center gap-3 px-3.5 py-2 sm:px-4 sm:py-2.5 bg-[#f8fafc] hover:bg-orange-50/60 border border-slate-300 hover:border-orange-500 rounded-2xl transition-all shadow-xs cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                    title="Geçmiş ayları ve çözülen soruları görüntülemek için açılır pencereyi açın"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-orange-100/80 group-hover:bg-orange-600 text-orange-600 group-hover:text-white flex items-center justify-center transition-colors shadow-xs shrink-0">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-extrabold text-orange-600 uppercase tracking-wider">
+                          Aylık İnceleme Dönemi
+                        </span>
+                        {monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth() ? (
+                          <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                            Aktif Ay
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.2 rounded-md">
+                            Geçmiş Dönem
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-xs sm:text-sm font-bold text-[#0f172a] flex items-center gap-1.5">
+                        <span className="hidden xs:inline text-slate-500 font-medium">Analiz Ayı:</span>
+                        <span className="text-[#1e3a8a] underline decoration-orange-400/60 decoration-2 underline-offset-2">
+                          {monthlyAnalytics.monthLabel}
+                        </span>
+                      </h3>
+                    </div>
+                    <div className="ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 text-slate-400 group-hover:text-orange-600 flex items-center gap-1 text-xs font-semibold shrink-0">
+                      <span className="hidden md:inline text-[11px] text-slate-500 group-hover:text-orange-700 font-medium">
+                        Açılır Pencere
+                      </span>
+                      <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 md:text-slate-400" />
+                    </div>
                   </button>
-                  <div>
-                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block">
-                      Aylık İnceleme Dönemi
-                    </span>
-                    <h3 className="text-sm font-bold text-[#0f172a]">
-                      Analiz Ayı: <span className="text-[#1e3a8a]">{monthlyAnalytics.monthLabel}</span>
-                    </h3>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setMonthDate((prev) => {
-                        const now = new Date();
-                        if (prev.year === now.getFullYear() && prev.month >= now.getMonth()) {
-                          return prev;
-                        }
-                        if (prev.month === 11) {
-                          return { year: prev.year + 1, month: 0 };
-                        }
-                        return { year: prev.year, month: prev.month + 1 };
-                      });
-                    }}
-                    className="p-2 bg-[#f8fafc] hover:bg-slate-200 border border-slate-300 text-slate-700 rounded-xl transition-colors cursor-pointer"
-                    title="Sonraki Ay"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+
+                  {(monthDate.year !== new Date().getFullYear() || monthDate.month !== new Date().getMonth()) && (
+                    <button
+                      id="btn-reset-current-month"
+                      type="button"
+                      onClick={() => setMonthDate({ year: new Date().getFullYear(), month: new Date().getMonth() })}
+                      className="px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      title="Güncel aya dön"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Güncel Aya Dön</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
@@ -1364,6 +1617,612 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             </div>
           )}
         </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* GEÇMİŞ HAFTA SEÇİMİ AÇILIR PENCERESİ (POPUP MODAL)                        */}
+      {/* ========================================================================= */}
+      {isWeekModalOpen && activeStudent && (
+        <div
+          id="modal-week-picker-backdrop"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsWeekModalOpen(false);
+            }
+          }}
+        >
+          <div
+            id="modal-week-picker-content"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-start justify-between gap-4 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-200 text-orange-600 flex items-center justify-center shrink-0 shadow-xs">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0f172a] flex items-center gap-2">
+                    <span>Geçmiş Hafta Seçimi</span>
+                    <span className="text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full">
+                      Açılır Pencere
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    <strong className="text-slate-700">{activeStudent.name}</strong> öğrencisinin geçmiş haftalarda çözdüğü soruları incelemek için dilediğiniz haftayı seçin.
+                  </p>
+                </div>
+              </div>
+              <button
+                id="btn-close-week-modal"
+                onClick={() => setIsWeekModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Filter & Search Bar */}
+            <div className="p-4 border-b border-slate-100 bg-[#f8fafc] space-y-3">
+              {/* Hızlı Atlama Düğmeleri */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Hızlı Seç:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(0);
+                    setIsWeekModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    weekOffset === 0
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  Bu Hafta (Güncel)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(-1);
+                    setIsWeekModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    weekOffset === -1
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  Geçen Hafta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(-2);
+                    setIsWeekModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    weekOffset === -2
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  2 Hafta Önce
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(-3);
+                    setIsWeekModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    weekOffset === -3
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  3 Hafta Önce
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekOffset(-4);
+                    setIsWeekModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    weekOffset === -4
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  1 Ay Önce (4. Hafta)
+                </button>
+              </div>
+
+              {/* Arama ve Filtre Sekmeleri */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={weekSearchQuery}
+                    onChange={(e) => setWeekSearchQuery(e.target.value)}
+                    placeholder="Hafta veya ay ara (Örn: Eylül, Ağustos)..."
+                    className="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-orange-500"
+                  />
+                  {weekSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setWeekSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-300 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setWeekFilterTab('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                      weekFilterTab === 'all'
+                        ? 'bg-[#0f172a] text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Tümü ({pastWeeksList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWeekFilterTab('with_questions')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                      weekFilterTab === 'with_questions'
+                        ? 'bg-orange-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Soru Çözülenler</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+                      {activeWeeksCount}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable Hafta Listesi */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {filteredPastWeeks.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-xs">
+                  Aramanıza veya seçtiğiniz filtreye uygun hafta bulunamadı.
+                </div>
+              ) : (
+                filteredPastWeeks.map((item) => {
+                  const isSelected = item.offset === weekOffset;
+                  return (
+                    <div
+                      key={item.offset}
+                      onClick={() => {
+                        setWeekOffset(item.offset);
+                        setIsWeekModalOpen(false);
+                      }}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'border-orange-500 bg-orange-50/70 shadow-xs ring-1 ring-orange-500/40'
+                          : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                            isSelected
+                              ? 'bg-orange-600 text-white shadow-xs'
+                              : item.hasActivity
+                              ? 'bg-[#0f172a] text-orange-400'
+                              : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {item.offset === 0 ? '0' : item.offset}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`text-xs font-bold ${
+                                isSelected ? 'text-orange-950' : 'text-[#0f172a]'
+                              }`}
+                            >
+                              {item.weekLabel}
+                            </span>
+                            <span
+                              className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
+                                item.offset === 0
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isSelected
+                                  ? 'bg-orange-200 text-orange-900'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {item.relativeLabel}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {formatTurkishDate(item.startDateStr)} - {formatTurkishDate(item.endDateStr)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 sm:self-center justify-between sm:justify-end">
+                        <div className="text-left sm:text-right">
+                          {item.hasActivity ? (
+                            <div>
+                              <span className="text-xs font-extrabold text-[#0f172a] flex items-center gap-1 sm:justify-end">
+                                <span className="w-2 h-2 rounded-full bg-orange-500" />
+                                {item.totalQuestions} Soru Çözüldü
+                              </span>
+                              <span className="text-[10px] text-emerald-600 font-semibold block">
+                                {item.activeDaysCount} gün soru girişi yapıldı
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">
+                              Soru kaydı yok (0)
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          {isSelected ? (
+                            <span className="px-3 py-1.5 bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Seçili</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 bg-white hover:bg-[#0f172a] text-slate-700 hover:text-white border border-slate-300 hover:border-[#0f172a] text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+                            >
+                              İncele
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Sparkles className="w-4 h-4 text-orange-500 shrink-0" />
+                <span>Hafta seçildiğinde Looker Studio grafikleri, başarı analizi ve PDF raporları anında güncellenir.</span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {weekOffset !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeekOffset(0);
+                      setIsWeekModalOpen(false);
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3 text-orange-600" />
+                    <span>Güncel Haftaya Git</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsWeekModalOpen(false)}
+                  className="px-4 py-1.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+      {/* GEÇMİŞ AYLARI İNCELEME AÇILIR PENCERESİ (LOOKER STUDIO MODAL)               */}
+      {/* ========================================================================= */}
+      {isMonthModalOpen && activeStudent && (
+        <div
+          id="month-picker-modal-backdrop"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsMonthModalOpen(false);
+            }
+          }}
+        >
+          <div
+            id="month-picker-modal-content"
+            className="w-full max-w-2xl bg-white border border-slate-300 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
+          >
+            {/* Modal Başlık */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-500/20 border border-orange-500/40 flex items-center justify-center text-orange-400">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                      Açılır Pencere
+                    </span>
+                    <span className="text-xs text-slate-300 font-medium">
+                      Öğrenci: <strong className="text-white">{activeStudent.name}</strong>
+                    </span>
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                    Geçmiş Ayları ve Çözülen Soruları İncele
+                  </h3>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMonthModalOpen(false)}
+                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Kapat (ESC)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Hızlı Filtre & Arama Bölümü */}
+            <div className="p-4 bg-[#f8fafc] border-b border-slate-200 space-y-3 shrink-0">
+              {/* Hızlı Butonlar */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+                <span className="text-slate-400 text-[11px] font-bold shrink-0">Hızlı Dönem:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
+                    setIsMonthModalOpen(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    monthDate.year === new Date().getFullYear() && monthDate.month === new Date().getMonth()
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}
+                >
+                  Bu Ay (Güncel)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
+                    setIsMonthModalOpen(false);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                >
+                  Geçen Ay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+                    setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
+                    setIsMonthModalOpen(false);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                >
+                  2 Ay Önce
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date();
+                    const d = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                    setMonthDate({ year: d.getFullYear(), month: d.getMonth() });
+                    setIsMonthModalOpen(false);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                >
+                  3 Ay Önce
+                </button>
+              </div>
+
+              {/* Arama ve Filtre Sekmeleri */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={monthSearchQuery}
+                    onChange={(e) => setMonthSearchQuery(e.target.value)}
+                    placeholder="Ay veya yıl ara (Örn: Eylül, 2026)..."
+                    className="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-orange-500"
+                  />
+                  {monthSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setMonthSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-300 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setMonthFilterTab('all')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                      monthFilterTab === 'all'
+                        ? 'bg-[#0f172a] text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Tümü ({pastMonthsList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMonthFilterTab('with_questions')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                      monthFilterTab === 'with_questions'
+                        ? 'bg-orange-600 text-white'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Soru Çözülenler</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/20 text-white">
+                      {activeMonthsCount}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable Ay Listesi */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {filteredPastMonths.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 text-xs">
+                  Aramanıza veya seçtiğiniz filtreye uygun ay bulunamadı.
+                </div>
+              ) : (
+                filteredPastMonths.map((item) => {
+                  const isSelected = item.year === monthDate.year && item.month === monthDate.month;
+                  return (
+                    <div
+                      key={`${item.year}-${item.month}`}
+                      onClick={() => {
+                        setMonthDate({ year: item.year, month: item.month });
+                        setIsMonthModalOpen(false);
+                      }}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'border-orange-500 bg-orange-50/70 shadow-xs ring-1 ring-orange-500/40'
+                          : 'border-slate-200 hover:border-orange-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${
+                            isSelected
+                              ? 'bg-orange-600 text-white shadow-xs'
+                              : item.hasActivity
+                              ? 'bg-[#0f172a] text-orange-400'
+                              : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {item.month + 1}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`text-xs font-bold ${
+                                isSelected ? 'text-orange-950' : 'text-[#0f172a]'
+                              }`}
+                            >
+                              {item.monthLabel}
+                            </span>
+                            <span
+                              className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded-md ${
+                                item.year === new Date().getFullYear() && item.month === new Date().getMonth()
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : isSelected
+                                  ? 'bg-orange-200 text-orange-900'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {item.relativeLabel}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {item.year} Yılı • {TURKISH_MONTHS[item.month]} Dönemi
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 sm:self-center justify-between sm:justify-end">
+                        <div className="text-left sm:text-right">
+                          {item.hasActivity ? (
+                            <div>
+                              <span className="text-xs font-extrabold text-[#0f172a] flex items-center gap-1 sm:justify-end">
+                                <span className="w-2 h-2 rounded-full bg-orange-500" />
+                                {item.totalQuestions} Soru Çözüldü
+                              </span>
+                              <span className="text-[10px] text-emerald-600 font-semibold block">
+                                {item.activeDaysCount} aktif çalışma günü
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">
+                              Soru kaydı yok (0)
+                            </span>
+                          )}
+                        </div>
+
+                        <div>
+                          {isSelected ? (
+                            <span className="px-3 py-1.5 bg-orange-600 text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Seçili</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 bg-white hover:bg-[#0f172a] text-slate-700 hover:text-white border border-slate-300 hover:border-[#0f172a] text-xs font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
+                            >
+                              İncele
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-slate-500">
+                <Sparkles className="w-4 h-4 text-orange-500 shrink-0" />
+                <span>Ay seçildiğinde aylık Looker Studio grafikleri, başarı oranları ve aylık PDF anında güncellenir.</span>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {(monthDate.year !== new Date().getFullYear() || monthDate.month !== new Date().getMonth()) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
+                      setIsMonthModalOpen(false);
+                    }}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3 text-orange-600" />
+                    <span>Güncel Aya Git</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsMonthModalOpen(false)}
+                  className="px-4 py-1.5 bg-[#0f172a] hover:bg-[#1e293b] text-white font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -474,6 +474,21 @@ export class DataService {
       this.sentEmails = loadDataWithLegacyFallback(STORAGE_KEYS.SENT_EMAILS, []);
       this.questionLogs = loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
 
+      // Sistem tarafından otomatik yüklenen demo/seed soru kayıtlarını ve soru sayısı 0 olan boş kayıtları temizle
+      const prevLogsCount = this.questionLogs.length;
+      this.questionLogs = this.questionLogs.filter((q) => {
+        const isAutoSeeded =
+          q.id.startsWith(`qlog-${q.studentId}-`) ||
+          q.id.startsWith('qlog-seed-') ||
+          q.notes === 'Hedef soru sayısı başarıyla aşıldı.' ||
+          q.notes === 'Günlük soru hedefi tamamlandı.';
+        const hasZeroQuestions = !q.totalQuestions || q.totalQuestions <= 0;
+        return !isAutoSeeded && !hasZeroQuestions;
+      });
+      if (this.questionLogs.length !== prevLogsCount) {
+        saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+      }
+
       // Filter out any IDs recorded as deleted
       this.teachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
       this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
@@ -595,10 +610,6 @@ export class DataService {
 
     if (this.studentNotifications.length === 0 && this.homeworks.length > 0) {
       this.seedInitialNotifications();
-    }
-
-    if (this.questionLogs.length === 0 && this.students.length > 0) {
-      this.seedInitialQuestionLogs();
     }
 
     // Background sync with Supabase (respects deleted students)
@@ -2726,87 +2737,30 @@ export class DataService {
     this.notify();
   }
 
-  public seedInitialQuestionLogs(): void {
-    if (this.students.length === 0) return;
-
-    const today = new Date();
-    const studentsToSeed = this.students.slice(0, 4);
-
-    studentsToSeed.forEach((student, sIdx) => {
-      const baseDaily = sIdx === 0 ? 55 : sIdx === 1 ? 45 : 35;
-
-      // Generate for 35 days (5 weeks) back to ensure weekly & monthly comparisons work immediately
-      for (let dayOffset = 34; dayOffset >= 0; dayOffset--) {
-        const logDate = new Date(today);
-        logDate.setDate(today.getDate() - dayOffset);
-        const dayOfWeek = logDate.getDay(); // 0 is Sunday
-        const dateStr = logDate.toISOString().slice(0, 10);
-
-        // Leave some days as zero questions (e.g. Sunday or occasional rest day)
-        if (dayOfWeek === 0 && dayOffset % 2 === 0) {
-          continue; // Soru çözülmeyen gün
-        }
-        if (dayOfWeek === 3 && dayOffset > 14 && dayOffset % 3 === 0) {
-          continue; // Soru çözülmeyen gün
-        }
-
-        // Slight progressive weekly growth to show realistic progress rate
-        const growthBonus = (35 - dayOffset) * 0.008;
-        const factor = (0.85 + Math.sin(dayOffset) * 0.15) * (1 + growthBonus);
-        const dailyTarget = Math.max(20, Math.round(baseDaily * factor));
-
-        const matQ = Math.round(dailyTarget * 0.4);
-        const fenQ = Math.round(dailyTarget * 0.3);
-        const turkQ = Math.max(5, dailyTarget - matQ - fenQ);
-
-        const entries = [
-          {
-            subject: 'Matematik',
-            questionCount: matQ,
-            correctCount: Math.round(matQ * 0.86),
-            wrongCount: Math.round(matQ * 0.1),
-            emptyCount: Math.max(0, matQ - Math.round(matQ * 0.86) - Math.round(matQ * 0.1)),
-          },
-          {
-            subject: student.schoolLevel === 'Ortaokul' ? 'Fen Bilimleri' : 'Fizik',
-            questionCount: fenQ,
-            correctCount: Math.round(fenQ * 0.82),
-            wrongCount: Math.round(fenQ * 0.12),
-            emptyCount: Math.max(0, fenQ - Math.round(fenQ * 0.82) - Math.round(fenQ * 0.12)),
-          },
-          {
-            subject: 'Türkçe',
-            questionCount: turkQ,
-            correctCount: Math.round(turkQ * 0.9),
-            wrongCount: Math.round(turkQ * 0.06),
-            emptyCount: Math.max(0, turkQ - Math.round(turkQ * 0.9) - Math.round(turkQ * 0.06)),
-          },
-        ];
-
-        const totalQuestions = entries.reduce((acc, e) => acc + e.questionCount, 0);
-        const totalCorrect = entries.reduce((acc, e) => acc + (e.correctCount || 0), 0);
-        const totalWrong = entries.reduce((acc, e) => acc + (e.wrongCount || 0), 0);
-        const totalEmpty = entries.reduce((acc, e) => acc + (e.emptyCount || 0), 0);
-
-        this.questionLogs.push({
-          id: `qlog-${student.id}-${dateStr}`,
-          studentId: student.id,
-          studentName: student.name,
-          classId: student.classId,
-          className: student.className,
-          date: dateStr,
-          entries,
-          totalQuestions,
-          totalCorrect,
-          totalWrong,
-          totalEmpty,
-          notes: totalQuestions >= 60 ? 'Hedef soru sayısı başarıyla aşıldı.' : 'Günlük soru hedefi tamamlandı.',
-          createdAt: `${dateStr}T21:00:00.000Z`,
-        });
-      }
+  public clearAutoSeededQuestionLogs(): void {
+    const prevCount = this.questionLogs.length;
+    this.questionLogs = this.questionLogs.filter((q) => {
+      const isAutoSeeded =
+        q.id.startsWith(`qlog-${q.studentId}-`) ||
+        q.id.startsWith('qlog-seed-') ||
+        q.notes === 'Hedef soru sayısı başarıyla aşıldı.' ||
+        q.notes === 'Günlük soru hedefi tamamlandı.';
+      return !isAutoSeeded;
     });
+    if (this.questionLogs.length !== prevCount) {
+      saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+      this.notify();
+    }
+  }
 
+  public clearAllQuestionLogs(): void {
+    this.questionLogs = [];
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    this.notify();
+  }
+
+  public seedInitialQuestionLogs(): void {
+    // Soru sayıları otomatik yüklenmez; kullanıcıların ve öğrencilerin kendi girdiği gerçek kayıtlar tutulur.
   }
 }
 

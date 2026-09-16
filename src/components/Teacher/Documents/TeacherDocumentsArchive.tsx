@@ -412,10 +412,17 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
               className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all"
             >
               {/* Category Folder Accordion Header */}
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => toggleCategory(category.id)}
-                className="w-full text-left p-4 flex items-center justify-between hover:bg-slate-850/60 transition-colors cursor-pointer"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleCategory(category.id);
+                  }
+                }}
+                className="w-full text-left p-4 flex items-center justify-between hover:bg-slate-850/60 transition-colors cursor-pointer select-none"
               >
                 <div className="flex items-center space-x-3 min-w-0">
                   <div
@@ -450,7 +457,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           e.stopPropagation();
                           scrollCategoryTrack(category.id, -340);
                         }}
-                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors cursor-pointer"
                         title="Sola Kaydır"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
@@ -461,7 +468,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           e.stopPropagation();
                           scrollCategoryTrack(category.id, 340);
                         }}
-                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
+                        className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors cursor-pointer"
                         title="Sağa Kaydır"
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -480,7 +487,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
-              </button>
+              </div>
 
               {/* Collapsible Documents Track: YAN YANA KAYAN ÖZET SAYFALAR */}
               {isExpanded && (

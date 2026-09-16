@@ -12,6 +12,9 @@ import {
   Sparkles,
   GraduationCap,
   HelpCircle,
+  BarChart3,
+  Target,
+  Award,
 } from 'lucide-react';
 import { Student, ClassGroup, Homework, HomeworkSubmission, Etut, TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -85,13 +88,12 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
 
   const nextEtut = upcomingEtuts[0];
 
-  // 3. TAMAMLANMAMIŞ ÖDEV ORANI HESABI
-  // Her ödevin hedeflediği öğrenci sayısını toplayıp toplam beklenen teslimatı bulalım
+  // 3. TAMAMLANMAMIŞ VE TAMAMLANMIŞ ÖDEV ORANI HESABI
   let totalExpectedSubmissions = 0;
   homeworks.forEach((hw) => {
     if (hw.assignedTo === 'all') {
       if (hw.targetClassIds && hw.targetClassIds.length > 0) {
-        const classStudents = students.filter((s) => hw.targetClassIds.includes(s.classId));
+        const classStudents = students.filter((s) => hw.targetClassIds?.includes(s.classId));
         totalExpectedSubmissions += Math.max(classStudents.length, 1);
       } else {
         totalExpectedSubmissions += students.length;
@@ -103,12 +105,10 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
     }
   });
 
-  // Eğer öğrenci veya ödev yoksa fallback
   if (totalExpectedSubmissions === 0 && homeworks.length > 0) {
     totalExpectedSubmissions = homeworks.length * Math.max(students.length, 1);
   }
 
-  // Teslim edilen geçerli ödevler (on_time veya late)
   const completedSubmissionsCount = submissions.filter(
     (s) => s.status === 'on_time' || s.status === 'late'
   ).length;
@@ -118,12 +118,12 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
     totalExpectedSubmissions - completedSubmissionsCount
   );
 
-  const uncompletedRate =
+  const completedRate =
     totalExpectedSubmissions > 0
-      ? Math.min(100, Math.round((pendingSubmissionsCount / totalExpectedSubmissions) * 100))
-      : 0;
+      ? Math.min(100, Math.round((completedSubmissionsCount / totalExpectedSubmissions) * 100))
+      : 100;
 
-  const completedRate = 100 - uncompletedRate;
+  const uncompletedRate = 100 - completedRate;
 
   // 4. BU HAFTA ÇÖZÜLEN SORU HESABI
   const questionLogs = dataService.getQuestionLogs();
@@ -138,17 +138,23 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
   ).size;
 
   return (
-    <div className="bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl transition-all">
-      {/* Top Banner Bar with Title, Profile Role Switcher, and Right Slot (Bell, etc.) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 mb-4 border-b border-slate-800/80 gap-3">
+    <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
+      {/* Top Banner Bar with Looker Studio Insignia and Role Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-100 gap-3">
         <div className="flex items-center space-x-3 flex-wrap gap-y-2">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shadow-inner">
-              <TrendingUp className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl bg-[#0f172a] text-white flex items-center justify-center shadow-sm">
+              <BarChart3 className="w-4 h-4 text-orange-400" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white tracking-tight">
-                Durum Özetleri
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-orange-100 text-orange-700">
+                  Looker Studio
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">Genel Eğitim Paneli</span>
+              </div>
+              <h3 className="text-base font-bold text-[#0f172a] tracking-tight">
+                Öğretmen İstatistik ve Durum Özetleri
               </h3>
             </div>
           </div>
@@ -156,7 +162,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
           {/* Öğretmen ve Öğrenci Profili Geçiş Butonu */}
           {onRoleChange && (
             <div
-              className="inline-flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-slate-700/80 shadow-inner"
+              className="inline-flex items-center bg-[#f1f5f9] p-1 rounded-xl border border-slate-200"
               title="Öğretmen ve Öğrenci Profili Arasında Geçiş Yapın"
             >
               <button
@@ -164,12 +170,12 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
                 onClick={() => onRoleChange('teacher')}
                 className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   currentRole === 'teacher'
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm ring-1 ring-indigo-400/40'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    ? 'bg-[#0f172a] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#0f172a]'
                 }`}
               >
-                <GraduationCap className="w-3.5 h-3.5" />
-                <span>Öğretmen</span>
+                <GraduationCap className="w-3.5 h-3.5 text-orange-400" />
+                <span>Öğretmen Paneli</span>
               </button>
 
               <button
@@ -177,13 +183,13 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
                 onClick={() => onRoleChange('student')}
                 className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   currentRole === 'student'
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-sm ring-1 ring-emerald-400/40'
-                    : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/70'
+                    ? 'bg-[#0f172a] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-orange-600'
                 }`}
                 title="Öğrenci profili ve portal görünümüne geçiş yap"
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>Öğrenci Profili</span>
+                <span>Öğrenci Görünümü</span>
               </button>
             </div>
           )}
@@ -195,48 +201,48 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
         )}
       </div>
 
-      {/* 4 Main Statistics Bento Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+      {/* 4 Main Looker Studio Bento/Scorecard Tiles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* ================= CARD 1: YAKLAŞAN ÖDEVLER ================= */}
         <div
           onClick={() => onNavigateTab('homework')}
-          className="group relative bg-slate-950/60 hover:bg-slate-950 border border-slate-800/90 hover:border-indigo-500/50 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-indigo-500/10 flex flex-col justify-between"
+          className="group bg-white border border-slate-200/90 hover:border-orange-500/80 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Yaklaşan Ödevler
               </span>
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+              <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center group-hover:scale-105 transition-all">
                 <BookOpen className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="flex items-baseline space-x-2.5">
-              <span className="text-3xl font-extrabold text-white tracking-tight">
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-black text-[#0f172a] tracking-tight">
                 {upcomingHomeworks.length}
               </span>
               <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                   dueTodayHomeworks.length > 0
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                    ? 'bg-orange-100 text-orange-800 border border-orange-300'
                     : upcomingHomeworks.length > 0
-                    ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/20'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {dueTodayHomeworks.length > 0
                   ? `Bugün ${dueTodayHomeworks.length} Teslim`
                   : upcomingHomeworks.length > 0
                   ? `${upcomingHomeworks.length} Aktif Ödev`
-                  : 'Yaklaşan Ödev Yok'}
+                  : 'Aktif Ödev Yok'}
               </span>
             </div>
 
             {nextHomework ? (
-              <p className="text-xs text-slate-400 mt-2 truncate">
-                <span className="text-indigo-400 font-medium">En Yakın Teslim:</span>{' '}
-                <span className="text-slate-200 font-medium">
+              <p className="text-xs text-slate-600 mt-2 truncate">
+                <span className="text-orange-600 font-semibold">En Yakın Teslim:</span>{' '}
+                <span className="text-[#0f172a] font-bold">
                   {formatHomeworkDueDate(nextHomework.dueDate)}
                 </span>{' '}
                 • {nextHomework.subject} ({nextHomework.title})
@@ -248,42 +254,42 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-indigo-400 group-hover:text-indigo-300">
-            <span>Ödev Kontrol</span>
-            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-orange-600 transition-colors">
+            <span>Ödev Kontrol Modülü</span>
+            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-orange-500" />
           </div>
         </div>
 
         {/* ================= CARD 2: BUGÜN & YAKLAŞAN ETÜTLER ================= */}
         <div
           onClick={() => onNavigateTab('etuts')}
-          className="group relative bg-slate-950/60 hover:bg-slate-950 border border-slate-800/90 hover:border-amber-500/50 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-amber-500/10 flex flex-col justify-between"
+          className="group bg-white border border-slate-200/90 hover:border-[#1e3a8a] rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 Bugün & Yaklaşan Etütler
               </span>
               <div
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-all ${
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center group-hover:scale-105 transition-all ${
                   todayEtuts.length > 0
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 group-hover:bg-amber-500 group-hover:text-slate-950'
-                    : 'bg-slate-800 text-slate-400 border-slate-700 group-hover:bg-slate-700 group-hover:text-white'
+                    ? 'bg-orange-50 text-orange-600 border-orange-200'
+                    : 'bg-[#f1f5f9] text-[#1e3a8a] border-slate-200'
                 }`}
               >
                 <CalendarClock className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="flex items-baseline space-x-2.5">
-              <span className="text-3xl font-extrabold text-white tracking-tight">
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-black text-[#0f172a] tracking-tight">
                 {todayEtuts.length}
               </span>
               <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
+                className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                   todayEtuts.length > 0
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
                 {todayEtuts.length > 0 ? 'Bugün Planlandı' : 'Bugün Etüt Yok'}
@@ -291,9 +297,9 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
             </div>
 
             {nextEtut ? (
-              <p className="text-xs text-slate-400 mt-2 truncate">
-                <span className="text-amber-400 font-medium">En Yakın:</span>{' '}
-                <span className="text-slate-200 font-medium">
+              <p className="text-xs text-slate-600 mt-2 truncate">
+                <span className="text-[#1e3a8a] font-semibold">En Yakın:</span>{' '}
+                <span className="text-[#0f172a] font-bold">
                   {nextEtut.date === todayStr ? 'Bugün' : nextEtut.date} {nextEtut.time}
                 </span>{' '}
                 • {nextEtut.subject} ({nextEtut.topic})
@@ -305,118 +311,104 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
             )}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-amber-400 group-hover:text-amber-300">
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
             <span>
               {upcomingEtuts.length > 0
                 ? `Toplam ${upcomingEtuts.length} Yaklaşan Oturum`
                 : 'Etüt Takvimini Aç'}
             </span>
-            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-[#1e3a8a]" />
           </div>
         </div>
 
-        {/* ================= CARD 3: TAMAMLANMAMIŞ ÖDEV ORANI ================= */}
+        {/* ================= CARD 3: KURS & ÖDEV TESLİM ORANI ================= */}
         <div
           onClick={() => onNavigateTab('homework')}
-          className="group relative bg-slate-950/60 hover:bg-slate-950 border border-slate-800/90 hover:border-rose-500/50 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-rose-500/10 flex flex-col justify-between"
+          className="group bg-white border border-slate-200/90 hover:border-orange-500/80 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Tamamlanmamış Ödev Oranı
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Kurs & Ödev Teslim Oranı
               </span>
-              <div
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center group-hover:scale-110 transition-all ${
-                  uncompletedRate > 50
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 group-hover:bg-rose-600 group-hover:text-white'
-                    : 'bg-blue-500/10 text-blue-400 border-blue-500/30 group-hover:bg-blue-600 group-hover:text-white'
-                }`}
-              >
+              <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 border border-orange-200 flex items-center justify-center group-hover:scale-105 transition-all">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="flex items-baseline space-x-2.5">
-              <span className="text-3xl font-extrabold text-white tracking-tight">
-                %{uncompletedRate}
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-black text-orange-600 tracking-tight">
+                %{completedRate}
               </span>
-              <span
-                className={`text-xs font-bold px-2 py-0.5 rounded-md border ${
-                  uncompletedRate > 50
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
-                    : uncompletedRate > 20
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                }`}
-              >
-                {uncompletedRate > 50 ? 'Yüksek Eksik' : 'Teslim Bekliyor'}
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                Teslim Edildi
               </span>
             </div>
 
-            {/* Progress Bar */}
+            {/* Looker Studio Progress Bar */}
             <div className="mt-2.5">
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex">
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
                 <div
                   style={{ width: `${completedRate}%` }}
-                  className="bg-emerald-500 transition-all duration-500"
+                  className="bg-orange-500 transition-all duration-500"
                   title={`Tamamlanan: %${completedRate}`}
                 />
                 <div
                   style={{ width: `${uncompletedRate}%` }}
-                  className="bg-rose-500 transition-all duration-500"
-                  title={`Tamamlanmamış: %${uncompletedRate}`}
+                  className="bg-slate-300 transition-all duration-500"
+                  title={`Bekleyen: %${uncompletedRate}`}
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1.5">
                 <span>
-                  <strong className="text-rose-400">{pendingSubmissionsCount}</strong> teslim bekliyor
+                  <strong className="text-orange-600">{completedSubmissionsCount}</strong> teslim edildi
                 </span>
                 <span>
-                  <strong className="text-emerald-400">{completedSubmissionsCount}</strong> teslim edildi
+                  <strong className="text-slate-700">{pendingSubmissionsCount}</strong> bekleniyor
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-rose-400 group-hover:text-rose-300">
-            <span>Ödev Kontrol</span>
-            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-orange-600 transition-colors">
+            <span>Teslim Detayları</span>
+            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-orange-500" />
           </div>
         </div>
 
         {/* ================= CARD 4: ÖĞRENCİ SORU SAYISI TAKİP ================= */}
         <div
           onClick={() => onNavigateTab('question_tracking')}
-          className="group relative bg-slate-950/60 hover:bg-slate-950 border border-slate-800/90 hover:border-purple-500/50 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-purple-500/10 flex flex-col justify-between"
+          className="group bg-white border border-slate-200/90 hover:border-[#1e3a8a] rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
         >
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Soru Çözüm Takibi
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Soru Sayısı & Analiz
               </span>
-              <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-600 group-hover:text-white transition-all">
+              <div className="w-9 h-9 rounded-xl bg-[#f1f5f9] text-[#1e3a8a] border border-slate-200 flex items-center justify-center group-hover:scale-105 transition-all">
                 <HelpCircle className="w-4 h-4" />
               </div>
             </div>
 
-            <div className="flex items-baseline space-x-2.5">
-              <span className="text-3xl font-extrabold text-white tracking-tight">
+            <div className="flex items-baseline space-x-2">
+              <span className="text-3xl font-black text-[#0f172a] tracking-tight">
                 {currentWeekQuestions}
               </span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-md border bg-purple-500/20 text-purple-300 border-purple-500/30">
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                 Bu Hafta Çözüldü
               </span>
             </div>
 
-            <p className="text-xs text-slate-400 mt-2">
-              <span className="text-purple-400 font-medium">{activeStudentsCount} öğrenci</span> bu hafta aktif soru çözdü
+            <p className="text-xs text-slate-600 mt-2">
+              <span className="text-orange-600 font-bold">{activeStudentsCount} öğrenci</span> bu hafta aktif soru çözümü kaydetti
             </p>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs font-semibold text-purple-400 group-hover:text-purple-300">
-            <span>Grafik & Analizleri Aç</span>
-            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
+            <span>Looker Studio Analitiğini Aç</span>
+            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-[#1e3a8a]" />
           </div>
         </div>
       </div>
