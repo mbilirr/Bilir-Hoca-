@@ -25,7 +25,6 @@ import {
   Mail,
   Camera,
   Home,
-  ArrowLeft,
   ArrowRight,
   ChevronDown,
   UserCog,
@@ -90,6 +89,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(() =>
     dataService.getUnreadNotificationsCount(currentStudent.id)
   );
+
+  useEffect(() => {
+    setActiveTab('home');
+  }, [currentStudent.id]);
 
   useEffect(() => {
     const updateUnread = () => {
@@ -215,7 +218,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Navigation Wall for Student */}
-      <div id="student-top-navigation-wall" className="bg-slate-900/90 backdrop-blur border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-xl space-y-3.5">
+      <div id="student-top-navigation-wall" className="sticky top-16 sm:top-[4.25rem] z-30 bg-slate-900/95 backdrop-blur-md border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-2xl space-y-3.5 transition-all">
         {/* Row 1: Moved and styled Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
         <div id="student-action-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {/* 1. Ödevlerim */}
@@ -440,33 +443,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             attendance={attendance}
             onNavigateTab={(tab) => setActiveTab(tab)}
           />
-        </div>
-      )}
-
-      {/* Sub-Pages Header Banner when NOT on Home */}
-      {activeTab !== 'home' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-md">
-          <div className="flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-indigo-300 hover:text-white font-bold text-xs border border-slate-700 transition-colors cursor-pointer group shadow-sm"
-              title="Öğrenci Ana Sayfasına Dön"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-              <span>Ana Sayfaya Dön</span>
-            </button>
-            <div className="h-5 w-[1px] bg-slate-700 hidden sm:block" />
-            <div>
-              <h2 className="text-sm sm:text-base font-black text-white">
-                {activeTab === 'homework' && 'Ödevlerim & Kazanımlarım'}
-                {activeTab === 'etuts' && 'Etüt ve Birebir Ders Programım'}
-                {activeTab === 'grades' && 'Akademik Notlarım ve Devamsızlık Durumum'}
-                {activeTab === 'messages' && 'Öğretmenlerime Soru Sor ve Mesajlaşma'}
-                {activeTab === 'questions' && 'Soru Sayısı Çalışma ve Takip Modülü'}
-              </h2>
-            </div>
-          </div>
         </div>
       )}
 

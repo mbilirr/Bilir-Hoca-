@@ -142,6 +142,7 @@ export default function App() {
           setAuthSession(null);
           setCurrentStudent(null);
           setRole('teacher');
+          setTeacherTab('home');
         }
       }
     }, 5000);
@@ -155,6 +156,7 @@ export default function App() {
   // Handle successful login or registration from AuthPortal
   const handleAuthSuccess = (session: AuthSession) => {
     setAuthSession(session);
+    setTeacherTab('home');
     if (session.role === 'teacher') {
       setRole('teacher');
       if (students.length > 0) {
@@ -179,15 +181,17 @@ export default function App() {
       setRole('student');
     } else {
       setRole('teacher');
+      setTeacherTab('home');
     }
   };
 
-  // Logout handler (returns to AuthPortal entrance)
+  // Logout handler (returns to AuthPortal entrance and resets to home)
   const handleLogout = () => {
     dataService.logout();
     setAuthSession(null);
     setCurrentStudent(null);
     setRole('teacher');
+    setTeacherTab('home');
   };
 
   const handleOpenStudentLogin = () => {
@@ -205,6 +209,7 @@ export default function App() {
     dataService.setAuthSession(session);
     setCurrentStudent(student);
     setRole('student');
+    setTeacherTab('home');
     setIsStudentAuthOpen(false);
   };
 
@@ -259,7 +264,10 @@ export default function App() {
               </span>
             </div>
             <button
-              onClick={() => setRole('teacher')}
+              onClick={() => {
+                setRole('teacher');
+                setTeacherTab('home');
+              }}
               className="flex items-center space-x-1 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition-colors text-xs"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -400,6 +408,7 @@ export default function App() {
           /* ================= STUDENT DASHBOARD ================= */
           currentStudent ? (
             <StudentPortal
+              key={currentStudent.id}
               currentStudent={currentStudent}
               homeworks={homeworks}
               submissions={submissions}
