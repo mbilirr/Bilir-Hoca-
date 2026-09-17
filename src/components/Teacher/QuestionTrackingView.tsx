@@ -48,8 +48,9 @@ import {
   ReferenceLine,
   LabelList,
 } from 'recharts';
-import { Student, ClassGroup, StudentQuestionLog } from '../../types';
+import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
+import { WeeklyTargetModal } from './WeeklyTargetModal';
 import {
   computeWeeklyAnalytics,
   computeMonthlyAnalytics,
@@ -109,6 +110,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   // Hedef Soru Sayısı (Öğretmen tarafından dinamik olarak ayarlanabilir, varsayılan 50 soru/gün)
   const [dailyQuestionTarget, setDailyQuestionTarget] = useState<number>(50);
+  const [isWeeklyTargetModalOpen, setIsWeeklyTargetModalOpen] = useState<boolean>(false);
+  const [targetUpdateTrigger, setTargetUpdateTrigger] = useState<number>(0);
 
   // Tarih ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -154,6 +157,23 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     d.setDate(d.getDate() + weekOffset * 7);
     return d;
   }, [weekOffset]);
+
+  const currentWeekStartDate = useMemo(() => {
+    const mon = getMondayOfWeek(targetWeekDate);
+    return formatDateISO(mon);
+  }, [targetWeekDate]);
+
+  const currentWeekEndDate = useMemo(() => {
+    const mon = getMondayOfWeek(targetWeekDate);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return formatDateISO(sun);
+  }, [targetWeekDate]);
+
+  const activeWeeklyTarget = useMemo(() => {
+    if (!activeStudent) return null;
+    return dataService.getWeeklyQuestionTarget(activeStudent.id, currentWeekStartDate);
+  }, [activeStudent, currentWeekStartDate, targetUpdateTrigger, allLogs]);
 
   const weeklyAnalytics = useMemo(() => {
     if (!activeStudent) return null;
@@ -404,8 +424,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }).sort((a, b) => b.weeklyTotal - a.weeklyTotal);
   }, [activeClass, classStudents, allLogs, targetWeekDate, monthDate]);
 
-  // Haftalık Hedef Tamamlama Oranı Hesabı
-  const weeklyTargetTotal = dailyQuestionTarget * 7;
+  // Haftalık Hedef Tamamlama Oranı Hesabı (Öğretmenin atadığı hedef öncelikli)
+  const weeklyTargetTotal = activeWeeklyTarget?.targetQuestions || (dailyQuestionTarget * 7);
   const weeklyTargetCompletionRate = useMemo(() => {
     if (!weeklyAnalytics || weeklyTargetTotal <= 0) return 0;
     return Math.min(100, Math.round((weeklyAnalytics.totalQuestions / weeklyTargetTotal) * 100));
@@ -514,6 +534,20 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
           <div className="flex items-center gap-2">
             {activeStudent && (
               <>
+                {/* Haftalık Hedef Belirleme Butonu */}
+                <button
+                  type="button"
+                  id="btn-set-weekly-target"
+                  onClick={() => setIsWeeklyTargetModalOpen(true)}
+                  className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-orange-500/20 cursor-pointer"
+                  title="Öğrenciye bu hafta için soru sayısı hedefi ata"
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>
+                    {activeWeeklyTarget ? `Hedef: ${activeWeeklyTarget.targetQuestions} Soru (Düzenle)` : '🎯 Haftalık Hedef Ver'}
+                  </span>
+                </button>
+
                 {activeAnalysisMode === 'weekly' && weeklyAnalytics && (
                   <button
                     id="btn-looker-pdf-weekly"
@@ -776,16 +810,30 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {/* 2. Kurs / Müfredat Hedef Bitirme Oranı (%) */}
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                    <span>Kurs / Hedef Bitirme</span>
-                    <span className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
-                      <Target className="w-4 h-4" />
+                    <span className="flex items-center gap-1.5">
+                      <span>Haftalık Soru Hedefi</span>
+                      {activeWeeklyTarget && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Öğretmen Hedefi
+                        </span>
+                      )}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsWeeklyTargetModalOpen(true)}
+                      className="p-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-600 transition-colors cursor-pointer"
+                      title="Haftalık Soru Hedefini Belirle / Güncelle"
+                    >
+                      <Target className="w-4 h-4" />
+                    </button>
                   </div>
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-3xl font-black text-orange-600 tracking-tight">
                       %{weeklyTargetCompletionRate}
                     </span>
-                    <span className="text-xs font-semibold text-slate-500">Tamamlandı</span>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {weeklyAnalytics.totalQuestions} / {weeklyTargetTotal} Soru
+                    </span>
                   </div>
 
                   {/* Progress Bar */}
@@ -795,9 +843,24 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }}
                     />
                   </div>
-                  <div className="mt-2 text-[11px] text-slate-500 flex justify-between">
-                    <span>Haftalık Hedef: <strong>{weeklyTargetTotal} Soru</strong></span>
-                    <span className="text-slate-700 font-semibold">{weeklyAnalytics.dailyAverage} soru/gün</span>
+                  <div className="mt-2 text-[11px] text-slate-500 flex justify-between items-center">
+                    <span>
+                      Hedef: <strong>{weeklyTargetTotal} Soru</strong>
+                      {weeklyAnalytics.totalQuestions >= weeklyTargetTotal ? (
+                        <span className="text-emerald-600 font-bold ml-1.5">✓ Tamamlandı!</span>
+                      ) : (
+                        <span className="text-orange-600 font-semibold ml-1.5">
+                          ({weeklyTargetTotal - weeklyAnalytics.totalQuestions} kaldı)
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsWeeklyTargetModalOpen(true)}
+                      className="text-[10px] font-bold text-orange-600 hover:text-orange-700 underline cursor-pointer"
+                    >
+                      Hedef Belirle
+                    </button>
                   </div>
                 </div>
 
@@ -2223,6 +2286,21 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Haftalık Soru Hedefi Belirleme Modalı */}
+      {isWeeklyTargetModalOpen && activeStudent && (
+        <WeeklyTargetModal
+          isOpen={isWeeklyTargetModalOpen}
+          onClose={() => {
+            setIsWeeklyTargetModalOpen(false);
+            setTargetUpdateTrigger((prev) => prev + 1);
+          }}
+          student={activeStudent}
+          weekStartDate={currentWeekStartDate}
+          weekEndDate={currentWeekEndDate}
+          existingTarget={activeWeeklyTarget}
+        />
       )}
     </div>
   );

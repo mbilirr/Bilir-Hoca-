@@ -508,8 +508,26 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     }
   };
 
-  // Hedef Tamamlama Oranı
-  const weeklyTargetTotal = dailyQuestionTarget * 7;
+  // Haftalık tarih aralığı
+  const currentWeekStartDate = useMemo(() => {
+    const mon = getMondayOfWeek(targetWeekDate);
+    return formatDateISO(mon);
+  }, [targetWeekDate]);
+
+  const currentWeekEndDate = useMemo(() => {
+    const mon = getMondayOfWeek(targetWeekDate);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return formatDateISO(sun);
+  }, [targetWeekDate]);
+
+  // Öğretmen tarafından öğrenciye atanan haftalık soru hedefi
+  const activeWeeklyTarget = useMemo(() => {
+    return dataService.getWeeklyQuestionTarget(activeStudent.id, currentWeekStartDate);
+  }, [activeStudent.id, currentWeekStartDate, allLogs]);
+
+  // Hedef Tamamlama Oranı (Öğretmenin atadığı haftalık hedef önceliklidir)
+  const weeklyTargetTotal = activeWeeklyTarget?.targetQuestions || (dailyQuestionTarget * 7);
   const weeklyTargetCompletionRate = useMemo(() => {
     if (!weeklyAnalytics || weeklyTargetTotal <= 0) return 0;
     return Math.min(100, Math.round((weeklyAnalytics.totalQuestions / weeklyTargetTotal) * 100));
@@ -638,9 +656,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
         </div>
 
         {/* Looker Studio Filter & Tab Navigation */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 pt-4">
-          {/* 1. Görünüm Modu / Sekme Seçimi */}
-          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200 lg:col-span-2">
+        <div className="pt-4">
+          {/* Görünüm Modu / Sekme Seçimi */}
+          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200 w-full">
             <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-[#1e3a8a]" />
               Çalışma Modülü & Analiz Boyutu
@@ -648,28 +666,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="flex rounded-lg bg-white border border-slate-300 p-0.5">
               <button
                 type="button"
-                onClick={() => setActiveTab('weekly')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
-                  activeTab === 'weekly'
-                    ? 'bg-[#0f172a] text-white shadow-xs'
-                    : 'text-[#475569] hover:text-[#0f172a]'
-                }`}
-              >
-                Haftalık Analiz
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('monthly')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
-                  activeTab === 'monthly'
-                    ? 'bg-[#0f172a] text-white shadow-xs'
-                    : 'text-[#475569] hover:text-[#0f172a]'
-                }`}
-              >
-                Aylık Analiz
-              </button>
-              <button
-                type="button"
+                id="btn-student-tab-entry"
                 onClick={() => setActiveTab('entry')}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
                   activeTab === 'entry'
@@ -681,6 +678,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </button>
               <button
                 type="button"
+                id="btn-student-tab-history"
                 onClick={() => setActiveTab('history')}
                 className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
                   activeTab === 'history'
@@ -690,33 +688,30 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               >
                 Geçmiş Kayıtlar
               </button>
-            </div>
-          </div>
-
-          {/* 2. Günlük Hedef Soru Ayarı */}
-          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200 lg:col-span-1">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-[#334155] flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-orange-600" />
-                Günlük Hedef
-              </label>
-              <span className="text-xs font-black text-orange-600">{dailyQuestionTarget} Soru</span>
-            </div>
-            <div className="flex gap-1.5 mt-1">
-              {[30, 50, 75, 100].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setDailyQuestionTarget(val)}
-                  className={`flex-1 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                    dailyQuestionTarget === val
-                      ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
-                      : 'bg-white text-[#475569] border-slate-300 hover:border-slate-400'
-                  }`}
-                >
-                  {val}
-                </button>
-              ))}
+              <button
+                type="button"
+                id="btn-student-tab-weekly"
+                onClick={() => setActiveTab('weekly')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                  activeTab === 'weekly'
+                    ? 'bg-[#0f172a] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#0f172a]'
+                }`}
+              >
+                Haftalık Analiz
+              </button>
+              <button
+                type="button"
+                id="btn-student-tab-monthly"
+                onClick={() => setActiveTab('monthly')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                  activeTab === 'monthly'
+                    ? 'bg-[#0f172a] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#0f172a]'
+                }`}
+              >
+                Aylık Analiz
+              </button>
             </div>
           </div>
         </div>
@@ -819,124 +814,89 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           </div>
 
-          {/* Executive KPI Scorecards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* 1. Toplam Çözülen Soru */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                <span>Haftalık Toplam Soru</span>
-                <span className="p-1.5 rounded-lg bg-[#f1f5f9] text-[#1e3a8a]">
-                  <BarChart3 className="w-4 h-4" />
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-[#0f172a] tracking-tight">
-                  {weeklyAnalytics.totalQuestions}
-                </span>
-                <span className="text-xs font-semibold text-slate-500">Soru</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold">
-                {weeklyAnalytics.weeklyDifference >= 0 ? (
-                  <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <TrendingUp className="w-3.5 h-3.5" />
-                    +{weeklyAnalytics.weeklyDifference} soru (+%{weeklyAnalytics.weeklyGrowthRate})
-                  </span>
-                ) : (
-                  <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <TrendingDown className="w-3.5 h-3.5" />
-                    {weeklyAnalytics.weeklyDifference} soru (%{weeklyAnalytics.weeklyGrowthRate})
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500">
-                Önceki Hafta: <strong className="text-slate-700">{weeklyAnalytics.previousWeekTotal} soru</strong>
-              </div>
-            </div>
+          {/* Öğretmen Haftalık Soru Hedefi & Rehberlik Kutusu */}
+          {activeWeeklyTarget && (
+            <div className="bg-gradient-to-r from-orange-50/90 via-amber-50 to-emerald-50/70 border border-orange-200/90 rounded-2xl p-4.5 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-orange-200/60 pb-2.5">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Target className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
+                      <span>🎯 Öğretmeninizin Bu Hafta İçin Belirlediği Soru Hedefi:</span>
+                      <span className="text-orange-700 font-black text-base">{activeWeeklyTarget.targetQuestions} Soru</span>
+                    </h4>
+                    <p className="text-xs text-slate-600">
+                      Tarih Aralığı: {formatTurkishDate(currentWeekStartDate)} - {formatTurkishDate(currentWeekEndDate)}
+                      {activeWeeklyTarget.assignedBy && ` • Belirleyen: ${activeWeeklyTarget.assignedBy}`}
+                    </p>
+                  </div>
+                </div>
 
-            {/* 2. Kurs / Hedef Bitirme Oranı */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                <span>Haftalık Hedef Bitirme</span>
-                <span className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
-                  <Target className="w-4 h-4" />
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-orange-600 tracking-tight">
-                  %{weeklyTargetCompletionRate}
-                </span>
-                <span className="text-xs font-semibold text-slate-500">Tamamlandı</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
-                <div
-                  className="bg-orange-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }}
-                />
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500 flex justify-between">
-                <span>Hedef: <strong>{weeklyTargetTotal} Soru</strong></span>
-                <span className="text-slate-700 font-semibold">{weeklyAnalytics.dailyAverage} soru/gün</span>
-              </div>
-            </div>
-
-            {/* 3. Çalışma Disiplini */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                <span>Çalışma Disiplini</span>
-                <span className="p-1.5 rounded-lg bg-[#f1f5f9] text-[#1e3a8a]">
-                  <CalendarDays className="w-4 h-4" />
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-[#0f172a] tracking-tight">
-                  {weeklyAnalytics.solvedDaysCount}
-                  <span className="text-base text-slate-400 font-semibold"> / 7 Gün</span>
-                </span>
-              </div>
-              <div className="mt-3">
-                {weeklyAnalytics.unsolvedDaysCount > 0 ? (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-100 text-orange-800 border border-orange-200 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3 text-orange-600" />
-                    {weeklyAnalytics.unsolvedDaysCount} Gün Boş ({weeklyAnalytics.unsolvedDays.join(', ')})
+                <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-white border border-orange-300 text-orange-800 shadow-2xs">
+                    %{weeklyTargetCompletionRate} Tamamlandı
                   </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    7 Gün Kesintisiz Çalışma
-                  </span>
-                )}
+                  {weeklyAnalytics.totalQuestions >= activeWeeklyTarget.targetQuestions ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-2xs flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" />
+                      Tebrikler, Hedef Başarıldı!
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-orange-600 text-white shadow-2xs">
+                      {activeWeeklyTarget.targetQuestions - weeklyAnalytics.totalQuestions} Soru Kaldı
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="mt-2 text-[11px] text-slate-500">
-                Haftalık Devamlılık: <strong className="text-slate-700">%{Math.round((weeklyAnalytics.solvedDaysCount / 7) * 100)}</strong>
-              </div>
-            </div>
 
-            {/* 4. Başarı ve Doğruluk Oranı */}
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-                <span>Başarı & Doğruluk</span>
-                <span className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
-                  <Award className="w-4 h-4" />
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-[#1e3a8a] tracking-tight">
-                  %{weeklyAnalytics.accuracyPercentage}
-                </span>
-                <span className="text-xs font-semibold text-slate-500">Net Başarı</span>
-              </div>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-[#0f172a] text-white">
-                  {weeklyAnalytics.statusAssessment.badgeText}
-                </span>
-              </div>
-              <div className="mt-2 text-[11px] text-slate-500 flex gap-2">
-                <span className="text-emerald-600 font-semibold">D: {weeklyAnalytics.totalCorrect}</span>
-                <span className="text-rose-600 font-semibold">Y: {weeklyAnalytics.totalWrong}</span>
-                <span className="text-slate-500">B: {weeklyAnalytics.totalEmpty}</span>
-              </div>
+              {activeWeeklyTarget.notes && (
+                <div className="p-3 bg-white/80 backdrop-blur-xs rounded-xl border border-orange-200/70 text-xs text-slate-800 flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="text-orange-950 font-bold block mb-0.5">Öğretmeninizin Çalışma Notu:</strong>
+                    <span className="italic text-slate-700">{activeWeeklyTarget.notes}</span>
+                  </div>
+                </div>
+              )}
+
+              {activeWeeklyTarget.subjectTargets && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                    📚 Ders Bazlı Haftalık Hedef Dağılımı:
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {(Array.isArray(activeWeeklyTarget.subjectTargets)
+                      ? activeWeeklyTarget.subjectTargets.map((item) => [item.subject, item.target] as [string, number])
+                      : Object.entries(activeWeeklyTarget.subjectTargets)
+                    ).map(([subj, targetCount]) => {
+                      const solvedCount = weeklyAnalytics.subjectBreakdown.find((s) => s.subject === subj)?.count || 0;
+                      const isSubjComplete = solvedCount >= (Number(targetCount) || 0);
+                      return (
+                        <div
+                          key={subj}
+                          className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between ${
+                            isSubjComplete
+                              ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                              : 'bg-white border-orange-200/80 text-slate-800'
+                          }`}
+                        >
+                          <span className="font-bold text-[11px] truncate">{subj}</span>
+                          <div className="flex items-baseline justify-between mt-1.5">
+                            <span className="font-extrabold text-sm">
+                              {solvedCount} / {targetCount}
+                            </span>
+                            {isSubjComplete && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Ana Grafik (Hafif Gri Çizim Alanı, Koyu Gri Metinler, Doğrudan Değerler) */}
           <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm">

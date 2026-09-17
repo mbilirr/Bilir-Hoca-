@@ -218,7 +218,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
-      <div id="student-top-navigation-wall" className="sticky top-16 sm:top-[4.25rem] z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="static lg:sticky lg:top-[4.25rem] z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
         <div id="student-action-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {/* 1. Ödevlerim */}
@@ -420,50 +420,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             onOpenProfileModal={() => setIsProfileModalOpen(true)}
             onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
           />
-
-          {/* Unread Notifications / Email Alerts Banner */}
-          {unreadNotifsCount > 0 && (
-            <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900 to-indigo-950/40 border border-indigo-500/40 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-indigo-100 shadow-lg">
-              <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="font-bold text-sm block text-white flex items-center space-x-2">
-                    <span>📬 {unreadNotifsCount} Yeni Bildirim & E-Postanız Var</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-600 text-white">YENİ</span>
-                  </span>
-                  <span className="text-xs text-indigo-200/90">
-                    Öğretmeniniz tarafından yeni ödev veya etüt tanımlandı. Detayları ve e-postayı görüntüleyebilirsiniz.
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsNotificationModalOpen(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
-              >
-                Bildirimleri & E-Postaları Gör
-              </button>
-            </div>
-          )}
-
-          {/* Upcoming Homeworks Urgency Banner */}
-          {upcomingAlerts.length > 0 && (
-            <div className="bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-start space-x-3 text-amber-200 animate-pulse">
-              <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 text-xs">
-                <span className="font-bold text-sm block text-amber-300">
-                  ⏰ Yaklaşan Ödev Uyarısı ({upcomingAlerts.length} Ödev)
-                </span>
-                <span>
-                  Son teslim tarihi yaklaşan ödevleriniz var: &quot;
-                  {upcomingAlerts.map((h) => h.title).join(', ')}&quot;. Lütfen zamanında teslim etmeyi unutmayın!
-                </span>
-              </div>
-            </div>
-          )}
 
           {/* Wall 2: Öğrenci Durum Özetleri, İstatistikler, Rozetler ve Hızlı Geçiş Duvarı */}
           <StudentStatsOverview

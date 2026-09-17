@@ -120,7 +120,7 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
     return Math.round((presentDays / totalAttendanceDays) * 100);
   }, [totalAttendanceDays, presentDays]);
 
-  // 5. Öğrencinin Bu Haftaki Soru Çözüm Verisi
+  // 5. Öğrencinin Bu Haftaki Soru Çözüm Verisi & Son 7 Günlük Dağılım Grafiği
   const questionLogs = dataService.getQuestionLogs();
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -129,298 +129,269 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
     .filter((l) => l.studentId === student.id && l.date >= weekAgoStr)
     .reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
 
-  const formatDueDateLabel = (dueDateStr?: string) => {
-    if (!dueDateStr) return '';
-    const day = dueDateStr.slice(0, 10);
-    const time = dueDateStr.includes('T') ? dueDateStr.slice(11, 16) : '';
-    if (day === todayStr) {
-      return `⏰ Bugün${time ? ` ${time}` : ''}`;
+  // Son 7 günün günlük soru analitiği
+  const last7DaysData = useMemo(() => {
+    const days: { date: string; label: string; count: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().slice(0, 10);
+      const dayName = d.toLocaleDateString('tr-TR', { weekday: 'short' });
+      const count = questionLogs
+        .filter((l) => l.studentId === student.id && l.date === dStr)
+        .reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
+      days.push({ date: dStr, label: dayName, count });
     }
-    const [y, m, d] = day.split('-');
-    return `${d}.${m}.${y}${time ? ` ${time}` : ''}`;
-  };
+    return days;
+  }, [questionLogs, student.id]);
+
+  const maxDailyCount = Math.max(1, ...last7DaysData.map((d) => d.count));
 
   return (
-    <div className="w-full space-y-6">
-      {/* ========================================================================= */}
-      {/* GOOGLE LOOKER STUDIO - EXECUTIVE KPI SCORECARDS                          */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Kurs & Ödev Bitirme Oranı */}
+    <div id="student-analytics-overview-wall" className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+      {/* Duvar Başlığı */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-[#0f172a]">
+              Akademik Başarı & Gelişim Göstergeleri
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Kurs ödevleri, etütler, not ortalaması, soru analitiği ve başarı rozetlerinizin genel görünümü
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-1.5 text-xs font-semibold text-slate-600 bg-slate-100/80 px-2.5 py-1 rounded-full border border-slate-200">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="text-[11px] font-bold text-slate-700">Dönem Performans Özeti</span>
+        </div>
+      </div>
+
+      {/* TEK DUVAR İÇİNDE YAN YANA 5 KÜÇÜLTÜLMÜŞ KUTU */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        {/* Kutu 1: Kurs & Ödev Bitirme */}
         <div
           onClick={() => onNavigateTab('homework')}
-          className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-orange-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="uppercase tracking-wider text-[11px] font-bold text-slate-500">
-                Kurs & Ödev Bitirme
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 group-hover:scale-105 transition-transform">
-                <BookOpen className="w-4 h-4" />
+              <span className="text-[11px] font-bold text-slate-600 truncate">Kurs & Ödev Bitirme</span>
+              <div className="w-6 h-6 rounded-lg bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 group-hover:scale-105 transition-transform shrink-0">
+                <BookOpen className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="mt-3">
-              <div className="flex items-baseline space-x-2">
-                <span className="text-3xl font-black text-[#0f172a] tracking-tight">
+            <div className="mt-2.5">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-black text-[#0f172a] tracking-tight">
                   %{completionPercentage}
                 </span>
-                <span className="text-xs font-semibold text-slate-500">Tamamlandı</span>
+                <span className="text-[10px] font-semibold text-slate-500">Bitti</span>
               </div>
 
-              {/* Looker Studio Progress Bar */}
-              <div className="w-full bg-slate-100 rounded-full h-2 mt-2.5 overflow-hidden">
+              {/* Progress Bar */}
+              <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2 overflow-hidden">
                 <div
-                  className="bg-orange-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 h-1.5 rounded-full transition-all duration-500"
                   style={{ width: `${completionPercentage}%` }}
                 />
               </div>
 
-              <div className="flex justify-between items-center text-[11px] text-slate-500 mt-2">
-                <span>{completedHwsCount} / {totalHws} Ödev</span>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-2">
+                <span className="font-semibold">{completedHwsCount}/{totalHws} Ödev</span>
                 <span className={pendingHwsCount > 0 ? 'text-orange-600 font-bold' : 'text-emerald-600 font-bold'}>
-                  {pendingHwsCount > 0 ? `${pendingHwsCount} Bekleyen` : 'Tümü Bitti'}
+                  {pendingHwsCount > 0 ? `${pendingHwsCount} Bekleyen` : 'Tamamı Bitti'}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-orange-600 pt-3 mt-3 border-t border-slate-100 transition-colors">
-            <span>Ödevleri İncele</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform text-orange-500" />
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-orange-600 group-hover:text-orange-700">
+            <span>Ödevlerime Git</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        {/* Card 2: Etüt Programı & Birebir */}
+        {/* Kutu 2: Etüt & Birebir Destek */}
         <div
           onClick={() => onNavigateTab('etuts')}
-          className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="uppercase tracking-wider text-[11px] font-bold text-slate-500">
-                Etüt & Birebir Destek
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-[#f1f5f9] border border-slate-200 flex items-center justify-center text-[#1e3a8a] group-hover:scale-105 transition-transform">
-                <Calendar className="w-4 h-4" />
+              <span className="text-[11px] font-bold text-slate-600 truncate">Etüt & Birebir Destek</span>
+              <div className="w-6 h-6 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform shrink-0">
+                <Calendar className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="mt-3">
-              <div className="flex items-baseline space-x-2">
-                <span className="text-3xl font-black text-[#0f172a] tracking-tight">
+            <div className="mt-2.5">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-black text-[#0f172a] tracking-tight">
                   {etuts.length}
                 </span>
-                <span className="text-xs font-semibold text-slate-500">Kayıtlı Etüt</span>
+                <span className="text-[10px] font-semibold text-slate-500">Program</span>
               </div>
 
-              <div className="mt-2 text-xs">
+              <div className="mt-2 text-[10px] min-h-[30px] flex items-center">
                 {todayEtuts.length > 0 ? (
-                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 font-bold text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-ping inline-block mr-1" />
-                    Bugün {todayEtuts.length} Etüdünüz Var!
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold text-[10px] truncate">
+                    Bugün {todayEtuts.length} Etüt Var!
                   </span>
                 ) : upcomingEtuts.length > 0 ? (
-                  <span className="text-slate-600 text-[11px] block truncate">
-                    En yakın: <strong className="text-[#0f172a]">{upcomingEtuts[0].subject}</strong> ({upcomingEtuts[0].date})
+                  <span className="text-slate-600 text-[10px] truncate">
+                    Yakın: <strong className="text-[#0f172a]">{upcomingEtuts[0].subject}</strong>
                   </span>
                 ) : (
-                  <span className="text-slate-400 text-[11px]">Planlanmış aktif etüt yok</span>
+                  <span className="text-slate-400 text-[10px]">Aktif etüt yok</span>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] pt-3 mt-3 border-t border-slate-100 transition-colors">
-            <span>Etüt Programını Aç</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform text-[#1e3a8a]" />
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-blue-600 group-hover:text-blue-700">
+            <span>Etüt Programı</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        {/* Card 3: Akademik Not Ortalaması */}
+        {/* Kutu 3: Not Ortalama Başarı */}
         <div
           onClick={() => onNavigateTab('grades')}
-          className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-purple-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="uppercase tracking-wider text-[11px] font-bold text-slate-500">
-                Not Ortalaması & Başarı
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-orange-50 border border-orange-200/80 flex items-center justify-center text-orange-600 group-hover:scale-105 transition-transform">
-                <Award className="w-4 h-4" />
+              <span className="text-[11px] font-bold text-slate-600 truncate">Not Ortalama Başarı</span>
+              <div className="w-6 h-6 rounded-lg bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 group-hover:scale-105 transition-transform shrink-0">
+                <Award className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="mt-3">
-              <div className="flex items-baseline space-x-2">
-                <span className="text-3xl font-black text-[#0f172a] tracking-tight">
+            <div className="mt-2.5">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-black text-[#0f172a] tracking-tight">
                   {averageScore !== null ? averageScore : '—'}
                 </span>
-                <span className="text-xs font-semibold text-slate-500">/ 100 Puan</span>
+                <span className="text-[10px] font-semibold text-slate-500">/ 100</span>
               </div>
 
-              <div className="mt-2 flex items-center space-x-2 text-xs">
-                <span className="px-2.5 py-0.5 rounded-md bg-[#0f172a] text-white font-bold text-[11px]">
+              <div className="mt-2 flex items-center justify-between gap-1 text-[10px] min-h-[30px]">
+                <span className="px-1.5 py-0.5 rounded bg-[#0f172a] text-white font-bold text-[9px] truncate">
                   {letterGrade}
                 </span>
-                <span className="text-[11px] text-slate-500 font-medium">
+                <span className="text-slate-500 font-medium truncate">
                   {myGrades.length} Not Kaydı
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-orange-600 pt-3 mt-3 border-t border-slate-100 transition-colors">
-            <span>Karnemi İncele</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform text-orange-500" />
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-purple-600 group-hover:text-purple-700">
+            <span>Karneler & Notlar</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
 
-        {/* Card 4: Soru Çözümü & Çalışma Disiplini */}
+        {/* Kutu 4: Soru Analitiği & Grafikler */}
         <div
           onClick={() => onNavigateTab('questions')}
-          className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-emerald-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="uppercase tracking-wider text-[11px] font-bold text-slate-500">
-                Soru Sayısı & Disiplin
-              </span>
-              <div className="w-9 h-9 rounded-xl bg-[#f1f5f9] border border-slate-200 flex items-center justify-center text-[#1e3a8a] group-hover:scale-105 transition-transform">
-                <HelpCircle className="w-4 h-4" />
+              <span className="text-[11px] font-bold text-slate-600 truncate">Soru Analitiği & Grafikler</span>
+              <div className="w-6 h-6 rounded-lg bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 group-hover:scale-105 transition-transform shrink-0">
+                <BarChart3 className="w-3.5 h-3.5" />
               </div>
             </div>
 
-            <div className="mt-3">
-              <div className="flex items-baseline space-x-2">
-                <span className="text-3xl font-black text-[#1e3a8a] tracking-tight">
+            <div className="mt-2.5">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-black text-emerald-700 tracking-tight">
                   {studentWeeklyQuestions}
                 </span>
-                <span className="text-xs font-semibold text-slate-500">Soru / Bu Hafta</span>
+                <span className="text-[10px] font-semibold text-slate-500">Soru/Hafta</span>
               </div>
 
-              <div className="mt-2 flex items-center space-x-2 text-xs">
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
-                  Devamlılık: %{attendanceRate}
+              {/* Son 7 Günlük Mini Çubuk Grafik */}
+              <div className="mt-2 pt-0.5 flex items-end justify-between gap-1 h-7 bg-white px-1 py-0.5 rounded border border-slate-200/70">
+                {last7DaysData.map((d, idx) => {
+                  const heightPercent = maxDailyCount > 0 ? Math.max(15, Math.round((d.count / maxDailyCount) * 100)) : 15;
+                  return (
+                    <div key={idx} className="flex-1 flex flex-col items-center group/bar" title={`${d.label} (${d.date}): ${d.count} Soru`}>
+                      <div
+                        className={`w-full rounded-t transition-all ${
+                          d.count > 0 ? 'bg-emerald-500 group-hover/bar:bg-emerald-600' : 'bg-slate-200'
+                        }`}
+                        style={{ height: `${heightPercent}%` }}
+                      />
+                      <span className="text-[7px] text-slate-400 font-mono mt-0.5 leading-none">
+                        {d.label.slice(0, 1)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-emerald-600 group-hover:text-emerald-700">
+            <span>Soru Analizine Git</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </div>
+
+        {/* Kutu 5: Akademik Başarı Rozetlerim */}
+        <div
+          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-amber-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
+              <span className="text-[11px] font-bold text-slate-600 truncate">Akademik Başarı Rozetlerim</span>
+              <div className="w-6 h-6 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+            </div>
+
+            <div className="mt-2.5">
+              <div className="flex items-baseline space-x-1.5">
+                <span className="text-2xl font-black text-amber-600 tracking-tight">
+                  4 / 4
                 </span>
+                <span className="text-[10px] font-semibold text-slate-500">Rozet</span>
               </div>
-            </div>
-          </div>
 
-          <div className="flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] pt-3 mt-3 border-t border-slate-100 transition-colors">
-            <span>Soru Analitiği ve Grafikler</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform text-[#1e3a8a]" />
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* SECTION 2: TIMELINE / URGENT TASKS & UPCOMING ETUTS                      */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Yaklaşan Acil Ödevler (8 Columns) */}
-        <div className="lg:col-span-8 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
-                <Target className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-[#0f172a]">Yaklaşan Ödevler ve Görevler</h3>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab('homework')}
-              className="text-xs font-bold text-orange-600 hover:text-orange-700 cursor-pointer"
-            >
-              Tümünü Gör ({totalHws}) →
-            </button>
-          </div>
-
-          {urgentHomeworks.length > 0 ? (
-            <div className="space-y-3">
-              {urgentHomeworks.map((hw) => (
-                <div
-                  key={hw.id}
-                  onClick={() => onNavigateTab('homework')}
-                  className="p-4 rounded-xl bg-[#f8fafc] border border-slate-200 hover:border-orange-400 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer group"
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-[#1e3a8a] shrink-0 mt-0.5">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[#0f172a] group-hover:text-orange-600 transition-colors">
-                        {hw.title}
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-slate-200 text-[#334155] font-semibold">
-                          {hw.subject}
-                        </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-bold">
-                          {formatDueDateLabel(hw.dueDate)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="px-4 py-1.5 bg-[#0f172a] hover:bg-[#1e293b] text-white rounded-xl text-xs font-bold shrink-0 self-start sm:self-center transition-colors shadow-xs"
-                  >
-                    Ödevi Aç
-                  </button>
+              {/* Kompakt Rozet İkonları */}
+              <div className="grid grid-cols-2 gap-1 mt-2 text-[9px]">
+                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Zamanında Teslim">
+                  <span>🎯</span>
+                  <span className="font-bold text-slate-700 truncate">Ödev</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center bg-[#f8fafc] rounded-xl border border-slate-200 space-y-2">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-              <p className="text-sm font-bold text-[#0f172a]">Harika! Bekleyen acil ödeviniz bulunmuyor.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Başarı Rozetleri & Motivasyon (4 Columns) */}
-        <div className="lg:col-span-4 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
-          <div className="flex items-center space-x-2.5 pb-3 border-b border-slate-100">
-            <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-[#0f172a]">Başarı Rozetlerim</h3>
+                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Etüt Yıldızı">
+                  <span>⭐</span>
+                  <span className="font-bold text-slate-700 truncate">Etüt</span>
+                </div>
+                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Çalışkan Genç">
+                  <span>🏆</span>
+                  <span className="font-bold text-slate-700 truncate">Başarı</span>
+                </div>
+                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Gelişim Lideri">
+                  <span>🚀</span>
+                  <span className="font-bold text-slate-700 truncate">Hedef</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-xl bg-[#f8fafc] border border-slate-200 text-center space-y-1">
-              <span className="text-2xl block">🎯</span>
-              <span className="text-xs font-black text-[#0f172a] block">Zamanında Teslim</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#f8fafc] border border-slate-200 text-center space-y-1">
-              <span className="text-2xl block">⭐</span>
-              <span className="text-xs font-black text-[#0f172a] block">Etüt Yıldızı</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#f8fafc] border border-slate-200 text-center space-y-1">
-              <span className="text-2xl block">🏆</span>
-              <span className="text-xs font-black text-[#0f172a] block">Çalışkan Genç</span>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-[#f8fafc] border border-slate-200 text-center space-y-1">
-              <span className="text-2xl block">🚀</span>
-              <span className="text-xs font-black text-[#0f172a] block">Gelişim Lideri</span>
-            </div>
-          </div>
-
-          <div className="p-3.5 bg-orange-50/70 border border-orange-200/80 rounded-xl flex items-center space-x-2.5 text-xs text-orange-950 font-medium">
-            <Flame className="w-4 h-4 text-orange-600 shrink-0" />
-            <span>Hedefine odaklan ve her gün bir soru daha çözerek geleceğini inşa et!</span>
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-amber-600 font-bold">
+            <span className="truncate">Seviye 1 Başarı</span>
+            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           </div>
         </div>
       </div>

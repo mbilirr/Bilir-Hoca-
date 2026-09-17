@@ -14,6 +14,7 @@ import {
   Filter,
   Calendar as CalendarIcon,
   MessageCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
@@ -26,6 +27,7 @@ interface WeeklyEtutCalendarProps {
   onEditEtut: (etut: Etut) => void;
   onDeleteEtut: (etut: Etut) => void;
   onNotifyEtut?: (etut: Etut) => void;
+  onAttendanceEtut?: (etut: Etut) => void;
 }
 
 // Helper to get Monday of the week
@@ -132,6 +134,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   onEditEtut,
   onDeleteEtut,
   onNotifyEtut,
+  onAttendanceEtut,
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
@@ -396,13 +399,20 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         key={etut.id}
                         className={`p-2.5 rounded-xl border ${colors.bg} ${colors.border} hover:border-slate-600 transition-all text-xs group relative shadow-sm`}
                       >
-                        {/* Subject & Time */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span
-                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${colors.badge}`}
-                          >
-                            {etut.subject}
-                          </span>
+                        {/* Subject & Time & Period */}
+                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+                          <div className="flex items-center space-x-1">
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${colors.badge}`}
+                            >
+                              {etut.subject}
+                            </span>
+                            {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {etut.lessonPeriod}
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[10px] font-mono text-amber-300 font-semibold flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>{etut.time}</span>
@@ -413,6 +423,13 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         <h5 className="font-bold text-slate-100 text-[11px] leading-tight mb-1 line-clamp-2">
                           {etut.topic}
                         </h5>
+
+                        {/* Teacher */}
+                        {etut.teacherName && (
+                          <div className="flex items-center space-x-1 text-[10px] text-indigo-300 mb-1 truncate font-medium">
+                            <span className="truncate">👨‍🏫 {etut.teacherName}</span>
+                          </div>
+                        )}
 
                         {/* Location */}
                         {etut.location && (
@@ -435,6 +452,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                           <span className="text-slate-500 font-mono">{etut.duration} dk</span>
 
                           <div className="flex items-center space-x-1 opacity-90 group-hover:opacity-100">
+                            {/* Attendance / Yoklama */}
+                            {onAttendanceEtut && (
+                              <button
+                                type="button"
+                                onClick={() => onAttendanceEtut(etut)}
+                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors"
+                                title="Etüt Yoklaması & Devamsızlık Al"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                              </button>
+                            )}
+
                             {/* WhatsApp / Mail Bilgilendirme */}
                             {onNotifyEtut && (
                               <button

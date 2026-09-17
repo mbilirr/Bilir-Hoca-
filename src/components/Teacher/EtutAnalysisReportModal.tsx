@@ -12,12 +12,10 @@ import {
   Search,
   Filter,
   CheckCircle2,
+  XCircle,
+  AlertCircle,
   TrendingUp,
-  GraduationCap,
-  Sparkles,
-  FileSpreadsheet,
   Award,
-  Layers,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -32,11 +30,9 @@ import {
   HeadingLevel,
   AlignmentType,
   WidthType,
-  BorderStyle,
   ShadingType,
 } from 'docx';
 import { Etut, Student, ClassGroup } from '../../types';
-import { dataService } from '../../services/dataService';
 
 interface EtutAnalysisReportModalProps {
   isOpen: boolean;
@@ -45,6 +41,24 @@ interface EtutAnalysisReportModalProps {
   students: Student[];
   classes: ClassGroup[];
   preselectedStudentId?: string;
+}
+
+// jsPDF için Türkçe karakterleri güvenli Latin karakterlere dönüştüren yardımcı fonksiyon
+function toSafePdfText(str: string | undefined | null): string {
+  if (!str) return '';
+  return str
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'U')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 'S')
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'I')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C');
 }
 
 export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = ({
@@ -59,11 +73,14 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
     preselectedStudentId || (students[0]?.id ?? 'all')
   );
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | '30' | '90' | 'this_year'>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<'all' | '7' | '30' | '90' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
+  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -82,6 +99,32 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
     return false;
   };
 
+  // Helper to get attendance info for an etut
+  const getEtutAttendanceInfo = (etut: Etut, stdId: string) => {
+    if (!etut.studentAttendance || !etut.studentAttendance[stdId]) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (etut.date > today) {
+        return { label: 'Planlandı', status: 'upcoming', badgeClass: 'bg-slate-700/60 text-slate-300 border-slate-600' };
+      }
+      return { label: 'Yoklama Alınmadı', status: 'unrecorded', badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+    }
+
+    const rec = etut.studentAttendance[stdId];
+    if (rec.status === 'present') {
+      return { label: 'Geldi (Katıldı)', status: 'present', note: rec.note, badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+    }
+    if (rec.status === 'absent') {
+      return { label: 'Gelmedi (Devamsız)', status: 'absent', note: rec.note, badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30' };
+    }
+    if (rec.status === 'excused') {
+      return { label: 'İzinli / Raporlu', status: 'excused', note: rec.note, badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30' };
+    }
+    if (rec.status === 'late') {
+      return { label: 'Geç Kaldı', status: 'late', note: rec.note, badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
+    }
+    return { label: 'Katıldı', status: 'present', note: rec.note, badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
+  };
+
   // Filter etuts for selected student & date
   const filteredEtuts = useMemo(() => {
     const now = new Date();
@@ -98,7 +141,11 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         }
 
         // Date range filter
-        if (dateRangeFilter === '30') {
+        if (dateRangeFilter === '7') {
+          const etutDate = new Date(e.date);
+          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
+          if (diffDays > 7 || diffDays < 0) return false;
+        } else if (dateRangeFilter === '30') {
           const etutDate = new Date(e.date);
           const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
           if (diffDays > 30 || diffDays < 0) return false;
@@ -106,13 +153,16 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           const etutDate = new Date(e.date);
           const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
           if (diffDays > 90 || diffDays < 0) return false;
+        } else if (dateRangeFilter === 'custom') {
+          if (customStartDate && e.date < customStartDate) return false;
+          if (customEndDate && e.date > customEndDate) return false;
         }
 
         // Search in topic or notes
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
-          const matchesTopic = e.topic.toLowerCase().includes(term);
-          const matchesSubject = e.subject.toLowerCase().includes(term);
+          const matchesTopic = (e.topic || '').toLowerCase().includes(term);
+          const matchesSubject = (e.subject || '').toLowerCase().includes(term);
           const matchesTeacher = (e.teacherName || '').toLowerCase().includes(term);
           if (!matchesTopic && !matchesSubject && !matchesTeacher) return false;
         }
@@ -120,7 +170,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         return true;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [etuts, selectedStudentId, selectedSubjectFilter, dateRangeFilter, searchTerm]);
+  }, [etuts, selectedStudentId, selectedSubjectFilter, dateRangeFilter, customStartDate, customEndDate, searchTerm]);
 
   // Unique subjects in etuts
   const availableSubjects = useMemo(() => {
@@ -131,11 +181,41 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
     return Array.from(set);
   }, [etuts]);
 
-  // Statistics calculation for selected student / view
+  // Statistics calculation for selected student / view including attendance
   const stats = useMemo(() => {
     const totalCount = filteredEtuts.length;
     const totalMinutes = filteredEtuts.reduce((acc, curr) => acc + (curr.duration || 45), 0);
     const totalHours = (totalMinutes / 60).toFixed(1);
+
+    let presentCount = 0;
+    let absentCount = 0;
+    let excusedCount = 0;
+    let lateCount = 0;
+    let unrecordedCount = 0;
+
+    filteredEtuts.forEach((e) => {
+      const studentIdsToCheck = selectedStudentId === 'all'
+        ? (Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : students.map((s) => s.id))
+        : [selectedStudentId];
+
+      studentIdsToCheck.forEach((sId) => {
+        const att = e.studentAttendance?.[sId];
+        if (!att) {
+          unrecordedCount++;
+        } else if (att.status === 'present') {
+          presentCount++;
+        } else if (att.status === 'absent') {
+          absentCount++;
+        } else if (att.status === 'excused') {
+          excusedCount++;
+        } else if (att.status === 'late') {
+          lateCount++;
+        }
+      });
+    });
+
+    const evaluatedTotal = presentCount + absentCount + lateCount;
+    const attendanceRate = evaluatedTotal > 0 ? Math.round(((presentCount + lateCount) / evaluatedTotal) * 100) : 100;
 
     // Subject breakdown
     const subjectCounts: Record<string, { count: number; topics: Set<string>; minutes: number }> = {};
@@ -162,27 +242,16 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       totalCount,
       totalMinutes,
       totalHours,
+      presentCount,
+      absentCount,
+      excusedCount,
+      lateCount,
+      unrecordedCount,
+      attendanceRate,
       subjectBreakdown,
       topSubject,
     };
-  }, [filteredEtuts]);
-
-  // Ranking of all students by etut count
-  const allStudentsRanking = useMemo(() => {
-    return students
-      .map((std) => {
-        const studentEtuts = etuts.filter((e) => isStudentInEtut(e, std.id));
-        const subjects = new Set(studentEtuts.map((e) => e.subject));
-        const totalDuration = studentEtuts.reduce((acc, e) => acc + (e.duration || 45), 0);
-        return {
-          student: std,
-          count: studentEtuts.length,
-          subjectCount: subjects.size,
-          duration: totalDuration,
-        };
-      })
-      .sort((a, b) => b.count - a.count);
-  }, [students, etuts]);
+  }, [filteredEtuts, selectedStudentId, students]);
 
   // Format Turkish Date
   const formatTurkishDate = (dateStr: string) => {
@@ -198,19 +267,21 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
     }
   };
 
-  // Export to PDF
-  const handleExportPDF = async () => {
+  // Export to PDF with Safe Characters
+  const handleExportPDF = () => {
     try {
       setIsGeneratingPdf(true);
+      setExportErrorMessage(null);
+
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      const studentName = selectedStudent ? selectedStudent.name : 'Tüm Öğrenciler Genel Analiz';
-      const studentClass = selectedStudent ? selectedStudent.className : '-';
-      const studentNo = selectedStudent ? selectedStudent.studentNumber : '-';
+      const studentName = selectedStudent ? selectedStudent.name : 'Tum Ogrenciler Genel Analiz';
+      const studentClass = selectedStudent ? selectedStudent.className || 'Genel' : 'Tum Siniflar';
+      const studentNo = selectedStudent ? selectedStudent.studentNumber || '-' : '-';
       const reportDate = new Date().toLocaleDateString('tr-TR');
 
       // Title & Header Box
@@ -218,62 +289,67 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       doc.rect(14, 12, 182, 26, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setTextColor(255, 255, 255);
-      doc.text('OGRENCI BIREYSEL ETUT VE KATILIM ANALIZ RAPORU', 105, 22, { align: 'center' });
+      doc.text('OGRENCI ETUT VE DEVAMSIZLIK ANALIZ BELGESI', 105, 22, { align: 'center' });
 
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(203, 213, 225);
-      doc.text('Egitim & Ogrenci Takip Portali - Resmi Gelisim Raporu', 105, 30, { align: 'center' });
+      doc.text('Egitim ve Ogrenci Takip Portali - Resmi Gelisim ve Katilim Raporu', 105, 30, { align: 'center' });
 
       // Student Info Box
       doc.setFillColor(248, 250, 252);
       doc.setDrawColor(226, 232, 240);
-      doc.rect(14, 42, 182, 28, 'FD');
+      doc.rect(14, 42, 182, 30, 'FD');
 
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ogrenci Adi Soyadi:', 18, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.text(toSafePdfText(studentName), 60, 50);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Sinif / Sube:', 18, 57);
+      doc.setFont('helvetica', 'normal');
+      doc.text(toSafePdfText(studentClass), 60, 57);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Ogrenci No:', 18, 64);
+      doc.setFont('helvetica', 'normal');
+      doc.text(toSafePdfText(studentNo), 60, 64);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Rapor Tarihi:', 120, 50);
+      doc.setFont('helvetica', 'normal');
+      doc.text(reportDate, 155, 50);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Toplam Etut / Sure:', 120, 57);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${stats.totalCount} Adet (${stats.totalHours} Saat)`, 155, 57);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Devam Durumu:', 120, 64);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(stats.absentCount > 0 ? 220 : 16, stats.absentCount > 0 ? 38 : 185, stats.absentCount > 0 ? 38 : 129);
+      doc.text(
+        selectedStudent
+          ? `%${stats.attendanceRate} (${stats.presentCount} Geldi, ${stats.absentCount} Gelmedi)`
+          : `%${stats.attendanceRate} Katilim`,
+        155,
+        64
+      );
+
+      // Section 1: Ders Bazında Dağılım
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Ogrenci Adi Soyadi:`, 18, 50);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${studentName}`, 60, 50);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Sinif / Sube:`, 18, 57);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${studentClass}`, 60, 57);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Ogrenci No:`, 18, 64);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${studentNo}`, 60, 64);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Rapor Tarihi:`, 120, 50);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${reportDate}`, 155, 50);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Toplam Etut Sayisi:`, 120, 57);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(16, 185, 129); // emerald
-      doc.text(`${stats.totalCount} Adet`, 155, 57);
-
-      doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Toplam Sure:`, 120, 64);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${stats.totalMinutes} Dk (${stats.totalHours} Saat)`, 155, 64);
-
-      // Section: Subject Breakdown Summary
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text('1. DERS BAZINDA ETUT KATILIM DAGILIMI', 14, 78);
+      doc.text('1. DERS BAZINDA ETUT KATILIM VE DEVAMSIZLIK DAGILIMI', 14, 80);
 
       const subjectTableRows = stats.subjectBreakdown.map((sb) => [
-        sb.subject,
+        toSafePdfText(sb.subject),
         `${sb.count} Kez`,
         `%${sb.percentage}`,
         `${sb.minutes} dk`,
@@ -281,94 +357,122 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       ]);
 
       autoTable(doc, {
-        startY: 82,
-        head: [['Ders Adi', 'Katilim Sayisi', 'Yuzdelik Oran', 'Toplam Sure', 'Islenen Konular']],
+        startY: 84,
+        head: [['Ders Adi', 'Etut Sayisi', 'Oran', 'Toplam Sure', 'Islenen Konu Sayisi']],
         body: subjectTableRows.length > 0 ? subjectTableRows : [['Kayit Bulunamadi', '-', '-', '-', '-']],
         theme: 'striped',
         headStyles: {
-          fillColor: [79, 70, 229], // Indigo 600
+          fillColor: [79, 70, 229],
           textColor: 255,
           fontStyle: 'bold',
-          fontSize: 9,
-        },
-        bodyStyles: {
           fontSize: 8.5,
-          textColor: 51,
-        },
-        margin: { left: 14, right: 14 },
-      });
-
-      // Section: Detailed Etut History Table
-      const finalY = (doc as any).lastAutoTable?.finalY || 130;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
-      doc.setTextColor(15, 23, 42);
-      doc.text('2. DETAYLI ETUT GECMISI (TARIH, DERS VE KONU ANALIZI)', 14, finalY + 12);
-
-      const detailRows = filteredEtuts.map((e, idx) => [
-        `${idx + 1}`,
-        e.date,
-        e.subject,
-        e.topic || 'Genel Tekrar / Soru Cozumu',
-        `${e.time} (${e.duration || 45} dk)`,
-        e.teacherName || 'Ogretmen',
-      ]);
-
-      autoTable(doc, {
-        startY: finalY + 16,
-        head: [['#', 'Tarih', 'Ders', 'Etut Konusu / Odak', 'Saat & Sure', 'Ogretmen']],
-        body: detailRows.length > 0 ? detailRows : [['-', '-', '-', 'Etut kaydi bulunmuyor', '-', '-']],
-        theme: 'grid',
-        headStyles: {
-          fillColor: [15, 23, 42], // Slate 900
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 9,
         },
         bodyStyles: {
           fontSize: 8,
           textColor: 51,
         },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Section 2: Detailed Etut History Table
+      const finalY = (doc as any).lastAutoTable?.finalY || 135;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text('2. DETAYLI ETUT GECMISI (TARIH, DERS, KONU VE DEVAMSIZLIK)', 14, finalY + 10);
+
+      const detailRows = filteredEtuts.map((e, idx) => {
+        let attStatusText = 'Belirtilmedi';
+        if (selectedStudentId !== 'all') {
+          const info = getEtutAttendanceInfo(e, selectedStudentId);
+          attStatusText = toSafePdfText(info.label);
+          if (info.note) attStatusText += ` (${toSafePdfText(info.note)})`;
+        } else {
+          // Genel yoklama özeti
+          const totalAssigned = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.length : students.length;
+          const present = Object.values(e.studentAttendance || {}).filter((a) => a.status === 'present').length;
+          const absent = Object.values(e.studentAttendance || {}).filter((a) => a.status === 'absent').length;
+          attStatusText = `${present}/${totalAssigned} Geldi, ${absent} Gelmedi`;
+        }
+
+        return [
+          `${idx + 1}`,
+          e.date,
+          toSafePdfText(e.subject),
+          toSafePdfText(e.topic || 'Genel Soru Cozumu / Tekrar'),
+          attStatusText,
+          `${e.time} (${e.duration || 45} dk)`,
+          toSafePdfText(e.teacherName || 'Ogretmen'),
+        ];
+      });
+
+      autoTable(doc, {
+        startY: finalY + 14,
+        head: [['#', 'Tarih', 'Ders', 'Etut Konusu / Odak', 'Yoklama / Devamsizlik', 'Sure', 'Ogretmen']],
+        body: detailRows.length > 0 ? detailRows : [['-', '-', '-', 'Etut kaydi bulunmuyor', '-', '-', '-']],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 8.5,
+        },
+        bodyStyles: {
+          fontSize: 7.5,
+          textColor: 51,
+        },
         columnStyles: {
-          0: { cellWidth: 10 },
-          1: { cellWidth: 24 },
-          2: { cellWidth: 32 },
-          3: { cellWidth: 56 },
-          4: { cellWidth: 32 },
-          5: { cellWidth: 28 },
+          0: { cellWidth: 8 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 26 },
+          3: { cellWidth: 46 },
+          4: { cellWidth: 36 },
+          5: { cellWidth: 22 },
+          6: { cellWidth: 22 },
         },
         margin: { left: 14, right: 14 },
       });
 
-      // Signatures at the bottom
+      // Bottom Signatures
       const pageHeight = doc.internal.pageSize.getHeight();
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text('Bu belge Egitim & Ogrenci Takip Portali tarafindan otomatik hazirlanmistir.', 14, pageHeight - 12);
-      doc.text('Danisman / Brans Ogretmeni Imzasi: _______________________', 115, pageHeight - 12);
+      doc.text('Bu belge Egitim & Ogrenci Takip Portali tarafindan resmi rapor olarak uretilmistir.', 14, pageHeight - 10);
+      doc.text('Danisman / Brans Ogretmeni Imzasi: _______________________', 115, pageHeight - 10);
 
-      const filename = `Etut_Analiz_Raporu_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      doc.save(filename);
+      const filename = `Etut_Analiz_${toSafePdfText(studentName).replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
-      setExportSuccessMessage(`PDF raporu başarıyla oluşturuldu ve indirildi (${filename}).`);
-      setTimeout(() => setExportSuccessMessage(null), 4000);
+      // Safe download using Blob
+      const pdfBlob = doc.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+
+      setExportSuccessMessage(`PDF raporu ve devamsızlık analiz belgesi başarıyla indirildi (${filename}).`);
+      setTimeout(() => setExportSuccessMessage(null), 5000);
     } catch (err: any) {
-      alert(`PDF oluşturulurken bir hata oluştu: ${err.message}`);
+      setExportErrorMessage(`PDF oluşturulurken bir hata oluştu: ${err.message || 'Lütfen tekrar deneyin.'}`);
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // Export to DOCX (Microsoft Word)
+  // Export to DOCX
   const handleExportDOCX = async () => {
     try {
       setIsGeneratingDocx(true);
+      setExportErrorMessage(null);
+
       const studentName = selectedStudent ? selectedStudent.name : 'Tüm Öğrenciler Genel Analiz';
-      const studentClass = selectedStudent ? selectedStudent.className : '-';
-      const studentNo = selectedStudent ? selectedStudent.studentNumber : '-';
+      const studentClass = selectedStudent ? selectedStudent.className || 'Genel' : 'Tüm Sınıflar';
+      const studentNo = selectedStudent ? selectedStudent.studentNumber || '-' : '-';
       const reportDate = new Date().toLocaleDateString('tr-TR');
 
-      // Table rows for subject breakdown
       const subjectDocxRows = [
         new TableRow({
           children: [
@@ -381,36 +485,30 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
               shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: 'Yüzdelik Pay', bold: true, color: 'FFFFFF' })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: 'Toplam Süre', bold: true, color: 'FFFFFF' })] })],
               shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: 'Toplam Süre', bold: true, color: 'FFFFFF' })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: 'İşlenen Konu Sayısı', bold: true, color: 'FFFFFF' })] })],
               shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
             }),
           ],
         }),
-        ...stats.subjectBreakdown.map(
-          (sb) =>
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph(sb.subject)] }),
-                new TableCell({ children: [new Paragraph(`${sb.count} Kez`)] }),
-                new TableCell({ children: [new Paragraph(`%${sb.percentage}`)] }),
-                new TableCell({ children: [new Paragraph(`${sb.minutes} Dk`)] }),
-              ],
-            })
+        ...stats.subjectBreakdown.map((sb) =>
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ text: sb.subject })] }),
+              new TableCell({ children: [new Paragraph({ text: `${sb.count} Kez` })] }),
+              new TableCell({ children: [new Paragraph({ text: `${sb.minutes} dk` })] }),
+              new TableCell({ children: [new Paragraph({ text: `${sb.topicCount} Konu` })] }),
+            ],
+          })
         ),
       ];
 
-      // Table rows for detailed history
       const historyDocxRows = [
         new TableRow({
           children: [
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: '#', bold: true, color: 'FFFFFF' })] })],
-              shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-            }),
             new TableCell({
               children: [new Paragraph({ children: [new TextRun({ text: 'Tarih', bold: true, color: 'FFFFFF' })] })],
               shading: { type: ShadingType.CLEAR, fill: '0F172A' },
@@ -420,11 +518,11 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
               shading: { type: ShadingType.CLEAR, fill: '0F172A' },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: 'Etüt Konusu / Odak', bold: true, color: 'FFFFFF' })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: 'Etüt Konusu', bold: true, color: 'FFFFFF' })] })],
               shading: { type: ShadingType.CLEAR, fill: '0F172A' },
             }),
             new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: 'Saat & Süre', bold: true, color: 'FFFFFF' })] })],
+              children: [new Paragraph({ children: [new TextRun({ text: 'Yoklama / Devamsızlık', bold: true, color: 'FFFFFF' })] })],
               shading: { type: ShadingType.CLEAR, fill: '0F172A' },
             }),
             new TableCell({
@@ -433,19 +531,27 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             }),
           ],
         }),
-        ...filteredEtuts.map(
-          (e, idx) =>
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph(`${idx + 1}`)] }),
-                new TableCell({ children: [new Paragraph(e.date)] }),
-                new TableCell({ children: [new Paragraph(e.subject)] }),
-                new TableCell({ children: [new Paragraph(e.topic || '-')] }),
-                new TableCell({ children: [new Paragraph(`${e.time} (${e.duration || 45} dk)`)] }),
-                new TableCell({ children: [new Paragraph(e.teacherName || 'Öğretmen')] }),
-              ],
-            })
-        ),
+        ...filteredEtuts.map((e) => {
+          let attText = 'Belirtilmedi';
+          if (selectedStudentId !== 'all') {
+            const info = getEtutAttendanceInfo(e, selectedStudentId);
+            attText = info.label;
+          } else {
+            const present = Object.values(e.studentAttendance || {}).filter((a) => a.status === 'present').length;
+            const absent = Object.values(e.studentAttendance || {}).filter((a) => a.status === 'absent').length;
+            attText = `${present} Geldi, ${absent} Gelmedi`;
+          }
+
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ text: e.date })] }),
+              new TableCell({ children: [new Paragraph({ text: e.subject })] }),
+              new TableCell({ children: [new Paragraph({ text: e.topic || 'Genel Tekrar' })] }),
+              new TableCell({ children: [new Paragraph({ text: attText })] }),
+              new TableCell({ children: [new Paragraph({ text: e.teacherName || 'Öğretmen' })] }),
+            ],
+          });
+        }),
       ];
 
       const doc = new Document({
@@ -454,12 +560,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             properties: {},
             children: [
               new Paragraph({
-                text: 'T.C. MİLLİ EĞİTİM BAKANLIĞI',
-                heading: HeadingLevel.HEADING_2,
-                alignment: AlignmentType.CENTER,
-              }),
-              new Paragraph({
-                text: 'ÖĞRENCİ BİREYSEL ETÜT VE KATILIM ANALİZ RAPORU',
+                text: 'ÖĞRENCİ ETÜT VE DEVAMSIZLIK ANALİZ BELGESİ',
                 heading: HeadingLevel.TITLE,
                 alignment: AlignmentType.CENTER,
               }),
@@ -468,60 +569,34 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 alignment: AlignmentType.CENTER,
               }),
               new Paragraph({ text: '' }),
-
-              // Student details
               new Paragraph({
                 children: [
-                  new TextRun({ text: 'Öğrenci Adı Soyadı: ', bold: true }),
+                  new TextRun({ text: 'Öğrenci: ', bold: true }),
                   new TextRun(studentName),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Sınıf / Şube: ', bold: true }),
+                  new TextRun({ text: ' | Sınıf: ', bold: true }),
                   new TextRun(studentClass),
-                ],
-              }),
-              new Paragraph({
-                children: [
-                  new TextRun({ text: 'Öğrenci Numarası: ', bold: true }),
+                  new TextRun({ text: ' | No: ', bold: true }),
                   new TextRun(studentNo),
                 ],
               }),
               new Paragraph({
                 children: [
-                  new TextRun({ text: 'Toplam Alınan Etüt: ', bold: true }),
-                  new TextRun({ text: `${stats.totalCount} Kez (${stats.totalHours} Saat)`, bold: true, color: '059669' }),
+                  new TextRun({ text: 'Katılım Özeti: ', bold: true }),
+                  new TextRun({
+                    text: `${stats.totalCount} Etüt, ${stats.presentCount} Katılım, ${stats.absentCount} Devamsızlık (%${stats.attendanceRate} Devam Oranı)`,
+                    bold: true,
+                  }),
                 ],
               }),
               new Paragraph({ text: '' }),
-
-              // Section 1
-              new Paragraph({
-                text: '1. DERS BAZINDA ETÜT DAĞILIMI',
-                heading: HeadingLevel.HEADING_2,
-              }),
-              new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: subjectDocxRows,
-              }),
+              new Paragraph({ text: '1. DERS BAZINDA ETÜT DAĞILIMI', heading: HeadingLevel.HEADING_2 }),
+              new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: subjectDocxRows }),
               new Paragraph({ text: '' }),
-
-              // Section 2
-              new Paragraph({
-                text: '2. DETAYLI ETÜT GEÇMİŞİ (TARİH VE KONULAR)',
-                heading: HeadingLevel.HEADING_2,
-              }),
-              new Table({
-                width: { size: 100, type: WidthType.PERCENTAGE },
-                rows: historyDocxRows,
-              }),
-              new Paragraph({ text: '' }),
+              new Paragraph({ text: '2. DETAYLI ETÜT VE DEVAMSIZLIK GEÇMİŞİ', heading: HeadingLevel.HEADING_2 }),
+              new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: historyDocxRows }),
               new Paragraph({ text: '' }),
               new Paragraph({
-                children: [
-                  new TextRun({ text: 'Danışman / Branş Öğretmeni İmzası: ____________________________', italics: true }),
-                ],
+                children: [new TextRun({ text: 'Danışman / Branş Öğretmeni İmzası: ____________________________', italics: true })],
                 alignment: AlignmentType.RIGHT,
               }),
             ],
@@ -533,17 +608,17 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const filename = `Etut_Analiz_Raporu_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
+      const filename = `Etut_Analiz_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().slice(0, 10)}.docx`;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       setExportSuccessMessage(`Word (DOCX) belgesi başarıyla oluşturuldu ve indirildi (${filename}).`);
-      setTimeout(() => setExportSuccessMessage(null), 4000);
+      setTimeout(() => setExportSuccessMessage(null), 5000);
     } catch (err: any) {
-      alert(`DOCX oluşturulurken bir hata oluştu: ${err.message}`);
+      setExportErrorMessage(`DOCX oluşturulurken bir hata oluştu: ${err.message || 'Lütfen tekrar deneyin.'}`);
     } finally {
       setIsGeneratingDocx(false);
     }
@@ -566,13 +641,13 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             </div>
             <div>
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span>Öğrenci Etüt Katılım & Konu Analiz Raporu</span>
+                <span>Öğrenci Etüt Katılım & Devamsızlık Analiz Belgesi</span>
                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  PDF & DOCX Çıktılı
+                  Resmi Belge Çıktılı
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                Hangi öğrencimizin hangi tarihte, hangi dersten ve konudan kaç kez etüt aldığını analiz edin ve resmi belge çıktısı alın.
+                Geçmiş etütler, seçili tarih aralıkları, ders/konu dağılımı ve devamsızlık durumları raporu.
               </p>
             </div>
           </div>
@@ -593,7 +668,15 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           </div>
         )}
 
-        {/* Controls Bar: Student Selector, Subject, Date, Search */}
+        {/* Error alert message */}
+        {exportErrorMessage && (
+          <div className="mx-6 mt-4 p-3 bg-rose-950/80 border border-rose-500/40 rounded-xl flex items-center space-x-2 text-xs text-rose-200 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{exportErrorMessage}</span>
+          </div>
+        )}
+
+        {/* Controls Bar: Student Selector, Subject, Date Range, Search */}
         <div className="p-5 bg-slate-950/60 border-b border-slate-800/80 space-y-3 shrink-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Student Picker */}
@@ -647,9 +730,11 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 onChange={(e) => setDateRangeFilter(e.target.value as any)}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="all">Tüm Zamanlar</option>
-                <option value="30">Son 30 Gün</option>
+                <option value="all">Tüm Zamanlar (Geçmiş Dahil)</option>
+                <option value="7">Son 7 Gün (Bu Hafta)</option>
+                <option value="30">Son 30 Gün (Bu Ay)</option>
                 <option value="90">Son 3 Ay (90 Gün)</option>
+                <option value="custom">📅 Belirli Tarih Aralığı Seç...</option>
               </select>
             </div>
 
@@ -657,24 +742,64 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
                 <Search className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Konuda Ara</span>
+                <span>Konu veya Öğretmen Ara</span>
               </label>
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Konu, öğretmen ara..."
+                placeholder="Örn: Paragraf, Matematik, Ali..."
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 placeholder-slate-500"
               />
             </div>
           </div>
 
+          {/* Custom Date Range Selector (Başlangıç - Bitiş) */}
+          {dateRangeFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-slate-900/90 border border-indigo-500/30 rounded-xl">
+              <span className="text-xs font-semibold text-indigo-300 flex items-center space-x-1">
+                <Filter className="w-3.5 h-3.5" />
+                <span>Özel Tarih Aralığı:</span>
+              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-400">Başlangıç:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-400">Bitiş:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                  }}
+                  className="text-xs text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                >
+                  Tarihleri Temizle
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Quick Action Export Buttons */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
             <div className="text-xs text-slate-400 flex items-center space-x-2">
-              <span>Gösterilen Etüt Sayısı:</span>
-              <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-lg">
-                {filteredEtuts.length}
+              <span>Filtrelenen Etüt:</span>
+              <span className="font-bold text-white bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-700">
+                {filteredEtuts.length} Adet
               </span>
             </div>
 
@@ -685,10 +810,10 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 onClick={handleExportPDF}
                 disabled={isGeneratingPdf}
                 className="flex items-center space-x-2 bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
-                title="Resmi PDF Raporu Oluştur ve İndir"
+                title="Resmi PDF Raporu ve Devamsızlık Çıktısı İndir"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>{isGeneratingPdf ? 'PDF Hazırlanıyor...' : 'PDF Olarak İndir'}</span>
+                <span>{isGeneratingPdf ? 'PDF Hazırlanıyor...' : 'PDF İndir'}</span>
               </button>
 
               {/* Export DOCX (Word) */}
@@ -697,7 +822,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 onClick={handleExportDOCX}
                 disabled={isGeneratingDocx}
                 className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer disabled:opacity-50"
-                title="Microsoft Word (.docx) Raporu Oluştur ve İndir"
+                title="Microsoft Word (.docx) Raporu İndir"
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>{isGeneratingDocx ? 'DOCX Hazırlanıyor...' : 'Word (DOCX) İndir'}</span>
@@ -741,10 +866,10 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 )}
                 <div>
                   <div className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
-                    {selectedStudent ? 'Bireysel Öğrenci Analizi' : 'Genel Kurumsal Analiz'}
+                    {selectedStudent ? 'Bireysel Öğrenci Etüt ve Devam Karnesi' : 'Genel Kurumsal Analiz'}
                   </div>
                   <h4 className="text-xl font-bold text-white mt-0.5">
-                    {selectedStudent ? selectedStudent.name : 'Tüm Öğrencilerin Etüt İstatistiği'}
+                    {selectedStudent ? selectedStudent.name : 'Tüm Öğrencilerin Etüt ve Devamsızlık İstatistiği'}
                   </h4>
                   <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-400">
                     {selectedStudent && (
@@ -761,38 +886,48 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                       </>
                     )}
                     {!selectedStudent && (
-                      <span>Toplam {students.length} kayıtlı öğrenci genelinde etüt dağılımı</span>
+                      <span>Toplam {students.length} kayıtlı öğrenci genelinde etüt katılımı</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* 3 Metric Pills */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* 4 Metric Pills Including Attendance */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
                   <div className="text-[11px] font-semibold text-slate-400">Toplam Etüt</div>
                   <div className="text-xl font-black text-indigo-400 mt-0.5">{stats.totalCount}</div>
-                  <div className="text-[10px] text-slate-500">Seans</div>
+                  <div className="text-[10px] text-slate-500">{stats.totalHours} Saat</div>
                 </div>
 
                 <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                  <div className="text-[11px] font-semibold text-slate-400">Toplam Süre</div>
-                  <div className="text-xl font-black text-emerald-400 mt-0.5">{stats.totalHours}</div>
-                  <div className="text-[10px] text-slate-500">Saat ({stats.totalMinutes} dk)</div>
-                </div>
-
-                <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                  <div className="text-[11px] font-semibold text-slate-400">Ağırlıklı Ders</div>
-                  <div className="text-sm font-bold text-amber-300 mt-1 truncate" title={stats.topSubject}>
-                    {stats.topSubject}
+                  <div className="text-[11px] font-semibold text-emerald-400 flex items-center justify-center space-x-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Katıldı</span>
                   </div>
-                  <div className="text-[10px] text-slate-500">En Çok Alınan</div>
+                  <div className="text-xl font-black text-emerald-400 mt-0.5">{stats.presentCount}</div>
+                  <div className="text-[10px] text-slate-500">Etüte Geldi</div>
+                </div>
+
+                <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
+                  <div className="text-[11px] font-semibold text-rose-400 flex items-center justify-center space-x-1">
+                    <XCircle className="w-3 h-3" />
+                    <span>Devamsız</span>
+                  </div>
+                  <div className="text-xl font-black text-rose-400 mt-0.5">{stats.absentCount}</div>
+                  <div className="text-[10px] text-slate-500">Gelmedi</div>
+                </div>
+
+                <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
+                  <div className="text-[11px] font-semibold text-amber-300">Devam Oranı</div>
+                  <div className="text-xl font-black text-amber-300 mt-0.5">%{stats.attendanceRate}</div>
+                  <div className="text-[10px] text-slate-500">Katılım Başarısı</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Section 1: Ders Dağılımı ve Yüzdelik İlerleme Çubukları */}
+          {/* Section 1: Ders Dağılımı */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
             <h5 className="text-sm font-bold text-white flex items-center space-x-2">
               <TrendingUp className="w-4 h-4 text-indigo-400" />
@@ -817,7 +952,6 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                       </span>
                     </div>
 
-                    {/* Progress Bar */}
                     <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                       <div
                         className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500"
@@ -835,12 +969,12 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             )}
           </div>
 
-          {/* Section 2: Detaylı Etüt Tablosu (Tarih, Konu, Öğretmen, Süre) */}
+          {/* Section 2: Detaylı Etüt & Devamsızlık Geçmişi Tablosu */}
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h5 className="text-sm font-bold text-white flex items-center space-x-2">
                 <BookOpen className="w-4 h-4 text-emerald-400" />
-                <span>Kronolojik Etüt & Konu Detay Listesi</span>
+                <span>Kronolojik Etüt & Devamsızlık Listesi</span>
               </h5>
               <div className="text-xs text-slate-400">
                 Toplam {filteredEtuts.length} etüt listeleniyor
@@ -854,6 +988,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     <th className="px-4 py-3 font-semibold">Tarih & Saat</th>
                     <th className="px-4 py-3 font-semibold">Ders</th>
                     <th className="px-4 py-3 font-semibold">Etüt Konusu / Odak</th>
+                    <th className="px-4 py-3 font-semibold">Yoklama / Devamsızlık Durumu</th>
                     <th className="px-4 py-3 font-semibold">Süre & Derslik</th>
                     <th className="px-4 py-3 font-semibold">Öğretmen</th>
                     <th className="px-4 py-3 font-semibold">Notlar</th>
@@ -862,146 +997,97 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredEtuts.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                        Bu öğrenci veya arama kriterleri için etüt kaydı bulunamadı.
+                      <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                        Bu öğrenci veya filtreleme kriterleri için etüt kaydı bulunamadı.
                       </td>
                     </tr>
                   ) : (
-                    filteredEtuts.map((etut) => (
-                      <tr key={etut.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="font-semibold text-white">{formatTurkishDate(etut.date)}</div>
-                          <div className="text-[11px] text-indigo-400 font-mono flex items-center space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{etut.time}</span>
-                          </div>
-                        </td>
+                    filteredEtuts.map((etut) => {
+                      const attInfo = selectedStudentId !== 'all'
+                        ? getEtutAttendanceInfo(etut, selectedStudentId)
+                        : null;
 
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                            {etut.subject}
-                          </span>
-                        </td>
+                      // Genel görünümde gelen/gelmeyen sayısı
+                      const totalAssigned = Array.isArray(etut.assignedStudentIds) ? etut.assignedStudentIds.length : students.length;
+                      const presentCount = Object.values(etut.studentAttendance || {}).filter((a) => a.status === 'present').length;
+                      const absentCount = Object.values(etut.studentAttendance || {}).filter((a) => a.status === 'absent').length;
 
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-200">
-                            {etut.topic || 'Genel Konu Tekrarı / Soru Çözümü'}
-                          </div>
-                          {etut.schoolLevel && (
-                            <div className="text-[10px] text-slate-500">
-                              {etut.schoolLevel} • {etut.gradeLevel || 'Genel'}
+                      return (
+                        <tr key={etut.id} className="hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-semibold text-white">{formatTurkishDate(etut.date)}</div>
+                            <div className="text-[11px] text-indigo-400 font-mono flex items-center space-x-1">
+                              <Clock className="w-3 h-3" />
+                              <span>{etut.time}</span>
                             </div>
-                          )}
-                        </td>
+                          </td>
 
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="font-mono text-emerald-400 font-semibold">
-                            {etut.duration || 45} Dakika
-                          </div>
-                          <div className="text-[11px] text-slate-400">{etut.location || 'Derslik'}</div>
-                        </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                              {etut.subject}
+                            </span>
+                          </td>
 
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="font-medium text-slate-200">
-                            {etut.teacherName || 'Danışman Öğretmen'}
-                          </div>
-                        </td>
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-slate-200">
+                              {etut.topic || 'Genel Konu Tekrarı / Soru Çözümü'}
+                            </div>
+                            {etut.schoolLevel && (
+                              <div className="text-[10px] text-slate-500">
+                                {etut.schoolLevel} • {etut.gradeLevel || 'Genel'}
+                              </div>
+                            )}
+                          </td>
 
-                        <td className="px-4 py-3 text-slate-400 max-w-xs truncate" title={etut.notes || ''}>
-                          {etut.notes || '-'}
-                        </td>
-                      </tr>
-                    ))
+                          {/* Yoklama / Devamsızlık Kolonu */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {selectedStudentId !== 'all' && attInfo ? (
+                              <div>
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold border ${attInfo.badgeClass}`}>
+                                  {attInfo.label}
+                                </span>
+                                {attInfo.note && (
+                                  <div className="text-[10px] text-slate-400 mt-0.5 italic">
+                                    {attInfo.note}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-xs font-semibold">
+                                <span className="text-emerald-400">{presentCount} Geldi</span>
+                                <span className="text-slate-500 mx-1">/</span>
+                                <span className="text-rose-400">{absentCount} Gelmedi</span>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {totalAssigned} Kayıtlı Öğrenci
+                                </div>
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-mono text-emerald-400 font-semibold">
+                              {etut.duration || 45} Dakika
+                            </div>
+                            <div className="text-[11px] text-slate-400">{etut.location || 'Derslik'}</div>
+                          </td>
+
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="font-medium text-slate-200">
+                              {etut.teacherName || 'Danışman Öğretmen'}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3 text-slate-400 max-w-xs truncate" title={etut.notes || ''}>
+                            {etut.notes || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
           </div>
-
-          {/* Section 3: Tüm Öğrenciler İçin Sıralama Tablosu (Genel Bakış) */}
-          {selectedStudentId === 'all' && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <h5 className="text-sm font-bold text-white flex items-center space-x-2">
-                <Award className="w-4 h-4 text-amber-400" />
-                <span>Öğrencilerin Toplam Etüt Katılım Sıralaması</span>
-              </h5>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-950 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Öğrenci</th>
-                      <th className="px-4 py-3 font-semibold">Sınıf</th>
-                      <th className="px-4 py-3 font-semibold">Toplam Etüt</th>
-                      <th className="px-4 py-3 font-semibold">Farklı Branş</th>
-                      <th className="px-4 py-3 font-semibold">Toplam Süre</th>
-                      <th className="px-4 py-3 font-semibold text-right">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {allStudentsRanking.map((item) => (
-                      <tr key={item.student.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center space-x-2.5">
-                            <img
-                              src={
-                                item.student.avatar ||
-                                `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                                  item.student.name
-                                )}`
-                              }
-                              alt={item.student.name}
-                              className="w-7 h-7 rounded-lg object-cover bg-slate-800"
-                            />
-                            <div>
-                              <div className="font-semibold text-white">{item.student.name}</div>
-                              <div className="text-[10px] text-slate-500 font-mono">
-                                #{item.student.studentNumber}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-slate-300">{item.student.className || '-'}</span>
-                        </td>
-                        <td className="px-4 py-3 font-bold text-indigo-400 font-mono">
-                          {item.count} Kez
-                        </td>
-                        <td className="px-4 py-3 text-slate-400 font-mono">
-                          {item.subjectCount} Branş
-                        </td>
-                        <td className="px-4 py-3 text-emerald-400 font-mono font-medium">
-                          {item.duration} dk
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedStudentId(item.student.id)}
-                            className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold underline cursor-pointer"
-                          >
-                            Öğrenciyi İncele
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="text-xs text-slate-400">
-            💡 İpucu: PDF veya Word çıktısı alarak veli görüşmelerinde veya dönem sonu öğrenci gelişim dosyasında kullanabilirsiniz.
-          </div>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-          >
-            Kapat
-          </button>
         </div>
       </div>
     </div>

@@ -77,19 +77,22 @@ export interface Homework {
   id: string;
   title: string;
   subject: string;
-  outcomes: string[]; // Kazanımlar
+  outcomes?: string[]; // Kazanımlar
   learningOutcomes?: string[];
   description: string;
   dueDate: string; // ISO or YYYY-MM-DDTHH:mm
-  createdAt: string;
-  assignedTo: 'all' | string[]; // 'all' or student IDs
+  createdAt?: string;
+  assignedDate?: string;
+  assignedTo?: 'all' | string[]; // 'all' or student IDs
   targetClassIds?: string[]; // Target class IDs (if class-scoped)
   attachmentUrl?: string;
   schoolLevel?: 'Ortaokul' | 'Lise';
   resources?: HomeworkResource[]; // Video, Internet Link, and PDF resources
-  isGlobalForNewStudents: boolean; // Bir öğrenci sonradan kayıt olmuş ise daha önceki ödevleri de görebilir
+  isGlobalForNewStudents?: boolean; // Bir öğrenci sonradan kayıt olmuş ise daha önceki ödevleri de görebilir
   createdByName?: string;
   teacherId?: string; // Ödevi oluşturan öğretmen ID'si
+  teacherName?: string;
+  classId?: string;
   submissions?: HomeworkSubmission[];
 }
 
@@ -110,12 +113,22 @@ export interface HomeworkSubmission {
   feedback?: string;
 }
 
+export interface EtutStudentAttendance {
+  studentId?: string;
+  studentName?: string;
+  status: AttendanceStatus;
+  note?: string;
+  markedAt?: string;
+  updatedAt?: string;
+}
+
 export interface Etut {
   id: string;
   subject: string;
   topic: string;
   schoolLevel?: 'Ortaokul' | 'Lise';
   gradeLevel?: string;
+  lessonPeriod?: string; // e.g., 'Ders', '1. Ders', '2. Ders', ..., '8. Ders'
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
   duration: number; // minutes
@@ -123,8 +136,27 @@ export interface Etut {
   location: string;
   notes?: string;
   createdAt: string;
-  teacherId?: string; // Etütü oluşturan öğretmen ID'si
+  teacherId?: string; // Etütü oluşturan veya atanan öğretmen ID'si
   teacherName?: string;
+  teacherBranch?: string;
+  studentAttendance?: Record<string, EtutStudentAttendance>; // Öğrenci ID -> Katılım Durumu
+}
+
+export interface WeeklyQuestionTarget {
+  id?: string;
+  studentId: string;
+  studentName?: string;
+  weeklyTarget?: number; // Haftalık soru hedefi (Örn: 500)
+  targetQuestions?: number; // Soru sayısı hedefi
+  dailyTarget?: number; // Günlük ortalama (Örn: 70)
+  assignedByTeacherId?: string;
+  assignedByTeacherName?: string;
+  assignedBy?: string;
+  assignedDate?: string;
+  weekStartDate?: string;
+  weekEndDate?: string;
+  subjectTargets?: Record<string, number> | { subject: string; target: number }[];
+  notes?: string;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';
@@ -150,7 +182,7 @@ export interface GradeRecord {
   subject: string;
   examType: string; // '1. Yazılı', '2. Yazılı', 'Performans', 'Ödev Notu', 'Deneme'
   score: number;
-  maxScore: number;
+  maxScore?: number;
   date: string;
   remarks?: string;
 }

@@ -17,6 +17,8 @@ import {
   StudentNotification,
   SentEmailLog,
   StudentQuestionLog,
+  WeeklyQuestionTarget,
+  EtutStudentAttendance,
 } from '../types';
 import { supabase } from '../lib/supabase';
 import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
@@ -66,6 +68,7 @@ export const INITIAL_TEACHERS: Teacher[] = [
 
 // DATA STORE LOCAL STORAGE KEYS
 const STORAGE_KEYS = {
+  DEVICE_ID: 'edu_sys_device_id_v6',
   IS_SEEDED: 'edu_sys_seeded_v6',
   DELETED_TEACHERS: 'edu_sys_deleted_teachers_v6',
   DELETED_STUDENTS: 'edu_sys_deleted_students_v6',
@@ -89,7 +92,23 @@ const STORAGE_KEYS = {
   STUDENT_NOTIFICATIONS: 'edu_sys_student_notifications_v6',
   SENT_EMAILS: 'edu_sys_sent_emails_v6',
   QUESTION_LOGS: 'edu_sys_question_logs_v6',
+  WEEKLY_QUESTION_TARGETS: 'edu_sys_weekly_question_targets_v6',
 };
+
+// Cihaz kimliği (Hardware / Browser Fingerprint ID)
+// Başka bilgisayar veya telefondan açıldığında kullanıcıların otomatik çıkmasını önler
+function getLocalDeviceId(): string {
+  try {
+    let id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
+    if (!id) {
+      id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem(STORAGE_KEYS.DEVICE_ID, id);
+    }
+    return id;
+  } catch {
+    return 'volatile_device';
+  }
+}
 
 const LEGACY_VERSIONS = ['_v5', '_v4', '_v3', '_v2', '_v1', ''];
 
@@ -398,6 +417,7 @@ export class DataService {
   public studentNotifications: StudentNotification[] = [];
   public sentEmails: SentEmailLog[] = [];
   public questionLogs: StudentQuestionLog[] = [];
+  public weeklyQuestionTargets: WeeklyQuestionTarget[] = [];
   public deletedTeacherIds: Set<string> = new Set();
   public deletedStudentIds: Set<string> = new Set();
   public deletedClassIds: Set<string> = new Set();
@@ -473,6 +493,7 @@ export class DataService {
       this.studentNotifications = loadDataWithLegacyFallback(STORAGE_KEYS.STUDENT_NOTIFICATIONS, []);
       this.sentEmails = loadDataWithLegacyFallback(STORAGE_KEYS.SENT_EMAILS, []);
       this.questionLogs = loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
+      this.weeklyQuestionTargets = loadDataWithLegacyFallback(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, []);
 
       // Sistem tarafından otomatik yüklenen demo/seed soru kayıtlarını ve soru sayısı 0 olan boş kayıtları temizle
       const prevLogsCount = this.questionLogs.length;
@@ -735,9 +756,285 @@ export class DataService {
           this.notify();
         }
       }
+
+      // 4. Sync etuts with Supabase (Cross-device etuts & attendance)
+      const { data: remoteEtuts, error: errEtuts } = await supabase.from('etuts').select('*');
+      if (!errEtuts && remoteEtuts && remoteEtuts.length > 0) {
+        let etutsChanged = false;
+        remoteEtuts.forEach((re: any) => {
+          if (this.deletedEtutIds.has(re.id)) return;
+          let parsedMeta: any = {};
+          try {
+            if (re.notes && re.notes.startsWith('{') && re.notes.includes('__etut_meta__')) {
+              parsedMeta = JSON.parse(re.notes);
+            }
+          } catch (err) {}
+
+          const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
+          const incomingEtut: Etut = {
+            id: re.id,
+            subject: re.subject,
+            topic: re.topic,
+            date: re.date,
+            time: re.time || '16:00',
+            duration: parsedMeta.duration || 45,
+            assignedStudentIds: re.assigned_student_ids || 'all',
+            location: re.location || 'Derslik',
+            notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : re.notes,
+            createdAt: re.created_at || new Date().toISOString(),
+            teacherId: parsedMeta.teacherId || 'teacher-1',
+            teacherName: parsedMeta.teacherName || 'Öğretmen',
+            gradeLevel: parsedMeta.gradeLevel,
+            schoolLevel: parsedMeta.schoolLevel,
+            studentAttendance: parsedMeta.studentAttendance || {},
+          };
+
+          if (existingIdx !== -1) {
+            const current = this.etuts[existingIdx];
+            if (
+              JSON.stringify(current.studentAttendance || {}) !==
+              JSON.stringify(incomingEtut.studentAttendance || {})
+            ) {
+              this.etuts[existingIdx] = {
+                ...current,
+                studentAttendance: {
+                  ...(incomingEtut.studentAttendance || {}),
+                  ...(current.studentAttendance || {}),
+                },
+              };
+              etutsChanged = true;
+            }
+          } else {
+            this.etuts.push(incomingEtut);
+            etutsChanged = true;
+          }
+        });
+        if (etutsChanged) {
+          saveData(STORAGE_KEYS.ETUTS, this.etuts);
+          this.notify();
+        }
+      }
+
+      // Upload local etuts to Supabase
+      if (this.etuts.length > 0) {
+        const etutPayload = this.etuts
+          .filter((e) => !this.deletedEtutIds.has(e.id))
+          .map((e) => ({
+            id: e.id,
+            subject: e.subject,
+            topic: e.topic,
+            date: e.date,
+            time: e.time,
+            location: e.location || 'Derslik',
+            assigned_student_ids: Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : null,
+            notes: JSON.stringify({
+              __etut_meta__: true,
+              userNotes: e.notes || '',
+              studentAttendance: e.studentAttendance || {},
+              teacherId: e.teacherId,
+              teacherName: e.teacherName,
+              duration: e.duration,
+              gradeLevel: e.gradeLevel,
+              schoolLevel: e.schoolLevel,
+            }),
+          }));
+        if (etutPayload.length > 0) {
+          await supabase.from('etuts').upsert(etutPayload);
+        }
+      }
+
+      // 5. Sync homeworks & cross-device system payloads (question targets and logs)
+      const { data: remoteHws, error: errHws } = await supabase.from('homeworks').select('*');
+      if (!errHws && remoteHws && remoteHws.length > 0) {
+        let hwsChanged = false;
+        remoteHws.forEach((rh: any) => {
+          // Check for cross-device system sync payloads
+          if (rh.id === '__system_sync_question_targets__') {
+            try {
+              const remoteTargets: WeeklyQuestionTarget[] = JSON.parse(rh.description);
+              if (Array.isArray(remoteTargets) && remoteTargets.length > 0) {
+                let targetsChanged = false;
+                remoteTargets.forEach((rt) => {
+                  const exIdx = this.weeklyQuestionTargets.findIndex(
+                    (t) => t.id === rt.id || t.studentId === rt.studentId
+                  );
+                  if (exIdx === -1) {
+                    this.weeklyQuestionTargets.push(rt);
+                    targetsChanged = true;
+                  } else if (
+                    new Date(rt.assignedDate).getTime() >=
+                    new Date(this.weeklyQuestionTargets[exIdx].assignedDate).getTime()
+                  ) {
+                    this.weeklyQuestionTargets[exIdx] = rt;
+                    targetsChanged = true;
+                  }
+                });
+                if (targetsChanged) {
+                  saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+                  this.notify();
+                }
+              }
+            } catch (e) {}
+            return;
+          }
+
+          if (rh.id === '__system_sync_question_logs__') {
+            try {
+              const remoteLogs: StudentQuestionLog[] = JSON.parse(rh.description);
+              if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+                let logsChanged = false;
+                remoteLogs.forEach((rl) => {
+                  const exIdx = this.questionLogs.findIndex((l) => l.id === rl.id);
+                  if (exIdx === -1) {
+                    this.questionLogs.push(rl);
+                    logsChanged = true;
+                  }
+                });
+                if (logsChanged) {
+                  saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+                  this.notify();
+                }
+              }
+            } catch (e) {}
+            return;
+          }
+
+          if (this.deletedHomeworkIds.has(rh.id)) return;
+          const exIdx = this.homeworks.findIndex((h) => h.id === rh.id);
+          if (exIdx === -1) {
+            this.homeworks.push({
+              id: rh.id,
+              title: rh.title,
+              description: rh.description || '',
+              subject: rh.subject,
+              classId: rh.assigned_to || rh.class_id || 'class-default',
+              dueDate: rh.due_date,
+              assignedDate: rh.created_at || new Date().toISOString(),
+              teacherId: 'teacher-1',
+              teacherName: 'Öğretmen',
+              learningOutcomes: [],
+            });
+            hwsChanged = true;
+          }
+        });
+        if (hwsChanged) {
+          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+          this.notify();
+        }
+      }
+
+      // Upload local homeworks to Supabase
+      const realHws = this.homeworks.filter((h) => !this.deletedHomeworkIds.has(h.id));
+      if (realHws.length > 0) {
+        const hwPayload = realHws.map((h) => ({
+          id: h.id,
+          title: h.title,
+          description: h.description,
+          subject: h.subject,
+          assigned_to: h.classId || 'class-default',
+          due_date: h.dueDate,
+        }));
+        await supabase.from('homeworks').upsert(hwPayload);
+      }
+
+      // Upload targets & question logs sync payloads to Supabase for cross-device persistence
+      if (this.weeklyQuestionTargets.length > 0) {
+        await supabase.from('homeworks').upsert({
+          id: '__system_sync_question_targets__',
+          title: 'Question Targets Sync',
+          description: JSON.stringify(this.weeklyQuestionTargets),
+          subject: 'SystemSync',
+          assigned_to: '__SYSTEM__',
+          due_date: '2099-12-31',
+        });
+      }
+      if (this.questionLogs.length > 0) {
+        await supabase.from('homeworks').upsert({
+          id: '__system_sync_question_logs__',
+          title: 'Question Logs Sync',
+          description: JSON.stringify(this.questionLogs.slice(-250)),
+          subject: 'SystemSync',
+          assigned_to: '__SYSTEM__',
+          due_date: '2099-12-31',
+        });
+      }
+
+      // 6. Sync attendance with Supabase
+      const { data: remoteAtt, error: errAtt } = await supabase.from('attendance').select('*');
+      if (!errAtt && remoteAtt && remoteAtt.length > 0) {
+        let attChanged = false;
+        remoteAtt.forEach((ra: any) => {
+          const exIdx = this.attendance.findIndex((a) => a.id === ra.id);
+          if (exIdx === -1) {
+            this.attendance.push({
+              id: ra.id,
+              classId: ra.class_id,
+              date: ra.date,
+              subject: ra.subject || 'Genel',
+              records: Array.isArray(ra.records) ? ra.records : [],
+            });
+            attChanged = true;
+          }
+        });
+        if (attChanged) {
+          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+          this.notify();
+        }
+      }
+      if (this.attendance.length > 0) {
+        const attPayload = this.attendance.map((a) => ({
+          id: a.id,
+          class_id: a.classId,
+          date: a.date,
+          subject: a.subject || 'Genel',
+          records: a.records || [],
+        }));
+        await supabase.from('attendance').upsert(attPayload);
+      }
+
+      // 7. Sync grades with Supabase
+      const { data: remoteGrades, error: errGrd } = await supabase.from('grades').select('*');
+      if (!errGrd && remoteGrades && remoteGrades.length > 0) {
+        let grdChanged = false;
+        remoteGrades.forEach((rg: any) => {
+          const exIdx = this.grades.findIndex((g) => g.id === rg.id);
+          if (exIdx === -1) {
+            this.grades.push({
+              id: rg.id,
+              studentId: rg.student_id,
+              classId: rg.class_id,
+              subject: rg.subject,
+              score: rg.score,
+              examType: (rg.exam_type as any) || '1. Yazılı',
+              date: rg.date,
+            });
+            grdChanged = true;
+          }
+        });
+        if (grdChanged) {
+          saveData(STORAGE_KEYS.GRADES, this.grades);
+          this.notify();
+        }
+      }
+      if (this.grades.length > 0) {
+        const grdPayload = this.grades.map((g) => ({
+          id: g.id,
+          student_id: g.studentId,
+          class_id: g.classId || 'c-1',
+          subject: g.subject,
+          score: g.score,
+          exam_type: g.examType || 'Yazılı',
+          date: g.date,
+        }));
+        await supabase.from('grades').upsert(grdPayload);
+      }
     } catch (e) {
       // Offline fallback is active
     }
+  }
+
+  public async syncAllTeacherData(): Promise<void> {
+    await this.syncFromSupabase();
   }
 
   // --- AUTH & TEACHER MANAGEMENT ---
@@ -870,6 +1167,43 @@ export class DataService {
       createdAt: new Date().toISOString(),
       role: 'teacher',
       status: 'pending', // YENİ KAYITLAR YÖNETİCİ ONAYI BEKLER
+      isAdmin: false,
+      assignedClassIds: [],
+    };
+
+    this.teachers.unshift(newTeacher);
+    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    this.notify();
+    return newTeacher;
+  }
+
+  public addApprovedTeacher(data: { name: string; branch: string; email?: string; phone?: string }): Teacher {
+    const cleanName = data.name.trim();
+    const cleanUsername = cleanName
+      .toLowerCase()
+      .replace(/ğ/g, 'g')
+      .replace(/ü/g, 'u')
+      .replace(/ş/g, 's')
+      .replace(/ı/g, 'i')
+      .replace(/ö/g, 'o')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]/g, '.');
+
+    const cleanEmail =
+      data.email?.trim() || `${cleanUsername || 'ogretmen'}@okul.k12.tr`;
+
+    const newTeacher: Teacher = {
+      id: `teacher-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: cleanName,
+      username: cleanUsername,
+      password: '123',
+      email: cleanEmail,
+      branch: data.branch?.trim() || 'Genel Branş',
+      phone: data.phone?.trim() || '',
+      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
+      createdAt: new Date().toISOString(),
+      role: 'teacher',
+      status: 'approved',
       isAdmin: false,
       assignedClassIds: [],
     };
@@ -1091,7 +1425,9 @@ export class DataService {
     branch?: string;
     className?: string;
     savedPassword?: string;
+    deviceId?: string;
   } | null {
+    const currentDeviceId = getLocalDeviceId();
     let saved: {
       role: UserRole;
       identifier: string;
@@ -1100,6 +1436,7 @@ export class DataService {
       branch?: string;
       className?: string;
       savedPassword?: string;
+      deviceId?: string;
     } | null = null;
 
     if (role === 'teacher') {
@@ -1113,12 +1450,10 @@ export class DataService {
           branch?: string;
           className?: string;
           savedPassword?: string;
+          deviceId?: string;
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'teacher') saved = general;
       }
-      // ÖNEMLİ: Yeni açılan bilgisayar veya telefonda, o cihazda "Beni Hatırla" yapılmadıkça
-      // ASLA otomatik olarak Mustafa Bilir veya başka bir öğretmen varsayılan olarak dönmez!
-      // saved yoksa kesinlikle null kalır.
     } else if (role === 'student') {
       saved = loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
       if (!saved) {
@@ -1130,6 +1465,7 @@ export class DataService {
           branch?: string;
           className?: string;
           savedPassword?: string;
+          deviceId?: string;
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'student') saved = general;
       }
@@ -1141,6 +1477,25 @@ export class DataService {
     }
 
     if (!saved) return null;
+
+    // Cihaz Bağımlılığı Kontrolü:
+    // Eğer kaydedilen bilginin deviceId'si bu cihazın benzersiz ID'si ile eşleşmiyorsa
+    // veya daha önce eski sistemden kalma sahte/otomatik atanmış veri ise, KESİNLİKLE null dönülür.
+    // Böylece başka bilgisayar veya telefondan açıldığında Mustafa Bilir veya başka kullanıcı asla otomatik çıkmaz!
+    if (!saved.deviceId || saved.deviceId !== currentDeviceId) {
+      if (role === 'teacher') {
+        try { localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER); } catch {}
+      } else if (role === 'student') {
+        try { localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT); } catch {}
+      } else {
+        try {
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_TEACHER);
+          localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME_STUDENT);
+        } catch {}
+      }
+      return null;
+    }
 
     if (saved.role === 'teacher') {
       const liveTeacher = this.teachers.find(
@@ -1158,6 +1513,7 @@ export class DataService {
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
           savedPassword: saved.savedPassword,
+          deviceId: saved.deviceId,
         };
       }
       return null;
@@ -1178,6 +1534,7 @@ export class DataService {
           avatar: liveStudent.avatar,
           className: liveStudent.className,
           savedPassword: saved.savedPassword,
+          deviceId: saved.deviceId,
         };
       }
       return null;
@@ -1203,15 +1560,20 @@ export class DataService {
       branch?: string;
       className?: string;
       savedPassword?: string;
+      deviceId?: string;
     } | null,
     targetRole?: UserRole
   ): void {
     if (data) {
-      saveData(STORAGE_KEYS.REMEMBER_ME, data);
+      const payload = {
+        ...data,
+        deviceId: getLocalDeviceId(),
+      };
+      saveData(STORAGE_KEYS.REMEMBER_ME, payload);
       if (data.role === 'teacher') {
-        saveData(STORAGE_KEYS.REMEMBER_ME_TEACHER, data);
+        saveData(STORAGE_KEYS.REMEMBER_ME_TEACHER, payload);
       } else if (data.role === 'student') {
-        saveData(STORAGE_KEYS.REMEMBER_ME_STUDENT, data);
+        saveData(STORAGE_KEYS.REMEMBER_ME_STUDENT, payload);
       }
     } else {
       if (targetRole === 'teacher') {
@@ -1613,6 +1975,16 @@ export class DataService {
     // Otomatik Öğrenci Bildirimi ve E-Posta Gönderimi
     this.dispatchHomeworkNotificationsAndEmails(newHw);
 
+    // Cross-device Supabase push
+    supabase.from('homeworks').upsert({
+      id: newHw.id,
+      title: newHw.title,
+      description: newHw.description || '',
+      subject: newHw.subject,
+      assigned_to: newHw.classId || 'class-default',
+      due_date: newHw.dueDate,
+    }).then();
+
     this.notify();
     return newHw;
   }
@@ -1621,6 +1993,18 @@ export class DataService {
     this.homeworks = this.homeworks.map((h) => (h.id === id ? { ...h, ...updates } : h));
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
     this.notify();
+
+    const updated = this.homeworks.find((h) => h.id === id);
+    if (updated) {
+      supabase.from('homeworks').upsert({
+        id: updated.id,
+        title: updated.title,
+        description: updated.description || '',
+        subject: updated.subject,
+        assigned_to: updated.classId || 'class-default',
+        due_date: updated.dueDate,
+      }).then();
+    }
   }
 
   public deleteHomework(id: string): void {
@@ -1632,6 +2016,8 @@ export class DataService {
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
     this.notify();
+
+    supabase.from('homeworks').delete().eq('id', id).then();
   }
 
   // --- SUBMISSIONS ---
@@ -1735,8 +2121,10 @@ export class DataService {
       ...etutData,
       id: `etut-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      lessonPeriod: etutData.lessonPeriod || 'Ders',
       teacherId: etutData.teacherId || currentTeacher?.id,
       teacherName: etutData.teacherName || currentTeacher?.name || 'Öğretmen',
+      teacherBranch: etutData.teacherBranch || currentTeacher?.branch || etutData.subject,
     };
     this.etuts.unshift(newEtut);
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
@@ -1752,6 +2140,99 @@ export class DataService {
     this.etuts = this.etuts.map((e) => (e.id === id ? { ...e, ...updates } : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
     this.notify();
+
+    // Push to Supabase
+    const updated = this.etuts.find((e) => e.id === id);
+    if (updated) {
+      supabase.from('etuts').upsert({
+        id: updated.id,
+        subject: updated.subject,
+        topic: updated.topic,
+        date: updated.date,
+        time: updated.time,
+        location: updated.location || 'Derslik',
+        assigned_student_ids: Array.isArray(updated.assignedStudentIds) ? updated.assignedStudentIds : null,
+        notes: JSON.stringify({
+          __etut_meta__: true,
+          userNotes: updated.notes || '',
+          studentAttendance: updated.studentAttendance || {},
+          teacherId: updated.teacherId,
+          teacherName: updated.teacherName,
+          duration: updated.duration,
+          gradeLevel: updated.gradeLevel,
+          schoolLevel: updated.schoolLevel,
+        }),
+      }).then();
+    }
+  }
+
+  public updateEtutAttendance(
+    etutId: string,
+    attendanceData: Record<string, EtutStudentAttendance>
+  ): void {
+    const etutIndex = this.etuts.findIndex((e) => e.id === etutId);
+    if (etutIndex === -1) return;
+
+    const currentEtut = this.etuts[etutIndex];
+    const updatedEtut: Etut = {
+      ...currentEtut,
+      studentAttendance: {
+        ...(currentEtut.studentAttendance || {}),
+        ...attendanceData,
+      },
+    };
+
+    this.etuts[etutIndex] = updatedEtut;
+    saveData(STORAGE_KEYS.ETUTS, this.etuts);
+
+    // Genel devamsızlık kayıtlarına da etüt yoklamasını yansıt
+    const attendanceRecordsList = Object.entries(updatedEtut.studentAttendance || {}).map(
+      ([studentId, item]) => {
+        const std = this.students.find((s) => s.id === studentId);
+        return {
+          studentId,
+          studentName: std?.name || 'Öğrenci',
+          status: item.status,
+          note: item.note || `Etüt: ${updatedEtut.topic || updatedEtut.subject}`,
+        };
+      }
+    );
+
+    if (attendanceRecordsList.length > 0) {
+      const etutClassId =
+        this.students.find((s) => s.id === attendanceRecordsList[0]?.studentId)?.classId ||
+        'class-etut-general';
+
+      this.recordAttendance({
+        date: updatedEtut.date,
+        classId: etutClassId,
+        subject: `${updatedEtut.subject} (Etüt)`,
+        records: attendanceRecordsList,
+      });
+    }
+
+    this.notify();
+
+    // Supabase push
+    supabase.from('etuts').upsert({
+      id: updatedEtut.id,
+      subject: updatedEtut.subject,
+      topic: updatedEtut.topic,
+      date: updatedEtut.date,
+      time: updatedEtut.time,
+      location: updatedEtut.location || 'Derslik',
+      assigned_student_ids: Array.isArray(updatedEtut.assignedStudentIds) ? updatedEtut.assignedStudentIds : null,
+      notes: JSON.stringify({
+        __etut_meta__: true,
+        userNotes: updatedEtut.notes || '',
+        studentAttendance: updatedEtut.studentAttendance,
+        teacherId: updatedEtut.teacherId,
+        teacherName: updatedEtut.teacherName,
+        duration: updatedEtut.duration,
+        gradeLevel: updatedEtut.gradeLevel,
+        schoolLevel: updatedEtut.schoolLevel,
+      }),
+    }).then();
   }
 
   public deleteEtut(id: string): void {
@@ -1761,6 +2242,9 @@ export class DataService {
     this.etuts = this.etuts.filter((e) => e.id !== id);
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
     this.notify();
+
+    // Supabase delete
+    supabase.from('etuts').delete().eq('id', id).then();
   }
 
   // --- ATTENDANCE ---
@@ -1782,6 +2266,16 @@ export class DataService {
 
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
+
+    // Supabase push
+    supabase.from('attendance').upsert({
+      id: record.id,
+      class_id: record.classId,
+      date: record.date,
+      subject: record.subject || 'Genel',
+      records: record.records || [],
+    }).then();
+
     return record;
   }
 
@@ -1789,14 +2283,23 @@ export class DataService {
     this.attendance = this.attendance.filter((a) => a.id !== id);
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
+
+    supabase.from('attendance').delete().eq('id', id).then();
   }
 
   public deleteAttendanceForDate(date: string, classId: string, subject?: string): void {
+    const toDelete = this.attendance.filter(
+      (a) => a.date === date && a.classId === classId && (!subject || a.subject === subject)
+    );
     this.attendance = this.attendance.filter(
       (a) => !(a.date === date && a.classId === classId && (!subject || a.subject === subject))
     );
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
+
+    toDelete.forEach((a) => {
+      supabase.from('attendance').delete().eq('id', a.id).then();
+    });
   }
 
   public deleteAttendanceStudentRecord(attendanceId: string, studentId: string): void {
@@ -1811,6 +2314,17 @@ export class DataService {
     });
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
+
+    const updated = this.attendance.find((a) => a.id === attendanceId);
+    if (updated) {
+      supabase.from('attendance').upsert({
+        id: updated.id,
+        class_id: updated.classId,
+        date: updated.date,
+        subject: updated.subject || 'Genel',
+        records: updated.records || [],
+      }).then();
+    }
   }
 
   // --- GRADES ---
@@ -1824,6 +2338,17 @@ export class DataService {
     this.grades.unshift(newGrade);
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
+
+    supabase.from('grades').upsert({
+      id: newGrade.id,
+      student_id: newGrade.studentId,
+      class_id: newGrade.classId || 'c-1',
+      subject: newGrade.subject,
+      score: newGrade.score,
+      exam_type: newGrade.examType || 'Yazılı',
+      date: newGrade.date,
+    }).then();
+
     return newGrade;
   }
 
@@ -1831,12 +2356,27 @@ export class DataService {
     this.grades = this.grades.map((g) => (g.id === id ? { ...g, ...updates } : g));
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
+
+    const updated = this.grades.find((g) => g.id === id);
+    if (updated) {
+      supabase.from('grades').upsert({
+        id: updated.id,
+        student_id: updated.studentId,
+        class_id: updated.classId || 'c-1',
+        subject: updated.subject,
+        score: updated.score,
+        exam_type: updated.examType || 'Yazılı',
+        date: updated.date,
+      }).then();
+    }
   }
 
   public deleteGrade(id: string): void {
     this.grades = this.grades.filter((g) => g.id !== id);
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
+
+    supabase.from('grades').delete().eq('id', id).then();
   }
 
   // --- MESSAGES ---
@@ -2718,6 +3258,17 @@ export class DataService {
       this.questionLogs[existingIdx] = updated;
       saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
       this.notify();
+
+      // Cross-device Supabase push
+      supabase.from('homeworks').upsert({
+        id: '__system_sync_question_logs__',
+        title: 'Question Logs Sync',
+        description: JSON.stringify(this.questionLogs.slice(-250)),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      }).then();
+
       return updated;
     } else {
       const newLog: StudentQuestionLog = {
@@ -2738,6 +3289,17 @@ export class DataService {
       this.questionLogs.unshift(newLog);
       saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
       this.notify();
+
+      // Cross-device Supabase push
+      supabase.from('homeworks').upsert({
+        id: '__system_sync_question_logs__',
+        title: 'Question Logs Sync',
+        description: JSON.stringify(this.questionLogs.slice(-250)),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      }).then();
+
       return newLog;
     }
   }
@@ -2746,6 +3308,16 @@ export class DataService {
     this.questionLogs = this.questionLogs.filter((q) => q.id !== id);
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
     this.notify();
+
+    // Cross-device Supabase push
+    supabase.from('homeworks').upsert({
+      id: '__system_sync_question_logs__',
+      title: 'Question Logs Sync',
+      description: JSON.stringify(this.questionLogs.slice(-250)),
+      subject: 'SystemSync',
+      assigned_to: '__SYSTEM__',
+      due_date: '2099-12-31',
+    }).then();
   }
 
   public clearAutoSeededQuestionLogs(): void {
@@ -2772,6 +3344,173 @@ export class DataService {
 
   public seedInitialQuestionLogs(): void {
     // Soru sayıları otomatik yüklenmez; kullanıcıların ve öğrencilerin kendi girdiği gerçek kayıtlar tutulur.
+  }
+
+  // --- WEEKLY QUESTION TARGETS (ÖĞRENCİ HAFTALIK SORU HEDEFLERİ) ---
+  public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
+    return [...this.weeklyQuestionTargets];
+  }
+
+  public getWeeklyQuestionTarget(studentId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
+    if (weekStartDate) {
+      const match = this.weeklyQuestionTargets.find(
+        (t) => t.studentId === studentId && t.weekStartDate === weekStartDate
+      );
+      if (match) return match;
+    }
+    return this.weeklyQuestionTargets.find((t) => t.studentId === studentId) || null;
+  }
+
+  public setWeeklyQuestionTarget(target: WeeklyQuestionTarget): WeeklyQuestionTarget {
+    const existingIdx = this.weeklyQuestionTargets.findIndex((t) => {
+      if (t.studentId !== target.studentId) return false;
+      if (target.weekStartDate && t.weekStartDate) {
+        return t.weekStartDate === target.weekStartDate;
+      }
+      return true;
+    });
+    let savedTarget: WeeklyQuestionTarget;
+
+    const normalizedTarget: WeeklyQuestionTarget = {
+      ...target,
+      targetQuestions: target.targetQuestions || target.weeklyTarget || 350,
+      weeklyTarget: target.weeklyTarget || target.targetQuestions || 350,
+      dailyTarget: target.dailyTarget || Math.round((target.targetQuestions || target.weeklyTarget || 350) / 7),
+    };
+
+    if (existingIdx !== -1) {
+      savedTarget = {
+        ...this.weeklyQuestionTargets[existingIdx],
+        ...normalizedTarget,
+        assignedDate: target.assignedDate || new Date().toISOString(),
+      };
+      this.weeklyQuestionTargets[existingIdx] = savedTarget;
+    } else {
+      savedTarget = {
+        ...normalizedTarget,
+        id: target.id || `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        assignedDate: target.assignedDate || new Date().toISOString(),
+      };
+      this.weeklyQuestionTargets.unshift(savedTarget);
+    }
+
+    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+    this.notify();
+
+    // Cross-device Supabase push
+    supabase.from('homeworks').upsert({
+      id: '__system_sync_question_targets__',
+      title: 'Question Targets Sync',
+      description: JSON.stringify(this.weeklyQuestionTargets),
+      subject: 'SystemSync',
+      assigned_to: '__SYSTEM__',
+      due_date: '2099-12-31',
+    }).then();
+
+    return savedTarget;
+  }
+
+  public deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): void {
+    this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
+      if (weekStartDate) {
+        if (t.studentId === studentIdOrId && t.weekStartDate === weekStartDate) return false;
+      }
+      return t.id !== studentIdOrId && t.studentId !== studentIdOrId;
+    });
+    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+    this.notify();
+
+    // Cross-device Supabase push
+    supabase.from('homeworks').upsert({
+      id: '__system_sync_question_targets__',
+      title: 'Question Targets Sync',
+      description: JSON.stringify(this.weeklyQuestionTargets),
+      subject: 'SystemSync',
+      assigned_to: '__SYSTEM__',
+      due_date: '2099-12-31',
+    }).then();
+  }
+
+  // =========================================================================
+  // DERS BAZLI AÇILIR MENÜ (DROPDOWN) ETÜT ÖĞRETMENLERİ YÖNETİMİ
+  // =========================================================================
+  public getSubjectTeachersMap(): Record<string, string[]> {
+    const DEFAULT_MAP: Record<string, string[]> = {
+      'Fen Bilimleri': ['Mustafa Bilir', 'Gülderen Akgün', 'Gül Deniz', 'Tunahan Çetin'],
+      'Matematik': ['Kemal onarıcı', 'Cihan Baysal', 'Tuğçe Özsoy'],
+      'Türkçe': ['Elif Şahin', 'Zeynep Kaya'],
+      'Sosyal Bilgiler': ['Ahmet Yılmaz', 'Murat Demir'],
+      'T.C. İnkılap Tarihi': ['Ahmet Yılmaz'],
+      'İngilizce': ['John Miller', 'Sarah Jenkins'],
+      'Din Kültürü': ['Ali Demir'],
+      'Fizik': ['Mustafa Bilir', 'Tunahan Çetin'],
+      'Kimya': ['Gülderen Akgün'],
+      'Biyoloji': ['Gül Deniz'],
+      'Geometri': ['Kemal onarıcı', 'Cihan Baysal'],
+    };
+
+    try {
+      const stored = localStorage.getItem('etut_subject_teachers_map');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_MAP, ...parsed };
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return DEFAULT_MAP;
+  }
+
+  public getTeachersForSubject(subject: string): string[] {
+    const map = this.getSubjectTeachersMap();
+    if (map[subject] && map[subject].length > 0) {
+      return map[subject];
+    }
+    const cleanSub = (subject || '').trim().toLowerCase();
+    const foundKey = Object.keys(map).find(
+      (k) =>
+        k.toLowerCase() === cleanSub ||
+        cleanSub.includes(k.toLowerCase()) ||
+        k.toLowerCase().includes(cleanSub) ||
+        (cleanSub.includes('fen') && k.toLowerCase().includes('fen')) ||
+        (cleanSub.includes('mat') && k.toLowerCase().includes('mat'))
+    );
+    if (foundKey && map[foundKey]) {
+      return map[foundKey];
+    }
+    return [];
+  }
+
+  public addTeacherToSubject(subject: string, teacherName: string): Record<string, string[]> {
+    const cleanName = teacherName.trim();
+    if (!cleanName) return this.getSubjectTeachersMap();
+    const map = this.getSubjectTeachersMap();
+    const targetKey = subject.trim() || 'Genel';
+    const list = map[targetKey] ? [...map[targetKey]] : [];
+    if (!list.includes(cleanName)) {
+      list.push(cleanName);
+      map[targetKey] = list;
+      try {
+        localStorage.setItem('etut_subject_teachers_map', JSON.stringify(map));
+      } catch {}
+      this.notify();
+    }
+    return map;
+  }
+
+  public removeTeacherFromSubject(subject: string, teacherName: string): Record<string, string[]> {
+    const map = this.getSubjectTeachersMap();
+    const targetKey = subject.trim() || 'Genel';
+    if (map[targetKey]) {
+      map[targetKey] = map[targetKey].filter((t) => t !== teacherName);
+      try {
+        localStorage.setItem('etut_subject_teachers_map', JSON.stringify(map));
+      } catch {}
+      this.notify();
+    }
+    return map;
   }
 }
 

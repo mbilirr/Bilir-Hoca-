@@ -402,12 +402,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 )}
               </div>
             ) : isStudentSession && activeStudent ? (
-              <div className="flex flex-col text-left">
-                <span className="text-sm sm:text-base font-black text-white tracking-wide leading-tight">
-                  {activeStudent.name}
-                </span>
-                <span className="text-[11px] font-semibold text-pink-300 leading-tight">
-                  {activeStudent.className} • No: {activeStudent.studentNumber}
+              <div className="flex items-center text-left">
+                <span className="text-sm sm:text-base font-black text-white tracking-tight leading-tight flex items-center gap-1.5">
+                  <span className="text-slate-200">Hoş Geldin,</span>
+                  <span className="bg-gradient-to-r from-indigo-300 via-sky-300 to-cyan-300 bg-clip-text text-transparent font-black">
+                    {activeStudent.name}
+                  </span>
+                  <span className="hidden sm:inline">🚀</span>
                 </span>
               </div>
             ) : (

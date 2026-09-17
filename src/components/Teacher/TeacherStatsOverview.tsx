@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   CalendarClock,
@@ -15,6 +15,9 @@ import {
   BarChart3,
   Target,
   Award,
+  Plus,
+  Trash2,
+  Check,
 } from 'lucide-react';
 import { Student, ClassGroup, Homework, HomeworkSubmission, Etut, TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -136,6 +139,37 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
   const activeStudentsCount = new Set(
     questionLogs.filter((l) => l.date >= weekAgoStr && l.totalQuestions > 0).map((l) => l.studentId)
   ).size;
+
+  // Açılır Menü Öğretmen Yönetimi State
+  const [dropdownSubject, setDropdownSubject] = useState<string>('Fen Bilimleri');
+  const [newDropdownTeacher, setNewDropdownTeacher] = useState<string>('');
+  const [subjectTeachersMap, setSubjectTeachersMap] = useState<Record<string, string[]>>({});
+  const [actionSuccessMsg, setActionSuccessMsg] = useState<string>('');
+
+  const refreshTeachersMap = () => {
+    setSubjectTeachersMap(dataService.getSubjectTeachersMap());
+  };
+
+  useEffect(() => {
+    refreshTeachersMap();
+  }, []);
+
+  const handleAddTeacherToDropdown = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDropdownTeacher.trim()) return;
+    dataService.addTeacherToSubject(dropdownSubject, newDropdownTeacher.trim());
+    setNewDropdownTeacher('');
+    refreshTeachersMap();
+    setActionSuccessMsg(`"${newDropdownTeacher.trim()}" eklendi`);
+    setTimeout(() => setActionSuccessMsg(''), 2000);
+  };
+
+  const handleRemoveTeacherFromDropdown = (teacherName: string) => {
+    dataService.removeTeacherFromSubject(dropdownSubject, teacherName);
+    refreshTeachersMap();
+  };
+
+  const currentSubjectTeachers = subjectTeachersMap[dropdownSubject] || dataService.getTeachersForSubject(dropdownSubject);
 
   return (
     <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
@@ -409,6 +443,131 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
           <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
             <span>Looker Studio Analitiğini Aç</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-[#1e3a8a]" />
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* ANA SAYFA AÇILIR BUTON ÖĞRETMEN YÖNETİMİ BÖLÜMÜ                           */}
+      {/* Ders bazlı etüt açılır butonuna öğretmen atama ve silme bölümü          */}
+      {/* ========================================================================= */}
+      <div className="bg-[#f8fafc] border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-[#0f172a] flex items-center gap-2">
+                <span>Etüt Açılır Buton Öğretmen Yönetimi</span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                  Ders Bazlı
+                </span>
+              </h4>
+              <p className="text-xs text-slate-500">
+                Etüt oluştururken ders seçildiğinde açılır butonda görüntülenecek öğretmenleri atayın ve silin
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateTab('etuts')}
+            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto shadow-xs"
+          >
+            <span>Etüt Oluşturmaya Git</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-indigo-600" />
+          </button>
+        </div>
+
+        {/* Ders Seçici Butonları */}
+        <div className="mt-3.5 flex flex-wrap gap-1.5 items-center">
+          {['Fen Bilimleri', 'Matematik', 'Türkçe', 'Sosyal Bilgiler', 'İngilizce', 'Din Kültürü', 'Fizik', 'Kimya', 'Biyoloji'].map((subj) => {
+            const count = (subjectTeachersMap[subj] || dataService.getTeachersForSubject(subj)).length;
+            const isSelected = dropdownSubject === subj;
+            return (
+              <button
+                key={subj}
+                type="button"
+                onClick={() => setDropdownSubject(subj)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <span>{subj}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${
+                    isSelected ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Seçili Dersin Öğretmenleri ve Yeni Öğretmen Ekleme */}
+        <div className="mt-3.5 bg-white border border-slate-200 rounded-xl p-3.5 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <span>{dropdownSubject} Dersi Açılır Buton Öğretmenleri:</span>
+              <span className="text-[11px] text-slate-400 font-medium">
+                (İlk seçenek daima sabit &quot;Öğretmen&quot;dir)
+              </span>
+            </span>
+
+            {/* Yeni Öğretmen Ekleme Formu */}
+            <form onSubmit={handleAddTeacherToDropdown} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newDropdownTeacher}
+                onChange={(e) => setNewDropdownTeacher(e.target.value)}
+                placeholder={`Yeni ${dropdownSubject} Öğretmeni...`}
+                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 w-52 sm:w-60"
+              />
+              <button
+                type="submit"
+                disabled={!newDropdownTeacher.trim()}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Ata</span>
+              </button>
+            </form>
+          </div>
+
+          {actionSuccessMsg && (
+            <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+              <Check className="w-3.5 h-3.5" />
+              <span>{actionSuccessMsg}</span>
+            </p>
+          )}
+
+          {/* Öğretmen Rozetleri */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <div className="px-2.5 py-1 rounded-lg bg-slate-100 border border-dashed border-slate-300 text-slate-500 text-xs font-semibold italic flex items-center gap-1">
+              <span>1. &quot;Öğretmen&quot; (Varsayılan)</span>
+            </div>
+
+            {currentSubjectTeachers.map((teacherName, idx) => (
+              <div
+                key={`${teacherName}-${idx}`}
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold flex items-center gap-2 hover:bg-indigo-100/80 transition-colors"
+              >
+                <span>{teacherName}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveTeacherFromDropdown(teacherName)}
+                  className="text-slate-400 hover:text-rose-600 cursor-pointer p-0.5 rounded transition-colors"
+                  title={`${teacherName} öğretmenini bu dersten sil`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </div>

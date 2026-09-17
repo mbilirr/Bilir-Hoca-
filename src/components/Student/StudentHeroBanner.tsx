@@ -15,8 +15,12 @@ import {
   UserCheck,
   Award,
   HelpCircle,
+  Target,
+  AlertCircle,
+  Calendar,
 } from 'lucide-react';
-import { Student, Etut, Homework } from '../../types';
+import { Student, Etut, Homework, HomeworkSubmission } from '../../types';
+import { dataService } from '../../services/dataService';
 
 export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
 
@@ -24,6 +28,7 @@ interface StudentHeroBannerProps {
   student: Student;
   etuts: Etut[];
   homeworks: Homework[];
+  submissions?: HomeworkSubmission[];
   onNavigateTab: (tab: StudentTabType) => void;
   onOpenAvatarModal: () => void;
   onOpenProfileModal?: () => void;
@@ -51,6 +56,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
   student,
   etuts,
   homeworks,
+  submissions,
   onNavigateTab,
   onOpenAvatarModal,
   onOpenProfileModal,
@@ -186,132 +192,224 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
     return `${parseInt(d, 10)} ${monthName} ${y}${isSelToday ? ' (Bugün)' : ''}`;
   };
 
+  // Yaklaşan Ödevler ve Görevler Hesabı
+  const activeSubmissions = useMemo(() => {
+    return submissions || dataService.getSubmissions() || [];
+  }, [submissions]);
+
+  const completedHwIds = useMemo(() => {
+    const studentSubs = activeSubmissions.filter((s) => s.studentId === student.id);
+    return new Set(studentSubs.map((s) => s.homeworkId));
+  }, [activeSubmissions, student.id]);
+
+  const urgentHomeworks = useMemo(() => {
+    return homeworks
+      .filter((hw) => !completedHwIds.has(hw.id) && hw.dueDate)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+      .slice(0, 4);
+  }, [homeworks, completedHwIds]);
+
+  const todayEtuts = useMemo(() => {
+    return etuts.filter((e) => e.date === todayStr);
+  }, [etuts, todayStr]);
+
+  const formatDueDateLabel = (dueDateStr?: string) => {
+    if (!dueDateStr) return '';
+    const day = dueDateStr.slice(0, 10);
+    const time = dueDateStr.includes('T') ? dueDateStr.slice(11, 16) : '';
+    if (day === todayStr) {
+      return `⏰ Bugün${time ? ` ${time}` : ''}`;
+    }
+    const [y, m, d] = day.split('-');
+    return `${d}.${m}.${y}${time ? ` ${time}` : ''}`;
+  };
+
   const studentAvatarUrl =
     student.avatar ||
     `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 lg:p-7 shadow-2xl relative overflow-hidden">
+    <div id="student-agenda-wall" className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
       {/* Background Ambience Glow */}
-      <div className="absolute top-0 -left-20 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start relative z-10">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch relative z-10">
         {/* =========================================================================
-            LEFT COLUMN: STUDENT HERO CARD & MOTIVATION
+            LEFT COLUMN: YAKLAŞAN ÖDEVLER VE GÖREVLER DUVARI
            ========================================================================= */}
-        <div className="lg:col-span-6 flex flex-col justify-between h-full space-y-5">
-          {/* Top Badge & School Level */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-bold tracking-wide shadow-sm">
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Öğrenci Akademik Portalı</span>
-            </span>
+        <div className="lg:col-span-6 bg-slate-950/70 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                  <Target className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                    <span>Yaklaşan Ödevler ve Görevler</span>
+                    {urgentHomeworks.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-slate-950">
+                        {urgentHomeworks.length}
+                      </span>
+                    )}
+                  </h3>
+                </div>
+              </div>
 
-            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold">
-              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{student.className || '8. Sınıf'}</span>
-            </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('homework')}
+                  className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors cursor-pointer"
+                >
+                  Tümü ({homeworks.length}) →
+                </button>
 
-            {student.studentNumber && (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/70 text-slate-400 text-xs font-mono">
-                No: #{student.studentNumber}
-              </span>
+                {/* Profil Resmi & Değiştirme Kısayolu */}
+                <button
+                  type="button"
+                  onClick={onOpenAvatarModal}
+                  className="relative group p-0.5 rounded-full ring-2 ring-indigo-500/40 hover:ring-indigo-400 transition-all cursor-pointer"
+                  title="Profil Resmini Değiştir"
+                >
+                  <img
+                    src={studentAvatarUrl}
+                    alt={student.name}
+                    className="w-7 h-7 rounded-full object-cover bg-slate-900"
+                  />
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-indigo-600 rounded-full flex items-center justify-center border border-slate-900">
+                    <Camera className="w-1.5 h-1.5 text-white" />
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Content List */}
+            {urgentHomeworks.length > 0 ? (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                {urgentHomeworks.map((hw) => {
+                  const isDueToday = hw.dueDate && hw.dueDate.slice(0, 10) === todayStr;
+                  return (
+                    <div
+                      key={hw.id}
+                      onClick={() => onNavigateTab('homework')}
+                      className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-900 transition-all flex items-center justify-between gap-2.5 cursor-pointer group"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          isDueToday ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-slate-800 text-indigo-400'
+                        }`}>
+                          <BookOpen className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-orange-300 transition-colors truncate">
+                            {hw.title}
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                              {hw.subject}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                              isDueToday
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                                : 'bg-slate-800/80 text-slate-400'
+                            }`}>
+                              {formatDueDateLabel(hw.dueDate)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-xs"
+                      >
+                        Ödevi Aç
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="py-8 text-center bg-slate-900/50 rounded-xl border border-slate-800/80 space-y-1.5">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                <p className="text-xs sm:text-sm font-bold text-white">Harika! Bekleyen acil ödeviniz bulunmuyor.</p>
+                <p className="text-[11px] text-slate-400">Tüm görevlerinizi zamanında tamamladınız.</p>
+              </div>
             )}
           </div>
 
-          {/* Student Profile Block with Live Avatar Changer (Tam Kare Şekilde) */}
-          <div className="flex items-start sm:items-center space-x-4">
-            <div className="relative group shrink-0">
-              <div
-                onClick={onOpenAvatarModal}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-cyan-500 p-0.5 ring-4 ring-indigo-500/30 shadow-xl overflow-hidden cursor-pointer transition-all duration-300 group-hover:scale-105 group-hover:ring-indigo-400"
-                title="Profil Resmini Değiştir / Bilgisayardan Fotoğraf Yükle"
-              >
-                <img
-                  src={studentAvatarUrl}
-                  alt={student.name}
-                  className="w-full h-full object-cover rounded-xl bg-slate-900"
-                />
+          {/* Bugün Varsa Etüt veya Günün İlhamı */}
+          {todayEtuts.length > 0 ? (
+            <div
+              onClick={() => onNavigateTab('etuts')}
+              className="mt-3 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-200 cursor-pointer hover:bg-cyan-950/60 transition-colors"
+            >
+              <div className="flex items-center space-x-2 truncate">
+                <Clock className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span className="font-bold">Bugün {todayEtuts.length} Etüdünüz Var:</span>
+                <span className="truncate">{todayEtuts[0].subject} ({todayEtuts[0].time})</span>
               </div>
-
-              <button
-                type="button"
-                onClick={onOpenAvatarModal}
-                className="absolute -bottom-1 -right-1 p-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg border-2 border-slate-900 transition-transform active:scale-95 group-hover:scale-110 cursor-pointer"
-                title="Profil Resmi Değiştir veya Emoji Seç"
-              >
-                <Camera className="w-3.5 h-3.5" />
-              </button>
+              <span className="text-[11px] font-bold text-cyan-300 shrink-0 ml-2">Etüte Git →</span>
             </div>
-
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-                Hoş Geldin, <span className="bg-gradient-to-r from-indigo-300 to-cyan-300 bg-clip-text text-transparent">{student.name}</span>! 🚀
-              </h1>
-            </div>
-          </div>
-
-          {/* Inspirational Quote of the Day */}
-          <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 sm:p-4 flex items-start space-x-3 text-slate-300 shadow-inner">
-            <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <p className="text-xs sm:text-sm italic font-serif text-slate-200">
+          ) : (
+            <div className="mt-3 bg-slate-900/60 border border-slate-800/70 rounded-xl p-2.5 flex items-center space-x-2.5 text-slate-300 text-xs">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="italic text-[11px] text-slate-300 truncate">
                 &ldquo;Başarı, her gün bıkmadan usanmadan tekrarlanan küçük adımların toplamıdır.&rdquo;
-              </p>
-              <span className="text-[11px] text-slate-400 font-semibold block">
-                — Günün İlham Verici Tavsiyesi
               </span>
             </div>
-          </div>
+          )}
         </div>
 
         {/* =========================================================================
-            RIGHT COLUMN: INTERACTIVE MONTHLY CALENDAR / AJANDA
+            RIGHT COLUMN: KOMPAKT AYLIK TAKVİM / AJANDA DUVARI
            ========================================================================= */}
-        <div className="lg:col-span-6 bg-slate-950/70 border border-slate-800 rounded-3xl p-4 sm:p-5 flex flex-col justify-between shadow-xl">
+        <div className="lg:col-span-6 bg-slate-950/70 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
           {/* Calendar Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800/80">
             <div className="flex items-center space-x-2">
-              <CalendarDays className="w-5 h-5 text-indigo-400" />
+              <CalendarDays className="w-4 h-4 text-indigo-400" />
               <h3 className="text-sm sm:text-base font-black text-white">
                 {TURKISH_MONTHS[viewMonth]} {viewYear}
               </h3>
             </div>
 
-            <div className="flex items-center space-x-1.5">
+            <div className="flex items-center space-x-1">
               <button
                 type="button"
                 onClick={handleGoToToday}
-                className="px-2.5 py-1 text-[11px] font-bold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-xl transition-colors cursor-pointer"
+                className="px-2 py-0.5 text-[11px] font-bold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-lg transition-colors cursor-pointer"
               >
                 Bugün
               </button>
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                 title="Önceki Ay"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                 title="Sonraki Ay"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
           {/* Weekday Labels */}
-          <div className="grid grid-cols-7 gap-1 text-center py-2 border-b border-slate-800/50">
+          <div className="grid grid-cols-7 gap-1 text-center py-1.5 border-b border-slate-800/50">
             {WEEKDAY_NAMES.map((w, idx) => (
               <span
                 key={w}
-                className={`text-[11px] font-bold ${
+                className={`text-[10px] font-bold ${
                   idx >= 5 ? 'text-amber-400/80' : 'text-slate-400'
                 }`}
               >
@@ -321,7 +419,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           {/* Calendar Days Grid */}
-          <div className="grid grid-cols-7 gap-1 pt-2">
+          <div className="grid grid-cols-7 gap-1 pt-1.5">
             {calendarCells.map((cell, idx) => {
               const isSelected = cell.dateStr === selectedDateStr;
               const hasHw = cell.homeworkList.length > 0;
@@ -332,7 +430,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   key={`${cell.dateStr}-${idx}`}
                   type="button"
                   onClick={() => setSelectedDateStr(cell.dateStr)}
-                  className={`relative flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  className={`relative flex flex-col items-center justify-center py-1 px-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     !cell.isCurrentMonth
                       ? 'text-slate-600 opacity-40 hover:opacity-80'
                       : cell.isToday
@@ -340,11 +438,11 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                       : 'text-slate-200 hover:bg-slate-800/80'
                   } ${
                     isSelected
-                      ? 'bg-indigo-600 text-white ring-2 ring-indigo-400 shadow-md scale-105 z-10'
+                      ? 'bg-indigo-600 text-white ring-1.5 ring-indigo-400 shadow-md scale-105 z-10'
                       : ''
                   }`}
                 >
-                  <span>{cell.dayNumber}</span>
+                  <span className="text-[11px] leading-tight">{cell.dayNumber}</span>
 
                   {/* Indicator Badges */}
                   {(hasHw || hasEtut) && (
@@ -368,49 +466,49 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             })}
           </div>
 
-          {/* Legend / Info Bar */}
-          <div className="flex items-center justify-between pt-3 text-[11px] text-slate-400 border-t border-slate-800/70 mt-2">
+          {/* Legend */}
+          <div className="flex items-center justify-between pt-2 text-[10px] text-slate-400 border-t border-slate-800/70 mt-1.5">
             <div className="flex items-center space-x-3">
-              <span className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                <span>Ödev Teslimi</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span>Ödev</span>
               </span>
-              <span className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                <span>Etüt Programı</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span>Etüt</span>
               </span>
             </div>
-            <span className="text-[10px] text-slate-500">Güne tıklayarak detay görün</span>
+            <span className="text-[10px] text-slate-500">Güne tıkla</span>
           </div>
 
           {/* Selected Date Program Drawer */}
-          <div className="mt-3 pt-3 border-t border-slate-800 bg-slate-900/60 rounded-2xl p-3 space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-white">
+          <div className="mt-2 pt-2 border-t border-slate-800 bg-slate-900/60 rounded-xl p-2.5 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-white">
               <span className="flex items-center space-x-1.5">
-                <Bookmark className="w-3.5 h-3.5 text-indigo-400" />
+                <Bookmark className="w-3 h-3 text-indigo-400" />
                 <span>{formatSelectedDateTurkish(selectedDateStr)}</span>
               </span>
-              <span className="text-[11px] text-slate-400 font-normal">
+              <span className="text-[10px] text-slate-400 font-normal">
                 {selectedDetails.homeworks.length} Ödev • {selectedDetails.etuts.length} Etüt
               </span>
             </div>
 
             {selectedDetails.hasEvents ? (
-              <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                 {selectedDetails.homeworks.map((hw) => (
                   <div
                     key={hw.id}
                     onClick={() => onNavigateTab('homework')}
-                    className="p-2 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-center justify-between text-xs text-amber-200 cursor-pointer hover:bg-amber-950/50 transition-colors"
+                    className="p-1.5 rounded-lg bg-amber-950/30 border border-amber-500/30 flex items-center justify-between text-[11px] text-amber-200 cursor-pointer hover:bg-amber-950/50 transition-colors"
                   >
-                    <div className="flex items-center space-x-2 truncate">
-                      <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <BookOpen className="w-3 h-3 text-amber-400 shrink-0" />
                       <span className="truncate font-medium">{hw.title}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 shrink-0">
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 shrink-0">
                         {hw.subject}
                       </span>
                     </div>
-                    <span className="text-[10px] text-amber-300 font-bold shrink-0 ml-2">Ödevi Aç →</span>
+                    <span className="text-[9px] text-amber-300 font-bold shrink-0 ml-1.5">Ödevi Aç →</span>
                   </div>
                 ))}
 
@@ -418,22 +516,22 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={et.id}
                     onClick={() => onNavigateTab('etuts')}
-                    className="p-2 rounded-xl bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-200 cursor-pointer hover:bg-cyan-950/50 transition-colors"
+                    className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-[11px] text-cyan-200 cursor-pointer hover:bg-cyan-950/50 transition-colors"
                   >
-                    <div className="flex items-center space-x-2 truncate">
-                      <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      <span className="truncate font-medium">{et.subject} ({et.topic})</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 shrink-0">
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <Clock className="w-3 h-3 text-cyan-400 shrink-0" />
+                      <span className="truncate font-medium">{et.subject}</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 shrink-0">
                         {et.time}
                       </span>
                     </div>
-                    <span className="text-[10px] text-cyan-300 font-bold shrink-0 ml-2">Etüte Git →</span>
+                    <span className="text-[9px] text-cyan-300 font-bold shrink-0 ml-1.5">Etüte Git →</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-slate-500 italic py-1 text-center">
-                Bu tarihte planlanmış ödev teslimi veya etüt bulunmuyor.
+              <p className="text-[10px] text-slate-500 italic py-0.5 text-center">
+                Bu tarihte planlanmış ödev veya etüt bulunmuyor.
               </p>
             )}
           </div>

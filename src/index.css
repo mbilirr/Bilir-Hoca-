@@ -22,69 +22,69 @@
 /* ========================================================================= */
 @keyframes studentGlowAmber {
   0%, 100% {
-    box-shadow: 0 0 10px 2px rgba(251, 191, 36, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 12px 3px rgba(245, 158, 11, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.4);
     filter: brightness(1);
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   50% {
-    box-shadow: 0 0 32px 10px rgba(245, 158, 11, 0.95), 0 0 55px 18px rgba(251, 191, 36, 0.65), 0 0 0 3px rgba(254, 243, 199, 0.9);
-    filter: brightness(1.22);
-    transform: translateY(-1px);
+    box-shadow: 0 0 35px 12px rgba(245, 158, 11, 0.95), 0 0 65px 22px rgba(251, 191, 36, 0.75), 0 0 0 4px rgba(254, 243, 199, 0.95);
+    filter: brightness(1.25);
+    transform: translateY(-2px) scale(1.02);
   }
 }
 
 @keyframes studentGlowBlue {
   0%, 100% {
-    box-shadow: 0 0 10px 2px rgba(96, 165, 250, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 12px 3px rgba(59, 130, 246, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.4);
     filter: brightness(1);
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   50% {
-    box-shadow: 0 0 32px 10px rgba(59, 130, 246, 0.95), 0 0 55px 18px rgba(96, 165, 250, 0.65), 0 0 0 3px rgba(219, 234, 254, 0.9);
-    filter: brightness(1.22);
-    transform: translateY(-1px);
+    box-shadow: 0 0 35px 12px rgba(37, 99, 235, 0.95), 0 0 65px 22px rgba(96, 165, 250, 0.75), 0 0 0 4px rgba(219, 234, 254, 0.95);
+    filter: brightness(1.25);
+    transform: translateY(-2px) scale(1.02);
   }
 }
 
 @keyframes studentGlowEmerald {
   0%, 100% {
-    box-shadow: 0 0 10px 2px rgba(52, 211, 153, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 12px 3px rgba(16, 185, 129, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.4);
     filter: brightness(1);
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   50% {
-    box-shadow: 0 0 32px 10px rgba(16, 185, 129, 0.95), 0 0 55px 18px rgba(52, 211, 153, 0.65), 0 0 0 3px rgba(209, 250, 229, 0.9);
-    filter: brightness(1.22);
-    transform: translateY(-1px);
+    box-shadow: 0 0 35px 12px rgba(16, 185, 129, 0.95), 0 0 65px 22px rgba(52, 211, 153, 0.75), 0 0 0 4px rgba(209, 250, 229, 0.95);
+    filter: brightness(1.25);
+    transform: translateY(-2px) scale(1.02);
   }
 }
 
 @keyframes studentGlowPurple {
   0%, 100% {
-    box-shadow: 0 0 10px 2px rgba(192, 132, 252, 0.45), 0 0 0 2px rgba(255, 255, 255, 0.35);
+    box-shadow: 0 0 12px 3px rgba(168, 85, 247, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.4);
     filter: brightness(1);
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   50% {
-    box-shadow: 0 0 32px 10px rgba(168, 85, 247, 0.95), 0 0 55px 18px rgba(192, 132, 252, 0.65), 0 0 0 3px rgba(243, 232, 255, 0.9);
-    filter: brightness(1.22);
-    transform: translateY(-1px);
+    box-shadow: 0 0 35px 12px rgba(147, 51, 234, 0.95), 0 0 65px 22px rgba(192, 132, 252, 0.75), 0 0 0 4px rgba(243, 232, 255, 0.95);
+    filter: brightness(1.25);
+    transform: translateY(-2px) scale(1.02);
   }
 }
 
 .hover-glow-amber:hover {
-  animation: studentGlowAmber 0.95s ease-in-out infinite !important;
+  animation: studentGlowAmber 0.85s ease-in-out infinite !important;
 }
 
 .hover-glow-blue:hover {
-  animation: studentGlowBlue 0.95s ease-in-out infinite !important;
+  animation: studentGlowBlue 0.85s ease-in-out infinite !important;
 }
 
 .hover-glow-emerald:hover {
-  animation: studentGlowEmerald 0.95s ease-in-out infinite !important;
+  animation: studentGlowEmerald 0.85s ease-in-out infinite !important;
 }
 
 .hover-glow-purple:hover {
-  animation: studentGlowPurple 0.95s ease-in-out infinite !important;
+  animation: studentGlowPurple 0.85s ease-in-out infinite !important;
 }
 
