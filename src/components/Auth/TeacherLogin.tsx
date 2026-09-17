@@ -17,7 +17,8 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
 }) => {
   const rememberedUser = dataService.getRememberedUser('teacher');
   const [username, setUsername] = useState(rememberedUser?.identifier || '');
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(rememberedUser?.savedPassword || '');
+  const [rememberMe, setRememberMe] = useState(Boolean(rememberedUser));
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,6 +34,18 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
       try {
         const teacher = dataService.authenticateTeacher(username.trim(), password);
         if (teacher) {
+          if (rememberMe) {
+            dataService.setRememberedUser({
+              role: 'teacher',
+              identifier: teacher.username,
+              name: teacher.name,
+              avatar: teacher.avatar,
+              branch: teacher.branch,
+              savedPassword: password,
+            });
+          } else {
+            dataService.setRememberedUser(null, 'teacher');
+          }
           dataService.setAuthSession({
             role: 'teacher',
             user: teacher,
@@ -125,6 +138,19 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
               className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
             />
           </div>
+        </div>
+
+        {/* Beni Hatırla Checkbox */}
+        <div className="flex items-center justify-between py-1">
+          <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+            />
+            <span className="text-xs text-slate-300 font-medium">Bu cihazda beni hatırla</span>
+          </label>
         </div>
 
         <button

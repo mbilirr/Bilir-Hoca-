@@ -1090,6 +1090,7 @@ export class DataService {
     avatar?: string;
     branch?: string;
     className?: string;
+    savedPassword?: string;
   } | null {
     let saved: {
       role: UserRole;
@@ -1098,31 +1099,38 @@ export class DataService {
       avatar?: string;
       branch?: string;
       className?: string;
+      savedPassword?: string;
     } | null = null;
 
     if (role === 'teacher') {
       saved = loadData(STORAGE_KEYS.REMEMBER_ME_TEACHER, null);
       if (!saved) {
-        const general = loadData<{ role: UserRole; identifier: string; name: string; avatar?: string; branch?: string; className?: string } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+        const general = loadData<{
+          role: UserRole;
+          identifier: string;
+          name: string;
+          avatar?: string;
+          branch?: string;
+          className?: string;
+          savedPassword?: string;
+        } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'teacher') saved = general;
       }
-      // Öğretmen için kayıtlı kullanıcı yoksa varsayılan onaylı öğretmeni getir (asla öğrenci dönmez)
-      if (!saved) {
-        const defaultTeacher = this.teachers.find((t) => t.status === 'approved') || this.teachers[0];
-        if (defaultTeacher) {
-          saved = {
-            role: 'teacher',
-            identifier: defaultTeacher.username,
-            name: defaultTeacher.name,
-            avatar: defaultTeacher.avatar,
-            branch: defaultTeacher.branch,
-          };
-        }
-      }
+      // ÖNEMLİ: Yeni açılan bilgisayar veya telefonda, o cihazda "Beni Hatırla" yapılmadıkça
+      // ASLA otomatik olarak Mustafa Bilir veya başka bir öğretmen varsayılan olarak dönmez!
+      // saved yoksa kesinlikle null kalır.
     } else if (role === 'student') {
       saved = loadData(STORAGE_KEYS.REMEMBER_ME_STUDENT, null);
       if (!saved) {
-        const general = loadData<{ role: UserRole; identifier: string; name: string; avatar?: string; branch?: string; className?: string } | null>(STORAGE_KEYS.REMEMBER_ME, null);
+        const general = loadData<{
+          role: UserRole;
+          identifier: string;
+          name: string;
+          avatar?: string;
+          branch?: string;
+          className?: string;
+          savedPassword?: string;
+        } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'student') saved = general;
       }
     } else {
@@ -1149,6 +1157,7 @@ export class DataService {
           name: liveTeacher.name,
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
+          savedPassword: saved.savedPassword,
         };
       }
       return null;
@@ -1168,6 +1177,7 @@ export class DataService {
           name: liveStudent.name,
           avatar: liveStudent.avatar,
           className: liveStudent.className,
+          savedPassword: saved.savedPassword,
         };
       }
       return null;
@@ -1192,6 +1202,7 @@ export class DataService {
       avatar?: string;
       branch?: string;
       className?: string;
+      savedPassword?: string;
     } | null,
     targetRole?: UserRole
   ): void {

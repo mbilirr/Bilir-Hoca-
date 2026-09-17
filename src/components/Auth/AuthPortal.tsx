@@ -62,15 +62,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
 
   // Remember Me & Easy Login (Role-specific separation)
-  const [rememberMe, setRememberMe] = useState(true);
   const [rememberedTeacher, setRememberedTeacher] = useState(() => dataService.getRememberedUser('teacher'));
   const [rememberedStudent, setRememberedStudent] = useState(() => dataService.getRememberedUser('student'));
+  const [rememberMe, setRememberMe] = useState(() => Boolean(dataService.getRememberedUser('teacher')));
 
   // Listen to dataService updates so remembered users & teachers stay synchronized
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
-      setRememberedTeacher(dataService.getRememberedUser('teacher'));
-      setRememberedStudent(dataService.getRememberedUser('student'));
+      const curTeacher = dataService.getRememberedUser('teacher');
+      const curStudent = dataService.getRememberedUser('student');
+      setRememberedTeacher(curTeacher);
+      setRememberedStudent(curStudent);
     });
     return () => unsub();
   }, []);
@@ -86,7 +88,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     const rem = dataService.getRememberedUser('teacher');
     return rem?.identifier || '';
   });
-  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPassword, setLoginPassword] = useState(() => {
+    const rem = dataService.getRememberedUser('teacher');
+    return rem?.savedPassword || '';
+  });
 
   // --- TEACHER REGISTER STATE ---
   const [tRegName, setTRegName] = useState('');
@@ -118,10 +123,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     const rem = dataService.getRememberedUser(role);
     if (rem) {
       setLoginUsername(rem.identifier);
+      setLoginPassword(rem.savedPassword || '');
+      setRememberMe(true);
     } else {
       setLoginUsername('');
+      setLoginPassword('');
+      setRememberMe(false);
     }
-    setLoginPassword('');
   };
 
   // --- QUICK LOGIN FOR REMEMBERED USER (Strictly Role-Checked) ---
@@ -202,6 +210,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       setRememberedStudent(null);
     }
     setLoginUsername('');
+    setLoginPassword('');
+    setRememberMe(false);
   };
 
   // --- SUBMIT LOGIN ---
@@ -234,6 +244,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 name: teacher.name,
                 avatar: teacher.avatar,
                 branch: teacher.branch,
+                savedPassword: cleanPass,
               });
               setRememberedTeacher(dataService.getRememberedUser('teacher'));
             } else {
@@ -262,6 +273,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               name: student.name,
               avatar: student.avatar,
               className: student.className,
+              savedPassword: cleanPass,
             });
             setRememberedStudent(dataService.getRememberedUser('student'));
           } else {

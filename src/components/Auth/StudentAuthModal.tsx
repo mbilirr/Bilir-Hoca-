@@ -87,8 +87,10 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
   };
 
   // Login Form state
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
+  const rememberedStudent = dataService.getRememberedUser('student');
+  const [loginIdentifier, setLoginIdentifier] = useState(rememberedStudent?.identifier || '');
+  const [loginPassword, setLoginPassword] = useState(rememberedStudent?.savedPassword || '');
+  const [rememberMe, setRememberMe] = useState(Boolean(rememberedStudent));
 
   const [error, setError] = useState<string | null>(null);
 
@@ -209,6 +211,18 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       if (student.password && student.password !== loginPassword) {
         setError('Şifre hatalı! Lütfen kontrol ediniz.');
         return;
+      }
+      if (rememberMe) {
+        dataService.setRememberedUser({
+          role: 'student',
+          identifier: student.username,
+          name: student.name,
+          avatar: student.avatar,
+          className: student.className,
+          savedPassword: loginPassword,
+        });
+      } else {
+        dataService.setRememberedUser(null, 'student');
       }
       handleAuthCompleted(student);
     } else {
@@ -574,6 +588,19 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                     className="w-full pl-10 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Beni Hatırla Checkbox */}
+              <div className="flex items-center justify-between py-1">
+                <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+                  />
+                  <span className="text-xs text-slate-300 font-medium">Bu cihazda beni hatırla</span>
+                </label>
               </div>
 
               <button
