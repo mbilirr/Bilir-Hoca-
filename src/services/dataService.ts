@@ -115,6 +115,14 @@ const LEGACY_VERSIONS = ['_v5', '_v4', '_v3', '_v2', '_v1', ''];
 export const PERMANENT_KEYS = {
   MASTER_STUDENTS: 'edu_sys_master_students_permanent',
   MASTER_CLASSES: 'edu_sys_master_classes_permanent',
+  MASTER_TEACHERS: 'edu_sys_master_teachers_permanent',
+  MASTER_ETUTS: 'edu_sys_master_etuts_permanent',
+  MASTER_GRADES: 'edu_sys_master_grades_permanent',
+  MASTER_HOMEWORK: 'edu_sys_master_homework_permanent',
+  MASTER_ATTENDANCE: 'edu_sys_master_attendance_permanent',
+  MASTER_SUBMISSIONS: 'edu_sys_master_submissions_permanent',
+  MASTER_QUESTION_LOGS: 'edu_sys_master_question_logs_permanent',
+  MASTER_DOCUMENTS: 'edu_sys_master_documents_permanent',
 };
 
 // Safely clean up old versioned keys to free storage quota, but NEVER delete user data
@@ -124,16 +132,22 @@ function cleanUpLegacyKeys(): void {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && (k.includes('_v1') || k.includes('_v2') || k.includes('_v3') || k.includes('_v4') || k.includes('_v5'))) {
-        // CRITICAL: NEVER DELETE STUDENTS, CLASSES, TEACHERS OR USER DATA KEYS
+        // CRITICAL: NEVER DELETE STUDENTS, CLASSES, TEACHERS, ETUTS, GRADES OR USER DATA KEYS
         if (
           k.includes('student') ||
           k.includes('class') ||
           k.includes('teacher') ||
           k.includes('homework') ||
+          k.includes('submission') ||
           k.includes('etut') ||
           k.includes('grade') ||
+          k.includes('not') ||
           k.includes('attendance') ||
-          k.includes('master')
+          k.includes('document') ||
+          k.includes('question') ||
+          k.includes('master') ||
+          k.includes('permanent') ||
+          k.includes('backup')
         ) {
           continue;
         }
@@ -300,6 +314,241 @@ function loadClassesWithResilience(): ClassGroup[] {
   }
 }
 
+// Resilient teacher loader across versioned, master, and legacy keys
+function loadTeachersWithResilience(): Teacher[] {
+  try {
+    let loaded: Teacher[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.TEACHERS);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_TEACHERS);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const teacherKeys = [
+      'edu_sys_teachers_v6', 'edu_sys_teachers_v5', 'edu_sys_teachers_v4',
+      'edu_sys_teachers_v3', 'edu_sys_teachers_v2', 'edu_sys_teachers_v1',
+      'edu_sys_teachers', 'edu_sys_teachers_backup',
+    ];
+    const teacherMap = new Map<string, Teacher>();
+    loaded.forEach((t) => { if (t && t.id) teacherMap.set(t.id, t); });
+    for (const k of teacherKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((t: Teacher) => {
+              if (t && t.id && !teacherMap.has(t.id)) teacherMap.set(t.id, t);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(teacherMap.values());
+  } catch (e) {
+    console.error('Error in loadTeachersWithResilience:', e);
+    return [];
+  }
+}
+
+// Resilient etut loader across versioned, master, and legacy keys
+function loadEtutsWithResilience(): Etut[] {
+  try {
+    let loaded: Etut[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.ETUTS);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_ETUTS);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const etutKeys = [
+      'edu_sys_etuts_v6', 'edu_sys_etuts_v5', 'edu_sys_etuts_v4',
+      'edu_sys_etuts_v3', 'edu_sys_etuts_v2', 'edu_sys_etuts_v1',
+      'edu_sys_etuts', 'edu_sys_etuts_backup',
+    ];
+    const etutMap = new Map<string, Etut>();
+    loaded.forEach((e) => { if (e && e.id) etutMap.set(e.id, e); });
+    for (const k of etutKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((e: Etut) => {
+              if (e && e.id && !etutMap.has(e.id)) etutMap.set(e.id, e);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(etutMap.values());
+  } catch (e) {
+    console.error('Error in loadEtutsWithResilience:', e);
+    return [];
+  }
+}
+
+// Resilient grade loader across versioned, master, and legacy keys
+function loadGradesWithResilience(): GradeRecord[] {
+  try {
+    let loaded: GradeRecord[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.GRADES);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_GRADES);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const gradeKeys = [
+      'edu_sys_grades_v6', 'edu_sys_grades_v5', 'edu_sys_grades_v4',
+      'edu_sys_grades_v3', 'edu_sys_grades_v2', 'edu_sys_grades_v1',
+      'edu_sys_grades', 'edu_sys_grades_backup',
+    ];
+    const gradeMap = new Map<string, GradeRecord>();
+    loaded.forEach((g) => { if (g && g.id) gradeMap.set(g.id, g); });
+    for (const k of gradeKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((g: GradeRecord) => {
+              if (g && g.id && !gradeMap.has(g.id)) gradeMap.set(g.id, g);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(gradeMap.values());
+  } catch (e) {
+    console.error('Error in loadGradesWithResilience:', e);
+    return [];
+  }
+}
+
+// Resilient homework loader
+function loadHomeworkWithResilience(): Homework[] {
+  try {
+    let loaded: Homework[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.HOMEWORK);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_HOMEWORK);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const hwKeys = [
+      'edu_sys_homework_v6', 'edu_sys_homework_v5', 'edu_sys_homework_v4',
+      'edu_sys_homework_v3', 'edu_sys_homework_v2', 'edu_sys_homework_v1',
+      'edu_sys_homework', 'edu_sys_homework_backup',
+    ];
+    const hwMap = new Map<string, Homework>();
+    loaded.forEach((h) => { if (h && h.id) hwMap.set(h.id, h); });
+    for (const k of hwKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((h: Homework) => {
+              if (h && h.id && !hwMap.has(h.id)) hwMap.set(h.id, h);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(hwMap.values());
+  } catch (e) {
+    console.error('Error in loadHomeworkWithResilience:', e);
+    return [];
+  }
+}
+
+// Resilient attendance loader
+function loadAttendanceWithResilience(): AttendanceRecord[] {
+  try {
+    let loaded: AttendanceRecord[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_ATTENDANCE);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const attKeys = [
+      'edu_sys_attendance_v6', 'edu_sys_attendance_v5', 'edu_sys_attendance_v4',
+      'edu_sys_attendance_v3', 'edu_sys_attendance_v2', 'edu_sys_attendance_v1',
+      'edu_sys_attendance', 'edu_sys_attendance_backup',
+    ];
+    const attMap = new Map<string, AttendanceRecord>();
+    loaded.forEach((a) => { if (a && a.id) attMap.set(a.id, a); });
+    for (const k of attKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((a: AttendanceRecord) => {
+              if (a && a.id && !attMap.has(a.id)) attMap.set(a.id, a);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(attMap.values());
+  } catch (e) {
+    console.error('Error in loadAttendanceWithResilience:', e);
+    return [];
+  }
+}
+
 // Safe storage getter and setter with multi-version fallback and auto-migration
 function loadData<T>(key: string, defaultValue: T): T {
   try {
@@ -381,14 +630,25 @@ function saveData<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
     if (key === STORAGE_KEYS.STUDENTS) {
-      try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(data));
-      } catch {}
-    }
-    if (key === STORAGE_KEYS.CLASSES) {
-      try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(data));
-      } catch {}
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.CLASSES) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.TEACHERS) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.ETUTS) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_ETUTS, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.GRADES) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_GRADES, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.HOMEWORK) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_HOMEWORK, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.ATTENDANCE) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_ATTENDANCE, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.SUBMISSIONS) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_SUBMISSIONS, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.QUESTION_LOGS) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(data)); } catch {}
+    } else if (key === STORAGE_KEYS.DOCUMENTS) {
+      try { localStorage.setItem(PERMANENT_KEYS.MASTER_DOCUMENTS, JSON.stringify(data)); } catch {}
     }
   } catch (e) {
     console.warn(`Quota or write issue when saving ${key}. Freeing legacy storage and retrying...`, e);
@@ -447,10 +707,22 @@ export class DataService {
     // Load resiliently across all storage keys
     const resilientStudents = loadStudentsWithResilience();
     const resilientClasses = loadClassesWithResilience();
+    const resilientTeachers = loadTeachersWithResilience();
+    const resilientEtuts = loadEtutsWithResilience();
+    const resilientGrades = loadGradesWithResilience();
+    const resilientHomework = loadHomeworkWithResilience();
+    const resilientAttendance = loadAttendanceWithResilience();
 
     const alreadyInitialized = isAlreadyInitialized();
 
-    if (!alreadyInitialized && resilientStudents.length === 0 && resilientClasses.length === 0) {
+    if (
+      !alreadyInitialized &&
+      resilientStudents.length === 0 &&
+      resilientClasses.length === 0 &&
+      resilientTeachers.length === 0 &&
+      resilientEtuts.length === 0 &&
+      resilientGrades.length === 0
+    ) {
       // First time initialization ONLY when completely empty
       this.teachers = INITIAL_TEACHERS.map((t) => ({ ...t, status: 'approved' as const }));
       this.classes = [...INITIAL_CLASSES];
@@ -475,19 +747,19 @@ export class DataService {
       saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
       saveData(STORAGE_KEYS.IS_SEEDED, 'true');
     } else {
-      // Load strictly what is saved in storage; never wipe existing students or classes
-      this.teachers = loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
+      // Load strictly what is saved in storage; never wipe existing students, teachers, etuts or classes
+      this.teachers = resilientTeachers.length > 0 ? resilientTeachers : loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
       if (!this.teachers || this.teachers.length === 0) {
         this.teachers = INITIAL_TEACHERS.map((t) => ({ ...t, status: 'approved' as const }));
         saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       }
       this.classes = resilientClasses.length > 0 ? resilientClasses : loadDataWithLegacyFallback(STORAGE_KEYS.CLASSES, []);
       this.students = resilientStudents.length > 0 ? resilientStudents : loadDataWithLegacyFallback(STORAGE_KEYS.STUDENTS, []);
-      this.homeworks = loadDataWithLegacyFallback(STORAGE_KEYS.HOMEWORK, []);
+      this.homeworks = resilientHomework.length > 0 ? resilientHomework : loadDataWithLegacyFallback(STORAGE_KEYS.HOMEWORK, []);
       this.submissions = loadDataWithLegacyFallback(STORAGE_KEYS.SUBMISSIONS, []);
-      this.etuts = loadDataWithLegacyFallback(STORAGE_KEYS.ETUTS, []);
-      this.attendance = loadDataWithLegacyFallback(STORAGE_KEYS.ATTENDANCE, []);
-      this.grades = loadDataWithLegacyFallback(STORAGE_KEYS.GRADES, []);
+      this.etuts = resilientEtuts.length > 0 ? resilientEtuts : loadDataWithLegacyFallback(STORAGE_KEYS.ETUTS, []);
+      this.attendance = resilientAttendance.length > 0 ? resilientAttendance : loadDataWithLegacyFallback(STORAGE_KEYS.ATTENDANCE, []);
+      this.grades = resilientGrades.length > 0 ? resilientGrades : loadDataWithLegacyFallback(STORAGE_KEYS.GRADES, []);
       this.messages = loadDataWithLegacyFallback(STORAGE_KEYS.MESSAGES, []);
       this.documents = loadDataWithLegacyFallback(STORAGE_KEYS.DOCUMENTS, []);
       this.studentNotifications = loadDataWithLegacyFallback(STORAGE_KEYS.STUDENT_NOTIFICATIONS, []);
