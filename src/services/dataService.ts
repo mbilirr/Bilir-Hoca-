@@ -29,7 +29,7 @@ import {
   formatDueDateTurkish,
   formatEtutDateTurkish,
 } from '../lib/emailTemplates';
-import { sendBrowserNotification } from '../lib/browserNotifications';
+import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
 import { detectSchoolLevelFromGrade } from '../constants/schoolConstants';
 
 // INITIAL SEED DATA (Empty by default per user request, only designated admin initialized)
@@ -635,6 +635,24 @@ export class DataService {
 
     // Background sync with Supabase (respects deleted students)
     this.syncFromSupabase();
+
+    // Cross-tab synchronization for teacher registrations and status changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEYS.TEACHERS) {
+          const reloaded = loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, []);
+          if (Array.isArray(reloaded) && reloaded.length > 0) {
+            const oldPendingCount = this.teachers.filter((t) => t.status === 'pending').length;
+            this.teachers = reloaded;
+            const newPendingCount = this.teachers.filter((t) => t.status === 'pending').length;
+            if (newPendingCount > oldPendingCount) {
+              playNotificationChime();
+            }
+            this.notify();
+          }
+        }
+      });
+    }
   }
 
   public subscribe(listener: () => void): () => void {
@@ -1173,6 +1191,18 @@ export class DataService {
 
     this.teachers.unshift(newTeacher);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+
+    // Yönetici onay bildirimi ve zil sesi gönder
+    try {
+      playNotificationChime();
+      sendBrowserNotification(
+        'Yeni Öğretmen Kayıt Başvurusu',
+        `${newTeacher.name} (${newTeacher.branch || 'Öğretmen'}) sisteme kayıt oldu. Yönetici onayı bekliyor.`
+      );
+    } catch {
+      // ignore
+    }
+
     this.notify();
     return newTeacher;
   }

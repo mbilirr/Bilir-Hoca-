@@ -168,7 +168,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const studentMenuRef = useRef<HTMLDivElement | null>(null);
   const moduleDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const pendingTeachersCount = isTeacherSession ? dataService.getPendingTeachers().length : 0;
+  const [pendingTeachersCount, setPendingTeachersCount] = useState<number>(0);
 
   // Synchronize internal selectedTeacherTab with activeTeacherTab
   useEffect(() => {
@@ -245,6 +245,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       return () => unsubscribe();
     }
   }, [activeStudent?.id]);
+
+  // Listen to pending teacher approvals if current teacher is admin
+  useEffect(() => {
+    const updatePendingCount = () => {
+      if (isTeacherSession && currentTeacher?.isAdmin) {
+        setPendingTeachersCount(dataService.getPendingTeachers().length);
+      } else {
+        setPendingTeachersCount(0);
+      }
+    };
+    updatePendingCount();
+    const unsubscribe = dataService.subscribe(updatePendingCount);
+    return () => unsubscribe();
+  }, [isTeacherSession, currentTeacher?.isAdmin]);
 
   const switchRole = (newRole: UserRole) => {
     // Only teacher is allowed to switch roles
@@ -440,17 +454,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={() => setIsApprovalModalOpen(true)}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
                   pendingTeachersCount > 0
-                    ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 animate-pulse shadow-amber-500/20'
+                    ? 'bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-amber-500/30 animate-pulse'
                     : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
                 }`}
                 title="Öğretmen Başvuruları & Yönetici Yetkilendirme"
               >
-                <ShieldCheck className={`w-4 h-4 ${pendingTeachersCount > 0 ? 'text-amber-400' : 'text-indigo-400'}`} />
-                <span className="hidden sm:inline">
-                  {pendingTeachersCount > 0 ? 'Onay Bekleyen:' : 'Öğretmen Yönetimi'}
+                <ShieldCheck className={`w-4 h-4 ${pendingTeachersCount > 0 ? 'text-amber-300 animate-bounce' : 'text-indigo-400'}`} />
+                <span className={pendingTeachersCount > 0 ? 'inline' : 'hidden sm:inline'}>
+                  {pendingTeachersCount > 0 ? '🔔 Onay Bekleyen:' : 'Öğretmen Yönetimi'}
                 </span>
                 {pendingTeachersCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-extrabold">
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
                     {pendingTeachersCount}
                   </span>
                 )}

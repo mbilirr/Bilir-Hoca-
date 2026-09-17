@@ -171,12 +171,12 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
         </div>
       </div>
 
-      {/* TEK DUVAR İÇİNDE YAN YANA 5 KÜÇÜLTÜLMÜŞ KUTU */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* TEK DUVAR İÇİNDE YAN YANA 5 KUTU (Rozetler ve Not Ortalaması yer değiştirildi, Rozetler daha büyük ve dikkat çekici) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-stretch">
         {/* Kutu 1: Kurs & Ödev Bitirme */}
         <div
           onClick={() => onNavigateTab('homework')}
-          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-orange-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-orange-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -220,7 +220,7 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
         {/* Kutu 2: Etüt & Birebir Destek */}
         <div
           onClick={() => onNavigateTab('etuts')}
-          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-blue-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -260,48 +260,85 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
           </div>
         </div>
 
-        {/* Kutu 3: Not Ortalama Başarı */}
+        {/* Kutu 3: Akademik Başarı Rozetlerim (NOT ORTALAMA BAŞARI İLE YER DEĞİŞTİRİLDİ, DAHA BÜYÜK VE DİKKAT ÇEKİCİ) */}
         <div
-          onClick={() => onNavigateTab('grades')}
-          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-purple-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+          id="student-stats-academic-badges"
+          className="col-span-1 sm:col-span-2 lg:col-span-4 bg-gradient-to-br from-amber-500/15 via-slate-900 to-amber-950/40 border-2 border-amber-400/90 rounded-xl p-3.5 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/40 flex flex-col justify-between relative overflow-hidden group"
         >
+          {/* Subtle golden ambient glow */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-400/15 rounded-full blur-xl pointer-events-none" />
+
           <div>
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="text-[11px] font-bold text-slate-600 truncate">Not Ortalama Başarı</span>
-              <div className="w-6 h-6 rounded-lg bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 group-hover:scale-105 transition-transform shrink-0">
-                <Award className="w-3.5 h-3.5" />
+            {/* Header: Title and Glowing Badge Status */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-300 shadow-inner shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                </div>
+                <span className="text-xs sm:text-sm font-black text-amber-100 tracking-tight">
+                  Akademik Başarı Rozetlerim
+                </span>
               </div>
+              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[10px] shadow-sm flex items-center gap-1 shrink-0 animate-pulse">
+                <Flame className="w-3 h-3 text-red-600 fill-red-600" />
+                4/4 KAZANILDI
+              </span>
             </div>
 
-            <div className="mt-2.5">
+            {/* Score & Level Sub-Bar */}
+            <div className="mt-2 flex items-center justify-between">
               <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-[#0f172a] tracking-tight">
-                  {averageScore !== null ? averageScore : '—'}
+                <span className="text-2xl font-black text-amber-300 tracking-tight">
+                  4 / 4
                 </span>
-                <span className="text-[10px] font-semibold text-slate-500">/ 100</span>
+                <span className="text-[10px] font-bold text-amber-200/80">Tamamlandı</span>
               </div>
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-amber-200 text-[10px] font-extrabold flex items-center space-x-1">
+                <span>🏆 Seviye 1 Yıldız Öğrenci</span>
+              </span>
+            </div>
 
-              <div className="mt-2 flex items-center justify-between gap-1 text-[10px] min-h-[30px]">
-                <span className="px-1.5 py-0.5 rounded bg-[#0f172a] text-white font-bold text-[9px] truncate">
-                  {letterGrade}
-                </span>
-                <span className="text-slate-500 font-medium truncate">
-                  {myGrades.length} Not Kaydı
-                </span>
+            {/* 4 Dikkat Çekici Büyük Rozet Kartı */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2">
+              <div className="bg-slate-950/80 border border-amber-400/50 rounded-lg p-2 text-center shadow-inner hover:border-amber-300 transition-all">
+                <span className="text-base sm:text-lg block">🎯</span>
+                <span className="text-[10px] font-extrabold text-white block mt-0.5 truncate">Ödev Ustası</span>
+                <span className="text-[8.5px] font-bold text-emerald-400 block">%100 Teslim</span>
+              </div>
+              <div className="bg-slate-950/80 border border-amber-400/50 rounded-lg p-2 text-center shadow-inner hover:border-amber-300 transition-all">
+                <span className="text-base sm:text-lg block">⭐</span>
+                <span className="text-[10px] font-extrabold text-white block mt-0.5 truncate">Etüt Yıldızı</span>
+                <span className="text-[8.5px] font-bold text-amber-300 block">Tam Katılım</span>
+              </div>
+              <div className="bg-slate-950/80 border border-amber-400/50 rounded-lg p-2 text-center shadow-inner hover:border-amber-300 transition-all">
+                <span className="text-base sm:text-lg block">🏆</span>
+                <span className="text-[10px] font-extrabold text-white block mt-0.5 truncate">Soru Şampiyonu</span>
+                <span className="text-[8.5px] font-bold text-blue-300 block">Haftalık Hedef</span>
+              </div>
+              <div className="bg-slate-950/80 border border-amber-400/50 rounded-lg p-2 text-center shadow-inner hover:border-amber-300 transition-all">
+                <span className="text-base sm:text-lg block">🚀</span>
+                <span className="text-[10px] font-extrabold text-white block mt-0.5 truncate">Gelişim Lideri</span>
+                <span className="text-[8.5px] font-bold text-purple-300 block">Aktif Seri</span>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-purple-600 group-hover:text-purple-700">
-            <span>Karneler & Notlar</span>
-            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+          {/* Golden Progress and Status Footer */}
+          <div className="pt-2 mt-2 border-t border-amber-500/30 flex items-center justify-between text-[10px] font-bold text-amber-200">
+            <span className="flex items-center space-x-1">
+              <span>✨ Tüm Dönem Rozetleri Açıldı</span>
+            </span>
+            <span className="text-amber-300 font-extrabold flex items-center space-x-1">
+              <span>Süper Seri Aktif</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+            </span>
           </div>
         </div>
 
         {/* Kutu 4: Soru Analitiği & Grafikler */}
         <div
           onClick={() => onNavigateTab('questions')}
-          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-emerald-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-emerald-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
@@ -347,51 +384,41 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
           </div>
         </div>
 
-        {/* Kutu 5: Akademik Başarı Rozetlerim */}
+        {/* Kutu 5: Not Ortalama Başarı (AKADEMİK BAŞARI ROZETLERİM İLE YER DEĞİŞTİRİLDİ) */}
         <div
-          className="bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-amber-300 hover:bg-white hover:shadow-sm transition-all flex flex-col justify-between"
+          onClick={() => onNavigateTab('grades')}
+          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-[#f8fafc] border border-slate-200/90 rounded-xl p-3.5 hover:border-purple-300 hover:bg-white hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
         >
           <div>
             <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span className="text-[11px] font-bold text-slate-600 truncate">Akademik Başarı Rozetlerim</span>
-              <div className="w-6 h-6 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
-                <Sparkles className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold text-slate-600 truncate">Not Ortalama Başarı</span>
+              <div className="w-6 h-6 rounded-lg bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 group-hover:scale-105 transition-transform shrink-0">
+                <Award className="w-3.5 h-3.5" />
               </div>
             </div>
 
             <div className="mt-2.5">
               <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-amber-600 tracking-tight">
-                  4 / 4
+                <span className="text-2xl font-black text-[#0f172a] tracking-tight">
+                  {averageScore !== null ? averageScore : '—'}
                 </span>
-                <span className="text-[10px] font-semibold text-slate-500">Rozet</span>
+                <span className="text-[10px] font-semibold text-slate-500">/ 100</span>
               </div>
 
-              {/* Kompakt Rozet İkonları */}
-              <div className="grid grid-cols-2 gap-1 mt-2 text-[9px]">
-                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Zamanında Teslim">
-                  <span>🎯</span>
-                  <span className="font-bold text-slate-700 truncate">Ödev</span>
-                </div>
-                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Etüt Yıldızı">
-                  <span>⭐</span>
-                  <span className="font-bold text-slate-700 truncate">Etüt</span>
-                </div>
-                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Çalışkan Genç">
-                  <span>🏆</span>
-                  <span className="font-bold text-slate-700 truncate">Başarı</span>
-                </div>
-                <div className="px-1.5 py-1 rounded bg-white border border-slate-200 flex items-center space-x-1 truncate" title="Gelişim Lideri">
-                  <span>🚀</span>
-                  <span className="font-bold text-slate-700 truncate">Hedef</span>
-                </div>
+              <div className="mt-2 flex items-center justify-between gap-1 text-[10px] min-h-[30px]">
+                <span className="px-1.5 py-0.5 rounded bg-[#0f172a] text-white font-bold text-[9px] truncate">
+                  {letterGrade}
+                </span>
+                <span className="text-slate-500 font-medium truncate">
+                  {myGrades.length} Not Kaydı
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] text-amber-600 font-bold">
-            <span className="truncate">Seviye 1 Başarı</span>
-            <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+          <div className="pt-2 mt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[10px] font-bold text-purple-600 group-hover:text-purple-700">
+            <span>Karneler & Notlar</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
           </div>
         </div>
       </div>

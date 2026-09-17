@@ -33,6 +33,8 @@ import { TeacherHeroBanner } from './components/Teacher/TeacherHeroBanner';
 import { TeacherEtutBell } from './components/Teacher/TeacherEtutBell';
 import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherDocumentsArchive';
 import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
+import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
+import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
 import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { dataService } from './services/dataService';
@@ -79,6 +81,7 @@ export default function App() {
   const [isStudentAuthOpen, setIsStudentAuthOpen] = useState(false);
   const [studentAuthMode, setStudentAuthMode] = useState<'login' | 'register'>('login');
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
 
   // Teacher active navigation tab (Varsayılan olarak 'home' - Sadece Ajanda ve Durum Özetleri)
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>('home');
@@ -342,6 +345,13 @@ export default function App() {
         {role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
+            {/* Kurum Yöneticisi Admin Onay Bildirimi Duvarı */}
+            {(activeTeacher?.isAdmin || currentTeacher?.isAdmin) && (
+              <AdminTeacherApprovalBanner
+                onOpenFullModal={() => setIsAdminApprovalModalOpen(true)}
+              />
+            )}
+
             {/* ANA SAYFA: Sadece Ajanda Duvarı ve Durum Özetleri Duvarı */}
             {teacherTab === 'home' && (
               <>
@@ -546,6 +556,12 @@ export default function App() {
       <SupabaseGuideModal
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
+      />
+
+      {/* Admin Teacher Approvals & Permissions Modal */}
+      <TeacherApprovalModal
+        isOpen={isAdminApprovalModalOpen}
+        onClose={() => setIsAdminApprovalModalOpen(false)}
       />
     </div>
   );
