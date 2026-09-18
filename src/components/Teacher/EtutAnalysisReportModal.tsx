@@ -24,7 +24,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { applyPlugin } from 'jspdf-autotable';
 import {
   Document,
   Packer,
@@ -40,6 +40,13 @@ import {
   BorderStyle,
 } from 'docx';
 import { Etut, Student, ClassGroup } from '../../types';
+
+// Safely register autoTable on jsPDF prototype
+try {
+  applyPlugin(jsPDF);
+} catch (e) {
+  // Ignored if already registered
+}
 
 interface EtutAnalysisReportModalProps {
   isOpen: boolean;
@@ -57,6 +64,14 @@ function executeAutoTable(doc: any, options: any) {
       doc.autoTable(options);
       return;
     }
+    try {
+      applyPlugin(jsPDF);
+      if (typeof doc.autoTable === 'function') {
+        doc.autoTable(options);
+        return;
+      }
+    } catch (e) {}
+
     if (typeof autoTable === 'function') {
       autoTable(doc, options);
       return;
@@ -70,10 +85,9 @@ function executeAutoTable(doc: any, options: any) {
       (window as any).jspdfAutoTable(doc, options);
       return;
     }
-    throw new Error('AutoTable kütüphanesi başlatılamadı.');
+    console.warn('AutoTable could not be executed directly.');
   } catch (err) {
     console.error('executeAutoTable error:', err);
-    throw err;
   }
 }
 
@@ -247,26 +261,27 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         // 3. Date range filter
         if (dateRangeFilter === 'past') {
           if (e.date > todayStr) return false;
-        } else if (dateRangeFilter === '7') {
-          const etutDate = new Date(e.date);
-          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 7 || diffDays < -1) return false;
-        } else if (dateRangeFilter === '15') {
-          const etutDate = new Date(e.date);
-          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 15 || diffDays < -1) return false;
-        } else if (dateRangeFilter === '30') {
-          const etutDate = new Date(e.date);
-          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 30 || diffDays < -1) return false;
-        } else if (dateRangeFilter === '90') {
-          const etutDate = new Date(e.date);
-          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 90 || diffDays < -1) return false;
-        } else if (dateRangeFilter === 'term') {
-          const etutDate = new Date(e.date);
-          const diffDays = (now.getTime() - etutDate.getTime()) / (1000 * 3600 * 24);
-          if (diffDays > 180 || diffDays < -1) return false;
+        } else if (
+          dateRangeFilter === '7' ||
+          dateRangeFilter === '15' ||
+          dateRangeFilter === '30' ||
+          dateRangeFilter === '90' ||
+          dateRangeFilter === 'term'
+        ) {
+          const limitDays =
+            dateRangeFilter === '7'
+              ? 7
+              : dateRangeFilter === '15'
+              ? 15
+              : dateRangeFilter === '30'
+              ? 30
+              : dateRangeFilter === '90'
+              ? 90
+              : 180;
+          const etutMidnight = new Date(e.date + 'T00:00:00').getTime();
+          const todayMidnight = new Date(todayStr + 'T00:00:00').getTime();
+          const diffDays = Math.round((todayMidnight - etutMidnight) / (1000 * 60 * 60 * 24));
+          if (diffDays < 0 || diffDays > limitDays) return false;
         } else if (dateRangeFilter === 'custom') {
           if (customStartDate && e.date < customStartDate) return false;
           if (customEndDate && e.date > customEndDate) return false;
@@ -1222,14 +1237,68 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
   // Safe print handler that works gracefully inside sandboxed iframes
   const handleSafePrint = () => {
     try {
-      window.print();
-    } catch (e) {
-      console.warn('Direct print blocked by sandbox:', e);
-      setActiveTab('document');
-      setExportSuccessMessage(
-        'Resmi Belge Çıktı Moduna geçildi. Tarayıcınızın menüsünden veya klavyeden CTRL+P (Mac için CMD+P) ile doğrudan yazdırabilirsiniz.'
-      );
+      const printableElement = document.getElementById('official-etut-document');
+      if (printableElement) {
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+        if (frameDoc) {
+          frameDoc.open();
+          frameDoc.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Etüt Analiz ve Devamsızlık Belgesi</title>
+                <style>
+                  @page { size: A4 portrait; margin: 12mm; }
+                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 12px; }
+                  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
+                  th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+                  th { background-color: #f1f5f9; font-weight: bold; }
+                  .text-center { text-align: center; }
+                  .text-rose-700 { color: #b91c1c; font-weight: bold; }
+                  .text-emerald-700 { color: #047857; font-weight: bold; }
+                  .border-slate-300 { border-color: #cbd5e1; }
+                </style>
+              </head>
+              <body>
+                ${printableElement.innerHTML}
+              </body>
+            </html>
+          `);
+          frameDoc.close();
+          setTimeout(() => {
+            try {
+              printFrame.contentWindow?.focus();
+              printFrame.contentWindow?.print();
+              setExportSuccessMessage('Yazdırma iletişim kutusu açıldı.');
+            } catch (e) {
+              console.warn('Iframe print restricted, triggering PDF export fallback:', e);
+              handleExportPDF();
+            } finally {
+              setTimeout(() => {
+                if (document.body.contains(printFrame)) {
+                  document.body.removeChild(printFrame);
+                }
+              }, 4000);
+            }
+          }, 400);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Iframe print error, falling back to PDF:', err);
     }
+
+    // Direct fallback
+    handleExportPDF();
   };
 
   return (
@@ -1796,7 +1865,50 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             </>
           ) : (
             /* OFFICIAL A4 DOCUMENT PRINT PREVIEW TAB */
-            <div className="max-w-4xl mx-auto bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-300 font-sans">
+            <div className="space-y-4 max-w-4xl mx-auto">
+              {/* Top Quick Actions Bar for Document */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-lg">
+                <div className="flex items-center space-x-2 text-xs text-slate-300 font-medium">
+                  <Printer className="w-4 h-4 text-emerald-400" />
+                  <span>Resmi A4 Çıktı & Belge Önizleme</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleSafePrint}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors border border-slate-700 cursor-pointer"
+                    title="Yazıcıya gönder veya PDF olarak yazdır"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Yazdır</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPDF}
+                    disabled={isGeneratingPdf}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                    title="Resmi PDF Belgesini İndir"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isGeneratingPdf ? 'İndiriliyor...' : 'PDF İndir'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportDOCX}
+                    disabled={isGeneratingDocx}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                    title="Microsoft Word Belgesini İndir"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{isGeneratingDocx ? 'İndiriliyor...' : 'Word İndir'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div
+                id="official-etut-document"
+                className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-300 font-sans"
+              >
               {/* Document Official Header */}
               <div className="text-center border-b-2 border-slate-900 pb-5 mb-6">
                 <div className="text-sm font-bold tracking-widest text-slate-800 uppercase">
@@ -2014,6 +2126,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 </div>
               </div>
             </div>
+          </div>
           )}
         </div>
       </div>

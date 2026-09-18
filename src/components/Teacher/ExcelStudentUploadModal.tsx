@@ -153,7 +153,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
       const rawClass = getVal('sinif', 'sinifi', 'sube', 'subesi', 'class', 'grade', 'alan', 'sinif/sube');
       const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id') || `${1000 + index + Math.floor(Math.random() * 8999)}`;
-      const email = getVal('eposta', 'e-posta', 'email', 'mail') || `${normalizeStr(firstName || 'ogrenci')}.${normalizeStr(lastName || `${index + 1}`)}@okul.k12.tr`;
+      const email = getVal('eposta', 'e-posta', 'email', 'mail') || '';
       const phone = getVal('telefon', 'tel', 'phone', 'gsm', 'veli tel') || '';
 
       const match = findMatchingClass(rawClass);
@@ -321,17 +321,22 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     setIsProcessing(true);
 
     try {
-      const studentPayloads = validRows.map((row) => ({
-        name: row.fullName,
-        username: `${normalizeStr(row.firstName || 'ogrenci')}_${normalizeStr(row.lastName || row.studentNumber)}`,
-        email: row.email,
-        password: '123',
-        classId: row.matchedClassId || defaultClassId,
-        className: row.className,
-        studentNumber: row.studentNumber,
-        phone: row.phone,
-        autoCreateClass: autoCreateClasses,
-      }));
+      const studentPayloads = validRows.map((row) => {
+        const rawFirstName = row.firstName || row.fullName.trim().split(' ')[0] || 'ogrenci';
+        const cleanAd = normalizeStr(rawFirstName).toLowerCase().replace(/[^a-z0-9]/g, '') || 'ogrenci';
+        return {
+          name: row.fullName,
+          username: cleanAd,
+          email: row.email ? row.email.trim() : '',
+          password: '54321',
+          mustChangePassword: true,
+          classId: row.matchedClassId || defaultClassId,
+          className: row.className,
+          studentNumber: row.studentNumber,
+          phone: row.phone,
+          autoCreateClass: autoCreateClasses,
+        };
+      });
 
       const created = dataService.registerStudentsBulk(studentPayloads);
 

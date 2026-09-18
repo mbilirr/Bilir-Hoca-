@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Bell,
@@ -151,11 +152,18 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  return (
+  const modalContent = (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-        <div className="bg-slate-900 border border-slate-700/90 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-slate-100">
-          {/* Header */}
+      <div
+        className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 animate-fade-in"
+        onClick={onClose}
+      >
+        <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+          <div
+            className="bg-slate-900 border border-slate-700/90 rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-slate-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/50">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 relative">
@@ -443,6 +451,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
           </div>
         </div>
       </div>
+    </div>
 
       {/* Interactive Email Viewer Modal */}
       <EmailPreviewModal
@@ -452,4 +461,6 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
       />
     </>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

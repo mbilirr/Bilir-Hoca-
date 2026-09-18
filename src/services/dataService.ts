@@ -898,6 +898,35 @@ export class DataService {
       saveData(STORAGE_KEYS.IS_SEEDED, 'true');
     }
 
+    // Migration: Önceden sistem tarafından rastgele atanmış sahte mailleri temizle ve 54321 şifrelerini ilk girişte zorunlu güncellemeye al
+    let studentsEmailCleaned = false;
+    this.students = this.students.map((s) => {
+      let updated = { ...s };
+      let changed = false;
+      if (s.email && (
+        s.email.endsWith('@okul.k12.tr') ||
+        s.email.endsWith('@school.com') ||
+        s.email.endsWith('@student.school.internal') ||
+        s.email.endsWith('@example.com') ||
+        s.email.includes('ogrenci.')
+      )) {
+        updated.email = '';
+        changed = true;
+      }
+      if (updated.password === '54321' && updated.mustChangePassword === undefined) {
+        updated.mustChangePassword = true;
+        changed = true;
+      }
+      if (changed) {
+        studentsEmailCleaned = true;
+        return updated;
+      }
+      return s;
+    });
+    if (studentsEmailCleaned) {
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+    }
+
     // Clean up any old duplicate legacy version keys to keep storage lean and prevent quota limit errors
     cleanUpLegacyKeys();
 
@@ -907,6 +936,10 @@ export class DataService {
 
     // Background sync with Supabase (respects deleted students)
     this.syncFromSupabase();
+
+    // Cross-device real-time and periodic sync for teacher registrations and approvals
+    this.setupTeachersRealtimeSync();
+    this.startPeriodicTeachersSync();
 
     // Cross-tab synchronization for teacher registrations and status changes
     if (typeof window !== 'undefined') {
@@ -927,6 +960,46 @@ export class DataService {
     }
   }
 
+  // --- REAL-TIME TEACHER REGISTRATION & APPROVAL SYNC ---
+  private teacherRealtimeChannel: any = null;
+  private teacherSyncInterval: any = null;
+
+  public setupTeachersRealtimeSync() {
+    if (this.teacherRealtimeChannel) return;
+    try {
+      this.teacherRealtimeChannel = supabase
+        .channel('teachers-realtime-sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'homeworks' },
+          (payload) => {
+            const row = (payload.new || payload.old) as any;
+            if (
+              row &&
+              (row.id === '__system_sync_teachers__' ||
+                row.subject === 'TeacherSync' ||
+                (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_')))
+            ) {
+              this.syncTeachersFromSupabase(true);
+            }
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for teachers:', e);
+    }
+  }
+
+  public startPeriodicTeachersSync() {
+    if (this.teacherSyncInterval) return;
+    if (typeof window !== 'undefined') {
+      // Periodic check every 4 seconds as robust fallback across different devices/browsers
+      this.teacherSyncInterval = window.setInterval(() => {
+        this.syncTeachersFromSupabase(true);
+      }, 4000);
+    }
+  }
+
   public subscribe(listener: () => void): () => void {
     this.listeners.push(listener);
     return () => {
@@ -941,6 +1014,9 @@ export class DataService {
   // --- SUPABASE BACKGROUND SYNC ---
   private async syncFromSupabase() {
     try {
+      // 0. Synchronize teachers across devices (registrations, approvals, permissions)
+      await this.syncTeachersFromSupabase(true);
+
       // 1. Fetch remote students from Supabase
       const { data: remoteStudents, error: errStd } = await supabase.from('students').select('*');
       if (!errStd && remoteStudents && remoteStudents.length > 0) {
@@ -1189,6 +1265,16 @@ export class DataService {
             return;
           }
 
+          // Ignore teacher sync and system sync rows so they are not treated as student homeworks
+          if (
+            rh.id === '__system_sync_teachers__' ||
+            rh.id.startsWith('__teacher_sync_') ||
+            rh.subject === 'TeacherSync' ||
+            rh.subject === 'SystemSync'
+          ) {
+            return;
+          }
+
           if (this.deletedHomeworkIds.has(rh.id)) return;
           const exIdx = this.homeworks.findIndex((h) => h.id === rh.id);
           if (exIdx === -1) {
@@ -1358,15 +1444,29 @@ export class DataService {
   }
 
   public approveTeacher(teacherId: string): void {
-    this.teachers = this.teachers.map((t) => (t.id === teacherId ? { ...t, status: 'approved' } : t));
-    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    this.notify();
+    const teacher = this.teachers.find((t) => t.id === teacherId);
+    if (teacher) {
+      teacher.status = 'approved';
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
+      this.syncTeacherToCloud(teacher);
+      this.notify();
+    }
   }
 
   public rejectTeacher(teacherId: string): void {
-    this.teachers = this.teachers.map((t) => (t.id === teacherId ? { ...t, status: 'rejected' } : t));
-    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    this.notify();
+    const teacher = this.teachers.find((t) => t.id === teacherId);
+    if (teacher) {
+      teacher.status = 'rejected';
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
+      this.syncTeacherToCloud(teacher);
+      this.notify();
+    }
   }
 
   public deleteTeacher(teacherId: string): void {
@@ -1374,6 +1474,10 @@ export class DataService {
     saveData(STORAGE_KEYS.DELETED_TEACHERS, Array.from(this.deletedTeacherIds));
     this.teachers = this.teachers.filter((t) => t.id !== teacherId);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+    } catch {}
+    this.deleteTeacherFromCloud(teacherId);
     this.notify();
   }
 
@@ -1385,6 +1489,9 @@ export class DataService {
         assignedClassIds,
       };
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
 
       const currentSession = this.getAuthSession();
       if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
@@ -1394,6 +1501,7 @@ export class DataService {
         });
       }
 
+      this.syncTeacherToCloud(this.teachers[idx]);
       this.notify();
     }
   }
@@ -1406,6 +1514,9 @@ export class DataService {
         isAdmin,
       };
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
 
       const currentSession = this.getAuthSession();
       if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
@@ -1415,6 +1526,7 @@ export class DataService {
         });
       }
 
+      this.syncTeacherToCloud(this.teachers[idx]);
       this.notify();
     }
   }
@@ -1463,6 +1575,12 @@ export class DataService {
 
     this.teachers.unshift(newTeacher);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+    } catch {}
+
+    // Cross-device cloud sync: immediately send to Supabase
+    this.syncTeacherToCloud(newTeacher);
 
     // Yönetici onay bildirimi ve zil sesi gönder
     try {
@@ -1512,6 +1630,10 @@ export class DataService {
 
     this.teachers.unshift(newTeacher);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+    } catch {}
+    this.syncTeacherToCloud(newTeacher);
     this.notify();
     return newTeacher;
   }
@@ -1525,6 +1647,9 @@ export class DataService {
     const updated = { ...previousTeacher, ...updates };
     this.teachers[idx] = updated;
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+    } catch {}
 
     // Save dedicated teacher profile override to protect against storage quota issues or re-migrations
     try {
@@ -1568,6 +1693,7 @@ export class DataService {
       });
     }
 
+    this.syncTeacherToCloud(updated);
     this.notify();
     return updated;
   }
@@ -1581,6 +1707,223 @@ export class DataService {
       throw new Error('Mevcut şifreniz hatalı. Lütfen kontrol edip tekrar deneyiniz.');
     }
     this.updateTeacherProfile(teacherId, { password: newPassword });
+  }
+
+  // --- CLOUD SYNCHRONIZATION FOR TEACHERS ---
+
+  public async syncTeacherToCloud(teacher: Teacher): Promise<void> {
+    try {
+      // 1. Upsert individual teacher sync row in homeworks
+      await supabase.from('homeworks').upsert({
+        id: `__teacher_sync_${teacher.id}__`,
+        title: teacher.name,
+        subject: 'TeacherSync',
+        description: JSON.stringify(teacher),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+
+      // 2. Also update aggregate master teacher sync row
+      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_teachers__',
+        title: 'Teachers Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeTeachers),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.error('Error syncing teacher to cloud:', e);
+    }
+  }
+
+  public async deleteTeacherFromCloud(teacherId: string): Promise<void> {
+    try {
+      await supabase
+        .from('homeworks')
+        .delete()
+        .eq('id', `__teacher_sync_${teacherId}__`);
+
+      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_teachers__',
+        title: 'Teachers Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeTeachers),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.error('Error deleting teacher from cloud:', e);
+    }
+  }
+
+  public async syncAllTeachersToCloud(): Promise<void> {
+    try {
+      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_teachers__',
+        title: 'Teachers Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeTeachers),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+
+      // Ensure each active teacher has an individual sync row for conflict-free multi-device operations
+      for (const t of activeTeachers) {
+        await supabase.from('homeworks').upsert({
+          id: `__teacher_sync_${t.id}__`,
+          title: t.name,
+          subject: 'TeacherSync',
+          description: JSON.stringify(t),
+          assigned_to: '__SYSTEM__',
+          due_date: '2099-12-31',
+        });
+      }
+    } catch (e) {
+      console.error('Error syncing all teachers to cloud:', e);
+    }
+  }
+
+  public async syncTeachersFromSupabase(isBackground = false): Promise<Teacher[]> {
+    try {
+      const { data: remoteRows, error } = await supabase
+        .from('homeworks')
+        .select('id, description, subject, title, created_at')
+        .or('id.eq.__system_sync_teachers__,subject.eq.TeacherSync,id.like.__teacher_sync_%');
+
+      if (error) {
+        if (!isBackground) console.error('Error fetching teachers from Supabase:', error);
+        return this.teachers;
+      }
+
+      if (!remoteRows || remoteRows.length === 0) {
+        // If Supabase has no teacher records yet, seed our local teachers to cloud
+        await this.syncAllTeachersToCloud();
+        return this.teachers;
+      }
+
+      const remoteTeachersMap = new Map<string, Teacher>();
+
+      remoteRows.forEach((row: any) => {
+        if (!row.description) return;
+        try {
+          if (row.id === '__system_sync_teachers__') {
+            const list = JSON.parse(row.description);
+            if (Array.isArray(list)) {
+              list.forEach((t: Teacher) => {
+                if (t && t.id) remoteTeachersMap.set(t.id, t);
+              });
+            }
+          } else if (
+            row.subject === 'TeacherSync' ||
+            (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_'))
+          ) {
+            const single = JSON.parse(row.description);
+            if (single && single.id) {
+              remoteTeachersMap.set(single.id, single);
+            }
+          }
+        } catch (err) {
+          // ignore row parse failure
+        }
+      });
+
+      let changed = false;
+      let newPendingCount = 0;
+      const localTeacherMap = new Map<string, Teacher>();
+      this.teachers.forEach((t) => localTeacherMap.set(t.id, t));
+
+      // Process remote teachers into local state
+      remoteTeachersMap.forEach((remoteT, id) => {
+        if (this.deletedTeacherIds.has(id)) return;
+
+        const localT = localTeacherMap.get(id);
+        if (!localT) {
+          // Newly arrived teacher registered from another PC / phone / tablet!
+          this.teachers.unshift(remoteT);
+          localTeacherMap.set(id, remoteT);
+          changed = true;
+          if (remoteT.status === 'pending') {
+            newPendingCount++;
+          }
+        } else {
+          // Existing teacher: merge status and permission updates
+          let statusUpdated = false;
+          let permissionsUpdated = false;
+
+          if (remoteT.status && remoteT.status !== localT.status) {
+            // If local was already approved/rejected by admin, keep local and push to cloud
+            if (localT.status === 'approved' && remoteT.status === 'pending') {
+              this.syncTeacherToCloud(localT);
+            } else {
+              localT.status = remoteT.status;
+              statusUpdated = true;
+            }
+          }
+
+          if (
+            remoteT.assignedClassIds &&
+            JSON.stringify(remoteT.assignedClassIds) !== JSON.stringify(localT.assignedClassIds)
+          ) {
+            localT.assignedClassIds = remoteT.assignedClassIds;
+            permissionsUpdated = true;
+          }
+
+          if (remoteT.isAdmin !== undefined && remoteT.id !== 'teacher-1') {
+            if (localT.isAdmin !== remoteT.isAdmin) {
+              localT.isAdmin = remoteT.isAdmin;
+              permissionsUpdated = true;
+            }
+          }
+
+          if (statusUpdated || permissionsUpdated) {
+            changed = true;
+          }
+        }
+      });
+
+      // Also check if this device has registered teachers locally that are NOT yet in Supabase
+      let needsUpload = false;
+      for (const lt of this.teachers) {
+        if (!this.deletedTeacherIds.has(lt.id) && !remoteTeachersMap.has(lt.id)) {
+          needsUpload = true;
+          break;
+        }
+      }
+
+      if (needsUpload) {
+        await this.syncAllTeachersToCloud();
+      }
+
+      if (changed) {
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        } catch {}
+
+        if (newPendingCount > 0) {
+          playNotificationChime();
+          sendBrowserNotification(
+            'Yeni Öğretmen Kayıt Başvurusu',
+            `${newPendingCount} yeni öğretmen başvurusu onay bekliyor.`
+          );
+        }
+
+        this.notify();
+      }
+
+      return this.teachers;
+    } catch (e) {
+      if (!isBackground) console.error('syncTeachersFromSupabase error:', e);
+      return this.teachers;
+    }
+  }
+
+  public async forceSyncTeachers(): Promise<Teacher[]> {
+    return this.syncTeachersFromSupabase(false);
   }
 
   public authenticateTeacher(usernameOrEmail: string, password: string): Teacher | null {
@@ -1921,7 +2264,10 @@ export class DataService {
   }
 
   // --- CLASSES ---
-  public addClass(classData: Omit<ClassGroup, 'id'>, forcedTeacherId?: string): ClassGroup {
+  public addClass(
+    classData: Omit<ClassGroup, 'id'>,
+    forcedTeacherId?: string
+  ): ClassGroup & { autoAssignedCount?: number } {
     const session = this.getAuthSession();
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
@@ -1945,9 +2291,98 @@ export class DataService {
       }
     }
 
+    // OTOMATİK SINIF AKTARIMI:
+    // Oluşturulan sınıf ismi ile önceden kayıt olmuş öğrenciler var ise otomatik olarak bu sınıfa aktarılır
+    const normalizeClassStr = (str: string | undefined | null): string => {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .replace(/[\s\-_/\\.]/g, '')
+        .replace(/şube/g, '')
+        .replace(/sube/g, '')
+        .replace(/sınıf/g, '')
+        .replace(/sinif/g, '')
+        .trim();
+    };
+
+    const targetNorm = normalizeClassStr(newClass.name);
+    let autoAssignedCount = 0;
+
+    this.students = this.students.map((s) => {
+      const sNorm = normalizeClassStr(s.className);
+      const isExactName = (s.className || '').trim().toLowerCase() === newClass.name.trim().toLowerCase();
+      const isNormMatch = targetNorm.length > 0 && sNorm.length > 0 && sNorm === targetNorm;
+      const isGradeBranchMatch =
+        newClass.gradeLevel &&
+        newClass.branch &&
+        s.gradeLevel === newClass.gradeLevel &&
+        s.branch === newClass.branch;
+
+      if (isExactName || isNormMatch || (isGradeBranchMatch && (!s.classId || s.className === 'Atanmadı'))) {
+        autoAssignedCount++;
+        return {
+          ...s,
+          classId: newClass.id,
+          className: newClass.name,
+          schoolLevel: newClass.schoolLevel || s.schoolLevel,
+          gradeLevel: newClass.gradeLevel || s.gradeLevel,
+          branch: newClass.branch || s.branch,
+        };
+      }
+      return s;
+    });
+
+    if (autoAssignedCount > 0) {
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+    }
+
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     this.notify();
-    return newClass;
+    return { ...newClass, autoAssignedCount };
+  }
+
+  // Öğrencileri tek tek veya toplu olarak belirli bir sınıfa aktarma
+  public assignStudentsToClass(studentIds: string[], classId: string): number {
+    const cls = this.classes.find((c) => c.id === classId);
+    if (!cls || !studentIds || studentIds.length === 0) return 0;
+
+    let count = 0;
+    this.students = this.students.map((s) => {
+      if (studentIds.includes(s.id)) {
+        count++;
+        return {
+          ...s,
+          classId: cls.id,
+          className: cls.name,
+          schoolLevel: cls.schoolLevel || s.schoolLevel,
+          gradeLevel: cls.gradeLevel || s.gradeLevel,
+          branch: cls.branch || s.branch,
+        };
+      }
+      return s;
+    });
+
+    if (count > 0) {
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      this.notify();
+    }
+    return count;
+  }
+
+  // Öğrenciyi sınıftan çıkarma
+  public removeStudentFromClass(studentId: string): void {
+    this.students = this.students.map((s) => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          classId: '',
+          className: 'Atanmadı',
+        };
+      }
+      return s;
+    });
+    saveData(STORAGE_KEYS.STUDENTS, this.students);
+    this.notify();
   }
 
   public updateClass(id: string, updates: Partial<ClassGroup>): void {
@@ -1985,13 +2420,18 @@ export class DataService {
     const classObj = this.classes.find(
       (c) => c.id === studentData.classId || c.name.toLowerCase() === (studentData.className || '').toLowerCase()
     );
-    const studentPassword = studentData.password?.trim() || '123456';
+    const studentPassword = studentData.password?.trim() || '54321';
+    const isMustChange = studentData.mustChangePassword !== undefined
+      ? studentData.mustChangePassword
+      : (studentPassword === '54321');
+
     const newStudent: Student = {
       ...studentData,
       id: `std-${Date.now()}`,
       username: cleanUsername,
       email: studentData.email?.trim() || '',
       password: studentPassword,
+      mustChangePassword: isMustChange,
       className: classObj ? classObj.name : studentData.className || '12-A Sayısal',
       classId: classObj ? classObj.id : (studentData.classId || 'class-custom'),
       branch: studentData.branch?.trim() || (classObj ? classObj.branch : ''),
@@ -2131,17 +2571,34 @@ export class DataService {
       const studentId = `std-${timestamp + index}-${Math.floor(Math.random() * 1000)}`;
       const cleanName = item.name.trim();
 
+      // Excelden eklenen öğrenciler kullanıcı adı 'ad' (küçük harf, türkçe karakter normalize edilmiş)
+      const rawFirstName = cleanName.split(' ')[0] || 'ogrenci';
+      const baseUsername = item.username?.trim().toLowerCase() ||
+        rawFirstName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'ogrenci';
+
+      // Benzersiz kullanıcı adı sağlama
+      let finalUsername = baseUsername;
+      let counter = 1;
+      while (
+        this.students.some((s) => s.username?.toLowerCase() === finalUsername) ||
+        createdList.some((s) => s.username?.toLowerCase() === finalUsername)
+      ) {
+        counter++;
+        finalUsername = `${baseUsername}${counter}`;
+      }
+
+      const stdPassword = item.password?.trim() || '54321';
+      const isMustChange = item.mustChangePassword !== undefined
+        ? item.mustChangePassword
+        : (stdPassword === '54321' || !item.password);
+
       const newStudent: Student = {
         id: studentId,
         name: cleanName,
-        username:
-          item.username?.trim() ||
-          item.email?.split('@')[0] ||
-          cleanName.toLowerCase().replace(/\s+/g, '_'),
-        email:
-          item.email?.trim() ||
-          `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}${Math.floor(10 + Math.random() * 90)}@okul.k12.tr`,
-        password: item.password || '123',
+        username: finalUsername,
+        email: item.email?.trim() || '',
+        password: stdPassword,
+        mustChangePassword: isMustChange,
         classId: finalClassId,
         className: finalClassName,
         studentNumber: item.studentNumber?.trim() || `${Math.floor(1000 + Math.random() * 9000)}`,
@@ -2406,7 +2863,7 @@ export class DataService {
         submittedAt: new Date().toISOString(),
         status: submissionStatus,
         checkStatus,
-        notes: note || (checkStatus === 'yapti' ? 'Ödev tamamlandı' : checkStatus === 'eksik' ? 'Eksik ödev' : checkStatus === 'yapmadi' ? 'Ödev yapılmadı' : 'Derse gelmedi'),
+        notes: note || (checkStatus === 'yapti' ? 'Ödev tamamlandı' : checkStatus === 'eksik' ? 'Eksik ödev' : checkStatus === 'yapmadi' ? 'Ödev yapılmadı' : checkStatus === 'izinli' ? 'İzinli' : 'Derse gelmedi'),
       };
       this.submissions.unshift(newSub);
       saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
@@ -3373,120 +3830,8 @@ export class DataService {
   }
 
   private seedInitialNotifications(): void {
-    if (this.students.length === 0) return;
-    const hw1 = this.homeworks.find((h) => h.id === 'hw-1') || this.homeworks[0];
-    const etut1 = this.etuts[0];
-
-    const sampleStudents = this.students.slice(0, 3);
-    sampleStudents.forEach((st) => {
-      if (hw1) {
-        const emailContent = generateHomeworkEmail({
-          studentName: st.name,
-          studentEmail: st.email,
-          teacherName: hw1.createdByName || 'M. Bilir',
-          subject: hw1.subject,
-          title: hw1.title,
-          description: hw1.description,
-          dueDate: hw1.dueDate,
-          outcomes: hw1.outcomes || [],
-          resourcesCount: hw1.resources?.length || 0,
-        });
-
-        this.sentEmails.push({
-          id: `email-seed-hw-${st.id}`,
-          recipientEmail: st.email,
-          recipientName: st.name,
-          recipientRole: 'student',
-          studentId: st.id,
-          type: 'homework_assigned',
-          subject: emailContent.subject,
-          htmlContent: emailContent.html,
-          textContent: emailContent.text,
-          sentAt: hw1.createdAt,
-          status: 'delivered',
-          sourceId: hw1.id,
-          sourceTitle: hw1.title,
-          teacherName: hw1.createdByName || 'M. Bilir',
-        });
-
-        this.studentNotifications.push({
-          id: `notif-seed-hw-${st.id}`,
-          studentId: st.id,
-          type: 'new_homework',
-          title: `Yeni Ödev: ${hw1.subject} - ${hw1.title}`,
-          message: `${hw1.createdByName || 'M. Bilir'} öğretmeniniz yeni bir ödev tanımladı. Son teslim: ${formatDueDateTurkish(hw1.dueDate)}`,
-          sourceId: hw1.id,
-          sourceTitle: hw1.title,
-          teacherName: hw1.createdByName || 'M. Bilir',
-          createdAt: hw1.createdAt,
-          read: false,
-          linkTab: 'homework',
-          emailSent: true,
-          emailRecipient: st.email,
-          emailDetails: {
-            subject: emailContent.subject,
-            bodyHtml: emailContent.html,
-            sentAt: hw1.createdAt,
-          },
-        });
-      }
-
-      if (etut1) {
-        const emailContent = generateEtutEmail({
-          studentName: st.name,
-          studentEmail: st.email,
-          teacherName: etut1.teacherName || 'M. Bilir',
-          subject: etut1.subject,
-          topic: etut1.topic,
-          date: etut1.date,
-          time: etut1.time,
-          duration: etut1.duration,
-          location: etut1.location,
-          notes: etut1.notes,
-        });
-
-        this.sentEmails.push({
-          id: `email-seed-etut-${st.id}`,
-          recipientEmail: st.email,
-          recipientName: st.name,
-          recipientRole: 'student',
-          studentId: st.id,
-          type: 'etut_assigned',
-          subject: emailContent.subject,
-          htmlContent: emailContent.html,
-          textContent: emailContent.text,
-          sentAt: etut1.createdAt,
-          status: 'delivered',
-          sourceId: etut1.id,
-          sourceTitle: etut1.topic,
-          teacherName: etut1.teacherName || 'M. Bilir',
-        });
-
-        this.studentNotifications.push({
-          id: `notif-seed-etut-${st.id}`,
-          studentId: st.id,
-          type: 'new_etut',
-          title: `Yeni Etüt: ${etut1.subject} - ${etut1.topic}`,
-          message: `${formatEtutDateTurkish(etut1.date)} saat ${etut1.time}'de (${etut1.duration} dk) etüdünüz planlandı.`,
-          sourceId: etut1.id,
-          sourceTitle: etut1.topic,
-          teacherName: etut1.teacherName || 'M. Bilir',
-          createdAt: etut1.createdAt,
-          read: false,
-          linkTab: 'etuts',
-          emailSent: true,
-          emailRecipient: st.email,
-          emailDetails: {
-            subject: emailContent.subject,
-            bodyHtml: emailContent.html,
-            sentAt: etut1.createdAt,
-          },
-        });
-      }
-    });
-
-    saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
-    saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
+    // Otomatik/rastgele dummy bildirim ve e-posta yüklemesi devre dışı bırakıldı
+    return;
   }
 
   // --- QUESTION LOGS (SORU SAYISI TAKİP) ---
@@ -3736,58 +4081,85 @@ export class DataService {
   // =========================================================================
   // DERS BAZLI AÇILIR MENÜ (DROPDOWN) ETÜT ÖĞRETMENLERİ YÖNETİMİ
   // =========================================================================
+  private static readonly AUTO_SEEDED_TEACHER_NAMES = new Set([
+    'Gülderen Akgün',
+    'Gül Deniz',
+    'Tunahan Çetin',
+    'Kemal onarıcı',
+    'Cihan Baysal',
+    'Tuğçe Özsoy',
+    'Elif Şahin',
+    'Zeynep Kaya',
+    'Ahmet Yılmaz',
+    'Murat Demir',
+    'John Miller',
+    'Sarah Jenkins',
+    'Ali Demir',
+  ]);
+
   public getSubjectTeachersMap(): Record<string, string[]> {
-    const DEFAULT_MAP: Record<string, string[]> = {
-      'Fen Bilimleri': ['Mustafa Bilir', 'Gülderen Akgün', 'Gül Deniz', 'Tunahan Çetin'],
-      'Matematik': ['Kemal onarıcı', 'Cihan Baysal', 'Tuğçe Özsoy'],
-      'Türkçe': ['Elif Şahin', 'Zeynep Kaya'],
-      'Sosyal Bilgiler': ['Ahmet Yılmaz', 'Murat Demir'],
-      'T.C. İnkılap Tarihi': ['Ahmet Yılmaz'],
-      'İngilizce': ['John Miller', 'Sarah Jenkins'],
-      'Din Kültürü': ['Ali Demir'],
-      'Fizik': ['Mustafa Bilir', 'Tunahan Çetin'],
-      'Kimya': ['Gülderen Akgün'],
-      'Biyoloji': ['Gül Deniz'],
-      'Geometri': ['Kemal onarıcı', 'Cihan Baysal'],
-    };
+    // Otomatik eklenen sahte etüt öğretmenleri tamamen temizlendi
+    const cleanedMap: Record<string, string[]> = {};
 
     try {
       const stored = localStorage.getItem('etut_subject_teachers_map');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
-          return { ...DEFAULT_MAP, ...parsed };
+          let wasModified = false;
+          for (const [subj, teachers] of Object.entries(parsed)) {
+            if (Array.isArray(teachers)) {
+              const filtered = teachers.filter(
+                (name) => typeof name === 'string' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(name.trim())
+              );
+              if (filtered.length !== teachers.length) {
+                wasModified = true;
+              }
+              if (filtered.length > 0) {
+                cleanedMap[subj] = filtered;
+              }
+            }
+          }
+          if (wasModified) {
+            localStorage.setItem('etut_subject_teachers_map', JSON.stringify(cleanedMap));
+          }
+          return cleanedMap;
         }
       }
     } catch {
       // fallback
     }
-    return DEFAULT_MAP;
+    return cleanedMap;
   }
 
   public getTeachersForSubject(subject: string): string[] {
     const map = this.getSubjectTeachersMap();
+    const cleanSub = (subject || '').trim().toLowerCase();
+
     if (map[subject] && map[subject].length > 0) {
       return map[subject];
     }
-    const cleanSub = (subject || '').trim().toLowerCase();
     const foundKey = Object.keys(map).find(
       (k) =>
         k.toLowerCase() === cleanSub ||
         cleanSub.includes(k.toLowerCase()) ||
-        k.toLowerCase().includes(cleanSub) ||
-        (cleanSub.includes('fen') && k.toLowerCase().includes('fen')) ||
-        (cleanSub.includes('mat') && k.toLowerCase().includes('mat'))
+        k.toLowerCase().includes(cleanSub)
     );
-    if (foundKey && map[foundKey]) {
+    if (foundKey && map[foundKey] && map[foundKey].length > 0) {
       return map[foundKey];
     }
-    return [];
+
+    // Sistemde kayıtlı gerçek ve onaylı öğretmenleri döndür (otomatik/sahte öğretmen içermez)
+    const activeSystemTeachers = this.teachers
+      .filter((t) => t.status === 'approved' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(t.name.trim()))
+      .map((t) => t.name);
+
+    return activeSystemTeachers;
   }
 
   public addTeacherToSubject(subject: string, teacherName: string): Record<string, string[]> {
     const cleanName = teacherName.trim();
-    if (!cleanName) return this.getSubjectTeachersMap();
+    if (!cleanName || DataService.AUTO_SEEDED_TEACHER_NAMES.has(cleanName)) return this.getSubjectTeachersMap();
     const map = this.getSubjectTeachersMap();
     const targetKey = subject.trim() || 'Genel';
     const list = map[targetKey] ? [...map[targetKey]] : [];

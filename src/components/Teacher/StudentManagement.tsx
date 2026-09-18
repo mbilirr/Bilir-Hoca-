@@ -25,6 +25,10 @@ import {
   Key,
   Copy,
   CheckCircle2,
+  UserPlus,
+  UserMinus,
+  ArrowRightLeft,
+  CheckSquare,
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -68,6 +72,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
+  const [viewingClassStudents, setViewingClassStudents] = useState<ClassGroup | null>(null);
+  const [classStudentSearch, setClassStudentSearch] = useState<string>('');
+
+  // Transfer students state (Tekli & Toplu aktarma)
+  const [transferTargetClass, setTransferTargetClass] = useState<ClassGroup | null>(null);
+  const [transferSearchTerm, setTransferSearchTerm] = useState<string>('');
+  const [transferOnlyUnassigned, setTransferOnlyUnassigned] = useState<boolean>(false);
+  const [transferSelectedStudentIds, setTransferSelectedStudentIds] = useState<string[]>([]);
 
   // Delete modals state
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
@@ -470,6 +482,21 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         description: classDescription,
       });
       savedClassId = created.id;
+
+      if (created.autoAssignedCount && created.autoAssignedCount > 0) {
+        setStudentSuccessFeedback(
+          `"${finalClassName}" sınıfı oluşturuldu ve eşleşen ${created.autoAssignedCount} kayıtlı öğrenci otomatik olarak bu sınıfa aktarıldı!`
+        );
+        confetti({
+          particleCount: 60,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } else {
+        setStudentSuccessFeedback(
+          `"${finalClassName}" sınıfı başarıyla oluşturuldu. Sınıf içine yeni öğrenci ekleyebilir veya sistemdeki öğrencileri aktarabilirsiniz.`
+        );
+      }
     }
 
     // Toplu Excel Öğrencilerini Oluştur ve Sınıfa Ata
@@ -861,6 +888,64 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <span className="text-[10px] font-mono text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
                       {cls.academicYear}
                     </span>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingClassStudents(cls);
+                        setClassStudentSearch('');
+                      }}
+                      className="py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                      title={`${cls.name} sınıfına kayıtlı öğrencilerin listesini görüntüle`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span className="truncate">Öğrenciler ({classStudents.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransferTargetClass(cls);
+                        setTransferSelectedStudentIds([]);
+                        setTransferSearchTerm('');
+                      }}
+                      className="py-2 px-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      title="Sistemdeki öğrencileri tek tek veya toplu bu sınıfa aktar"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="truncate">Öğrenci Aktar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentClassId(cls.id);
+                        setStudentSchoolLevel(cls.schoolLevel || 'Ortaokul');
+                        setStudentGradeLevel(cls.gradeLevel || '5. Sınıf');
+                        setStudentBranch(cls.branch || 'Şube A');
+                        setIsAddStudentOpen(true);
+                      }}
+                      className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="truncate">Yeni Öğrenci</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClassFilter(cls.id);
+                        setActiveTab('students');
+                      }}
+                      className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      title="Öğrenci tablosunda bu sınıfı filtrele"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="truncate">Tabloda Gör</span>
+                    </button>
                   </div>
                 </div>
               );
@@ -1559,6 +1644,545 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         onClose={() => setSelectedCredentialsStudent(null)}
         student={selectedCredentialsStudent}
       />
+
+      {/* SINIF ÖĞRENCİ LİSTESİ PENCERESİ (MODAL) */}
+      {viewingClassStudents && (() => {
+        const classStudents = students.filter((s) => s.classId === viewingClassStudents.id);
+        const filteredStudents = classStudents.filter((s) => {
+          const q = classStudentSearch.toLowerCase().trim();
+          if (!q) return true;
+          return (
+            s.name.toLowerCase().includes(q) ||
+            (s.studentNumber && s.studentNumber.includes(q)) ||
+            (s.phone && s.phone.includes(q)) ||
+            (s.email && s.email.toLowerCase().includes(q))
+          );
+        });
+
+        const handleCopyList = () => {
+          const text = classStudents
+            .map((s, idx) => `${idx + 1}. ${s.name} (No: ${s.studentNumber || '-'})`)
+            .join('\n');
+          navigator.clipboard.writeText(text);
+          alert('Sınıf öğrenci listesi panoya kopyalandı.');
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            onClick={() => setViewingClassStudents(null)}
+          >
+            <div
+              className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/90 flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <School className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base sm:text-lg font-bold text-white">
+                        {viewingClassStudents.name} — Kayıtlı Öğrenci Listesi
+                      </h3>
+                      {viewingClassStudents.schoolLevel && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                          {viewingClassStudents.schoolLevel}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {viewingClassStudents.branch} • {viewingClassStudents.academicYear} • Toplam{' '}
+                      <strong className="text-indigo-300 font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setViewingClassStudents(null)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Toolbar: Search & Action buttons */}
+              <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={classStudentSearch}
+                    onChange={(e) => setClassStudentSearch(e.target.value)}
+                    placeholder="Sınıf içinde isim, no veya veli tel ara..."
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudentClassId(viewingClassStudents.id);
+                      setStudentSchoolLevel(viewingClassStudents.schoolLevel || 'Ortaokul');
+                      setStudentGradeLevel(viewingClassStudents.gradeLevel || '5. Sınıf');
+                      setStudentBranch(viewingClassStudents.branch || 'Şube A');
+                      setIsAddStudentOpen(true);
+                    }}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
+                    title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Yeni Öğrenci</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferTargetClass(viewingClassStudents);
+                      setTransferSelectedStudentIds([]);
+                      setTransferSearchTerm('');
+                    }}
+                    className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md shadow-emerald-600/20"
+                    title="Sistemdeki öğrencileri tek tek veya toplu olarak bu sınıfa aktar"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    <span>Öğrenci Aktar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyList}
+                    disabled={classStudents.length === 0}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
+                    title="Öğrenci listesini kopyala"
+                  >
+                    <span>📋 Kopyala</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedClassFilter(viewingClassStudents.id);
+                      setViewingClassStudents(null);
+                      setActiveTab('students');
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Tabloda Aç</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Student Table / Cards */}
+              <div className="flex-1 overflow-y-auto p-4 max-h-[55vh]">
+                {classStudents.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-white mb-1">Bu Sınıfa Kayıtlı Öğrenci Yok</h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
+                      "{viewingClassStudents.name}" sınıfına henüz hiçbir öğrenci kaydedilmemiş. Hemen yeni bir öğrenci ekleyebilir veya sistemdeki öğrencileri bu sınıfa aktarabilirsiniz.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudentClassId(viewingClassStudents.id);
+                          setStudentSchoolLevel(viewingClassStudents.schoolLevel || 'Ortaokul');
+                          setStudentGradeLevel(viewingClassStudents.gradeLevel || '5. Sınıf');
+                          setStudentBranch(viewingClassStudents.branch || 'Şube A');
+                          setIsAddStudentOpen(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center space-x-1.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Yeni Öğrenci Ekle</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTransferTargetClass(viewingClassStudents);
+                          setTransferSelectedStudentIds([]);
+                          setTransferSearchTerm('');
+                        }}
+                        className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center space-x-1.5"
+                      >
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <span>Sistemdeki Öğrencileri Aktar</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : filteredStudents.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    "{classStudentSearch}" aramasına uygun öğrenci bulunamadı.
+                  </div>
+                ) : (
+                  <div className="border border-slate-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-950/80 text-slate-400 text-[11px] font-semibold border-b border-slate-800 uppercase tracking-wider">
+                        <tr>
+                          <th className="py-2.5 px-3 w-10 text-center">#</th>
+                          <th className="py-2.5 px-3">Öğrenci Adı Soyadı</th>
+                          <th className="py-2.5 px-3">Okul No</th>
+                          <th className="py-2.5 px-3">Veli / İletişim</th>
+                          <th className="py-2.5 px-3">E-posta</th>
+                          <th className="py-2.5 px-3 text-right">İşlemler</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 bg-slate-900/50">
+                        {filteredStudents.map((std, idx) => (
+                          <tr key={std.id} className="hover:bg-slate-800/40 transition-colors">
+                            <td className="py-2.5 px-3 text-center text-slate-500 font-mono">
+                              {idx + 1}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="flex items-center space-x-2.5">
+                                <img
+                                  src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                                  alt={std.name}
+                                  className="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <span className="font-bold text-white">{std.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 text-[11px]">
+                                #{std.studentNumber || '-'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-300">
+                              {std.phone ? (
+                                <span className="font-mono text-slate-300">{std.phone}</span>
+                              ) : (
+                                <span className="text-slate-500 italic">Belirtilmedi</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-400">
+                              {std.email || <span className="text-slate-500 italic">-</span>}
+                            </td>
+                            <td className="py-2.5 px-3 text-right">
+                              <div className="flex items-center justify-end space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setViewingClassStudents(null);
+                                    openEditStudent(std);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                                  title="Öğrenciyi Düzenle"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`"${std.name}" adlı öğrenciyi "${viewingClassStudents.name}" sınıfından çıkarmak istediğinize emin misiniz?`)) {
+                                      dataService.removeStudentFromClass(std.id);
+                                      setStudentSuccessFeedback(`"${std.name}" adlı öğrenci ${viewingClassStudents.name} sınıfından çıkarıldı.`);
+                                    }
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                                  title="Öğrenciyi Bu Sınıftan Çıkar"
+                                >
+                                  <UserMinus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  Gösterilen: <strong className="text-white">{filteredStudents.length}</strong> / {classStudents.length} Öğrenci
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setViewingClassStudents(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* SİSTEMDEN ÖĞRENCİ AKTARMA MODALI (TEKLİ & TOPLU) */}
+      {transferTargetClass && (() => {
+        const availableStudents = students.filter(
+          (s) => s.classId !== transferTargetClass.id
+        );
+        const filteredTransferStudents = availableStudents.filter((s) => {
+          if (transferOnlyUnassigned && s.classId && s.className && s.className !== 'Atanmadı') {
+            return false;
+          }
+          const q = transferSearchTerm.toLowerCase().trim();
+          if (!q) return true;
+          return (
+            s.name.toLowerCase().includes(q) ||
+            (s.studentNumber && s.studentNumber.includes(q)) ||
+            (s.className && s.className.toLowerCase().includes(q)) ||
+            (s.email && s.email.toLowerCase().includes(q))
+          );
+        });
+
+        const isAllSelected =
+          filteredTransferStudents.length > 0 &&
+          filteredTransferStudents.every((s) => transferSelectedStudentIds.includes(s.id));
+
+        const toggleSelectAll = () => {
+          if (isAllSelected) {
+            setTransferSelectedStudentIds([]);
+          } else {
+            setTransferSelectedStudentIds(filteredTransferStudents.map((s) => s.id));
+          }
+        };
+
+        const toggleSelectStudent = (id: string) => {
+          setTransferSelectedStudentIds((prev) =>
+            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+          );
+        };
+
+        const handleTransferSingle = (student: Student) => {
+          const count = dataService.assignStudentsToClass([student.id], transferTargetClass.id);
+          if (count > 0) {
+            setStudentSuccessFeedback(
+              `"${student.name}" başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
+            );
+            confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+          }
+        };
+
+        const handleTransferBulk = () => {
+          if (transferSelectedStudentIds.length === 0) return;
+          const count = dataService.assignStudentsToClass(
+            transferSelectedStudentIds,
+            transferTargetClass.id
+          );
+          if (count > 0) {
+            setStudentSuccessFeedback(
+              `${count} öğrenci başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
+            );
+            setTransferSelectedStudentIds([]);
+            confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+          }
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            onClick={() => setTransferTargetClass(null)}
+          >
+            <div
+              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/90 flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                    <ArrowRightLeft className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                      <span>Öğrenci Aktarımı</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {transferTargetClass.name}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Sistemdeki öğrencileri tek tek veya çoklu seçimle toplu olarak bu sınıfa aktarabilirsiniz.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTransferTargetClass(null)}
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={transferSearchTerm}
+                      onChange={(e) => setTransferSearchTerm(e.target.value)}
+                      placeholder="Öğrenci adı, okul no veya mevcut sınıf ara..."
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setTransferOnlyUnassigned(false)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        !transferOnlyUnassigned
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Tüm Sistem ({availableStudents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTransferOnlyUnassigned(true)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        transferOnlyUnassigned
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Sadece Sınıfsızlar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Bulk Select Toolbar */}
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <label className="flex items-center space-x-2 text-slate-300 font-semibold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      disabled={filteredTransferStudents.length === 0}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
+                    />
+                    <span>
+                      Tümünü Seç ({filteredTransferStudents.length})
+                      {transferSelectedStudentIds.length > 0 && (
+                        <strong className="text-indigo-400 ml-1.5">
+                          ({transferSelectedStudentIds.length} seçildi)
+                        </strong>
+                      )}
+                    </span>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleTransferBulk}
+                    disabled={transferSelectedStudentIds.length === 0}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs flex items-center space-x-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Seçilenleri Toplu Aktar ({transferSelectedStudentIds.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Student Transfer List */}
+              <div className="flex-1 overflow-y-auto p-4 max-h-[50vh] space-y-2">
+                {filteredTransferStudents.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    Aktarılabilecek öğrenci bulunamadı.
+                  </div>
+                ) : (
+                  filteredTransferStudents.map((std) => {
+                    const isSelected = transferSelectedStudentIds.includes(std.id);
+                    return (
+                      <div
+                        key={std.id}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                          isSelected
+                            ? 'bg-indigo-950/40 border-indigo-500/50'
+                            : 'bg-slate-900/60 border-slate-800 hover:bg-slate-800/50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectStudent(std.id)}
+                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
+                          />
+                          <img
+                            src={
+                              std.avatar ||
+                              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+                                std.name
+                              )}`
+                            }
+                            alt={std.name}
+                            className="w-9 h-9 rounded-full bg-slate-800 object-cover border border-slate-700"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <div className="font-bold text-white text-xs flex items-center space-x-2">
+                              <span>{std.name}</span>
+                              <span className="font-mono text-slate-400 text-[10px]">
+                                #{std.studentNumber}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 flex items-center space-x-2 mt-0.5">
+                              <span>Mevcut Sınıf:</span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  !std.className || std.className === 'Atanmadı'
+                                    ? 'bg-slate-800 text-slate-400'
+                                    : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                                }`}
+                              >
+                                {std.className || 'Sınıfsız'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTransferSingle(std)}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm cursor-pointer shrink-0"
+                          title={`${std.name} adlı öğrenciyi ${transferTargetClass.name} sınıfına aktar`}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Bu Sınıfa Aktar</span>
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  Toplam {filteredTransferStudents.length} aktarılabilir öğrenci listeleniyor
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTransferTargetClass(null)}
+                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

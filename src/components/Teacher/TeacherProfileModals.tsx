@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   User,
@@ -160,9 +161,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
     }
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
       onClick={onClose}
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
@@ -456,7 +457,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
       </div>
     </div>
   </div>
-);
+  );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 
 interface TeacherPasswordModalProps {
@@ -523,9 +526,9 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
       onClick={onClose}
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
@@ -657,5 +660,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
       </div>
     </div>
   </div>
-);
+  );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

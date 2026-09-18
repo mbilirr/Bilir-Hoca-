@@ -33,6 +33,11 @@ import {
   Eye,
   ChevronLeft,
   Printer,
+  School,
+  XCircle,
+  AlertCircle,
+  Info,
+  HelpCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Homework, HomeworkSubmission, Student, ClassGroup, HomeworkResource, HomeworkCheckStatus } from '../../types';
@@ -116,6 +121,18 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     const el = document.getElementById('all-hw-carousel-track');
     if (el) {
       el.scrollBy({ left: distance, behavior: 'smooth' });
+    }
+  };
+
+  const formatDueDateTurkish = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime())
+        ? dateStr
+        : d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
     }
   };
 
@@ -395,6 +412,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       yapti: 'Yaptı',
       yapmadi: 'Yapmadı',
       eksik: 'Eksik',
+      izinli: 'İzinli',
       gelmedi: 'Gelmedi',
     };
     setSaveFeedback(`${labels[status]} seçildi. Kaydetmek için sayfanın altındaki butona tıklayınız.`);
@@ -413,6 +431,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       yapti: 'Yaptı',
       yapmadi: 'Yapmadı',
       eksik: 'Eksik',
+      izinli: 'İzinli',
       gelmedi: 'Gelmedi',
     };
     setSaveFeedback(`Listedeki tüm öğrenciler "${labels[status]}" olarak seçildi. Kaydetmek için sayfanın altındaki "Değişiklikleri Kaydet" butonuna tıklayınız.`);
@@ -509,851 +528,468 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         </div>
       )}
 
-      {/* TAB 1: TRACKER / CHECK VIEW */}
-      {activeTab === 'tracker' && (
-        <div className="space-y-5">
-          {/* 3 Ana Seçim Butonu: TÜM ÖDEVLER, TÜM SINIFLAR, TÜM DERSLER */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center space-x-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  <span>Ödev Kontrol & Filtreleme Butonları</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Aşağıdaki butonlardan seçim yaparak ilgili ödevleri yan yana kayan özet sayfalar halinde görüntüleyin.
-                </p>
-              </div>
+            {/* TAB 1: TRACKER / CHECK VIEW */}
+      {activeTab === 'tracker' && (() => {
+        // 1. Seçili ödev (Açılır pencere / Dropdown ile seçilir)
+        const currentHw = homeworks.find((h) => h.id === selectedHomeworkId) || homeworks[0] || null;
 
-              {/* Buton Seçim Durumu Rozeti */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                  {filteredTrackerHomeworks.length} Ödev Görünüyor
+        // 2. Seçtiğimiz ödevi olan sınıflar listesi
+        const hwClasses = (() => {
+          if (!currentHw) return [];
+          if (currentHw.targetClassIds && currentHw.targetClassIds.length > 0) {
+            const matched = classes.filter((c) => currentHw.targetClassIds!.includes(c.id));
+            if (matched.length > 0) return matched;
+          }
+          if (currentHw.classId) {
+            const matched = classes.filter((c) => c.id === currentHw.classId);
+            if (matched.length > 0) return matched;
+          }
+          return classes;
+        })();
+
+        // 3. Seçilen sınıf (varsayılan olarak ilk sınıf)
+        const activeClassId =
+          selectedClassIdForCheck && hwClasses.some((c) => c.id === selectedClassIdForCheck)
+            ? selectedClassIdForCheck
+            : (hwClasses[0]?.id || '');
+        const currentClass = classes.find((c) => c.id === activeClassId) || null;
+
+        // 4. Seçilen sınıfın öğrencileri alt alta sıralanır
+        const classStudents = activeClassId
+          ? students.filter((s) => s.classId === activeClassId)
+          : [];
+
+        // Öğrenci içi hızlı filtreleme
+        const displayedStudents = classStudents.filter((std) => {
+          if (!studentSearchInput.trim()) return true;
+          const q = studentSearchInput.toLowerCase().trim();
+          return (
+            std.name.toLowerCase().includes(q) ||
+            (std.studentNumber && std.studentNumber.includes(q))
+          );
+        });
+
+        // Sayaçlar
+        let countYapti = 0;
+        let countYapmadi = 0;
+        let countEksik = 0;
+        let countIzinli = 0;
+        let countGelmedi = 0;
+
+        classStudents.forEach((std) => {
+          const status = getStudentCheckStatus(std.id);
+          if (status === 'yapti') countYapti++;
+          else if (status === 'yapmadi') countYapmadi++;
+          else if (status === 'eksik') countEksik++;
+          else if (status === 'izinli') countIzinli++;
+          else if (status === 'gelmedi') countGelmedi++;
+        });
+
+        // Durum butonuna tıklandığında anında kaydet
+        const handleStatusClick = (studentId: string, status: HomeworkCheckStatus) => {
+          if (!currentHw) return;
+          dataService.updateHomeworkCheckStatus(currentHw.id, studentId, status);
+          setLocalSubmissions(dataService.getSubmissions());
+          setDraftCheckStatuses((prev) => {
+            const next = { ...prev };
+            delete next[studentId];
+            return next;
+          });
+        };
+
+        // Toplu durum belirleme
+        const handleBulkStatusChange = (status: HomeworkCheckStatus) => {
+          if (!currentHw || classStudents.length === 0) return;
+          classStudents.forEach((std) => {
+            dataService.updateHomeworkCheckStatus(currentHw.id, std.id, status);
+          });
+          setLocalSubmissions(dataService.getSubmissions());
+          setDraftCheckStatuses({});
+          const labels: Record<HomeworkCheckStatus, string> = {
+            yapti: 'Yaptı',
+            yapmadi: 'Yapmadı',
+            eksik: 'Eksik',
+            izinli: 'İzinli',
+            gelmedi: 'Gelmedi',
+          };
+          setSaveFeedback(`✓ ${currentClass?.name || 'Sınıf'} için tüm öğrenciler "${labels[status]}" olarak kaydedildi.`);
+          setTimeout(() => setSaveFeedback(null), 3000);
+        };
+
+        if (homeworks.length === 0) {
+          return (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
+              <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+                Ödev kontrolü yapabilmek için lütfen önce "Yeni Ödev Oluştur" butonu ile sisteme bir ödev ekleyiniz.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>İlk Ödevi Oluştur</span>
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-5">
+            {/* 1. ÖDEV AÇILIR PENCERESİ */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <BookOpen className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-white">Ödev Seçiniz</h3>
+                    <p className="text-xs text-slate-400">
+                      Kontrol etmek istediğiniz ödevi açılır listeden belirleyiniz.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
+                  {homeworks.length} Ödev Mevcut
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTrackerFilterHwId('all');
-                    setTrackerFilterClassId('all');
-                    setTrackerFilterSubject('all');
-                    setIsTrackerCarouselVisible(true);
+              </div>
+
+              {/* ÖDEV SEÇİM AÇILIR MENÜSÜ */}
+              <div className="relative">
+                <select
+                  value={selectedHomeworkId}
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedHomeworkId(newId);
+                    const selectedHw = homeworks.find((h) => h.id === newId);
+                    if (selectedHw?.targetClassIds && selectedHw.targetClassIds.length > 0) {
+                      setSelectedClassIdForCheck(selectedHw.targetClassIds[0]);
+                    } else if (selectedHw?.classId) {
+                      setSelectedClassIdForCheck(selectedHw.classId);
+                    } else if (classes[0]) {
+                      setSelectedClassIdForCheck(classes[0].id);
+                    }
                   }}
-                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
+                  className="w-full bg-slate-950 border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
                 >
-                  Tümünü Göster
-                </button>
+                  {homeworks.map((hw) => (
+                    <option key={hw.id} value={hw.id} className="bg-slate-900 text-white py-2">
+                      [{hw.subject}] {hw.title} • Son Teslim: {formatDueDateTurkish(hw.dueDate)}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Seçili Ödev Detay Kartı */}
+              {currentHw && (
+                <div className="mt-3.5 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                      {currentHw.subject}
+                    </span>
+                    <span className="text-sm font-bold text-white">{currentHw.title}</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-xs text-slate-400">
+                    <span className="flex items-center space-x-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Son Teslim: <strong className="text-slate-200">{formatDueDateTurkish(currentHw.dueDate)}</strong></span>
+                    </span>
+                    {currentHw.createdByName && (
+                      <span className="text-slate-400">Öğretmen: <strong className="text-slate-300">{currentHw.createdByName}</strong></span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* 3 Buton Izgarası */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {/* 1. TÜM ÖDEVLER BUTONU */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Tüm Ödevler Butonu</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {trackerFilterHwId === 'all' ? 'Tümü Açık' : '1 Ödev Seçili'}
-                  </span>
+            {/* 2. SEÇTİĞİMİZ ÖDEVİ OLAN SINIFLAR */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <School className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-white">Ödevi Olan Sınıflar</h3>
+                    <p className="text-xs text-slate-400">
+                      Bu ödevin tanımlandığı sınıflardan birini seçiniz.
+                    </p>
+                  </div>
                 </div>
-                <div className="relative">
-                  <select
-                    value={trackerFilterHwId}
-                    onChange={(e) => {
-                      setTrackerFilterHwId(e.target.value);
-                      setIsTrackerCarouselVisible(true);
-                      if (e.target.value !== 'all') {
-                        setSelectedHomeworkId(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
-                  >
-                    <option value="all">📚 Tüm Ödevler ({homeworks.length})</option>
-                    {homeworks.map((hw) => (
-                      <option key={hw.id} value={hw.id}>
-                        {hw.title} ({hw.subject})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <span className="text-xs text-slate-400">
+                  {hwClasses.length} Sınıf Bulundu
+                </span>
               </div>
 
-              {/* 2. TÜM SINIFLAR BUTONU */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <Users className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Tüm Sınıflar Butonu</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {trackerFilterClassId === 'all' ? 'Tüm Sınıflar' : classes.find((c) => c.id === trackerFilterClassId)?.name}
-                  </span>
-                </div>
-                <div className="relative">
-                  <select
-                    value={trackerFilterClassId}
-                    onChange={(e) => {
-                      setTrackerFilterClassId(e.target.value);
-                      setIsTrackerCarouselVisible(true);
-                      if (e.target.value !== 'all') {
-                        setSelectedClassIdForCheck(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
-                  >
-                    <option value="all">🏫 Tüm Sınıflar ({classes.length})</option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.name} ({cls.academicYear})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* 3. TÜM DERSLER BUTONU */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3 hover:border-indigo-500/50 transition-colors">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <Target className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Tüm Dersler Butonu</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {trackerFilterSubject === 'all' ? 'Tüm Dersler' : trackerFilterSubject}
-                  </span>
-                </div>
-                <div className="relative">
-                  <select
-                    value={trackerFilterSubject}
-                    onChange={(e) => {
-                      setTrackerFilterSubject(e.target.value);
-                      setIsTrackerCarouselVisible(true);
-                    }}
-                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer"
-                  >
-                    <option value="all">📖 Tüm Dersler</option>
-                    {trackerAvailableSubjects.map((sbj) => (
-                      <option key={sbj} value={sbj}>
-                        {sbj}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* YAN YANA KAYAN ÖZET SAYFALAR (AÇILAN ÖDEVLER) */}
-          {isTrackerCarouselVisible && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              {/* Carousel Başlık & Sağa/Sola Kaydırma Butonları */}
-              <div className="p-4 sm:px-5 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/50">
-                <div className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4 text-indigo-400" />
-                  <span className="text-sm font-bold text-white">
-                    Açılan Ödevler (Yan Yana Kayan Özet Sayfalar)
-                  </span>
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold">
-                    {filteredTrackerHomeworks.length} Özet Sayfa
-                  </span>
-                </div>
-
-                {/* Kaydırma Kontrolleri */}
-                <div className="flex items-center space-x-1.5">
-                  <button
-                    type="button"
-                    onClick={() => scrollTrackerHwTrack(-340)}
-                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-95"
-                    title="Sola Kaydır"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollTrackerHwTrack(340)}
-                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all cursor-pointer shadow-sm active:scale-95"
-                    title="Sağa Kaydır"
-                  >
-                    <ChevronDown className="w-4 h-4 -rotate-90" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Yatay Kayar Parça / Carousel Track */}
-              {filteredTrackerHomeworks.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">
-                  Seçilen buton kriterlerine uygun ödev bulunamadı. Lütfen "Tümünü Göster" butonuna tıklayarak filtreleri sıfırlayabilirsiniz.
+              {hwClasses.length === 0 ? (
+                <div className="p-5 rounded-xl bg-slate-950/60 border border-slate-800 text-center text-xs text-slate-400">
+                  Bu ödev için tanımlı sınıf bulunamadı.
                 </div>
               ) : (
-                <div
-                  id="tracker-hw-carousel-track"
-                  className="flex items-stretch space-x-4 overflow-x-auto p-4 sm:p-5 scrollbar-thin snap-x snap-mandatory scroll-smooth"
-                >
-                  {filteredTrackerHomeworks.map((hw) => {
-                    const isSelectedForCheck = selectedHomeworkId === hw.id;
-                    const targetClasses = (hw.targetClassIds || [])
-                      .map((cid) => classes.find((c) => c.id === cid)?.name)
-                      .filter(Boolean);
-
-                    const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
-                    const doneCount = hwSubmissions.filter(
-                      (s) => s.checkStatus === 'yapti' || s.status === 'on_time' || s.status === 'late'
-                    ).length;
-                    const missingCount = hwSubmissions.filter(
-                      (s) => s.checkStatus === 'eksik'
-                    ).length;
-                    const notDoneCount = hwSubmissions.filter(
-                      (s) => s.checkStatus === 'yapmadi' || s.status === 'not_submitted'
-                    ).length;
-
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+                  {hwClasses.map((cls) => {
+                    const isSelected = cls.id === activeClassId;
+                    const countInClass = students.filter((s) => s.classId === cls.id).length;
                     return (
-                      <div
-                        key={hw.id}
-                        className={`w-84 sm:w-92 shrink-0 snap-start bg-slate-900/95 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-lg transition-all border group hover:shadow-indigo-500/10 hover:-translate-y-0.5 ${
-                          isSelectedForCheck
-                            ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-                            : 'border-slate-800 hover:border-indigo-500/40'
+                      <button
+                        key={cls.id}
+                        type="button"
+                        onClick={() => setSelectedClassIdForCheck(cls.id)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-indigo-600/25 border-indigo-400 text-white shadow-lg shadow-indigo-600/25 ring-2 ring-indigo-500/60'
+                            : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white'
                         }`}
                       >
-                        {/* Sayfa Başlığı ve Rozetler */}
-                        <div>
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            <div className="flex items-center space-x-1.5 flex-wrap">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
-                                {hw.subject}
-                              </span>
-                              {hw.schoolLevel && (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
-                                  {hw.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
-                              2026-2027
-                            </span>
-                          </div>
-
-                          <h4
-                            className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[38px] mb-2 leading-snug"
-                            title={hw.title}
-                          >
-                            {hw.title}
-                          </h4>
-
-                          {/* Özet Sayfa Kartı (Mini A4 Doküman Görünümü) */}
-                          <div className="bg-slate-950/90 rounded-xl p-3 border border-slate-800/80 mb-3 space-y-2 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-500/20" />
-
-                            <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-slate-800">
-                              <span className="flex items-center space-x-1">
-                                <Clock className="w-3 h-3 text-amber-400" />
-                                <span>{new Date(hw.dueDate).toLocaleDateString('tr-TR')}</span>
-                              </span>
-                              <span className="font-semibold text-indigo-300 truncate max-w-[120px]">
-                                {targetClasses.join(', ') || 'Tüm Şubeler'}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-slate-300 line-clamp-3 leading-relaxed">
-                              {hw.description || 'Kazanım odaklı çalışma ve ödev föyü talimatları.'}
-                            </p>
-
-                            {/* Kontrol İstatistikleri */}
-                            <div className="flex items-center justify-between pt-1 text-[10px] font-bold border-t border-slate-900">
-                              <span className="text-emerald-400 flex items-center space-x-0.5">
-                                <CheckCircle2 className="w-3 h-3" />
-                                <span>{doneCount} Yaptı</span>
-                              </span>
-                              <span className="text-rose-400 flex items-center space-x-0.5">
-                                <X className="w-3 h-3" />
-                                <span>{notDoneCount} Yapmadı</span>
-                              </span>
-                              <span className="text-amber-400 flex items-center space-x-0.5">
-                                <AlertTriangle className="w-3 h-3" />
-                                <span>{missingCount} Eksik</span>
-                              </span>
-                            </div>
-                          </div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-bold text-sm text-white truncate">{cls.name}</span>
+                          {isSelected && (
+                            <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 ml-1" />
+                          )}
                         </div>
-
-                        {/* Aksiyon Butonları: Görüntüle, İndir, Kontrol Et */}
-                        <div className="space-y-2 pt-2 border-t border-slate-800/60">
-                          <div className="grid grid-cols-2 gap-2">
-                            {/* GÖRÜNTÜLE BUTONU (Sayfanın hepsi açılır, sayfa altında indir butonu vardır) */}
-                            <button
-                              type="button"
-                              onClick={() => setActiveViewingHomework(hw)}
-                              className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-sm cursor-pointer"
-                              title="Ödev Sayfasının Hepsini Aç"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Görüntüle</span>
-                            </button>
-
-                            {/* İNDİR BUTONU */}
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadHomeworkDoc(hw)}
-                              className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 transition-all cursor-pointer"
-                              title="Ödev Belgesini İndir (.doc)"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>İndir</span>
-                            </button>
-                          </div>
-
-                          {/* Kontrol Et Butonu */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedHomeworkId(hw.id);
-                              if (hw.targetClassIds && hw.targetClassIds.length > 0) {
-                                setSelectedClassIdForCheck(hw.targetClassIds[0]);
-                              }
-                              setDraftCheckStatuses({});
-                              setSaveFeedback(null);
-                            }}
-                            className={`w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer border ${
-                              isSelectedForCheck
-                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border-slate-800 hover:border-slate-700'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>{isSelectedForCheck ? '✓ Bu Ödev Seçili (Aşağıda Kontrol Ediliyor)' : 'Bu Ödevi Kontrol Çizelgesinde Seç'}</span>
-                          </button>
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>{cls.branch || 'Şube'}</span>
+                          <span className="font-bold text-indigo-300">{countInClass} Öğrenci</span>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
               )}
             </div>
-          )}
 
-          {/* Controls Bar: Ödev Seçiniz, Sınıf Seçiniz, Öğrenci Seçiniz, Öğrenci Arama */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-md">
-            <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center space-x-2">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Öğrenci Değerlendirme & Kontrol Çizelgesi</span>
-            </div>
+            {/* 3. SEÇİLEN SINIFIN LİSTESİ ALT ALTA SIRALANSIN & İSİMLERİN KARŞISINDA DURUMLAR */}
+            {currentClass && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+                {/* Header & Arama */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base font-bold text-white">
+                        {currentClass.name} — Öğrenci Listesi
+                      </h3>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        {classStudents.length} Kayıtlı Öğrenci
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Her öğrencinin karşısındaki durum butonuna basarak kontrolünü tamamlayın.
+                    </p>
+                  </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {/* 1. Ödev Seçiniz */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Kontrol Edilecek Ödev *
-                </label>
-                <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-                  <Target className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <select
-                    value={selectedHomeworkId}
-                    onChange={(e) => {
-                      setSelectedHomeworkId(e.target.value);
-                      setDraftCheckStatuses({});
-                      setSaveFeedback(null);
-                    }}
-                    className="w-full bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
-                  >
-                    {homeworks.map((hw) => (
-                      <option key={hw.id} value={hw.id} className="bg-slate-900 text-white">
-                        {hw.title} ({hw.subject})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* 2. Sınıf Seçiniz */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Sınıf Seçiniz *
-                </label>
-                <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-                  <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <select
-                    value={selectedClassIdForCheck}
-                    onChange={(e) => {
-                      setSelectedClassIdForCheck(e.target.value);
-                      setSelectedStudentIdForCheck('');
-                    }}
-                    className="w-full bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
-                  >
-                    <option value="" className="bg-slate-900 text-slate-400">
-                      Sınıf Seçiniz...
-                    </option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id} className="bg-slate-900 text-white">
-                        {cls.name} ({cls.academicYear})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* 3. Öğrenci Seçiniz (Açılır Pencere) */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Öğrenci Seçiniz
-                </label>
-                <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5">
-                  <GraduationCap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <select
-                    value={selectedStudentIdForCheck}
-                    onChange={(e) => {
-                      setSelectedStudentIdForCheck(e.target.value);
-                      if (e.target.value) {
-                        setStudentSearchInput('');
-                      }
-                    }}
-                    className="w-full bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
-                  >
-                    <option value="" className="bg-slate-900 text-slate-400">
-                      Öğrenci Seçiniz (Tüm Sınıf)...
-                    </option>
-                    {(selectedClassIdForCheck
-                      ? students.filter((s) => s.classId === selectedClassIdForCheck)
-                      : students
-                    ).map((std) => (
-                      <option key={std.id} value={std.id} className="bg-slate-900 text-white">
-                        #{std.studentNumber || std.id.slice(-4)} - {std.name} ({std.className})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* 4. Tek Öğrenci Arama Kutusu ve Butonu */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
-                  Öğrenci İsmi ile Ara
-                </label>
-                <div className="flex items-center space-x-1.5">
-                  <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={studentSearchInput}
-                      onChange={(e) => {
-                        setStudentSearchInput(e.target.value);
-                        if (e.target.value) {
-                          setSelectedStudentIdForCheck('');
-                        }
-                      }}
-                      placeholder="Öğrenci ismi yazarak ara..."
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      onChange={(e) => setStudentSearchInput(e.target.value)}
+                      placeholder="Öğrenci adı veya numarası ara..."
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                     />
                   </div>
-                  {studentSearchInput && (
-                    <button
-                      type="button"
-                      onClick={() => setStudentSearchInput('')}
-                      className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl text-xs cursor-pointer"
-                      title="Aramayı Temizle"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* KURAL KONTROLÜ: Açılır pencerelerden biri seçilmeden sayfanın altında ödev bilgileri çıkmasın */}
-          {!isSelectionActive ? (
-            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-10 sm:p-14 text-center shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-bold text-white mb-2">
-                Ödev Kontrolü İçin Sınıf veya Öğrenci Seçiniz
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto mb-6 leading-relaxed">
-                Ödev bilgilerini, sınıf listesini ve teslim kontrol durumlarını (yaptı, yapmadı, eksik, gelmedi) görüntülemek için lütfen yukarıdaki menüden bir <strong className="text-indigo-300">Sınıf Seçiniz</strong> veya <strong className="text-emerald-300">Öğrenci</strong> arayınız.
-              </p>
-
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {classes.map((cls) => (
-                  <button
-                    key={cls.id}
-                    type="button"
-                    onClick={() => setSelectedClassIdForCheck(cls.id)}
-                    className="px-3.5 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800 text-xs font-semibold transition-all cursor-pointer flex items-center space-x-1.5"
-                  >
-                    <Users className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{cls.name} Sınıfını Kontrol Et</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* SINIF LİSTESİ ÜZERİNDE VERİLEN ÖDEVİN BİLGİSİ */}
-              {selectedHomework && (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-4">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                          {selectedHomework.subject}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20 flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span>
-                            Son Teslim:{' '}
-                            {new Date(selectedHomework.dueDate).toLocaleDateString('tr-TR')} -{' '}
-                            {new Date(selectedHomework.dueDate).toLocaleTimeString('tr-TR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                          Sınıf:{' '}
-                          {classes.find((c) => c.id === selectedClassIdForCheck)?.name ||
-                            'Tüm Seçili Öğrenciler'}
-                        </span>
-                      </div>
-
-                      <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                        {selectedHomework.title}
-                      </h3>
-
-                      {selectedHomework.description && (
-                        <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
-                          {selectedHomework.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* İstatistik Sayaçları */}
-                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-center min-w-[65px]">
-                        <div className="text-[10px] text-slate-400 font-semibold">TOPLAM</div>
-                        <div className="text-sm font-bold text-white">
-                          {targetStudentsForCheck.length}
-                        </div>
-                      </div>
-                      <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-3 py-1.5 text-center min-w-[65px]">
-                        <div className="text-[10px] text-emerald-400 font-semibold">YAPTI</div>
-                        <div className="text-sm font-bold text-emerald-300">
-                          {
-                            targetStudentsForCheck.filter(
-                              (s) => getStudentCheckStatus(s.id) === 'yapti'
-                            ).length
-                          }
-                        </div>
-                      </div>
-                      <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl px-3 py-1.5 text-center min-w-[65px]">
-                        <div className="text-[10px] text-rose-400 font-semibold">YAPMADI</div>
-                        <div className="text-sm font-bold text-rose-300">
-                          {
-                            targetStudentsForCheck.filter(
-                              (s) => getStudentCheckStatus(s.id) === 'yapmadi'
-                            ).length
-                          }
-                        </div>
-                      </div>
-                      <div className="bg-amber-950/40 border border-amber-500/30 rounded-xl px-3 py-1.5 text-center min-w-[65px]">
-                        <div className="text-[10px] text-amber-400 font-semibold">EKSİK</div>
-                        <div className="text-sm font-bold text-amber-300">
-                          {
-                            targetStudentsForCheck.filter(
-                              (s) => getStudentCheckStatus(s.id) === 'eksik'
-                            ).length
-                          }
-                        </div>
-                      </div>
-                      <div className="bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-1.5 text-center min-w-[65px]">
-                        <div className="text-[10px] text-slate-400 font-semibold">GELMEDİ</div>
-                        <div className="text-sm font-bold text-slate-300">
-                          {
-                            targetStudentsForCheck.filter(
-                              (s) => getStudentCheckStatus(s.id) === 'gelmedi'
-                            ).length
-                          }
-                        </div>
-                      </div>
-                    </div>
+                {/* Sayaçlar */}
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Toplam</span>
+                    <span className="text-base font-bold text-white">{classStudents.length}</span>
                   </div>
-
-                  {/* Müfredat Kazanımları Rozetleri */}
-                  {selectedHomework.outcomes && selectedHomework.outcomes.length > 0 && (
-                    <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="text-indigo-400 font-semibold flex items-center space-x-1 mr-1">
-                        <Target className="w-3.5 h-3.5" />
-                        <span>Müfredat Kazanımları:</span>
-                      </span>
-                      {selectedHomework.outcomes.map((oc, i) => (
-                        <span
-                          key={i}
-                          className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700 font-mono text-[11px]"
-                        >
-                          {oc}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Seçili Ödev Alt Eylem Butonları: Düzenle & Sil */}
-                  <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-                    <span className="text-xs text-slate-400">
-                      Bu ödevin bilgilerini güncellemek veya sistemden silmek için:
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditingHomework(selectedHomework)}
-                        id="btn-edit-selected-homework"
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600/15 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 hover:border-indigo-500 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
-                        title="Seçili Ödevi Düzenle"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Ödevi Düzenle</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setHomeworkToDelete(selectedHomework)}
-                        id="btn-delete-selected-homework"
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-rose-500/15 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 hover:border-rose-500 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
-                        title="Seçili Ödevi Sil"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Ödevi Sil</span>
-                      </button>
-                    </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Yaptı</span>
+                    <span className="text-base font-bold text-emerald-300">{countYapti}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-400 block">Yapmadı</span>
+                    <span className="text-base font-bold text-rose-300">{countYapmadi}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Eksik</span>
+                    <span className="text-base font-bold text-amber-300">{countEksik}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-sky-400 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-300">{countIzinli}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-purple-400 block">Gelmedi</span>
+                    <span className="text-base font-bold text-purple-300">{countGelmedi}</span>
                   </div>
                 </div>
-              )}
 
-              {/* ÖĞRENCİ KONTROL LİSTESİ */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-                <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-indigo-400" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                      Ödev Kontrol Çizelgesi ({targetStudentsForCheck.length} Öğrenci)
-                    </h4>
-                  </div>
-
-                  <div className="flex items-center space-x-2 flex-wrap">
+                {/* Toplu İşlem Butonları */}
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-300">
+                    Sınıf İçin Hızlı İşlem:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => handleBatchStatus('yapti')}
-                      className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleBulkStatusChange('yapti')}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer"
                     >
-                      ✅ Tümünü Yaptı İşaretle
+                      ✓ Tümünü Yaptı
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedClassIdForCheck('');
-                        setSelectedStudentIdForCheck('');
-                        setStudentSearchInput('');
-                      }}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleBulkStatusChange('yapmadi')}
+                      className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer"
                     >
-                      Seçimi Temizle
+                      ✕ Tümünü Yapmadı
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkStatusChange('eksik')}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ⚠ Tümünü Eksik
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkStatusChange('izinli')}
+                      className="px-2.5 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ℹ Tümünü İzinli
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkStatusChange('gelmedi')}
+                      className="px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ○ Tümünü Gelmedi
                     </button>
                   </div>
                 </div>
 
-                {/* Öğrenci Satırları */}
-                {targetStudentsForCheck.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-400">
-                    Seçilen kriterlere uygun öğrenci bulunamadı.
+                {/* ALT ALTA SIRALANMIŞ ÖĞRENCİLER */}
+                {classStudents.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    "{currentClass.name}" sınıfına henüz kayıtlı öğrenci bulunmuyor.
+                  </div>
+                ) : displayedStudents.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    "{studentSearchInput}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-800">
-                    {targetStudentsForCheck.map((student) => {
-                      const currentStatus = getStudentCheckStatus(student.id);
+                  <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/50">
+                    {displayedStudents.map((std, idx) => {
+                      const currentStatus = getStudentCheckStatus(std.id);
                       return (
                         <div
-                          key={student.id}
-                          className="p-3.5 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-850/40 transition-colors"
+                          key={std.id}
+                          className="p-3 sm:p-3.5 hover:bg-slate-800/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
                         >
-                          <div className="flex items-center space-x-3 min-w-[220px]">
+                          {/* Öğrenci Bilgisi */}
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <span className="w-6 text-center text-xs font-mono text-slate-500 shrink-0">
+                              {idx + 1}
+                            </span>
                             <img
-                              src={
-                                student.avatar ||
-                                `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                                  student.name
-                                )}`
-                              }
-                              alt={student.name}
-                              className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 shrink-0"
+                              src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                              alt={std.name}
+                              className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 shrink-0"
+                              referrerPolicy="no-referrer"
                             />
-                            <div>
-                              <div className="font-semibold text-xs text-white flex items-center space-x-1.5 flex-wrap">
-                                <span>{student.name}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  #{student.studentNumber || student.id.slice(-4)}
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-white truncate">{std.name}</h4>
+                              <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+                                <span className="font-mono text-indigo-300">
+                                  #{std.studentNumber || '-'}
                                 </span>
-                                {isStudentStatusDraftModified(student.id) && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                                    Kaydedilmedi
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[11px] text-slate-400">
-                                {student.className || 'Sınıf Belirtilmemiş'}
+                                {std.phone && <span>• {std.phone}</span>}
                               </div>
                             </div>
                           </div>
 
-                          {/* Açılır Pencere (Yaptı, Yapmadı, Eksik, Gelmedi) */}
-                          <div className="flex items-center space-x-2 flex-wrap sm:justify-end">
-                            <select
-                              value={currentStatus}
-                              onChange={(e) =>
-                                handleCheckStatusChange(
-                                  student.id,
-                                  e.target.value as HomeworkCheckStatus
-                                )
-                              }
-                              className={`text-xs font-bold rounded-xl px-3 py-1.5 border focus:outline-none cursor-pointer transition-all ${
+                          {/* İSİMLERİN KARŞISINDA 'YAPTI, YAPMADI, EKSİK, İZİNLİ VE GELMEDİ' BUTONLARI */}
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                            {/* Yaptı */}
+                            <button
+                              type="button"
+                              onClick={() => handleStatusClick(std.id, 'yapti')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'yapti'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                  : currentStatus === 'yapmadi'
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                  : currentStatus === 'eksik'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : currentStatus === 'gelmedi'
-                                  ? 'bg-slate-700/40 text-slate-300 border-slate-600'
-                                  : 'bg-slate-950 text-slate-400 border-slate-700'
+                                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
+                                  : 'bg-slate-900 hover:bg-emerald-600/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/40'
                               }`}
                             >
-                              <option value="" disabled className="bg-slate-900 text-slate-400">
-                                Durum Seçiniz...
-                              </option>
-                              <option value="yapti" className="bg-slate-900 text-emerald-400">
-                                ✅ Yaptı
-                              </option>
-                              <option value="yapmadi" className="bg-slate-900 text-rose-400">
-                                ❌ Yapmadı
-                              </option>
-                              <option value="eksik" className="bg-slate-900 text-amber-400">
-                                ⚠️ Eksik
-                              </option>
-                              <option value="gelmedi" className="bg-slate-900 text-slate-300">
-                                ⚪ Gelmedi
-                              </option>
-                            </select>
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Yaptı</span>
+                            </button>
 
-                            {/* Hızlı Butonlar */}
-                            <div className="flex items-center space-x-1">
-                              <button
-                                type="button"
-                                onClick={() => handleCheckStatusChange(student.id, 'yapti')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                  currentStatus === 'yapti'
-                                    ? 'bg-emerald-500 text-white border-emerald-400 shadow-sm'
-                                    : 'bg-slate-950 hover:bg-emerald-950/30 text-emerald-400 border-emerald-500/20'
-                                }`}
-                                title="Yaptı Olarak İşaretle"
-                              >
-                                Yaptı
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCheckStatusChange(student.id, 'yapmadi')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                  currentStatus === 'yapmadi'
-                                    ? 'bg-rose-600 text-white border-rose-500 shadow-sm'
-                                    : 'bg-slate-950 hover:bg-rose-950/30 text-rose-400 border-rose-500/20'
-                                }`}
-                                title="Yapmadı Olarak İşaretle"
-                              >
-                                Yapmadı
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCheckStatusChange(student.id, 'eksik')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                  currentStatus === 'eksik'
-                                    ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
-                                    : 'bg-slate-950 hover:bg-amber-950/30 text-amber-400 border-amber-500/20'
-                                }`}
-                                title="Eksik Olarak İşaretle"
-                              >
-                                Eksik
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleCheckStatusChange(student.id, 'gelmedi')}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                                  currentStatus === 'gelmedi'
-                                    ? 'bg-slate-600 text-white border-slate-500 shadow-sm'
-                                    : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border-slate-700'
-                                }`}
-                                title="Gelmedi Olarak İşaretle"
-                              >
-                                Gelmedi
-                              </button>
-                            </div>
+                            {/* Yapmadı */}
+                            <button
+                              type="button"
+                              onClick={() => handleStatusClick(std.id, 'yapmadi')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'yapmadi'
+                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
+                                  : 'bg-slate-900 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Yapmadı</span>
+                            </button>
+
+                            {/* Eksik */}
+                            <button
+                              type="button"
+                              onClick={() => handleStatusClick(std.id, 'eksik')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'eksik'
+                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
+                                  : 'bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40'
+                              }`}
+                            >
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>Eksik</span>
+                            </button>
+
+                            {/* İzinli */}
+                            <button
+                              type="button"
+                              onClick={() => handleStatusClick(std.id, 'izinli')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'izinli'
+                                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400'
+                                  : 'bg-slate-900 hover:bg-sky-600/20 text-slate-300 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40'
+                              }`}
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              <span>İzinli</span>
+                            </button>
+
+                            {/* Gelmedi */}
+                            <button
+                              type="button"
+                              onClick={() => handleStatusClick(std.id, 'gelmedi')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'gelmedi'
+                                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400'
+                                  : 'bg-slate-900 hover:bg-purple-600/20 text-slate-300 hover:text-purple-300 border border-slate-700 hover:border-purple-500/40'
+                              }`}
+                            >
+                              <HelpCircle className="w-3.5 h-3.5" />
+                              <span>Gelmedi</span>
+                            </button>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-
-                {/* SAYFA ALTI KAYDET BUTONU & AKSİYON BARI */}
-                <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="flex items-center space-x-2 text-xs">
-                    {hasUnsavedChecks ? (
-                      <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold animate-pulse">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{unsavedCount} öğrenci için kaydedilmemiş değişiklik var (Butona tıklamadan kaydedilmez)</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Tüm ödev kontrolleri kaydedildi ve güncel</span>
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center space-x-2 w-full sm:w-auto">
-                    {hasUnsavedChecks && (
-                      <button
-                        type="button"
-                        onClick={handleResetDraftChecks}
-                        className="flex-1 sm:flex-none px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>İptal Et</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleSaveAllChecks}
-                      disabled={!hasUnsavedChecks}
-                      className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer ${
-                        hasUnsavedChecks
-                          ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.02]'
-                          : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
-                      }`}
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>
-                        {hasUnsavedChecks
-                          ? `Ödev Kontrolünü Kaydet (${unsavedCount} Öğrenci)`
-                          : 'Ödev Kontrolünü Kaydet'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
               </div>
-            </>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        );
+      })()}
 
-      {/* TAB 2: ALL CREATED HOMEWORKS */}
+{/* TAB 2: ALL CREATED HOMEWORKS */}
       {activeTab === 'all' && (() => {
         const availableSubjects = Array.from(new Set(homeworks.map((h) => h.subject))).filter(Boolean);
         const filteredHomeworks = homeworks.filter((hw) => {

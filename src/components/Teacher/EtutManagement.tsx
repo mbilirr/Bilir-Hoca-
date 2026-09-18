@@ -24,6 +24,10 @@ import {
   UserPlus,
   Check,
   Search,
+  XCircle,
+  AlertCircle,
+  Info,
+  HelpCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
@@ -54,7 +58,11 @@ interface EtutManagementProps {
 }
 
 export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students, classes }) => {
-  const [viewMode, setViewMode] = useState<'calendar' | 'cards'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'cards' | 'attendance'>('calendar');
+  const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
+  const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
+  const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
+  const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -478,6 +486,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               <LayoutGrid className="w-3.5 h-3.5" />
               <span>Kart Listesi ({etuts.length})</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('attendance')}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === 'attendance'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <CalendarCheck className="w-3.5 h-3.5" />
+              <span>Yoklama & Devamsızlık</span>
+            </button>
           </div>
 
           {/* Etüt Analiz & Çıktı Raporu Butonu */}
@@ -518,8 +538,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         </div>
       </div>
 
-      {/* Main Content: Weekly Calendar View OR Cards Grid */}
-      {viewMode === 'calendar' ? (
+      {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
+      {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
           etuts={etuts}
           students={students}
@@ -531,9 +551,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             setSelectedEtutForDispatch(etut);
             setIsDispatchModalOpen(true);
           }}
-          onAttendanceEtut={(etut) => setSelectedEtutForAttendance(etut)}
+          onAttendanceEtut={(etut) => {
+            setSelectedAttendanceEtutId(etut.id);
+            setViewMode('attendance');
+          }}
         />
-      ) : (
+      )}
+
+      {viewMode === 'cards' && (
         /* Etüt List */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {etuts.map((etut) => {
@@ -734,6 +759,392 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           })}
         </div>
       )}
+
+      {/* DEDICATED SIMPLE ETÜT DEVAMSIZLIK ARAYÜZÜ */}
+      {viewMode === 'attendance' && (() => {
+        const currentAttendanceEtut =
+          etuts.find((e) => e.id === selectedAttendanceEtutId) || etuts[0] || null;
+
+        // Atanan öğrenciler listesi
+        const assignedStudents = (() => {
+          if (!currentAttendanceEtut) return [];
+          if (currentAttendanceEtut.assignedStudentIds === 'all') {
+            return students;
+          }
+          const ids = Array.isArray(currentAttendanceEtut.assignedStudentIds)
+            ? currentAttendanceEtut.assignedStudentIds
+            : [];
+          return students.filter((s) => ids.includes(s.id));
+        })();
+
+        // Filtrelenmiş öğrenci listesi
+        const displayedStudents = assignedStudents.filter((std) => {
+          if (!attendanceSearchQuery.trim()) return true;
+          const q = attendanceSearchQuery.toLowerCase().trim();
+          return (
+            std.name.toLowerCase().includes(q) ||
+            (std.studentNumber && std.studentNumber.includes(q)) ||
+            (std.className && std.className.toLowerCase().includes(q))
+          );
+        });
+
+        // Sayaçlar
+        let countPresent = 0;
+        let countAbsent = 0;
+        let countLate = 0;
+        let countExcused = 0;
+
+        assignedStudents.forEach((std) => {
+          const rec = currentAttendanceEtut?.studentAttendance?.[std.id];
+          const st = rec?.status || 'present';
+          if (st === 'present') countPresent++;
+          else if (st === 'absent') countAbsent++;
+          else if (st === 'late') countLate++;
+          else if (st === 'excused') countExcused++;
+        });
+
+        const handleSingleAttendanceChange = (
+          studentId: string,
+          studentName: string,
+          status: 'present' | 'absent' | 'late' | 'excused'
+        ) => {
+          if (!currentAttendanceEtut) return;
+          const note = attendanceNotes[studentId] || currentAttendanceEtut.studentAttendance?.[studentId]?.note || '';
+          dataService.updateEtutAttendance(currentAttendanceEtut.id, {
+            [studentId]: {
+              studentId,
+              studentName,
+              status,
+              note,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+          const label =
+            status === 'present'
+              ? 'Geldi'
+              : status === 'absent'
+              ? 'Gelmedi'
+              : status === 'late'
+              ? 'Geç Kaldı'
+              : 'İzinli';
+          setAttendanceFeedback(`✓ ${studentName}: "${label}" olarak kaydedildi.`);
+          setTimeout(() => setAttendanceFeedback(null), 2500);
+        };
+
+        const handleBulkEtutAttendance = (status: 'present' | 'absent' | 'excused') => {
+          if (!currentAttendanceEtut || assignedStudents.length === 0) return;
+          const map: Record<string, any> = {};
+          assignedStudents.forEach((std) => {
+            const note = attendanceNotes[std.id] || currentAttendanceEtut.studentAttendance?.[std.id]?.note || '';
+            map[std.id] = {
+              studentId: std.id,
+              studentName: std.name,
+              status,
+              note,
+              updatedAt: new Date().toISOString(),
+            };
+          });
+          dataService.updateEtutAttendance(currentAttendanceEtut.id, map);
+          const label = status === 'present' ? 'Geldi' : status === 'absent' ? 'Gelmedi' : 'İzinli';
+          setAttendanceFeedback(`✓ Tüm öğrenciler "${label}" olarak güncellendi.`);
+          setTimeout(() => setAttendanceFeedback(null), 3000);
+        };
+
+        if (etuts.length === 0) {
+          return (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+                <CalendarCheck className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Etüt Bulunmuyor</h3>
+              <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+                Yoklama alabilmek için lütfen önce "Yeni Etüt Planla" butonu ile bir etüt oluşturunuz.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  resetForm();
+                  setEditingEtut(null);
+                  setIsCreateModalOpen(true);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>İlk Etütü Planla</span>
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-5">
+            {/* Bildirim Çubuğu */}
+            {attendanceFeedback && (
+              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{attendanceFeedback}</span>
+              </div>
+            )}
+
+            {/* 1. ETÜT SEÇİMİ AÇILIR MENÜSÜ */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <CalendarCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-white">Yoklaması Alınacak Etütü Seçiniz</h3>
+                    <p className="text-xs text-slate-400">
+                      Öğrencilerin devamsızlığını girmek için listeden ilgili etüt çalışmasını seçin.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
+                  {etuts.length} Planlı Etüt
+                </span>
+              </div>
+
+              {/* AÇILIR MENÜ */}
+              <div className="relative">
+                <select
+                  value={currentAttendanceEtut?.id || ''}
+                  onChange={(e) => setSelectedAttendanceEtutId(e.target.value)}
+                  className="w-full bg-slate-950 border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                >
+                  {etuts.map((e) => (
+                    <option key={e.id} value={e.id} className="bg-slate-900 text-white py-2">
+                      [{new Date(e.date).toLocaleDateString('tr-TR')} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seçili Etüt Detay Paneli */}
+              {currentAttendanceEtut && (
+                <div className="mt-3.5 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                      {currentAttendanceEtut.subject}
+                    </span>
+                    <span className="text-sm font-bold text-white">{currentAttendanceEtut.topic}</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                    <span className="flex items-center space-x-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>{new Date(currentAttendanceEtut.date).toLocaleDateString('tr-TR')} • {currentAttendanceEtut.time} ({currentAttendanceEtut.duration} dk)</span>
+                    </span>
+                    <span className="flex items-center space-x-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                      <span>{currentAttendanceEtut.location}</span>
+                    </span>
+                    {currentAttendanceEtut.teacherName && (
+                      <span className="flex items-center space-x-1.5 text-indigo-300 font-medium">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{currentAttendanceEtut.teacherName}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. ETÜTTEKİ ÖĞRENCİLER VE DEVAMSIZLIK LİSTESİ */}
+            {currentAttendanceEtut && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+                {/* Header & Arama */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-base font-bold text-white">
+                        Etüt Öğrenci Yoklama Listesi
+                      </h3>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        {assignedStudents.length} Kayıtlı Öğrenci
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Öğrencinin devamsızlık durumunu tek tıkla işaretleyin.
+                    </p>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={attendanceSearchQuery}
+                      onChange={(e) => setAttendanceSearchQuery(e.target.value)}
+                      placeholder="Öğrenci ara..."
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Sayaçlar */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Toplam</span>
+                    <span className="text-base font-bold text-white">{assignedStudents.length}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Geldi</span>
+                    <span className="text-base font-bold text-emerald-300">{countPresent}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-400 block">Gelmedi</span>
+                    <span className="text-base font-bold text-rose-300">{countAbsent}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Geç Kaldı</span>
+                    <span className="text-base font-bold text-amber-300">{countLate}</span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
+                    <span className="text-[10px] uppercase font-bold text-sky-400 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-300">{countExcused}</span>
+                  </div>
+                </div>
+
+                {/* Toplu İşlem Butonları */}
+                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-300">
+                    Hızlı Toplu Yoklama:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('present')}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>✓ Tümü Geldi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('absent')}
+                      className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>✕ Tümü Gelmedi</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleBulkEtutAttendance('excused')}
+                      className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                      <span>ℹ Tümü İzinli</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ALT ALTA SIRALI ÖĞRENCİ LİSTESİ */}
+                {assignedStudents.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/40 rounded-xl border border-slate-800">
+                    Bu etüte henüz öğrenci atanmamış. Etütü düzenleyerek öğrenci ekleyebilirsiniz.
+                  </div>
+                ) : displayedStudents.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/40 rounded-xl border border-slate-800">
+                    "{attendanceSearchQuery}" aramasına uygun öğrenci bulunamadı.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/50">
+                    {displayedStudents.map((std, idx) => {
+                      const att = currentAttendanceEtut.studentAttendance?.[std.id];
+                      const currentStatus = att?.status || 'present';
+                      return (
+                        <div
+                          key={std.id}
+                          className="p-3 sm:p-3.5 hover:bg-slate-800/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                        >
+                          {/* Öğrenci Bilgisi */}
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <span className="w-6 text-center text-xs font-mono text-slate-500 shrink-0">
+                              {idx + 1}
+                            </span>
+                            <img
+                              src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                              alt={std.name}
+                              className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 shrink-0"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-bold text-white truncate">{std.name}</h4>
+                              <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+                                <span>{std.className || 'Sınıf belirtilmedi'}</span>
+                                {std.studentNumber && <span className="font-mono text-indigo-300">#{std.studentNumber}</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4 Seçenek Butonu: GELDI, GELMEDI, GEÇ KALDI, İZİNLİ */}
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                            {/* Geldi */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'present')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'present'
+                                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
+                                  : 'bg-slate-900 hover:bg-emerald-600/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/40'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Geldi</span>
+                            </button>
+
+                            {/* Gelmedi */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'absent')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'absent'
+                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
+                                  : 'bg-slate-900 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40'
+                              }`}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Gelmedi</span>
+                            </button>
+
+                            {/* Geç Kaldı */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'late')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'late'
+                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
+                                  : 'bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40'
+                              }`}
+                            >
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              <span>Geç Kaldı</span>
+                            </button>
+
+                            {/* İzinli */}
+                            <button
+                              type="button"
+                              onClick={() => handleSingleAttendanceChange(std.id, std.name, 'excused')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                currentStatus === 'excused'
+                                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400'
+                                  : 'bg-slate-900 hover:bg-sky-600/20 text-slate-300 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40'
+                              }`}
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              <span>İzinli</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* CREATE/EDIT ETUT MODAL */}
       {isCreateModalOpen && (

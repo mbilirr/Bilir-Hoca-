@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Mail,
@@ -67,10 +68,10 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
     return matchesSearch && matchesType;
   });
 
-  return (
+  const modalContent = (
     <>
       <div
-        className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
+        className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
         onClick={onClose}
       >
         <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
@@ -286,4 +287,6 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
       />
     </>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

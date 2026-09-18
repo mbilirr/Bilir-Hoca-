@@ -247,14 +247,18 @@ interface StudentPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: Student;
+  isMandatory?: boolean;
+  onSuccess?: () => void;
 }
 
 export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
   isOpen,
   onClose,
   student,
+  isMandatory = false,
+  onSuccess,
 }) => {
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState(isMandatory && student.password === '54321' ? '54321' : '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
@@ -265,13 +269,13 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentPassword('');
+      setCurrentPassword(isMandatory && student.password === '54321' ? '54321' : '');
       setNewPassword('');
       setConfirmPassword('');
       setErrorMsg(null);
       setSuccessMsg(null);
     }
-  }, [isOpen]);
+  }, [isOpen, isMandatory, student.password]);
 
   if (!isOpen) return null;
 

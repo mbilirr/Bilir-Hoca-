@@ -26,7 +26,6 @@ import { StudentAuthModal } from './components/Auth/StudentAuthModal';
 import { StudentManagement } from './components/Teacher/StudentManagement';
 import { HomeworkManagement } from './components/Teacher/HomeworkManagement';
 import { EtutManagement } from './components/Teacher/EtutManagement';
-import { GradeAttendance } from './components/Teacher/GradeAttendance';
 import { TeacherMessages } from './components/Teacher/TeacherMessages';
 import { TeacherStatsOverview } from './components/Teacher/TeacherStatsOverview';
 import { TeacherHeroBanner } from './components/Teacher/TeacherHeroBanner';
@@ -399,7 +398,6 @@ export default function App() {
                       {teacherTab === 'students' && 'Öğrenci & Sınıf Yönetimi'}
                       {teacherTab === 'homework' && 'Kazanım & Ödev Takibi'}
                       {teacherTab === 'etuts' && 'Etüt & Birebir Takip'}
-                      {teacherTab === 'grades' && 'Ders Notları & Devamsızlık'}
                       {teacherTab === 'messages' && 'Öğrenci Soruları & Mesajlaşma'}
                       {teacherTab === 'archive' && 'Plan & Zümre Arşivi'}
                       {teacherTab === 'question_tracking' && 'Soru Sayısı Takip & Analiz'}
@@ -442,15 +440,6 @@ export default function App() {
                     etuts={etuts}
                     students={students}
                     classes={classes}
-                  />
-                )}
-
-                {teacherTab === 'grades' && (
-                  <GradeAttendance
-                    students={students}
-                    classes={classes}
-                    grades={grades}
-                    attendance={attendance}
                   />
                 )}
 

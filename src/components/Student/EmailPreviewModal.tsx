@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Mail,
@@ -60,9 +61,9 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
     minute: '2-digit',
   });
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
+      className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
       onClick={onClose}
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
@@ -246,4 +247,6 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
     </div>
   </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

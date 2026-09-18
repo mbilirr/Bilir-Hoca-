@@ -19,7 +19,6 @@ export type TeacherTabType =
   | 'students'
   | 'homework'
   | 'etuts'
-  | 'grades'
   | 'messages'
   | 'archive';
 
@@ -58,12 +57,6 @@ const NAV_ITEMS: NavItemConfig[] = [
     title: 'Etüt & Birebir Takip',
     icon: CalendarDays,
     accentColor: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
-  },
-  {
-    id: 'grades',
-    title: 'Ders Notları & Devamsızlık',
-    icon: FileSpreadsheet,
-    accentColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
   },
   {
     id: 'messages',

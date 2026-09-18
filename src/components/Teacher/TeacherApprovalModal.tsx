@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldCheck,
   UserCheck,
@@ -14,6 +15,7 @@ import {
   Layers,
   CheckSquare,
   Square,
+  RotateCw,
 } from 'lucide-react';
 import { Teacher, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -29,6 +31,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const refreshData = () => {
     setPendingTeachers(dataService.getPendingTeachers());
@@ -36,9 +39,19 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setAllClasses(dataService.getAllClasses());
   };
 
+  const handleCloudSync = async () => {
+    setIsSyncing(true);
+    await dataService.forceSyncTeachers();
+    refreshData();
+    setIsSyncing(false);
+    setActionMsg('✓ Bulut sunucusundaki güncel öğretmen kayıtları senkronize edildi.');
+    setTimeout(() => setActionMsg(null), 3000);
+  };
+
   useEffect(() => {
     if (isOpen) {
       refreshData();
+      dataService.forceSyncTeachers().then(() => refreshData());
       const unsubscribe = dataService.subscribe(() => {
         refreshData();
       });
@@ -123,10 +136,17 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setTimeout(() => setActionMsg(null), 3000);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+        <div
+          className="relative w-full max-w-3xl bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
         <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
@@ -157,31 +177,44 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-5 sm:px-6 pt-3 pb-2 border-b border-slate-800 flex items-center space-x-2 bg-slate-950/40 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'pending'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>Onay Bekleyenler ({pendingTeachers.length})</span>
-          </button>
+        <div className="px-5 sm:px-6 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between gap-2 bg-slate-950/40 shrink-0 flex-wrap">
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('pending')}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'pending'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>Onay Bekleyenler ({pendingTeachers.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('teachers')}
+              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'teachers'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Tüm Öğretmenler & Sınıf İzinleri ({allTeachers.length})</span>
+            </button>
+          </div>
 
           <button
             type="button"
-            onClick={() => setActiveTab('teachers')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'teachers'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
+            onClick={handleCloudSync}
+            disabled={isSyncing}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+            title="Buluttaki güncel kayıtları hemen tara"
           >
-            <Users className="w-4 h-4" />
-            <span>Tüm Öğretmenler & Sınıf İzinleri ({allTeachers.length})</span>
+            <RotateCw className={`w-3.5 h-3.5 text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Yenileniyor...' : 'Buluttan Yenile'}</span>
           </button>
         </div>
 
@@ -456,6 +489,9 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         </div>
       </div>
     </div>
+  </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };
 

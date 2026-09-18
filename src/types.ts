@@ -48,6 +48,7 @@ export interface Student {
   createdAt: string;
   status: 'active' | 'inactive';
   createdTeacherId?: string; // Bu öğrenciyi kaydeden öğretmenin ID'si
+  mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
 }
 
 export interface ClassGroup {
@@ -96,7 +97,7 @@ export interface Homework {
   submissions?: HomeworkSubmission[];
 }
 
-export type HomeworkCheckStatus = 'yapti' | 'yapmadi' | 'eksik' | 'gelmedi';
+export type HomeworkCheckStatus = 'yapti' | 'yapmadi' | 'eksik' | 'izinli' | 'gelmedi';
 
 export interface HomeworkSubmission {
   id: string;

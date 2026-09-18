@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Mail,
   BookOpen,
+  RotateCw,
 } from 'lucide-react';
 import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -23,13 +24,26 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
 }) => {
   const [pendingTeachers, setPendingTeachers] = useState<Teacher[]>([]);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const refreshPending = () => {
     setPendingTeachers(dataService.getPendingTeachers());
   };
 
+  const handleCloudSync = async () => {
+    setIsSyncing(true);
+    await dataService.forceSyncTeachers();
+    refreshPending();
+    setIsSyncing(false);
+    setActionFeedback('✓ Bulut sunucusu kontrol edildi. Güncel öğretmen başvuruları yenilendi.');
+    setTimeout(() => setActionFeedback(null), 3000);
+  };
+
   useEffect(() => {
     refreshPending();
+    // Auto-check cloud for any new registrations submitted from other devices
+    dataService.forceSyncTeachers().then(() => refreshPending());
+
     const unsubscribe = dataService.subscribe(refreshPending);
     return () => unsubscribe();
   }, []);
@@ -97,15 +111,28 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenFullModal}
-          className="self-start sm:self-auto flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
-        >
-          <ShieldCheck className="w-4 h-4 text-amber-400" />
-          <span>Tüm Başvuru ve Yetkileri Yönet</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center space-x-2 self-start sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={handleCloudSync}
+            disabled={isSyncing}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-800 text-amber-300 border border-amber-500/30 hover:border-amber-400/50 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+            title="Buluttaki yeni başvuruları anında tara ve senkronize et"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-amber-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Kontrol Ediliyor...' : 'Buluttan Yenile'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenFullModal}
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <span>Tüm Başvuru ve Yetkileri Yönet</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Action feedback toast */}

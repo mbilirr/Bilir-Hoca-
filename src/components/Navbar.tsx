@@ -92,13 +92,6 @@ const NAV_ITEMS: NavItemConfig[] = [
     accentColor: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
   },
   {
-    id: 'grades',
-    title: 'Ders Notları & Devamsızlık',
-    shortTitle: 'Not & Devamsızlık',
-    icon: FileSpreadsheet,
-    accentColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
-  },
-  {
     id: 'messages',
     title: 'Öğrenci Soruları & Mesajlaşma',
     shortTitle: 'Mesajlar',
@@ -280,7 +273,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white shadow-lg">
+    <>
+      <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between min-h-[4rem] py-1.5 gap-2 sm:gap-3 flex-nowrap w-full">
           {/* Logo & Modül Butonu: Kep Resminin Yanında Tam Solda Çalışma Modülü */}
@@ -831,6 +825,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
       </div>
+    </header>
 
       {/* Teacher Profile Modals */}
       {isTeacherSession && currentTeacher && (
@@ -890,7 +885,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
         </>
       )}
-    </header>
+    </>
   );
 };
 

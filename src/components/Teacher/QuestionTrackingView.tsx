@@ -574,7 +574,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         </div>
 
         {/* Looker Studio Filter & Parameter Ribbon */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
           {/* 1. Sınıf Seçimi */}
           <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200">
             <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center gap-1.5">
@@ -655,33 +655,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               >
                 Sınıf
               </button>
-            </div>
-          </div>
-
-          {/* 4. Dinamik Günlük Hedef Soru Ayarı */}
-          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-bold text-[#334155] flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5 text-orange-600" />
-                Günlük Hedef
-              </label>
-              <span className="text-xs font-black text-orange-600">{dailyQuestionTarget} Soru</span>
-            </div>
-            <div className="flex gap-1.5 mt-1">
-              {[30, 50, 75, 100].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setDailyQuestionTarget(val)}
-                  className={`flex-1 py-1 text-[11px] font-bold rounded-lg border transition-all ${
-                    dailyQuestionTarget === val
-                      ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
-                      : 'bg-white text-[#475569] border-slate-300 hover:border-slate-400'
-                  }`}
-                >
-                  {val}
-                </button>
-              ))}
             </div>
           </div>
         </div>
