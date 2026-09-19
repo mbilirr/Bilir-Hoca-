@@ -157,7 +157,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setTimeout(() => {
       setIsLoading(false);
       if (selectedRole === 'teacher') {
-        const teacher = dataService.getTeachers().find(
+        const teacher = dataService.getAllTeachersInternal().find(
           (t) =>
             t.username.toLowerCase() === targetUser.identifier.toLowerCase() ||
             (t.email && t.email.toLowerCase() === targetUser.identifier.toLowerCase())

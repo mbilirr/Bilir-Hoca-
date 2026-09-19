@@ -16,12 +16,16 @@ import {
   AlertCircle,
   TrendingUp,
   Award,
-  ChevronRight,
-  Sparkles,
-  FileCheck,
   Building2,
   MapPin,
-  ClipboardList,
+  School,
+  GraduationCap,
+  Check,
+  Info,
+  HelpCircle,
+  BarChart3,
+  CalendarDays,
+  Target,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable, { applyPlugin } from 'jspdf-autotable';
@@ -40,6 +44,13 @@ import {
   BorderStyle,
 } from 'docx';
 import { Etut, Student, ClassGroup } from '../../types';
+import {
+  MIDDLE_SCHOOL_GRADES,
+  HIGH_SCHOOL_GRADES,
+  MIDDLE_SCHOOL_SUBJECTS,
+  HIGH_SCHOOL_SUBJECTS,
+  formatClassDisplayName,
+} from '../../constants/schoolConstants';
 
 // Safely register autoTable on jsPDF prototype
 try {
@@ -80,7 +91,6 @@ function executeAutoTable(doc: any, options: any) {
       (autoTable as any).default(doc, options);
       return;
     }
-    // Fallback: check global window or doc prototype
     if (typeof (window as any)?.jspdfAutoTable === 'function') {
       (window as any).jspdfAutoTable(doc, options);
       return;
@@ -91,7 +101,7 @@ function executeAutoTable(doc: any, options: any) {
   }
 }
 
-// jsPDF için Türkçe karakterleri güvenli Latin karakterlere dönüştüren yardımcı fonksiyon
+// Turkish character safety helper for jsPDF
 function toSafePdfText(str: string | undefined | null): string {
   if (!str) return '';
   return String(str)
@@ -129,369 +139,380 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
   classes,
   preselectedStudentId,
 }) => {
-  const [selectedStudentId, setSelectedStudentId] = useState<string>(
-    preselectedStudentId || (students[0]?.id ?? 'all')
+  // 1. MOD SEÇİMİ: Sınıf Bazlı veya Öğrenci Bazlı Analiz
+  const [analysisMode, setAnalysisMode] = useState<'class' | 'student'>(() =>
+    preselectedStudentId ? 'student' : 'class'
   );
-  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<
-    'all' | 'past' | '7' | '15' | '30' | '90' | 'term' | 'custom'
-  >('all');
-  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState<
-    'all' | 'present' | 'absent' | 'late_excused'
-  >('all');
+
+  // 1.A. Sınıf Seçimi
+  const [selectedClassId, setSelectedClassId] = useState<string>(() => classes[0]?.id || '');
+
+  // 1.B. Öğrenci Seçimi
+  const [studentClassFilter, setStudentClassFilter] = useState<string>('all');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>(() =>
+    preselectedStudentId || students[0]?.id || ''
+  );
+  const [studentSearchTerm, setStudentSearchTerm] = useState<string>('');
+
+  // 2. Ders Seçimi
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+
+  // 3. Etüt Seçimi (Seçili ders için verilen etütler)
+  const [selectedEtutId, setSelectedEtutId] = useState<string>('all');
+
+  // 4. Tarih Aralığı Seçimi
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'analytics' | 'document'>('analytics');
 
+  // UI Alt Sekme (Sınıf Analizi için: Öğrenci Katılımı vs Etüt Detayları)
+  const [classDetailView, setClassDetailView] = useState<'students' | 'etuts'>('students');
+
+  // Dışa aktarma durumları
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingDocx, setIsGeneratingDocx] = useState(false);
-  const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
-  const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
 
-  // Sync selectedStudentId when preselectedStudentId changes
+  // preselectedStudentId değişirse öğrenci moduna geç
   useEffect(() => {
     if (preselectedStudentId) {
+      setAnalysisMode('student');
       setSelectedStudentId(preselectedStudentId);
+      const s = students.find((item) => item.id === preselectedStudentId);
+      if (s?.classId) {
+        setStudentClassFilter(s.classId);
+      }
     }
-  }, [preselectedStudentId]);
+  }, [preselectedStudentId, students]);
+
+  // Seçili sınıf veya öğrenci nesnesi
+  const currentClass = useMemo(
+    () => classes.find((c) => c.id === selectedClassId) || classes[0] || null,
+    [classes, selectedClassId]
+  );
+
+  const currentStudent = useMemo(
+    () => students.find((s) => s.id === selectedStudentId) || students[0] || null,
+    [students, selectedStudentId]
+  );
+
+  // Öğrenci listesi filtresi (Öğrenci seçim kutusu için)
+  const selectableStudents = useMemo(() => {
+    return students.filter((s) => {
+      if (studentClassFilter !== 'all' && s.classId !== studentClassFilter) return false;
+      if (studentSearchTerm.trim()) {
+        const q = studentSearchTerm.toLowerCase();
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.studentNumber && s.studentNumber.includes(q))
+        );
+      }
+      return true;
+    });
+  }, [students, studentClassFilter, studentSearchTerm]);
+
+  // Kademe Tespiti (Ortaokul: 5,6,7,8 | Lise: 9,10,11,12)
+  const detectedLevel = useMemo<'Ortaokul' | 'Lise'>(() => {
+    let rawGrade = '';
+
+    if (analysisMode === 'class' && currentClass) {
+      rawGrade = currentClass.gradeLevel || currentClass.name || '';
+    } else if (analysisMode === 'student' && currentStudent) {
+      rawGrade =
+        currentStudent.gradeLevel ||
+        classes.find((c) => c.id === currentStudent.classId)?.gradeLevel ||
+        currentStudent.className ||
+        '';
+    }
+
+    const numMatch = rawGrade.match(/\b(5|6|7|8|9|10|11|12)\b/);
+    if (numMatch) {
+      const num = parseInt(numMatch[1], 10);
+      if (num >= 9) return 'Lise';
+      return 'Ortaokul';
+    }
+
+    const lower = rawGrade.toLowerCase();
+    if (lower.includes('lise') || lower.includes('fen lisesi') || lower.includes('anadolu')) {
+      return 'Lise';
+    }
+    return 'Ortaokul';
+  }, [analysisMode, currentClass, currentStudent, classes]);
+
+  // Kademeye göre dersler listesi (Kullanıcı Talebi 2)
+  // 5.6.7.8 -> Ortaokul dersleri, 9.10.11.12 -> Lise dersleri
+  const availableSubjectsForLevel = useMemo(() => {
+    const baseSubjects =
+      detectedLevel === 'Lise' ? HIGH_SCHOOL_SUBJECTS : MIDDLE_SCHOOL_SUBJECTS;
+
+    // Sistemde kayıtlı etütlerden de mevcut kademeye uygun dersleri ekle
+    const extraSubjects = new Set<string>(baseSubjects);
+    etuts.forEach((e) => {
+      if (e.subject) {
+        if (e.schoolLevel === detectedLevel || !e.schoolLevel) {
+          extraSubjects.add(e.subject);
+        }
+      }
+    });
+
+    return Array.from(extraSubjects);
+  }, [detectedLevel, etuts]);
+
+  // Kademe veya ders listesi değiştiğinde seçili ders uyumsuz ise 'all' yap
+  useEffect(() => {
+    if (selectedSubject !== 'all' && !availableSubjectsForLevel.includes(selectedSubject)) {
+      setSelectedSubject('all');
+    }
+  }, [availableSubjectsForLevel, selectedSubject]);
+
+  // Kapsama dahil olan etütlerin havuzu (Hedef ve Ders bazlı etütler)
+  const poolEtutsForTargetAndSubject = useMemo(() => {
+    return etuts.filter((e) => {
+      // 1. Hedef Kapsam Filtresi
+      if (analysisMode === 'class') {
+        if (!currentClass) return false;
+        // Etüt sınıf öğrencilerine atanmış mı?
+        const classStudentIds = new Set(
+          students.filter((s) => s.classId === currentClass.id).map((s) => s.id)
+        );
+        if (e.assignedStudentIds === 'all') {
+          // 'all' atanmışsa sınıfın kademesiyle uyuşuyorsa dahil et
+          if (e.schoolLevel && e.schoolLevel !== detectedLevel) return false;
+        } else if (Array.isArray(e.assignedStudentIds)) {
+          const hasAny = e.assignedStudentIds.some((id) => classStudentIds.has(id));
+          if (!hasAny) return false;
+        }
+      } else {
+        // Öğrenci bazlı
+        if (!currentStudent) return false;
+        if (e.assignedStudentIds !== 'all') {
+          if (
+            Array.isArray(e.assignedStudentIds) &&
+            !e.assignedStudentIds.includes(currentStudent.id)
+          ) {
+            return false;
+          }
+        }
+      }
+
+      // 2. Ders Filtresi
+      if (selectedSubject !== 'all' && e.subject !== selectedSubject) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [etuts, analysisMode, currentClass, currentStudent, students, detectedLevel, selectedSubject]);
+
+  // Havuz değiştiğinde seçili etüt artık listede yoksa 'all' yap
+  useEffect(() => {
+    if (selectedEtutId !== 'all') {
+      const exists = poolEtutsForTargetAndSubject.some((e) => e.id === selectedEtutId);
+      if (!exists) {
+        setSelectedEtutId('all');
+      }
+    }
+  }, [poolEtutsForTargetAndSubject, selectedEtutId]);
+
+  // 4. Tarih Aralığı Filtresi ve Sonuç Etütleri
+  const finalFilteredEtuts = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    return poolEtutsForTargetAndSubject.filter((e) => {
+      // 3. Etüt Seçimi
+      if (selectedEtutId !== 'all' && e.id !== selectedEtutId) {
+        return false;
+      }
+
+      // 4. Tarih Aralığı
+      if (dateRangeFilter === 'thisWeek') {
+        const d = new Date(todayStr + 'T00:00:00');
+        const day = d.getDay();
+        const diffToMon = d.getDate() - (day === 0 ? 6 : day - 1);
+        const mon = new Date(d.setDate(diffToMon));
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        const monStr = mon.toISOString().slice(0, 10);
+        const sunStr = sun.toISOString().slice(0, 10);
+        if (e.date < monStr || e.date > sunStr) return false;
+      } else if (dateRangeFilter === 'thisMonth' || dateRangeFilter === 'month') {
+        const curMonth = todayStr.slice(0, 7);
+        if (!e.date.startsWith(curMonth)) return false;
+      } else if (dateRangeFilter === 'last30' || dateRangeFilter === '30') {
+        const d = new Date(todayStr + 'T00:00:00');
+        d.setDate(d.getDate() - 30);
+        const past30Str = d.toISOString().slice(0, 10);
+        if (e.date < past30Str || e.date > todayStr) return false;
+      } else if (dateRangeFilter === 'future') {
+        if (e.date < todayStr) return false;
+      } else if (dateRangeFilter === '7' || dateRangeFilter === '15' || dateRangeFilter === 'term') {
+        const days =
+          dateRangeFilter === '7'
+            ? 7
+            : dateRangeFilter === '15'
+            ? 15
+            : 90;
+        const etutMidnight = new Date(e.date + 'T00:00:00').getTime();
+        const todayMidnight = new Date(todayStr + 'T00:00:00').getTime();
+        const diffDays = Math.round((todayMidnight - etutMidnight) / (1000 * 60 * 60 * 24));
+        if (diffDays < 0 || diffDays > days) return false;
+      } else if (dateRangeFilter === 'custom') {
+        if (customStartDate && e.date < customStartDate) return false;
+        if (customEndDate && e.date > customEndDate) return false;
+      }
+
+      return true;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [poolEtutsForTargetAndSubject, selectedEtutId, dateRangeFilter, customStartDate, customEndDate]);
+
+  // Sınıf Öğrencileri (Sınıf modunda)
+  const classStudents = useMemo(() => {
+    if (!currentClass) return [];
+    return students.filter((s) => s.classId === currentClass.id);
+  }, [students, currentClass]);
+
+  // --- İSTATİSTİK & ANALİZ HESAPLAMALARI ---
+  const analysisStats = useMemo(() => {
+    const totalEtuts = finalFilteredEtuts.length;
+    let totalMinutes = 0;
+    finalFilteredEtuts.forEach((e) => {
+      totalMinutes += Number(e.duration) || 40;
+    });
+    const totalHours = (totalMinutes / 60).toFixed(1);
+
+    if (analysisMode === 'student' && currentStudent) {
+      let present = 0;
+      let absent = 0;
+      let excused = 0;
+      let late = 0;
+      let upcomingOrUnrecorded = 0;
+
+      const today = new Date().toISOString().slice(0, 10);
+
+      finalFilteredEtuts.forEach((e) => {
+        const att = e.studentAttendance?.[currentStudent.id];
+        if (!att) {
+          if (e.date >= today) upcomingOrUnrecorded++;
+          else absent++; // Geçmiş ve yoklama yoksa
+        } else if (att.status === 'present') present++;
+        else if (att.status === 'absent') absent++;
+        else if (att.status === 'excused') excused++;
+        else if (att.status === 'late') late++;
+        else present++;
+      });
+
+      const evaluated = present + absent + excused + late;
+      const rate = evaluated > 0 ? Math.round(((present + late) / evaluated) * 100) : 0;
+
+      return {
+        totalEtuts,
+        totalMinutes,
+        totalHours,
+        present,
+        absent,
+        excused,
+        late,
+        upcomingOrUnrecorded,
+        attendanceRate: rate,
+      };
+    } else {
+      // Sınıf Bazlı İstatistikler
+      let totalAttendanceEntries = 0;
+      let totalPresent = 0;
+      let totalAbsent = 0;
+      let totalExcused = 0;
+      let totalLate = 0;
+
+      finalFilteredEtuts.forEach((e) => {
+        classStudents.forEach((std) => {
+          // Öğrenci bu etüte atanmış mı?
+          let isAssigned = false;
+          if (e.assignedStudentIds === 'all') isAssigned = true;
+          else if (Array.isArray(e.assignedStudentIds)) {
+            isAssigned = e.assignedStudentIds.includes(std.id);
+          }
+
+          if (isAssigned) {
+            totalAttendanceEntries++;
+            const att = e.studentAttendance?.[std.id];
+            if (!att) {
+              // Yoklama yok
+            } else if (att.status === 'present') totalPresent++;
+            else if (att.status === 'absent') totalAbsent++;
+            else if (att.status === 'excused') totalExcused++;
+            else if (att.status === 'late') totalLate++;
+            else totalPresent++;
+          }
+        });
+      });
+
+      const evaluated = totalPresent + totalAbsent + totalExcused + totalLate;
+      const rate = evaluated > 0 ? Math.round(((totalPresent + totalLate) / evaluated) * 100) : 0;
+
+      return {
+        totalEtuts,
+        totalMinutes,
+        totalHours,
+        totalStudents: classStudents.length,
+        present: totalPresent,
+        absent: totalAbsent,
+        excused: totalExcused,
+        late: totalLate,
+        attendanceRate: rate,
+      };
+    }
+  }, [finalFilteredEtuts, analysisMode, currentStudent, classStudents]);
+
+  // Sınıf Öğrencileri Katılım Tablosu Verileri
+  const studentParticipationRows = useMemo(() => {
+    if (analysisMode !== 'class') return [];
+
+    return classStudents.map((std) => {
+      let assignedCount = 0;
+      let attendedCount = 0;
+      let absentCount = 0;
+      let excusedCount = 0;
+
+      finalFilteredEtuts.forEach((e) => {
+        let isAssigned = false;
+        if (e.assignedStudentIds === 'all') isAssigned = true;
+        else if (Array.isArray(e.assignedStudentIds)) {
+          isAssigned = e.assignedStudentIds.includes(std.id);
+        }
+
+        if (isAssigned) {
+          assignedCount++;
+          const att = e.studentAttendance?.[std.id];
+          if (att?.status === 'present' || att?.status === 'late') {
+            attendedCount++;
+          } else if (att?.status === 'absent') {
+            absentCount++;
+          } else if (att?.status === 'excused') {
+            excusedCount++;
+          }
+        }
+      });
+
+      const rate = assignedCount > 0 ? Math.round((attendedCount / assignedCount) * 100) : 0;
+
+      return {
+        student: std,
+        assignedCount,
+        attendedCount,
+        absentCount,
+        excusedCount,
+        rate,
+      };
+    }).sort((a, b) => b.rate - a.rate || a.student.name.localeCompare(b.student.name));
+  }, [analysisMode, classStudents, finalFilteredEtuts]);
 
   if (!isOpen) return null;
 
-  // Selected student object if not "all"
-  const selectedStudent = useMemo(() => {
-    if (selectedStudentId === 'all') return null;
-    return students.find((s) => s.id === selectedStudentId) || null;
-  }, [selectedStudentId, students]);
-
-  // Helper to check if student is assigned to an etut
-  const isStudentInEtut = (etut: Etut, stdId: string): boolean => {
-    if (etut.assignedStudentIds === 'all') return true;
-    if (Array.isArray(etut.assignedStudentIds)) {
-      return etut.assignedStudentIds.includes(stdId);
-    }
-    return false;
-  };
-
-  // Helper to get attendance info for an etut
-  const getEtutAttendanceInfo = (etut: Etut, stdId: string) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const isPast = etut.date < today;
-
-    if (!etut.studentAttendance || !etut.studentAttendance[stdId]) {
-      if (!isPast) {
-        return {
-          label: 'Planlandı',
-          status: 'upcoming',
-          badgeClass: 'bg-slate-700/60 text-slate-300 border-slate-600',
-          dotClass: 'bg-slate-400',
-        };
-      }
-      return {
-        label: 'Yoklama Alınmadı',
-        status: 'unrecorded',
-        badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-        dotClass: 'bg-amber-400',
-      };
-    }
-
-    const rec = etut.studentAttendance[stdId];
-    if (rec.status === 'present') {
-      return {
-        label: 'Geldi (Katıldı)',
-        status: 'present',
-        note: rec.note,
-        badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-        dotClass: 'bg-emerald-400',
-      };
-    }
-    if (rec.status === 'absent') {
-      return {
-        label: 'Gelmedi (Devamsız)',
-        status: 'absent',
-        note: rec.note,
-        badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
-        dotClass: 'bg-rose-400',
-      };
-    }
-    if (rec.status === 'excused') {
-      return {
-        label: 'İzinli / Raporlu',
-        status: 'excused',
-        note: rec.note,
-        badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-        dotClass: 'bg-blue-400',
-      };
-    }
-    if (rec.status === 'late') {
-      return {
-        label: 'Geç Kaldı',
-        status: 'late',
-        note: rec.note,
-        badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-        dotClass: 'bg-amber-400',
-      };
-    }
-    return {
-      label: 'Katıldı',
-      status: 'present',
-      note: rec.note,
-      badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-      dotClass: 'bg-emerald-400',
-    };
-  };
-
-  // Filter etuts for selected student, date range, attendance status, subject, and search term
-  const filteredEtuts = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-
-    return etuts
-      .filter((e) => {
-        // 1. Student filter
-        if (selectedStudentId !== 'all') {
-          if (!isStudentInEtut(e, selectedStudentId)) return false;
-        }
-
-        // 2. Subject filter
-        if (selectedSubjectFilter !== 'all' && e.subject !== selectedSubjectFilter) {
-          return false;
-        }
-
-        // 3. Date range filter
-        if (dateRangeFilter === 'past') {
-          if (e.date > todayStr) return false;
-        } else if (
-          dateRangeFilter === '7' ||
-          dateRangeFilter === '15' ||
-          dateRangeFilter === '30' ||
-          dateRangeFilter === '90' ||
-          dateRangeFilter === 'term'
-        ) {
-          const limitDays =
-            dateRangeFilter === '7'
-              ? 7
-              : dateRangeFilter === '15'
-              ? 15
-              : dateRangeFilter === '30'
-              ? 30
-              : dateRangeFilter === '90'
-              ? 90
-              : 180;
-          const etutMidnight = new Date(e.date + 'T00:00:00').getTime();
-          const todayMidnight = new Date(todayStr + 'T00:00:00').getTime();
-          const diffDays = Math.round((todayMidnight - etutMidnight) / (1000 * 60 * 60 * 24));
-          if (diffDays < 0 || diffDays > limitDays) return false;
-        } else if (dateRangeFilter === 'custom') {
-          if (customStartDate && e.date < customStartDate) return false;
-          if (customEndDate && e.date > customEndDate) return false;
-        }
-
-        // 4. Attendance status filter
-        if (attendanceStatusFilter !== 'all') {
-          if (selectedStudentId !== 'all') {
-            const att = e.studentAttendance?.[selectedStudentId];
-            if (attendanceStatusFilter === 'present' && att?.status !== 'present') return false;
-            if (attendanceStatusFilter === 'absent' && att?.status !== 'absent') return false;
-            if (
-              attendanceStatusFilter === 'late_excused' &&
-              att?.status !== 'late' &&
-              att?.status !== 'excused'
-            ) {
-              return false;
-            }
-          } else {
-            // For general view, check if etut has this status in any assigned student
-            const statuses = Object.values(e.studentAttendance || {}).map((a) => a.status);
-            if (attendanceStatusFilter === 'present' && !statuses.includes('present')) return false;
-            if (attendanceStatusFilter === 'absent' && !statuses.includes('absent')) return false;
-            if (
-              attendanceStatusFilter === 'late_excused' &&
-              !statuses.includes('late') &&
-              !statuses.includes('excused')
-            ) {
-              return false;
-            }
-          }
-        }
-
-        // 5. Search in topic, subject, teacher name, or notes
-        if (searchTerm.trim()) {
-          const term = searchTerm.toLowerCase();
-          const matchesTopic = (e.topic || '').toLowerCase().includes(term);
-          const matchesSubject = (e.subject || '').toLowerCase().includes(term);
-          const matchesTeacher = (e.teacherName || '').toLowerCase().includes(term);
-          const matchesNotes = (e.notes || '').toLowerCase().includes(term);
-          if (!matchesTopic && !matchesSubject && !matchesTeacher && !matchesNotes) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [
-    etuts,
-    selectedStudentId,
-    selectedSubjectFilter,
-    dateRangeFilter,
-    attendanceStatusFilter,
-    customStartDate,
-    customEndDate,
-    searchTerm,
-  ]);
-
-  // Unique subjects in all etuts
-  const availableSubjects = useMemo(() => {
-    const set = new Set<string>();
-    etuts.forEach((e) => {
-      if (e.subject) set.add(e.subject);
-    });
-    return Array.from(set);
-  }, [etuts]);
-
-  // Comprehensive statistics calculation for selected student / view including attendance
-  const stats = useMemo(() => {
-    const totalCount = filteredEtuts.length;
-    const totalMinutes = filteredEtuts.reduce((acc, curr) => acc + (curr.duration || 45), 0);
-    const totalHours = (totalMinutes / 60).toFixed(1);
-
-    let presentCount = 0;
-    let absentCount = 0;
-    let excusedCount = 0;
-    let lateCount = 0;
-    let unrecordedCount = 0;
-
-    filteredEtuts.forEach((e) => {
-      const studentIdsToCheck =
-        selectedStudentId === 'all'
-          ? Array.isArray(e.assignedStudentIds)
-            ? e.assignedStudentIds
-            : students.map((s) => s.id)
-          : [selectedStudentId];
-
-      studentIdsToCheck.forEach((sId) => {
-        const att = e.studentAttendance?.[sId];
-        if (!att) {
-          unrecordedCount++;
-        } else if (att.status === 'present') {
-          presentCount++;
-        } else if (att.status === 'absent') {
-          absentCount++;
-        } else if (att.status === 'excused') {
-          excusedCount++;
-        } else if (att.status === 'late') {
-          lateCount++;
-        }
-      });
-    });
-
-    const evaluatedTotal = presentCount + absentCount + lateCount;
-    const attendanceRate =
-      evaluatedTotal > 0 ? Math.round(((presentCount + lateCount) / evaluatedTotal) * 100) : 100;
-
-    // Subject breakdown with attendance details
-    const subjectCounts: Record<
-      string,
-      {
-        count: number;
-        topics: Set<string>;
-        minutes: number;
-        present: number;
-        absent: number;
-      }
-    > = {};
-
-    filteredEtuts.forEach((e) => {
-      if (!subjectCounts[e.subject]) {
-        subjectCounts[e.subject] = {
-          count: 0,
-          topics: new Set(),
-          minutes: 0,
-          present: 0,
-          absent: 0,
-        };
-      }
-      subjectCounts[e.subject].count += 1;
-      subjectCounts[e.subject].minutes += e.duration || 45;
-      if (e.topic) subjectCounts[e.subject].topics.add(e.topic);
-
-      if (selectedStudentId !== 'all') {
-        const att = e.studentAttendance?.[selectedStudentId];
-        if (att?.status === 'present' || att?.status === 'late') {
-          subjectCounts[e.subject].present += 1;
-        } else if (att?.status === 'absent') {
-          subjectCounts[e.subject].absent += 1;
-        }
-      }
-    });
-
-    const subjectBreakdown = Object.entries(subjectCounts)
-      .map(([subjectName, data]) => ({
-        subject: subjectName,
-        count: data.count,
-        minutes: data.minutes,
-        percentage: totalCount > 0 ? Math.round((data.count / totalCount) * 100) : 0,
-        topicCount: data.topics.size,
-        present: data.present,
-        absent: data.absent,
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    const topSubject = subjectBreakdown[0]?.subject || 'Kayıt Yok';
-
-    return {
-      totalCount,
-      totalMinutes,
-      totalHours,
-      presentCount,
-      absentCount,
-      excusedCount,
-      lateCount,
-      unrecordedCount,
-      attendanceRate,
-      subjectBreakdown,
-      topSubject,
-    };
-  }, [filteredEtuts, selectedStudentId, students]);
-
-  // Format Turkish Date
-  const formatTurkishDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('tr-TR', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Safe file download helper that handles sandboxed environments gracefully
-  const triggerDownload = (blob: Blob, filename: string) => {
-    try {
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
-      return true;
-    } catch (e) {
-      console.warn('Standard blob download restricted in sandbox:', e);
-      return false;
-    }
-  };
-
-  // 1. Export to PDF with Infallible AutoTable and Turkish Character Safety
+  // --- PDF ÇIKTISI OLUŞTURMA (Türkçe Karakter Destekli & Profesyonel) ---
   const handleExportPDF = () => {
     try {
       setIsGeneratingPdf(true);
-      setExportErrorMessage(null);
+      setExportFeedback(null);
 
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -499,32 +520,32 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         format: 'a4',
       });
 
-      const studentName = selectedStudent ? selectedStudent.name : 'Tum Ogrenciler Genel Analiz';
-      const studentClass = selectedStudent
-        ? selectedStudent.className || 'Genel'
-        : 'Tum Siniflar Kurumsal Icmal';
-      const studentNo = selectedStudent ? selectedStudent.studentNumber || '-' : '-';
       const reportDate = new Date().toLocaleDateString('tr-TR');
+      const targetTitle =
+        analysisMode === 'class'
+          ? `Sinif Analizi: ${currentClass ? currentClass.name : 'Secili Sinif'}`
+          : `Ogrenci Analizi: ${currentStudent ? currentStudent.name : 'Secili Ogrenci'}`;
 
-      // Header Banner Box (Slate 900)
+      // Başlık Banner (Koyu Mavi - Lacivert)
       doc.setFillColor(15, 23, 42);
-      doc.rect(14, 12, 182, 28, 'F');
+      doc.rect(14, 12, 182, 26, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
+      doc.setFontSize(12);
       doc.setTextColor(255, 255, 255);
       doc.text(
         toSafePdfText('T.C. MILLI EGITIM BAKANLIGI / OZEL EGITIM KURUMLARI'),
         105,
-        20,
+        19,
         { align: 'center' }
       );
+
       doc.setFontSize(11);
       doc.setTextColor(199, 210, 254);
       doc.text(
-        toSafePdfText('OGRENCI ETUT KATILIM VE DEVAMSIZLIK ANALIZ BELGESI'),
+        toSafePdfText('ETUT KATILIM VE DEVAMSIZLIK ANALIZ RAPORU'),
         105,
-        27,
+        26,
         { align: 'center' }
       );
 
@@ -532,1602 +553,933 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(148, 163, 184);
       doc.text(
-        toSafePdfText(
-          `Gecmis Etutler, Islenen Ders ve Konular ile Devamsizlik Durumu Cizelgesi • Rapor Tarihi: ${reportDate}`
-        ),
+        toSafePdfText(`Kademe: ${detectedLevel} • Rapor Tarihi: ${reportDate}`),
         105,
-        34,
+        33,
         { align: 'center' }
       );
 
-      // Student Info Box (Light Slate Card)
+      // Üst Özet Bilgi Kutusu
       doc.setFillColor(248, 250, 252);
-      doc.setDrawColor(203, 213, 225);
-      doc.setLineWidth(0.4);
-      doc.rect(14, 44, 182, 32, 'FD');
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, 42, 182, 24, 2, 2, 'FD');
 
       doc.setFontSize(9);
-      doc.setTextColor(15, 23, 42);
+      doc.setTextColor(30, 41, 59);
       doc.setFont('helvetica', 'bold');
-      doc.text(toSafePdfText('Ogrenci Adi Soyadi:'), 18, 51);
-      doc.setFont('helvetica', 'normal');
-      doc.text(toSafePdfText(studentName), 60, 51);
+      doc.text(toSafePdfText(targetTitle), 18, 49);
 
-      doc.setFont('helvetica', 'bold');
-      doc.text(toSafePdfText('Sinif / Sube:'), 18, 58);
       doc.setFont('helvetica', 'normal');
-      doc.text(toSafePdfText(studentClass), 60, 58);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(toSafePdfText('Ogrenci No:'), 18, 65);
-      doc.setFont('helvetica', 'normal');
-      doc.text(toSafePdfText(studentNo), 60, 65);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(toSafePdfText('Toplam Etut Sayisi:'), 115, 51);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${stats.totalCount} Adet (${stats.totalHours} Saat)`, 155, 51);
-
-      doc.setFont('helvetica', 'bold');
-      doc.text(toSafePdfText('Yoklama Icmali:'), 115, 58);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(
-        stats.absentCount > 0 ? 220 : 16,
-        stats.absentCount > 0 ? 38 : 185,
-        stats.absentCount > 0 ? 38 : 129
-      );
+      doc.setFontSize(8);
       doc.text(
         toSafePdfText(
-          `${stats.presentCount} Katildi / ${stats.absentCount} Devamsiz / %${stats.attendanceRate} Devam`
+          `Secili Ders: ${selectedSubject === 'all' ? 'Tum Dersler' : selectedSubject} | Etut Kapsami: ${
+            selectedEtutId === 'all' ? `Tum Etutler (${finalFilteredEtuts.length} Adet)` : 'Secili Tek Etut'
+          }`
         ),
-        155,
-        58
+        18,
+        55
       );
 
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text(toSafePdfText('Filtre / Kapsam:'), 115, 65);
-      doc.setFont('helvetica', 'normal');
-      const filterLabel =
-        dateRangeFilter === 'all'
-          ? 'Tum Zamanlar (Gecmis Dahil)'
-          : dateRangeFilter === 'past'
-          ? 'Sadece Gecmis Etutler'
-          : dateRangeFilter === 'custom'
-          ? `${customStartDate || 'Bastan'} - ${customEndDate || 'Sonuna'}`
-          : `Son ${dateRangeFilter} Gunluk Donem`;
-      doc.text(toSafePdfText(filterLabel), 155, 65);
-
-      // Section 1: Ders Dağılımı Tablosu
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text(toSafePdfText('1. DERS BAZINDA ETUT KATILIMI VE ISLENEN KONU ANALIZI'), 14, 83);
-
-      const subjectTableRows = stats.subjectBreakdown.map((sb) => [
-        toSafePdfText(sb.subject),
-        `${sb.count} Adet`,
-        `%${sb.percentage}`,
-        `${sb.minutes} dk (${(sb.minutes / 60).toFixed(1)} sa)`,
-        `${sb.topicCount} Farkli Konu`,
-        selectedStudentId !== 'all'
-          ? `${sb.present} Geldi / ${sb.absent} Devamsiz`
-          : 'Genel Yoklama',
-      ]);
-
-      executeAutoTable(doc, {
-        startY: 86,
-        head: [
-          [
-            toSafePdfText('Ders Adi'),
-            toSafePdfText('Etut Adedi'),
-            toSafePdfText('Oran'),
-            toSafePdfText('Toplam Sure'),
-            toSafePdfText('Islenen Konu Sayisi'),
-            toSafePdfText('Devam / Devamsizlik'),
-          ],
-        ],
-        body:
-          subjectTableRows.length > 0
-            ? subjectTableRows
-            : [[toSafePdfText('Kriterlere uygun etut kaydi bulunamadi'), '-', '-', '-', '-', '-']],
-        theme: 'striped',
-        headStyles: {
-          fillColor: [79, 70, 229],
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 8,
-        },
-        bodyStyles: {
-          fontSize: 7.5,
-          textColor: 51,
-        },
-        margin: { left: 14, right: 14 },
-      });
-
-      // Section 2: Detaylı Kronolojik Etüt ve Devamsızlık Listesi (Tarih, Ders, Konu, Devamsızlık)
-      const finalY = (doc as any).lastAutoTable?.finalY || 135;
-      let section2StartY = finalY + 12;
-
-      // If close to page bottom, cleanly start a new page
-      if (finalY > 215) {
-        doc.addPage();
-        section2StartY = 20;
-      }
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
       doc.text(
-        toSafePdfText('2. DETAYLI ETUT GECMISI (TARIH, DERS, ISLENEN KONU VE DEVAMSIZLIK DURUMU)'),
-        14,
-        section2StartY
+        toSafePdfText(
+          `Toplam Etut: ${analysisStats.totalEtuts} Adet | Toplam Sure: ${analysisStats.totalHours} Saat (${analysisStats.totalMinutes} Dk) | Katilim Orani: %${analysisStats.attendanceRate}`
+        ),
+        18,
+        61
       );
 
-      const detailRows = filteredEtuts.map((e, idx) => {
-        let attStatusText = 'Belirtilmedi';
-        if (selectedStudentId !== 'all') {
-          const info = getEtutAttendanceInfo(e, selectedStudentId);
-          attStatusText = toSafePdfText(info.label);
-          if (info.note) attStatusText += ` (${toSafePdfText(info.note)})`;
-        } else {
-          const totalAssigned = Array.isArray(e.assignedStudentIds)
-            ? e.assignedStudentIds.length
-            : students.length;
-          const present = Object.values(e.studentAttendance || {}).filter(
-            (a) => a.status === 'present'
-          ).length;
-          const absent = Object.values(e.studentAttendance || {}).filter(
-            (a) => a.status === 'absent'
-          ).length;
-          attStatusText = `${present}/${totalAssigned} Geldi, ${absent} Gelmedi`;
-        }
+      let startY = 70;
 
-        return [
-          `${idx + 1}`,
-          e.date,
-          toSafePdfText(e.subject),
-          toSafePdfText(e.topic || 'Genel Tekrar / Soru Cozumu'),
-          attStatusText,
-          `${e.time} (${e.duration || 45} dk)`,
-          toSafePdfText(e.teacherName || 'Danisman Ogretmen'),
-          toSafePdfText(e.notes || '-'),
-        ];
-      });
+      if (analysisMode === 'class') {
+        // SINIF BAZLI TABLO (Öğrenciler)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text(toSafePdfText('1. SINIF OGRENCILERI ETUT KATILIM VE DEVAMSIZLIK TABLOSU'), 14, startY);
 
-      executeAutoTable(doc, {
-        startY: section2StartY + 4,
-        head: [
-          [
-            '#',
+        const tableBody = studentParticipationRows.map((r, idx) => [
+          idx + 1,
+          toSafePdfText(r.student.studentNumber || '-'),
+          toSafePdfText(r.student.name),
+          r.assignedCount,
+          r.attendedCount,
+          r.absentCount,
+          `%${r.rate}`,
+        ]);
+
+        executeAutoTable(doc, {
+          startY: startY + 3,
+          head: [[
+            toSafePdfText('Sira'),
+            toSafePdfText('No'),
+            toSafePdfText('Ogrenci Adi Soyadi'),
+            toSafePdfText('Atanan'),
+            toSafePdfText('Katildi'),
+            toSafePdfText('Gelmedi'),
+            toSafePdfText('Katilim %'),
+          ]],
+          body: tableBody.length > 0 ? tableBody : [[toSafePdfText('Kayit bulunamadi'), '-', '-', '-', '-', '-', '-']],
+          theme: 'grid',
+          headStyles: {
+            fillColor: [79, 70, 229],
+            textColor: 255,
+            fontSize: 8,
+            fontStyle: 'bold',
+          },
+          bodyStyles: {
+            fontSize: 8,
+            textColor: [30, 41, 59],
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+        });
+      } else {
+        // ÖĞRENCİ BAZLI TABLO (Öğrencinin Etütleri)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        doc.text(toSafePdfText('1. OGRENCI DETAYLI ETUT GECMISI VE KATILIM DURUMU'), 14, startY);
+
+        const tableBody = finalFilteredEtuts.map((e) => {
+          const att = e.studentAttendance?.[currentStudent?.id || ''];
+          let statusText = 'Katilmadi';
+          if (att?.status === 'present' || att?.status === 'late') statusText = 'Katildi';
+          else if (att?.status === 'excused') statusText = 'Izinli';
+          else if (!att && e.date >= new Date().toISOString().slice(0, 10)) statusText = 'Planlandi';
+
+          return [
+            toSafePdfText(new Date(e.date).toLocaleDateString('tr-TR')),
+            toSafePdfText(e.time || '16:00'),
+            toSafePdfText(e.subject),
+            toSafePdfText(e.topic || 'Genel Tekrar'),
+            toSafePdfText(`${e.duration || 40} Dk`),
+            toSafePdfText(statusText),
+            toSafePdfText(e.location || 'Derslik'),
+          ];
+        });
+
+        executeAutoTable(doc, {
+          startY: startY + 3,
+          head: [[
             toSafePdfText('Tarih'),
+            toSafePdfText('Saat'),
             toSafePdfText('Ders'),
-            toSafePdfText('Islenen Etut Konusu / Odak'),
-            toSafePdfText('Yoklama / Devamsizlik'),
-            toSafePdfText('Sure & Saat'),
-            toSafePdfText('Ogretmen'),
-            toSafePdfText('Notlar / Aciklama'),
-          ],
-        ],
-        body:
-          detailRows.length > 0
-            ? detailRows
-            : [
-                [
-                  '-',
-                  '-',
-                  '-',
-                  toSafePdfText('Secilen kriterlere uygun etut gecmisi bulunamadi'),
-                  '-',
-                  '-',
-                  '-',
-                  '-',
-                ],
-              ],
-        theme: 'grid',
-        headStyles: {
-          fillColor: [15, 23, 42],
-          textColor: 255,
-          fontStyle: 'bold',
-          fontSize: 8,
-        },
-        bodyStyles: {
-          fontSize: 7.2,
-          textColor: 51,
-        },
-        columnStyles: {
-          0: { cellWidth: 7 },
-          1: { cellWidth: 19 },
-          2: { cellWidth: 22 },
-          3: { cellWidth: 42 },
-          4: { cellWidth: 32 },
-          5: { cellWidth: 20 },
-          6: { cellWidth: 22 },
-          7: { cellWidth: 18 },
-        },
-        margin: { left: 14, right: 14 },
-      });
-
-      // Bottom Signatures and Official Verification Stamp
-      const pageCount = (doc as any).internal?.getNumberOfPages() || 1;
-      for (let p = 1; p <= pageCount; p++) {
-        doc.setPage(p);
-        const pageHeight = doc.internal.pageSize.getHeight();
-
-        doc.setFontSize(7.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text(
-          toSafePdfText(
-            `Bu resmi etut analiz ve devamsizlik belgesi sistem tarafindan dogrulanmistir. (Sayfa ${p} / ${pageCount})`
-          ),
-          14,
-          pageHeight - 12
-        );
-
-        if (p === pageCount) {
-          doc.text(
-            toSafePdfText('Danisman / Brans Ogretmeni: ______________________'),
-            70,
-            pageHeight - 12
-          );
-          doc.text(toSafePdfText('Okul Muduru Onayi: ______________________'), 140, pageHeight - 12);
-        }
+            toSafePdfText('Konu / Kazanim'),
+            toSafePdfText('Sure'),
+            toSafePdfText('Durum'),
+            toSafePdfText('Derslik / Yer'),
+          ]],
+          body: tableBody.length > 0 ? tableBody : [[toSafePdfText('Secilen kriterlere uygun etut bulunamadi'), '-', '-', '-', '-', '-', '-']],
+          theme: 'grid',
+          headStyles: {
+            fillColor: [16, 185, 129],
+            textColor: 255,
+            fontSize: 8,
+            fontStyle: 'bold',
+          },
+          bodyStyles: {
+            fontSize: 8,
+            textColor: [30, 41, 59],
+          },
+          alternateRowStyles: {
+            fillColor: [248, 250, 252],
+          },
+        });
       }
 
-      const filename = `Etut_Analiz_${toSafePdfText(studentName).replace(/[^a-zA-Z0-9]/g, '_')}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.pdf`;
-
-      // Safe download with fallback
-      const pdfBlob = doc.output('blob');
-      const downloaded = triggerDownload(pdfBlob, filename);
-      if (!downloaded) {
-        doc.save(filename);
-      }
-
-      setExportSuccessMessage(
-        `PDF raporu ve devamsızlık analiz belgesi başarıyla hazırlandı (${filename}).`
+      // Alt İmza Alanı
+      const pageHeight = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        toSafePdfText('Brans / Danisman Ogretmen: ______________________'),
+        18,
+        pageHeight - 12
       );
-      setTimeout(() => setExportSuccessMessage(null), 6000);
-    } catch (err: any) {
-      console.error('PDF Generation Error:', err);
-      setExportErrorMessage(
-        `PDF oluşturulurken bir hata oluştu: ${err.message || 'Lütfen tekrar deneyin.'}`
+      doc.text(
+        toSafePdfText('Okul Yonetimi Onayi: ______________________'),
+        135,
+        pageHeight - 12
       );
+
+      const filename = `Etut_Analiz_${toSafePdfText(
+        analysisMode === 'class' ? currentClass?.name || 'Sinif' : currentStudent?.name || 'Ogrenci'
+      ).replace(/[^a-zA-Z0-9]/g, '_')}_${reportDate.replace(/\./g, '-')}.pdf`;
+
+      doc.save(filename);
+      setExportFeedback('✓ PDF başarıyla indirildi.');
+      setTimeout(() => setExportFeedback(null), 3000);
+    } catch (err) {
+      console.error('PDF export error:', err);
+      setExportFeedback('PDF oluşturulurken bir hata oluştu.');
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  // 2. Export to Word (Dual: DOCX Packer with Infallible HTML-DOC Fallback)
+  // --- DOCX ÇIKTISI OLUŞTURMA ---
   const handleExportDOCX = async () => {
     try {
       setIsGeneratingDocx(true);
-      setExportErrorMessage(null);
+      setExportFeedback(null);
 
-      const studentName = selectedStudent ? selectedStudent.name : 'Tüm Öğrenciler Genel Analiz';
-      const studentClass = selectedStudent
-        ? selectedStudent.className || 'Genel'
-        : 'Tüm Sınıflar Kurumsal İcmal';
-      const studentNo = selectedStudent ? selectedStudent.studentNumber || '-' : '-';
       const reportDate = new Date().toLocaleDateString('tr-TR');
-      const filename = `Etut_Analiz_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.docx`;
+      const targetTitle =
+        analysisMode === 'class'
+          ? `Sınıf Analizi: ${currentClass ? currentClass.name : 'Sınıf'}`
+          : `Öğrenci Analizi: ${currentStudent ? currentStudent.name : 'Öğrenci'}`;
 
-      // Try DOCX generator first
-      try {
-        const subjectDocxRows = [
-          new TableRow({
+      const doc = new Document({
+        sections: [
+          {
+            properties: {},
             children: [
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Ders Adı', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
+              new Paragraph({
+                text: 'T.C. MİLLÎ EĞİTİM BAKANLIĞI / ÖZEL EĞİTİM KURUMLARI',
+                heading: HeadingLevel.HEADING_1,
+                alignment: AlignmentType.CENTER,
               }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Etüt Sayısı', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
+              new Paragraph({
+                text: 'ETÜT KATILIM VE DEVAMSIZLIK ANALİZ RAPORU',
+                heading: HeadingLevel.HEADING_2,
+                alignment: AlignmentType.CENTER,
               }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Toplam Süre', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
+              new Paragraph({
+                text: `${targetTitle} • Kademe: ${detectedLevel} • Tarih: ${reportDate}`,
+                alignment: AlignmentType.CENTER,
               }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: 'İşlenen Konu Sayısı', bold: true, color: 'FFFFFF' }),
-                    ],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
+              new Paragraph({ text: '' }),
+              new Paragraph({
+                text: `Özet: Toplam ${analysisStats.totalEtuts} etüt | ${analysisStats.totalHours} saat | Katılım Oranı: %${analysisStats.attendanceRate}`,
               }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: 'Devam / Katılım', bold: true, color: 'FFFFFF' }),
-                    ],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '4F46E5' },
-              }),
+              new Paragraph({ text: '' }),
             ],
-          }),
-          ...stats.subjectBreakdown.map(
-            (sb) =>
-              new TableRow({
-                children: [
-                  new TableCell({
-                    children: [new Paragraph({ text: sb.subject })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ text: `${sb.count} Adet` })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ text: `${sb.minutes} dk` })],
-                  }),
-                  new TableCell({
-                    children: [new Paragraph({ text: `${sb.topicCount} Farklı Konu` })],
-                  }),
-                  new TableCell({
-                    children: [
-                      new Paragraph({
-                        text:
-                          selectedStudentId !== 'all'
-                            ? `${sb.present} Geldi / ${sb.absent} Devamsız`
-                            : `Genel İcmal`,
-                      }),
-                    ],
-                  }),
-                ],
-              })
-          ),
-        ];
+          },
+        ],
+      });
 
-        const historyDocxRows = [
-          new TableRow({
-            children: [
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Tarih & Saat', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Ders', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: 'İşlenen Etüt Konusu / Odak', bold: true, color: 'FFFFFF' }),
-                    ],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [
-                      new TextRun({ text: 'Yoklama / Devamsızlık', bold: true, color: 'FFFFFF' }),
-                    ],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: 'Öğretmen', bold: true, color: 'FFFFFF' })],
-                  }),
-                ],
-                shading: { type: ShadingType.CLEAR, fill: '0F172A' },
-              }),
-            ],
-          }),
-          ...filteredEtuts.map((e) => {
-            let attText = 'Belirtilmedi';
-            if (selectedStudentId !== 'all') {
-              const info = getEtutAttendanceInfo(e, selectedStudentId);
-              attText = info.label;
-              if (info.note) attText += ` (${info.note})`;
-            } else {
-              const present = Object.values(e.studentAttendance || {}).filter(
-                (a) => a.status === 'present'
-              ).length;
-              const absent = Object.values(e.studentAttendance || {}).filter(
-                (a) => a.status === 'absent'
-              ).length;
-              attText = `${present} Geldi, ${absent} Gelmedi`;
-            }
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Etut_Analiz_${reportDate.replace(/\./g, '-')}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
 
-            return new TableRow({
-              children: [
-                new TableCell({
-                  children: [new Paragraph({ text: `${e.date} (${e.time})` })],
-                }),
-                new TableCell({
-                  children: [new Paragraph({ text: e.subject })],
-                }),
-                new TableCell({
-                  children: [new Paragraph({ text: e.topic || 'Genel Soru Çözümü' })],
-                }),
-                new TableCell({
-                  children: [new Paragraph({ text: attText })],
-                }),
-                new TableCell({
-                  children: [new Paragraph({ text: e.teacherName || 'Danışman Öğretmen' })],
-                }),
-              ],
-            });
-          }),
-        ];
-
-        const doc = new Document({
-          sections: [
-            {
-              properties: {},
-              children: [
-                new Paragraph({
-                  text: 'T.C. MİLLİ EĞİTİM BAKANLIĞI / ÖZEL EĞİTİM KURUMLARI',
-                  heading: HeadingLevel.TITLE,
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({
-                  text: 'ÖĞRENCİ ETÜT KATILIM VE DEVAMSIZLIK ANALİZ BELGESİ',
-                  heading: HeadingLevel.HEADING_1,
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({
-                  text: `Rapor Tarihi: ${reportDate} | Kapsam: Eğitim & Öğrenci Takip Portalı`,
-                  alignment: AlignmentType.CENTER,
-                }),
-                new Paragraph({ text: '' }),
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Öğrenci Adı Soyadı: ', bold: true }),
-                    new TextRun(studentName),
-                    new TextRun({ text: ' | Sınıfı: ', bold: true }),
-                    new TextRun(studentClass),
-                    new TextRun({ text: ' | Okul No: ', bold: true }),
-                    new TextRun(studentNo),
-                  ],
-                }),
-                new Paragraph({
-                  children: [
-                    new TextRun({ text: 'Etüt & Devam Özeti: ', bold: true }),
-                    new TextRun({
-                      text: `${stats.totalCount} Etüt (${stats.totalHours} Saat) | ${stats.presentCount} Katılım, ${stats.absentCount} Devamsızlık (%${stats.attendanceRate} Devam Oranı)`,
-                      bold: true,
-                    }),
-                  ],
-                }),
-                new Paragraph({ text: '' }),
-                new Paragraph({
-                  text: '1. DERS BAZINDA ETÜT DAĞILIMI VE İŞLENEN KONULAR',
-                  heading: HeadingLevel.HEADING_2,
-                }),
-                new Table({
-                  width: { size: 100, type: WidthType.PERCENTAGE },
-                  rows: subjectDocxRows,
-                }),
-                new Paragraph({ text: '' }),
-                new Paragraph({
-                  text: '2. DETAYLI ETÜT VE DEVAMSIZLIK GEÇMİŞİ LİSTESİ',
-                  heading: HeadingLevel.HEADING_2,
-                }),
-                new Table({
-                  width: { size: 100, type: WidthType.PERCENTAGE },
-                  rows: historyDocxRows,
-                }),
-                new Paragraph({ text: '' }),
-                new Paragraph({
-                  children: [
-                    new TextRun({
-                      text: 'Danışman / Branş Öğretmeni İmzası: ____________________________        Okul Müdürü Onayı: ____________________________',
-                      italics: true,
-                    }),
-                  ],
-                  alignment: AlignmentType.RIGHT,
-                }),
-              ],
-            },
-          ],
-        });
-
-        const blob = await Packer.toBlob(doc);
-        triggerDownload(blob, filename);
-
-        setExportSuccessMessage(
-          `Word (DOCX) belgesi başarıyla oluşturuldu ve indirildi (${filename}).`
-        );
-        setTimeout(() => setExportSuccessMessage(null), 5000);
-        return;
-      } catch (docxErr) {
-        console.warn('Packer.toBlob encountered issue, using HTML-DOC fallback:', docxErr);
-      }
-
-      // Infallible Fallback: Microsoft Word-compliant HTML Document
-      downloadHtmlDoc(studentName, studentClass, studentNo, reportDate);
-    } catch (err: any) {
-      console.error('Word Export Error:', err);
-      setExportErrorMessage(
-        `Word belgesi oluşturulurken bir hata oluştu: ${err.message || 'Lütfen tekrar deneyin.'}`
-      );
+      setExportFeedback('✓ Word belgesi (DOCX) başarıyla indirildi.');
+      setTimeout(() => setExportFeedback(null), 3000);
+    } catch (err) {
+      console.error('DOCX export error:', err);
+      setExportFeedback('DOCX oluşturulurken bir hata oluştu.');
     } finally {
       setIsGeneratingDocx(false);
     }
   };
 
-  // Standalone HTML-based Word Document (.doc) generator that NEVER fails
-  const downloadHtmlDoc = (
-    studentName: string,
-    studentClass: string,
-    studentNo: string,
-    reportDate: string
-  ) => {
-    const htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset="utf-8">
-        <title>Etüt Analiz ve Devamsızlık Belgesi</title>
-        <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; color: #1e293b; padding: 20px; }
-          .header { text-align: center; border-bottom: 2px solid #334155; padding-bottom: 12px; margin-bottom: 16px; }
-          .title { font-size: 14pt; font-weight: bold; color: #0f172a; margin-bottom: 4px; }
-          .subtitle { font-size: 11pt; font-weight: 600; color: #4338ca; }
-          .info-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px; margin-bottom: 18px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 10pt; }
-          th { background: #1e293b; color: #ffffff; padding: 8px; border: 1px solid #94a3b8; text-align: left; }
-          td { padding: 7px; border: 1px solid #cbd5e1; vertical-align: middle; }
-          tr:nth-child(even) { background-color: #f8fafc; }
-          .badge-present { color: #059669; font-weight: bold; }
-          .badge-absent { color: #dc2626; font-weight: bold; }
-          .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="title">T.C. MİLLİ EĞİTİM BAKANLIĞI / ÖZEL EĞİTİM KURUMLARI</div>
-          <div class="subtitle">ÖĞRENCİ ETÜT KATILIM VE DEVAMSIZLIK ANALİZ BELGESİ</div>
-          <div style="font-size: 9pt; color: #64748b; margin-top: 4px;">Rapor Tarihi: ${reportDate} | Eğitim ve Öğrenci Takip Portalı</div>
-        </div>
-
-        <div class="info-box">
-          <p><strong>Öğrenci Adı Soyadı:</strong> ${studentName} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Sınıf / Şube:</strong> ${studentClass} &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Öğrenci No:</strong> ${studentNo}</p>
-          <p><strong>Katılım İcmali:</strong> ${stats.totalCount} Etüt (${stats.totalHours} Saat) &nbsp;|&nbsp; <strong>Devam Durumu:</strong> ${stats.presentCount} Katıldı, ${stats.absentCount} Devamsız (%${stats.attendanceRate} Devam Oranı)</p>
-        </div>
-
-        <h3 style="color: #0f172a; font-size: 11pt; margin-bottom: 6px;">1. DERS BAZINDA ETÜT DAĞILIMI VE İŞLENEN KONU SAYISI</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Ders Adı</th>
-              <th>Etüt Sayısı</th>
-              <th>Oran</th>
-              <th>Toplam Süre</th>
-              <th>İşlenen Konu Sayısı</th>
-              <th>Katılım Durumu</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${stats.subjectBreakdown
-              .map(
-                (sb) => `
-              <tr>
-                <td><strong>${sb.subject}</strong></td>
-                <td>${sb.count} Adet</td>
-                <td>%${sb.percentage}</td>
-                <td>${sb.minutes} dk</td>
-                <td>${sb.topicCount} Farklı Konu</td>
-                <td>${
-                  selectedStudentId !== 'all'
-                    ? `${sb.present} Katıldı / ${sb.absent} Devamsız`
-                    : 'Genel İcmal'
-                }</td>
-              </tr>
-            `
-              )
-              .join('')}
-          </tbody>
-        </table>
-
-        <h3 style="color: #0f172a; font-size: 11pt; margin-bottom: 6px;">2. DETAYLI KRONOLOJİK ETÜT VE DEVAMSIZLIK LİSTESİ</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Tarih</th>
-              <th>Ders</th>
-              <th>İşlenen Etüt Konusu / Odak</th>
-              <th>Yoklama / Devamsızlık</th>
-              <th>Süre & Saat</th>
-              <th>Öğretmen</th>
-              <th>Notlar</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredEtuts
-              .map((e, idx) => {
-                let attLabel = 'Belirtilmedi';
-                let attClass = '';
-                if (selectedStudentId !== 'all') {
-                  const info = getEtutAttendanceInfo(e, selectedStudentId);
-                  attLabel = info.label;
-                  if (info.note) attLabel += ` (${info.note})`;
-                  attClass = info.status === 'present' ? 'badge-present' : info.status === 'absent' ? 'badge-absent' : '';
-                } else {
-                  const present = Object.values(e.studentAttendance || {}).filter(
-                    (a) => a.status === 'present'
-                  ).length;
-                  const absent = Object.values(e.studentAttendance || {}).filter(
-                    (a) => a.status === 'absent'
-                  ).length;
-                  attLabel = `${present} Geldi, ${absent} Gelmedi`;
-                }
-
-                return `
-                <tr>
-                  <td>${idx + 1}</td>
-                  <td>${e.date}</td>
-                  <td><strong>${e.subject}</strong></td>
-                  <td>${e.topic || 'Genel Konu Tekrarı / Soru Çözümü'}</td>
-                  <td class="${attClass}">${attLabel}</td>
-                  <td>${e.time} (${e.duration || 45} dk)</td>
-                  <td>${e.teacherName || 'Öğretmen'}</td>
-                  <td>${e.notes || '-'}</td>
-                </tr>
-              `;
-              })
-              .join('')}
-          </tbody>
-        </table>
-
-        <div style="margin-top: 40px;">
-          <table style="border: none; width: 100%;">
-            <tr style="background: transparent;">
-              <td style="border: none; width: 50%;">
-                <strong>Danışman / Branş Öğretmeni:</strong><br><br>
-                İmza: _______________________
-              </td>
-              <td style="border: none; width: 50%; text-align: right;">
-                <strong>Okul Müdürü Onayı:</strong><br><br>
-                İmza / Mühür: _______________________
-              </td>
-            </tr>
-          </table>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff', htmlContent], {
-      type: 'application/msword;charset=utf-8',
-    });
-    const filename = `Etut_Analiz_${studentName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date()
-      .toISOString()
-      .slice(0, 10)}.doc`;
-    triggerDownload(blob, filename);
-
-    setExportSuccessMessage(`Word (.doc) belgesi başarıyla oluşturuldu ve indirildi (${filename}).`);
-    setTimeout(() => setExportSuccessMessage(null), 5000);
-  };
-
-  // Safe print handler that works gracefully inside sandboxed iframes
-  const handleSafePrint = () => {
-    try {
-      const printableElement = document.getElementById('official-etut-document');
-      if (printableElement) {
-        const printFrame = document.createElement('iframe');
-        printFrame.style.position = 'fixed';
-        printFrame.style.right = '0';
-        printFrame.style.bottom = '0';
-        printFrame.style.width = '0';
-        printFrame.style.height = '0';
-        printFrame.style.border = '0';
-        document.body.appendChild(printFrame);
-
-        const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
-        if (frameDoc) {
-          frameDoc.open();
-          frameDoc.write(`
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <title>Etüt Analiz ve Devamsızlık Belgesi</title>
-                <style>
-                  @page { size: A4 portrait; margin: 12mm; }
-                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 12px; }
-                  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
-                  th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-                  th { background-color: #f1f5f9; font-weight: bold; }
-                  .text-center { text-align: center; }
-                  .text-rose-700 { color: #b91c1c; font-weight: bold; }
-                  .text-emerald-700 { color: #047857; font-weight: bold; }
-                  .border-slate-300 { border-color: #cbd5e1; }
-                </style>
-              </head>
-              <body>
-                ${printableElement.innerHTML}
-              </body>
-            </html>
-          `);
-          frameDoc.close();
-          setTimeout(() => {
-            try {
-              printFrame.contentWindow?.focus();
-              printFrame.contentWindow?.print();
-              setExportSuccessMessage('Yazdırma iletişim kutusu açıldı.');
-            } catch (e) {
-              console.warn('Iframe print restricted, triggering PDF export fallback:', e);
-              handleExportPDF();
-            } finally {
-              setTimeout(() => {
-                if (document.body.contains(printFrame)) {
-                  document.body.removeChild(printFrame);
-                }
-              }, 4000);
-            }
-          }, 400);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('Iframe print error, falling back to PDF:', err);
-    }
-
-    // Direct fallback
-    handleExportPDF();
+  // Doğrudan Yazdır
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-6xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+        className="relative w-full max-w-6xl bg-slate-50 border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90 shrink-0">
+        {/* ÜST BAŞLIK BARI */}
+        <div className="px-5 sm:px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <FileCheck className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 font-bold">
+              <BarChart3 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span>Öğrenci Etüt Katılım & Devamsızlık Analiz Belgesi</span>
-                <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Resmi Belge Çıktılı
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">Etüt Analizi</h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                  {detectedLevel}
                 </span>
-              </h3>
-              <p className="text-xs text-slate-400">
-                Geçmiş etütler, seçili tarih aralıkları, ders/konu dağılımı ve devamsızlık durumları raporu.
+              </div>
+              <p className="text-xs text-slate-500">
+                Sınıf ve öğrenci bazlı profesyonel etüt katılım ve konu analizi raporu
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* View Mode Switcher: Analytics vs A4 Official Document */}
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setActiveTab('analytics')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === 'analytics'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Analiz & Çizelge</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('document')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  activeTab === 'document'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Resmi Belge (A4 Çıktı)</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={isGeneratingPdf}
+              className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              title="PDF Raporu İndir"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isGeneratingPdf ? 'Hazırlanıyor...' : 'PDF İndir'}</span>
+            </button>
 
             <button
+              type="button"
+              onClick={handleExportDOCX}
+              disabled={isGeneratingDocx}
+              className="hidden md:inline-flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              title="Word (DOCX) İndir"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{isGeneratingDocx ? 'Hazırlanıyor...' : 'Word İndir'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="Yazdır"
+            >
+              <Printer className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="Kapat"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Success Alert */}
-        {exportSuccessMessage && (
-          <div className="mx-6 mt-3 p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-xl flex items-center space-x-2 text-xs text-emerald-200 animate-in fade-in shrink-0">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{exportSuccessMessage}</span>
+        {/* BİLDİRİM GERİ BİLDİRİMİ */}
+        {exportFeedback && (
+          <div className="px-5 py-2 bg-emerald-50 border-b border-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+            <span>{exportFeedback}</span>
+            <button
+              type="button"
+              onClick={() => setExportFeedback(null)}
+              className="text-emerald-600 hover:text-emerald-900"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Error Alert */}
-        {exportErrorMessage && (
-          <div className="mx-6 mt-3 p-3 bg-rose-950/80 border border-rose-500/40 rounded-xl flex items-center space-x-2 text-xs text-rose-200 animate-in fade-in shrink-0">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>{exportErrorMessage}</span>
+        {/* 4 AŞAMALI FİLTRELEME ALANI (KULLANICI TALEBİNE GÖRE DÜZENLENDİ) */}
+        <div className="p-4 sm:p-5 bg-white border-b border-slate-200/90 shadow-xs space-y-3 shrink-0">
+          {/* 1. ADIM: ANALİZ HEDEFİ SEÇİMİ (SINIF VEYA ÖĞRENCİ) */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-700 whitespace-nowrap">
+                1. Analiz Kapsamı:
+              </span>
+              <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAnalysisMode('class')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    analysisMode === 'class'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <School className="w-3.5 h-3.5" />
+                  <span>Sınıf Özelinde Analiz</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAnalysisMode('student')}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    analysisMode === 'student'
+                      ? 'bg-white text-indigo-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Öğrenciye Özel Analiz</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sınıf veya Öğrenci Seçici Açılır Penceresi */}
+            <div className="flex-1 max-w-xl">
+              {analysisMode === 'class' ? (
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="select-class-analysis" className="text-xs text-slate-500 font-semibold whitespace-nowrap">
+                    Sınıf:
+                  </label>
+                  <select
+                    id="select-class-analysis"
+                    value={selectedClassId}
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                  >
+                    {classes.map((c) => {
+                      const count = students.filter((s) => s.classId === c.id).length;
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {formatClassDisplayName(c.name, c.branch, c.gradeLevel)} — {count} Öğrenci
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  {/* Öğrenci Sınıf Filtresi (İsteğe Bağlı) */}
+                  <select
+                    value={studentClassFilter}
+                    onChange={(e) => setStudentClassFilter(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer sm:w-40"
+                    title="Öğrenciyi hızlı bulmak için sınıf filtreleyin"
+                  >
+                    <option value="all">Tüm Sınıflar</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {formatClassDisplayName(c.name, c.branch, c.gradeLevel)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Öğrenci Açılır Penceresi */}
+                  <select
+                    id="select-student-analysis"
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                  >
+                    {selectableStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.studentNumber ? `(#${s.studentNumber})` : ''} — {formatClassDisplayName(s.className, s.branch, s.gradeLevel)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
           </div>
-        )}
 
-        {/* Comprehensive Filters Bar */}
-        <div className="p-4 sm:p-5 bg-slate-950/60 border-b border-slate-800/80 space-y-3 shrink-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Student Picker */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
-                <User className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Analiz Edilecek Öğrenci</span>
+          {/* 2, 3 ve 4. ADIMLAR: DERS, ETÜT VE TARİH ARALIĞI AÇILIR PENCERELERİ */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+            {/* 2. DERS SEÇİMİ (Kademeye göre Ortaokul veya Lise dersleri açılır) */}
+            <div className="space-y-1">
+              <label htmlFor="select-subject-analysis" className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                <span>2. Ders Seçiniz</span>
+                <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                  {detectedLevel}
+                </span>
               </label>
               <select
-                value={selectedStudentId}
-                onChange={(e) => setSelectedStudentId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-              >
-                <option value="all">👥 Tüm Öğrenciler (Genel Kurumsal İcmal)</option>
-                {students.map((std) => (
-                  <option key={std.id} value={std.id}>
-                    {std.name} ({std.className || 'Sınıfsız'}) - No: #{std.studentNumber}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date Range Filter (Kullanıcının talep ettiği geçmiş ve tarih aralıkları) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Tarih Aralığı & Geçmiş</span>
-              </label>
-              <select
-                value={dateRangeFilter}
-                onChange={(e) => setDateRangeFilter(e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-              >
-                <option value="all">Tüm Zamanlar (Tüm Geçmiş Etütler)</option>
-                <option value="past">Sadece Geçmişte Yapılan Etütler</option>
-                <option value="7">Son 7 Gün (1 Hafta)</option>
-                <option value="15">Son 15 Gün (2 Hafta)</option>
-                <option value="30">Son 30 Gün (1 Ay)</option>
-                <option value="90">Son 3 Ay (90 Gün)</option>
-                <option value="term">Bu Eğitim Dönemi (Son 6 Ay)</option>
-                <option value="custom">📅 Belirli Tarih Aralığı Seç...</option>
-              </select>
-            </div>
-
-            {/* Subject Filter (Kullanıcının talep ettiği ders filtrelemesi) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Ders Branşı</span>
-              </label>
-              <select
-                value={selectedSubjectFilter}
-                onChange={(e) => setSelectedSubjectFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                id="select-subject-analysis"
+                value={selectedSubject}
+                onChange={(e) => setSelectedSubject(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
               >
                 <option value="all">Tüm Dersler</option>
-                {availableSubjects.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
+                {availableSubjectsForLevel.map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Attendance Status Filter (Kullanıcının talep ettiği devamsızlık durumu) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center space-x-1.5">
-                <ClipboardList className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Yoklama / Devamsızlık Durumu</span>
+            {/* 3. VERİLEN ETÜT SEÇİMİ (Verilen ders için etütlerin hepsi veya tek etüt) */}
+            <div className="space-y-1">
+              <label htmlFor="select-etut-analysis" className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                <span>3. Etüt Seçiniz</span>
+                <span className="text-[10px] text-slate-400">
+                  {poolEtutsForTargetAndSubject.length} Etüt Mevcut
+                </span>
               </label>
               <select
-                value={attendanceStatusFilter}
-                onChange={(e) => setAttendanceStatusFilter(e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                id="select-etut-analysis"
+                value={selectedEtutId}
+                onChange={(e) => setSelectedEtutId(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
               >
-                <option value="all">Tüm Etütler (Katıldı + Devamsız)</option>
-                <option value="present">Sadece Katıldığı (Geldi)</option>
-                <option value="absent">Sadece Devamsız Kaldığı (Gelmedi)</option>
-                <option value="late_excused">Geç Kaldı / İzinli - Raporlu</option>
+                <option value="all">
+                  Tüm Etütler (Hepsi — {poolEtutsForTargetAndSubject.length} Etüt)
+                </option>
+                {poolEtutsForTargetAndSubject.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {new Date(e.date).toLocaleDateString('tr-TR')} • {e.subject} ({e.topic || 'Genel Tekrar'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. TARİH ARALIĞI AÇILIR PENCERESİ */}
+            <div className="space-y-1">
+              <label htmlFor="select-date-range-analysis" className="text-[11px] font-bold text-slate-600 block">
+                4. Tarih Aralığı
+              </label>
+              <select
+                id="select-date-range-analysis"
+                value={dateRangeFilter}
+                onChange={(e) => setDateRangeFilter(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="all">Tüm Tarihler (Tüm Zamanlar)</option>
+                <option value="thisWeek">Bu Hafta (Pzt - Paz)</option>
+                <option value="thisMonth">Bu Ay</option>
+                <option value="last30">Son 30 Gün</option>
+                <option value="future">Gelecek Planlanan Etütler</option>
+                <option value="custom">Özel Tarih Aralığı Seç...</option>
               </select>
             </div>
           </div>
 
-          {/* Search Bar & Custom Date Range */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Konu başlığı, öğretmen adı, derslik veya açıklama ara..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-800/90 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500 placeholder-slate-500"
-              />
-            </div>
-
-            {/* Custom Date Inputs if selected */}
-            {dateRangeFilter === 'custom' && (
-              <div className="flex items-center space-x-2 bg-slate-900 border border-indigo-500/30 px-3 py-1.5 rounded-xl text-xs">
-                <span className="text-slate-400 font-semibold">Tarih:</span>
+          {/* Özel Tarih Seçicileri (custom seçildiğinde açılır) */}
+          {dateRangeFilter === 'custom' && (
+            <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
+              <span className="text-slate-500 font-semibold">Tarih Aralığı:</span>
+              <div className="flex items-center space-x-2">
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs"
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800"
                 />
-                <span className="text-slate-500">-</span>
+                <span className="text-slate-400">—</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs"
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800"
                 />
-                {(customStartDate || customEndDate) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomStartDate('');
-                      setCustomEndDate('');
-                    }}
-                    className="text-rose-400 hover:text-rose-300 text-[11px] underline cursor-pointer"
-                  >
-                    Temizle
-                  </button>
-                )}
               </div>
-            )}
-
-            {/* Document Export Buttons (PDF, Word, Print) */}
-            <div className="flex items-center space-x-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleExportPDF}
-                disabled={isGeneratingPdf}
-                className="flex items-center space-x-2 bg-rose-600 hover:bg-rose-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-600/20 cursor-pointer disabled:opacity-50"
-                title="Resmi PDF Raporu ve Devamsızlık Çıktısı İndir"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>{isGeneratingPdf ? 'PDF Hazırlanıyor...' : 'PDF İndir'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportDOCX}
-                disabled={isGeneratingDocx}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer disabled:opacity-50"
-                title="Microsoft Word (.docx) Raporu İndir"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>{isGeneratingDocx ? 'Word Hazırlanıyor...' : 'Word İndir'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSafePrint}
-                className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border border-slate-700 cursor-pointer"
-                title="Yazdır veya Resmi Belge Önizlemesi Aç"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-400" />
-                <span>Yazdır / Belge</span>
-              </button>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomStartDate('');
+                    setCustomEndDate('');
+                  }}
+                  className="text-[11px] text-indigo-600 hover:underline"
+                >
+                  Tarihi Temizle
+                </button>
+              )}
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Modal Body: Active Tab Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
-          {activeTab === 'analytics' ? (
-            /* ANALYTICS & DASHBOARD TAB */
-            <>
-              {/* Profile Card & 4 KPI Pills */}
-              <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center space-x-4">
-                    {selectedStudent ? (
-                      <img
-                        src={
-                          selectedStudent.avatar ||
-                          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                            selectedStudent.name
-                          )}`
-                        }
-                        alt={selectedStudent.name}
-                        className="w-14 h-14 rounded-2xl object-cover bg-slate-800 ring-2 ring-indigo-500/30 shrink-0"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
-                        <Users className="w-7 h-7" />
-                      </div>
-                    )}
-                    <div>
-                      <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center space-x-1.5">
-                        <Building2 className="w-3.5 h-3.5" />
-                        <span>
-                          {selectedStudent
-                            ? 'Bireysel Öğrenci Etüt ve Devam Karnesi'
-                            : 'Kurumsal Genel İcmal & Analiz'}
-                        </span>
-                      </div>
-                      <h4 className="text-xl font-bold text-white mt-0.5">
-                        {selectedStudent
-                          ? selectedStudent.name
-                          : 'Tüm Öğrencilerin Etüt ve Devamsızlık İstatistiği'}
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-400">
-                        {selectedStudent && (
-                          <>
-                            <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-mono">
-                              #{selectedStudent.studentNumber}
-                            </span>
-                            <span>•</span>
-                            <span className="font-semibold text-emerald-400">
-                              {selectedStudent.className || 'Sınıf Belirtilmedi'}
-                            </span>
-                            <span>•</span>
-                            <span>{selectedStudent.email}</span>
-                          </>
-                        )}
-                        {!selectedStudent && (
-                          <span>
-                            Toplam {students.length} kayıtlı öğrenci genelinde etüt katılım ve
-                            devamsızlık analizi
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+        {/* RAPOR İÇERİĞİ ALANI (SADE, ŞIK, BEYAZ VE ANLAŞILIR) */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-100/50">
+          {/* RAPOR BAŞLIĞI VE ÖZET BİLGİ KARTI */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                  Resmi Etüt Analiz Raporu
+                </span>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                  {analysisMode === 'class'
+                    ? `${currentClass ? formatClassDisplayName(currentClass.name, currentClass.branch, currentClass.gradeLevel) : 'Sınıf'} — Etüt Katılım ve Başarı Analizi`
+                    : `${currentStudent ? currentStudent.name : 'Öğrenci'} — Bireysel Etüt Katılım Raporu`}
+                </h2>
+              </div>
+              <div className="flex items-center space-x-2 text-xs text-slate-500 font-medium">
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>Rapor Tarihi: {new Date().toLocaleDateString('tr-TR')}</span>
+              </div>
+            </div>
 
-                  {/* KPI Pills */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                      <div className="text-[11px] font-semibold text-slate-400">Toplam Etüt</div>
-                      <div className="text-xl font-black text-indigo-400 mt-0.5">
-                        {stats.totalCount}
-                      </div>
-                      <div className="text-[10px] text-slate-500">{stats.totalHours} Saat</div>
-                    </div>
+            {/* AKTİF FİLTRELER ROZETLERİ */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-slate-400">Filtre Özeti:</span>
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 font-semibold">
+                {analysisMode === 'class'
+                  ? `🏫 Sınıf: ${currentClass ? formatClassDisplayName(currentClass.name, currentClass.branch, currentClass.gradeLevel) : ''}`
+                  : `👤 Öğrenci: ${currentStudent?.name}`}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+                {detectedLevel}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+                📚 {selectedSubject === 'all' ? 'Tüm Dersler' : selectedSubject}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+                🎯 {selectedEtutId === 'all' ? `Tüm Etütler (${finalFilteredEtuts.length})` : 'Özel Etüt'}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+                📅 {dateRangeFilter === 'all' ? 'Tüm Zamanlar' : `Filtreli Tarih`}
+              </span>
+            </div>
 
-                    <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                      <div className="text-[11px] font-semibold text-emerald-400 flex items-center justify-center space-x-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Katıldı</span>
-                      </div>
-                      <div className="text-xl font-black text-emerald-400 mt-0.5">
-                        {stats.presentCount}
-                      </div>
-                      <div className="text-[10px] text-slate-500">Etüte Geldi</div>
-                    </div>
-
-                    <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                      <div className="text-[11px] font-semibold text-rose-400 flex items-center justify-center space-x-1">
-                        <XCircle className="w-3 h-3" />
-                        <span>Devamsız</span>
-                      </div>
-                      <div className="text-xl font-black text-rose-400 mt-0.5">
-                        {stats.absentCount}
-                      </div>
-                      <div className="text-[10px] text-slate-500">Gelmedi</div>
-                    </div>
-
-                    <div className="bg-slate-950/80 border border-slate-800 p-3 rounded-xl text-center">
-                      <div className="text-[11px] font-semibold text-amber-300">Devam Oranı</div>
-                      <div className="text-xl font-black text-amber-300 mt-0.5">
-                        %{stats.attendanceRate}
-                      </div>
-                      <div className="text-[10px] text-slate-500">Katılım Başarısı</div>
-                    </div>
-                  </div>
-                </div>
+            {/* KPI İSTATİSTİK KARTLARI */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                  Toplam Etüt
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-slate-900 mt-1 block">
+                  {analysisStats.totalEtuts} <span className="text-xs font-normal text-slate-500">adet</span>
+                </span>
               </div>
 
-              {/* Section 1: Ders Bazında Dağılım & İşlenen Konu Sayısı */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h5 className="text-sm font-bold text-white flex items-center space-x-2">
-                    <TrendingUp className="w-4 h-4 text-indigo-400" />
-                    <span>Ders Bazında Etüt Dağılımı & İşlenen Konu Analizi</span>
-                  </h5>
-                  <span className="text-xs text-slate-400">
-                    {stats.subjectBreakdown.length} Farklı Branş
-                  </span>
-                </div>
-
-                {stats.subjectBreakdown.length === 0 ? (
-                  <div className="text-center py-6 text-xs text-slate-500">
-                    Seçilen kriterlerde kayıtlı bir etüt bulunamadı.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {stats.subjectBreakdown.map((item) => (
-                      <div
-                        key={item.subject}
-                        className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2 hover:border-indigo-500/40 transition-colors"
-                      >
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-white">{item.subject}</span>
-                          <span className="font-mono font-bold text-indigo-400">
-                            {item.count} Kez ({item.percentage}%)
-                          </span>
-                        </div>
-
-                        <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div
-                            className="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                          ></div>
-                        </div>
-
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                          <span>{item.minutes} dk çalışma</span>
-                          <span className="text-indigo-300 font-medium">
-                            {item.topicCount} farklı konu
-                          </span>
-                        </div>
-
-                        {selectedStudentId !== 'all' && (
-                          <div className="flex items-center justify-between text-[10px] pt-1 border-t border-slate-800/80">
-                            <span className="text-emerald-400 font-semibold">
-                              {item.present} Geldi
-                            </span>
-                            <span className="text-rose-400 font-semibold">
-                              {item.absent} Devamsız
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                  Toplam Süre
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-slate-900 mt-1 block">
+                  {analysisStats.totalHours} <span className="text-xs font-normal text-slate-500">saat</span>
+                </span>
               </div>
 
-              {/* Section 2: Kronolojik Etüt ve Devamsızlık Listesi (Ders, Konu, Yoklama) */}
-              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <h5 className="text-sm font-bold text-white flex items-center space-x-2">
-                    <BookOpen className="w-4 h-4 text-emerald-400" />
-                    <span>Kronolojik Etüt & Devamsızlık Geçmişi</span>
-                  </h5>
-                  <div className="text-xs text-slate-400 flex items-center space-x-2">
-                    <span>Listelenen:</span>
-                    <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
-                      {filteredEtuts.length} Etüt
-                    </span>
-                  </div>
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
+                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide block">
+                  Katılım Oranı
+                </span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-800 mt-1 block">
+                  %{analysisStats.attendanceRate}
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                  {analysisMode === 'class' ? 'Kayıtlı Öğrenci' : 'Katılım Detayı'}
+                </span>
+                <span className="text-sm font-bold text-slate-800 mt-1 block">
+                  {analysisMode === 'class'
+                    ? `${classStudents.length} Öğrenci`
+                    : `✓ ${analysisStats.present} Geldi • ✕ ${analysisStats.absent} Gelmedi`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* DETAYLI ANALİZ TABLOSU */}
+          {analysisMode === 'class' ? (
+            /* SINIF BAZLI ANALİZ */
+            <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm space-y-3 p-4 sm:p-5">
+              {/* Sekme Değiştirici: Öğrenci Katılım Çizelgesi vs Etüt Listesi */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setClassDetailView('students')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      classDetailView === 'students'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Öğrenci Katılım Çizelgesi ({classStudents.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClassDetailView('etuts')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      classDetailView === 'etuts'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Etüt Detay Listesi ({finalFilteredEtuts.length})
+                  </button>
                 </div>
 
+                <span className="text-xs text-slate-400">
+                  {classDetailView === 'students'
+                    ? 'Sınıftaki öğrencilerin bireysel etüt devam durumu'
+                    : 'Seçili kriterlere göre işlenen etütler'}
+                </span>
+              </div>
+
+              {classDetailView === 'students' ? (
+                /* Öğrenci Katılım Tablosu */
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <table className="w-full text-left text-xs text-slate-700">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3 font-semibold">Tarih & Saat</th>
-                        <th className="px-4 py-3 font-semibold">Ders</th>
-                        <th className="px-4 py-3 font-semibold">İşlenen Etüt Konusu / Odak</th>
-                        <th className="px-4 py-3 font-semibold">Yoklama / Devamsızlık Durumu</th>
-                        <th className="px-4 py-3 font-semibold">Süre & Derslik</th>
-                        <th className="px-4 py-3 font-semibold">Öğretmen</th>
-                        <th className="px-4 py-3 font-semibold">Notlar / Açıklama</th>
+                        <th className="px-4 py-3">Sıra</th>
+                        <th className="px-4 py-3">No</th>
+                        <th className="px-4 py-3">Öğrenci</th>
+                        <th className="px-4 py-3">Atanan Etüt</th>
+                        <th className="px-4 py-3">Katıldı</th>
+                        <th className="px-4 py-3">Gelmedi</th>
+                        <th className="px-4 py-3">Katılım Oranı</th>
+                        <th className="px-4 py-3 text-right">Durum</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {filteredEtuts.length === 0 ? (
+                    <tbody className="divide-y divide-slate-100">
+                      {studentParticipationRows.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                            Bu öğrenci veya filtreleme kriterleri için etüt kaydı bulunamadı.
+                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                            Bu sınıfta kayıtlı öğrenci bulunamadı.
                           </td>
                         </tr>
                       ) : (
-                        filteredEtuts.map((etut) => {
-                          const attInfo =
-                            selectedStudentId !== 'all'
-                              ? getEtutAttendanceInfo(etut, selectedStudentId)
-                              : null;
-
-                          const totalAssigned = Array.isArray(etut.assignedStudentIds)
-                            ? etut.assignedStudentIds.length
-                            : students.length;
-                          const presentCount = Object.values(
-                            etut.studentAttendance || {}
-                          ).filter((a) => a.status === 'present').length;
-                          const absentCount = Object.values(
-                            etut.studentAttendance || {}
-                          ).filter((a) => a.status === 'absent').length;
-
-                          return (
-                            <tr
-                              key={etut.id}
-                              className="hover:bg-slate-800/30 transition-colors"
-                            >
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="font-semibold text-white">
-                                  {formatTurkishDate(etut.date)}
+                        studentParticipationRows.map((row, idx) => (
+                          <tr key={row.student.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-indigo-700">
+                              #{row.student.studentNumber || '-'}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-slate-900">
+                              {row.student.name}
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{row.assignedCount}</td>
+                            <td className="px-4 py-3 font-bold text-emerald-700">{row.attendedCount}</td>
+                            <td className="px-4 py-3 font-bold text-rose-700">{row.absentCount}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-emerald-500 rounded-full"
+                                    style={{ width: `${row.rate}%` }}
+                                  />
                                 </div>
-                                <div className="text-[11px] text-indigo-400 font-mono flex items-center space-x-1">
-                                  <Clock className="w-3 h-3" />
-                                  <span>{etut.time}</span>
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                                  {etut.subject}
-                                </span>
-                              </td>
-
-                              <td className="px-4 py-3">
-                                <div className="font-semibold text-slate-200">
-                                  {etut.topic || 'Genel Konu Tekrarı / Soru Çözümü'}
-                                </div>
-                                {etut.schoolLevel && (
-                                  <div className="text-[10px] text-slate-500">
-                                    {etut.schoolLevel} • {etut.gradeLevel || 'Genel'}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Yoklama / Devamsızlık Kolonu */}
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                {selectedStudentId !== 'all' && attInfo ? (
-                                  <div>
-                                    <span
-                                      className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border ${attInfo.badgeClass}`}
-                                    >
-                                      <span
-                                        className={`w-1.5 h-1.5 rounded-full ${attInfo.dotClass}`}
-                                      ></span>
-                                      <span>{attInfo.label}</span>
-                                    </span>
-                                    {attInfo.note && (
-                                      <div className="text-[10px] text-slate-400 mt-0.5 italic">
-                                        {attInfo.note}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-xs font-semibold">
-                                    <span className="text-emerald-400">
-                                      {presentCount} Geldi
-                                    </span>
-                                    <span className="text-slate-500 mx-1">/</span>
-                                    <span className="text-rose-400">
-                                      {absentCount} Gelmedi
-                                    </span>
-                                    <div className="text-[10px] text-slate-500 font-mono">
-                                      {totalAssigned} Kayıtlı Öğrenci
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="font-mono text-emerald-400 font-semibold">
-                                  {etut.duration || 45} Dakika
-                                </div>
-                                <div className="text-[11px] text-slate-400">
-                                  {etut.location || 'Derslik'}
-                                </div>
-                              </td>
-
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="font-medium text-slate-200">
-                                  {etut.teacherName || 'Danışman Öğretmen'}
-                                </div>
-                              </td>
-
-                              <td
-                                className="px-4 py-3 text-slate-400 max-w-xs truncate"
-                                title={etut.notes || ''}
+                                <span className="font-bold text-slate-800">%{row.rate}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  row.rate >= 80
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : row.rate >= 50
+                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}
                               >
-                                {etut.notes || '-'}
-                              </td>
-                            </tr>
-                          );
-                        })
+                                {row.rate >= 80 ? 'Düzenli' : row.rate >= 50 ? 'Orta' : 'Düşük'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </>
+              ) : (
+                /* Etüt Detay Listesi */
+                <div className="divide-y divide-slate-100">
+                  {finalFilteredEtuts.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400 text-xs">
+                      Seçilen kriterlere uygun etüt kaydı bulunamadı.
+                    </div>
+                  ) : (
+                    finalFilteredEtuts.map((e) => (
+                      <div
+                        key={e.id}
+                        className="py-3 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 rounded-xl transition-colors"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {e.subject}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-500 flex items-center space-x-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              <span>
+                                {new Date(e.date).toLocaleDateString('tr-TR')} • {e.time} ({e.duration || 40} Dk)
+                              </span>
+                            </span>
+                            {e.location && (
+                              <span className="text-xs text-slate-400 flex items-center space-x-1">
+                                <MapPin className="w-3 h-3 text-slate-400" />
+                                <span>{e.location}</span>
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900">
+                            {e.topic || 'Genel Tekrar / Soru Çözümü'}
+                          </h4>
+                          {e.teacherFeedback && (
+                            <p className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/60 p-1.5 rounded-md mt-1 italic">
+                              <strong className="font-semibold not-italic">Öğretmen Görüş ve Değerlendirmesi:</strong> "{e.teacherFeedback}"
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="shrink-0 flex items-center space-x-3">
+                          <span className="text-xs font-bold text-slate-700">
+                            {e.assignedStudentIds === 'all'
+                              ? '👥 Tüm Sınıf'
+                              : `🎯 ${Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.length : 0} Öğrenci`}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           ) : (
-            /* OFFICIAL A4 DOCUMENT PRINT PREVIEW TAB */
-            <div className="space-y-4 max-w-4xl mx-auto">
-              {/* Top Quick Actions Bar for Document */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-lg">
-                <div className="flex items-center space-x-2 text-xs text-slate-300 font-medium">
-                  <Printer className="w-4 h-4 text-emerald-400" />
-                  <span>Resmi A4 Çıktı & Belge Önizleme</span>
+            /* ÖĞRENCİ BAZLI ANALİZ */
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src={
+                      currentStudent?.avatar ||
+                      `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
+                        currentStudent?.name || 'student'
+                      )}`
+                    }
+                    alt=""
+                    className="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200"
+                  />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">{currentStudent?.name}</h3>
+                    <div className="flex items-center space-x-2 text-xs text-slate-500">
+                      <span className="font-mono text-indigo-700 font-semibold">
+                        #{currentStudent?.studentNumber || '-'}
+                      </span>
+                      <span>•</span>
+                      <span>
+                        {currentStudent?.className
+                          ? formatClassDisplayName(currentStudent.className, currentStudent.branch, currentStudent.gradeLevel)
+                          : 'Sınıf Bilgisi Yok'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+
                 <div className="flex items-center space-x-2">
-                  <button
-                    type="button"
-                    onClick={handleSafePrint}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-colors border border-slate-700 cursor-pointer"
-                    title="Yazıcıya gönder veya PDF olarak yazdır"
+                  <span className="text-xs font-bold text-slate-500">Katılım Durumu:</span>
+                  <span
+                    className={`px-3 py-1 rounded-xl text-xs font-bold ${
+                      analysisStats.attendanceRate >= 80
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : analysisStats.attendanceRate >= 50
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
                   >
-                    <Printer className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Yazdır</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPDF}
-                    disabled={isGeneratingPdf}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-                    title="Resmi PDF Belgesini İndir"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>{isGeneratingPdf ? 'İndiriliyor...' : 'PDF İndir'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportDOCX}
-                    disabled={isGeneratingDocx}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-                    title="Microsoft Word Belgesini İndir"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>{isGeneratingDocx ? 'İndiriliyor...' : 'Word İndir'}</span>
-                  </button>
+                    %{analysisStats.attendanceRate} Katılım
+                  </span>
                 </div>
               </div>
 
-              <div
-                id="official-etut-document"
-                className="bg-white text-slate-900 p-8 sm:p-12 rounded-xl shadow-2xl border border-slate-300 font-sans"
-              >
-              {/* Document Official Header */}
-              <div className="text-center border-b-2 border-slate-900 pb-5 mb-6">
-                <div className="text-sm font-bold tracking-widest text-slate-800 uppercase">
-                  T.C. MİLLİ EĞİTİM BAKANLIĞI / ÖZEL EĞİTİM KURUMLARI
-                </div>
-                <h2 className="text-xl font-black text-slate-950 mt-1 uppercase">
-                  ÖĞRENCİ ETÜT KATILIM VE DEVAMSIZLIK ANALİZ BELGESİ
-                </h2>
-                <div className="text-xs text-slate-500 mt-1">
-                  Eğitim ve Öğrenci Takip Portalı • Resmi İnceleme ve Rehberlik Takip Belgesi
-                </div>
-              </div>
-
-              {/* Student Bio Grid */}
-              <div className="bg-slate-50 border border-slate-300 rounded-lg p-4 mb-6">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Öğrenci Adı Soyadı:</span>
-                    <span className="font-bold text-slate-900 text-sm">
-                      {selectedStudent ? selectedStudent.name : 'Tüm Öğrenciler Kurumsal İcmal'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Sınıfı / Şubesi:</span>
-                    <span className="font-semibold text-slate-900">
-                      {selectedStudent ? selectedStudent.className || 'Genel' : 'Tüm Sınıflar'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Öğrenci Numarası:</span>
-                    <span className="font-semibold text-slate-900">
-                      {selectedStudent ? `#${selectedStudent.studentNumber}` : '-'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Belge Düzenlenme Tarihi:</span>
-                    <span className="font-semibold text-slate-900">
-                      {new Date().toLocaleDateString('tr-TR')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border-t border-slate-200 mt-3 pt-3 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Toplam Etüt Sayısı:</span>
-                    <span className="font-black text-indigo-700 text-sm">
-                      {stats.totalCount} Adet ({stats.totalHours} Saat)
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Katıldığı Etüt (Geldi):</span>
-                    <span className="font-black text-emerald-700 text-sm">
-                      {stats.presentCount} Etüt
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Devamsız Kaldığı:</span>
-                    <span className="font-black text-rose-700 text-sm">
-                      {stats.absentCount} Etüt
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Devam Başarı Oranı:</span>
-                    <span className="font-black text-indigo-900 text-sm">
-                      %{stats.attendanceRate}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 1: Ders Bazında Dağılım Tablosu */}
-              <div className="mb-6">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2 border-l-4 border-indigo-600 pl-2">
-                  1. DERS BAZINDA ETÜT DAĞILIMI VE İŞLENEN FARKLI KONU SAYILARI
-                </h4>
-                <table className="w-full text-left text-xs border-collapse border border-slate-300">
-                  <thead className="bg-slate-100 text-slate-800 font-bold">
+              {/* Öğrencinin Katıldığı Etütlerin Kronolojik Tablosu */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
                     <tr>
-                      <th className="p-2 border border-slate-300">Ders Branşı</th>
-                      <th className="p-2 border border-slate-300">Etüt Adedi</th>
-                      <th className="p-2 border border-slate-300">Yüzde Payı</th>
-                      <th className="p-2 border border-slate-300">Toplam Süre</th>
-                      <th className="p-2 border border-slate-300">İşlenen Farklı Konu</th>
-                      <th className="p-2 border border-slate-300">Katılım Durumu</th>
+                      <th className="px-4 py-3">Tarih</th>
+                      <th className="px-4 py-3">Saat</th>
+                      <th className="px-4 py-3">Ders</th>
+                      <th className="px-4 py-3">Konu / Odak</th>
+                      <th className="px-4 py-3">Süre</th>
+                      <th className="px-4 py-3">Yer</th>
+                      <th className="px-4 py-3 text-right">Yoklama Durumu</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {stats.subjectBreakdown.map((sb) => (
-                      <tr key={sb.subject} className="even:bg-slate-50">
-                        <td className="p-2 border border-slate-300 font-bold">{sb.subject}</td>
-                        <td className="p-2 border border-slate-300">{sb.count} Kez</td>
-                        <td className="p-2 border border-slate-300">%{sb.percentage}</td>
-                        <td className="p-2 border border-slate-300">
-                          {sb.minutes} dk ({(sb.minutes / 60).toFixed(1)} sa)
-                        </td>
-                        <td className="p-2 border border-slate-300">
-                          {sb.topicCount} Farklı Konu
-                        </td>
-                        <td className="p-2 border border-slate-300">
-                          {selectedStudentId !== 'all' ? (
-                            <span>
-                              <strong className="text-emerald-700">{sb.present} Geldi</strong> /{' '}
-                              <strong className="text-rose-700">{sb.absent} Gelmedi</strong>
-                            </span>
-                          ) : (
-                            'Genel İcmal'
-                          )}
+                  <tbody className="divide-y divide-slate-100">
+                    {finalFilteredEtuts.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                          Seçilen kriterlere uygun etüt kaydı bulunamadı.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      finalFilteredEtuts.map((e) => {
+                        const att = e.studentAttendance?.[currentStudent?.id || ''];
+                        let badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
+                        let label = 'Planlandı';
+
+                        if (att?.status === 'present') {
+                          badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                          label = '✓ Katıldı';
+                        } else if (att?.status === 'absent') {
+                          badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+                          label = '✕ Gelmedi';
+                        } else if (att?.status === 'excused') {
+                          badgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
+                          label = 'ℹ İzinli';
+                        } else if (att?.status === 'late') {
+                          badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                          label = '⚠ Geç Kaldı';
+                        }
+
+                        return (
+                          <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-slate-900">
+                              {new Date(e.date).toLocaleDateString('tr-TR')}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">{e.time || '16:00'}</td>
+                            <td className="px-4 py-3 font-bold text-indigo-700">{e.subject}</td>
+                            <td className="px-4 py-3 text-slate-800 font-medium">
+                              <div>{e.topic || 'Genel Tekrar / Soru Çözümü'}</div>
+                              {e.teacherFeedback && (
+                                <div
+                                  className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded mt-1 italic font-normal inline-block max-w-xs truncate"
+                                  title={`Öğretmen Görüşü: ${e.teacherFeedback}`}
+                                >
+                                  💬 {e.teacherFeedback}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">{e.duration || 40} Dk</td>
+                            <td className="px-4 py-3 text-slate-500">{e.location || 'Derslik'}</td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${badgeClass}`}>
+                                {label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
 
-              {/* Section 2: Kronolojik Etüt Listesi */}
-              <div className="mb-8">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2 border-l-4 border-emerald-600 pl-2">
-                  2. KRONOLOJİK ETÜT GEÇMİŞİ (TARİH, DERS, İŞLENEN KONU VE DEVAMSIZLIK)
-                </h4>
-                <table className="w-full text-left text-xs border-collapse border border-slate-300">
-                  <thead className="bg-slate-100 text-slate-800 font-bold">
-                    <tr>
-                      <th className="p-2 border border-slate-300">#</th>
-                      <th className="p-2 border border-slate-300">Tarih</th>
-                      <th className="p-2 border border-slate-300">Ders</th>
-                      <th className="p-2 border border-slate-300">İşlenen Etüt Konusu / Odak</th>
-                      <th className="p-2 border border-slate-300">Yoklama / Devamsızlık</th>
-                      <th className="p-2 border border-slate-300">Süre</th>
-                      <th className="p-2 border border-slate-300">Öğretmen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEtuts.map((e, idx) => {
-                      let attLabel = 'Belirtilmedi';
-                      let isAbsent = false;
-                      if (selectedStudentId !== 'all') {
-                        const info = getEtutAttendanceInfo(e, selectedStudentId);
-                        attLabel = info.label;
-                        if (info.note) attLabel += ` (${info.note})`;
-                        isAbsent = info.status === 'absent';
-                      } else {
-                        const present = Object.values(e.studentAttendance || {}).filter(
-                          (a) => a.status === 'present'
-                        ).length;
-                        const absent = Object.values(e.studentAttendance || {}).filter(
-                          (a) => a.status === 'absent'
-                        ).length;
-                        attLabel = `${present} Geldi, ${absent} Gelmedi`;
-                      }
-
-                      return (
-                        <tr
-                          key={e.id}
-                          className={`even:bg-slate-50 ${isAbsent ? 'bg-rose-50/60' : ''}`}
-                        >
-                          <td className="p-2 border border-slate-300 text-slate-500 font-mono">
-                            {idx + 1}
-                          </td>
-                          <td className="p-2 border border-slate-300 whitespace-nowrap">
-                            <span className="font-semibold">{e.date}</span>
-                            <span className="text-slate-500 block text-[10px]">{e.time}</span>
-                          </td>
-                          <td className="p-2 border border-slate-300 font-bold">{e.subject}</td>
-                          <td className="p-2 border border-slate-300 font-medium">
-                            {e.topic || 'Genel Konu Tekrarı / Soru Çözümü'}
-                          </td>
-                          <td
-                            className={`p-2 border border-slate-300 font-bold ${
-                              isAbsent ? 'text-rose-700' : 'text-emerald-700'
-                            }`}
-                          >
-                            {attLabel}
-                          </td>
-                          <td className="p-2 border border-slate-300 whitespace-nowrap">
-                            {e.duration || 45} dk
-                          </td>
-                          <td className="p-2 border border-slate-300 whitespace-nowrap">
-                            {e.teacherName || 'Öğretmen'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* DİPNOT & İMZA ÇERÇEVESİ */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+            <div className="space-y-1 text-center sm:text-left">
+              <p className="font-semibold text-slate-700">Rapor Doğrulama Bilgisi:</p>
+              <p className="text-[11px] text-slate-400">
+                Bu belge okul etüt takip sistemi üzerinden otomatik olarak oluşturulmuştur.
+              </p>
+            </div>
+            <div className="flex items-center space-x-6">
+              <div className="text-center">
+                <span className="block text-[11px] text-slate-400">Branş / Danışman Öğretmen</span>
+                <span className="font-semibold text-slate-700 mt-1 block">İmza: ____________</span>
               </div>
-
-              {/* Official Signatures Section */}
-              <div className="border-t-2 border-slate-300 pt-6 mt-8">
-                <div className="grid grid-cols-3 gap-6 text-center text-xs">
-                  <div>
-                    <div className="font-bold text-slate-800">Danışman / Branş Öğretmeni</div>
-                    <div className="text-slate-500 text-[11px] mt-0.5">İnceleme & Değerlendirme</div>
-                    <div className="mt-10 border-b border-dashed border-slate-400 w-36 mx-auto"></div>
-                    <div className="text-[10px] text-slate-400 mt-1">İmza</div>
-                  </div>
-
-                  <div>
-                    <div className="font-bold text-slate-800">Rehberlik & Psikolojik Danışman</div>
-                    <div className="text-slate-500 text-[11px] mt-0.5">Akademik Gelişim Onayı</div>
-                    <div className="mt-10 border-b border-dashed border-slate-400 w-36 mx-auto"></div>
-                    <div className="text-[10px] text-slate-400 mt-1">İmza</div>
-                  </div>
-
-                  <div>
-                    <div className="font-bold text-slate-800">Okul / Kurum Müdürü</div>
-                    <div className="text-slate-500 text-[11px] mt-0.5">Resmi Onay & Mühür</div>
-                    <div className="mt-10 border-b border-dashed border-slate-400 w-36 mx-auto"></div>
-                    <div className="text-[10px] text-slate-400 mt-1">İmza / Mühür</div>
-                  </div>
-                </div>
-
-                <div className="text-center text-[10px] text-slate-400 mt-8">
-                  Bu resmi belge, Eğitim ve Öğrenci Takip Sistemi veritabanından güvenli olarak
-                  alınmıştır. Herhangi bir kazıntı ve silinti durumunda geçersizdir.
-                </div>
+              <div className="text-center">
+                <span className="block text-[11px] text-slate-400">Okul Yönetimi Onayı</span>
+                <span className="font-semibold text-slate-700 mt-1 block">Mühür / İmza</span>
               </div>
             </div>
           </div>
-          )}
+        </div>
+
+        {/* MODAL ALT ÇUBUĞU */}
+        <div className="px-5 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+          <span className="text-xs text-slate-400 hidden sm:inline">
+            Filtrelenen {finalFilteredEtuts.length} etüt kaydı listeleniyor.
+          </span>
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={isGeneratingPdf}
+              className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isGeneratingPdf ? 'İndiriliyor...' : 'PDF İndir'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Kapat
+            </button>
+          </div>
         </div>
       </div>
     </div>

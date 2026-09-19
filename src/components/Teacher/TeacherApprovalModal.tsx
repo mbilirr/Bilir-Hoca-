@@ -114,6 +114,18 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setTimeout(() => setActionMsg(null), 2500);
   };
 
+  const handleToggleCanViewAll = (teacher: Teacher) => {
+    const newVal = !teacher.canViewAllStudentsAndClasses;
+    dataService.toggleTeacherCanViewAll(teacher.id, newVal);
+    setActionMsg(
+      newVal
+        ? `✓ ${teacher.name} için önceden eklenmiş tüm sınıf ve öğrenci listelerini görme izni verildi.`
+        : `✓ ${teacher.name} için genel liste izni kapatıldı (Yalnızca kendi eklediklerini ve izinli sınıfları görür).`
+    );
+    refreshData();
+    setTimeout(() => setActionMsg(null), 3000);
+  };
+
   const handleToggleAdmin = (teacher: Teacher) => {
     const newStatus = !teacher.isAdmin;
     if (!newStatus) {
@@ -411,7 +423,34 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           </span>
                         </div>
                       ) : (
-                        <div>
+                        <div className="space-y-3">
+                          {/* Yönetici İzni: Önceden Eklenmiş Sınıf ve Öğrenci Listelerini Görme */}
+                          <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                            <div>
+                              <div className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+                                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Önceden Eklenmiş Sınıf & Öğrenci Listelerini Görme İzni</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                                {teacher.canViewAllStudentsAndClasses
+                                  ? 'Öğretmen sistemdeki önceden oluşturulmuş tüm sınıfları ve kayıtlı öğrencileri görebilir.'
+                                  : 'Öğretmen yalnızca kendi eklediklerini ve aşağıda seçilen sınıfları görebilir.'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCanViewAll(teacher)}
+                              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                                teacher.canViewAllStudentsAndClasses
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
+                                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
+                              }`}
+                            >
+                              <Check className={`w-3.5 h-3.5 ${teacher.canViewAllStudentsAndClasses ? 'text-emerald-400' : 'text-slate-500'}`} />
+                              <span>{teacher.canViewAllStudentsAndClasses ? 'Genel Liste İzni Açık' : 'İzin Kapalı (Korumalı)'}</span>
+                            </button>
+                          </div>
+
                           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                             <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
                               <Layers className="w-3.5 h-3.5 text-indigo-400" />

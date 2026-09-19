@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   BookOpen,
   Plus,
@@ -32,6 +32,7 @@ import {
   Download,
   Eye,
   ChevronLeft,
+  ChevronRight,
   Printer,
   School,
   XCircle,
@@ -100,6 +101,25 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [hwFilterSubject, setHwFilterSubject] = useState('all');
   const [hwFilterClassId, setHwFilterClassId] = useState('all');
   const [isHwSearchDropdownOpen, setIsHwSearchDropdownOpen] = useState(false);
+
+  // Ödev Kontrol: Açılır Pencere (Modal) ve Sınıf Açılır Menü State'leri
+  const [isHwCheckModalOpen, setIsHwCheckModalOpen] = useState(false);
+  const [hwCheckSearchQuery, setHwCheckSearchQuery] = useState('');
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
+
+  // Tüm Oluşturulan Ödevler Yana Yana Kayan Sayfalar (Slider / Carousel)
+  const allHwSliderRef = useRef<HTMLDivElement>(null);
+  const [allHwActiveIndex, setAllHwActiveIndex] = useState(0);
+
+  const scrollAllHwSlider = (direction: 'prev' | 'next') => {
+    if (!allHwSliderRef.current) return;
+    const container = allHwSliderRef.current;
+    const cardWidth = container.firstElementChild
+      ? (container.firstElementChild as HTMLElement).clientWidth + 20
+      : 500;
+    const scrollAmount = direction === 'prev' ? -cardWidth : cardWidth;
+    container.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+  };
 
   // Ödev Kontrol Bölümü Buton Seçimleri: Tüm Ödevler, Tüm Sınıflar, Tüm Dersler
   const [trackerFilterHwId, setTrackerFilterHwId] = useState<string>('all');
@@ -638,148 +658,302 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           );
         }
 
+        const filteredHwsForCheckModal = homeworks.filter((hw) => {
+          if (!hwCheckSearchQuery.trim()) return true;
+          const q = hwCheckSearchQuery.toLowerCase();
+          return (
+            hw.title.toLowerCase().includes(q) ||
+            hw.subject.toLowerCase().includes(q) ||
+            (hw.description && hw.description.toLowerCase().includes(q))
+          );
+        });
+
         return (
           <div className="space-y-5">
-            {/* 1. ÖDEV AÇILIR PENCERESİ */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">Ödev Seçiniz</h3>
-                    <p className="text-xs text-slate-400">
-                      Kontrol etmek istediğiniz ödevi açılır listeden belirleyiniz.
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
-                  {homeworks.length} Ödev Mevcut
-                </span>
-              </div>
-
-              {/* ÖDEV SEÇİM AÇILIR MENÜSÜ */}
-              <div className="relative">
-                <select
-                  value={selectedHomeworkId}
-                  onChange={(e) => {
-                    const newId = e.target.value;
-                    setSelectedHomeworkId(newId);
-                    const selectedHw = homeworks.find((h) => h.id === newId);
-                    if (selectedHw?.targetClassIds && selectedHw.targetClassIds.length > 0) {
-                      setSelectedClassIdForCheck(selectedHw.targetClassIds[0]);
-                    } else if (selectedHw?.classId) {
-                      setSelectedClassIdForCheck(selectedHw.classId);
-                    } else if (classes[0]) {
-                      setSelectedClassIdForCheck(classes[0].id);
-                    }
-                  }}
-                  className="w-full bg-slate-950 border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
-                >
-                  {homeworks.map((hw) => (
-                    <option key={hw.id} value={hw.id} className="bg-slate-900 text-white py-2">
-                      [{hw.subject}] {hw.title} • Son Teslim: {formatDueDateTurkish(hw.dueDate)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Seçili Ödev Detay Kartı */}
-              {currentHw && (
-                <div className="mt-3.5 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            {/* 1 & 2: ÖDEV SEÇİMİ (AÇILIR PENCERE BUTONU) & SINIF SEÇİMİ (SINIF ADINDA AÇILIR DÜĞME) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* ÖDEV SEÇİMİ - AÇILIR PENCERE BUTONU */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                      {currentHw.subject}
-                    </span>
-                    <span className="text-sm font-bold text-white">{currentHw.title}</span>
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                      <BookOpen className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Ödev Seçiniz</h3>
                   </div>
-                  <div className="flex items-center space-x-4 text-xs text-slate-400">
-                    <span className="flex items-center space-x-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Son Teslim: <strong className="text-slate-200">{formatDueDateTurkish(currentHw.dueDate)}</strong></span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {homeworks.length} Ödev
+                  </span>
+                </div>
+
+                {/* ÖDEV AÇILIR PENCERE DÜĞMESİ */}
+                <button
+                  type="button"
+                  id="btn-open-hw-check-modal"
+                  onClick={() => {
+                    setHwCheckSearchQuery('');
+                    setIsHwCheckModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200 text-left transition-all cursor-pointer group shadow-xs"
+                >
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {currentHw?.subject || 'Ders'}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          Son: {currentHw ? formatDueDateTurkish(currentHw.dueDate) : '-'}
+                        </span>
+                      </div>
+                      <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 truncate mt-0.5">
+                        {currentHw ? currentHw.title : 'Kontrol Edilecek Ödevi Seçiniz'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1.5 shrink-0 ml-2">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-xs group-hover:bg-indigo-500 transition-colors">
+                      Değiştir
                     </span>
-                    {currentHw.createdByName && (
-                      <span className="text-slate-400">Öğretmen: <strong className="text-slate-300">{currentHw.createdByName}</strong></span>
+                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:translate-y-0.5 transition-transform" />
+                  </div>
+                </button>
+              </div>
+
+              {/* SINIF SEÇİMİ - SINIF ADINDA AÇILIR DÜĞME */}
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3 relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                      <School className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Sınıf Seçiniz</h3>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {hwClasses.length} Sınıf
+                  </span>
+                </div>
+
+                {/* SINIF ADINDA AÇILIR DÜĞME */}
+                {hwClasses.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
+                    Bu ödev için tanımlı sınıf bulunamadı.
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      id="btn-class-select-dropdown"
+                      onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
+                      className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200 text-left transition-all cursor-pointer group shadow-xs"
+                    >
+                      <div className="flex items-center space-x-3 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                          <School className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 truncate">
+                            {currentClass ? currentClass.name : 'Sınıf Seçiniz'}
+                            {currentClass?.branch ? ` (${currentClass.branch})` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 shrink-0 ml-2">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {classStudents.length} Öğrenci
+                        </span>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isClassDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+
+                    {/* SINIF SEÇİM AÇILIR LİSTESİ */}
+                    {isClassDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                          Sınıf Seçiniz ({hwClasses.length})
+                        </div>
+                        <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+                          {hwClasses.map((cls) => {
+                            const isSelected = cls.id === activeClassId;
+                            const countInClass = students.filter((s) => s.classId === cls.id).length;
+                            return (
+                              <button
+                                key={cls.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClassIdForCheck(cls.id);
+                                  setIsClassDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white font-bold shadow-xs'
+                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <School className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-indigo-600'}`} />
+                                  <span className="text-sm">{cls.name}</span>
+                                  {cls.branch && (
+                                    <span className="text-xs opacity-75 font-normal">({cls.branch})</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="text-xs opacity-80">{countInClass} Öğrenci</span>
+                                  {isSelected && <Check className="w-4 h-4" />}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* 2. SEÇTİĞİMİZ ÖDEVİ OLAN SINIFLAR */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                    <School className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">Ödevi Olan Sınıflar</h3>
-                    <p className="text-xs text-slate-400">
-                      Bu ödevin tanımlandığı sınıflardan birini seçiniz.
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs text-slate-400">
-                  {hwClasses.length} Sınıf Bulundu
-                </span>
+                )}
               </div>
-
-              {hwClasses.length === 0 ? (
-                <div className="p-5 rounded-xl bg-slate-950/60 border border-slate-800 text-center text-xs text-slate-400">
-                  Bu ödev için tanımlı sınıf bulunamadı.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-                  {hwClasses.map((cls) => {
-                    const isSelected = cls.id === activeClassId;
-                    const countInClass = students.filter((s) => s.classId === cls.id).length;
-                    return (
-                      <button
-                        key={cls.id}
-                        type="button"
-                        onClick={() => setSelectedClassIdForCheck(cls.id)}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-indigo-600/25 border-indigo-400 text-white shadow-lg shadow-indigo-600/25 ring-2 ring-indigo-500/60'
-                            : 'bg-slate-950/80 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-bold text-sm text-white truncate">{cls.name}</span>
-                          {isSelected && (
-                            <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 ml-1" />
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span>{cls.branch || 'Şube'}</span>
-                          <span className="font-bold text-indigo-300">{countInClass} Öğrenci</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
 
-            {/* 3. SEÇİLEN SINIFIN LİSTESİ ALT ALTA SIRALANSIN & İSİMLERİN KARŞISINDA DURUMLAR */}
-            {currentClass && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
-                {/* Header & Arama */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-base font-bold text-white">
-                        {currentClass.name} — Öğrenci Listesi
-                      </h3>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                        {classStudents.length} Kayıtlı Öğrenci
-                      </span>
+            {/* KONTROL EDİLECEK ÖDEV AÇILIR PENCERESİ (MODAL) */}
+            {isHwCheckModalOpen && (
+              <div
+                className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+                onClick={() => setIsHwCheckModalOpen(false)}
+              >
+                <div
+                  className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div className="px-5 sm:px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">Kontrol Edilecek Ödevi Seçiniz</h3>
+                        <span className="text-xs text-slate-500">Mevcut {homeworks.length} ödev listeleniyor</span>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Her öğrencinin karşısındaki durum butonuna basarak kontrolünü tamamlayın.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsHwCheckModalOpen(false)}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Modal Search */}
+                  <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-white">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={hwCheckSearchQuery}
+                        onChange={(e) => setHwCheckSearchQuery(e.target.value)}
+                        placeholder="Ödev başlığı, ders veya konu ara..."
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {/* Modal Homework Cards */}
+                  <div className="p-3.5 sm:p-4 overflow-y-auto space-y-2.5 max-h-[50vh] bg-slate-50/50">
+                    {filteredHwsForCheckModal.length === 0 ? (
+                      <div className="py-10 text-center text-xs text-slate-400">
+                        Aramanıza uygun ödev bulunamadı.
+                      </div>
+                    ) : (
+                      filteredHwsForCheckModal.map((hw) => {
+                        const isSelected = hw.id === selectedHomeworkId;
+                        return (
+                          <button
+                            key={hw.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedHomeworkId(hw.id);
+                              if (hw.targetClassIds && hw.targetClassIds.length > 0) {
+                                setSelectedClassIdForCheck(hw.targetClassIds[0]);
+                              } else if (hw.classId) {
+                                setSelectedClassIdForCheck(hw.classId);
+                              } else if (classes[0]) {
+                                setSelectedClassIdForCheck(classes[0].id);
+                              }
+                              setIsHwCheckModalOpen(false);
+                            }}
+                            className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                              isSelected
+                                ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/30 shadow-sm'
+                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                  {hw.subject}
+                                </span>
+                                {hw.schoolLevel && (
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                    {hw.schoolLevel}
+                                  </span>
+                                )}
+                                <span className="text-[11px] text-slate-500 flex items-center space-x-1">
+                                  <Clock className="w-3 h-3 text-amber-500" />
+                                  <span>Son Teslim: {formatDueDateTurkish(hw.dueDate)}</span>
+                                </span>
+                              </div>
+                              <h4 className="text-sm font-bold text-slate-900 truncate">{hw.title}</h4>
+                              {hw.description && (
+                                <p className="text-xs text-slate-500 line-clamp-1">{hw.description}</p>
+                              )}
+                            </div>
+                            <div className="shrink-0 flex items-center space-x-2 ml-2">
+                              {isSelected ? (
+                                <span className="flex items-center space-x-1 text-xs font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-xl">
+                                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                  <span>Seçili</span>
+                                </span>
+                              ) : (
+                                <span className="text-xs font-semibold text-slate-700 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors">
+                                  Seç
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setIsHwCheckModalOpen(false)}
+                      className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 rounded-xl cursor-pointer"
+                    >
+                      Kapat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. MODERN MİNİMALİST BEYAZ ÖĞRENCİ LİSTESİ VE DURUMLAR */}
+            {currentClass && (
+              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+                {/* Header & Arama (Açıklamasız, sade ve net) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      {currentClass.name} — Öğrenci Listesi
+                    </h3>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {classStudents.length} Kayıtlı Öğrenci
+                    </span>
                   </div>
 
                   <div className="relative w-full sm:w-64">
@@ -789,84 +963,84 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       value={studentSearchInput}
                       onChange={(e) => setStudentSearchInput(e.target.value)}
                       placeholder="Öğrenci adı veya numarası ara..."
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 {/* Sayaçlar */}
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Toplam</span>
-                    <span className="text-base font-bold text-white">{classStudents.length}</span>
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Toplam</span>
+                    <span className="text-base font-bold text-slate-900">{classStudents.length}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Yaptı</span>
-                    <span className="text-base font-bold text-emerald-300">{countYapti}</span>
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 block">Yaptı</span>
+                    <span className="text-base font-bold text-emerald-800">{countYapti}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-rose-400 block">Yapmadı</span>
-                    <span className="text-base font-bold text-rose-300">{countYapmadi}</span>
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-700 block">Yapmadı</span>
+                    <span className="text-base font-bold text-rose-800">{countYapmadi}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Eksik</span>
-                    <span className="text-base font-bold text-amber-300">{countEksik}</span>
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 block">Eksik</span>
+                    <span className="text-base font-bold text-amber-800">{countEksik}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-sky-400 block">İzinli</span>
-                    <span className="text-base font-bold text-sky-300">{countIzinli}</span>
+                  <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-sky-700 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-800">{countIzinli}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-purple-400 block">Gelmedi</span>
-                    <span className="text-base font-bold text-purple-300">{countGelmedi}</span>
+                  <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-center">
+                    <span className="text-[10px] uppercase font-bold text-purple-700 block">Gelmedi</span>
+                    <span className="text-base font-bold text-purple-800">{countGelmedi}</span>
                   </div>
                 </div>
 
                 {/* Toplu İşlem Butonları */}
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-300">
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-700">
                     Sınıf İçin Hızlı İşlem:
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('yapti')}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer"
                     >
                       ✓ Tümünü Yaptı
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('yapmadi')}
-                      className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer"
                     >
                       ✕ Tümünü Yapmadı
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('eksik')}
-                      className="px-2.5 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-bold transition-all cursor-pointer"
                     >
                       ⚠ Tümünü Eksik
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('izinli')}
-                      className="px-2.5 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-bold transition-all cursor-pointer"
                     >
                       ℹ Tümünü İzinli
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('gelmedi')}
-                      className="px-2.5 py-1 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-300 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer"
                     >
                       ○ Tümünü Gelmedi
                     </button>
                   </div>
                 </div>
 
-                {/* ALT ALTA SIRALANMIŞ ÖĞRENCİLER */}
+                {/* ALT ALTA SIRALANMIŞ BEYAZ MİNİMALİST ÖĞRENCİ LİSTESİ */}
                 {classStudents.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs">
                     "{currentClass.name}" sınıfına henüz kayıtlı öğrenci bulunmuyor.
@@ -876,29 +1050,29 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     "{studentSearchInput}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/50">
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
                     {displayedStudents.map((std, idx) => {
                       const currentStatus = getStudentCheckStatus(std.id);
                       return (
                         <div
                           key={std.id}
-                          className="p-3 sm:p-3.5 hover:bg-slate-800/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                          className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
                         >
                           {/* Öğrenci Bilgisi */}
                           <div className="flex items-center space-x-3 min-w-0">
-                            <span className="w-6 text-center text-xs font-mono text-slate-500 shrink-0">
+                            <span className="w-6 text-center text-xs font-mono text-slate-400 font-semibold shrink-0">
                               {idx + 1}
                             </span>
                             <img
                               src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                               alt={std.name}
-                              className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 shrink-0"
+                              className="w-8 h-8 rounded-full bg-slate-100 object-cover border border-slate-200 shrink-0"
                               referrerPolicy="no-referrer"
                             />
                             <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate">{std.name}</h4>
-                              <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                                <span className="font-mono text-indigo-300">
+                              <h4 className="text-sm font-bold text-slate-900 truncate">{std.name}</h4>
+                              <div className="flex items-center space-x-2 text-[11px] text-slate-500">
+                                <span className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-semibold">
                                   #{std.studentNumber || '-'}
                                 </span>
                                 {std.phone && <span>• {std.phone}</span>}
@@ -914,8 +1088,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               onClick={() => handleStatusClick(std.id, 'yapti')}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'yapti'
-                                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
-                                  : 'bg-slate-900 hover:bg-emerald-600/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/40'
+                                  ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
+                                  : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300'
                               }`}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -928,8 +1102,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               onClick={() => handleStatusClick(std.id, 'yapmadi')}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'yapmadi'
-                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
-                                  : 'bg-slate-900 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40'
+                                  ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400'
+                                  : 'bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300'
                               }`}
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -942,8 +1116,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               onClick={() => handleStatusClick(std.id, 'eksik')}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'eksik'
-                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
-                                  : 'bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40'
+                                  ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
+                                  : 'bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 hover:border-amber-300'
                               }`}
                             >
                               <AlertCircle className="w-3.5 h-3.5" />
@@ -956,8 +1130,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               onClick={() => handleStatusClick(std.id, 'izinli')}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'izinli'
-                                  ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400'
-                                  : 'bg-slate-900 hover:bg-sky-600/20 text-slate-300 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40'
+                                  ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400'
+                                  : 'bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-300'
                               }`}
                             >
                               <Info className="w-3.5 h-3.5" />
@@ -970,8 +1144,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               onClick={() => handleStatusClick(std.id, 'gelmedi')}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'gelmedi'
-                                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400'
-                                  : 'bg-slate-900 hover:bg-purple-600/20 text-slate-300 hover:text-purple-300 border border-slate-700 hover:border-purple-500/40'
+                                  ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400'
+                                  : 'bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 border border-slate-200 hover:border-purple-300'
                               }`}
                             >
                               <HelpCircle className="w-3.5 h-3.5" />
@@ -1241,25 +1415,63 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </button>
               </div>
             ) : (
-              filteredHomeworks.map((hw) => {
-                const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
-                const isExpanded = expandedHwId === hw.id;
+              <div className="space-y-3">
+                {/* Carousel Kontrol & Bilgi Çubuğu */}
+                <div className="flex items-center justify-between px-3 py-2 bg-slate-950/60 rounded-2xl border border-slate-800/80 text-xs shadow-sm">
+                  <div className="flex items-center space-x-2 text-slate-300">
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs">
+                      {filteredHomeworks.length}
+                    </div>
+                    <span className="font-bold text-white">Özet Ödev Sayfaları</span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400 hidden sm:inline">Yana Kaydırılabilir Kartlar (⇄)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => scrollAllHwSlider('prev')}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors cursor-pointer flex items-center space-x-1 font-semibold"
+                      title="Önceki Ödev Sayfası"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span className="text-xs">Önceki</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => scrollAllHwSlider('next')}
+                      className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors cursor-pointer flex items-center space-x-1 font-semibold"
+                      title="Sonraki Ödev Sayfası"
+                    >
+                      <span className="text-xs">Sonraki</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
-                const assignedCount =
-                  hw.assignedTo === 'all'
-                    ? students.length
-                    : Array.isArray(hw.assignedTo)
-                    ? hw.assignedTo.length
-                    : 0;
+                {/* YANA YANA KAYAN ÖDEV SAYFALARI PİSTİ */}
+                <div
+                  ref={allHwSliderRef}
+                  className="flex overflow-x-auto snap-x snap-mandatory gap-4 sm:gap-5 pb-5 pt-1 px-1 scroll-smooth scrollbar-thin"
+                >
+                  {filteredHomeworks.map((hw) => {
+                    const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
+                    const isExpanded = expandedHwId === hw.id;
 
-                const isOverdue = new Date() > new Date(hw.dueDate);
+                    const assignedCount =
+                      hw.assignedTo === 'all'
+                        ? students.length
+                        : Array.isArray(hw.assignedTo)
+                        ? hw.assignedTo.length
+                        : 0;
 
-                return (
-                  <div
-                    key={hw.id}
-                    id={`hw-card-${hw.id}`}
-                    className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden transition-all shadow-md scroll-mt-24"
-                  >
+                    const isOverdue = new Date() > new Date(hw.dueDate);
+
+                    return (
+                      <div
+                        key={hw.id}
+                        id={`hw-card-${hw.id}`}
+                        className="w-[86vw] sm:w-[480px] md:w-[520px] lg:w-[560px] flex-shrink-0 snap-center bg-slate-900 border border-slate-800 hover:border-indigo-500/40 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between transition-all"
+                      >
               {/* Card Header */}
               <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80">
                 <div className="space-y-2 flex-1">
@@ -1298,6 +1510,21 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                   <h3 className="text-lg font-bold text-white tracking-tight">{hw.title}</h3>
                   <p className="text-xs text-slate-400 line-clamp-2">{hw.description}</p>
+
+                  {/* Özet Teslim İlerlemesi */}
+                  <div className="pt-2 flex items-center space-x-3">
+                    <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-300"
+                        style={{
+                          width: `${assignedCount > 0 ? Math.min(100, Math.round((hwSubmissions.length / assignedCount) * 100)) : 0}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-300 whitespace-nowrap">
+                      {hwSubmissions.length} / {assignedCount} Teslim ({assignedCount > 0 ? Math.round((hwSubmissions.length / assignedCount) * 100) : 0}%)
+                    </span>
+                  </div>
                 </div>
 
                 {/* Header Action Buttons */}
@@ -1311,6 +1538,25 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   >
                     <Eye className="w-3.5 h-3.5" />
                     <span>Görüntüle</span>
+                  </button>
+
+                  {/* ÖDEVİ KONTROL ET BUTONU */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedHomeworkId(hw.id);
+                      if (hw.targetClassIds && hw.targetClassIds.length > 0) {
+                        setSelectedClassIdForCheck(hw.targetClassIds[0]);
+                      } else if (hw.classId) {
+                        setSelectedClassIdForCheck(hw.classId);
+                      }
+                      setActiveTab('tracker');
+                    }}
+                    className="flex items-center space-x-1.5 px-3 py-2 bg-emerald-600/25 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                    title="Bu Ödevi Kontrol Et"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Kontrol Et</span>
                   </button>
 
                   {/* İNDİR BUTONU */}
@@ -1615,7 +1861,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </div>
             </div>
           );
-        }))}
+        })}
+                </div>
+              </div>
+            )}
       </div>
     );
   })()}

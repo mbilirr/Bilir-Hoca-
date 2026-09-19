@@ -85,9 +85,6 @@ export default function App() {
   // Teacher active navigation tab (Varsayılan olarak 'home' - Sadece Ajanda ve Durum Özetleri)
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>('home');
 
-  // 5 dakika işlem yapılmadığında gösterilecek uyarı mesajı
-  const [inactivityNotice, setInactivityNotice] = useState(false);
-
   // Mobile drawer state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -165,7 +162,6 @@ export default function App() {
           setCurrentStudent(null);
           setRole('teacher');
           setTeacherTab('home');
-          setInactivityNotice(true);
         }
       }
     };
@@ -197,7 +193,6 @@ export default function App() {
 
   // Handle successful login or registration from AuthPortal
   const handleAuthSuccess = (session: AuthSession) => {
-    setInactivityNotice(false);
     setAuthSession(session);
     setTeacherTab('home');
     if (session.role === 'teacher') {
@@ -263,23 +258,6 @@ export default function App() {
   if (!authSession) {
     return (
       <div className="relative min-h-screen">
-        {inactivityNotice && (
-          <div className="bg-amber-950/95 border-b border-amber-500/50 px-4 py-3 text-amber-200 text-xs sm:text-sm flex items-center justify-between shadow-2xl sticky top-0 z-50 animate-fade-in backdrop-blur-md">
-            <div className="flex items-center space-x-2.5 max-w-4xl mx-auto">
-              <span className="text-base">⏱️</span>
-              <span>
-                <strong>Oturum Zaman Aşımı:</strong> 5 dakika boyunca herhangi bir işlem yapılmadığı için oturumunuz güvenlik nedeniyle otomatik olarak kapatıldı. Lütfen tekrar giriş yapınız.
-              </span>
-            </div>
-            <button
-              onClick={() => setInactivityNotice(false)}
-              className="text-amber-300 hover:text-white p-1 rounded hover:bg-amber-800/40 text-xs font-bold cursor-pointer transition-colors"
-              title="Kapat"
-            >
-              ✕
-            </button>
-          </div>
-        )}
         <AuthPortal
           onAuthSuccess={handleAuthSuccess}
           classes={classes}

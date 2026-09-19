@@ -66,6 +66,45 @@ export const INITIAL_TEACHERS: Teacher[] = [
   },
 ];
 
+// Helper to detect and clean auto-generated / fake / random placeholder emails
+export function isAutoOrFakeEmail(email?: string | null): boolean {
+  if (!email || typeof email !== 'string') return true;
+  const e = email.trim().toLowerCase();
+  if (!e) return true;
+
+  if (
+    e.endsWith('@okul.k12.tr') ||
+    e.endsWith('@school.com') ||
+    e.endsWith('@school.internal') ||
+    e.endsWith('@student.school.internal') ||
+    e.endsWith('@example.com') ||
+    e.endsWith('@fake.com') ||
+    e.endsWith('@test.com') ||
+    e.endsWith('@dummy.com') ||
+    e.includes('ogrenci.') ||
+    e.includes('ogrenci_') ||
+    e.includes('student.') ||
+    e.includes('student_') ||
+    e.includes('noemail') ||
+    e.includes('temp_') ||
+    e.startsWith('std_') ||
+    e.startsWith('student_') ||
+    e.startsWith('ogr_') ||
+    !e.includes('@') ||
+    !e.includes('.')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function cleanStudentEmail(email?: string | null): string {
+  if (!email || isAutoOrFakeEmail(email)) {
+    return '';
+  }
+  return email.trim().toLowerCase();
+}
+
 // DATA STORE LOCAL STORAGE KEYS
 const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
@@ -549,6 +588,53 @@ function loadAttendanceWithResilience(): AttendanceRecord[] {
   }
 }
 
+// Resilient question logs loader across versioned, master, and legacy keys
+function loadQuestionLogsWithResilience(): StudentQuestionLog[] {
+  try {
+    let loaded: StudentQuestionLog[] = [];
+    const direct = localStorage.getItem(STORAGE_KEYS.QUESTION_LOGS);
+    if (direct) {
+      try {
+        const parsed = JSON.parse(direct);
+        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+      } catch {}
+    }
+    if (loaded.length === 0) {
+      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS);
+      if (master) {
+        try {
+          const parsed = JSON.parse(master);
+          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        } catch {}
+      }
+    }
+    const qKeys = [
+      'edu_sys_question_logs_v6', 'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4',
+      'edu_sys_question_logs_v3', 'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1',
+      'edu_sys_question_logs', 'edu_sys_question_logs_backup',
+    ];
+    const qMap = new Map<string, StudentQuestionLog>();
+    loaded.forEach((q) => { if (q && q.id) qMap.set(q.id, q); });
+    for (const k of qKeys) {
+      const val = localStorage.getItem(k);
+      if (val) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((q: StudentQuestionLog) => {
+              if (q && q.id && !qMap.has(q.id)) qMap.set(q.id, q);
+            });
+          }
+        } catch {}
+      }
+    }
+    return Array.from(qMap.values());
+  } catch (e) {
+    console.error('Error in loadQuestionLogsWithResilience:', e);
+    return [];
+  }
+}
+
 // Safe storage getter and setter with multi-version fallback and auto-migration
 function loadData<T>(key: string, defaultValue: T): T {
   try {
@@ -712,6 +798,7 @@ export class DataService {
     const resilientGrades = loadGradesWithResilience();
     const resilientHomework = loadHomeworkWithResilience();
     const resilientAttendance = loadAttendanceWithResilience();
+    const resilientQuestionLogs = loadQuestionLogsWithResilience();
 
     const alreadyInitialized = isAlreadyInitialized();
 
@@ -764,7 +851,7 @@ export class DataService {
       this.documents = loadDataWithLegacyFallback(STORAGE_KEYS.DOCUMENTS, []);
       this.studentNotifications = loadDataWithLegacyFallback(STORAGE_KEYS.STUDENT_NOTIFICATIONS, []);
       this.sentEmails = loadDataWithLegacyFallback(STORAGE_KEYS.SENT_EMAILS, []);
-      this.questionLogs = loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
+      this.questionLogs = resilientQuestionLogs.length > 0 ? resilientQuestionLogs : loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
       this.weeklyQuestionTargets = loadDataWithLegacyFallback(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, []);
 
       // Sistem tarafından otomatik yüklenen demo/seed soru kayıtlarını ve soru sayısı 0 olan boş kayıtları temizle
@@ -898,19 +985,14 @@ export class DataService {
       saveData(STORAGE_KEYS.IS_SEEDED, 'true');
     }
 
-    // Migration: Önceden sistem tarafından rastgele atanmış sahte mailleri temizle ve 54321 şifrelerini ilk girişte zorunlu güncellemeye al
+    // Migration: Önceden sistem tarafından rastgele atanmış sahte/otomatik mailleri temizle ve 54321 şifrelerini ilk girişte zorunlu güncellemeye al
     let studentsEmailCleaned = false;
     this.students = this.students.map((s) => {
       let updated = { ...s };
       let changed = false;
-      if (s.email && (
-        s.email.endsWith('@okul.k12.tr') ||
-        s.email.endsWith('@school.com') ||
-        s.email.endsWith('@student.school.internal') ||
-        s.email.endsWith('@example.com') ||
-        s.email.includes('ogrenci.')
-      )) {
-        updated.email = '';
+      const cleanedMail = cleanStudentEmail(s.email);
+      if (s.email !== cleanedMail) {
+        updated.email = cleanedMail;
         changed = true;
       }
       if (updated.password === '54321' && updated.mustChangePassword === undefined) {
@@ -925,6 +1007,9 @@ export class DataService {
     });
     if (studentsEmailCleaned) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
     }
 
     // Clean up any old duplicate legacy version keys to keep storage lean and prevent quota limit errors
@@ -1031,15 +1116,16 @@ export class DataService {
 
           if (existingIdx !== -1) {
             const cur = this.students[existingIdx];
+            const cleanRemoteEmail = cleanStudentEmail(rs.email);
             const updated: Student = {
               ...cur,
-              name: rs.name || cur.name,
-              studentNumber: rs.student_number || cur.studentNumber,
-              className: rs.class_name || cur.className,
-              classId: rs.class_id || cur.classId,
-              email: rs.email || cur.email,
-              phone: rs.phone || cur.phone,
-              avatar: rs.avatar || cur.avatar,
+              name: cur.name || rs.name,
+              studentNumber: cur.studentNumber || rs.student_number,
+              className: cur.className || rs.class_name,
+              classId: cur.classId || rs.class_id,
+              email: cur.email || cleanRemoteEmail,
+              phone: cur.phone || rs.phone,
+              avatar: cur.avatar || rs.avatar,
               schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
             };
             if (JSON.stringify(updated) !== JSON.stringify(cur)) {
@@ -1047,15 +1133,17 @@ export class DataService {
               hasChanges = true;
             }
           } else {
+            const cleanRemoteEmail = cleanStudentEmail(rs.email);
             const newStd: Student = {
               id: rs.id,
               name: rs.name,
               username:
                 rs.student_number ||
-                rs.email?.split('@')[0] ||
+                cleanRemoteEmail?.split('@')[0] ||
                 rs.name.toLowerCase().replace(/\s+/g, '_'),
-              email: rs.email || '',
-              password: '123',
+              email: cleanRemoteEmail,
+              password: rs.password || '54321',
+              mustChangePassword: true,
               className: rs.class_name || 'Genel',
               classId: rs.class_id || 'class-default',
               studentNumber: rs.student_number || '',
@@ -1147,6 +1235,7 @@ export class DataService {
             assignedStudentIds: re.assigned_student_ids || 'all',
             location: re.location || 'Derslik',
             notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : re.notes,
+            teacherFeedback: parsedMeta.teacherFeedback || '',
             createdAt: re.created_at || new Date().toISOString(),
             teacherId: parsedMeta.teacherId || 'teacher-1',
             teacherName: parsedMeta.teacherName || 'Öğretmen',
@@ -1196,6 +1285,7 @@ export class DataService {
             notes: JSON.stringify({
               __etut_meta__: true,
               userNotes: e.notes || '',
+              teacherFeedback: e.teacherFeedback || '',
               studentAttendance: e.studentAttendance || {},
               teacherId: e.teacherId,
               teacherName: e.teacherName,
@@ -1427,15 +1517,39 @@ export class DataService {
     return null;
   }
 
+  public isTeacherAdmin(teacher?: Teacher | null): boolean {
+    if (!teacher) return false;
+    return Boolean(
+      teacher.isAdmin ||
+      teacher.id === 'teacher-1' ||
+      teacher.username?.toLowerCase() === 'mustafa bilir' ||
+      teacher.name?.toLowerCase() === 'mustafa bilir' ||
+      teacher.email?.toLowerCase() === 'm.bilirr@gmail.com'
+    );
+  }
+
+  public getAllTeachersInternal(): Teacher[] {
+    return [...this.teachers];
+  }
+
   public getTeachers(): Teacher[] {
+    const session = this.getAuthSession();
     const currentTeacher = this.getCurrentTeacher();
-    if (currentTeacher?.isAdmin) {
+
+    // Kurum Yöneticisi tüm öğretmenleri görebilir
+    if (this.isTeacherAdmin(currentTeacher)) {
       return [...this.teachers];
     }
-    // Mask passwords for non-admins to protect privacy
+
+    // Normal öğretmen sisteme yeni/eski kayıtlı diğer hiçbir öğretmenin bilgisini GÖREMEZ. Yalnızca KENDİSİNİ görür.
+    if (session?.role === 'teacher' && currentTeacher) {
+      return [currentTeacher];
+    }
+
+    // Öğrenci oturumu veya diğer durumlar: şifreleri maskele
     return this.teachers.map((t) => ({
       ...t,
-      password: t.id === currentTeacher?.id ? t.password : undefined,
+      password: '',
     }));
   }
 
@@ -1531,6 +1645,31 @@ export class DataService {
     }
   }
 
+  public toggleTeacherCanViewAll(teacherId: string, canView: boolean): void {
+    const idx = this.teachers.findIndex((t) => t.id === teacherId);
+    if (idx !== -1) {
+      this.teachers[idx] = {
+        ...this.teachers[idx],
+        canViewAllStudentsAndClasses: canView,
+      };
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
+
+      const currentSession = this.getAuthSession();
+      if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
+        this.setAuthSession({
+          ...currentSession,
+          user: this.teachers[idx],
+        });
+      }
+
+      this.syncTeacherToCloud(this.teachers[idx]);
+      this.notify();
+    }
+  }
+
   public registerTeacher(data: {
     name: string;
     username: string;
@@ -1571,6 +1710,7 @@ export class DataService {
       status: 'pending', // YENİ KAYITLAR YÖNETİCİ ONAYI BEKLER
       isAdmin: false,
       assignedClassIds: [],
+      canViewAllStudentsAndClasses: false,
     };
 
     this.teachers.unshift(newTeacher);
@@ -1609,8 +1749,7 @@ export class DataService {
       .replace(/ç/g, 'c')
       .replace(/[^a-z0-9]/g, '.');
 
-    const cleanEmail =
-      data.email?.trim() || `${cleanUsername || 'ogretmen'}@okul.k12.tr`;
+    const cleanEmail = data.email?.trim() || '';
 
     const newTeacher: Teacher = {
       id: `teacher-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1626,6 +1765,7 @@ export class DataService {
       status: 'approved',
       isAdmin: false,
       assignedClassIds: [],
+      canViewAllStudentsAndClasses: false,
     };
 
     this.teachers.unshift(newTeacher);
@@ -2429,7 +2569,7 @@ export class DataService {
       ...studentData,
       id: `std-${Date.now()}`,
       username: cleanUsername,
-      email: studentData.email?.trim() || '',
+      email: cleanStudentEmail(studentData.email),
       password: studentPassword,
       mustChangePassword: isMustChange,
       className: classObj ? classObj.name : studentData.className || '12-A Sayısal',
@@ -2573,8 +2713,18 @@ export class DataService {
 
       // Excelden eklenen öğrenciler kullanıcı adı 'ad' (küçük harf, türkçe karakter normalize edilmiş)
       const rawFirstName = cleanName.split(' ')[0] || 'ogrenci';
-      const baseUsername = item.username?.trim().toLowerCase() ||
-        rawFirstName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'ogrenci';
+      const cleanFirstName = rawFirstName
+        .replace(/İ/g, 'i')
+        .replace(/I/g, 'i')
+        .toLowerCase()
+        .replace(/ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/ş/g, 's')
+        .replace(/ı/g, 'i')
+        .replace(/ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/[^a-z0-9]/g, '');
+      const baseUsername = item.username?.trim().toLowerCase() || cleanFirstName || 'ogrenci';
 
       // Benzersiz kullanıcı adı sağlama
       let finalUsername = baseUsername;
@@ -2596,7 +2746,7 @@ export class DataService {
         id: studentId,
         name: cleanName,
         username: finalUsername,
-        email: item.email?.trim() || '',
+        email: cleanStudentEmail(item.email),
         password: stdPassword,
         mustChangePassword: isMustChange,
         classId: finalClassId,
@@ -2640,6 +2790,9 @@ export class DataService {
   }
 
   public updateStudent(id: string, updates: Partial<Student>): void {
+    if (updates.email !== undefined) {
+      updates.email = cleanStudentEmail(updates.email);
+    }
     if (updates.classId) {
       const cls = this.classes.find((c) => c.id === updates.classId);
       if (cls) updates.className = cls.name;
@@ -2914,6 +3067,7 @@ export class DataService {
         notes: JSON.stringify({
           __etut_meta__: true,
           userNotes: updated.notes || '',
+          teacherFeedback: updated.teacherFeedback || '',
           studentAttendance: updated.studentAttendance || {},
           teacherId: updated.teacherId,
           teacherName: updated.teacherName,
@@ -2984,6 +3138,7 @@ export class DataService {
       notes: JSON.stringify({
         __etut_meta__: true,
         userNotes: updatedEtut.notes || '',
+        teacherFeedback: updatedEtut.teacherFeedback || '',
         studentAttendance: updatedEtut.studentAttendance,
         teacherId: updatedEtut.teacherId,
         teacherName: updatedEtut.teacherName,
@@ -3294,17 +3449,17 @@ export class DataService {
         (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
       );
 
-      // Admin teachers have full visibility of all students
-      if (
-        teacher?.isAdmin ||
-        !teacher ||
-        teacher.id === 'teacher-1' ||
-        teacher.username?.toLowerCase().includes('mustafa')
-      ) {
+      // Kurum Yöneticisi tüm öğrencileri görebilir
+      if (this.isTeacherAdmin(teacher)) {
         return this.students;
       }
 
-      // Non-admin teacher: sees students they registered OR students in classes assigned to them by admin
+      // Yönetici bu öğretmene önceden eklenmiş sınıf ve öğrenci listelerini görme izni vermişse görebilir
+      if (teacher?.canViewAllStudentsAndClasses) {
+        return this.students;
+      }
+
+      // Normal öğretmen: SADECE kendisinin kaydettiği veya yöneticinin kendisine izin verdiği sınıflardaki öğrencileri görebilir
       const assignedClassIds = new Set(teacher?.assignedClassIds || []);
       const filtered = this.students.filter(
         (s) =>
@@ -3312,16 +3467,11 @@ export class DataService {
           (s.classId && assignedClassIds.has(s.classId))
       );
 
-      // Fallback: if teacher has no explicit assignments, show all students so they don't see an empty screen
-      if (filtered.length === 0 && assignedClassIds.size === 0) {
-        return this.students;
-      }
       return filtered;
     }
 
-    // If viewing in student context
+    // Öğrenci oturumu: öğrenci YALNIZCA kendi bilgilerini görebilir, diğer öğrencileri göremez
     if (session?.role === 'student') {
-      // Students should NOT see other students' personal profiles or data
       const studentId = session.user.id;
       return this.students.filter((s) => s.id === studentId);
     }
@@ -3338,16 +3488,22 @@ export class DataService {
         (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
       );
 
-      if (teacher?.isAdmin) {
+      // Yönetici tüm sınıfları görebilir
+      if (this.isTeacherAdmin(teacher)) {
         return this.classes;
       }
 
+      // Yönetici bu öğretmene önceden eklenmiş sınıf listelerini görme izni vermişse görebilir
+      if (teacher?.canViewAllStudentsAndClasses) {
+        return this.classes;
+      }
+
+      // Normal öğretmen: Yalnızca yöneticinin izin verdiği sınıfları veya kendi oluşturduğu sınıfları görebilir
       const assignedClassIds = new Set(teacher?.assignedClassIds || []);
       return this.classes.filter(
         (c) =>
           assignedClassIds.has(c.id) ||
-          c.createdTeacherId === teacherId ||
-          this.students.some((s) => s.createdTeacherId === teacherId && s.classId === c.id)
+          c.createdTeacherId === teacherId
       );
     }
 
@@ -3368,24 +3524,14 @@ export class DataService {
         (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
       );
 
-      if (teacher?.isAdmin) {
+      // Yönetici tüm ödevleri görebilir
+      if (this.isTeacherAdmin(teacher)) {
         return this.homeworks;
       }
 
-      const visibleClasses = new Set(this.getClasses(teacherId).map((c) => c.id));
-      const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
-
+      // Normal öğretmen daha önce veya başka öğretmenlerin verdiği ödevleri GÖREMEZ. YALNIZCA KENDİ verdiği ödevleri görebilir.
       return this.homeworks.filter((hw) => {
-        if (hw.teacherId === teacherId || (teacher?.name && hw.createdByName === teacher.name)) {
-          return true;
-        }
-        if (hw.targetClassIds && hw.targetClassIds.some((cid) => visibleClasses.has(cid))) {
-          return true;
-        }
-        if (Array.isArray(hw.assignedTo) && hw.assignedTo.some((sid) => visibleStudents.has(sid))) {
-          return true;
-        }
-        return false;
+        return hw.teacherId === teacherId || (teacher?.name && hw.createdByName === teacher.name);
       });
     }
 
@@ -3412,15 +3558,14 @@ export class DataService {
         (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
       );
 
-      if (teacher?.isAdmin) {
+      // Yönetici tüm etütleri görebilir
+      if (this.isTeacherAdmin(teacher)) {
         return this.etuts;
       }
 
-      const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
+      // Normal öğretmen başka öğretmenlerin etütlerini GÖREMEZ. YALNIZCA KENDİ etütlerini görebilir.
       return this.etuts.filter(
-        (e) =>
-          e.teacherId === teacherId ||
-          (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.some((sid) => visibleStudents.has(sid)))
+        (e) => e.teacherId === teacherId || (teacher?.name && e.teacherName === teacher.name)
       );
     }
 
@@ -3771,6 +3916,7 @@ export class DataService {
         duration: etut.duration,
         location: etut.location,
         notes: etut.notes,
+        teacherFeedback: etut.teacherFeedback,
       });
 
       const emailLog: SentEmailLog = {
@@ -3836,14 +3982,56 @@ export class DataService {
 
   // --- QUESTION LOGS (SORU SAYISI TAKİP) ---
   public getQuestionLogs(): StudentQuestionLog[] {
+    const session = this.getAuthSession();
+    if (session?.role === 'student') {
+      return this.questionLogs.filter((q) => q.studentId === session.user.id);
+    }
+    if (session?.role === 'teacher') {
+      const teacher = this.getCurrentTeacher();
+      if (this.isTeacherAdmin(teacher)) {
+        return [...this.questionLogs];
+      }
+      const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
+      return this.questionLogs.filter((q) => visibleStudentIds.has(q.studentId));
+    }
     return [...this.questionLogs];
   }
 
   public getQuestionLogsByStudent(studentId: string): StudentQuestionLog[] {
+    const session = this.getAuthSession();
+    if (session?.role === 'student' && session.user.id !== studentId) {
+      return [];
+    }
+    if (session?.role === 'teacher') {
+      const teacher = this.getCurrentTeacher();
+      if (!this.isTeacherAdmin(teacher)) {
+        const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
+        if (!visibleStudentIds.has(studentId)) {
+          return [];
+        }
+      }
+    }
     return this.questionLogs.filter((q) => q.studentId === studentId);
   }
 
   public getQuestionLogsByClass(classId: string): StudentQuestionLog[] {
+    const session = this.getAuthSession();
+    if (session?.role === 'student') {
+      const student = session.user as Student;
+      if (student.classId !== classId) return [];
+      return this.questionLogs.filter((q) => q.studentId === student.id);
+    }
+    if (session?.role === 'teacher') {
+      const teacher = this.getCurrentTeacher();
+      if (!this.isTeacherAdmin(teacher)) {
+        const visibleClassIds = new Set(this.getClasses(teacher?.id).map((c) => c.id));
+        if (!visibleClassIds.has(classId)) {
+          return [];
+        }
+        const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
+        return this.questionLogs.filter((q) => q.classId === classId && visibleStudentIds.has(q.studentId));
+      }
+    }
     return this.questionLogs.filter((q) => q.classId === classId);
   }
 
@@ -3995,6 +4183,18 @@ export class DataService {
 
   // --- WEEKLY QUESTION TARGETS (ÖĞRENCİ HAFTALIK SORU HEDEFLERİ) ---
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
+    const session = this.getAuthSession();
+    if (session?.role === 'student') {
+      return this.weeklyQuestionTargets.filter((t) => t.studentId === session.user.id);
+    }
+    if (session?.role === 'teacher') {
+      const teacher = this.getCurrentTeacher();
+      if (this.isTeacherAdmin(teacher)) {
+        return [...this.weeklyQuestionTargets];
+      }
+      const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
+      return this.weeklyQuestionTargets.filter((t) => visibleStudentIds.has(t.studentId));
+    }
     return [...this.weeklyQuestionTargets];
   }
 

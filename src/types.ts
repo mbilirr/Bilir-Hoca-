@@ -24,6 +24,7 @@ export interface Teacher {
   status?: 'pending' | 'approved' | 'rejected';
   isAdmin?: boolean; // Kurum Yöneticisi / Admin yetkisi (tüm sınıfları ve öğrencileri görebilir)
   assignedClassIds?: string[]; // Admin tarafından izin verilen sınıfların ID listesi
+  canViewAllStudentsAndClasses?: boolean; // Yöneticinin önceden eklenmiş sınıf ve öğrenci listelerini görme izni vermesi
 }
 
 export interface AuthSession {
@@ -136,6 +137,7 @@ export interface Etut {
   assignedStudentIds: 'all' | string[];
   location: string;
   notes?: string;
+  teacherFeedback?: string; // Etüt veren öğretmenin etüt hakkında veya öğrenci hakkında isteğe bağlı düşünce ve görüşleri
   createdAt: string;
   teacherId?: string; // Etütü oluşturan veya atanan öğretmen ID'si
   teacherName?: string;

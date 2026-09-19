@@ -65,7 +65,7 @@ ${effectiveTeacher} öğretmeniniz ile etüt dersiniz planlanmıştır.
 📅 *Tarih:* ${formattedDate}
 🕒 *Saat:* ${etut.time} (${etut.duration} dakika)
 📍 *Derslik:* ${etut.location}
-${etut.notes ? `📝 *Öğretmen Notu:* ${etut.notes}\n` : ''}
+${etut.notes ? `📝 *Öğretmen Notu:* ${etut.notes}\n` : ''}${etut.teacherFeedback ? `💬 *Öğretmen Görüşü:* ${etut.teacherFeedback}\n` : ''}
 Lütfen belirtilen tarih ve saatte derslikte hazır bulununuz. Başarılar dileriz!
 
 *${effectiveTeacher}*
@@ -118,6 +118,7 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
       duration: etut.duration,
       location: etut.location,
       notes: etut.notes,
+      teacherFeedback: etut.teacherFeedback,
     });
     const gmailUrl = createGmailComposeLink(std.email, emailData.subject, emailData.text);
     window.open(gmailUrl, '_blank');
@@ -207,6 +208,13 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
               <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 text-xs text-slate-300">
                 <span className="text-[10px] font-bold text-slate-400 block">Öğretmen Notu:</span>
                 <p className="mt-0.5">{etut.notes}</p>
+              </div>
+            )}
+
+            {etut.teacherFeedback && (
+              <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/25 text-xs text-amber-200">
+                <span className="text-[10px] font-bold text-amber-300 block">💬 Öğretmen Düşünce ve Görüşleri:</span>
+                <p className="mt-0.5 italic text-slate-200">"{etut.teacherFeedback}"</p>
               </div>
             )}
           </div>

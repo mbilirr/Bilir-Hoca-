@@ -32,11 +32,12 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource } from '../../types';
+import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
 import { createGoogleCalendarUrlForHomework, createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
+import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
 import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
 import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
@@ -68,7 +69,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Profile and Avatar Modals state
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const isMandatoryPasswordChange =
+    Boolean(currentStudent.mustChangePassword || currentStudent.password === '54321');
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange);
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
   // Submit modal state
@@ -89,6 +92,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(() =>
     dataService.getUnreadNotificationsCount(currentStudent.id)
   );
+  const [classes, setClasses] = useState<ClassGroup[]>(() => dataService.getClasses());
+  const [etutViewMode, setEtutViewMode] = useState<'calendar' | 'cards'>('calendar');
 
   useEffect(() => {
     setActiveTab('home');
@@ -97,6 +102,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   useEffect(() => {
     const updateUnread = () => {
       setUnreadNotifsCount(dataService.getUnreadNotificationsCount(currentStudent.id));
+      setClasses(dataService.getClasses());
     };
     updateUnread();
     const unsubscribe = dataService.subscribe(updateUnread);
@@ -595,80 +601,133 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* TAB 2: ETUTS */}
       {activeTab === 'etuts' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {myEtuts.length === 0 ? (
-              <div className="col-span-full p-12 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-400">
-                Şu anda adınıza atanmış bir etüt bulunmuyor.
-              </div>
-            ) : (
-              myEtuts.map((etut) => (
-                <div
-                  key={etut.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        {etut.subject}
-                      </span>
-                      <span className="text-xs text-slate-400 font-medium">
-                        {etut.duration} Dakika
-                      </span>
-                    </div>
+          {/* Header & View Mode Switcher */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                <Calendar className="w-5 h-5 text-indigo-400" />
+                <span>Etütlerim & Çalışma Programım</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Size tanımlanmış haftalık etütleri inceleyebilir, takviminize ekleyebilirsiniz.
+              </p>
+            </div>
 
-                    <h3 className="text-base font-bold text-white mb-2">{etut.topic}</h3>
+            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setEtutViewMode('calendar')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  etutViewMode === 'calendar'
+                    ? 'bg-indigo-600 text-white font-bold shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Haftalık Takvim
+              </button>
+              <button
+                type="button"
+                onClick={() => setEtutViewMode('cards')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  etutViewMode === 'cards'
+                    ? 'bg-indigo-600 text-white font-bold shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Kart Görünümü ({myEtuts.length})
+              </button>
+            </div>
+          </div>
 
-                    <div className="space-y-2 text-xs text-slate-300 mb-4 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-3.5 h-3.5 text-amber-400" />
-                        <span>
-                          {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time}
+          {etutViewMode === 'calendar' ? (
+            <WeeklyEtutCalendar
+              etuts={myEtuts}
+              students={[currentStudent]}
+              classes={classes}
+              readOnly={true}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {myEtuts.length === 0 ? (
+                <div className="col-span-full p-12 bg-slate-900 border border-slate-800 rounded-2xl text-center text-slate-400">
+                  Şu anda adınıza atanmış bir etüt bulunmuyor.
+                </div>
+              ) : (
+                myEtuts.map((etut) => (
+                  <div
+                    key={etut.id}
+                    className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          {etut.subject}
+                        </span>
+                        <span className="text-xs text-slate-400 font-medium">
+                          {etut.duration} Dakika
                         </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                        <span>{etut.location}</span>
+
+                      <h3 className="text-base font-bold text-white mb-2">{etut.topic}</h3>
+
+                      <div className="space-y-2 text-xs text-slate-300 mb-4 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          <span>
+                            {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                          <span>{etut.location}</span>
+                        </div>
+                        {etut.notes && (
+                          <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800">
+                            {etut.notes}
+                          </p>
+                        )}
+                        {etut.teacherFeedback && (
+                          <div className="pt-2 border-t border-slate-800/80 text-xs text-amber-200">
+                            <strong className="text-amber-300 font-semibold block text-[11px]">💬 Öğretmen Görüş ve Değerlendirmesi:</strong>
+                            <p className="italic text-slate-200 mt-0.5">"{etut.teacherFeedback}"</p>
+                          </div>
+                        )}
                       </div>
-                      {etut.notes && (
-                        <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800">
-                          {etut.notes}
-                        </p>
-                      )}
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
+                      <a
+                        href={createGoogleCalendarUrlForEtut(etut)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-semibold transition-all"
+                      >
+                        <CalendarCheck className="w-3.5 h-3.5" />
+                        <span>Google Takvime Ekle</span>
+                      </a>
+
+                      <button
+                        onClick={() =>
+                          downloadIcsFile(
+                            `etut-${etut.id}`,
+                            `[ETÜT] ${etut.subject}: ${etut.topic}`,
+                            etut.notes || `${etut.location} dersliği`,
+                            `${etut.date}T${etut.time}:00`,
+                            etut.duration,
+                            etut.location
+                          )
+                        }
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs cursor-pointer"
+                        title=".ics Takvim İndir"
+                      >
+                        <Calendar className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-
-                  <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
-                    <a
-                      href={createGoogleCalendarUrlForEtut(etut)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-semibold transition-all"
-                    >
-                      <CalendarCheck className="w-3.5 h-3.5" />
-                      <span>Google Takvime Ekle</span>
-                    </a>
-
-                    <button
-                      onClick={() =>
-                        downloadIcsFile(
-                          `etut-${etut.id}`,
-                          `[ETÜT] ${etut.subject}: ${etut.topic}`,
-                          etut.notes || `${etut.location} dersliği`,
-                          `${etut.date}T${etut.time}:00`,
-                          etut.duration,
-                          etut.location
-                        )
-                      }
-                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
-                      title=".ics Takvim İndir"
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -892,7 +951,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <StudentQuestionModule
             currentStudent={currentStudent}
             classes={dataService.getClasses()}
-            students={dataService.getStudents()}
+            students={[currentStudent]}
           />
         </div>
       )}
@@ -976,6 +1035,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* Student Password Change Modal */}
       <StudentPasswordModal
         isOpen={isPasswordModalOpen}
+        isMandatory={isMandatoryPasswordChange}
         onClose={() => setIsPasswordModalOpen(false)}
         student={currentStudent}
       />

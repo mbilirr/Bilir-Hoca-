@@ -202,6 +202,14 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
           </div>
         </div>
 
+        {/* Öğretmen Görüş ve Düşünceleri Banner */}
+        {etut.teacherFeedback && (
+          <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200 shrink-0">
+            <strong className="text-amber-300 font-semibold block text-[11px]">💬 Öğretmen Düşünce ve Görüşleri:</strong>
+            <p className="italic text-slate-200 mt-1 leading-relaxed">"{etut.teacherFeedback}"</p>
+          </div>
+        )}
+
         {/* Search bar if many students */}
         {assignedStudents.length > 5 && (
           <div className="px-6 pt-3 shrink-0">

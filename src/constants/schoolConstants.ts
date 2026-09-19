@@ -77,12 +77,12 @@ export function getSubjectsForSchoolLevel(schoolLevel: string): string[] {
 }
 
 export const BRANCH_OPTIONS = [
-  { id: 'A', label: 'Şube A' },
-  { id: 'B', label: 'Şube B' },
-  { id: 'C', label: 'Şube C' },
-  { id: 'D', label: 'Şube D' },
-  { id: 'E', label: 'Şube E' },
-  { id: 'F', label: 'Şube F' },
+  { id: 'A', label: 'A' },
+  { id: 'B', label: 'B' },
+  { id: 'C', label: 'C' },
+  { id: 'D', label: 'D' },
+  { id: 'E', label: 'E' },
+  { id: 'F', label: 'F' },
 ];
 
 export function getGradesForSchoolLevel(schoolLevel: string): string[] {
@@ -156,3 +156,80 @@ export function getStudentQuestionSubjects(
   const level = getStudentSchoolLevel(student, classes);
   return level === 'Lise' ? HIGH_SCHOOL_SUBJECTS : MIDDLE_SCHOOL_SUBJECTS;
 }
+
+/**
+ * Format class and branch into clean standard school format:
+ * '8. Sınıf - Şube A', '8.sınıf-Şube A', '8-A', '8/A' -> '8/A'
+ * '11. Sınıf - Şube B' -> '11/B'
+ * '6. Sınıf - Şube C' -> '6/C'
+ */
+export function formatClassDisplayName(
+  className?: string,
+  branch?: string,
+  gradeLevel?: string
+): string {
+  if (!className && !branch && !gradeLevel) return '-';
+
+  // 1. Extract grade number (5..12) if available from gradeLevel or className
+  let gradeNum = '';
+  if (gradeLevel) {
+    const m = gradeLevel.match(/\b(1[0-2]|[1-9])\b/);
+    if (m) gradeNum = m[1];
+  }
+
+  let branchLetter = '';
+  if (branch) {
+    const cleanBranch = branch.replace(/şube/gi, '').trim();
+    const bm = cleanBranch.match(/([A-Za-zÇĞİÖŞÜçğiöşü])/);
+    if (bm) branchLetter = bm[1].toUpperCase();
+  }
+
+  // If both grade number and branch letter are already identified
+  if (gradeNum && branchLetter) {
+    return `${gradeNum}/${branchLetter}`;
+  }
+
+  // 2. Parse from className string
+  if (className) {
+    const trimmed = className.trim();
+
+    // Already in standard format like "8/A" or "11/B"
+    const slashMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*\/\s*([A-Za-zÇĞİÖŞÜçğiöşü])\b/);
+    if (slashMatch) {
+      return `${slashMatch[1]}/${slashMatch[2].toUpperCase()}`;
+    }
+
+    // Patterns like "8.sınıf-Şube A", "8. Sınıf - Şube A", "8. Sınıf - A", "8 - A", "8-A", "8 - Şube A"
+    const hyphenMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*(?:\.|\.sınıf|\. sınıf|\s*sınıf)?\s*[-–—]\s*(?:şube\s*)?([A-Za-zÇĞİÖŞÜçğiöşü])\b/i);
+    if (hyphenMatch) {
+      return `${hyphenMatch[1]}/${hyphenMatch[2].toUpperCase()}`;
+    }
+
+    // Pattern like "8A", "11B"
+    const compactMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*([A-Za-zÇĞİÖŞÜçğiöşü])\b/);
+    if (compactMatch) {
+      return `${compactMatch[1]}/${compactMatch[2].toUpperCase()}`;
+    }
+
+    // If className has the grade number and branch was given separately
+    const numOnly = trimmed.match(/\b(1[0-2]|[1-9])\b/);
+    if (numOnly && branchLetter) {
+      return `${numOnly[1]}/${branchLetter}`;
+    }
+
+    // If gradeNum was found from gradeLevel and className has branch letter
+    if (gradeNum) {
+      const bFromClass = trimmed.match(/(?:şube\s*)?([A-Za-zÇĞİÖŞÜçğiöşü])\b/i);
+      if (bFromClass) {
+        return `${gradeNum}/${bFromClass[1].toUpperCase()}`;
+      }
+      return `${gradeNum}. Sınıf`;
+    }
+
+    return trimmed;
+  }
+
+  if (gradeNum) return `${gradeNum}. Sınıf`;
+  return branch || '-';
+}
+

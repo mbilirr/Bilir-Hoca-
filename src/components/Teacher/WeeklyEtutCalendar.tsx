@@ -23,11 +23,12 @@ interface WeeklyEtutCalendarProps {
   etuts: Etut[];
   students: Student[];
   classes: ClassGroup[];
-  onAddEtutForDate: (dateStr: string) => void;
-  onEditEtut: (etut: Etut) => void;
-  onDeleteEtut: (etut: Etut) => void;
+  onAddEtutForDate?: (dateStr: string) => void;
+  onEditEtut?: (etut: Etut) => void;
+  onDeleteEtut?: (etut: Etut) => void;
   onNotifyEtut?: (etut: Etut) => void;
   onAttendanceEtut?: (etut: Etut) => void;
+  readOnly?: boolean;
 }
 
 // Helper to get Monday of the week
@@ -135,6 +136,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   onDeleteEtut,
   onNotifyEtut,
   onAttendanceEtut,
+  readOnly = false,
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
@@ -155,6 +157,44 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
       };
     });
   }, [currentWeekStart, todayKey]);
+
+  // Mobile active day index (0..6)
+  const [mobileActiveIndex, setMobileActiveIndex] = useState<number>(() => {
+    const today = formatDateKey(new Date());
+    const mon = getMonday(new Date());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      if (formatDateKey(d) === today) return i;
+    }
+    return 0;
+  });
+
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const scrollToDay = (index: number) => {
+    setMobileActiveIndex(index);
+    if (scrollContainerRef.current) {
+      const container = scrollContainerRef.current;
+      const child = container.children[index] as HTMLElement;
+      if (child) {
+        child.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+      }
+    }
+  };
+
+  const handleMobileScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const itemWidth = container.clientWidth * 0.88;
+    if (itemWidth > 0) {
+      const idx = Math.round(scrollLeft / itemWidth);
+      if (idx >= 0 && idx < 7 && idx !== mobileActiveIndex) {
+        setMobileActiveIndex(idx);
+      }
+    }
+  };
 
   // Navigate weeks
   const goToPreviousWeek = () => {
@@ -306,8 +346,83 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         </div>
       </div>
 
-      {/* 7-Day Responsive Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+      {/* MOBİL: 7 Gün Yatay Sekmeler (Hızlı Geçiş) */}
+      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        {weekDays.map((day, idx) => {
+          const dayEtuts = etutsByDay[day.dateKey] || [];
+          const isSelected = idx === mobileActiveIndex;
+          return (
+            <button
+              key={day.dateKey}
+              type="button"
+              onClick={() => scrollToDay(idx)}
+              className={`flex-1 min-w-[44px] py-1.5 px-1 rounded-xl text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
+                isSelected
+                  ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.03]'
+                  : day.isToday
+                  ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/40'
+                  : 'bg-slate-900/90 text-slate-400 border border-slate-800'
+              }`}
+            >
+              <span className="text-[10px] uppercase font-semibold">
+                {day.dayName.slice(0, 3)}
+              </span>
+              <span className="text-xs font-bold mt-0.5">
+                {day.date.getDate()}
+              </span>
+              {dayEtuts.length > 0 && (
+                <span
+                  className={`text-[9px] px-1 rounded-full font-bold mt-0.5 ${
+                    isSelected ? 'bg-white/25 text-white' : 'bg-indigo-500/30 text-indigo-300'
+                  }`}
+                >
+                  {dayEtuts.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* MOBİL: Yan Yana Sayfa Geçiş Kontrolleri (< Gün Seçici >) */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-slate-950/80 border border-slate-800/90 rounded-2xl text-xs">
+        <button
+          type="button"
+          onClick={() => scrollToDay(Math.max(0, mobileActiveIndex - 1))}
+          disabled={mobileActiveIndex === 0}
+          className="flex items-center space-x-1 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 font-semibold cursor-pointer"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          <span>Önceki Gün</span>
+        </button>
+
+        <div className="text-center">
+          <span className="text-white font-bold block text-xs">
+            {weekDays[mobileActiveIndex]?.dayName}
+          </span>
+          <span className="text-[10px] text-indigo-300">
+            {weekDays[mobileActiveIndex]?.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} (Gün {mobileActiveIndex + 1}/7)
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => scrollToDay(Math.min(6, mobileActiveIndex + 1))}
+          disabled={mobileActiveIndex === 6}
+          className="flex items-center space-x-1 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 font-semibold cursor-pointer"
+        >
+          <span>Sonraki Gün</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* 7-Day Grid on Desktop / Side-by-Side Sliding Carousel on Mobile */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleMobileScroll}
+        className="flex md:grid md:grid-cols-7 gap-3 overflow-x-auto md:overflow-x-visible snap-x snap-mandatory pb-3 md:pb-0 scroll-smooth"
+        style={{ scrollbarWidth: 'none' }}
+      >
         {weekDays.map((day) => {
           const dayEtuts = etutsByDay[day.dateKey] || [];
           const hasEtuts = dayEtuts.length > 0;
@@ -315,7 +430,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           return (
             <div
               key={day.dateKey}
-              className={`flex flex-col rounded-2xl border transition-all duration-200 min-h-[360px] ${
+              className={`w-[88vw] sm:w-[75vw] md:w-auto shrink-0 snap-center md:snap-align-none flex flex-col rounded-2xl border transition-all duration-200 min-h-[380px] md:min-h-[360px] ${
                 day.isToday
                   ? 'bg-slate-900/90 border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-indigo-500/10 shadow-lg'
                   : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700'
@@ -359,14 +474,16 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   >
                     {dayEtuts.length}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onAddEtutForDate(day.dateKey)}
-                    className="p-1 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 rounded-md transition-colors"
-                    title={`${day.dayName} gününe etüt ekle`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  {!readOnly && onAddEtutForDate && (
+                    <button
+                      type="button"
+                      onClick={() => onAddEtutForDate(day.dateKey)}
+                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 rounded-md transition-colors cursor-pointer"
+                      title={`${day.dayName} gününe etüt ekle`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -376,14 +493,16 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   <div className="h-full flex flex-col items-center justify-center py-8 text-center px-2">
                     <CalendarIcon className="w-6 h-6 text-slate-700 mb-1.5" />
                     <p className="text-[11px] text-slate-500 font-medium">Planlı etüt yok</p>
-                    <button
-                      type="button"
-                      onClick={() => onAddEtutForDate(day.dateKey)}
-                      className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded border border-dashed border-indigo-500/30 hover:bg-indigo-950/40 transition-colors flex items-center space-x-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Etüt Ekle</span>
-                    </button>
+                    {!readOnly && onAddEtutForDate && (
+                      <button
+                        type="button"
+                        onClick={() => onAddEtutForDate(day.dateKey)}
+                        className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded border border-dashed border-indigo-500/30 hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Etüt Ekle</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   dayEtuts.map((etut) => {
@@ -440,12 +559,23 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         )}
 
                         {/* Students */}
-                        <div className="flex items-center space-x-1 text-[10px] text-slate-400 mb-2 truncate">
+                        <div className="flex items-center space-x-1 text-[10px] text-slate-400 mb-1.5 truncate">
                           <Users className="w-2.5 h-2.5 text-indigo-400 flex-shrink-0" />
                           <span className="truncate">
                             {getAssignedStudentsSummary(etut.assignedStudentIds)}
                           </span>
                         </div>
+
+                        {/* Teacher Feedback / Notes indicator */}
+                        {etut.teacherFeedback && (
+                          <div
+                            className="mb-1.5 p-1 bg-amber-500/10 border border-amber-500/20 rounded text-[9px] text-amber-200 flex items-center space-x-1"
+                            title={`Öğretmen Görüşü: ${etut.teacherFeedback}`}
+                          >
+                            <span className="shrink-0 font-bold">💬</span>
+                            <span className="italic truncate font-normal">{etut.teacherFeedback}</span>
+                          </div>
+                        )}
 
                         {/* Quick Action Footer */}
                         <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/80 text-[10px]">
@@ -453,11 +583,11 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
 
                           <div className="flex items-center space-x-1 opacity-90 group-hover:opacity-100">
                             {/* Attendance / Yoklama */}
-                            {onAttendanceEtut && (
+                            {!readOnly && onAttendanceEtut && (
                               <button
                                 type="button"
                                 onClick={() => onAttendanceEtut(etut)}
-                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors"
+                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors cursor-pointer"
                                 title="Etüt Yoklaması & Devamsızlık Al"
                               >
                                 <CheckCircle2 className="w-3 h-3" />
@@ -465,11 +595,11 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             )}
 
                             {/* WhatsApp / Mail Bilgilendirme */}
-                            {onNotifyEtut && (
+                            {!readOnly && onNotifyEtut && (
                               <button
                                 type="button"
                                 onClick={() => onNotifyEtut(etut)}
-                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors"
+                                className="p-1 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800 transition-colors cursor-pointer"
                                 title="WhatsApp ve Mail ile İlet"
                               >
                                 <MessageCircle className="w-3 h-3" />
@@ -481,31 +611,54 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                               href={createGoogleCalendarUrlForEtut(etut)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1 text-slate-400 hover:text-blue-300 rounded hover:bg-slate-800"
+                              className="p-1 text-slate-400 hover:text-blue-300 rounded hover:bg-slate-800 transition-colors"
                               title="Google Takvime Ekle"
                             >
                               <CalendarCheck className="w-3 h-3" />
                             </a>
 
-                            {/* Edit */}
+                            {/* .ics Download */}
                             <button
                               type="button"
-                              onClick={() => onEditEtut(etut)}
-                              className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800"
-                              title="Düzenle"
+                              onClick={() =>
+                                downloadIcsFile(
+                                  `etut-${etut.id}`,
+                                  `[ETÜT] ${etut.subject}: ${etut.topic}`,
+                                  etut.notes || `${etut.location || 'Derslik'}`,
+                                  `${etut.date}T${etut.time}:00`,
+                                  etut.duration || 45,
+                                  etut.location || 'Okul'
+                                )
+                              }
+                              className="p-1 text-slate-400 hover:text-amber-300 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="iCal / Outlook Takvim İndir (.ics)"
                             >
-                              <Edit2 className="w-3 h-3" />
+                              <CalendarIcon className="w-3 h-3" />
                             </button>
 
+                            {/* Edit */}
+                            {!readOnly && onEditEtut && (
+                              <button
+                                type="button"
+                                onClick={() => onEditEtut(etut)}
+                                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Düzenle"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            )}
+
                             {/* Delete */}
-                            <button
-                              type="button"
-                              onClick={() => onDeleteEtut(etut)}
-                              className="p-1 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-800"
-                              title="Sil"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            {!readOnly && onDeleteEtut && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteEtut(etut)}
+                                className="p-1 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Sil"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -516,6 +669,29 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* MOBİL: 7 Sayfa Nokta Göstergeleri (Swipe Dots) */}
+      <div className="md:hidden flex flex-col items-center justify-center space-y-1.5 pt-1 pb-2">
+        <div className="flex items-center space-x-1.5">
+          {weekDays.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => scrollToDay(idx)}
+              aria-label={`Gün ${idx + 1}`}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                idx === mobileActiveIndex
+                  ? 'w-6 bg-indigo-500'
+                  : 'w-1.5 bg-slate-700 hover:bg-slate-500'
+              }`}
+            />
+          ))}
+        </div>
+        <span className="text-[10px] text-slate-400 flex items-center space-x-1 font-medium">
+          <span>↔</span>
+          <span>Günler arasında geçiş yapmak için sağa / sola kaydırın</span>
+        </span>
       </div>
     </div>
   );

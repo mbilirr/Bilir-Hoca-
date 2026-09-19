@@ -46,6 +46,7 @@ import {
   BRANCH_OPTIONS,
   getGradesForSchoolLevel,
   detectSchoolLevelFromGrade,
+  formatClassDisplayName,
 } from '../../constants/schoolConstants';
 import * as XLSX from 'xlsx';
 import confetti from 'canvas-confetti';
@@ -97,7 +98,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
   const [studentSchoolLevel, setStudentSchoolLevel] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
   const [studentGradeLevel, setStudentGradeLevel] = useState('5. Sınıf');
-  const [studentBranch, setStudentBranch] = useState('Şube A');
+  const [studentBranch, setStudentBranch] = useState('A');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [studentAvatar, setStudentAvatar] = useState<string>('');
@@ -128,7 +129,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [className, setClassName] = useState('');
   const [classSchoolLevel, setClassSchoolLevel] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
   const [classGradeLevel, setClassGradeLevel] = useState('5. Sınıf');
-  const [classBranch, setClassBranch] = useState('Şube A');
+  const [classBranch, setClassBranch] = useState('A');
   const [classAcademicYear, setClassAcademicYear] = useState('2026-2027');
   const [classDescription, setClassDescription] = useState('');
   const [classFormError, setClassFormError] = useState<string | null>(null);
@@ -241,7 +242,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentAvatar('');
     setStudentSchoolLevel('Ortaokul');
     setStudentGradeLevel('5. Sınıf');
-    setStudentBranch('Şube A');
+    setStudentBranch('A');
     setStudentClassId(classes[0]?.id || '');
     setStudentFormError(null);
   };
@@ -268,7 +269,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     setStudentSchoolLevel(detectedSchool);
     setStudentGradeLevel(matchedGrade);
-    setStudentBranch(student.branch || 'Şube A');
+    setStudentBranch(student.branch?.replace(/şube\s*/i, '').trim() || 'A');
     setStudentFormError(null);
     setIsAddStudentOpen(true);
   };
@@ -528,7 +529,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setClassName('');
     setClassSchoolLevel('Ortaokul');
     setClassGradeLevel('5. Sınıf');
-    setClassBranch('Şube A');
+    setClassBranch('A');
     setClassDescription('');
     setClassFormError(null);
     setClassExcelStudents([]);
@@ -551,7 +552,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     setClassSchoolLevel(detectedSchool);
     setClassGradeLevel(matchedGrade);
-    setClassBranch(cls.branch || 'Şube A');
+    setClassBranch(cls.branch?.replace(/şube\s*/i, '').trim() || 'A');
     setClassAcademicYear(cls.academicYear);
     setClassDescription(cls.description || '');
     setClassFormError(null);
@@ -651,7 +652,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   setClassName('');
                   setClassSchoolLevel('Ortaokul');
                   setClassGradeLevel('5. Sınıf');
-                  setClassBranch('Şube A');
+                  setClassBranch('A');
                   setClassDescription('');
                   setClassFormError(null);
                   setIsAddClassOpen(true);
@@ -669,31 +670,31 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {activeTab === 'students' ? (
         /* STUDENTS VIEW */
         <div className="space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm">
           {/* Filter / Search Bar */}
-          <div className="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/40">
+          <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
             <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
                 placeholder="Öğrenci adı, no veya e-posta ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-3 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
             </div>
 
             <div className="flex items-center space-x-3 w-full sm:w-auto">
-              <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Sınıf Filtresi:</span>
+              <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Sınıf Filtresi:</span>
               <select
                 value={selectedClassFilter}
                 onChange={(e) => setSelectedClassFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
               >
                 <option value="all">Tüm Sınıflar ({students.length})</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>
-                    {cls.name} ({students.filter((s) => s.classId === cls.id).length})
+                    {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({students.filter((s) => s.classId === cls.id).length})
                   </option>
                 ))}
               </select>
@@ -702,28 +703,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Students Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-800/60 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
+            <table className="w-full text-left text-sm text-slate-700">
+              <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200 font-bold">
                 <tr>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci</th>
                   <th className="px-6 py-3.5 font-semibold">Sınıf / Şube</th>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci No</th>
                   <th className="px-6 py-3.5 font-semibold">Giriş Şifresi</th>
-                  <th className="px-6 py-3.5 font-semibold">İletişim & E-posta</th>
                   <th className="px-6 py-3.5 font-semibold">Kayıt Durumu</th>
                   <th className="px-6 py-3.5 font-semibold text-right">İşlemler</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                      Arama kriterlerine uygun öğrenci bulunamadı.
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                      <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      <p className="font-semibold text-sm text-slate-600">Arama kriterlerine uygun öğrenci bulunamadı.</p>
+                      <p className="text-xs text-slate-400 mt-1">Lütfen arama teriminizi veya sınıf filtresini değiştirip tekrar deneyin.</p>
                     </td>
                   </tr>
                 ) : (
                   filteredStudents.map((std) => (
-                    <tr key={std.id} className="hover:bg-slate-800/30 transition-colors">
+                    <tr key={std.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
                           <img
@@ -734,42 +736,43 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               )}`
                             }
                             alt={std.name}
-                            className="w-10 h-10 rounded-full object-cover bg-slate-800 ring-2 ring-indigo-500/20"
+                            className="w-10 h-10 rounded-full object-cover bg-slate-100 ring-2 ring-slate-200/80"
                           />
                           <div>
-                            <div className="font-semibold text-white">{std.name}</div>
-                            <div className="text-xs text-slate-400 font-mono">@{std.username}</div>
+                            <div className="font-bold text-slate-900">{std.name}</div>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-                          {std.className || 'Atanmadı'}
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {formatClassDisplayName(std.className, std.branch, std.gradeLevel)}
                         </span>
                       </td>
 
-                      <td className="px-6 py-4 font-mono font-medium text-slate-200">
-                        #{std.studentNumber}
+                      <td className="px-6 py-4">
+                        <span className="font-mono font-semibold text-xs text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                          #{std.studentNumber}
+                        </span>
                       </td>
 
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
-                            {std.password || '123456'}
+                          <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-md">
+                            {std.password || '54321'}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
-                              navigator.clipboard?.writeText(std.password || '123456');
+                              navigator.clipboard?.writeText(std.password || '54321');
                               setCopiedPasswordId(std.id);
                               setTimeout(() => setCopiedPasswordId(null), 2000);
                             }}
-                            className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                             title="Şifreyi Kopyala"
                           >
                             {copiedPasswordId === std.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -777,48 +780,38 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         </div>
                       </td>
 
-                      <td className="px-6 py-4 text-xs space-y-1">
-                        <div className="flex items-center space-x-1.5 text-slate-300">
-                          <Mail className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{std.email}</span>
-                        </div>
-                        {std.phone && (
-                          <div className="flex items-center space-x-1.5 text-slate-400">
-                            <Phone className="w-3.5 h-3.5 text-slate-500" />
-                            <span>{std.phone}</span>
-                          </div>
-                        )}
-                      </td>
-
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                           <span>Aktif Öğrenci</span>
                         </span>
                       </td>
 
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end space-x-2">
+                        <div className="flex items-center justify-end space-x-1.5">
                           <button
+                            type="button"
                             onClick={() => setSelectedCredentialsStudent(std)}
-                            className="p-1.5 bg-slate-800 hover:bg-indigo-600/30 text-slate-400 hover:text-indigo-300 rounded-lg transition-colors cursor-pointer"
+                            className="p-2 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
                             title="Giriş Bilgilerini & Şifreyi Mail / WhatsApp İle Gönder"
                           >
-                            <Mail className="w-4 h-4 text-indigo-400" />
+                            <Mail className="w-3.5 h-3.5 text-indigo-600" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => openEditStudent(std)}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
+                            className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
                             title="Düzenle"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setStudentToDelete(std)}
-                            className="p-1.5 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
+                            className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
                             title="Öğrenciyi Sil"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -864,14 +857,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </div>
                     </div>
 
-                    <h3 className="text-lg font-bold text-white mb-1">{cls.name}</h3>
+                    <h3 className="text-lg font-bold text-white mb-1">
+                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                    </h3>
                     <div className="flex items-center space-x-2 mb-2">
                       {cls.schoolLevel && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
                           {cls.schoolLevel}
                         </span>
                       )}
-                      <span className="text-xs text-indigo-300 font-medium">{cls.branch}</span>
+                      <span className="text-xs text-indigo-300 font-medium">
+                        Şube {cls.branch?.replace(/şube\s*/i, '').trim() || 'A'}
+                      </span>
                     </div>
                     <p className="text-xs text-slate-400 mb-4 line-clamp-2">
                       {cls.description || 'Akademik takip ve ders çizelgesi grubu.'}
@@ -1364,7 +1361,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       onChange={(e) => {
                         const newGrade = e.target.value;
                         setClassGradeLevel(newGrade);
-                        setClassName(`${newGrade} - ${classBranch}`);
+                        setClassName(formatClassDisplayName('', classBranch, newGrade));
                       }}
                       className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
@@ -1391,7 +1388,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       onChange={(e) => {
                         const newBranch = e.target.value;
                         setClassBranch(newBranch);
-                        setClassName(`${classGradeLevel} - ${newBranch}`);
+                        setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
                       }}
                       className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
@@ -1411,7 +1408,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <input
                   type="text"
                   required
-                  placeholder="Örn: 5. Sınıf - Şube A"
+                  placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
@@ -1685,7 +1682,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <div>
                     <div className="flex items-center space-x-2">
                       <h3 className="text-base sm:text-lg font-bold text-white">
-                        {viewingClassStudents.name} — Kayıtlı Öğrenci Listesi
+                        {formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel)} — Kayıtlı Öğrenci Listesi
                       </h3>
                       {viewingClassStudents.schoolLevel && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
@@ -1824,9 +1821,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     "{classStudentSearch}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="border border-slate-800 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs text-slate-300">
-                      <thead className="bg-slate-950/80 text-slate-400 text-[11px] font-semibold border-b border-slate-800 uppercase tracking-wider">
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead className="bg-slate-50 text-slate-500 text-[11px] font-bold border-b border-slate-200 uppercase tracking-wider">
                         <tr>
                           <th className="py-2.5 px-3 w-10 text-center">#</th>
                           <th className="py-2.5 px-3">Öğrenci Adı Soyadı</th>
@@ -1836,10 +1833,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <th className="py-2.5 px-3 text-right">İşlemler</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60 bg-slate-900/50">
+                      <tbody className="divide-y divide-slate-100 bg-white">
                         {filteredStudents.map((std, idx) => (
-                          <tr key={std.id} className="hover:bg-slate-800/40 transition-colors">
-                            <td className="py-2.5 px-3 text-center text-slate-500 font-mono">
+                          <tr key={std.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono font-semibold">
                               {idx + 1}
                             </td>
                             <td className="py-2.5 px-3">
@@ -1847,26 +1844,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 <img
                                   src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                                   alt={std.name}
-                                  className="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700"
+                                  className="w-7 h-7 rounded-full bg-slate-100 object-cover border border-slate-200"
                                   referrerPolicy="no-referrer"
                                 />
-                                <span className="font-bold text-white">{std.name}</span>
+                                <span className="font-bold text-slate-900">{std.name}</span>
                               </div>
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className="font-mono text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 text-[11px]">
+                              <span className="font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150 text-[11px] font-semibold">
                                 #{std.studentNumber || '-'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-slate-300">
+                            <td className="py-2.5 px-3 text-slate-600 font-medium">
                               {std.phone ? (
-                                <span className="font-mono text-slate-300">{std.phone}</span>
+                                <span className="font-mono text-slate-600">{std.phone}</span>
                               ) : (
-                                <span className="text-slate-500 italic">Belirtilmedi</span>
+                                <span className="text-slate-400 italic">Belirtilmedi</span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-400">
-                              {std.email || <span className="text-slate-500 italic">-</span>}
+                            <td className="py-2.5 px-3 text-slate-500">
+                              {std.email || <span className="text-slate-400 italic">E-posta yok</span>}
                             </td>
                             <td className="py-2.5 px-3 text-right">
                               <div className="flex items-center justify-end space-x-1">
@@ -1876,7 +1873,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                     setViewingClassStudents(null);
                                     openEditStudent(std);
                                   }}
-                                  className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Düzenle"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -1889,7 +1886,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                       setStudentSuccessFeedback(`"${std.name}" adlı öğrenci ${viewingClassStudents.name} sınıfından çıkarıldı.`);
                                     }
                                   }}
-                                  className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors cursor-pointer"
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Bu Sınıftan Çıkar"
                                 >
                                   <UserMinus className="w-3.5 h-3.5" />

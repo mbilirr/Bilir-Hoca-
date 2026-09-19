@@ -304,6 +304,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
       dataService.updateStudent(student.id, {
         password: newPassword,
+        mustChangePassword: false,
       });
 
       confetti({
@@ -316,6 +317,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
       setTimeout(() => {
         onClose();
+        if (onSuccess) onSuccess();
       }, 800);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Şifre güncellenirken bir hata oluştu.');
@@ -327,7 +329,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
   const modalContent = (
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={isMandatory ? undefined : onClose}
     >
       <div
         className="relative w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
@@ -340,19 +342,25 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
               <KeyRound className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white">Öğrenci Şifresi Değiştir</h3>
+              <h3 className="text-sm sm:text-base font-black text-white">
+                {isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Öğrenci Şifresi Değiştir'}
+              </h3>
               <p className="text-[11px] sm:text-xs text-slate-400">
-                Giriş güvenliğinizi sağlamak için yeni şifrenizi belirleyin
+                {isMandatory
+                  ? 'Sisteme ilk girişinizde güvenliğiniz için şifrenizi güncellemeniz zorunludur'
+                  : 'Giriş güvenliğinizi sağlamak için yeni şifrenizi belirleyin'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {!isMandatory && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Form */}
@@ -442,13 +450,15 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
           {/* Footer Actions */}
           <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
-            >
-              Vazgeç
-            </button>
+            {!isMandatory && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              >
+                Vazgeç
+              </button>
+            )}
             <button
               type="submit"
               disabled={isSaving}

@@ -20,6 +20,7 @@ import {
   HIGH_SCHOOL_GRADES,
   ALL_GRADES,
   detectSchoolLevelFromGrade,
+  formatClassDisplayName,
 } from '../../constants/schoolConstants';
 
 interface ExcelClassUploadModalProps {
@@ -68,14 +69,14 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
     return trimmed;
   };
 
-  // Normalize branch e.g. "A", "Şube A", "a" -> "Şube A"
+  // Normalize branch e.g. "A", "Şube A", "a" -> "A"
   const normalizeBranch = (raw: string): string => {
     const trimmed = (raw || '').trim().toUpperCase();
-    const match = trimmed.match(/([A-F])/);
+    const match = trimmed.match(/([A-ZÇĞİÖŞÜ])/);
     if (match) {
-      return `Şube ${match[1]}`;
+      return match[1];
     }
-    return trimmed ? `Şube ${trimmed}` : 'Şube A';
+    return trimmed ? trimmed.replace(/şube/gi, '').trim() || 'A' : 'A';
   };
 
   // Parse generic row data from Excel or text
@@ -130,12 +131,14 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
       let name = rawName;
       if (!name) {
         if (gradeLevel && branch) {
-          name = `${gradeLevel} - ${branch}`;
+          name = formatClassDisplayName('', branch, gradeLevel);
         } else if (gradeLevel) {
           name = `${gradeLevel}`;
         } else {
           name = `Sınıf ${idx + 1}`;
         }
+      } else {
+        name = formatClassDisplayName(name, branch, gradeLevel);
       }
 
       let isValid = true;

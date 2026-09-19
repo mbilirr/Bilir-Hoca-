@@ -24,6 +24,7 @@ export interface EtutEmailParams {
   duration: number;
   location: string;
   notes?: string;
+  teacherFeedback?: string;
 }
 
 export function formatDueDateTurkish(dateStr: string): string {
@@ -202,8 +203,7 @@ KONU: ${params.topic}
 TARİH: ${formattedDate}
 SAAT: ${params.time} (${params.duration} Dakika)
 DERSLİK / YER: ${params.location}
-${params.notes ? `NOTLAR: ${params.notes}` : ''}
-
+${params.notes ? `NOTLAR: ${params.notes}\n` : ''}${params.teacherFeedback ? `ÖĞRETMEN GÖRÜŞ VE DÜŞÜNCELERİ: ${params.teacherFeedback}\n` : ''}
 Lütfen belirtilen tarih ve saatte derslikte hazır bulununuz.
 
 ${params.teacherName}
@@ -281,6 +281,17 @@ Eğitim & Öğrenci Takip Sistemi
       <div class="notes-box">
         <strong>Öğretmen Notu:</strong>
         <p style="margin: 6px 0 0;">${params.notes}</p>
+      </div>
+      `
+          : ''
+      }
+
+      ${
+        params.teacherFeedback
+          ? `
+      <div class="notes-box" style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; color: #854d0e;">
+        <strong>💬 Öğretmen Düşünce ve Görüşleri:</strong>
+        <p style="margin: 6px 0 0; font-style: italic; color: #713f12;">"${params.teacherFeedback}"</p>
       </div>
       `
           : ''
