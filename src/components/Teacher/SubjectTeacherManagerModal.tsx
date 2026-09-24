@@ -56,14 +56,16 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
 
   const handleAddTeacher = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTeacherName.trim()) return;
+    const name = newTeacherName.trim();
+    if (!name) return;
 
-    dataService.addTeacherToSubject(selectedSubject, newTeacherName.trim());
+    dataService.addTeacherToSubject(selectedSubject, name);
+    dataService.setLastTeacherForSubject(selectedSubject, name);
     setNewTeacherName('');
     loadData();
     if (onUpdate) onUpdate();
-    setSuccessMsg(`"${newTeacherName.trim()}" eklendi`);
-    setTimeout(() => setSuccessMsg(''), 2000);
+    setSuccessMsg(`"${name}" kaydedildi ve varsayılan öğretmen olarak atandı`);
+    setTimeout(() => setSuccessMsg(''), 2500);
   };
 
   const handleRemoveTeacher = (teacherName: string) => {

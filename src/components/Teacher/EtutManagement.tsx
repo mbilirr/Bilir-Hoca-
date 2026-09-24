@@ -30,6 +30,7 @@ import {
   HelpCircle,
   MessageSquareQuote,
   RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
@@ -122,6 +123,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [newTeacherError, setNewTeacherError] = useState<string>('');
   const [teacherSearchQuery, setTeacherSearchQuery] = useState<string>('');
 
+  // Hızlı Öğretmen Ekleme (Ders için anında kalıcı kaydetme)
+  const [isQuickTeacherOpen, setIsQuickTeacherOpen] = useState(false);
+  const [quickTeacherName, setQuickTeacherName] = useState('');
+  const [quickTeacherSuccess, setQuickTeacherSuccess] = useState('');
+
+  // Öğrenci Açılır Menüsü (Dropdown) & Arama (Sınıftan Bağımsız Bireysel Seçim)
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
+  const [studentDropdownSearch, setStudentDropdownSearch] = useState('');
+  const [showOnlySelectedGradeInDropdown, setShowOnlySelectedGradeInDropdown] = useState(false);
+
   const [topic, setTopic] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState('16:00');
@@ -132,6 +143,23 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [assigneeMode, setAssigneeMode] = useState<'all' | 'custom'>('custom');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
 
+  // Dersi değiştiğinde öğretmeni hatırla ve otomatik seç
+  const handleSubjectChange = (newSubject: string) => {
+    setSubject(newSubject);
+    const lastTeacher = dataService.getLastTeacherForSubject(newSubject);
+    const subTeachers = dataService.getTeachersForSubject(newSubject);
+    if (lastTeacher) {
+      setSelectedTeacherName(lastTeacher);
+      setSelectedTeacherBranch(newSubject);
+    } else if (subTeachers.length > 0) {
+      setSelectedTeacherName(subTeachers[0]);
+      setSelectedTeacherBranch(newSubject);
+    } else {
+      setSelectedTeacherName('');
+      setSelectedTeacherBranch('');
+    }
+  };
+
   // Okul değiştiğinde sınıf ve ders listesini otomatik güncelle
   const handleSchoolChange = (newSchool: SchoolLevelType) => {
     setSchoolLevel(newSchool);
@@ -140,34 +168,78 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     setSelectedBranchFilter('Şube');
     const availableSubjects = getSubjectsForSchoolLevel(newSchool);
     if (!availableSubjects.includes(subject)) {
-      setSubject(availableSubjects[0]);
+      handleSubjectChange(availableSubjects[0]);
     }
+  };
+
+  // Form ilk açıldığında veya ders değiştiğinde kayıtlı öğretmeni yükle
+  useEffect(() => {
+    if (!selectedTeacherName) {
+      const lastTeacher = dataService.getLastTeacherForSubject(subject);
+      const subTeachers = dataService.getTeachersForSubject(subject);
+      if (lastTeacher) {
+        setSelectedTeacherName(lastTeacher);
+        setSelectedTeacherBranch(subject);
+      } else if (subTeachers.length > 0) {
+        setSelectedTeacherName(subTeachers[0]);
+        setSelectedTeacherBranch(subject);
+      }
+    }
+  }, [subject]);
+
+  const handleQuickAddTeacher = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const name = quickTeacherName.trim();
+    if (!name) return;
+    dataService.addTeacherToSubject(subject, name);
+    dataService.setLastTeacherForSubject(subject, name);
+    setSelectedTeacherName(name);
+    setSelectedTeacherBranch(subject);
+    setQuickTeacherName('');
+    setIsQuickTeacherOpen(false);
+    setQuickTeacherSuccess(`"${name}" kalıcı olarak ${subject} dersine kaydedildi ve seçildi.`);
+    setTimeout(() => setQuickTeacherSuccess(''), 3000);
   };
 
   const currentAvailableGrades = getGradesForSchoolLevel(schoolLevel);
   const currentAvailableSubjects = getSubjectsForSchoolLevel(schoolLevel);
 
-  // Öğrencinin seçili sınıf kademesine (örn. '5. Sınıf', '8. Sınıf') ait olup olmadığını belirleme
-  const isStudentInGrade = (std: Student, targetGrade: string): boolean => {
-    if (!targetGrade) return true;
+  // Öğrencinin seçili sınıf kademesine (örn. '5. Sınıf', '8. Sınıf', '11/D') ait olup olmadığını güvenle belirleme
+  const isStudentInGrade = (std?: Student | null, targetGrade?: string): boolean => {
+    if (!std) return false;
+    if (!targetGrade || targetGrade === 'Tüm Sınıflar' || targetGrade === 'all' || targetGrade === 'Sınıf Seçiniz' || targetGrade === '') return true;
+
+    // Tam sınıf adı eşleşmesi (örn: "11/D", "5-A", "8/B")
+    if (std.className && typeof std.className === 'string' && std.className.trim().toLowerCase() === targetGrade.trim().toLowerCase()) {
+      return true;
+    }
+    const safeClasses = Array.isArray(classes) ? classes : [];
+    const parentClass = safeClasses.find((c) => c && c.id === std.classId);
+    if (parentClass?.name && typeof parentClass.name === 'string' && parentClass.name.trim().toLowerCase() === targetGrade.trim().toLowerCase()) {
+      return true;
+    }
+
     const targetNum = targetGrade.match(/\d+/)?.[0];
     if (!targetNum) return true;
 
     // 1. Öğrencinin doğrudan gradeLevel alanı
-    if (std.gradeLevel) {
+    if (std.gradeLevel && typeof std.gradeLevel === 'string') {
       const sNum = std.gradeLevel.match(/\d+/)?.[0];
       if (sNum === targetNum) return true;
     }
 
     // 2. Öğrencinin bağlı olduğu sınıfın gradeLevel alanı
-    const parentClass = classes.find((c) => c.id === std.classId);
-    if (parentClass?.gradeLevel) {
+    if (parentClass?.gradeLevel && typeof parentClass.gradeLevel === 'string') {
       const cNum = parentClass.gradeLevel.match(/\d+/)?.[0];
       if (cNum === targetNum) return true;
     }
+    if (parentClass?.name && typeof parentClass.name === 'string') {
+      const cnMatch = parentClass.name.match(/\b\d+\b/);
+      if (cnMatch && cnMatch[0] === targetNum) return true;
+    }
 
-    // 3. className alanı (Örn: "5. Sınıf - Şube A", "5-A", "8/B", "10-C")
-    if (std.className) {
+    // 3. className alanı (Örn: "5. Sınıf - Şube A", "5-A", "8/B", "10-C", "11/D")
+    if (std.className && typeof std.className === 'string') {
       const classNumMatch = std.className.match(/\b\d+\b/);
       if (classNumMatch && classNumMatch[0] === targetNum) return true;
       if (
@@ -183,16 +255,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     return false;
   };
 
-  // Öğrencinin seçili şubeye ait olup olmadığını belirleme ('Şube', 'Şube A', 'Şube B', ...)
-  const isStudentInBranch = (std: Student, filterBranch: string): boolean => {
-    if (!filterBranch || filterBranch === 'Şube' || filterBranch === 'all') return true;
+  // Öğrencinin seçili şubeye ait olup olmadığını güvenle belirleme ('Şube', 'A', 'B', ...)
+  const isStudentInBranch = (std?: Student | null, filterBranch?: string): boolean => {
+    if (!std) return false;
+    if (!filterBranch || filterBranch === 'Şube' || filterBranch === 'all' || filterBranch === 'Tüm Şubeler' || filterBranch === '') return true;
 
     const letterMatch = filterBranch.match(/([A-F])/i);
     const targetLetter = letterMatch ? letterMatch[1].toUpperCase() : '';
     if (!targetLetter) return true;
 
     // 1. Öğrencinin doğrudan branch alanı
-    if (std.branch) {
+    if (std.branch && typeof std.branch === 'string') {
       const bUpper = std.branch.toUpperCase();
       if (
         bUpper === filterBranch.toUpperCase() ||
@@ -206,8 +279,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     }
 
     // 2. Bağlı olduğu sınıfın branch alanı
-    const parentClass = classes.find((c) => c.id === std.classId);
-    if (parentClass?.branch) {
+    const safeClasses = Array.isArray(classes) ? classes : [];
+    const parentClass = safeClasses.find((c) => c && c.id === std.classId);
+    if (parentClass?.branch && typeof parentClass.branch === 'string') {
       const cbUpper = parentClass.branch.toUpperCase();
       if (
         cbUpper === filterBranch.toUpperCase() ||
@@ -220,8 +294,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       }
     }
 
-    // 3. className dizesi (Örn: "5. Sınıf - Şube A", "5-A", "8A", "9/A")
-    if (std.className) {
+    // 3. className dizesi (Örn: "5. Sınıf - Şube A", "5-A", "8A", "9/A", "11/D")
+    if (std.className && typeof std.className === 'string') {
       const cnUpper = std.className.toUpperCase();
       const regex = new RegExp(`(^|\\s|[-_\\/.])(ŞUBE\\s*)?${targetLetter}(\\s|[-_\\/.]|$)`, 'i');
       if (
@@ -240,13 +314,40 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
   // Sadece seçili sınıf kademesine ait öğrenciler
   const gradeStudents = useMemo(() => {
-    return students.filter((s) => isStudentInGrade(s, gradeLevel));
+    const safeStudents = Array.isArray(students) ? students : [];
+    return safeStudents.filter((s) => s && isStudentInGrade(s, gradeLevel));
   }, [students, gradeLevel, classes]);
 
   // Şube açılır penceresi filtresine göre nihai gösterilecek öğrenciler
   const filteredStudents = useMemo(() => {
-    return gradeStudents.filter((s) => isStudentInBranch(s, selectedBranchFilter));
+    return gradeStudents.filter((s) => s && isStudentInBranch(s, selectedBranchFilter));
   }, [gradeStudents, selectedBranchFilter, classes]);
+
+  // "Öğrenci Seçiniz" arama kutulu açılır butonu için dinamik liste
+  // Sınıf seçilmemiş olsa bile tüm öğrencileri arayabilir ve listeler
+  const dropdownStudents = useMemo(() => {
+    const safeStudents = Array.isArray(students) ? students : [];
+    let list = safeStudents.filter(Boolean);
+
+    if (showOnlySelectedGradeInDropdown && gradeLevel && gradeLevel !== 'Tüm Sınıflar') {
+      list = list.filter((s) => isStudentInGrade(s, gradeLevel));
+      if (selectedBranchFilter && selectedBranchFilter !== 'Şube' && selectedBranchFilter !== 'Tüm Şubeler') {
+        list = list.filter((s) => isStudentInBranch(s, selectedBranchFilter));
+      }
+    }
+
+    if (studentDropdownSearch.trim()) {
+      const q = studentDropdownSearch.trim().toLowerCase();
+      list = list.filter((s) => {
+        const name = (s.name || '').toLowerCase();
+        const cName = (s.className || '').toLowerCase();
+        const num = (s.studentNumber || (s as any).number || '').toString().toLowerCase();
+        return name.includes(q) || cName.includes(q) || num.includes(q);
+      });
+    }
+
+    return list;
+  }, [students, showOnlySelectedGradeInDropdown, gradeLevel, selectedBranchFilter, studentDropdownSearch, classes]);
 
   const handleToggleAllFiltered = () => {
     if (filteredStudents.length === 0) return;
@@ -348,6 +449,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     e.preventDefault();
     if (!topic.trim() || !date || !time) return;
 
+    // Bireysel öğrenci seçimi doğrulaması
+    if (assigneeMode === 'custom' && selectedStudentIds.length === 0) {
+      alert('Lütfen etüt verilecek en az bir öğrenci seçiniz veya "Tüm Sınıf Öğrencileri" seçeneğini kullanınız.');
+      return;
+    }
+
+    // Seçilen öğretmen ismini bu ders için kalıcı olarak hafızaya al
+    if (selectedTeacherName && selectedTeacherName.trim()) {
+      dataService.addTeacherToSubject(subject, selectedTeacherName.trim());
+      dataService.setLastTeacherForSubject(subject, selectedTeacherName.trim());
+    }
+
     // Kademe öğrencileri listesi
     const targetAssigned =
       assigneeMode === 'all'
@@ -413,11 +526,26 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     setSelectedBranchFilter('Şube');
     setSubject('Matematik');
     setLessonPeriod('Ders');
+
+    // Son kullanılan öğretmeni otomatik hatırla
+    const lastTeacher = dataService.getLastTeacherForSubject('Matematik');
+    const subTeachers = dataService.getTeachersForSubject('Matematik');
+    if (lastTeacher) {
+      setSelectedTeacherName(lastTeacher);
+      setSelectedTeacherBranch('Matematik');
+    } else if (subTeachers.length > 0) {
+      setSelectedTeacherName(subTeachers[0]);
+      setSelectedTeacherBranch('Matematik');
+    } else {
+      setSelectedTeacherName('');
+      setSelectedTeacherBranch('');
+    }
+
     setSelectedTeacherId('');
-    setSelectedTeacherName('');
-    setSelectedTeacherBranch('');
     setIsTeacherModalOpen(false);
     setIsNewTeacherFormOpen(false);
+    setIsQuickTeacherOpen(false);
+    setQuickTeacherName('');
     setTeacherSearchQuery('');
     setTopic('');
     setDate(new Date().toISOString().slice(0, 10));
@@ -428,6 +556,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     setTeacherFeedback('');
     setAssigneeMode('custom');
     setSelectedStudentIds([]);
+    setIsStudentDropdownOpen(false);
+    setStudentDropdownSearch('');
   };
 
   const openEdit = (etut: Etut) => {
@@ -443,6 +573,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     setSelectedTeacherBranch(etut.teacherBranch || '');
     setIsTeacherModalOpen(false);
     setIsNewTeacherFormOpen(false);
+    setIsQuickTeacherOpen(false);
+    setQuickTeacherName('');
     setTopic(etut.topic);
     setDate(etut.date);
     setTime(etut.time);
@@ -455,8 +587,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       setSelectedStudentIds([]);
     } else {
       setAssigneeMode('custom');
-      setSelectedStudentIds(etut.assignedStudentIds);
+      setSelectedStudentIds(Array.isArray(etut.assignedStudentIds) ? etut.assignedStudentIds : []);
     }
+    setIsStudentDropdownOpen(false);
+    setStudentDropdownSearch('');
     setIsCreateModalOpen(true);
   };
 
@@ -1221,19 +1355,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </div>
 
             <form onSubmit={handleSaveEtut} className="space-y-4">
-              {/* Okul, Sınıf ve Ders Seçimi */}
+              {/* 1. BLOK: Okul, Ders ve Etüt Öğretmeni Seçimi */}
               <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                   <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
                     <School className="w-4 h-4 text-indigo-400" />
-                    <span>Okul, Sınıf ve Branş Seçimi</span>
+                    <span>Okul, Ders ve Öğretmen Bilgileri</span>
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    Seçtiğiniz okula göre sınıflar ve dersler otomatik filtrelenir
+                    Ders için atanan öğretmen ismi sonraki etütlerde otomatik hatırlanır
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Okul Açılır Penceresi */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -1249,24 +1383,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </select>
                   </div>
 
-                  {/* Sınıf Açılır Penceresi */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Sınıf *
-                    </label>
-                    <select
-                      value={gradeLevel}
-                      onChange={(e) => setGradeLevel(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                    >
-                      {currentAvailableGrades.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
                   {/* Ders Açılır Penceresi */}
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -1274,7 +1390,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </label>
                     <select
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => handleSubjectChange(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                     >
                       {currentAvailableSubjects.map((s) => (
@@ -1304,68 +1420,397 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </select>
                   </div>
                 </div>
+
+                {/* Etüt Öğretmeni Açılır Penceresi (Dropdown & Kalıcı Kayıt) */}
+                <div className="pt-2 border-t border-slate-800/80">
+                  <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-slate-200">Etüt Öğretmeni</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
+                        Kalıcı Kayıtlı
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickTeacherOpen((p) => !p)}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-2 cursor-pointer"
+                      >
+                        {isQuickTeacherOpen ? '✕ Kapat' : '+ Hızlı Öğretmen Ata'}
+                      </button>
+                      <span className="text-slate-600">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSubjectTeacherModalOpen(true)}
+                        className="text-xs text-indigo-400 hover:text-indigo-300 font-bold underline underline-offset-2 cursor-pointer"
+                        title="Bu dersin açılır menüsüne öğretmen ata veya sil"
+                      >
+                        Öğretmen Listesini Yönet
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Hızlı Öğretmen Ekleme Girişi */}
+                  {isQuickTeacherOpen && (
+                    <div className="p-3 mb-2 rounded-xl bg-slate-900 border border-emerald-500/30 flex items-center gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder={`"${subject}" için yeni öğretmen adı ve soyadı...`}
+                        value={quickTeacherName}
+                        onChange={(e) => setQuickTeacherName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleQuickAddTeacher();
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddTeacher()}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer shrink-0"
+                      >
+                        Kaydet & Ata
+                      </button>
+                    </div>
+                  )}
+
+                  {quickTeacherSuccess && (
+                    <div className="p-2 mb-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-in fade-in">
+                      ✓ {quickTeacherSuccess}
+                    </div>
+                  )}
+
+                  <div>
+                    <select
+                      id="select-etut-teacher-dropdown"
+                      value={selectedTeacherName || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__ADD_NEW__') {
+                          setIsQuickTeacherOpen(true);
+                        } else {
+                          setSelectedTeacherName(val);
+                          setSelectedTeacherBranch(val ? subject : '');
+                          if (val) {
+                            dataService.setLastTeacherForSubject(subject, val);
+                          }
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="">Öğretmen Seçiniz</option>
+                      {dataService.getTeachersForSubject(subject).map((tName) => (
+                        <option key={tName} value={tName}>
+                          {tName}
+                        </option>
+                      ))}
+                      <option value="__ADD_NEW__">+ Yeni Öğretmen Adı Ekle...</option>
+                    </select>
+                  </div>
+
+                  {selectedTeacherName ? (
+                    <div className="flex items-center justify-between p-2 mt-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200">
+                      <span className="font-semibold">
+                        Görevlendirilen Öğretmen: <strong className="text-white">{selectedTeacherName}</strong> ({subject})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTeacherName('');
+                          setSelectedTeacherBranch('');
+                        }}
+                        className="text-rose-400 hover:text-rose-300 font-bold text-xs cursor-pointer ml-2"
+                      >
+                        Seçimi Temizle ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Ders: <strong className="text-amber-300">{subject}</strong> • Seçtiğiniz öğretmen sistemde kalıcı tutulur ve bir sonraki etütte otomatik olarak seçilir.
+                    </p>
+                  )}
+                </div>
               </div>
 
-              {/* Etüt Öğretmeni Açılır Penceresi (Dropdown) */}
-              <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold text-slate-200">Etüt Öğretmeni</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
-                      Açılır Seçim
-                    </span>
+              {/* 2. BLOK: Sınıf, Şube ve Öğrenci Seçimi (Yan Yana & Sınıftan Bağımsız Öğrenci Seçimi) */}
+              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
+                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
+                    <GraduationCap className="w-4 h-4 text-indigo-400" />
+                    <span>Sınıf, Şube ve Öğrenci Seçimi</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    Sınıftan bağımsız olarak dilediğiniz öğrenciye bireysel etüt tanımlayabilirsiniz
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Sınıf Açılır Butonu */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Sınıf (Kademe)
+                    </label>
+                    <select
+                      value={gradeLevel}
+                      onChange={(e) => setGradeLevel(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="Tüm Sınıflar">Sınıf Seçiniz (Tüm Sınıflar)</option>
+                      {currentAvailableGrades.map((g) => (
+                        <option key={g} value={g}>
+                          {g}
+                        </option>
+                      ))}
+                      {classes && classes.length > 0 && (
+                        <optgroup label="Tanımlı Şube/Sınıf Grupları">
+                          {classes.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsSubjectTeacherModalOpen(true)}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold underline underline-offset-2 cursor-pointer flex items-center gap-1"
-                    title="Bu dersin açılır menüsüne öğretmen ata veya sil"
-                  >
-                    <span>Öğretmen Ata / Sil</span>
-                  </button>
-                </div>
 
-                <div>
-                  <select
-                    id="select-etut-teacher-dropdown"
-                    value={selectedTeacherName || ''}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedTeacherName(val);
-                      setSelectedTeacherBranch(val ? subject : '');
-                    }}
-                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                  >
-                    <option value="">Öğretmen</option>
-                    {dataService.getTeachersForSubject(subject).map((tName) => (
-                      <option key={tName} value={tName}>
-                        {tName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  {/* Şube Açılır Butonu */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Şube
+                    </label>
+                    <select
+                      id="etut-branch-filter"
+                      value={selectedBranchFilter}
+                      onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="Şube">Şube Seçiniz (Tümü)</option>
+                      <option value="A">A Şubesi</option>
+                      <option value="B">B Şubesi</option>
+                      <option value="C">C Şubesi</option>
+                      <option value="D">D Şubesi</option>
+                      <option value="E">E Şubesi</option>
+                      <option value="F">F Şubesi</option>
+                    </select>
+                  </div>
 
-                {selectedTeacherName ? (
-                  <div className="flex items-center justify-between p-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200">
-                    <span className="font-semibold">
-                      Görevlendirilen Öğretmen: <strong className="text-white">{selectedTeacherName}</strong> ({subject})
-                    </span>
+                  {/* Öğrenci Seçiniz Açılır Butonu (Arama Kutulu & Sınıftan Bağımsız) */}
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Users className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Öğrenci Seçiniz</span>
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-semibold">
+                        Bireysel / Bağımsız
+                      </span>
+                    </label>
+
+                    {/* Dropdown Açma Butonu */}
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedTeacherName('');
-                        setSelectedTeacherBranch('');
-                      }}
-                      className="text-rose-400 hover:text-rose-300 font-bold text-xs cursor-pointer ml-2"
+                      onClick={() => setIsStudentDropdownOpen((prev) => !prev)}
+                      className={`w-full px-3 py-2 bg-slate-800 border rounded-xl text-left text-sm font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                        selectedStudentIds.length > 0
+                          ? 'border-indigo-500 text-white bg-indigo-950/30'
+                          : 'border-slate-700 text-slate-300 hover:border-slate-600'
+                      }`}
                     >
-                      Seçimi Temizle ✕
+                      <div className="flex items-center space-x-2 truncate pr-2">
+                        <Search className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <span className="truncate">
+                          {selectedStudentIds.length === 0
+                            ? 'Öğrenci Seçiniz...'
+                            : selectedStudentIds.length === 1
+                            ? `${(students || []).find((s) => s.id === selectedStudentIds[0])?.name || '1 Öğrenci'} (${(students || []).find((s) => s.id === selectedStudentIds[0])?.className || 'Sınıf Yok'})`
+                            : `${selectedStudentIds.length} Öğrenci Seçildi`}
+                        </span>
+                      </div>
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+                          isStudentDropdownOpen ? 'rotate-180 text-indigo-400' : ''
+                        }`}
+                      />
                     </button>
+
+                    {/* Açılır Panel (Arama Kutusu + Öğrenci Listesi) */}
+                    {isStudentDropdownOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsStudentDropdownOpen(false)}
+                        />
+                        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-80 animate-in fade-in slide-in-from-top-2 duration-150">
+                          {/* Arama Kutusu (En Üstte) */}
+                          <div className="p-2.5 bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
+                            <div className="relative">
+                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                              <input
+                                autoFocus
+                                type="text"
+                                value={studentDropdownSearch}
+                                onChange={(e) => setStudentDropdownSearch(e.target.value)}
+                                placeholder="Öğrenci ara (isim, sınıf, okul no)..."
+                                className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                              />
+                              {studentDropdownSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setStudentDropdownSearch('')}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Filtre Bilgi ve Toggle */}
+                            <div className="flex items-center justify-between mt-2 pt-1 text-[11px] text-slate-400">
+                              <span>
+                                {dropdownStudents.length} öğrenci bulundu
+                              </span>
+                              {gradeLevel && gradeLevel !== 'Tüm Sınıflar' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowOnlySelectedGradeInDropdown((p) => !p)}
+                                  className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2 cursor-pointer"
+                                >
+                                  {showOnlySelectedGradeInDropdown
+                                    ? 'Tüm Okulu Göster'
+                                    : `Sadece ${gradeLevel} Göster`}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Liste */}
+                          <div className="overflow-y-auto p-1.5 space-y-1 max-h-56 divide-y divide-slate-800/40">
+                            {dropdownStudents.length > 0 ? (
+                              dropdownStudents.map((std) => {
+                                const isSelected = selectedStudentIds.includes(std.id);
+                                return (
+                                  <div
+                                    key={std.id}
+                                    onClick={() => {
+                                      handleToggleStudent(std.id);
+                                      setAssigneeMode('custom');
+                                    }}
+                                    className={`flex items-center justify-between p-2 rounded-xl cursor-pointer text-xs transition-colors ${
+                                      isSelected
+                                        ? 'bg-indigo-600/20 text-white font-semibold'
+                                        : 'hover:bg-slate-800 text-slate-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-2.5 truncate">
+                                      <div
+                                        className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-800 text-slate-400'
+                                        }`}
+                                      >
+                                        {std.name?.charAt(0) || 'Ö'}
+                                      </div>
+                                      <div className="truncate">
+                                        <div className="truncate font-medium">{std.name}</div>
+                                        <div className="text-[10px] text-slate-400 truncate">
+                                          {std.className || 'Sınıf Belirtilmemiş'}
+                                          {(std.studentNumber || (std as any).number) ? ` • No: ${std.studentNumber || (std as any).number}` : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center space-x-2 shrink-0 ml-2">
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-indigo-300 font-medium">
+                                        {std.className || 'Genel'}
+                                      </span>
+                                      <div
+                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                          isSelected
+                                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                                            : 'border-slate-700 bg-slate-800/50'
+                                        }`}
+                                      >
+                                        {isSelected && <Check className="w-3 h-3" />}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="p-4 text-center text-xs text-slate-400">
+                                Öğrenci bulunamadı.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Alt Bilgi & Kapat */}
+                          <div className="p-2 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
+                            <span className="text-[11px] text-slate-400">
+                              {selectedStudentIds.length} öğrenci seçildi
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsStudentDropdownOpen(false)}
+                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                            >
+                              Tamam
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-[11px] text-slate-400">
-                    Ders: <strong className="text-amber-300">{subject}</strong> • Açılır buton listesinden öğretmeni seçebilirsiniz.
-                  </p>
+                </div>
+
+                {/* Bireysel Seçilen Öğrenci Rozetleri (Chips) */}
+                {selectedStudentIds.length > 0 && (
+                  <div className="pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Bireysel / Seçili Öğrenciler ({selectedStudentIds.length}):</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStudentIds([])}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer underline"
+                      >
+                        Tümünü Kaldır
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800">
+                      {selectedStudentIds.map((id) => {
+                        const std = (students || []).find((s) => s.id === id);
+                        if (!std) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-white text-xs font-medium"
+                          >
+                            <span>{std.name}</span>
+                            <span className="text-[10px] text-indigo-300 bg-indigo-950/60 px-1 py-0.2 rounded">
+                              {std.className || 'Sınıf Yok'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStudent(id)}
+                              className="text-slate-400 hover:text-rose-400 cursor-pointer p-0.5 ml-1"
+                              title="Seçimi Kaldır"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -1540,7 +1985,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    🎯 Listeden Ayrı Ayrı Seç ({selectedStudentIds.filter((id) => gradeStudents.some((s) => s.id === id)).length})
+                    🎯 Bireysel / Seçili Öğrenciler ({selectedStudentIds.length} Seçili)
                   </button>
                 </div>
 

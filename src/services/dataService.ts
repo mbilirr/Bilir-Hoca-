@@ -3215,6 +3215,12 @@ export class DataService {
     this.etuts.unshift(newEtut);
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
+    // Öğretmen ismini bu ders için kalıcı olarak kaydet
+    if (newEtut.subject && newEtut.teacherName && newEtut.teacherName !== 'Öğretmen') {
+      this.addTeacherToSubject(newEtut.subject, newEtut.teacherName);
+      this.setLastTeacherForSubject(newEtut.subject, newEtut.teacherName);
+    }
+
     // Otomatik Öğrenci Bildirimi ve E-Posta Gönderimi
     this.dispatchEtutNotificationsAndEmails(newEtut);
 
@@ -3229,10 +3235,16 @@ export class DataService {
   public updateEtut(id: string, updates: Partial<Etut>): void {
     this.etuts = this.etuts.map((e) => (e.id === id ? { ...e, ...updates } : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
+
+    const updated = this.etuts.find((e) => e.id === id);
+    if (updated?.subject && updated?.teacherName && updated.teacherName !== 'Öğretmen') {
+      this.addTeacherToSubject(updated.subject, updated.teacherName);
+      this.setLastTeacherForSubject(updated.subject, updated.teacherName);
+    }
+
     this.notify();
 
     // Push to Supabase
-    const updated = this.etuts.find((e) => e.id === id);
     if (updated) {
       this.pushEtutToSupabase(updated);
     }
@@ -4473,6 +4485,7 @@ export class DataService {
     'Gül Deniz',
     'Tunahan Çetin',
     'Kemal onarıcı',
+    'Kemal Onarıcı',
     'Cihan Baysal',
     'Tuğçe Özsoy',
     'Elif Şahin',
@@ -4482,10 +4495,12 @@ export class DataService {
     'John Miller',
     'Sarah Jenkins',
     'Ali Demir',
+    'Mehmet Öztürk',
+    'Ayşe Yılmaz',
   ]);
 
   public getSubjectTeachersMap(): Record<string, string[]> {
-    // Otomatik eklenen sahte etüt öğretmenleri tamamen temizlendi
+    // Otomatik eklenen sahte ve önceden atanmış etüt öğretmenleri tamamen temizlendi
     const cleanedMap: Record<string, string[]> = {};
 
     try {
@@ -4497,13 +4512,17 @@ export class DataService {
           for (const [subj, teachers] of Object.entries(parsed)) {
             if (Array.isArray(teachers)) {
               const filtered = teachers.filter(
-                (name) => typeof name === 'string' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(name.trim())
+                (name) =>
+                  typeof name === 'string' &&
+                  name.trim() !== '' &&
+                  name.trim() !== 'Öğretmen' &&
+                  !DataService.AUTO_SEEDED_TEACHER_NAMES.has(name.trim())
               );
               if (filtered.length !== teachers.length) {
                 wasModified = true;
               }
               if (filtered.length > 0) {
-                cleanedMap[subj] = filtered;
+                cleanedMap[subj] = Array.from(new Set(filtered));
               }
             }
           }
@@ -4536,17 +4555,48 @@ export class DataService {
       return map[foundKey];
     }
 
-    // Sistemde kayıtlı gerçek ve onaylı öğretmenleri döndür (otomatik/sahte öğretmen içermez)
-    const activeSystemTeachers = this.teachers
-      .filter((t) => t.status === 'approved' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(t.name.trim()))
-      .map((t) => t.name);
+    // Önceden otomatik atanmış sahte isimler döndürülmez.
+    // Sadece kullanıcının bu ders için bizzat atadığı öğretmenler veya oturum açan öğretmen döndürülür
+    const session = this.getAuthSession();
+    if (session?.role === 'teacher' && session.user?.name) {
+      const tName = session.user.name.trim();
+      if (!DataService.AUTO_SEEDED_TEACHER_NAMES.has(tName)) {
+        return [tName];
+      }
+    }
 
-    return activeSystemTeachers;
+    return [];
+  }
+
+  public getLastTeacherForSubject(subject: string): string {
+    const cleanSub = (subject || '').trim().toLowerCase();
+    try {
+      const stored = localStorage.getItem(`etut_last_teacher_${cleanSub}`);
+      if (stored && typeof stored === 'string') {
+        const clean = stored.trim();
+        if (clean && clean !== 'Öğretmen' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) {
+          return clean;
+        }
+      }
+    } catch {}
+    const list = this.getTeachersForSubject(subject);
+    return list.length > 0 ? list[0] : '';
+  }
+
+  public setLastTeacherForSubject(subject: string, teacherName: string): void {
+    const clean = (teacherName || '').trim();
+    if (!clean || clean === 'Öğretmen' || DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) return;
+    const cleanSub = (subject || '').trim().toLowerCase();
+    try {
+      localStorage.setItem(`etut_last_teacher_${cleanSub}`, clean);
+    } catch {}
   }
 
   public addTeacherToSubject(subject: string, teacherName: string): Record<string, string[]> {
-    const cleanName = teacherName.trim();
-    if (!cleanName || DataService.AUTO_SEEDED_TEACHER_NAMES.has(cleanName)) return this.getSubjectTeachersMap();
+    const cleanName = (teacherName || '').trim();
+    if (!cleanName || cleanName === 'Öğretmen' || DataService.AUTO_SEEDED_TEACHER_NAMES.has(cleanName)) {
+      return this.getSubjectTeachersMap();
+    }
     const map = this.getSubjectTeachersMap();
     const targetKey = subject.trim() || 'Genel';
     const list = map[targetKey] ? [...map[targetKey]] : [];
@@ -4556,6 +4606,7 @@ export class DataService {
       try {
         localStorage.setItem('etut_subject_teachers_map', JSON.stringify(map));
       } catch {}
+      this.setLastTeacherForSubject(targetKey, cleanName);
       this.notify();
     }
     return map;
