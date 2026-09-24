@@ -14,17 +14,19 @@ import {
   CheckCheck,
   AlertCircle,
   ExternalLink,
+  Award,
 } from 'lucide-react';
 import { StudentNotification, SentEmailLog, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { requestBrowserNotificationPermission } from '../../lib/browserNotifications';
+import { StudentTabType } from './StudentHeroBanner';
 
 interface StudentNotificationCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentStudent: Student;
-  onNavigateTab?: (tab: 'home' | 'homework' | 'etuts' | 'grades' | 'messages') => void;
+  onNavigateTab?: (tab: StudentTabType) => void;
 }
 
 export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterModalProps> = ({
@@ -358,14 +360,18 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                     <div className="flex items-start space-x-3">
                       <div
                         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                          notif.type === 'new_homework'
+                          notif.type === 'praise'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 ring-2 ring-amber-500/20'
+                            : notif.type === 'new_homework'
                             ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
                             : notif.type === 'new_etut'
                             ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
                             : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                         }`}
                       >
-                        {notif.type === 'new_homework' ? (
+                        {notif.type === 'praise' ? (
+                          <Award className="w-4 h-4 text-amber-300" />
+                        ) : notif.type === 'new_homework' ? (
                           <BookOpen className="w-4 h-4" />
                         ) : notif.type === 'new_etut' ? (
                           <Calendar className="w-4 h-4" />

@@ -3910,6 +3910,42 @@ export class DataService {
   }
 
   // ==================== NOTIFICATIONS & EMAILS ====================
+  public addStudentNotification(notification: Omit<StudentNotification, 'id' | 'createdAt' | 'read'> & { id?: string }): StudentNotification {
+    const newNotif: StudentNotification = {
+      id: notification.id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+      read: false,
+      ...notification,
+    };
+    this.studentNotifications.unshift(newNotif);
+    saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+    this.notify();
+    return newNotif;
+  }
+
+  public sendStudentPraise(
+    studentId: string,
+    data: {
+      teacherName: string;
+      message: string;
+      date: string;
+      questionCount: number;
+      subjectDetails?: string;
+    }
+  ): StudentNotification {
+    const title = `👏 Tebrikler! Öğretmeninizden Tebrik Mesajı`;
+    return this.addStudentNotification({
+      studentId,
+      type: 'praise',
+      title,
+      message: data.message,
+      sourceId: data.date,
+      sourceTitle: `${data.date} Tarihli Soru Çözümü (${data.questionCount} Soru)`,
+      teacherName: data.teacherName,
+      linkTab: 'questions',
+    });
+  }
+
   public getStudentNotifications(studentId?: string): StudentNotification[] {
     if (!studentId) return this.studentNotifications;
     return this.studentNotifications.filter((n) => n.studentId === studentId);

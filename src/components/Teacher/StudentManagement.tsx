@@ -106,6 +106,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Duplicate student detection state
+  interface DuplicateWarningState {
+    existingStudent: Student;
+    newStudentPayload: {
+      name: string;
+      username: string;
+      email: string;
+      password: string;
+      classId: string;
+      className: string;
+      schoolLevel: 'Ortaokul' | 'Lise';
+      gradeLevel: string;
+      branch: string;
+      studentNumber: string;
+      phone: string;
+      avatar: string;
+    };
+  }
+  const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarningState | null>(null);
+
   const handleStudentPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -184,41 +204,54 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       targetClassId = createdClass.id;
     }
 
-    if (editingStudent) {
-      dataService.updateStudent(editingStudent.id, {
-        name: studentName,
-        username: studentUsername,
-        email: studentEmail,
-        password: studentPassword || editingStudent.password || '123456',
-        classId: targetClassId,
-        className: constructedClassName,
-        schoolLevel: studentSchoolLevel,
-        gradeLevel: studentGradeLevel,
-        branch: studentBranch,
-        studentNumber,
-        phone: studentPhone,
-        avatar: studentAvatar || editingStudent.avatar,
+    const effectiveStudentNumber = studentNumber.trim();
+    // Sistem kontrolü: Aynı isim, sınıf ve okul numarasına sahip kayıtlı öğrenci var mı?
+    const existingDuplicate = students.find((s) => {
+      if (editingStudent && s.id === editingStudent.id) return false;
+      const sameName = s.name.trim().toLowerCase() === studentName.trim().toLowerCase();
+      const sameClass =
+        (s.classId && s.classId === targetClassId) ||
+        (s.className && s.className.trim().toLowerCase() === constructedClassName.trim().toLowerCase()) ||
+        (s.gradeLevel === studentGradeLevel && s.branch === studentBranch);
+      const sameNumber = effectiveStudentNumber
+        ? s.studentNumber?.trim() === effectiveStudentNumber
+        : (!s.studentNumber || s.studentNumber.trim() === '');
+      return sameName && sameClass && sameNumber;
+    });
+
+    const studentPayload = {
+      name: studentName,
+      username: studentUsername || studentEmail.split('@')[0],
+      email: studentEmail,
+      password: studentPassword || editingStudent?.password || '123456',
+      classId: targetClassId,
+      className: constructedClassName,
+      schoolLevel: studentSchoolLevel,
+      gradeLevel: studentGradeLevel,
+      branch: studentBranch,
+      studentNumber: studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
+      phone: studentPhone || '0555 000 0000',
+      avatar:
+        studentAvatar ||
+        editingStudent?.avatar ||
+        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
+    };
+
+    if (existingDuplicate) {
+      setDuplicateWarning({
+        existingStudent: existingDuplicate,
+        newStudentPayload: studentPayload,
       });
+      return;
+    }
+
+    if (editingStudent) {
+      dataService.updateStudent(editingStudent.id, studentPayload);
       setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla güncellendi.`);
       setTimeout(() => setStudentSuccessFeedback(null), 4000);
       setEditingStudent(null);
     } else {
-      const createdStudent = dataService.registerStudent({
-        name: studentName,
-        username: studentUsername || studentEmail.split('@')[0],
-        email: studentEmail,
-        password: studentPassword || '123456',
-        classId: targetClassId,
-        className: constructedClassName,
-        schoolLevel: studentSchoolLevel,
-        gradeLevel: studentGradeLevel,
-        branch: studentBranch,
-        studentNumber: studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-        phone: studentPhone || '0555 000 0000',
-        avatar:
-          studentAvatar ||
-          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
-      });
+      const createdStudent = dataService.registerStudent(studentPayload);
       setIsAddStudentOpen(false);
       setSelectedCredentialsStudent(createdStudent);
       if (studentEmail) {
@@ -229,6 +262,40 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setTimeout(() => setStudentSuccessFeedback(null), 5000);
     }
     resetStudentForm();
+  };
+
+  const handleDuplicateReplace = () => {
+    if (!duplicateWarning) return;
+    const { existingStudent, newStudentPayload } = duplicateWarning;
+    dataService.updateStudent(existingStudent.id, {
+      ...newStudentPayload,
+      id: existingStudent.id,
+    });
+    setDuplicateWarning(null);
+    setIsAddStudentOpen(false);
+    setEditingStudent(null);
+    resetStudentForm();
+    setStudentSuccessFeedback(
+      `✅ Kayıtlı öğrenci "${newStudentPayload.name}" güncellendi ve yeni bilgilerle değiştirildi.`
+    );
+    setTimeout(() => setStudentSuccessFeedback(null), 5000);
+  };
+
+  const handleDuplicateKeepBoth = () => {
+    if (!duplicateWarning) return;
+    const { newStudentPayload } = duplicateWarning;
+    const createdStudent = dataService.registerStudent({
+      ...newStudentPayload,
+    });
+    setDuplicateWarning(null);
+    setIsAddStudentOpen(false);
+    setEditingStudent(null);
+    setSelectedCredentialsStudent(createdStudent);
+    resetStudentForm();
+    setStudentSuccessFeedback(
+      `✅ Öğrenci "${newStudentPayload.name}" ikinci bir kayıt olarak sisteme eklendi (İki kayıt da tutuldu).`
+    );
+    setTimeout(() => setStudentSuccessFeedback(null), 5000);
   };
 
   const resetStudentForm = () => {
@@ -2180,6 +2247,97 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
         );
       })()}
+
+      {/* ========================================================================= */}
+      {/* DUPLICATE STUDENT WARNING MODAL (ÇAKIŞAN ÖĞRENCİ UYARI VE SEÇİM PENCERESİ) */}
+      {/* ========================================================================= */}
+      {duplicateWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl shadow-amber-950/40 relative">
+            <div className="flex items-start space-x-3.5 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-400">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                  Aynı İsim, Sınıf ve Numaraya Sahip Öğrenci Bulundu!
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  Sistemde bu öğrenciyle tamamen eşleşen kayıtlı bir profil tespit edildi.
+                </p>
+              </div>
+            </div>
+
+            {/* Bilgi Karşılaştırma Kartı */}
+            <div className="bg-slate-950/80 rounded-xl p-3.5 border border-slate-800 space-y-3 mb-5 text-xs">
+              <div className="text-amber-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                <span>📋 Çakışan Kayıt Bilgileri</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-slate-300">
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 block">Öğrenci Adı Soyadı</span>
+                  <span className="font-bold text-white text-sm">
+                    {duplicateWarning.existingStudent.name}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 block">Okul Numarası</span>
+                  <span className="font-mono font-bold text-amber-300">
+                    #{duplicateWarning.existingStudent.studentNumber || '-'}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 block">Sınıf & Şube</span>
+                  <span className="font-semibold text-slate-200">
+                    {duplicateWarning.existingStudent.className || '-'}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[11px] text-slate-500 block">İletişim</span>
+                  <span className="text-slate-400 truncate block">
+                    {duplicateWarning.existingStudent.email || duplicateWarning.existingStudent.phone || 'Girilmedi'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+              Nasıl devam etmek istersiniz? Mevcut kayıtlı öğrenciyi yeni bilgilerle güncelleyebilir veya her iki kaydı da ayrı ayrı tutabilirsiniz:
+            </p>
+
+            {/* Aksiyon Butonları */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={handleDuplicateReplace}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Kayıtlı Öğrenciyi Değiştir</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDuplicateKeepBoth}
+                className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <Users className="w-4 h-4" />
+                <span>İkisini de Tut (Ayrı Kaydet)</span>
+              </button>
+            </div>
+
+            <div className="mt-3 text-center">
+              <button
+                type="button"
+                onClick={() => setDuplicateWarning(null)}
+                className="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer py-1"
+              >
+                Vazgeç ve Düzenlemeye Dön
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

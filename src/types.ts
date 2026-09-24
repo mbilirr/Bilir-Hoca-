@@ -218,15 +218,15 @@ export interface NotificationItem {
 export interface StudentNotification {
   id: string;
   studentId: string;
-  type: 'new_homework' | 'new_etut' | 'grade_added' | 'general';
+  type: 'new_homework' | 'new_etut' | 'grade_added' | 'general' | 'praise';
   title: string;
   message: string;
-  sourceId?: string; // homeworkId or etutId
+  sourceId?: string; // homeworkId or etutId or praiseDate
   sourceTitle?: string;
   teacherName?: string;
   createdAt: string;
   read: boolean;
-  linkTab?: 'home' | 'homework' | 'etuts' | 'grades' | 'messages';
+  linkTab?: 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
   emailSent?: boolean;
   emailRecipient?: string;
   emailDetails?: {

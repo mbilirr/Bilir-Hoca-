@@ -48,7 +48,7 @@ import {
   ReferenceLine,
   LabelList,
 } from 'recharts';
-import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget } from '../../types';
+import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget, StudentNotification } from '../../types';
 import { dataService } from '../../services/dataService';
 import { WeeklyTargetModal } from './WeeklyTargetModal';
 import {
@@ -71,35 +71,80 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   classes,
   students,
 }) => {
-  // Sınıf seçimi (varsayılan ilk sınıf)
-  const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    return classes.length > 0 ? classes[0].id : '';
-  });
+  // Sınıf seçimi (varsayılan: boş, "Sınıf Seçiniz")
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
 
-  // Seçili sınıftaki öğrenciler
+  // Seçili sınıftaki öğrenciler (eğer sınıf seçilmediyse tüm öğrenciler)
   const classStudents = useMemo(() => {
     if (!selectedClassId || selectedClassId === 'all') return students;
     return students.filter((s) => s.classId === selectedClassId);
   }, [students, selectedClassId]);
 
-  // Seçili öğrenci
-  const [selectedStudentId, setSelectedStudentId] = useState<string>(() => {
-    return classStudents.length > 0 ? classStudents[0].id : '';
-  });
+  // Seçili öğrenci (varsayılan: boş, "Öğrenci Seçiniz")
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
-  // Sınıf değiştiğinde öğrenci seçimini güncelle
+  // Özel Açılır Arama Menüsü Durumları
+  const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState<boolean>(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+  const studentDropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Öğretmen Tebrik & Aferin Bildirimi Gönderme Durumları
+  const [studentNotifications, setStudentNotifications] = useState<StudentNotification[]>(() =>
+    dataService.getStudentNotifications()
+  );
+  const [praiseTargetDay, setPraiseTargetDay] = useState<{
+    dateStr: string;
+    dayName: string;
+    totalQuestions: number;
+    subjectsText?: string;
+  } | null>(null);
+  const [praiseCustomMessage, setPraiseCustomMessage] = useState<string>('');
+  const [praiseSuccessToast, setPraiseSuccessToast] = useState<string | null>(null);
+
+  // Sınıf değiştiğinde: eğer seçili öğrenci bu yeni sınıfta yoksa ve bir sınıf seçildiyse seçimi güncelle
   useEffect(() => {
-    if (classStudents.length > 0 && !classStudents.some((s) => s.id === selectedStudentId)) {
-      setSelectedStudentId(classStudents[0].id);
+    if (selectedClassId && selectedStudentId) {
+      const existsInClass = classStudents.some((s) => s.id === selectedStudentId);
+      if (!existsInClass) {
+        setSelectedStudentId('');
+      }
     }
-  }, [classStudents, selectedStudentId]);
+  }, [selectedClassId, classStudents, selectedStudentId]);
+
+  // Dışa tıklandığında öğrenci arama menüsünü kapat
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        studentDropdownRef.current &&
+        !studentDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsStudentDropdownOpen(false);
+      }
+    };
+    if (isStudentDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isStudentDropdownOpen]);
+
+  // Bildirim güncellemelerini dinle
+  useEffect(() => {
+    const unsub = dataService.subscribe(() => {
+      setStudentNotifications(dataService.getStudentNotifications());
+    });
+    return unsub;
+  }, []);
 
   const activeStudent = useMemo(() => {
-    return students.find((s) => s.id === selectedStudentId) || classStudents[0] || students[0];
-  }, [students, selectedStudentId, classStudents]);
+    if (!selectedStudentId) return null;
+    return students.find((s) => s.id === selectedStudentId) || null;
+  }, [students, selectedStudentId]);
 
   const activeClass = useMemo(() => {
-    return classes.find((c) => c.id === activeStudent?.classId);
+    if (!activeStudent?.classId) return null;
+    return classes.find((c) => c.id === activeStudent.classId) || null;
   }, [classes, activeStudent]);
 
   // Görünüm modları: 'weekly' (Haftalık Analiz) | 'monthly' (Aylık Analiz) | 'class_overview' (Sınıf Başarı Sıralaması)
@@ -150,6 +195,73 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     });
     return unsub;
   }, []);
+
+  const todayIsoStr = useMemo(() => formatDateISO(new Date()), []);
+
+  // Belirli bir öğrencinin bugün kaç soru çözdüğünü döndürür
+  const getStudentTodayQuestionCount = (studentId: string): number => {
+    const logs = allLogs.filter((l) => l.studentId === studentId && l.date === todayIsoStr);
+    return logs.reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
+  };
+
+  // Öğrenci arama kutusuna göre filtrelenmiş liste
+  const filteredDropdownStudents = useMemo(() => {
+    const query = studentSearchQuery.trim().toLowerCase();
+    let list = classStudents;
+    if (query) {
+      list = list.filter((s) => {
+        const nameMatch = s.name.toLowerCase().includes(query);
+        const classMatch = s.className ? s.className.toLowerCase().includes(query) : false;
+        const noMatch = s.studentNumber ? s.studentNumber.includes(query) : false;
+        return nameMatch || classMatch || noMatch;
+      });
+    }
+    return list;
+  }, [classStudents, studentSearchQuery]);
+
+  // Bir gün için tebrik bildirimi gönderildi mi kontrolü
+  const isPraisedForDate = (dateStr: string): boolean => {
+    if (!activeStudent) return false;
+    return studentNotifications.some(
+      (n) => n.studentId === activeStudent.id && n.type === 'praise' && n.sourceId === dateStr
+    );
+  };
+
+  const handleOpenPraiseModal = (day: {
+    dateStr: string;
+    dayName: string;
+    totalQuestions: number;
+    subjectsText?: string;
+  }) => {
+    setPraiseTargetDay(day);
+    const studentName = activeStudent?.name || 'Öğrencimiz';
+    setPraiseCustomMessage(
+      `Tebrikler ${studentName}! 👏 ${formatTurkishDate(day.dateStr)} tarihinde çözdüğün ${day.totalQuestions} soru ve gösterdiğin gayret için seni tebrik ederim, başarılarının devamını dilerim! ⭐`
+    );
+  };
+
+  const handleSendPraise = () => {
+    if (!praiseTargetDay || !activeStudent) return;
+    const authSession = dataService.getAuthSession();
+    const teacherName = authSession?.user?.name || 'Öğretmeniniz';
+
+    dataService.sendStudentPraise(activeStudent.id, {
+      teacherName,
+      message: praiseCustomMessage,
+      date: praiseTargetDay.dateStr,
+      questionCount: praiseTargetDay.totalQuestions,
+      subjectDetails: praiseTargetDay.subjectsText,
+    });
+
+    const targetStudentName = activeStudent.name;
+    setPraiseTargetDay(null);
+    setPraiseSuccessToast(
+      `🎉 ${targetStudentName} öğrencisine tebrik bildirimi başarıyla gönderildi!`
+    );
+    setTimeout(() => {
+      setPraiseSuccessToast(null);
+    }, 4000);
+  };
 
   // Aktif öğrenci için haftalık analitik
   const targetWeekDate = useMemo(() => {
@@ -577,9 +689,20 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
           {/* 1. Sınıf Seçimi */}
           <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200">
-            <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-[#1e3a8a]" />
-              Sınıf Filtresi
+            <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#1e3a8a]" />
+                Sınıf Filtresi
+              </span>
+              {selectedClassId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedClassId('')}
+                  className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold cursor-pointer"
+                >
+                  Sınıfı Temizle ✕
+                </button>
+              )}
             </label>
             <select
               id="looker-filter-class"
@@ -587,32 +710,178 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               onChange={(e) => setSelectedClassId(e.target.value)}
               className="w-full bg-white border border-slate-300 text-xs font-semibold text-[#0f172a] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
             >
+              <option value="">Sınıf Seçiniz</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.gradeLevel || ''})
+                  {c.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* 2. Öğrenci Seçimi */}
-          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200">
-            <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-orange-600" />
-              Öğrenci Seçimi
+          {/* 2. Öğrenci Seçimi (Arama Kutulu & Renk Vurgulu Özel Açılır Menü) */}
+          <div className="bg-[#f8fafc] p-3 rounded-xl border border-slate-200 relative" ref={studentDropdownRef}>
+            <label className="block text-[11px] font-bold text-[#334155] mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-orange-600" />
+                Öğrenci Seçimi
+              </span>
+              {selectedStudentId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentId('')}
+                  className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold cursor-pointer"
+                >
+                  Seçimi Kaldır ✕
+                </button>
+              )}
             </label>
-            <select
-              id="looker-filter-student"
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-              className="w-full bg-white border border-slate-300 text-xs font-bold text-[#0f172a] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
+
+            <button
+              id="looker-filter-student-btn"
+              type="button"
+              onClick={() => {
+                setIsStudentDropdownOpen((prev) => !prev);
+                setStudentSearchQuery('');
+              }}
+              className="w-full bg-white border border-slate-300 text-xs rounded-lg px-3 py-1.5 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer text-left shadow-2xs hover:border-slate-400 transition-colors"
             >
-              {classStudents.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              {activeStudent ? (
+                <div className="flex items-center gap-1.5 truncate">
+                  <span
+                    className={`font-bold ${
+                      getStudentTodayQuestionCount(activeStudent.id) > 0
+                        ? 'text-emerald-700 font-black'
+                        : 'text-[#0f172a]'
+                    }`}
+                  >
+                    {activeStudent.name}
+                  </span>
+                  {activeStudent.className && (
+                    <span className="text-[10px] text-slate-400 truncate">
+                      ({activeStudent.className})
+                    </span>
+                  )}
+                  {getStudentTodayQuestionCount(activeStudent.id) > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      🎯 {getStudentTodayQuestionCount(activeStudent.id)}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-slate-500 font-medium">Öğrenci Seçiniz</span>
+              )}
+              <ChevronDown
+                className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                  isStudentDropdownOpen ? 'rotate-180 text-orange-500' : ''
+                }`}
+              />
+            </button>
+
+            {/* Açılır Arama ve Öğrenci Seçim Paneli */}
+            {isStudentDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in duration-100">
+                {/* En üstteki Yapışkan Arama Kutusu */}
+                <div className="p-2 border-b border-slate-200 bg-slate-50 sticky top-0 z-20">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Öğrenci ara (isim, sınıf, no)..."
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                    />
+                    {studentSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setStudentSearchQuery('')}
+                        className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seçim Seçenekleri */}
+                <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudentId('');
+                      setIsStudentDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 flex items-center justify-between cursor-pointer"
+                  >
+                    <span>Öğrenci Seçiniz (Seçimi Temizle)</span>
+                    {!selectedStudentId && <Check className="w-3.5 h-3.5 text-orange-600" />}
+                  </button>
+
+                  {filteredDropdownStudents.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400">
+                      Eşleşen öğrenci bulunamadı.
+                    </div>
+                  ) : (
+                    filteredDropdownStudents.map((s) => {
+                      const todayCount = getStudentTodayQuestionCount(s.id);
+                      const hasSolvedToday = todayCount > 0;
+                      const isSelected = selectedStudentId === s.id;
+
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedStudentId(s.id);
+                            setIsStudentDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            hasSolvedToday
+                              ? isSelected
+                                ? 'bg-emerald-100/90 text-emerald-950 font-black border-l-4 border-emerald-600'
+                                : 'bg-emerald-50/70 hover:bg-emerald-100/70 text-emerald-900 border-l-4 border-emerald-500'
+                              : isSelected
+                              ? 'bg-orange-50 text-orange-950 font-bold'
+                              : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <span
+                              className={`truncate ${
+                                hasSolvedToday
+                                  ? 'text-emerald-700 font-extrabold flex items-center gap-1.5'
+                                  : 'font-semibold'
+                              }`}
+                            >
+                              {hasSolvedToday && (
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              )}
+                              {s.name}
+                            </span>
+                            {s.className && (
+                              <span className="text-[10px] text-slate-400 shrink-0">
+                                ({s.className})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            {hasSolvedToday && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs">
+                                🎯 Bugün {todayCount} Soru
+                              </span>
+                            )}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-orange-600" />}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 3. Görünüm Dönemi (Haftalık / Aylık / Sınıf Sıralaması) */}
@@ -661,8 +930,76 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       </div>
 
       {!activeStudent ? (
-        <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500">
-          Lütfen analizini incelemek istediğiniz sınıf ve öğrenciyi seçiniz.
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-10 shadow-sm space-y-6">
+          <div className="text-center max-w-xl mx-auto space-y-2">
+            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
+              <User className="w-6 h-6" />
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-[#0f172a]">
+              Lütfen İncelemek İstediğiniz Öğrenciyi Seçiniz
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Yukarıdaki <strong>"Öğrenci Seçimi"</strong> açılır kutusundan dilediğiniz öğrenciyi seçebilir veya arama kutusuna ismini yazarak kolayca bulabilirsiniz. Sınıf seçimi yapmadan da tüm öğrenciler arasından seçim yapabilirsiniz.
+            </p>
+          </div>
+
+          {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}
+          {(() => {
+            const todaySolvedStudents = students
+              .map((s) => ({
+                student: s,
+                todayQuestions: getStudentTodayQuestionCount(s.id),
+              }))
+              .filter((x) => x.todayQuestions > 0);
+
+            if (todaySolvedStudents.length === 0) {
+              return (
+                <div className="bg-slate-50 rounded-xl p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200">
+                  Bugün henüz sisteme soru girişi yapan öğrenci bulunmuyor. Yukarıdaki menüden geçmiş günlerin analizini incelemek istediğiniz öğrenciyi seçebilirsiniz.
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Bugün Soru Çözen Öğrenciler ({todaySolvedStudents.length})</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500">
+                    Öğrenciye tıklayarak analizi görüntüleyebilir ve tebrik edebilirsiniz
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {todaySolvedStudents.map(({ student: s, todayQuestions }) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setSelectedStudentId(s.id)}
+                      className="p-3.5 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/80 to-teal-50/40 hover:from-emerald-100/90 hover:to-teal-100/60 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="font-extrabold text-xs text-emerald-950 group-hover:text-emerald-800 transition-colors">
+                          {s.name}
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs shrink-0">
+                          {todayQuestions} Soru
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-emerald-100/60">
+                        <span className="truncate">{s.className || 'Sınıf Belirtilmedi'}</span>
+                        <span className="text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
+                          İncele →
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <>
@@ -1133,12 +1470,15 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           <th className="px-3.5 py-2.5">Ders Dağılımı</th>
                           <th className="px-3.5 py-2.5 text-center">Hedef Durumu</th>
                           <th className="px-3.5 py-2.5 text-center">Durum</th>
+                          <th className="px-3.5 py-2.5 text-center">Öğretmen Tebriki</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {weeklyAnalytics.days.map((d) => {
                           const metTarget = d.totalQuestions >= dailyQuestionTarget;
                           const completionRate = Math.min(100, Math.round((d.totalQuestions / dailyQuestionTarget) * 100));
+                          const praised = isPraisedForDate(d.dateStr);
+
                           return (
                             <tr key={d.dateStr} className="hover:bg-slate-50 transition-colors">
                               <td className="px-3.5 py-2.5 font-bold text-[#0f172a]">{d.dayName}</td>
@@ -1177,6 +1517,28 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                     0 Soru ⚠️
                                   </span>
+                                )}
+                              </td>
+                              <td className="px-3.5 py-2.5 text-center">
+                                {d.totalQuestions > 0 ? (
+                                  praised ? (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Tebrik Edildi ✓</span>
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenPraiseModal(d)}
+                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white shadow-xs hover:shadow transition-all cursor-pointer hover:scale-105"
+                                      title={`${activeStudent?.name} öğrencisine ${d.dayName} günü çözdüğü ${d.totalQuestions} soru için tebrik ve aferin mesajı gönder`}
+                                    >
+                                      <Award className="w-3.5 h-3.5 text-amber-100" />
+                                      <span>Tebrik Et ⭐</span>
+                                    </button>
+                                  )
+                                ) : (
+                                  <span className="text-slate-300 text-xs italic">-</span>
                                 )}
                               </td>
                             </tr>
@@ -2268,6 +2630,130 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
           weekEndDate={currentWeekEndDate}
           existingTarget={activeWeeklyTarget}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* ÖĞRETMEN TEBRİK VE AFERİN BİLDİRİMİ GÖNDERME MODALI                     */}
+      {/* ========================================================================= */}
+      {praiseTargetDay && activeStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-amber-200 relative overflow-hidden">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center shrink-0 shadow-md">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-[#0f172a]">
+                    Öğrenciye Tebrik ve Aferin Gönder
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {activeStudent.name} • {formatTurkishDate(praiseTargetDay.dateStr)} ({praiseTargetDay.dayName})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPraiseTargetDay(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Performans Özeti Rozeti */}
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-3.5 mb-4 text-xs text-amber-950 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                  Günlük Çözülen Soru
+                </span>
+                <span className="text-lg font-black text-amber-900">
+                  {praiseTargetDay.totalQuestions} Soru
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
+                  Ders Dağılımı
+                </span>
+                <span className="text-xs font-semibold text-amber-900 truncate max-w-[200px] block">
+                  {praiseTargetDay.subjectsText || 'Genel Çözüm'}
+                </span>
+              </div>
+            </div>
+
+            {/* Hızlı Tebrik Şablonları */}
+            <div className="space-y-1.5 mb-3">
+              <label className="text-[11px] font-bold text-[#334155] block">
+                ⚡ Hızlı Tebrik Şablonu Seçin:
+              </label>
+              <div className="flex flex-col gap-1.5">
+                {[
+                  `Harikasın ${activeStudent.name}! 👏 Bugünkü ${praiseTargetDay.totalQuestions} soruluk hedefini başarıyla tamamladığın ve gösterdiğin gayret için seni tebrik ederim, aynen devam!`,
+                  `Aferin ${activeStudent.name}! ⭐ Soru çözümlerin ve disiplinli çalışman için seni tebrik ederim, harika gidiyorsun!`,
+                  `Süpersin! 🚀 Günlük ${praiseTargetDay.totalQuestions} soru çözerek hedefini aştın. Bu disiplin ve kararlılık seni hedeflerine ulaştıracak!`,
+                  `Tebrikler ${activeStudent.name}! 🎯 Bugünkü soru çözüm performansın ve azmin takdire şayan. Seninle gurur duyuyorum!`,
+                ].map((tpl, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setPraiseCustomMessage(tpl)}
+                    className={`text-left text-[11px] p-2 rounded-lg border transition-colors cursor-pointer ${
+                      praiseCustomMessage === tpl
+                        ? 'bg-amber-100/80 border-amber-400 font-bold text-amber-950 ring-1 ring-amber-400'
+                        : 'bg-slate-50 hover:bg-amber-50/50 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {tpl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Özelleştirilebilir Mesaj Kutusu */}
+            <div className="mb-4">
+              <label className="text-[11px] font-bold text-[#334155] block mb-1">
+                İletilecek Bildirim Mesajı:
+              </label>
+              <textarea
+                rows={3}
+                value={praiseCustomMessage}
+                onChange={(e) => setPraiseCustomMessage(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-[#0f172a] font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                placeholder="Öğrenciye iletilecek tebrik mesajını yazınız..."
+              />
+              <span className="text-[10px] text-slate-500 block mt-1">
+                ℹ️ Bu bildirim öğrencinin ana ekranında (portalında) tebrik kartı olarak anında gösterilecektir.
+              </span>
+            </div>
+
+            {/* Modal Butonları */}
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setPraiseTargetDay(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleSendPraise}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Award className="w-4 h-4" />
+                <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Başarı Toast Bildirimi */}
+      {praiseSuccessToast && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#0f172a] text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500/40 flex items-center space-x-2.5 animate-in slide-in-from-bottom-5 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-xs font-bold">{praiseSuccessToast}</span>
+        </div>
       )}
     </div>
   );

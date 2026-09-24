@@ -94,6 +94,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   );
   const [classes, setClasses] = useState<ClassGroup[]>(() => dataService.getClasses());
   const [etutViewMode, setEtutViewMode] = useState<'calendar' | 'cards'>('calendar');
+  const [notificationTrigger, setNotificationTrigger] = useState(0);
+
+  const unreadPraiseNotifs = React.useMemo(() => {
+    return dataService
+      .getStudentNotifications(currentStudent.id)
+      .filter((n) => n.type === 'praise' && !n.read);
+  }, [currentStudent.id, unreadNotifsCount, notificationTrigger]);
 
   useEffect(() => {
     setActiveTab('home');
@@ -103,6 +110,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     const updateUnread = () => {
       setUnreadNotifsCount(dataService.getUnreadNotificationsCount(currentStudent.id));
       setClasses(dataService.getClasses());
+      setNotificationTrigger((prev) => prev + 1);
     };
     updateUnread();
     const unsubscribe = dataService.subscribe(updateUnread);
@@ -416,6 +424,61 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
          ========================================================================= */}
       {activeTab === 'home' && (
         <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Öğretmenden Gelen Günlük Soru Çözüm Tebrik ve Aferin Bildirim Kartı */}
+          {unreadPraiseNotifs.length > 0 && (
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 p-5 sm:p-6 text-white shadow-xl shadow-amber-500/25 border-2 border-amber-300/50 animate-in fade-in slide-in-from-top-4 duration-300">
+              {/* Arka plan ışıltı ve süslemeler */}
+              <div className="absolute -right-6 -bottom-6 w-36 h-36 bg-white/10 rounded-full blur-xl pointer-events-none" />
+              <div className="absolute right-12 top-2 text-6xl opacity-15 select-none pointer-events-none">
+                🏆
+              </div>
+
+              <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shrink-0 text-2xl sm:text-3xl shadow-inner">
+                    ⭐
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white text-amber-900 uppercase tracking-wider shadow-xs">
+                        🎉 TEBRİKLER & AFERİN!
+                      </span>
+                      <span className="text-xs text-amber-100 font-bold">
+                        {unreadPraiseNotifs[0].teacherName ? `Öğretmeniniz: ${unreadPraiseNotifs[0].teacherName}` : 'Öğretmeninizden'}
+                      </span>
+                    </div>
+
+                    <h3 className="text-base sm:text-lg font-black text-white mt-1">
+                      {unreadPraiseNotifs[0].title}
+                    </h3>
+
+                    <p className="text-xs sm:text-sm text-amber-50 mt-1.5 font-medium bg-black/15 backdrop-blur-xs p-3 rounded-xl border border-white/15 leading-relaxed">
+                      "{unreadPraiseNotifs[0].message}"
+                    </p>
+
+                    <div className="text-[11px] text-amber-100/90 mt-2 flex items-center space-x-3">
+                      <span>🎯 {unreadPraiseNotifs[0].sourceTitle || 'Günlük Soru Çözüm Başarısı'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0 self-end md:self-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+                      dataService.markNotificationAsRead(unreadPraiseNotifs[0].id);
+                      setNotificationTrigger((prev) => prev + 1);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-50 text-amber-950 font-black text-xs shadow-md transition-all hover:scale-105 active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    <span>Teşekkürler! (Okundu Yap) 👏</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Wall 1: Öğrenci Karşılama ve Güncel Ayı Gösteren İnteraktif Ajanda Duvarı */}
           <StudentHeroBanner
             student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
