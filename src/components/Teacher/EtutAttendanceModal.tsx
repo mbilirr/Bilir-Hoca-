@@ -262,16 +262,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 shrink-0"
                     />
                     <div>
-                      <div className="text-sm font-bold text-white flex items-center space-x-2">
-                        <span>{std.name}</span>
-                        {std.className && (
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                            {std.className}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-400">
-                        No: #{std.studentNumber || '-'}
+                      <div className="text-sm font-bold text-white">
+                        {std.name}
                       </div>
                     </div>
                   </div>

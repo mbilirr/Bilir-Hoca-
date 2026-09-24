@@ -955,7 +955,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                   >
                     {selectableStudents.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.name} {s.studentNumber ? `(#${s.studentNumber})` : ''} — {formatClassDisplayName(s.className, s.branch, s.gradeLevel)}
+                        {s.name}
                       </option>
                     ))}
                   </select>
@@ -1330,17 +1330,6 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                   />
                   <div>
                     <h3 className="text-base font-bold text-slate-900">{currentStudent?.name}</h3>
-                    <div className="flex items-center space-x-2 text-xs text-slate-500">
-                      <span className="font-mono text-indigo-700 font-semibold">
-                        #{currentStudent?.studentNumber || '-'}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {currentStudent?.className
-                          ? formatClassDisplayName(currentStudent.className, currentStudent.branch, currentStudent.gradeLevel)
-                          : 'Sınıf Bilgisi Yok'}
-                      </span>
-                    </div>
                   </div>
                 </div>
 

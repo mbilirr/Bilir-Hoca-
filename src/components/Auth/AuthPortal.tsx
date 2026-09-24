@@ -477,8 +477,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       {/* Top Brand Bar */}
       <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-xl shadow-indigo-600/30 ring-2 ring-white/25 transform hover:scale-105 transition-all">
-            <GraduationCap className="w-7 h-7 text-white drop-shadow-md" />
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 p-1 flex items-center justify-center shadow-xl shadow-indigo-600/30 ring-2 ring-white/25 transform hover:scale-105 transition-all overflow-hidden">
+            <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center space-x-2">

@@ -609,7 +609,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             >
               {classStudents.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} {s.studentNumber ? `(No: ${s.studentNumber})` : ''}
+                  {s.name}
                 </option>
               ))}
             </select>
@@ -735,9 +735,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                   <div className="text-left">
                     <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {activeStudent.className || activeClass?.name} {activeStudent.studentNumber ? `• No: ${activeStudent.studentNumber}` : ''}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -1323,9 +1320,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                   <div className="text-left">
                     <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {activeStudent.className || activeClass?.name}
-                    </span>
                   </div>
                 </div>
               </div>

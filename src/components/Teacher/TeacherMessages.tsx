@@ -179,9 +179,6 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                       <h3 className="text-base font-bold text-white">
                         {activeMessage.studentName}
                       </h3>
-                      <p className="text-xs text-indigo-300 font-medium">
-                        {activeMessage.studentClass} • Öğrenci
-                      </p>
                     </div>
                   </div>
 

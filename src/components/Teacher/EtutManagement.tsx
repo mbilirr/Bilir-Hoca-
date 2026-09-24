@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CalendarDays,
   LayoutGrid,
@@ -29,6 +29,7 @@ import {
   Info,
   HelpCircle,
   MessageSquareQuote,
+  RefreshCw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
@@ -74,6 +75,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [selectedEtutForAttendance, setSelectedEtutForAttendance] = useState<Etut | null>(null);
   const [isSubjectTeacherModalOpen, setIsSubjectTeacherModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Mobil veya bilgisayardan açıldığında en son etütleri anında buluttan senkronize et
+  useEffect(() => {
+    dataService.syncEtutsFromSupabase(true);
+  }, []);
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    await dataService.syncEtutsFromSupabase(false);
+    setTimeout(() => setIsSyncing(false), 500);
+  };
 
   // Form states - Okul, Sınıf ve Dersler (Dinamik)
   const [schoolLevel, setSchoolLevel] = useState<SchoolLevelType>('Ortaokul');
@@ -505,6 +518,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               <span>Yoklama & Devamsızlık</span>
             </button>
           </div>
+
+          {/* Bulut Yenile / Eşitle Butonu */}
+          <button
+            type="button"
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            className="flex items-center space-x-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50"
+            title="Bilgisayar ve telefondaki tüm etütleri anında buluttan senkronize et"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-cyan-400' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">{isSyncing ? 'Eşitleniyor...' : 'Bulut Yenile'}</span>
+          </button>
 
           {/* Etüt Analizi Butonu */}
           <button
@@ -1097,10 +1122,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             />
                             <div className="min-w-0">
                               <h4 className="text-sm font-bold text-white truncate">{std.name}</h4>
-                              <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                                <span>{std.className || 'Sınıf belirtilmedi'}</span>
-                                {std.studentNumber && <span className="font-mono text-indigo-300">#{std.studentNumber}</span>}
-                              </div>
                             </div>
                           </div>
 
@@ -1595,12 +1616,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                                 />
                                 <div className="flex-1 min-w-0">
                                   <div className="text-white font-medium truncate">{std.name}</div>
-                                  <div className="text-slate-400 text-[10px] flex items-center space-x-1">
-                                    <span>{std.className || gradeLevel}</span>
-                                    {std.branch && (
-                                      <span className="text-indigo-300">({std.branch})</span>
-                                    )}
-                                  </div>
                                 </div>
                               </label>
                             );

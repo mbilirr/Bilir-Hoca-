@@ -172,21 +172,34 @@ export default function App() {
     const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
     trackedEvents.forEach((evt) => window.addEventListener(evt, markActivity, { passive: true }));
 
-    // Kullanıcı sekmeden ayrılıp geri geldiğinde beklemeden anında kontrol et
+    // Kullanıcı sekmeden ayrılıp geri geldiğinde veya telefon ekranı açıldığında anında kontrol et ve senkronize et
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         performInactivityCheck();
+        dataService.syncEtutsFromSupabase(true);
+        dataService.forceSyncTeachers();
       }
     };
+    const handleFocus = () => {
+      performInactivityCheck();
+      dataService.syncEtutsFromSupabase(true);
+    };
+    const handleOnline = () => {
+      dataService.syncEtutsFromSupabase(true);
+      dataService.forceSyncTeachers();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', performInactivityCheck);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
 
     const inactivityInterval = setInterval(performInactivityCheck, 3000);
 
     return () => {
       trackedEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', performInactivityCheck);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
       clearInterval(inactivityInterval);
     };
   }, []);

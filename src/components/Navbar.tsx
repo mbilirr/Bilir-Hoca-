@@ -286,9 +286,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onSelectTeacherTab && onSelectTeacherTab('home');
               }}
               title="Ana Sayfaya Git (Ajanda & Özetler)"
-              className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all"
+              className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 p-1.5 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all overflow-hidden"
             >
-              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
             </button>
 
             {isTeacherSession && currentTeacher ? (

@@ -1071,12 +1071,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             />
                             <div className="min-w-0">
                               <h4 className="text-sm font-bold text-slate-900 truncate">{std.name}</h4>
-                              <div className="flex items-center space-x-2 text-[11px] text-slate-500">
-                                <span className="font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-semibold">
-                                  #{std.studentNumber || '-'}
-                                </span>
-                                {std.phone && <span>• {std.phone}</span>}
-                              </div>
                             </div>
                           </div>
 

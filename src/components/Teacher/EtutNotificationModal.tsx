@@ -271,15 +271,6 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
                       </div>
                       <div>
                         <span className="text-xs font-bold text-white block">{std.name}</span>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                          <span>{std.className || 'Sınıf Yok'}</span>
-                          {std.phone && (
-                            <>
-                              <span>•</span>
-                              <span className="text-slate-300 font-mono">{std.phone}</span>
-                            </>
-                          )}
-                        </div>
                       </div>
                     </div>
 

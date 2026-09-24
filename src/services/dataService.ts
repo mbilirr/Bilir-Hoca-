@@ -1026,6 +1026,10 @@ export class DataService {
     this.setupTeachersRealtimeSync();
     this.startPeriodicTeachersSync();
 
+    // Cross-device real-time and periodic sync for etuts (PC & Mobile sync)
+    this.setupEtutsRealtimeSync();
+    this.startPeriodicEtutsSync();
+
     // Cross-tab synchronization for teacher registrations and status changes
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', (e) => {
@@ -1082,6 +1086,260 @@ export class DataService {
       this.teacherSyncInterval = window.setInterval(() => {
         this.syncTeachersFromSupabase(true);
       }, 4000);
+    }
+  }
+
+  // --- REAL-TIME & PERIODIC ETUT SYNC (PC & PHONE SYNCHRONIZATION) ---
+  private etutRealtimeChannel: any = null;
+  private etutSyncInterval: any = null;
+
+  public setupEtutsRealtimeSync() {
+    if (this.etutRealtimeChannel) return;
+    try {
+      this.etutRealtimeChannel = supabase
+        .channel('etuts-realtime-sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'etuts' },
+          (payload) => {
+            this.handleRemoteEtutRealtimeEvent(payload);
+          }
+        )
+        .subscribe();
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for etuts:', e);
+    }
+  }
+
+  public startPeriodicEtutsSync() {
+    if (this.etutSyncInterval) return;
+    if (typeof window !== 'undefined') {
+      // Periodic check every 5 seconds for instant multi-device synchronization
+      this.etutSyncInterval = window.setInterval(() => {
+        this.syncEtutsFromSupabase(true);
+      }, 5000);
+    }
+  }
+
+  public handleRemoteEtutRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType; // 'INSERT' | 'UPDATE' | 'DELETE'
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.deletedEtutIds.add(oldRow.id);
+          saveData(STORAGE_KEYS.DELETED_ETUTS, Array.from(this.deletedEtutIds));
+          this.etuts = this.etuts.filter((e) => e.id !== oldRow.id);
+          saveData(STORAGE_KEYS.ETUTS, this.etuts);
+          this.notify();
+        }
+        return;
+      }
+
+      const row = payload.new;
+      if (!row || !row.id || this.deletedEtutIds.has(row.id)) return;
+
+      let parsedMeta: any = {};
+      try {
+        if (row.notes && typeof row.notes === 'string' && row.notes.startsWith('{') && row.notes.includes('__etut_meta__')) {
+          parsedMeta = JSON.parse(row.notes);
+        }
+      } catch (err) {}
+
+      const incomingEtut: Etut = {
+        id: row.id,
+        subject: row.subject,
+        topic: row.topic,
+        date: row.date,
+        time: row.time || '16:00',
+        duration: Number(row.duration) || parsedMeta.duration || 45,
+        assignedStudentIds: row.assigned_student_ids || 'all',
+        location: row.location || 'Derslik',
+        notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (row.notes && !row.notes.startsWith('{') ? row.notes : ''),
+        teacherFeedback: parsedMeta.teacherFeedback || '',
+        createdAt: row.created_at || new Date().toISOString(),
+        teacherId: parsedMeta.teacherId || 'teacher-1',
+        teacherName: parsedMeta.teacherName || 'Öğretmen',
+        teacherBranch: parsedMeta.teacherBranch || '',
+        lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
+        gradeLevel: parsedMeta.gradeLevel,
+        schoolLevel: parsedMeta.schoolLevel,
+        studentAttendance: parsedMeta.studentAttendance || {},
+      };
+
+      const existingIdx = this.etuts.findIndex((e) => e.id === incomingEtut.id);
+      if (existingIdx !== -1) {
+        this.etuts[existingIdx] = {
+          ...this.etuts[existingIdx],
+          ...incomingEtut,
+          studentAttendance: {
+            ...(incomingEtut.studentAttendance || {}),
+            ...(this.etuts[existingIdx].studentAttendance || {}),
+          },
+        };
+      } else {
+        this.etuts.unshift(incomingEtut);
+      }
+
+      saveData(STORAGE_KEYS.ETUTS, this.etuts);
+      this.notify();
+    } catch (err) {
+      console.warn('[EtutRealtime] Error handling realtime etut payload:', err);
+    }
+  }
+
+  public async pushEtutToSupabase(etut: Etut): Promise<boolean> {
+    try {
+      const meta = JSON.stringify({
+        __etut_meta__: true,
+        userNotes: etut.notes || '',
+        teacherFeedback: etut.teacherFeedback || '',
+        studentAttendance: etut.studentAttendance || {},
+        teacherId: etut.teacherId,
+        teacherName: etut.teacherName,
+        teacherBranch: etut.teacherBranch || '',
+        lessonPeriod: etut.lessonPeriod || 'Ders',
+        duration: Number(etut.duration) || 45,
+        gradeLevel: etut.gradeLevel,
+        schoolLevel: etut.schoolLevel,
+      });
+
+      const { error } = await supabase.from('etuts').upsert({
+        id: etut.id,
+        subject: etut.subject,
+        topic: etut.topic,
+        date: etut.date,
+        time: etut.time,
+        duration: Number(etut.duration) || 45,
+        location: etut.location || 'Derslik',
+        assigned_student_ids: Array.isArray(etut.assignedStudentIds) ? etut.assignedStudentIds : null,
+        notes: meta,
+      });
+
+      if (error) {
+        console.error('[EtutSync] Error upserting etut to Supabase:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('[EtutSync] Exception upserting etut to Supabase:', err);
+      return false;
+    }
+  }
+
+  public async syncEtutsFromSupabase(isBackground = false): Promise<void> {
+    try {
+      const { data: remoteEtuts, error: errEtuts } = await supabase.from('etuts').select('*');
+      if (errEtuts) {
+        if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
+        return;
+      }
+      if (remoteEtuts) {
+        let etutsChanged = false;
+        remoteEtuts.forEach((re: any) => {
+          if (this.deletedEtutIds.has(re.id)) return;
+          let parsedMeta: any = {};
+          try {
+            if (re.notes && typeof re.notes === 'string' && re.notes.startsWith('{') && re.notes.includes('__etut_meta__')) {
+              parsedMeta = JSON.parse(re.notes);
+            }
+          } catch (err) {}
+
+          const incomingEtut: Etut = {
+            id: re.id,
+            subject: re.subject,
+            topic: re.topic,
+            date: re.date,
+            time: re.time || '16:00',
+            duration: Number(re.duration) || parsedMeta.duration || 45,
+            assignedStudentIds: re.assigned_student_ids || 'all',
+            location: re.location || 'Derslik',
+            notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (re.notes && !re.notes.startsWith('{') ? re.notes : ''),
+            teacherFeedback: parsedMeta.teacherFeedback || '',
+            createdAt: re.created_at || new Date().toISOString(),
+            teacherId: parsedMeta.teacherId || 'teacher-1',
+            teacherName: parsedMeta.teacherName || 'Öğretmen',
+            teacherBranch: parsedMeta.teacherBranch || '',
+            lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
+            gradeLevel: parsedMeta.gradeLevel,
+            schoolLevel: parsedMeta.schoolLevel,
+            studentAttendance: parsedMeta.studentAttendance || {},
+          };
+
+          const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
+          if (existingIdx !== -1) {
+            const current = this.etuts[existingIdx];
+            const isDifferent =
+              current.subject !== incomingEtut.subject ||
+              current.topic !== incomingEtut.topic ||
+              current.date !== incomingEtut.date ||
+              current.time !== incomingEtut.time ||
+              current.duration !== incomingEtut.duration ||
+              current.location !== incomingEtut.location ||
+              current.notes !== incomingEtut.notes ||
+              current.teacherFeedback !== incomingEtut.teacherFeedback ||
+              current.teacherName !== incomingEtut.teacherName ||
+              current.teacherBranch !== incomingEtut.teacherBranch ||
+              current.lessonPeriod !== incomingEtut.lessonPeriod ||
+              JSON.stringify(current.assignedStudentIds || []) !== JSON.stringify(incomingEtut.assignedStudentIds || []) ||
+              JSON.stringify(current.studentAttendance || {}) !== JSON.stringify(incomingEtut.studentAttendance || {});
+
+            if (isDifferent) {
+              this.etuts[existingIdx] = {
+                ...current,
+                ...incomingEtut,
+                studentAttendance: {
+                  ...(incomingEtut.studentAttendance || {}),
+                  ...(current.studentAttendance || {}),
+                },
+              };
+              etutsChanged = true;
+            }
+          } else {
+            this.etuts.unshift(incomingEtut);
+            etutsChanged = true;
+          }
+        });
+
+        // Bilgisayarda önceden oluşturulup henüz Supabase'e yüklenmemiş yerel etütleri tespit et ve anında buluta yükle
+        const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
+        const unsyncedLocals = this.etuts.filter(
+          (e) => !remoteIds.has(e.id) && !this.deletedEtutIds.has(e.id)
+        );
+        if (unsyncedLocals.length > 0) {
+          const payload = unsyncedLocals.map((e) => ({
+            id: e.id,
+            subject: e.subject,
+            topic: e.topic,
+            date: e.date,
+            time: e.time,
+            duration: Number(e.duration) || 45,
+            location: e.location || 'Derslik',
+            assigned_student_ids: Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : null,
+            notes: JSON.stringify({
+              __etut_meta__: true,
+              userNotes: e.notes || '',
+              teacherFeedback: e.teacherFeedback || '',
+              studentAttendance: e.studentAttendance || {},
+              teacherId: e.teacherId,
+              teacherName: e.teacherName,
+              teacherBranch: e.teacherBranch || '',
+              lessonPeriod: e.lessonPeriod || 'Ders',
+              duration: Number(e.duration) || 45,
+              gradeLevel: e.gradeLevel,
+              schoolLevel: e.schoolLevel,
+            }),
+          }));
+          await supabase.from('etuts').upsert(payload);
+        }
+
+        if (etutsChanged) {
+          saveData(STORAGE_KEYS.ETUTS, this.etuts);
+          this.notify();
+        }
+      }
+    } catch (err) {
+      if (!isBackground) console.warn('[EtutSync] Sync error:', err);
     }
   }
 
@@ -1212,92 +1470,7 @@ export class DataService {
       }
 
       // 4. Sync etuts with Supabase (Cross-device etuts & attendance)
-      const { data: remoteEtuts, error: errEtuts } = await supabase.from('etuts').select('*');
-      if (!errEtuts && remoteEtuts && remoteEtuts.length > 0) {
-        let etutsChanged = false;
-        remoteEtuts.forEach((re: any) => {
-          if (this.deletedEtutIds.has(re.id)) return;
-          let parsedMeta: any = {};
-          try {
-            if (re.notes && re.notes.startsWith('{') && re.notes.includes('__etut_meta__')) {
-              parsedMeta = JSON.parse(re.notes);
-            }
-          } catch (err) {}
-
-          const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
-          const incomingEtut: Etut = {
-            id: re.id,
-            subject: re.subject,
-            topic: re.topic,
-            date: re.date,
-            time: re.time || '16:00',
-            duration: parsedMeta.duration || 45,
-            assignedStudentIds: re.assigned_student_ids || 'all',
-            location: re.location || 'Derslik',
-            notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : re.notes,
-            teacherFeedback: parsedMeta.teacherFeedback || '',
-            createdAt: re.created_at || new Date().toISOString(),
-            teacherId: parsedMeta.teacherId || 'teacher-1',
-            teacherName: parsedMeta.teacherName || 'Öğretmen',
-            gradeLevel: parsedMeta.gradeLevel,
-            schoolLevel: parsedMeta.schoolLevel,
-            studentAttendance: parsedMeta.studentAttendance || {},
-          };
-
-          if (existingIdx !== -1) {
-            const current = this.etuts[existingIdx];
-            if (
-              JSON.stringify(current.studentAttendance || {}) !==
-              JSON.stringify(incomingEtut.studentAttendance || {})
-            ) {
-              this.etuts[existingIdx] = {
-                ...current,
-                studentAttendance: {
-                  ...(incomingEtut.studentAttendance || {}),
-                  ...(current.studentAttendance || {}),
-                },
-              };
-              etutsChanged = true;
-            }
-          } else {
-            this.etuts.push(incomingEtut);
-            etutsChanged = true;
-          }
-        });
-        if (etutsChanged) {
-          saveData(STORAGE_KEYS.ETUTS, this.etuts);
-          this.notify();
-        }
-      }
-
-      // Upload local etuts to Supabase
-      if (this.etuts.length > 0) {
-        const etutPayload = this.etuts
-          .filter((e) => !this.deletedEtutIds.has(e.id))
-          .map((e) => ({
-            id: e.id,
-            subject: e.subject,
-            topic: e.topic,
-            date: e.date,
-            time: e.time,
-            location: e.location || 'Derslik',
-            assigned_student_ids: Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : null,
-            notes: JSON.stringify({
-              __etut_meta__: true,
-              userNotes: e.notes || '',
-              teacherFeedback: e.teacherFeedback || '',
-              studentAttendance: e.studentAttendance || {},
-              teacherId: e.teacherId,
-              teacherName: e.teacherName,
-              duration: e.duration,
-              gradeLevel: e.gradeLevel,
-              schoolLevel: e.schoolLevel,
-            }),
-          }));
-        if (etutPayload.length > 0) {
-          await supabase.from('etuts').upsert(etutPayload);
-        }
-      }
+      await this.syncEtutsFromSupabase(true);
 
       // 5. Sync homeworks & cross-device system payloads (question targets and logs)
       const { data: remoteHws, error: errHws } = await supabase.from('homeworks').select('*');
@@ -3037,6 +3210,7 @@ export class DataService {
       teacherId: etutData.teacherId || currentTeacher?.id,
       teacherName: etutData.teacherName || currentTeacher?.name || 'Öğretmen',
       teacherBranch: etutData.teacherBranch || currentTeacher?.branch || etutData.subject,
+      duration: Number(etutData.duration) || 45,
     };
     this.etuts.unshift(newEtut);
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
@@ -3045,6 +3219,10 @@ export class DataService {
     this.dispatchEtutNotificationsAndEmails(newEtut);
 
     this.notify();
+
+    // Supabase anında bulut senkronizasyonu - Masaüstü & Telefon arasında anında görünürlük
+    this.pushEtutToSupabase(newEtut);
+
     return newEtut;
   }
 
@@ -3056,26 +3234,7 @@ export class DataService {
     // Push to Supabase
     const updated = this.etuts.find((e) => e.id === id);
     if (updated) {
-      supabase.from('etuts').upsert({
-        id: updated.id,
-        subject: updated.subject,
-        topic: updated.topic,
-        date: updated.date,
-        time: updated.time,
-        location: updated.location || 'Derslik',
-        assigned_student_ids: Array.isArray(updated.assignedStudentIds) ? updated.assignedStudentIds : null,
-        notes: JSON.stringify({
-          __etut_meta__: true,
-          userNotes: updated.notes || '',
-          teacherFeedback: updated.teacherFeedback || '',
-          studentAttendance: updated.studentAttendance || {},
-          teacherId: updated.teacherId,
-          teacherName: updated.teacherName,
-          duration: updated.duration,
-          gradeLevel: updated.gradeLevel,
-          schoolLevel: updated.schoolLevel,
-        }),
-      }).then();
+      this.pushEtutToSupabase(updated);
     }
   }
 
@@ -3127,26 +3286,7 @@ export class DataService {
     this.notify();
 
     // Supabase push
-    supabase.from('etuts').upsert({
-      id: updatedEtut.id,
-      subject: updatedEtut.subject,
-      topic: updatedEtut.topic,
-      date: updatedEtut.date,
-      time: updatedEtut.time,
-      location: updatedEtut.location || 'Derslik',
-      assigned_student_ids: Array.isArray(updatedEtut.assignedStudentIds) ? updatedEtut.assignedStudentIds : null,
-      notes: JSON.stringify({
-        __etut_meta__: true,
-        userNotes: updatedEtut.notes || '',
-        teacherFeedback: updatedEtut.teacherFeedback || '',
-        studentAttendance: updatedEtut.studentAttendance,
-        teacherId: updatedEtut.teacherId,
-        teacherName: updatedEtut.teacherName,
-        duration: updatedEtut.duration,
-        gradeLevel: updatedEtut.gradeLevel,
-        schoolLevel: updatedEtut.schoolLevel,
-      }),
-    }).then();
+    this.pushEtutToSupabase(updatedEtut);
   }
 
   public deleteEtut(id: string): void {
@@ -3158,7 +3298,9 @@ export class DataService {
     this.notify();
 
     // Supabase delete
-    supabase.from('etuts').delete().eq('id', id).then();
+    supabase.from('etuts').delete().eq('id', id).then(({ error }) => {
+      if (error) console.error('[EtutSync] Error deleting etut from Supabase:', error);
+    });
   }
 
   // --- ATTENDANCE ---
@@ -3555,18 +3697,27 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find(
-        (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
+        (t) =>
+          t.id === teacherId ||
+          (session?.user?.username && t.username?.toLowerCase() === session?.user?.username?.toLowerCase()) ||
+          (session?.user?.email && t.email?.toLowerCase() === session?.user?.email?.toLowerCase())
       );
 
       // Yönetici tüm etütleri görebilir
-      if (this.isTeacherAdmin(teacher)) {
+      if (this.isTeacherAdmin(teacher) || this.isTeacherAdmin(session?.user as Teacher)) {
         return this.etuts;
       }
 
       // Normal öğretmen başka öğretmenlerin etütlerini GÖREMEZ. YALNIZCA KENDİ etütlerini görebilir.
-      return this.etuts.filter(
-        (e) => e.teacherId === teacherId || (teacher?.name && e.teacherName === teacher.name)
-      );
+      const teacherNameNorm = (teacher?.name || session?.user?.name || '').trim().toLowerCase();
+      const teacherUserNorm = (teacher?.username || session?.user?.username || '').trim().toLowerCase();
+
+      return this.etuts.filter((e) => {
+        if (e.teacherId && (e.teacherId === teacherId || e.teacherId === session?.user?.id)) return true;
+        if (teacherNameNorm && e.teacherName && e.teacherName.trim().toLowerCase() === teacherNameNorm) return true;
+        if (teacherUserNorm && e.teacherName && e.teacherName.trim().toLowerCase() === teacherUserNorm) return true;
+        return false;
+      });
     }
 
     if (session?.role === 'student') {
