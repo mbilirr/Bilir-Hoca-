@@ -1320,47 +1320,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 Lütfen İncelemek İstediğiniz Sınıfı veya Öğrenciyi Seçiniz
               </h3>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Bir <strong>sınıf seçerek bütün sınıfın</strong> soru çözümlerini ve başarı sıralamasını listeleyebilir, veya <strong>öğrenci seçerek</strong> tek bir öğrencinin ayrıntılı haftalık/aylık analizini inceleyebilirsiniz.
+                Yukarıdaki menüden bir <strong>sınıf seçerek bütün sınıfın</strong> soru çözümlerini ve başarı sıralamasını listeleyebilir, veya <strong>öğrenci seçerek</strong> tek bir öğrencinin ayrıntılı analizini inceleyebilirsiniz.
               </p>
-            </div>
-
-            {/* Hızlı Sınıf Seçim Kartları */}
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-orange-600" />
-                  <span>Sınıflar ({classes.length})</span>
-                </h4>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {classes.map((c) => {
-                  const classStCount = students.filter((s) => s.classId === c.id).length;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleSelectClass(c.id)}
-                      className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white hover:border-orange-400 hover:from-orange-50/50 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-black text-[#0f172a] group-hover:text-orange-600 transition-colors">
-                          {c.name}
-                        </span>
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
-                          {classStCount} Öğrenci
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                        <span>Bütün sınıfı gör</span>
-                        <span className="text-orange-600 font-bold group-hover:translate-x-0.5 transition-transform">
-                          Görüntüle →
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}

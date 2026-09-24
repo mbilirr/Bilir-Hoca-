@@ -509,7 +509,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                     return (
                       <div
                         key={etut.id}
-                        className="p-2.5 rounded-xl border bg-white border-slate-200 hover:border-slate-300 hover:shadow-md transition-all text-xs group relative shadow-xs text-slate-800"
+                        onClick={() => !readOnly && onEditEtut && onEditEtut(etut)}
+                        className="p-2.5 rounded-xl border bg-white border-slate-200 hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 hover:shadow-md transition-all text-xs group relative shadow-xs text-slate-800 cursor-pointer overflow-hidden"
                       >
                         {/* Subject & Time & Period */}
                         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
@@ -571,15 +572,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         )}
 
                         {/* Quick Action Footer */}
-                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px]">
-                          <span className="text-slate-400 font-mono">{etut.duration} dk</span>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] gap-1 flex-wrap">
+                          <span className="text-slate-400 font-mono shrink-0">{etut.duration} dk</span>
 
-                          <div className="flex items-center space-x-1 opacity-90 group-hover:opacity-100">
+                          <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
                             {/* Attendance / Yoklama */}
                             {!readOnly && onAttendanceEtut && (
                               <button
                                 type="button"
-                                onClick={() => onAttendanceEtut(etut)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAttendanceEtut(etut);
+                                }}
                                 className="p-1 text-slate-400 hover:text-emerald-600 rounded hover:bg-emerald-50 transition-colors cursor-pointer"
                                 title="Etüt Yoklaması & Devamsızlık Al"
                               >
@@ -591,7 +595,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             {!readOnly && onNotifyEtut && (
                               <button
                                 type="button"
-                                onClick={() => onNotifyEtut(etut)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onNotifyEtut(etut);
+                                }}
                                 className="p-1 text-slate-400 hover:text-emerald-600 rounded hover:bg-emerald-50 transition-colors cursor-pointer"
                                 title="WhatsApp ve Mail ile İlet"
                               >
@@ -604,6 +611,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                               href={createGoogleCalendarUrlForEtut(etut)}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
                               className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
                               title="Google Takvime Ekle"
                             >
@@ -613,7 +621,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             {/* .ics Download */}
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 downloadIcsFile(
                                   `etut-${etut.id}`,
                                   `[ETÜT] ${etut.subject}: ${etut.topic}`,
@@ -621,8 +630,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   `${etut.date}T${etut.time}:00`,
                                   etut.duration || 45,
                                   etut.location || 'Okul'
-                                )
-                              }
+                                );
+                              }}
                               className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 transition-colors cursor-pointer"
                               title="iCal / Outlook Takvim İndir (.ics)"
                             >
@@ -633,7 +642,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             {!readOnly && onEditEtut && (
                               <button
                                 type="button"
-                                onClick={() => onEditEtut(etut)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onEditEtut(etut);
+                                }}
                                 className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100 transition-colors cursor-pointer"
                                 title="Düzenle"
                               >
@@ -645,7 +657,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             {!readOnly && onDeleteEtut && (
                               <button
                                 type="button"
-                                onClick={() => onDeleteEtut(etut)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeleteEtut(etut);
+                                }}
                                 className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
                                 title="Sil"
                               >

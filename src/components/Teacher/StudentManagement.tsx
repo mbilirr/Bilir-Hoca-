@@ -261,10 +261,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return sameName && sameClass && sameNumber;
     });
 
+    const safeUsername =
+      studentUsername ||
+      (studentEmail && studentEmail.includes('@')
+        ? studentEmail.split('@')[0]
+        : studentNumber
+        ? `ogr_${studentNumber}`
+        : `ogr_${studentName.trim().toLowerCase().replace(/\s+/g, '_') || Math.floor(1000 + Math.random() * 9000)}`);
+
     const studentPayload = {
       name: studentName,
-      username: studentUsername || studentEmail.split('@')[0],
-      email: studentEmail,
+      username: safeUsername,
+      email: studentEmail.trim(),
       password: studentPassword || editingStudent?.password || '123456',
       classId: targetClassId,
       className: constructedClassName,
@@ -1276,10 +1284,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">E-Posta *</label>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">E-Posta</label>
                   <input
                     type="email"
-                    required
                     value={studentEmail}
                     onChange={(e) => setStudentEmail(e.target.value)}
                     placeholder="ogrenci@okul.com"
