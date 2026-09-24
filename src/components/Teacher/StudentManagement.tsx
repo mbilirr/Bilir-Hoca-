@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Users,
   Search,
@@ -19,6 +19,7 @@ import {
   Upload,
   Camera,
   AlertCircle,
+  AlertTriangle,
   Lock,
   Eye,
   EyeOff,
@@ -153,6 +154,45 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [classAcademicYear, setClassAcademicYear] = useState('2026-2027');
   const [classDescription, setClassDescription] = useState('');
   const [classFormError, setClassFormError] = useState<string | null>(null);
+
+  // Mükerrer (aynı isim, sınıf ve okul no'ya sahip) öğrencileri tespit etme
+  const duplicateStudentGroups = useMemo(() => {
+    const groups: Record<string, Student[]> = {};
+    const safeStudents = Array.isArray(students) ? students : [];
+
+    for (const std of safeStudents) {
+      if (!std || !std.name) continue;
+      const normName = std.name.trim().toLowerCase();
+      const num = ((std.studentNumber || (std as any).number || '').toString()).trim();
+      const cName = (std.className || '').trim().toLowerCase();
+      const gLevel = (std.gradeLevel || '').trim().toLowerCase();
+      const br = (std.branch || '').trim().toLowerCase();
+      const classKey = cName || `${gLevel}_${br}` || std.classId || 'noclass';
+
+      // Numara ve isim eşleşmesini baz alarak kontrol et
+      if (normName && num) {
+        const key = `${normName}:::${classKey}:::${num}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(std);
+      }
+    }
+
+    const duplicateIds = new Set<string>();
+    const dupMap = new Map<string, { groupCount: number; key: string }>();
+
+    for (const [key, list] of Object.entries(groups)) {
+      if (list.length > 1) {
+        for (const s of list) {
+          duplicateIds.add(s.id);
+          dupMap.set(s.id, { groupCount: list.length, key });
+        }
+      }
+    }
+
+    return { duplicateIds, dupMap, totalDuplicates: duplicateIds.size };
+  }, [students, classes]);
 
   // Filter students
   const filteredStudents = students.filter((s) => {
@@ -738,6 +778,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         /* STUDENTS VIEW */
         <div className="space-y-4">
           <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm">
+          {/* Duplicate Students System Warning Banner */}
+          {duplicateStudentGroups.totalDuplicates > 0 && (
+            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 flex items-start gap-3 shadow-xs">
+              <div className="p-2 bg-amber-500/20 text-amber-600 rounded-xl shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
+                    <span>⚠️ Sistem Uyarısı: Mükerrer Öğrenci Kaydı Tespit Edildi!</span>
+                  </h4>
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold border border-amber-300">
+                    {duplicateStudentGroups.totalDuplicates} Kayıt İşaretlendi
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
+                  Sistemde <strong>aynı isim, sınıf ve okul numarasına</strong> sahip birden fazla kayıt tespit edildi. Bu kayıtlar öğrenci listesinde <strong className="bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 font-semibold">farklı renkle (turuncu vurgulu zemin)</strong> ve uyarı etiketiyle gösterilmektedir. Bilgileri inceleyip mükerrer kaydı düzenleyebilir veya silebilirsiniz.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Filter / Search Bar */}
           <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
             <div className="relative w-full sm:w-80">
@@ -791,8 +853,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((std) => (
-                    <tr key={std.id} className="hover:bg-slate-50/80 transition-colors">
+                  filteredStudents.map((std) => {
+                    const isDuplicate = duplicateStudentGroups.duplicateIds.has(std.id);
+                    return (
+                    <tr
+                      key={std.id}
+                      className={
+                        isDuplicate
+                          ? 'bg-amber-50/80 hover:bg-amber-100/80 transition-colors border-l-4 border-l-amber-500'
+                          : 'hover:bg-slate-50/80 transition-colors'
+                      }
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
                           <img
@@ -803,22 +874,52 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               )}`
                             }
                             alt={std.name}
-                            className="w-10 h-10 rounded-full object-cover bg-slate-100 ring-2 ring-slate-200/80"
+                            className={`w-10 h-10 rounded-full object-cover ring-2 ${
+                              isDuplicate
+                                ? 'bg-amber-100 ring-amber-400 shadow-xs'
+                                : 'bg-slate-100 ring-slate-200/80'
+                            }`}
                           />
                           <div>
-                            <div className="font-bold text-slate-900">{std.name}</div>
+                            <div className="flex items-center space-x-2 flex-wrap">
+                              <span
+                                className={`font-bold ${
+                                  isDuplicate ? 'text-amber-950 font-extrabold' : 'text-slate-900'
+                                }`}
+                              >
+                                {std.name}
+                              </span>
+                              {isDuplicate && (
+                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                                  <AlertTriangle className="w-3 h-3 text-amber-700" />
+                                  <span>Mükerrer Kayıt (Aynı İsim, Sınıf ve No)</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                            isDuplicate
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                          }`}
+                        >
                           {formatClassDisplayName(std.className, std.branch, std.gradeLevel)}
                         </span>
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="font-mono font-semibold text-xs text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                        <span
+                          className={`font-mono font-semibold text-xs px-2.5 py-1 rounded-md border ${
+                            isDuplicate
+                              ? 'bg-amber-200/90 text-amber-950 border-amber-400 font-bold ring-1 ring-amber-400'
+                              : 'text-slate-700 bg-slate-100 border-slate-200'
+                          }`}
+                        >
                           #{std.studentNumber}
                         </span>
                       </td>
@@ -848,10 +949,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          <span>Aktif Öğrenci</span>
-                        </span>
+                        {isDuplicate ? (
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300 shadow-2xs">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Mükerrer Kayıt</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>Aktif Öğrenci</span>
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-6 py-4 text-right">
@@ -883,7 +991,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         </div>
                       </td>
                     </tr>
-                  ))
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -1901,8 +2010,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {filteredStudents.map((std, idx) => (
-                          <tr key={std.id} className="hover:bg-slate-50/80 transition-colors">
+                        {filteredStudents.map((std, idx) => {
+                          const isDuplicate = duplicateStudentGroups.duplicateIds.has(std.id);
+                          return (
+                          <tr
+                            key={std.id}
+                            className={
+                              isDuplicate
+                                ? 'bg-amber-50/90 hover:bg-amber-100/90 transition-colors border-l-4 border-l-amber-500'
+                                : 'hover:bg-slate-50/80 transition-colors'
+                            }
+                          >
                             <td className="py-2.5 px-3 text-center text-slate-400 font-mono font-semibold">
                               {idx + 1}
                             </td>
@@ -1911,14 +2029,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 <img
                                   src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                                   alt={std.name}
-                                  className="w-7 h-7 rounded-full bg-slate-100 object-cover border border-slate-200"
+                                  className={`w-7 h-7 rounded-full object-cover border ${
+                                    isDuplicate
+                                      ? 'bg-amber-100 ring-2 ring-amber-400'
+                                      : 'bg-slate-100 border-slate-200'
+                                  }`}
                                   referrerPolicy="no-referrer"
                                 />
-                                <span className="font-bold text-slate-900">{std.name}</span>
+                                <div className="flex items-center space-x-2 flex-wrap">
+                                  <span className={`font-bold ${isDuplicate ? 'text-amber-950 font-extrabold' : 'text-slate-900'}`}>
+                                    {std.name}
+                                  </span>
+                                  {isDuplicate && (
+                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
+                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                      <span>Mükerrer</span>
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className="font-mono text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150 text-[11px] font-semibold">
+                              <span
+                                className={`font-mono px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                                  isDuplicate
+                                    ? 'bg-amber-200 text-amber-950 border-amber-400 font-bold'
+                                    : 'text-indigo-700 bg-indigo-50 border-indigo-150'
+                                }`}
+                              >
                                 #{std.studentNumber || '-'}
                               </span>
                             </td>
@@ -1961,7 +2099,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

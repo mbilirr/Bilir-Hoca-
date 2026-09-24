@@ -257,23 +257,23 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                 pendingTeachers.map((t) => (
                   <div
                     key={t.id}
-                    className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 hover:border-slate-700 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-slate-800"
                   >
                     <div className="flex items-center space-x-3.5 min-w-0">
                       <img
                         src={t.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(t.name)}`}
                         alt={t.name}
-                        className="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-700 shrink-0"
+                        className="w-11 h-11 rounded-2xl bg-slate-100 border border-slate-200 shrink-0 object-cover"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <h4 className="font-bold text-sm text-white truncate">{t.name}</h4>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          <h4 className="font-bold text-sm text-slate-900 truncate">{t.name}</h4>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             {t.branch || 'Genel Branş'}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-400 flex items-center space-x-2 mt-0.5 flex-wrap">
-                          <span>@{t.username}</span>
+                        <div className="text-xs text-slate-500 flex items-center space-x-2 mt-0.5 flex-wrap">
+                          <span className="font-medium text-slate-700">@{t.username}</span>
                           <span>•</span>
                           <span>{t.email}</span>
                         </div>
@@ -305,7 +305,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleReject(t.id, t.name)}
-                        className="flex items-center space-x-1.5 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                        className="flex items-center space-x-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                       >
                         <UserX className="w-4 h-4" />
                         <span>Reddet</span>
@@ -314,7 +314,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <button
                         type="button"
                         onClick={() => handleDelete(t.id, t.name)}
-                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                         title="Başvuruyu Sil"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -346,12 +346,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                     key={teacher.id}
                     className={`p-4 rounded-2xl border transition-all ${
                       teacher.isAdmin
-                        ? 'bg-amber-950/15 border-amber-500/30'
-                        : 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-                    }`}
+                        ? 'bg-amber-50/60 border-amber-300 shadow-sm'
+                        : 'bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300'
+                    } text-slate-800`}
                   >
                     {/* Teacher Info Row */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
                       <div className="flex items-center space-x-3 min-w-0">
                         <img
                           src={
@@ -359,27 +359,27 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                             `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(teacher.name)}`
                           }
                           alt={teacher.name}
-                          className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 shrink-0"
+                          className="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 shrink-0 object-cover"
                         />
                         <div className="min-w-0">
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                            <h4 className="font-bold text-sm text-white truncate">{teacher.name}</h4>
+                            <h4 className="font-bold text-sm text-slate-900 truncate">{teacher.name}</h4>
                             {teacher.isAdmin ? (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
-                                <Crown className="w-3 h-3 text-amber-400" />
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 flex items-center space-x-1">
+                                <Crown className="w-3 h-3 text-amber-600" />
                                 <span>Kurum Yöneticisi (Admin)</span>
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                                 Öğretmen
                               </span>
                             )}
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/15 text-indigo-300">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
                               {teacher.branch || 'Genel Branş'}
                             </span>
                           </div>
-                          <div className="text-xs text-slate-400 flex items-center space-x-2 mt-0.5 flex-wrap">
-                            <span>@{teacher.username}</span>
+                          <div className="text-xs text-slate-500 flex items-center space-x-2 mt-0.5 flex-wrap">
+                            <span className="font-medium text-slate-700">@{teacher.username}</span>
                             <span>•</span>
                             <span>{teacher.email}</span>
                           </div>
@@ -393,19 +393,19 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           onClick={() => handleToggleAdmin(teacher)}
                           className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                             teacher.isAdmin
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30'
-                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
                           }`}
                           title={teacher.isAdmin ? 'Yöneticilik yetkisini kaldır' : 'Kurum Yöneticisi yap'}
                         >
-                          <Crown className="w-3.5 h-3.5 text-amber-400" />
+                          <Crown className="w-3.5 h-3.5 text-amber-600" />
                           <span>{teacher.isAdmin ? 'Admin Yetkili' : 'Admin Yap'}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => handleDelete(teacher.id, teacher.name)}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
                           title="Öğretmeni Sil"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -416,8 +416,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                     {/* Class Permissions Selector */}
                     <div className="pt-3">
                       {teacher.isAdmin ? (
-                        <div className="flex items-center space-x-2 text-xs text-amber-300/90 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
-                          <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div className="flex items-center space-x-2 text-xs text-amber-900 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                          <Crown className="w-4 h-4 text-amber-600 shrink-0" />
                           <span>
                             <strong>Yönetici Erişimi:</strong> Bu öğretmen kurum yöneticisi olduğu için tüm sınıfları ve tüm öğrencileri otomatik olarak görebilir ve yönetebilir.
                           </span>
@@ -425,13 +425,13 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       ) : (
                         <div className="space-y-3">
                           {/* Yönetici İzni: Önceden Eklenmiş Sınıf ve Öğrenci Listelerini Görme */}
-                          <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                             <div>
-                              <div className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                                <Users className="w-3.5 h-3.5 text-indigo-400" />
+                              <div className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                                <Users className="w-3.5 h-3.5 text-indigo-600" />
                                 <span>Önceden Eklenmiş Sınıf & Öğrenci Listelerini Görme İzni</span>
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
+                              <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
                                 {teacher.canViewAllStudentsAndClasses
                                   ? 'Öğretmen sistemdeki önceden oluşturulmuş tüm sınıfları ve kayıtlı öğrencileri görebilir.'
                                   : 'Öğretmen yalnızca kendi eklediklerini ve aşağıda seçilen sınıfları görebilir.'}
@@ -442,33 +442,33 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                               onClick={() => handleToggleCanViewAll(teacher)}
                               className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 teacher.canViewAllStudentsAndClasses
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30'
-                                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white border border-slate-700'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
+                                  : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-800 border border-slate-200 shadow-xs'
                               }`}
                             >
-                              <Check className={`w-3.5 h-3.5 ${teacher.canViewAllStudentsAndClasses ? 'text-emerald-400' : 'text-slate-500'}`} />
+                              <Check className={`w-3.5 h-3.5 ${teacher.canViewAllStudentsAndClasses ? 'text-emerald-600' : 'text-slate-400'}`} />
                               <span>{teacher.canViewAllStudentsAndClasses ? 'Genel Liste İzni Açık' : 'İzin Kapalı (Korumalı)'}</span>
                             </button>
                           </div>
 
                           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                            <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                            <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                              <Layers className="w-3.5 h-3.5 text-indigo-600" />
                               <span>Erişime İzin Verilen Sınıflar ({assigned.length}/{allClasses.length}):</span>
                             </label>
                             <div className="flex items-center space-x-2">
                               <button
                                 type="button"
                                 onClick={() => handleAssignAllClasses(teacher)}
-                                className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                               >
                                 Tümünü Seç
                               </button>
-                              <span className="text-slate-600 text-xs">|</span>
+                              <span className="text-slate-300 text-xs">|</span>
                               <button
                                 type="button"
                                 onClick={() => handleClearClasses(teacher)}
-                                className="text-[11px] font-semibold text-slate-400 hover:text-slate-300 transition-colors cursor-pointer"
+                                className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
                               >
                                 Temizle
                               </button>
@@ -476,7 +476,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           </div>
 
                           {allClasses.length === 0 ? (
-                            <p className="text-xs text-slate-500 italic">Sistemde kayıtlı sınıf bulunmuyor.</p>
+                            <p className="text-xs text-slate-400 italic">Sistemde kayıtlı sınıf bulunmuyor.</p>
                           ) : (
                             <div className="flex flex-wrap gap-2">
                               {allClasses.map((cls) => {
@@ -488,14 +488,14 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                                     onClick={() => handleToggleClassPermission(teacher, cls.id)}
                                     className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                                       isPermitted
-                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-500/10'
-                                        : 'bg-slate-900/80 text-slate-400 border border-slate-800 hover:border-slate-700 hover:text-slate-300'
+                                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs'
+                                        : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300 hover:text-slate-800'
                                     }`}
                                   >
                                     {isPermitted ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
                                     ) : (
-                                      <Square className="w-3.5 h-3.5 text-slate-600" />
+                                      <Square className="w-3.5 h-3.5 text-slate-400" />
                                     )}
                                     <span>{cls.name}</span>
                                     {cls.branch && (

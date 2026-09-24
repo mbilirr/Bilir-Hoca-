@@ -736,27 +736,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             return (
               <div
                 key={etut.id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg relative group"
+                className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-slate-300 hover:shadow-xl transition-all flex flex-col justify-between shadow-md relative group text-slate-800"
               >
                 <div>
                   {/* Header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                         {etut.subject}
                       </span>
                       {etut.schoolLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                           {etut.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
                         </span>
                       )}
                       {etut.gradeLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                           {etut.gradeLevel}
                         </span>
                       )}
                       {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
                           {etut.lessonPeriod}
                         </span>
                       )}
@@ -764,14 +764,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <div className="flex items-center space-x-1">
                       <button
                         onClick={() => openEdit(etut)}
-                        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                         title="Düzenle"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setEtutToDelete(etut)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                         title="Etütü Sil"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -779,38 +779,38 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </div>
                   </div>
 
-                  <h3 className="text-base font-bold text-white mb-2 line-clamp-2">{etut.topic}</h3>
+                  <h3 className="text-base font-bold text-slate-900 mb-2 line-clamp-2">{etut.topic}</h3>
 
                   {/* Details */}
-                  <div className="space-y-1.5 text-xs text-slate-300 mb-4 bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
+                  <div className="space-y-1.5 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
                     <div className="flex items-center space-x-2">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
-                      <span>
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-slate-800 font-medium">
                         {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time} ({etut.duration} dk)
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{etut.location}</span>
+                      <MapPin className="w-3.5 h-3.5 text-rose-500" />
+                      <span className="text-slate-700 font-medium">{etut.location}</span>
                     </div>
                     {etut.teacherName && (
-                      <div className="flex items-center space-x-2 text-indigo-300 font-medium">
-                        <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      <div className="flex items-center space-x-2 text-indigo-900 font-semibold">
+                        <Users className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Öğretmen: <strong>{etut.teacherName}</strong> {etut.teacherBranch ? `(${etut.teacherBranch})` : ''}</span>
                       </div>
                     )}
                     {etut.notes && (
-                      <p className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800/60 mt-1">
-                        <span className="font-semibold text-slate-300 not-italic">Açıklama:</span> {etut.notes}
+                      <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200 mt-1">
+                        <span className="font-semibold text-slate-700 not-italic">Açıklama:</span> {etut.notes}
                       </p>
                     )}
                     {etut.teacherFeedback && (
-                      <div className="mt-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs space-y-1">
-                        <div className="flex items-center space-x-1.5 font-bold text-amber-300 text-[11px]">
-                          <MessageSquareQuote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
+                        <div className="flex items-center space-x-1.5 font-bold text-amber-800 text-[11px]">
+                          <MessageSquareQuote className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span>Öğretmen Görüş ve Düşünceleri:</span>
                         </div>
-                        <p className="italic text-slate-200 leading-relaxed font-normal">
+                        <p className="italic text-slate-700 leading-relaxed font-normal">
                           "{etut.teacherFeedback}"
                         </p>
                       </div>
@@ -818,32 +818,32 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
 
                   {/* Attendance Summary & Button */}
-                  <div className="mb-4 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                  <div className="mb-4 p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                         Yoklama / Devamsızlık
                       </div>
                       <div className="text-xs font-bold mt-0.5">
                         {etut.studentAttendance && Object.keys(etut.studentAttendance).length > 0 ? (
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-400">
+                            <span className="text-emerald-700 font-bold">
                               {Object.values(etut.studentAttendance).filter((a) => a.status === 'present').length} Geldi
                             </span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-rose-400">
+                            <span className="text-slate-400">•</span>
+                            <span className="text-rose-600 font-bold">
                               {Object.values(etut.studentAttendance).filter((a) => a.status === 'absent').length} Gelmedi
                             </span>
                             {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length > 0 && (
                               <>
-                                <span className="text-slate-500">•</span>
-                                <span className="text-amber-400">
+                                <span className="text-slate-400">•</span>
+                                <span className="text-amber-700 font-bold">
                                   {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length} Geç
                                 </span>
                               </>
                             )}
                           </div>
                         ) : (
-                          <span className="text-amber-400/90 text-[11px] font-normal">
+                          <span className="text-amber-700 text-[11px] font-normal">
                             Yoklama henüz alınmadı
                           </span>
                         )}
@@ -853,20 +853,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => setSelectedEtutForAttendance(etut)}
-                      className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
                       title="Etüte gelen ve gelmeyen öğrencileri işaretle"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Yoklama Al</span>
                     </button>
                   </div>
 
                   {/* Assigned Students */}
                   <div className="mb-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
                       <span>Katılacak Öğrenciler ({assignedStudents.length})</span>
                       {etut.assignedStudentIds === 'all' && (
-                        <span className="text-[10px] text-indigo-400">Tümü Dahil</span>
+                        <span className="text-[10px] text-indigo-600 font-bold">Tümü Dahil</span>
                       )}
                     </p>
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -878,10 +878,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             setReportSelectedStudentId(std.id);
                             setIsReportModalOpen(true);
                           }}
-                          className="inline-flex items-center space-x-1 text-[11px] bg-slate-800 hover:bg-indigo-950/80 hover:text-indigo-200 hover:border-indigo-500/50 text-slate-200 px-2 py-0.5 rounded-md border border-slate-700 transition-colors cursor-pointer"
+                          className="inline-flex items-center space-x-1 text-[11px] bg-slate-50 hover:bg-indigo-50 hover:text-indigo-800 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
                           title={`${std.name} için etüt analizini ve PDF/DOCX raporunu görüntüle`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                           <span>{std.name}</span>
                         </button>
                       ))}
@@ -890,17 +890,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 </div>
 
                 {/* Action Buttons */}
-                <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedEtutForDispatch(etut);
                       setIsDispatchModalOpen(true);
                     }}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                     title="WhatsApp ve Mail ile İlet"
                   >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
                     <span>WhatsApp / Mail</span>
                   </button>
 
@@ -908,10 +908,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     href={createGoogleCalendarUrlForEtut(etut)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-medium transition-all"
+                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-medium transition-all"
                     title="Google Takvime Ekle"
                   >
-                    <CalendarCheck className="w-3.5 h-3.5" />
+                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
                   </a>
 
                   <button
@@ -925,7 +925,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         etut.location
                       )
                     }
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
+                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs cursor-pointer transition-colors"
                     title=".ics Takvim İndir"
                   >
                     <CalendarDays className="w-3.5 h-3.5" />
@@ -1497,6 +1497,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           setSelectedTeacherName(val);
                           setSelectedTeacherBranch(val ? subject : '');
                           if (val) {
+                            dataService.addTeacherToSubject(subject, val);
                             dataService.setLastTeacherForSubject(subject, val);
                           }
                         }
@@ -1601,51 +1602,46 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Öğrenci Seçiniz Açılır Butonu (Arama Kutulu & Sınıftan Bağımsız) */}
                   <div className="relative">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3.5 h-3.5 text-indigo-400" />
-                        <span>Öğrenci Seçiniz</span>
-                      </span>
-                      <span className="text-[10px] text-emerald-400 font-semibold">
-                        Bireysel / Bağımsız
-                      </span>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Öğrenci Seçiniz</span>
                     </label>
 
                     {/* Dropdown Açma Butonu */}
                     <button
                       type="button"
                       onClick={() => setIsStudentDropdownOpen((prev) => !prev)}
-                      className={`w-full px-3 py-2 bg-slate-800 border rounded-xl text-left text-sm font-semibold flex items-center justify-between transition-all cursor-pointer ${
+                      className={`w-full px-2.5 py-2 bg-slate-800 border rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
                         selectedStudentIds.length > 0
                           ? 'border-indigo-500 text-white bg-indigo-950/30'
                           : 'border-slate-700 text-slate-300 hover:border-slate-600'
                       }`}
                     >
-                      <div className="flex items-center space-x-2 truncate pr-2">
-                        <Search className="w-4 h-4 text-indigo-400 shrink-0" />
-                        <span className="truncate">
+                      <div className="flex items-center space-x-1.5 min-w-0 flex-1 truncate pr-1">
+                        <Search className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span className="truncate text-xs">
                           {selectedStudentIds.length === 0
-                            ? 'Öğrenci Seçiniz...'
+                            ? 'Öğrenci Seçiniz'
                             : selectedStudentIds.length === 1
-                            ? `${(students || []).find((s) => s.id === selectedStudentIds[0])?.name || '1 Öğrenci'} (${(students || []).find((s) => s.id === selectedStudentIds[0])?.className || 'Sınıf Yok'})`
+                            ? `${(students || []).find((s) => s.id === selectedStudentIds[0])?.name || '1 Öğrenci'}`
                             : `${selectedStudentIds.length} Öğrenci Seçildi`}
                         </span>
                       </div>
                       <ChevronDown
-                        className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+                        className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
                           isStudentDropdownOpen ? 'rotate-180 text-indigo-400' : ''
                         }`}
                       />
                     </button>
 
-                    {/* Açılır Panel (Arama Kutusu + Öğrenci Listesi) */}
+                    {/* Açılır Panel (Arama Kutusu + Sadece Okul No ve İsim Listesi) */}
                     {isStudentDropdownOpen && (
                       <>
                         <div
                           className="fixed inset-0 z-40"
                           onClick={() => setIsStudentDropdownOpen(false)}
                         />
-                        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-80 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <div className="absolute right-0 left-auto top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col w-[300px] sm:w-[350px] max-w-[92vw] max-h-80 animate-in fade-in slide-in-from-top-2 duration-150">
                           {/* Arama Kutusu (En Üstte) */}
                           <div className="p-2.5 bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
                             <div className="relative">
@@ -1655,7 +1651,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                                 type="text"
                                 value={studentDropdownSearch}
                                 onChange={(e) => setStudentDropdownSearch(e.target.value)}
-                                placeholder="Öğrenci ara (isim, sınıf, okul no)..."
+                                placeholder="Öğrenci ara (isim veya okul no)..."
                                 className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                               />
                               {studentDropdownSearch && (
@@ -1672,7 +1668,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             {/* Filtre Bilgi ve Toggle */}
                             <div className="flex items-center justify-between mt-2 pt-1 text-[11px] text-slate-400">
                               <span>
-                                {dropdownStudents.length} öğrenci bulundu
+                                {dropdownStudents.length} öğrenci listelendi
                               </span>
                               {gradeLevel && gradeLevel !== 'Tüm Sınıflar' && (
                                 <button
@@ -1682,17 +1678,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                                 >
                                   {showOnlySelectedGradeInDropdown
                                     ? 'Tüm Okulu Göster'
-                                    : `Sadece ${gradeLevel} Göster`}
+                                    : `Sadece ${gradeLevel}`}
                                 </button>
                               )}
                             </div>
                           </div>
 
-                          {/* Liste */}
+                          {/* Liste: Sadece Okul No ve Öğrenci İsmi */}
                           <div className="overflow-y-auto p-1.5 space-y-1 max-h-56 divide-y divide-slate-800/40">
                             {dropdownStudents.length > 0 ? (
                               dropdownStudents.map((std) => {
                                 const isSelected = selectedStudentIds.includes(std.id);
+                                const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
+                                const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
+
                                 return (
                                   <div
                                     key={std.id}
@@ -1700,44 +1699,35 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                                       handleToggleStudent(std.id);
                                       setAssigneeMode('custom');
                                     }}
-                                    className={`flex items-center justify-between p-2 rounded-xl cursor-pointer text-xs transition-colors ${
+                                    className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-xs transition-colors gap-2 ${
                                       isSelected
-                                        ? 'bg-indigo-600/20 text-white font-semibold'
+                                        ? 'bg-indigo-600/25 text-white font-medium'
                                         : 'hover:bg-slate-800 text-slate-200'
                                     }`}
                                   >
-                                    <div className="flex items-center space-x-2.5 truncate">
-                                      <div
-                                        className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                                          isSelected
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-slate-800 text-slate-400'
-                                        }`}
-                                      >
-                                        {std.name?.charAt(0) || 'Ö'}
-                                      </div>
-                                      <div className="truncate">
-                                        <div className="truncate font-medium">{std.name}</div>
-                                        <div className="text-[10px] text-slate-400 truncate">
-                                          {std.className || 'Sınıf Belirtilmemiş'}
-                                          {(std.studentNumber || (std as any).number) ? ` • No: ${std.studentNumber || (std as any).number}` : ''}
-                                        </div>
-                                      </div>
+                                    <div className="flex items-center space-x-2.5 min-w-0 flex-1 truncate">
+                                      {hasValidNo ? (
+                                        <span className="shrink-0 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-mono text-[11px] font-bold">
+                                          No: {rawNo}
+                                        </span>
+                                      ) : (
+                                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/60 text-slate-400 font-mono text-[10px]">
+                                          No Yok
+                                        </span>
+                                      )}
+                                      <span className="truncate text-xs font-semibold text-slate-100">
+                                        {std.name}
+                                      </span>
                                     </div>
 
-                                    <div className="flex items-center space-x-2 shrink-0 ml-2">
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-indigo-300 font-medium">
-                                        {std.className || 'Genel'}
-                                      </span>
-                                      <div
-                                        className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                                          isSelected
-                                            ? 'bg-indigo-600 border-indigo-500 text-white'
-                                            : 'border-slate-700 bg-slate-800/50'
-                                        }`}
-                                      >
-                                        {isSelected && <Check className="w-3 h-3" />}
-                                      </div>
+                                    <div
+                                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
+                                        isSelected
+                                          ? 'bg-indigo-600 border-indigo-500 text-white'
+                                          : 'border-slate-700 bg-slate-800/60'
+                                      }`}
+                                    >
+                                      {isSelected && <Check className="w-3 h-3 stroke-[2.5]" />}
                                     </div>
                                   </div>
                                 );
@@ -1768,50 +1758,161 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
                 </div>
 
-                {/* Bireysel Seçilen Öğrenci Rozetleri (Chips) */}
-                {selectedStudentIds.length > 0 && (
-                  <div className="pt-2 border-t border-slate-800/60">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Bireysel / Seçili Öğrenciler ({selectedStudentIds.length}):</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStudentIds([])}
-                        className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer underline"
-                      >
-                        Tümünü Kaldır
-                      </button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-900/60 rounded-xl border border-slate-800">
-                      {selectedStudentIds.map((id) => {
-                        const std = (students || []).find((s) => s.id === id);
-                        if (!std) return null;
-                        return (
-                          <span
-                            key={id}
-                            className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-white text-xs font-medium"
-                          >
-                            <span>{std.name}</span>
-                            <span className="text-[10px] text-indigo-300 bg-indigo-950/60 px-1 py-0.2 rounded">
-                              {std.className || 'Sınıf Yok'}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStudent(id)}
-                              className="text-slate-400 hover:text-rose-400 cursor-pointer p-0.5 ml-1"
-                              title="Seçimi Kaldır"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
+                {/* ÖĞRENCİ SEÇİMİ KUTUSU (Sınıf, Şube, Öğrenci Seçiniz Butonlarının Hemen Altında) */}
+                <div className="pt-2 border-t border-slate-800 space-y-3">
+                  {/* Mod Seçimi: Tüm Kademe vs Bireysel Öğrenciler */}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setAssigneeMode('custom')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                        assigneeMode === 'custom'
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span>🎯 Bireysel / Seçili Öğrenciler ({selectedStudentIds.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssigneeMode('all')}
+                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                        assigneeMode === 'all'
+                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>👥 Tüm {gradeLevel} Öğrencileri ({gradeStudents.length})</span>
+                    </button>
                   </div>
-                )}
+
+                  {/* Bireysel Seçilen Öğrenci Rozetleri (Chips) */}
+                  {selectedStudentIds.length > 0 && (
+                    <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Seçilen Öğrenciler ({selectedStudentIds.length}):</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudentIds([])}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer underline"
+                        >
+                          Tümünü Kaldır
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                        {selectedStudentIds.map((id) => {
+                          const std = (students || []).find((s) => s.id === id);
+                          if (!std) return null;
+                          const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
+                          const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
+
+                          return (
+                            <span
+                              key={id}
+                              className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-white text-xs font-medium"
+                            >
+                              {hasValidNo && (
+                                <span className="text-[10px] text-amber-300 font-mono font-bold">
+                                  No: {rawNo}
+                                </span>
+                              )}
+                              <span>{std.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStudent(id)}
+                                className="text-slate-400 hover:text-rose-400 cursor-pointer p-0.5 ml-1"
+                                title="Seçimi Kaldır"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Öğrenci Seçim Kutusu Listesi */}
+                  {assigneeMode === 'custom' && (
+                    <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs text-slate-300 font-semibold">Öğrenci Listesi:</span>
+                          <span className="text-[11px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/30 font-medium">
+                            {gradeLevel} {selectedBranchFilter !== 'Şube' && selectedBranchFilter !== 'Tüm Şubeler' ? `• ${selectedBranchFilter}` : ''}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            ({filteredStudents.length} öğrenci)
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleToggleAllFiltered}
+                          disabled={filteredStudents.length === 0}
+                          className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline font-semibold cursor-pointer disabled:opacity-40 disabled:no-underline"
+                        >
+                          {filteredStudents.length > 0 &&
+                          filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+                            ? 'Tümünü Kaldır'
+                            : 'Tümünü Seç'}
+                        </button>
+                      </div>
+
+                      <div className="max-h-48 overflow-y-auto pr-1">
+                        {filteredStudents.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {filteredStudents.map((std) => {
+                              const isChecked = selectedStudentIds.includes(std.id);
+                              const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
+                              const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
+
+                              return (
+                                <label
+                                  key={std.id}
+                                  className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
+                                    isChecked
+                                      ? 'bg-indigo-600/15 border-indigo-500/40 text-white shadow-xs'
+                                      : 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-800/60 text-slate-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleStudent(std.id)}
+                                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <div className="flex-1 min-w-0 flex items-center space-x-1.5 truncate">
+                                    {hasValidNo && (
+                                      <span className="shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-mono text-[10px] font-bold">
+                                        No: {rawNo}
+                                      </span>
+                                    )}
+                                    <span className="text-white font-medium truncate">{std.name}</span>
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 text-center rounded-xl bg-slate-950/50 border border-slate-800 text-xs text-slate-400">
+                            <Users className="w-5 h-5 mx-auto mb-1 text-slate-500 opacity-60" />
+                            <p className="font-semibold text-slate-300">Bu Kriterlere Uygun Öğrenci Bulunamadı</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              Yukarıdaki "Öğrenci Seçiniz" arama kutusunu kullanarak sınıf fark etmeksizin tüm okuldaki öğrencileri seçebilirsiniz.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1951,133 +2052,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </button>
                   )}
                 </div>
-              </div>
-
-              {/* Student Assignment: Tümü vs Ayrı Ayrı Seçim */}
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Etüte Katılacak Öğrenciler:
-                  </label>
-                  <span className="text-[11px] text-indigo-300 font-medium">
-                    {gradeLevel} Kademesi Filtreli
-                  </span>
-                </div>
-
-                <div className="flex items-center space-x-3 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setAssigneeMode('all')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                      assigneeMode === 'all'
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    👥 Tüm {gradeLevel} Öğrencileri ({gradeStudents.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssigneeMode('custom')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${
-                      assigneeMode === 'custom'
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    🎯 Bireysel / Seçili Öğrenciler ({selectedStudentIds.length} Seçili)
-                  </button>
-                </div>
-
-                {assigneeMode === 'custom' && (
-                  <div className="p-3 bg-slate-800/70 border border-slate-700 rounded-xl space-y-3">
-                    {/* Filtreleme ve Seçim Üst Barı */}
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-700 flex-wrap gap-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-slate-300 font-semibold">Öğrenci Seçimi:</span>
-                        <span className="text-[11px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/30 font-medium">
-                          {gradeLevel}
-                        </span>
-                        <span className="text-[11px] text-slate-400">
-                          ({filteredStudents.length} gösteriliyor)
-                        </span>
-                      </div>
-
-                      <div className="flex items-center space-x-3">
-                        {/* Şube Açılır Penceresi */}
-                        <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-700">
-                          <Filter className="w-3.5 h-3.5 text-indigo-400" />
-                          <select
-                            id="etut-branch-filter"
-                            value={selectedBranchFilter}
-                            onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                            className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer"
-                          >
-                            <option value="Şube" className="bg-slate-900 text-white">Şube</option>
-                            <option value="A" className="bg-slate-900 text-white">A</option>
-                            <option value="B" className="bg-slate-900 text-white">B</option>
-                            <option value="C" className="bg-slate-900 text-white">C</option>
-                            <option value="D" className="bg-slate-900 text-white">D</option>
-                            <option value="E" className="bg-slate-900 text-white">E</option>
-                            <option value="F" className="bg-slate-900 text-white">F</option>
-                          </select>
-                        </div>
-
-                        {/* Hızlı Seçim Butonu */}
-                        <button
-                          type="button"
-                          onClick={handleToggleAllFiltered}
-                          disabled={filteredStudents.length === 0}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline font-semibold cursor-pointer disabled:opacity-40 disabled:no-underline"
-                        >
-                          {filteredStudents.length > 0 &&
-                          filteredStudents.every((s) => selectedStudentIds.includes(s.id))
-                            ? 'Seçimi Kaldır'
-                            : 'Tümünü Seç'}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Öğrenci Listesi */}
-                    <div className="max-h-52 overflow-y-auto pr-1">
-                      {filteredStudents.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {filteredStudents.map((std) => {
-                            const isChecked = selectedStudentIds.includes(std.id);
-                            return (
-                              <label
-                                key={std.id}
-                                className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
-                                  isChecked
-                                    ? 'bg-indigo-600/15 border-indigo-500/40 text-white shadow-sm'
-                                    : 'bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/60 text-slate-300'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleToggleStudent(std.id)}
-                                  className="rounded text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-white font-medium truncate">{std.name}</div>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="p-4 text-center rounded-xl bg-slate-900/50 border border-slate-800 text-xs text-slate-400">
-                          <Users className="w-6 h-6 mx-auto mb-1 text-slate-500 opacity-60" />
-                          <p className="font-semibold text-slate-300">Bu Kriterlere Uygun Öğrenci Bulunamadı</p>
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            {gradeLevel} {selectedBranchFilter !== 'Şube' ? `• ${selectedBranchFilter}` : ''} için kayıtlı öğrenci bulunmuyor. Farklı bir sınıf kademesi veya şube seçebilirsiniz.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Otomatik Bildirim & E-Posta Bilgilendirme Notu */}

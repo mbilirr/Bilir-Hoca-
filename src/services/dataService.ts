@@ -4497,6 +4497,9 @@ export class DataService {
     'Ali Demir',
     'Mehmet Öztürk',
     'Ayşe Yılmaz',
+    'Öğretmen',
+    'Sistem Öğretmeni',
+    'Etüt Öğretmeni',
   ]);
 
   public getSubjectTeachersMap(): Record<string, string[]> {
@@ -4515,7 +4518,6 @@ export class DataService {
                 (name) =>
                   typeof name === 'string' &&
                   name.trim() !== '' &&
-                  name.trim() !== 'Öğretmen' &&
                   !DataService.AUTO_SEEDED_TEACHER_NAMES.has(name.trim())
               );
               if (filtered.length !== teachers.length) {
@@ -4541,9 +4543,11 @@ export class DataService {
   public getTeachersForSubject(subject: string): string[] {
     const map = this.getSubjectTeachersMap();
     const cleanSub = (subject || '').trim().toLowerCase();
+    const resultTeachers: string[] = [];
 
-    if (map[subject] && map[subject].length > 0) {
-      return map[subject];
+    // 1. Kullanıcının daha önce bu ders için kaydettiği öğretmenler
+    if (map[subject] && Array.isArray(map[subject])) {
+      resultTeachers.push(...map[subject]);
     }
     const foundKey = Object.keys(map).find(
       (k) =>
@@ -4551,21 +4555,35 @@ export class DataService {
         cleanSub.includes(k.toLowerCase()) ||
         k.toLowerCase().includes(cleanSub)
     );
-    if (foundKey && map[foundKey] && map[foundKey].length > 0) {
-      return map[foundKey];
+    if (foundKey && map[foundKey] && Array.isArray(map[foundKey])) {
+      resultTeachers.push(...map[foundKey]);
     }
 
-    // Önceden otomatik atanmış sahte isimler döndürülmez.
-    // Sadece kullanıcının bu ders için bizzat atadığı öğretmenler veya oturum açan öğretmen döndürülür
+    // 2. Sistemde kayıtlı ve onaylanmış branş öğretmenleri
+    if (this.teachers && this.teachers.length > 0) {
+      this.teachers.forEach((t) => {
+        if (!t.name || t.status === 'pending') return;
+        const trimmed = t.name.trim();
+        if (DataService.AUTO_SEEDED_TEACHER_NAMES.has(trimmed)) return;
+
+        const tb = (t.branch || '').toLowerCase();
+        if (!tb || tb === cleanSub || tb.includes(cleanSub) || cleanSub.includes(tb)) {
+          resultTeachers.push(trimmed);
+        }
+      });
+    }
+
+    // 3. Oturum açmış olan öğretmen
     const session = this.getAuthSession();
     if (session?.role === 'teacher' && session.user?.name) {
       const tName = session.user.name.trim();
       if (!DataService.AUTO_SEEDED_TEACHER_NAMES.has(tName)) {
-        return [tName];
+        resultTeachers.push(tName);
       }
     }
 
-    return [];
+    // Tekilleştirme ve temizleme
+    return Array.from(new Set(resultTeachers.filter((t) => t && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(t))));
   }
 
   public getLastTeacherForSubject(subject: string): string {
@@ -4574,8 +4592,10 @@ export class DataService {
       const stored = localStorage.getItem(`etut_last_teacher_${cleanSub}`);
       if (stored && typeof stored === 'string') {
         const clean = stored.trim();
-        if (clean && clean !== 'Öğretmen' && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) {
+        if (clean && !DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) {
           return clean;
+        } else {
+          localStorage.removeItem(`etut_last_teacher_${cleanSub}`);
         }
       }
     } catch {}
@@ -4585,7 +4605,7 @@ export class DataService {
 
   public setLastTeacherForSubject(subject: string, teacherName: string): void {
     const clean = (teacherName || '').trim();
-    if (!clean || clean === 'Öğretmen' || DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) return;
+    if (!clean || DataService.AUTO_SEEDED_TEACHER_NAMES.has(clean)) return;
     const cleanSub = (subject || '').trim().toLowerCase();
     try {
       localStorage.setItem(`etut_last_teacher_${cleanSub}`, clean);
@@ -4594,7 +4614,7 @@ export class DataService {
 
   public addTeacherToSubject(subject: string, teacherName: string): Record<string, string[]> {
     const cleanName = (teacherName || '').trim();
-    if (!cleanName || cleanName === 'Öğretmen' || DataService.AUTO_SEEDED_TEACHER_NAMES.has(cleanName)) {
+    if (!cleanName || DataService.AUTO_SEEDED_TEACHER_NAMES.has(cleanName)) {
       return this.getSubjectTeachersMap();
     }
     const map = this.getSubjectTeachersMap();
