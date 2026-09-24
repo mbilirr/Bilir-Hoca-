@@ -61,6 +61,7 @@ import {
   getMondayOfWeek,
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 interface QuestionTrackingViewProps {
   classes: ClassGroup[];
@@ -74,19 +75,65 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   // Sınıf seçimi (varsayılan: boş, "Sınıf Seçiniz")
   const [selectedClassId, setSelectedClassId] = useState<string>('');
 
-  // Seçili sınıftaki öğrenciler (eğer sınıf seçilmediyse tüm öğrenciler)
-  const classStudents = useMemo(() => {
-    if (!selectedClassId || selectedClassId === 'all') return students;
-    return students.filter((s) => s.classId === selectedClassId);
-  }, [students, selectedClassId]);
-
   // Seçili öğrenci (varsayılan: boş, "Öğrenci Seçiniz")
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+
+  // Aktif öğrenci (öğrenci seçildiğinde bağımsız olarak atanır)
+  const activeStudent = useMemo(() => {
+    if (!selectedStudentId) return null;
+    return students.find((s) => s.id === selectedStudentId) || null;
+  }, [students, selectedStudentId]);
+
+  // Aktif sınıf (seçili sınıfa veya aktif öğrencinin sınıfına göre belirlenir)
+  const activeClass = useMemo(() => {
+    if (selectedClassId && selectedClassId !== 'all') {
+      return classes.find((c) => c.id === selectedClassId) || null;
+    }
+    if (selectedClassId === 'all') {
+      return { id: 'all', name: 'Tüm Sınıflar (Tüm Okul)', gradeLevel: '', branch: '' } as ClassGroup;
+    }
+    if (activeStudent?.classId) {
+      return classes.find((c) => c.id === activeStudent.classId) || null;
+    }
+    return null;
+  }, [classes, selectedClassId, activeStudent]);
+
+  // Seçili sınıftaki öğrenciler
+  const classStudents = useMemo(() => {
+    if (selectedClassId && selectedClassId !== 'all') {
+      return students.filter((s) => s.classId === selectedClassId);
+    }
+    if (selectedClassId === 'all') {
+      return students;
+    }
+    if (activeClass && activeClass.id !== 'all') {
+      return students.filter((s) => s.classId === activeClass.id);
+    }
+    return students;
+  }, [students, selectedClassId, activeClass]);
 
   // Özel Açılır Arama Menüsü Durumları
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState<boolean>(false);
   const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+  const [dropdownScope, setDropdownScope] = useState<'class' | 'all'>('class');
   const studentDropdownRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Sınıf ve Öğrenci Seçim İşleyicileri (Tamamen bağımsız çalışma)
+  const handleSelectClass = (classId: string) => {
+    setSelectedClassId(classId);
+    setSelectedStudentId(''); // Sınıf seçildiğinde bütün sınıf çıksın
+    setDropdownScope('class');
+  };
+
+  const handleSelectStudent = (studentId: string) => {
+    setSelectedStudentId(studentId);
+    setIsStudentDropdownOpen(false);
+    // Öğrenci seçildiğinde, sınıfı varsa ve sınıf henüz seçilmemişse sınıfı eşle
+    const st = students.find((s) => s.id === studentId);
+    if (st?.classId && (!selectedClassId || selectedClassId === 'all')) {
+      setSelectedClassId(st.classId);
+    }
+  };
 
   // Öğretmen Tebrik & Aferin Bildirimi Gönderme Durumları
   const [studentNotifications, setStudentNotifications] = useState<StudentNotification[]>(() =>
@@ -100,16 +147,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   } | null>(null);
   const [praiseCustomMessage, setPraiseCustomMessage] = useState<string>('');
   const [praiseSuccessToast, setPraiseSuccessToast] = useState<string | null>(null);
-
-  // Sınıf değiştiğinde: eğer seçili öğrenci bu yeni sınıfta yoksa ve bir sınıf seçildiyse seçimi güncelle
-  useEffect(() => {
-    if (selectedClassId && selectedStudentId) {
-      const existsInClass = classStudents.some((s) => s.id === selectedStudentId);
-      if (!existsInClass) {
-        setSelectedStudentId('');
-      }
-    }
-  }, [selectedClassId, classStudents, selectedStudentId]);
 
   // Dışa tıklandığında öğrenci arama menüsünü kapat
   useEffect(() => {
@@ -136,16 +173,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     });
     return unsub;
   }, []);
-
-  const activeStudent = useMemo(() => {
-    if (!selectedStudentId) return null;
-    return students.find((s) => s.id === selectedStudentId) || null;
-  }, [students, selectedStudentId]);
-
-  const activeClass = useMemo(() => {
-    if (!activeStudent?.classId) return null;
-    return classes.find((c) => c.id === activeStudent.classId) || null;
-  }, [classes, activeStudent]);
 
   // Görünüm modları: 'weekly' (Haftalık Analiz) | 'monthly' (Aylık Analiz) | 'class_overview' (Sınıf Başarı Sıralaması)
   const [activeAnalysisMode, setActiveAnalysisMode] = useState<'weekly' | 'monthly' | 'class_overview'>('weekly');
@@ -204,20 +231,25 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return logs.reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
   };
 
-  // Öğrenci arama kutusuna göre filtrelenmiş liste
+  // Öğrenci arama kutusuna göre filtrelenmiş liste (Türkçe karakter ve büyük/küçük harf duyarsız arama)
   const filteredDropdownStudents = useMemo(() => {
-    const query = studentSearchQuery.trim().toLowerCase();
-    let list = classStudents;
+    const query = studentSearchQuery.trim();
+    // Arama yapılıyorsa bağımsız olarak tüm öğrenciler içinde ara
     if (query) {
-      list = list.filter((s) => {
-        const nameMatch = s.name.toLowerCase().includes(query);
-        const classMatch = s.className ? s.className.toLowerCase().includes(query) : false;
-        const noMatch = s.studentNumber ? s.studentNumber.includes(query) : false;
+      return students.filter((s) => {
+        const nameMatch = matchTurkishSearch(s.name, query);
+        const classMatch = s.className ? matchTurkishSearch(s.className, query) : false;
+        const noMatch = s.studentNumber ? s.studentNumber.toString().includes(query) : false;
         return nameMatch || classMatch || noMatch;
       });
     }
-    return list;
-  }, [classStudents, studentSearchQuery]);
+
+    // Arama yapılmıyorsa: sınıf seçiliyse ve kapsam sınıfsa o sınıfı, aksi halde tüm öğrencileri listele
+    if (selectedClassId && selectedClassId !== 'all' && dropdownScope === 'class') {
+      return classStudents;
+    }
+    return students;
+  }, [students, classStudents, selectedClassId, dropdownScope, studentSearchQuery]);
 
   // Bir gün için tebrik bildirimi gönderildi mi kontrolü
   const isPraisedForDate = (dateStr: string): boolean => {
@@ -502,20 +534,21 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   // Sınıf genel özeti & sıralaması
   const classOverviewData = useMemo(() => {
-    if (!activeClass) return [];
+    if (classStudents.length === 0) return [];
+    const classNameStr = activeClass?.name || 'Sınıf';
     return classStudents.map((st) => {
       const stWeekly = computeWeeklyAnalytics(
         allLogs,
         st.id,
         st.name,
-        activeClass.name,
+        st.className || classNameStr,
         targetWeekDate
       );
       const stMonthly = computeMonthlyAnalytics(
         allLogs,
         st.id,
         st.name,
-        activeClass.name,
+        st.className || classNameStr,
         monthDate.year,
         monthDate.month
       );
@@ -535,6 +568,36 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       };
     }).sort((a, b) => b.weeklyTotal - a.weeklyTotal);
   }, [activeClass, classStudents, allLogs, targetWeekDate, monthDate]);
+
+  // Sınıf genel istatistik özeti
+  const classSummaryStats = useMemo(() => {
+    const studentCount = classStudents.length;
+    const weeklyTotal = classOverviewData.reduce((sum, d) => sum + d.weeklyTotal, 0);
+    const monthlyTotal = classOverviewData.reduce((sum, d) => sum + d.monthlyTotal, 0);
+    const weeklyAvgPerStudent = studentCount > 0 ? Math.round(weeklyTotal / studentCount) : 0;
+    const dailyAvgPerStudent = Math.round(weeklyAvgPerStudent / 7);
+
+    const todaySolvedCount = classStudents.filter((s) => getStudentTodayQuestionCount(s.id) > 0).length;
+    const todayTotalQuestions = classStudents.reduce(
+      (sum, s) => sum + getStudentTodayQuestionCount(s.id),
+      0
+    );
+
+    const topStudent = classOverviewData.length > 0 && classOverviewData[0].weeklyTotal > 0
+      ? classOverviewData[0]
+      : null;
+
+    return {
+      studentCount,
+      weeklyTotal,
+      monthlyTotal,
+      weeklyAvgPerStudent,
+      dailyAvgPerStudent,
+      todaySolvedCount,
+      todayTotalQuestions,
+      topStudent,
+    };
+  }, [classStudents, classOverviewData, allLogs, todayIsoStr]);
 
   // Haftalık Hedef Tamamlama Oranı Hesabı (Öğretmenin atadığı hedef öncelikli)
   const weeklyTargetTotal = activeWeeklyTarget?.targetQuestions || (dailyQuestionTarget * 7);
@@ -697,7 +760,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               {selectedClassId && (
                 <button
                   type="button"
-                  onClick={() => setSelectedClassId('')}
+                  onClick={() => handleSelectClass('')}
                   className="text-[10px] text-slate-500 hover:text-rose-600 font-semibold cursor-pointer"
                 >
                   Sınıfı Temizle ✕
@@ -707,15 +770,19 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             <select
               id="looker-filter-class"
               value={selectedClassId}
-              onChange={(e) => setSelectedClassId(e.target.value)}
+              onChange={(e) => handleSelectClass(e.target.value)}
               className="w-full bg-white border border-slate-300 text-xs font-semibold text-[#0f172a] rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
             >
               <option value="">Sınıf Seçiniz</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              <option value="all">Tüm Sınıflar (Tüm Okul - {students.length} Öğrenci)</option>
+              {classes.map((c) => {
+                const count = students.filter((s) => s.classId === c.id).length;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({count} Öğrenci)
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -780,15 +847,15 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
             {/* Açılır Arama ve Öğrenci Seçim Paneli */}
             {isStudentDropdownOpen && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-72 animate-in fade-in duration-100">
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-300 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-80 animate-in fade-in duration-100">
                 {/* En üstteki Yapışkan Arama Kutusu */}
-                <div className="p-2 border-b border-slate-200 bg-slate-50 sticky top-0 z-20">
+                <div className="p-2 border-b border-slate-200 bg-slate-50 sticky top-0 z-20 space-y-1.5">
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
                     <input
                       autoFocus
                       type="text"
-                      placeholder="Öğrenci ara (isim, sınıf, no)..."
+                      placeholder="Öğrenci ara (büyük/küçük harf duyarsız)..."
                       value={studentSearchQuery}
                       onChange={(e) => setStudentSearchQuery(e.target.value)}
                       className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
@@ -803,6 +870,34 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </button>
                     )}
                   </div>
+
+                  {/* Kapsam Filtresi: Eğer sınıf seçilmişse sınıf içi veya tüm okul toggle'ı */}
+                  {selectedClassId && selectedClassId !== 'all' && (
+                    <div className="flex rounded-md bg-slate-200/80 p-0.5 text-[10px] font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setDropdownScope('class')}
+                        className={`flex-1 py-1 rounded transition-colors ${
+                          dropdownScope === 'class'
+                            ? 'bg-white text-orange-700 shadow-2xs font-extrabold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {activeClass?.name || 'Sınıf'} ({classStudents.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDropdownScope('all')}
+                        className={`flex-1 py-1 rounded transition-colors ${
+                          dropdownScope === 'all'
+                            ? 'bg-white text-orange-700 shadow-2xs font-extrabold'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Tüm Okul ({students.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Seçim Seçenekleri */}
@@ -833,10 +928,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedStudentId(s.id);
-                            setIsStudentDropdownOpen(false);
-                          }}
+                          onClick={() => handleSelectStudent(s.id)}
                           className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                             hasSolvedToday
                               ? isSelected
@@ -930,77 +1022,415 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       </div>
 
       {!activeStudent ? (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-10 shadow-sm space-y-6">
-          <div className="text-center max-w-xl mx-auto space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
-              <User className="w-6 h-6" />
+        selectedClassId ? (
+          /* ========================================================================= */
+          /* BÜTÜN SINIF GÖRÜNÜMÜ ("Sınıf seçince bütün sınıf çıksın")                */
+          /* ========================================================================= */
+          <div className="space-y-6">
+            {/* Sınıf Başlık ve Bilgilendirme Kartı */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-orange-100 border border-orange-200 text-orange-600 flex items-center justify-center shrink-0 shadow-xs">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                        Bütün Sınıf Raporu
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {classStudents.length} Kayıtlı Öğrenci
+                      </span>
+                    </div>
+                    <h2 className="text-lg sm:text-xl font-black text-[#0f172a] tracking-tight mt-0.5">
+                      {activeClass?.name || 'Sınıf'} — Tüm Öğrencilerin Soru Çözüm & Başarı Raporu
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStudentDropdownOpen(true);
+                      setStudentSearchQuery('');
+                    }}
+                    className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Öğrenci Seçip İncele</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectClass('')}
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                    title="Sınıf seçimini temizle"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Sınıfı Kapat</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sınıf Genel KPI Kartları */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-4">
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
+                    <span>Sınıf Mevcudu</span>
+                    <Users className="w-4 h-4 text-[#1e3a8a]" />
+                  </div>
+                  <div className="text-2xl font-black text-[#0f172a]">
+                    {classStudents.length} <span className="text-xs font-normal text-slate-500">Öğrenci</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+                    Bugün {classSummaryStats.todaySolvedCount} öğrenci soru girişi yaptı
+                  </div>
+                </div>
+
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
+                    <span>Bu Hafta Sınıf Toplamı</span>
+                    <BarChart3 className="w-4 h-4 text-orange-600" />
+                  </div>
+                  <div className="text-2xl font-black text-orange-600">
+                    {classSummaryStats.weeklyTotal} <span className="text-xs font-normal text-slate-500">Soru</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Haftalık sınıf geneli çözülen toplam
+                  </div>
+                </div>
+
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
+                    <span>Öğrenci Başına Haftalık Ortalama</span>
+                    <Target className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div className="text-2xl font-black text-emerald-700">
+                    {classSummaryStats.weeklyAvgPerStudent} <span className="text-xs font-normal text-slate-500">Soru</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Günlük ortalama ~{classSummaryStats.dailyAvgPerStudent} soru
+                  </div>
+                </div>
+
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
+                    <span>Bu Ay Sınıf Toplamı</span>
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div className="text-2xl font-black text-purple-700">
+                    {classSummaryStats.monthlyTotal} <span className="text-xs font-normal text-slate-500">Soru</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Aylık genel sınıf soru hacmi
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 className="text-base sm:text-lg font-bold text-[#0f172a]">
-              Lütfen İncelemek İstediğiniz Öğrenciyi Seçiniz
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Yukarıdaki <strong>"Öğrenci Seçimi"</strong> açılır kutusundan dilediğiniz öğrenciyi seçebilir veya arama kutusuna ismini yazarak kolayca bulabilirsiniz. Sınıf seçimi yapmadan da tüm öğrenciler arasından seçim yapabilirsiniz.
-            </p>
-          </div>
 
-          {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}
-          {(() => {
-            const todaySolvedStudents = students
-              .map((s) => ({
-                student: s,
-                todayQuestions: getStudentTodayQuestionCount(s.id),
-              }))
-              .filter((x) => x.todayQuestions > 0);
-
-            if (todaySolvedStudents.length === 0) {
-              return (
-                <div className="bg-slate-50 rounded-xl p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200">
-                  Bugün henüz sisteme soru girişi yapan öğrenci bulunmuyor. Yukarıdaki menüden geçmiş günlerin analizini incelemek istediğiniz öğrenciyi seçebilirsiniz.
+            {/* Sınıfın Tüm Öğrencilerinin Soru Çözüm Sıralaması Tablosu */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h3 className="text-base font-bold text-[#0f172a] flex items-center gap-2">
+                    <span>{activeClass?.name || 'Sınıf'} — Tüm Öğrencilerin Başarı & Soru Sıralaması</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      {classOverviewData.length} Öğrenci
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    İncelemek istediğiniz öğrencinin üzerine veya <strong>"Analiz Aç"</strong> butonuna tıklayarak bireysel analiz ekranına geçebilirsiniz.
+                  </p>
                 </div>
-              );
-            }
+              </div>
 
-            return (
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    <span>Bugün Soru Çözen Öğrenciler ({todaySolvedStudents.length})</span>
-                  </h4>
-                  <span className="text-[11px] text-slate-500">
-                    Öğrenciye tıklayarak analizi görüntüleyebilir ve tebrik edebilirsiniz
-                  </span>
+              {classOverviewData.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  Bu sınıfta henüz kayıtlı öğrenci bulunmuyor.
                 </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#f1f5f9] text-[#334155] font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3">Sıra</th>
+                        <th className="px-4 py-3">Öğrenci Adı</th>
+                        <th className="px-4 py-3 text-center">Bugün Çözülen</th>
+                        <th className="px-4 py-3 text-center">Bu Hafta Çözülen</th>
+                        <th className="px-4 py-3 text-center">Soru Çözülmeyen Günler</th>
+                        <th className="px-4 py-3 text-center">Haftalık İlerleme</th>
+                        <th className="px-4 py-3 text-center">Bu Ay Toplam</th>
+                        <th className="px-4 py-3 text-center">Başarı Seviyesi</th>
+                        <th className="px-4 py-3 text-right">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {classOverviewData.map((row, idx) => {
+                        const todayCount = getStudentTodayQuestionCount(row.student.id);
+                        return (
+                          <tr
+                            key={row.student.id}
+                            className="hover:bg-orange-50/40 transition-colors group cursor-pointer"
+                            onClick={() => handleSelectStudent(row.student.id)}
+                          >
+                            <td className="px-4 py-3.5 font-bold text-slate-500">
+                              {idx === 0 ? (
+                                <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-black text-[11px]">
+                                  🥇
+                                </span>
+                              ) : idx === 1 ? (
+                                <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-black text-[11px]">
+                                  🥈
+                                </span>
+                              ) : idx === 2 ? (
+                                <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-800 flex items-center justify-center font-black text-[11px]">
+                                  🥉
+                                </span>
+                              ) : (
+                                idx + 1
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="font-bold text-[#0f172a] group-hover:text-orange-600 transition-colors text-sm">
+                                {row.student.name}
+                              </div>
+                              {row.student.studentNumber && (
+                                <div className="text-[10px] text-slate-400">
+                                  No: {row.student.studentNumber}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              {todayCount > 0 ? (
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  🎯 {todayCount} Soru
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[11px] font-medium">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-center font-extrabold text-[#0f172a] text-sm">
+                              {row.weeklyTotal} Soru
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              {row.unsolvedDaysCount > 0 ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                                  {row.unsolvedDaysCount} Gün Boş
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Her Gün Çözüldü
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-center font-semibold">
+                              <span className={row.weeklyDiff >= 0 ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                                {row.weeklyDiff >= 0 ? '+' : ''}{row.weeklyDiff} ({row.weeklyGrowthRate >= 0 ? '+' : ''}%{row.weeklyGrowthRate})
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center font-extrabold text-[#1e3a8a]">
+                              {row.monthlyTotal} Soru
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold bg-[#f8fafc] text-[#0f172a] border border-slate-200">
+                                {row.badgeText}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectStudent(row.student.id);
+                                }}
+                                className="px-3 py-1.5 bg-[#0f172a] hover:bg-orange-600 text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-xs inline-flex items-center gap-1"
+                              >
+                                <span>Analiz Aç</span>
+                                <span>→</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {todaySolvedStudents.map(({ student: s, todayQuestions }) => (
+            {/* Sınıftaki Öğrencilerin Hızlı Kartları */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider flex items-center gap-2">
+                  <User className="w-4 h-4 text-orange-600" />
+                  <span>Sınıf Öğrenci Kartları ({classStudents.length})</span>
+                </h4>
+                <span className="text-[11px] text-slate-500">
+                  Kart üzerine tıklayarak öğrenci analizine hızlıca geçebilirsiniz
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {classStudents.map((s) => {
+                  const todayCount = getStudentTodayQuestionCount(s.id);
+                  const overviewItem = classOverviewData.find((d) => d.student.id === s.id);
+                  const weeklyTotal = overviewItem?.weeklyTotal || 0;
+
+                  return (
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => setSelectedStudentId(s.id)}
-                      className="p-3.5 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/80 to-teal-50/40 hover:from-emerald-100/90 hover:to-teal-100/60 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                      onClick={() => handleSelectStudent(s.id)}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 hover:from-orange-50/70 hover:to-amber-50/50 hover:border-orange-300 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="font-extrabold text-xs text-emerald-950 group-hover:text-emerald-800 transition-colors">
-                          {s.name}
+                        <div>
+                          <div className="font-extrabold text-xs text-[#0f172a] group-hover:text-orange-600 transition-colors">
+                            {s.name}
+                          </div>
+                          {s.studentNumber && (
+                            <div className="text-[10px] text-slate-400">
+                              No: {s.studentNumber}
+                            </div>
+                          )}
                         </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs shrink-0">
-                          {todayQuestions} Soru
-                        </span>
+                        {todayCount > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs shrink-0">
+                            🎯 {todayCount}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-emerald-100/60">
-                        <span className="truncate">{s.className || 'Sınıf Belirtilmedi'}</span>
-                        <span className="text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                        <span className="font-semibold text-slate-700">Bu Hafta: <strong className="text-orange-600 font-extrabold">{weeklyTotal} Soru</strong></span>
+                        <span className="text-orange-600 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
                           İncele →
                         </span>
                       </div>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })()}
-        </div>
+            </div>
+          </div>
+        ) : (
+          /* ========================================================================= */
+          /* HOŞ GELDİNİZ VE SINIF SEÇİM PANELİ (SINIF VEYA ÖĞRENCİ SEÇİLMEDİĞİNDE)     */
+          /* ========================================================================= */
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-10 shadow-sm space-y-6">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-2 shadow-xs">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-base sm:text-lg font-bold text-[#0f172a]">
+                Lütfen İncelemek İstediğiniz Sınıfı veya Öğrenciyi Seçiniz
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Bir <strong>sınıf seçerek bütün sınıfın</strong> soru çözümlerini ve başarı sıralamasını listeleyebilir, veya <strong>öğrenci seçerek</strong> tek bir öğrencinin ayrıntılı haftalık/aylık analizini inceleyebilirsiniz.
+              </p>
+            </div>
+
+            {/* Hızlı Sınıf Seçim Kartları */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-orange-600" />
+                  <span>Sınıflar ({classes.length})</span>
+                </h4>
+                <span className="text-[11px] text-slate-500">
+                  Tüm sınıfı görüntülemek için tıklayın
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {classes.map((c) => {
+                  const classStCount = students.filter((s) => s.classId === c.id).length;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelectClass(c.id)}
+                      className="p-4 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white hover:border-orange-400 hover:from-orange-50/50 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-black text-[#0f172a] group-hover:text-orange-600 transition-colors">
+                          {c.name}
+                        </span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
+                          {classStCount} Öğrenci
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                        <span>Bütün sınıfı gör</span>
+                        <span className="text-orange-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                          Görüntüle →
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}
+            {(() => {
+              const todaySolvedStudents = students
+                .map((s) => ({
+                  student: s,
+                  todayQuestions: getStudentTodayQuestionCount(s.id),
+                }))
+                .filter((x) => x.todayQuestions > 0);
+
+              if (todaySolvedStudents.length === 0) {
+                return (
+                  <div className="bg-slate-50 rounded-xl p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200">
+                    Bugün henüz sisteme soru girişi yapan öğrenci bulunmuyor. Yukarıdaki menüden geçmiş günlerin analizini incelemek istediğiniz sınıfı veya öğrenciyi seçebilirsiniz.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                      <span>Bugün Soru Çözen Öğrenciler ({todaySolvedStudents.length})</span>
+                    </h4>
+                    <span className="text-[11px] text-slate-500">
+                      Öğrenciye tıklayarak bireysel analizi görüntüleyebilirsiniz
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {todaySolvedStudents.map(({ student: s, todayQuestions }) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleSelectStudent(s.id)}
+                        className="p-3.5 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/80 to-teal-50/40 hover:from-emerald-100/90 hover:to-teal-100/60 transition-all text-left group shadow-xs hover:shadow-md cursor-pointer flex flex-col justify-between"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="font-extrabold text-xs text-emerald-950 group-hover:text-emerald-800 transition-colors">
+                            {s.name}
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs shrink-0">
+                            {todayQuestions} Soru
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-emerald-100/60">
+                          <span className="truncate">{s.className || 'Sınıf Belirtilmedi'}</span>
+                          <span className="text-emerald-700 font-bold group-hover:translate-x-0.5 transition-transform flex items-center">
+                            İncele →
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )
       ) : (
         <>
           {/* ========================================================================= */}
@@ -1066,12 +1496,28 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-[#0f172a] text-orange-400 flex items-center justify-center font-bold text-xs border border-orange-500/20">
-                    {activeStudent.name.charAt(0)}
-                  </div>
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
+                <div className="flex items-center gap-2.5">
+                  {activeClass && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentId('')}
+                      className="px-3 py-2 bg-slate-100 hover:bg-orange-50 hover:border-orange-300 text-slate-700 hover:text-orange-900 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      title="Sınıfın bütün öğrencilerini ve başarı sıralamasını gör"
+                    >
+                      <Users className="w-3.5 h-3.5 text-orange-600" />
+                      <span>{activeClass.name} Sınıfının Tümünü Göster ({classStudents.length})</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
+                    <div className="w-8 h-8 rounded-full bg-[#0f172a] text-orange-400 flex items-center justify-center font-bold text-xs border border-orange-500/20">
+                      {activeStudent.name.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
+                      {activeStudent.className && (
+                        <span className="text-[10px] text-slate-400 block">{activeStudent.className}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1676,12 +2122,28 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
-                  <div className="w-8 h-8 rounded-full bg-[#0f172a] text-orange-400 flex items-center justify-center font-bold text-xs border border-orange-500/20">
-                    {activeStudent.name.charAt(0)}
-                  </div>
-                  <div className="text-left">
-                    <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
+                <div className="flex items-center gap-2.5">
+                  {activeClass && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStudentId('')}
+                      className="px-3 py-2 bg-slate-100 hover:bg-orange-50 hover:border-orange-300 text-slate-700 hover:text-orange-900 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                      title="Sınıfın bütün öğrencilerini ve başarı sıralamasını gör"
+                    >
+                      <Users className="w-3.5 h-3.5 text-orange-600" />
+                      <span>{activeClass.name} Sınıfının Tümünü Göster ({classStudents.length})</span>
+                    </button>
+                  )}
+                  <div className="flex items-center gap-3 bg-[#f8fafc] px-4 py-2 rounded-xl border border-slate-200">
+                    <div className="w-8 h-8 rounded-full bg-[#0f172a] text-orange-400 flex items-center justify-center font-bold text-xs border border-orange-500/20">
+                      {activeStudent.name.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-[#0f172a] block">{activeStudent.name}</span>
+                      {activeStudent.className && (
+                        <span className="text-[10px] text-slate-400 block">{activeStudent.className}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

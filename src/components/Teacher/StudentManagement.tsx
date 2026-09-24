@@ -38,6 +38,7 @@ import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
 import { ExcelClassUploadModal } from './ExcelClassUploadModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 import {
   generateStudentWelcomeEmail,
   createGmailComposeLink,
@@ -194,12 +195,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     return { duplicateIds, dupMap, totalDuplicates: duplicateIds.size };
   }, [students, classes]);
 
-  // Filter students
+  // Filter students (Büyük/küçük harf ve Türkçe karakter duyarsız arama)
   const filteredStudents = students.filter((s) => {
     const matchesSearch =
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.studentNumber.includes(searchTerm) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase());
+      matchTurkishSearch(s.name, searchTerm) ||
+      (s.studentNumber && s.studentNumber.toString().includes(searchTerm.trim())) ||
+      matchTurkishSearch(s.email, searchTerm) ||
+      matchTurkishSearch(s.className, searchTerm);
     const matchesClass = selectedClassFilter === 'all' || s.classId === selectedClassFilter;
     return matchesSearch && matchesClass;
   });
