@@ -1035,7 +1035,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Etüt Bulunmuyor</h3>
               <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
-                Yoklama alabilmek için lütfen önce "Yeni Etüt Planla" butonu ile bir etüt oluşturunuz.
+                Yoklama alabilmek için lütfen önce bir etüt oluşturunuz.
               </p>
               <button
                 type="button"
@@ -1362,9 +1362,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <School className="w-4 h-4 text-indigo-400" />
                     <span>Okul, Ders ve Öğretmen Bilgileri</span>
                   </span>
-                  <span className="text-[11px] text-slate-400">
-                    Ders için atanan öğretmen ismi sonraki etütlerde otomatik hatırlanır
-                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1427,9 +1424,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <div className="flex items-center space-x-2">
                       <Users className="w-4 h-4 text-amber-400" />
                       <span className="text-xs font-bold text-slate-200">Etüt Öğretmeni</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium">
-                        Kalıcı Kayıtlı
-                      </span>
                     </div>
 
                     <div className="flex items-center space-x-2 text-xs">
@@ -1530,11 +1524,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         Seçimi Temizle ✕
                       </button>
                     </div>
-                  ) : (
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Ders: <strong className="text-amber-300">{subject}</strong> • Seçtiğiniz öğretmen sistemde kalıcı tutulur ve bir sonraki etütte otomatik olarak seçilir.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -1544,9 +1534,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
                     <GraduationCap className="w-4 h-4 text-indigo-400" />
                     <span>Sınıf, Şube ve Öğrenci Seçimi</span>
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    Sınıftan bağımsız olarak dilediğiniz öğrenciye bireysel etüt tanımlayabilirsiniz
                   </span>
                 </div>
 

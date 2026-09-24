@@ -498,7 +498,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                       <div className="px-5 pt-2.5 flex items-center justify-between text-[11px] text-slate-500">
                         <span className="flex items-center space-x-1.5">
                           <span>👉</span>
-                          <span>Yan yana kayan özet sayfalar ({categoryDocs.length} belge). 'Görüntüle' butonuyla tam sayfayı açıp sayfa altından indirebilirsiniz.</span>
+                          <span>Yan yana kayan özet sayfalar ({categoryDocs.length} belge).</span>
                         </span>
                         <span className="hidden sm:inline font-mono">Kaydır ⇄</span>
                       </div>

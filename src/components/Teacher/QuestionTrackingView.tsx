@@ -1139,9 +1139,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       {classOverviewData.length} Öğrenci
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    İncelemek istediğiniz öğrencinin üzerine veya <strong>"Analiz Aç"</strong> butonuna tıklayarak bireysel analiz ekranına geçebilirsiniz.
-                  </p>
                 </div>
               </div>
 
@@ -1266,9 +1263,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <User className="w-4 h-4 text-orange-600" />
                   <span>Sınıf Öğrenci Kartları ({classStudents.length})</span>
                 </h4>
-                <span className="text-[11px] text-slate-500">
-                  Kart üzerine tıklayarak öğrenci analizine hızlıca geçebilirsiniz
-                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1337,9 +1331,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <Users className="w-4 h-4 text-orange-600" />
                   <span>Sınıflar ({classes.length})</span>
                 </h4>
-                <span className="text-[11px] text-slate-500">
-                  Tüm sınıfı görüntülemek için tıklayın
-                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1396,9 +1387,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <Sparkles className="w-4 h-4 text-emerald-600" />
                       <span>Bugün Soru Çözen Öğrenciler ({todaySolvedStudents.length})</span>
                     </h4>
-                    <span className="text-[11px] text-slate-500">
-                      Öğrenciye tıklayarak bireysel analizi görüntüleyebilirsiniz
-                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1475,9 +1463,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </h3>
                     </div>
                     <div className="ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 text-slate-400 group-hover:text-orange-600 flex items-center gap-1 text-xs font-semibold shrink-0">
-                      <span className="hidden md:inline text-[11px] text-slate-500 group-hover:text-orange-700 font-medium">
-                        Açılır Pencere
-                      </span>
                       <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 md:text-slate-400" />
                     </div>
                   </button>
@@ -2101,9 +2086,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </h3>
                     </div>
                     <div className="ml-1 sm:ml-2 pl-2 sm:pl-3 border-l border-slate-200 text-slate-400 group-hover:text-orange-600 flex items-center gap-1 text-xs font-semibold shrink-0">
-                      <span className="hidden md:inline text-[11px] text-slate-500 group-hover:text-orange-700 font-medium">
-                        Açılır Pencere
-                      </span>
                       <ChevronDown className="w-4 h-4 transition-transform group-hover:translate-y-0.5 text-orange-600 md:text-slate-400" />
                     </div>
                   </button>

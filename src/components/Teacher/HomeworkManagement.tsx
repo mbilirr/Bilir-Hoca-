@@ -435,7 +435,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       izinli: 'İzinli',
       gelmedi: 'Gelmedi',
     };
-    setSaveFeedback(`${labels[status]} seçildi. Kaydetmek için sayfanın altındaki butona tıklayınız.`);
+    setSaveFeedback(`${labels[status]} seçildi.`);
   };
 
   const handleBatchStatus = (status: HomeworkCheckStatus) => {
@@ -454,7 +454,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       izinli: 'İzinli',
       gelmedi: 'Gelmedi',
     };
-    setSaveFeedback(`Listedeki tüm öğrenciler "${labels[status]}" olarak seçildi. Kaydetmek için sayfanın altındaki "Değişiklikleri Kaydet" butonuna tıklayınız.`);
+    setSaveFeedback(`Listedeki tüm öğrenciler "${labels[status]}" olarak seçildi.`);
   };
 
   const handleSaveAllChecks = () => {
@@ -644,7 +644,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </div>
               <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
               <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
-                Ödev kontrolü yapabilmek için lütfen önce "Yeni Ödev Oluştur" butonu ile sisteme bir ödev ekleyiniz.
+                Ödev kontrolü yapabilmek için lütfen önce sisteme bir ödev ekleyiniz.
               </p>
               <button
                 type="button"

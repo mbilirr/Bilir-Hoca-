@@ -271,8 +271,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             {/* Öğretmen Profiline Uygun Emojiler */}
             <div className="pt-2.5 border-t border-slate-800/80 space-y-1.5">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-slate-300">Öğretmen Profiline Uygun Emojiler:</span>
-                <span className="text-slate-400">Tıklayarak doğrudan profil resmi yapın</span>
+                <span className="font-bold text-slate-300">Öğretmen Profiline Uygun Emojiler</span>
               </div>
               
               {/* Emojiler Gruplu / Yatay Liste */}

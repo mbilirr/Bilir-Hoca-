@@ -831,13 +831,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   ) : batchEnteredCount > 0 ? (
                     <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold animate-pulse">
                       <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                      <span>{batchEnteredCount} öğrenci için not girildi (Butona tıklamadan sisteme kaydedilmez)</span>
+                      <span>{batchEnteredCount} öğrenci için not girildi</span>
                     </span>
-                  ) : (
-                    <span className="text-slate-400">
-                      Notları girdikten sonra kalıcı olarak kaydetmek için aşağıdaki butona tıklayınız.
-                    </span>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex items-center space-x-2 w-full sm:w-auto">
@@ -1079,18 +1075,10 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 {/* SAYFA ALTI KAYDET BUTONU FOR ATTENDANCE */}
                 <div className="p-4 bg-slate-950/90 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="flex items-center space-x-2 text-xs">
-                    {saveFeedback ? (
+                    {saveFeedback && (
                       <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                         <span>Yoklama başarıyla sisteme kaydedildi!</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">
-                        {currentAttendanceRecord ? (
-                          <span>Kayıtlı yoklama üzerinde değişiklik yaptığınızda aşağıdaki kaydet butonuyla güncelleyebilirsiniz.</span>
-                        ) : (
-                          <span>Öğrencilerin yoklama durumunu belirledikten sonra kaydetmek için aşağıdaki butona tıklayınız.</span>
-                        )}
                       </span>
                     )}
                   </div>

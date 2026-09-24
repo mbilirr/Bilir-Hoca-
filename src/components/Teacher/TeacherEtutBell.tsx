@@ -192,9 +192,6 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
                 <p className="text-xs font-medium text-slate-300">
                   Önümüzdeki 7 gün içinde planlanmış etüt bulunmuyor.
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Yeni etüt eklemek için aşağıdaki butonu kullanabilirsiniz.
-                </p>
               </div>
             ) : (
               upcomingEtuts.map((etut) => {

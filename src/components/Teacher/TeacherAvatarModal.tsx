@@ -190,7 +190,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
       const compressedDataUrl = await compressImageToDataUrl(file, 200, 200, 0.8);
       setAvatarUrl(compressedDataUrl);
       setActiveEmoji(null);
-      setSuccessMsg('Fotoğraf başarıyla yüklendi ve optimize edildi! Kaydet butonuna basarak onaylayabilirsiniz.');
+      setSuccessMsg('Fotoğraf başarıyla yüklendi ve optimize edildi.');
     } catch {
       setErrorMsg('Dosya işlenirken bir hata meydana geldi.');
     }

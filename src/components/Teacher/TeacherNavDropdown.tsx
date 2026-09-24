@@ -149,23 +149,10 @@ export const TeacherNavDropdown: React.FC<TeacherNavDropdownProps> = ({
             <span>Öğrenci Paneli</span>
           </button>
         </div>
-
-        {/* Aktif Modül İpucu */}
-        <div className="flex items-center space-x-2 text-xs text-slate-400">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-medium text-slate-300">
-            Mevcut Alan: <strong className="text-white font-bold">{activeItem.title}</strong>
-          </span>
-        </div>
       </div>
 
       {/* 2. Alt Kısım: Sağ Tarafta Öğretmen Çalışma Modülü Butonu */}
-      <div className="pt-3.5 flex items-center justify-between flex-wrap gap-3">
-        <div className="text-xs text-slate-400 flex items-center space-x-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-medium">Hızlı modül geçişi için butonu kullanabilirsiniz:</span>
-        </div>
-
+      <div className="pt-3.5 flex items-center justify-end flex-wrap gap-3">
         {/* Altına Sağ Tarafa: Öğretmen Çalışma Modülleri Açılır Butonu */}
         <div ref={dropdownRef} className="relative ml-auto">
           <button

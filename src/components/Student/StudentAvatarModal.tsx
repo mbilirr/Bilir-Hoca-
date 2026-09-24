@@ -200,7 +200,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
       const compressedDataUrl = await compressImageToDataUrl(file, 220, 220, 0.85);
       setAvatarUrl(compressedDataUrl);
       setActiveEmoji(null);
-      setSuccessMsg('Fotoğrafınız bilgisayardan seçildi! "Kaydet ve Uygula" butonuna tıklayarak onaylayabilirsiniz.');
+      setSuccessMsg('Fotoğrafınız başarıyla seçildi.');
     } catch {
       setErrorMsg('Fotoğraf işlenirken bir sorun oluştu.');
     } finally {
@@ -465,10 +465,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                     <Upload className="w-7 h-7" />
                   </div>
                   <span className="text-sm font-black text-white">
-                    {isProcessing ? 'Fotoğraf Optimize Ediliyor...' : 'Bilgisayardan Dosya Seçmek İçin Tıklayın'}
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    Dosyayı bu alana tıklayarak seçin • Otomatik kırpılır ve optimize edilir
+                    {isProcessing ? 'Fotoğraf Optimize Ediliyor...' : 'Bilgisayardan Dosya Seç'}
                   </span>
                 </div>
 
@@ -488,7 +485,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
               {avatarUrl.startsWith('data:image/') && !avatarUrl.startsWith('data:image/svg') && (
                 <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center space-x-2.5 text-xs text-emerald-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span>Bilgisayarınızdan seçilen fotoğraf hazır! Aşağıdaki &quot;Kaydet ve Uygula&quot; butonuna basınız.</span>
+                  <span>Bilgisayarınızdan seçilen fotoğraf hazır!</span>
                 </div>
               )}
             </div>
