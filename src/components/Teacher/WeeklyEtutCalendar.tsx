@@ -228,10 +228,14 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
 
     filteredEtuts.forEach((etut) => {
       if (!etut.date) return;
-      let dKey = etut.date.trim().split('T')[0].replace(/\//g, '-');
+      let dKey = etut.date.trim().split('T')[0].replace(/\//g, '-').replace(/\./g, '-');
       const parts = dKey.split('-');
       if (parts.length === 3) {
-        dKey = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        if (parts[0].length === 4) {
+          dKey = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        } else if (parts[2].length === 4) {
+          dKey = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
       }
       if (map[dKey]) {
         map[dKey].push(etut);
@@ -498,12 +502,17 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 {dayEtuts.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center py-8 text-center px-2">
                     <CalendarIcon className="w-6 h-6 text-slate-700 mb-1.5" />
-                    <p className="text-[11px] text-slate-500 font-medium">Planlı etüt yok</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Bu günde planlı etüt yok</p>
+                    {totalEtutsThisWeek > 0 && (
+                      <div className="mt-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 max-w-[220px]">
+                        Bu hafta toplam <strong className="text-white">{totalEtutsThisWeek} etüt</strong> var. Yukarıdaki gün sekmelerinden etüt olan günleri seçebilirsiniz.
+                      </div>
+                    )}
                     {!readOnly && onAddEtutForDate && (
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold px-2 py-1 rounded border border-dashed border-indigo-500/30 hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
+                        className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold px-2.5 py-1 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Etüt Ekle</span>

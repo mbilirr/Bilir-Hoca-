@@ -149,8 +149,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     if (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.includes(currentStudent.id)) return true;
     if (e.studentAttendance && e.studentAttendance[currentStudent.id]) return true;
     if (!e.assignedStudentIds || (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.length === 0)) {
-      if (e.gradeLevel && currentStudent.className && currentStudent.className.toLowerCase().includes(e.gradeLevel.split('.')[0].toLowerCase())) {
-        return true;
+      if (e.gradeLevel && currentStudent.className && typeof currentStudent.className === 'string') {
+        const gradePart = (e.gradeLevel.split('.')[0] || '').toLowerCase();
+        if (gradePart && currentStudent.className.toLowerCase().includes(gradePart)) {
+          return true;
+        }
       }
       return true;
     }
@@ -417,11 +420,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </div>
 
           {/* Sınıf ve Öğrenci Bilgisi */}
-          <div id="student-class-info-badge" className="hidden sm:flex items-center space-x-2 text-xs text-slate-500 font-medium">
-            <span className="px-2.5 py-1 rounded-lg bg-[#f1f5f9] border border-slate-200 text-[#0f172a] font-bold">
-              {currentStudent.className}
+          <div id="student-class-info-badge" className="flex items-center space-x-1.5 sm:space-x-2 text-xs text-slate-500 font-medium">
+            <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-[#f1f5f9] border border-slate-200 text-[#0f172a] font-bold text-[11px] sm:text-xs">
+              {currentStudent.className || 'Sınıf'}
             </span>
-            {currentStudent.studentNumber && <span className="font-semibold text-slate-500">#{currentStudent.studentNumber}</span>}
+            {currentStudent.studentNumber && (
+              <span className="font-semibold text-slate-500 text-[11px] sm:text-xs">
+                #{currentStudent.studentNumber}
+              </span>
+            )}
           </div>
         </div>
       </div>

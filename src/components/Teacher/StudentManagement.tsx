@@ -284,9 +284,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
   // Tanımsız / Sınıfı olmayan öğrencileri tespit etme
   const isStudentUnassigned = (s: Student) => {
-    if (!s.classId || s.classId === '' || s.classId === 'tanimsiz' || s.classId === 'unassigned') return true;
-    if (s.className === 'Tanımsız' || s.className === 'Sınıfsız') return true;
-    return !classes.some((c) => c.id === s.classId);
+    if (!s) return true;
+    if (s.className === 'Tanımsız' || s.className === 'Sınıfsız' || s.className === 'Atanmadı') {
+      if (!s.classId || s.classId === '' || s.classId === 'tanimsiz' || s.classId === 'unassigned' || s.classId === 'class-default') {
+        return true;
+      }
+    }
+    // Öğrencinin geçerli bir sınıf ismi varsa kesinlikle tanımsız/sınıfsız sayılmaz
+    if (s.className && s.className !== 'Atanmadı' && s.className !== 'Tanımsız' && s.className !== 'Sınıfsız') {
+      return false;
+    }
+    if (s.classId && classes.some((c) => c.id === s.classId || c.name === s.className)) {
+      return false;
+    }
+    return true;
   };
 
   const unassignedStudentsCount = useMemo(() => {
@@ -581,7 +592,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const detectedGrades = getGradesForSchoolLevel(detectedSchool);
     const matchedGrade =
       student.gradeLevel ||
-      detectedGrades.find((g) => student.className.includes(g)) ||
+      (student.className ? detectedGrades.find((g) => student.className.includes(g)) : undefined) ||
       detectedGrades[0];
 
     setStudentSchoolLevel(detectedSchool);

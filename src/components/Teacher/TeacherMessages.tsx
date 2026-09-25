@@ -28,9 +28,9 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const filteredMessages = messages.filter((m) => {
     const term = searchTerm.toLowerCase();
     return (
-      m.studentName.toLowerCase().includes(term) ||
-      m.subject.toLowerCase().includes(term) ||
-      m.text.toLowerCase().includes(term)
+      (m.studentName || '').toLowerCase().includes(term) ||
+      (m.subject || '').toLowerCase().includes(term) ||
+      (m.text || '').toLowerCase().includes(term)
     );
   });
 

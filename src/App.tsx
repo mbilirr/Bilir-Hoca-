@@ -36,6 +36,7 @@ import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApp
 import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
 import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
+import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { dataService } from './services/dataService';
 import {
   Student,
@@ -316,7 +317,13 @@ export default function App() {
         onLogout={handleLogout}
         onStudentLogout={handleLogout}
         activeTeacherTab={teacherTab}
-        onSelectTeacherTab={(tab) => setTeacherTab(tab)}
+        onSelectTeacherTab={(tab) => {
+          setTeacherTab(tab);
+          setStudents(dataService.getStudents());
+          setClasses(dataService.getClasses());
+          setHomeworks(dataService.getHomeworks());
+          setEtuts(dataService.getEtuts());
+        }}
         unreadMessagesCount={unreadMessagesCount}
         documentsCount={documents.length}
       />
@@ -421,52 +428,65 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Active Teacher View Tab */}
-                {teacherTab === 'students' && (
-                  <StudentManagement
-                    students={students}
-                    classes={classes}
-                    onSelectStudentForHomework={(std) => {
-                      setTeacherTab('homework');
-                    }}
-                  />
-                )}
+                {/* Active Teacher View Tab with Isolated Safe Boundary */}
+                <ModuleErrorBoundary
+                  key={teacherTab}
+                  moduleName={
+                    teacherTab === 'students' ? 'Öğrenci & Sınıf Yönetimi' :
+                    teacherTab === 'homework' ? 'Kazanım & Ödev Takibi' :
+                    teacherTab === 'etuts' ? 'Etüt & Birebir Takip' :
+                    teacherTab === 'messages' ? 'Öğrenci Soruları & Mesajlaşma' :
+                    teacherTab === 'archive' ? 'Plan & Zümre Arşivi' :
+                    teacherTab === 'question_tracking' ? 'Soru Sayısı Takip & Analiz' : 'Modül'
+                  }
+                  onResetToHome={() => setTeacherTab('home')}
+                >
+                  {teacherTab === 'students' && (
+                    <StudentManagement
+                      students={students}
+                      classes={classes}
+                      onSelectStudentForHomework={(std) => {
+                        setTeacherTab('homework');
+                      }}
+                    />
+                  )}
 
-                {teacherTab === 'homework' && (
-                  <HomeworkManagement
-                    homeworks={homeworks}
-                    submissions={submissions}
-                    students={students}
-                    classes={classes}
-                    onNavigateToEtut={() => setTeacherTab('etuts')}
-                  />
-                )}
+                  {teacherTab === 'homework' && (
+                    <HomeworkManagement
+                      homeworks={homeworks}
+                      submissions={submissions}
+                      students={students}
+                      classes={classes}
+                      onNavigateToEtut={() => setTeacherTab('etuts')}
+                    />
+                  )}
 
-                {teacherTab === 'etuts' && (
-                  <EtutManagement
-                    etuts={etuts}
-                    students={students}
-                    classes={classes}
-                  />
-                )}
+                  {teacherTab === 'etuts' && (
+                    <EtutManagement
+                      etuts={etuts}
+                      students={students}
+                      classes={classes}
+                    />
+                  )}
 
-                {teacherTab === 'messages' && (
-                  <TeacherMessages messages={messages} />
-                )}
+                  {teacherTab === 'messages' && (
+                    <TeacherMessages messages={messages} />
+                  )}
 
-                {teacherTab === 'archive' && (
-                  <TeacherDocumentsArchive
-                    documents={documents}
-                    onDocumentsChange={() => setDocuments(dataService.getTeacherDocuments())}
-                  />
-                )}
+                  {teacherTab === 'archive' && (
+                    <TeacherDocumentsArchive
+                      documents={documents}
+                      onDocumentsChange={() => setDocuments(dataService.getTeacherDocuments())}
+                    />
+                  )}
 
-                {teacherTab === 'question_tracking' && (
-                  <QuestionTrackingView
-                    classes={classes}
-                    students={students}
-                  />
-                )}
+                  {teacherTab === 'question_tracking' && (
+                    <QuestionTrackingView
+                      classes={classes}
+                      students={students}
+                    />
+                  )}
+                </ModuleErrorBoundary>
               </div>
             )}
           </div>

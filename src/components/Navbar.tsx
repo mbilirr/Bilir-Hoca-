@@ -165,8 +165,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleNavSync = async () => {
     setIsNavSyncing(true);
     try {
+      await dataService.syncClassesFromSupabase(false);
+      await dataService.syncTeachersFromSupabase(false);
       await dataService.syncEtutsFromSupabase(false);
-      await dataService.forceSyncTeachers();
+      dataService.reconnectAllRealtime();
       setLastNavSyncText('Eşitlendi');
       setTimeout(() => setLastNavSyncText(''), 3000);
     } catch {}

@@ -1146,6 +1146,7 @@ export class DataService {
   public reconnectAllRealtime() {
     this.setupTeachersRealtimeSync();
     this.setupEtutsRealtimeSync();
+    this.syncClassesFromSupabase(true);
     this.syncEtutsFromSupabase(true);
     this.syncTeachersFromSupabase(true);
     this.syncFromSupabase();
@@ -1494,28 +1495,8 @@ export class DataService {
         }
       }
 
-      // 3. Sync classes with Supabase
-      const { data: remoteClasses, error: errCls } = await supabase.from('classes').select('*');
-      if (!errCls && remoteClasses && remoteClasses.length > 0) {
-        let classesChanged = false;
-        remoteClasses.forEach((rc: any) => {
-          if (this.deletedClassIds.has(rc.id)) return;
-          if (!this.classes.find((c) => c.id === rc.id || c.name === rc.name)) {
-            this.classes.push({
-              id: rc.id,
-              name: rc.name,
-              branch: rc.branch || 'Genel',
-              academicYear: rc.academic_year || '2026-2027',
-              createdTeacherId: 'teacher-1',
-            });
-            classesChanged = true;
-          }
-        });
-        if (classesChanged) {
-          saveData(STORAGE_KEYS.CLASSES, this.classes);
-          this.notify();
-        }
-      }
+      // 3. Sync classes with Supabase (bidirectional and auto-recovery)
+      await this.syncClassesFromSupabase(true);
 
       // 4. Sync etuts with Supabase (Cross-device etuts & attendance)
       await this.syncEtutsFromSupabase(true);
@@ -2241,6 +2222,13 @@ export class DataService {
             permissionsUpdated = true;
           }
 
+          if (remoteT.canViewAllStudentsAndClasses !== undefined) {
+            if (localT.canViewAllStudentsAndClasses !== remoteT.canViewAllStudentsAndClasses) {
+              localT.canViewAllStudentsAndClasses = remoteT.canViewAllStudentsAndClasses;
+              permissionsUpdated = true;
+            }
+          }
+
           if (remoteT.isAdmin !== undefined && remoteT.id !== 'teacher-1') {
             if (localT.isAdmin !== remoteT.isAdmin) {
               localT.isAdmin = remoteT.isAdmin;
@@ -2250,6 +2238,16 @@ export class DataService {
 
           if (statusUpdated || permissionsUpdated) {
             changed = true;
+            const currentSession = this.getAuthSession();
+            if (currentSession?.role === 'teacher' && currentSession.user.id === id) {
+              this.setAuthSession({
+                ...currentSession,
+                user: {
+                  ...currentSession.user,
+                  ...localT,
+                },
+              });
+            }
           }
         }
       });
@@ -2706,6 +2704,7 @@ export class DataService {
     }
 
     saveData(STORAGE_KEYS.CLASSES, this.classes);
+    this.syncClassToCloud(newClass);
     this.notify();
     return { ...newClass, autoAssignedCount };
   }
@@ -2733,6 +2732,7 @@ export class DataService {
 
     if (count > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
+      this.syncClassToCloud(cls);
       this.notify();
     }
     return count;
@@ -2757,6 +2757,10 @@ export class DataService {
   public updateClass(id: string, updates: Partial<ClassGroup>): void {
     this.classes = this.classes.map((c) => (c.id === id ? { ...c, ...updates } : c));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
+    const updated = this.classes.find((c) => c.id === id);
+    if (updated) {
+      this.syncClassToCloud(updated);
+    }
     this.notify();
   }
 
@@ -2769,7 +2773,211 @@ export class DataService {
     this.students = this.students.map((s) => (s.classId === id ? { ...s, classId: '', className: 'Atanmadı' } : s));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+    this.deleteClassFromCloud(id);
     this.notify();
+  }
+
+  // --- CLOUD SYNCHRONIZATION FOR CLASSES ---
+  public async syncClassToCloud(cls: ClassGroup): Promise<void> {
+    try {
+      const studentCount = this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length;
+      let levelNum = 8;
+      if (cls.gradeLevel) {
+        const m = cls.gradeLevel.match(/\d+/);
+        if (m) levelNum = parseInt(m[0], 10);
+      } else if (cls.name) {
+        const m = cls.name.match(/\d+/);
+        if (m) levelNum = parseInt(m[0], 10);
+      }
+
+      await supabase.from('classes').upsert({
+        id: cls.id,
+        name: cls.name,
+        branch: cls.branch || 'Genel',
+        level: levelNum,
+        student_count: studentCount,
+        academic_year: cls.academicYear || '2026-2027',
+      });
+
+      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_classes__',
+        title: 'Classes Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeClasses),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.warn('Error syncing class to cloud:', e);
+    }
+  }
+
+  public async deleteClassFromCloud(classId: string): Promise<void> {
+    try {
+      await supabase.from('classes').delete().eq('id', classId);
+      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_classes__',
+        title: 'Classes Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeClasses),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.warn('Error deleting class from cloud:', e);
+    }
+  }
+
+  public async syncAllClassesToCloud(): Promise<void> {
+    try {
+      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+      const payload = activeClasses.map((cls) => {
+        let levelNum = 8;
+        if (cls.gradeLevel) {
+          const m = cls.gradeLevel.match(/\d+/);
+          if (m) levelNum = parseInt(m[0], 10);
+        } else if (cls.name) {
+          const m = cls.name.match(/\d+/);
+          if (m) levelNum = parseInt(m[0], 10);
+        }
+        return {
+          id: cls.id,
+          name: cls.name,
+          branch: cls.branch || 'Genel',
+          level: levelNum,
+          student_count: this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length,
+          academic_year: cls.academicYear || '2026-2027',
+        };
+      });
+
+      if (payload.length > 0) {
+        await supabase.from('classes').upsert(payload);
+      }
+
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_classes__',
+        title: 'Classes Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeClasses),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.warn('Error syncing all classes to cloud:', e);
+    }
+  }
+
+  public async syncClassesFromSupabase(isBackground = false): Promise<ClassGroup[]> {
+    try {
+      let changed = false;
+
+      // 1. Fetch from Supabase classes table
+      const { data: remoteClasses, error: errCls } = await supabase.from('classes').select('*');
+      if (errCls && !isBackground) {
+        console.warn('Error fetching classes from Supabase:', errCls);
+      }
+
+      // 2. Fetch from aggregate __system_sync_classes__ row in homeworks
+      const { data: sysRows } = await supabase
+        .from('homeworks')
+        .select('description')
+        .eq('id', '__system_sync_classes__');
+
+      const remoteMap = new Map<string, ClassGroup>();
+
+      if (remoteClasses && Array.isArray(remoteClasses)) {
+        remoteClasses.forEach((rc: any) => {
+          if (!rc.id || this.deletedClassIds.has(rc.id)) return;
+          remoteMap.set(rc.id, {
+            id: rc.id,
+            name: rc.name,
+            branch: rc.branch || 'Genel',
+            gradeLevel: rc.level ? `${rc.level}. Sınıf` : undefined,
+            schoolLevel: rc.level && rc.level >= 9 ? 'Lise' : 'Ortaokul',
+            academicYear: rc.academic_year || '2026-2027',
+            createdTeacherId: 'teacher-1',
+          });
+        });
+      }
+
+      if (sysRows && sysRows.length > 0 && sysRows[0]?.description) {
+        try {
+          const parsed = JSON.parse(sysRows[0].description);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((c: ClassGroup) => {
+              if (c && c.id && !this.deletedClassIds.has(c.id)) {
+                if (!remoteMap.has(c.id)) {
+                  remoteMap.set(c.id, c);
+                }
+              }
+            });
+          }
+        } catch {}
+      }
+
+      // 3. Auto-recover any classes that exist in student records but missing from classes!
+      // (This guarantees no student ever has a missing class or 'Yok' class on iPhone or Windows)
+      this.students.forEach((s) => {
+        if (s.classId && s.classId !== 'class-default' && s.classId !== 'tanimsiz' && !this.deletedClassIds.has(s.classId)) {
+          if (!remoteMap.has(s.classId) && !this.classes.some((c) => c.id === s.classId)) {
+            const detectedName = s.className && s.className !== 'Atanmadı' ? s.className : 'Sınıf';
+            const recoveredClass: ClassGroup = {
+              id: s.classId,
+              name: detectedName,
+              branch: s.branch || 'Genel',
+              gradeLevel: s.gradeLevel,
+              schoolLevel: s.schoolLevel || (s.gradeLevel && parseInt(s.gradeLevel) >= 9 ? 'Lise' : 'Ortaokul'),
+              academicYear: '2026-2027',
+              createdTeacherId: 'teacher-1',
+            };
+            remoteMap.set(s.classId, recoveredClass);
+          }
+        }
+      });
+
+      // 4. Merge remote classes into local state
+      remoteMap.forEach((rc, id) => {
+        if (this.deletedClassIds.has(id)) return;
+        const localIdx = this.classes.findIndex((c) => c.id === id);
+        if (localIdx === -1) {
+          this.classes.push(rc);
+          changed = true;
+        } else {
+          const cur = this.classes[localIdx];
+          if (cur.name !== rc.name || (rc.branch && cur.branch !== rc.branch)) {
+            this.classes[localIdx] = { ...cur, ...rc };
+            changed = true;
+          }
+        }
+      });
+
+      // 5. If this device has local classes that Supabase doesn't have, push them to cloud
+      let needsUpload = false;
+      for (const lc of this.classes) {
+        if (!this.deletedClassIds.has(lc.id) && !remoteMap.has(lc.id)) {
+          needsUpload = true;
+          break;
+        }
+      }
+      if (needsUpload) {
+        await this.syncAllClassesToCloud();
+      }
+
+      if (changed) {
+        saveData(STORAGE_KEYS.CLASSES, this.classes);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+        } catch {}
+        this.notify();
+      }
+
+      return this.classes;
+    } catch (e) {
+      if (!isBackground) console.warn('Exception in syncClassesFromSupabase:', e);
+      return this.classes;
+    }
   }
 
   // --- STUDENTS ---
@@ -3690,13 +3898,22 @@ export class DataService {
         return this.students;
       }
 
-      // Normal kullanıcı/öğretmen: YALNIZCA yöneticinin izin verdiği sınıflardaki öğrencileri görebilir
-      const assignedClassIds = new Set(teacher?.assignedClassIds || []);
-      const filtered = this.students.filter(
-        (s) => s.classId && assignedClassIds.has(s.classId)
+      // Normal öğretmen: İzinli sınıflardaki öğrencileri VEYA kendi eklediği öğrencileri görebilir
+      const permittedClasses = this.getClasses(teacherId);
+      const permittedClassIds = new Set(permittedClasses.map((c) => c.id));
+      const permittedClassNames = new Set(
+        permittedClasses.map((c) => (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''))
       );
 
-      return filtered;
+      return this.students.filter((s) => {
+        if (s.createdTeacherId && s.createdTeacherId === teacherId) return true;
+        if (s.classId && permittedClassIds.has(s.classId)) return true;
+        if (s.className) {
+          const normS = s.className.trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+          if (permittedClassNames.has(normS)) return true;
+        }
+        return false;
+      });
     }
 
     // Öğrenci oturumu: öğrenci YALNIZCA kendi bilgilerini görebilir, diğer öğrencileri göremez
@@ -3727,9 +3944,27 @@ export class DataService {
         return this.classes;
       }
 
-      // Normal kullanıcı/öğretmen: Yalnızca yöneticinin izin verdiği sınıfları görebilir
-      const assignedClassIds = new Set(teacher?.assignedClassIds || []);
-      return this.classes.filter((c) => assignedClassIds.has(c.id));
+      // Normal kullanıcı/öğretmen: Yalnızca yöneticinin izin verdiği sınıfları veya kendi oluşturduğu sınıfları görebilir
+      const rawAssigned = teacher?.assignedClassIds || [];
+      const assignedClassIds = new Set(rawAssigned);
+
+      // Collect normalized names of assigned classes to handle ID mismatches across devices
+      const assignedNormNames = new Set<string>();
+      rawAssigned.forEach((item) => {
+        assignedNormNames.add(item.trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''));
+        const matched = this.classes.find((c) => c.id === item || c.name === item);
+        if (matched?.name) {
+          assignedNormNames.add(matched.name.trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''));
+        }
+      });
+
+      return this.classes.filter((c) => {
+        if (c.createdTeacherId && c.createdTeacherId === teacherId) return true;
+        if (assignedClassIds.has(c.id) || assignedClassIds.has(c.name)) return true;
+        const normName = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+        if (assignedNormNames.has(normName)) return true;
+        return false;
+      });
     }
 
     if (session?.role === 'student') {

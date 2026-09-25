@@ -51,7 +51,10 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   useEffect(() => {
     if (isOpen) {
       refreshData();
-      dataService.forceSyncTeachers().then(() => refreshData());
+      Promise.all([
+        dataService.forceSyncTeachers(),
+        dataService.syncClassesFromSupabase(),
+      ]).then(() => refreshData());
       const unsubscribe = dataService.subscribe(() => {
         refreshData();
       });
@@ -61,21 +64,23 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
 
   if (!isOpen) return null;
 
-  const handleApprove = (teacherId: string, name: string) => {
+  const handleApprove = async (teacherId: string, name: string) => {
     dataService.approveTeacher(teacherId);
     setActionMsg(`✓ ${name} isimli öğretmen hesabı onaylandı. Artık sisteme giriş yapabilir.`);
     refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 3000);
   };
 
-  const handleReject = (teacherId: string, name: string) => {
+  const handleReject = async (teacherId: string, name: string) => {
     dataService.rejectTeacher(teacherId);
     setActionMsg(`✗ ${name} isimli öğretmen hesabı reddedildi.`);
     refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 3000);
   };
 
-  const handleDelete = (teacherId: string, name: string) => {
+  const handleDelete = async (teacherId: string, name: string) => {
     if (name === 'Mustafa Bilir') {
       alert('Baş yönetici Mustafa Bilir hesabı silinemez.');
       return;
@@ -84,11 +89,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       dataService.deleteTeacher(teacherId);
       setActionMsg(`${name} kaydı silindi.`);
       refreshData();
+      await dataService.syncAllTeachersToCloud();
       setTimeout(() => setActionMsg(null), 3000);
     }
   };
 
-  const handleToggleClassPermission = (teacher: Teacher, classId: string) => {
+  const handleToggleClassPermission = async (teacher: Teacher, classId: string) => {
     const currentList = teacher.assignedClassIds || [];
     let updatedList: string[];
     if (currentList.includes(classId)) {
@@ -98,23 +104,29 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     }
     dataService.updateTeacherClassPermissions(teacher.id, updatedList);
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri güncellendi.`);
+    refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 2500);
   };
 
-  const handleAssignAllClasses = (teacher: Teacher) => {
+  const handleAssignAllClasses = async (teacher: Teacher) => {
     const allIds = allClasses.map((c) => c.id);
     dataService.updateTeacherClassPermissions(teacher.id, allIds);
     setActionMsg(`✓ ${teacher.name} için tüm sınıflara erişim izni verildi.`);
+    refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 2500);
   };
 
-  const handleClearClasses = (teacher: Teacher) => {
+  const handleClearClasses = async (teacher: Teacher) => {
     dataService.updateTeacherClassPermissions(teacher.id, []);
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri temizlendi (yalnızca kendi eklediği öğrencileri görebilir).`);
+    refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 2500);
   };
 
-  const handleToggleCanViewAll = (teacher: Teacher) => {
+  const handleToggleCanViewAll = async (teacher: Teacher) => {
     const newVal = !teacher.canViewAllStudentsAndClasses;
     dataService.toggleTeacherCanViewAll(teacher.id, newVal);
     setActionMsg(
@@ -123,10 +135,11 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         : `✓ ${teacher.name} için genel liste izni kapatıldı (Yalnızca kendi eklediklerini ve izinli sınıfları görür).`
     );
     refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 3000);
   };
 
-  const handleToggleAdmin = (teacher: Teacher) => {
+  const handleToggleAdmin = async (teacher: Teacher) => {
     const newStatus = !teacher.isAdmin;
     if (!newStatus) {
       if (teacher.username === 'Mustafa Bilir' || teacher.name === 'Mustafa Bilir') {
@@ -145,6 +158,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         ? `👑 ${teacher.name} Kurum Yöneticisi (Admin) yapıldı.`
         : `✓ ${teacher.name} standart öğretmen yetkisine çevrildi.`
     );
+    refreshData();
+    await dataService.syncAllTeachersToCloud();
     setTimeout(() => setActionMsg(null), 3000);
   };
 
