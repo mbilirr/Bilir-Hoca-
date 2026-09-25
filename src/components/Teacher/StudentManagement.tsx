@@ -30,6 +30,8 @@ import {
   UserMinus,
   ArrowRightLeft,
   CheckSquare,
+  ArrowUpDown,
+  ShieldCheck,
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -66,7 +68,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClassFilter, setSelectedClassFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState<'default' | 'name-asc' | 'name-desc' | 'number-asc'>('default');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'students' | 'classes'>('students');
+
+  // Kurum Yöneticisi kontrolü (Yalnızca yönetici öğrenci ve sınıf ekleyebilir)
+  const isAdmin = dataService.isCurrentUserAdmin();
 
   // Modals
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -156,21 +164,32 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [classDescription, setClassDescription] = useState('');
   const [classFormError, setClassFormError] = useState<string | null>(null);
 
-  // Mükerrer (aynı isim, sınıf ve okul no'ya sahip) öğrencileri tespit etme
+  // Mükerrer (aynı isim, sınıf ve okul no'ya sahip) öğrencileri tespit etme ve renklendirme
   const duplicateStudentGroups = useMemo(() => {
     const groups: Record<string, Student[]> = {};
     const safeStudents = Array.isArray(students) ? students : [];
 
     for (const std of safeStudents) {
       if (!std || !std.name) continue;
-      const normName = std.name.trim().toLowerCase();
+      const normName = std.name.trim().toLocaleLowerCase('tr').replace(/\s+/g, ' ');
       const num = ((std.studentNumber || (std as any).number || '').toString()).trim();
-      const cName = (std.className || '').trim().toLowerCase();
-      const gLevel = (std.gradeLevel || '').trim().toLowerCase();
-      const br = (std.branch || '').trim().toLowerCase();
-      const classKey = cName || `${gLevel}_${br}` || std.classId || 'noclass';
 
-      // Numara ve isim eşleşmesini baz alarak kontrol et
+      // Sınıf bilgisini normalize et (ör. 8-A, 8/A, 8. Sınıf - A hepsi aynı sınıfa çözümlenir):
+      let classKey = '';
+      if (std.classId) {
+        const found = classes.find((c) => c.id === std.classId);
+        if (found) {
+          classKey = formatClassDisplayName(found.name, found.branch, found.gradeLevel).toLowerCase().trim();
+        }
+      }
+      if (!classKey || classKey === '-') {
+        classKey = formatClassDisplayName(std.className, std.branch, std.gradeLevel).toLowerCase().trim();
+      }
+      if (!classKey || classKey === '-') {
+        classKey = (std.className || `${std.gradeLevel || ''}_${std.branch || ''}` || std.classId || 'noclass').toLowerCase().trim();
+      }
+
+      // Aynı isim, sınıf ve okul numarasına sahip kayıtlar
       if (normName && num) {
         const key = `${normName}:::${classKey}:::${num}`;
         if (!groups[key]) {
@@ -181,35 +200,216 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
 
     const duplicateIds = new Set<string>();
-    const dupMap = new Map<string, { groupCount: number; key: string }>();
+    interface DupItemInfo {
+      groupCount: number;
+      key: string;
+      indexInGroup: number;
+      groupStudents: Student[];
+      colorTheme: {
+        nameColor: string;
+        badgeBg: string;
+        badgeText: string;
+        badgeBorder: string;
+        rowBg: string;
+        rowHover: string;
+        borderLeft: string;
+        ringColor: string;
+        pillBg: string;
+        label: string;
+      };
+    }
+    const dupMap = new Map<string, DupItemInfo>();
+
+    const DUPLICATE_THEMES = [
+      {
+        nameColor: 'text-amber-800 font-black',
+        badgeBg: 'bg-amber-100',
+        badgeText: 'text-amber-950 font-bold',
+        badgeBorder: 'border-amber-400',
+        rowBg: 'bg-amber-50/90',
+        rowHover: 'hover:bg-amber-100/80',
+        borderLeft: 'border-l-4 border-l-amber-500',
+        ringColor: 'ring-amber-500',
+        pillBg: 'bg-amber-600',
+        label: '1. Kayıt',
+      },
+      {
+        nameColor: 'text-rose-800 font-black',
+        badgeBg: 'bg-rose-100',
+        badgeText: 'text-rose-950 font-bold',
+        badgeBorder: 'border-rose-400',
+        rowBg: 'bg-rose-50/90',
+        rowHover: 'hover:bg-rose-100/80',
+        borderLeft: 'border-l-4 border-l-rose-500',
+        ringColor: 'ring-rose-500',
+        pillBg: 'bg-rose-600',
+        label: '2. Kayıt',
+      },
+      {
+        nameColor: 'text-purple-800 font-black',
+        badgeBg: 'bg-purple-100',
+        badgeText: 'text-purple-950 font-bold',
+        badgeBorder: 'border-purple-400',
+        rowBg: 'bg-purple-50/90',
+        rowHover: 'hover:bg-purple-100/80',
+        borderLeft: 'border-l-4 border-l-purple-500',
+        ringColor: 'ring-purple-500',
+        pillBg: 'bg-purple-600',
+        label: '3. Kayıt',
+      },
+    ];
 
     for (const [key, list] of Object.entries(groups)) {
       if (list.length > 1) {
-        for (const s of list) {
+        // Tarih veya ID'ye göre sıralayarak tutarlı 1. ve 2. kayıt indeksi oluştur
+        list.forEach((s, idx) => {
           duplicateIds.add(s.id);
-          dupMap.set(s.id, { groupCount: list.length, key });
-        }
+          const theme = DUPLICATE_THEMES[idx % DUPLICATE_THEMES.length];
+          dupMap.set(s.id, {
+            groupCount: list.length,
+            key,
+            indexInGroup: idx,
+            groupStudents: list,
+            colorTheme: {
+              ...theme,
+              label: `${idx + 1}. Kayıt`,
+            },
+          });
+        });
       }
     }
 
-    return { duplicateIds, dupMap, totalDuplicates: duplicateIds.size };
+    return { duplicateIds, dupMap, totalDuplicates: duplicateIds.size, groups };
   }, [students, classes]);
 
-  // Filter students (Büyük/küçük harf ve Türkçe karakter duyarsız arama)
-  const filteredStudents = students.filter((s) => {
-    const matchesSearch =
-      matchTurkishSearch(s.name, searchTerm) ||
-      (s.studentNumber && s.studentNumber.toString().includes(searchTerm.trim())) ||
-      matchTurkishSearch(s.email, searchTerm) ||
-      matchTurkishSearch(s.className, searchTerm);
-    const matchesClass = selectedClassFilter === 'all' || s.classId === selectedClassFilter;
-    return matchesSearch && matchesClass;
-  });
+  // Tanımsız / Sınıfı olmayan öğrencileri tespit etme
+  const isStudentUnassigned = (s: Student) => {
+    if (!s.classId || s.classId === '' || s.classId === 'tanimsiz' || s.classId === 'unassigned') return true;
+    if (s.className === 'Tanımsız' || s.className === 'Sınıfsız') return true;
+    return !classes.some((c) => c.id === s.classId);
+  };
+
+  const unassignedStudentsCount = useMemo(() => {
+    return students.filter(isStudentUnassigned).length;
+  }, [students, classes]);
+
+  // Filter & sort students: Mükerrer kayıtlar HER ZAMAN otomatik olarak YAN YANA gelir
+  const filteredStudents = useMemo(() => {
+    const list = students.filter((s) => {
+      const matchesSearch =
+        matchTurkishSearch(s.name, searchTerm) ||
+        (s.studentNumber && s.studentNumber.toString().includes(searchTerm.trim())) ||
+        matchTurkishSearch(s.email, searchTerm) ||
+        matchTurkishSearch(s.className, searchTerm);
+
+      let matchesClass = true;
+      if (selectedClassFilter === 'all') {
+        matchesClass = true;
+      } else if (selectedClassFilter === 'unassigned' || selectedClassFilter === 'tanimsiz') {
+        matchesClass = isStudentUnassigned(s);
+      } else {
+        matchesClass = s.classId === selectedClassFilter;
+      }
+      return matchesSearch && matchesClass;
+    });
+
+    const dupMap = duplicateStudentGroups.dupMap;
+
+    // Aynı mükerrer gruba ait iki öğrencinin ASLA arasına başkası girmeden YAN YANA gelmesini sağlayan fonksiyon
+    const keepDuplicatesAdjacent = (a: Student, b: Student, fallbackDiff: number) => {
+      const aDup = dupMap.get(a.id);
+      const bDup = dupMap.get(b.id);
+      if (aDup && bDup && aDup.key === bDup.key) {
+        return aDup.indexInGroup - bDup.indexInGroup;
+      }
+      return fallbackDiff;
+    };
+
+    if (sortOrder === 'name-asc') {
+      return [...list].sort((a, b) => {
+        const nameDiff = (a.name || '').localeCompare(b.name || '', 'tr', { sensitivity: 'base' });
+        return keepDuplicatesAdjacent(a, b, nameDiff !== 0 ? nameDiff : (a.id || '').localeCompare(b.id || ''));
+      });
+    }
+    if (sortOrder === 'name-desc') {
+      return [...list].sort((a, b) => {
+        const nameDiff = (b.name || '').localeCompare(a.name || '', 'tr', { sensitivity: 'base' });
+        return keepDuplicatesAdjacent(a, b, nameDiff !== 0 ? nameDiff : (b.id || '').localeCompare(a.id || ''));
+      });
+    }
+    if (sortOrder === 'number-asc') {
+      return [...list].sort((a, b) => {
+        const numA = parseInt(a.studentNumber || '0', 10) || 0;
+        const numB = parseInt(b.studentNumber || '0', 10) || 0;
+        const numDiff = numA - numB;
+        return keepDuplicatesAdjacent(a, b, numDiff !== 0 ? numDiff : (a.name || '').localeCompare(b.name || '', 'tr'));
+      });
+    }
+
+    // Varsayılan sıralama: Mükerrer kayıtları listenin en başında ve kesinlikle YAN YANA grupla
+    if (duplicateStudentGroups.totalDuplicates > 0) {
+      return [...list].sort((a, b) => {
+        const aDup = dupMap.get(a.id);
+        const bDup = dupMap.get(b.id);
+        if (aDup && bDup) {
+          if (aDup.key === bDup.key) return aDup.indexInGroup - bDup.indexInGroup;
+          return aDup.key.localeCompare(bDup.key, 'tr');
+        }
+        if (aDup && !bDup) return -1;
+        if (!aDup && bDup) return 1;
+        return (a.name || '').localeCompare(b.name || '', 'tr');
+      });
+    }
+
+    return list;
+  }, [students, classes, searchTerm, selectedClassFilter, sortOrder, duplicateStudentGroups]);
+
+  // Çoklu öğrenci seçimi mantığı
+  const allFilteredSelected = useMemo(() => {
+    if (filteredStudents.length === 0) return false;
+    return filteredStudents.every((s) => selectedStudentIds.includes(s.id));
+  }, [filteredStudents, selectedStudentIds]);
+
+  const someFilteredSelected = useMemo(() => {
+    if (filteredStudents.length === 0) return false;
+    const count = filteredStudents.filter((s) => selectedStudentIds.includes(s.id)).length;
+    return count > 0 && count < filteredStudents.length;
+  }, [filteredStudents, selectedStudentIds]);
+
+  const handleToggleSelectAll = () => {
+    if (allFilteredSelected) {
+      const filteredIds = new Set(filteredStudents.map((s) => s.id));
+      setSelectedStudentIds((prev) => prev.filter((id) => !filteredIds.has(id)));
+    } else {
+      const filteredIds = filteredStudents.map((s) => s.id);
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleToggleStudent = (studentId: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const handleConfirmBulkDelete = () => {
+    if (selectedStudentIds.length === 0) return;
+    const count = selectedStudentIds.length;
+    dataService.deleteStudents(selectedStudentIds);
+    setSelectedStudentIds([]);
+    setIsBulkDeleteModalOpen(false);
+    setStudentSuccessFeedback(`${count} öğrenci sistemden başarıyla silindi.`);
+  };
 
   // Handle Add Student
   const handleSaveStudent = (e: React.FormEvent) => {
     e.preventDefault();
     setStudentFormError(null);
+
+    if (!editingStudent && !isAdmin) {
+      setStudentFormError('Sisteme yeni öğrenci ekleme yetkisi yalnızca Kurum Yöneticisine aittir.');
+      return;
+    }
 
     // Zorunluluk Kontrolleri: Okul, Sınıf, Şube MECBURİ
     if (!studentSchoolLevel) {
@@ -343,7 +543,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setSelectedCredentialsStudent(createdStudent);
     resetStudentForm();
     setStudentSuccessFeedback(
-      `✅ Öğrenci "${newStudentPayload.name}" ikinci bir kayıt olarak sisteme eklendi (İki kayıt da tutuldu).`
+      `⚠️ Sistem Uyarısı: "${newStudentPayload.name}" adlı öğrenci eklendi. Aynı isim, sınıf ve numaraya sahip iki kayıt listede otomatik olarak yan yana getirildi ve farklı renklerde (1. Kayıt / 2. Kayıt) işaretlendi.`
     );
     setTimeout(() => setStudentSuccessFeedback(null), 5000);
   };
@@ -562,6 +762,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     e.preventDefault();
     setClassFormError(null);
 
+    if (!editingClass && !isAdmin) {
+      setClassFormError('Sisteme yeni sınıf ekleme yetkisi yalnızca Kurum Yöneticisine aittir.');
+      return;
+    }
+
     // Zorunluluk Kontrolleri: Okul, Sınıf, Şube MECBURİ
     if (!classSchoolLevel) {
       setClassFormError('Lütfen Okul seçimini (Ortaokul / Lise) yapınız.');
@@ -730,56 +935,70 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
 
           {activeTab === 'students' ? (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setIsExcelModalOpen(true)}
-                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
-                title="Excel (.xlsx, .xls) veya CSV dosyasından toplu öğrenci ekle"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Excel'den Toplu Yükle</span>
-              </button>
+            isAdmin ? (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setIsExcelModalOpen(true)}
+                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                  title="Excel (.xlsx, .xls) veya CSV dosyasından toplu öğrenci ekle"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Excel'den Toplu Yükle</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  resetStudentForm();
-                  setEditingStudent(null);
-                  setIsAddStudentOpen(true);
-                }}
-                className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Öğrenci Ekle</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    resetStudentForm();
+                    setEditingStudent(null);
+                    setIsAddStudentOpen(true);
+                  }}
+                  className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Yeni Öğrenci Ekle</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 border border-slate-700/80 text-amber-300 text-xs">
+                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-semibold">Öğrenci ekleme yetkisi yalnızca Kurum Yöneticisine aittir</span>
+              </div>
+            )
           ) : (
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setIsExcelClassModalOpen(true)}
-                className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
-                title="Excel (.xlsx, .xls) veya CSV dosyasından toplu sınıf ekle"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Excel'den Toplu Sınıf Yükle</span>
-              </button>
+            isAdmin ? (
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setIsExcelClassModalOpen(true)}
+                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                  title="Excel (.xlsx, .xls) veya CSV dosyasından toplu sınıf ekle"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Excel'den Toplu Sınıf Yükle</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  setEditingClass(null);
-                  setClassName('');
-                  setClassSchoolLevel('Ortaokul');
-                  setClassGradeLevel('5. Sınıf');
-                  setClassBranch('A');
-                  setClassDescription('');
-                  setClassFormError(null);
-                  setIsAddClassOpen(true);
-                }}
-                className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Sınıf Ekle</span>
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    setEditingClass(null);
+                    setClassName('');
+                    setClassSchoolLevel('Ortaokul');
+                    setClassGradeLevel('5. Sınıf');
+                    setClassBranch('A');
+                    setClassDescription('');
+                    setClassFormError(null);
+                    setIsAddClassOpen(true);
+                  }}
+                  className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Yeni Sınıf Ekle</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 border border-slate-700/80 text-amber-300 text-xs">
+                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-semibold">Sınıf ekleme yetkisi yalnızca Kurum Yöneticisine aittir</span>
+              </div>
+            )
           )}
         </div>
       </div>
@@ -787,32 +1006,45 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {activeTab === 'students' ? (
         /* STUDENTS VIEW */
         <div className="space-y-4">
+          {!isAdmin && (
+            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-950 text-xs flex items-center gap-3 shadow-xs">
+              <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl shrink-0">
+                <ShieldCheck className="w-4 h-4 text-indigo-700" />
+              </div>
+              <div className="flex-1">
+                <strong className="font-bold text-indigo-900">Yönetici İzinli Öğrenci Görünümü:</strong> Bu ekranda yalnızca Kurum Yöneticisinin erişim izni verdiği sınıflar ({classes.length}) ve bu sınıflara bağlı kayıtlı öğrenciler listelenmektedir. Sisteme yeni öğrenci veya sınıf ekleme yetkisi yalnızca Kurum Yöneticisine aittir.
+              </div>
+            </div>
+          )}
           <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm">
           {/* Duplicate Students System Warning Banner */}
           {duplicateStudentGroups.totalDuplicates > 0 && (
-            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 flex items-start gap-3 shadow-xs">
-              <div className="p-2 bg-amber-500/20 text-amber-600 rounded-xl shrink-0 mt-0.5">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
+            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 flex items-start gap-3 shadow-xs">
+              <div className="p-2.5 bg-amber-500/20 text-amber-700 rounded-xl shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700 animate-bounce" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
-                    <span>⚠️ Sistem Uyarısı: Mükerrer Öğrenci Kaydı Tespit Edildi!</span>
+                  <h4 className="font-extrabold text-sm text-amber-950 flex items-center gap-1.5">
+                    <span>⚠️ Sistem Uyarısı: Aynı İsim, Sınıf ve Numaraya Sahip Öğrenciler Tespit Edildi!</span>
                   </h4>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold border border-amber-300">
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-950 font-black border border-amber-300">
                     {duplicateStudentGroups.totalDuplicates} Kayıt İşaretlendi
                   </span>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-200 text-rose-950 font-black border border-rose-300">
+                    {Object.keys(duplicateStudentGroups.groups).filter(k => duplicateStudentGroups.groups[k].length > 1).length} Çakışan Grup
+                  </span>
                 </div>
-                <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
-                  Sistemde <strong>aynı isim, sınıf ve okul numarasına</strong> sahip birden fazla kayıt tespit edildi. Bu kayıtlar öğrenci listesinde <strong className="bg-amber-200/80 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 font-semibold">farklı renkle (turuncu vurgulu zemin)</strong> ve uyarı etiketiyle gösterilmektedir. Bilgileri inceleyip mükerrer kaydı düzenleyebilir veya silebilirsiniz.
+                <p className="text-xs text-amber-950/90 mt-1.5 leading-relaxed">
+                  Sistemde <strong>aynı isim, sınıf ve okul numarasına</strong> sahip kayıtlı öğrenciler bulunmaktadır. Bu öğrenciler aşağıdaki listede <strong>otomatik olarak yan yana getirilmiş</strong> olup, isimleri ve satırları <strong>farklı renklerde (1. Kayıt: Turuncu, 2. Kayıt: Kırmızı)</strong> ve çakışma uyarı etiketiyle gösterilmektedir.
                 </p>
               </div>
             </div>
           )}
 
           {/* Filter / Search Bar */}
-          <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
-            <div className="relative w-full sm:w-80">
+          <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white">
+            <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="text"
@@ -823,28 +1055,109 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               />
             </div>
 
-            <div className="flex items-center space-x-3 w-full sm:w-auto">
-              <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Sınıf Filtresi:</span>
-              <select
-                value={selectedClassFilter}
-                onChange={(e) => setSelectedClassFilter(e.target.value)}
-                className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
-              >
-                <option value="all">Tüm Sınıflar ({students.length})</option>
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({students.filter((s) => s.classId === cls.id).length})
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+              {/* Sınıf Filtresi (Tanımsız seçeneği dahil) */}
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Sınıf Filtresi:</span>
+                <select
+                  value={selectedClassFilter}
+                  onChange={(e) => setSelectedClassFilter(e.target.value)}
+                  className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Tüm Sınıflar ({students.length})</option>
+                  <option value="unassigned">Tanımsız ({unassignedStudentsCount})</option>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({students.filter((s) => s.classId === cls.id).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sırala Açılır Butonu (A-Z / Z-A) */}
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-slate-500 font-semibold whitespace-nowrap flex items-center gap-1">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Sırala:</span>
+                </span>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="default">Varsayılan Sıralama</option>
+                  <option value="name-asc">Alfabetik (A → Z)</option>
+                  <option value="name-desc">Alfabetik (Z → A)</option>
+                  <option value="number-asc">Öğrenci No (Küçükten Büyüğe)</option>
+                </select>
+              </div>
             </div>
           </div>
+
+          {/* Toplu İşlem & Çoklu Silme Barı */}
+          {selectedStudentIds.length > 0 && (
+            <div className="px-4 sm:px-6 py-3 bg-rose-50 border-b border-rose-200 flex flex-wrap items-center justify-between gap-3 text-slate-800 transition-all animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                  {selectedStudentIds.length}
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-rose-950">
+                    {selectedStudentIds.length} Öğrenci Seçildi
+                  </span>
+                  <span className="text-[11px] text-rose-700 ml-1.5 hidden sm:inline">
+                    (Listelenen {filteredStudents.length} öğrenci arasından)
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleToggleSelectAll}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>{allFilteredSelected ? 'Tümünün Seçimini Kaldır' : `Tümünü Seç (${filteredStudents.length})`}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudentIds([])}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer"
+                >
+                  Temizle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkDeleteModalOpen(true)}
+                  className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all shadow-sm shadow-rose-600/30 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Seçilen Öğrencileri Sil ({selectedStudentIds.length})</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Students Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-700">
               <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200 font-bold">
                 <tr>
+                  <th className="px-4 py-3.5 w-12 text-center">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={filteredStudents.length > 0 && allFilteredSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someFilteredSelected;
+                        }}
+                        onChange={handleToggleSelectAll}
+                        title={allFilteredSelected ? 'Tümünün Seçimini Kaldır' : 'Hepsini Seç'}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </div>
+                  </th>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci</th>
                   <th className="px-6 py-3.5 font-semibold">Sınıf / Şube</th>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci No</th>
@@ -856,7 +1169,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                       <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                       <p className="font-semibold text-sm text-slate-600">Arama kriterlerine uygun öğrenci bulunamadı.</p>
                       <p className="text-xs text-slate-400 mt-1">Lütfen arama teriminizi veya sınıf filtresini değiştirip tekrar deneyin.</p>
@@ -864,16 +1177,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </tr>
                 ) : (
                   filteredStudents.map((std) => {
-                    const isDuplicate = duplicateStudentGroups.duplicateIds.has(std.id);
+                    const dupInfo = duplicateStudentGroups.dupMap.get(std.id);
+                    const isDuplicate = !!dupInfo;
+                    const isSelected = selectedStudentIds.includes(std.id);
                     return (
                     <tr
                       key={std.id}
                       className={
-                        isDuplicate
-                          ? 'bg-amber-50/80 hover:bg-amber-100/80 transition-colors border-l-4 border-l-amber-500'
+                        isSelected
+                          ? 'bg-indigo-50/70 hover:bg-indigo-100/70 transition-colors border-l-4 border-l-indigo-600'
+                          : isDuplicate && dupInfo
+                          ? `${dupInfo.colorTheme.rowBg} ${dupInfo.colorTheme.rowHover} transition-colors ${dupInfo.colorTheme.borderLeft}`
                           : 'hover:bg-slate-50/80 transition-colors'
                       }
                     >
+                      <td className="px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleStudent(std.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
                           <img
@@ -885,24 +1211,40 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             }
                             alt={std.name}
                             className={`w-10 h-10 rounded-full object-cover ring-2 ${
-                              isDuplicate
-                                ? 'bg-amber-100 ring-amber-400 shadow-xs'
+                              isSelected
+                                ? 'bg-indigo-100 ring-indigo-400 shadow-xs'
+                                : isDuplicate && dupInfo
+                                ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.ringColor} shadow-xs`
                                 : 'bg-slate-100 ring-slate-200/80'
                             }`}
                           />
                           <div>
-                            <div className="flex items-center space-x-2 flex-wrap">
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              {isDuplicate && dupInfo && (
+                                <span
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider text-white shadow-2xs ${dupInfo.colorTheme.pillBg}`}
+                                  title={`${dupInfo.colorTheme.label} - Bu öğrenci ile aynı isim, sınıf ve okul numarasına sahip ${dupInfo.groupCount} kayıt bulunmaktadır.`}
+                                >
+                                  {dupInfo.colorTheme.label}
+                                </span>
+                              )}
                               <span
-                                className={`font-bold ${
-                                  isDuplicate ? 'text-amber-950 font-extrabold' : 'text-slate-900'
+                                className={`text-sm ${
+                                  isSelected
+                                    ? 'text-indigo-950 font-bold'
+                                    : isDuplicate && dupInfo
+                                    ? dupInfo.colorTheme.nameColor
+                                    : 'text-slate-900 font-bold'
                                 }`}
                               >
                                 {std.name}
                               </span>
-                              {isDuplicate && (
-                                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                                  <AlertTriangle className="w-3 h-3 text-amber-700" />
-                                  <span>Mükerrer Kayıt (Aynı İsim, Sınıf ve No)</span>
+                              {isDuplicate && dupInfo && (
+                                <span
+                                  className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`}
+                                >
+                                  <AlertTriangle className="w-3 h-3" />
+                                  <span>Mükerrer ({dupInfo.colorTheme.label} • Aynı İsim, Sınıf ve No)</span>
                                 </span>
                               )}
                             </div>
@@ -911,22 +1253,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                            isDuplicate
-                              ? 'bg-amber-100 text-amber-900 border-amber-300'
-                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                          }`}
-                        >
-                          {formatClassDisplayName(std.className, std.branch, std.gradeLevel)}
-                        </span>
+                        {isStudentUnassigned(std) ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-100 text-slate-600 border-slate-300">
+                            Tanımsız
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                              isDuplicate && dupInfo
+                                ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                            }`}
+                          >
+                            {formatClassDisplayName(std.className, std.branch, std.gradeLevel)}
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-6 py-4">
                         <span
                           className={`font-mono font-semibold text-xs px-2.5 py-1 rounded-md border ${
-                            isDuplicate
-                              ? 'bg-amber-200/90 text-amber-950 border-amber-400 font-bold ring-1 ring-amber-400'
+                            isDuplicate && dupInfo
+                              ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder} ring-1 font-bold`
                               : 'text-slate-700 bg-slate-100 border-slate-200'
                           }`}
                         >
@@ -959,10 +1307,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       <td className="px-6 py-4">
-                        {isDuplicate ? (
-                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200 text-amber-900 border border-amber-300 shadow-2xs">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
-                            <span>Mükerrer Kayıt</span>
+                        {isDuplicate && dupInfo ? (
+                          <span
+                            className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`}
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Mükerrer ({dupInfo.colorTheme.label})</span>
                           </span>
                         ) : (
                           <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -1012,6 +1362,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       ) : (
         /* CLASSES VIEW */
         <div className="space-y-4">
+          {!isAdmin && (
+            <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-xs flex items-center gap-3 shadow-xs">
+              <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl shrink-0">
+                <ShieldCheck className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="flex-1">
+                <strong className="font-bold text-white">Yönetici İzinli Sınıf Görünümü:</strong> Yalnızca Kurum Yöneticisinin erişim yetkisi verdiği sınıflar ({classes.length}) görüntülenmektedir. Sınıf ekleme, düzenleme ve silme yetkileri yalnızca yöneticiye aittir.
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {classes.map((cls) => {
               const classStudents = students.filter((s) => s.classId === cls.id);
@@ -1025,22 +1385,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
                         <School className="w-5 h-5" />
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <button
-                          onClick={() => openEditClass(cls)}
-                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Düzenle"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setClassToDelete(cls)}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                          title="Sınıfı Sil"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center space-x-1">
+                          <button
+                            onClick={() => openEditClass(cls)}
+                            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Düzenle"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setClassToDelete(cls)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            title="Sınıfı Sil"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <h3 className="text-lg font-bold text-white mb-1">
@@ -1803,6 +2165,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         itemBadge={studentToDelete ? `${studentToDelete.className} • #${studentToDelete.studentNumber}` : undefined}
         description={`"${studentToDelete?.name}" adlı öğrenciyi sistemden kalıcı olarak silmek istediğinize emin misiniz? Öğrencinin tüm ödev teslimleri, notları ve mesaj kayıtları da temizlenecektir.`}
         confirmButtonText="Öğrenciyi Sil"
+      />
+
+      {/* CONFIRM BULK DELETE STUDENTS MODAL */}
+      <ConfirmDeleteModal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        onConfirm={handleConfirmBulkDelete}
+        title="Seçilen Öğrencileri Sil"
+        itemBadge={`${selectedStudentIds.length} Öğrenci Seçildi`}
+        description={`Seçtiğiniz ${selectedStudentIds.length} adet öğrenciyi sistemden kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz ve seçilen öğrencilerin tüm ödev teslimleri, notları, mesajları ve etüt kayıtları silinecektir.`}
+        confirmButtonText={`Evet, ${selectedStudentIds.length} Öğrenciyi Sil`}
+        isDanger={true}
       />
 
       {/* CONFIRM DELETE CLASS MODAL */}

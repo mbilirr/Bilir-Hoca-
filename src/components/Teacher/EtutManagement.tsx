@@ -83,9 +83,34 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     dataService.syncEtutsFromSupabase(true);
   }, []);
 
+  const session = dataService.getAuthSession();
+  const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
+
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>('all');
+  const [lastSyncSuccessTime, setLastSyncSuccessTime] = useState<string>('');
+
+  const myEtuts = useMemo(() => {
+    if (!currentTeacher) return etuts;
+    const tName = (currentTeacher.name || '').trim().toLowerCase();
+    const tUser = (currentTeacher.username || '').trim().toLowerCase();
+    const tBranch = (currentTeacher.branch || '').trim().toLowerCase();
+
+    return etuts.filter((e) => {
+      if (e.teacherId && e.teacherId === currentTeacher.id) return true;
+      if (e.teacherName && e.teacherName.trim().toLowerCase() === tName) return true;
+      if (e.teacherName && e.teacherName.trim().toLowerCase() === tUser) return true;
+      if (tBranch && (e.teacherBranch?.toLowerCase() === tBranch || e.subject?.toLowerCase() === tBranch)) return true;
+      return false;
+    });
+  }, [etuts, currentTeacher]);
+
+  const activeEtuts = scopeFilter === 'mine' ? myEtuts : etuts;
+
   const handleManualSync = async () => {
     setIsSyncing(true);
     await dataService.syncEtutsFromSupabase(false);
+    await dataService.forceSyncTeachers();
+    setLastSyncSuccessTime(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setTimeout(() => setIsSyncing(false), 500);
   };
 
@@ -613,6 +638,32 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Scope Filter: Tüm Okul Programı / Benim Etütlerim */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={() => setScopeFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                scopeFilter === 'all'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Tüm Okul ({etuts.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setScopeFilter('mine')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                scopeFilter === 'mine'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Benim Etütlerim ({myEtuts.length})
+            </button>
+          </div>
+
           {/* View Mode Switcher */}
           <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
             <button
@@ -637,7 +688,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Kart Listesi ({etuts.length})</span>
+              <span>Kart Listesi ({activeEtuts.length})</span>
             </button>
             <button
               type="button"
@@ -659,10 +710,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             onClick={handleManualSync}
             disabled={isSyncing}
             className="flex items-center space-x-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-            title="Bilgisayar ve telefondaki tüm etütleri anında buluttan senkronize et"
+            title="Bilgisayar, tablet ve telefondaki tüm etütleri anında buluttan senkronize et"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-cyan-400' : 'text-slate-400'}`} />
-            <span className="hidden sm:inline">{isSyncing ? 'Eşitleniyor...' : 'Bulut Yenile'}</span>
+            <span>{isSyncing ? 'Eşitleniyor...' : 'Bulut Yenile'}</span>
+            {lastSyncSuccessTime && !isSyncing && (
+              <span className="text-[10px] text-emerald-400 font-mono hidden md:inline ml-1">
+                ✓ {lastSyncSuccessTime}
+              </span>
+            )}
           </button>
 
           {/* Etüt Analizi Butonu */}
@@ -707,7 +763,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
       {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
-          etuts={etuts}
+          etuts={activeEtuts}
           students={students}
           classes={classes}
           onAddEtutForDate={handleAddEtutForDate}
@@ -727,7 +783,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {viewMode === 'cards' && (
         /* Etüt List */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {etuts.map((etut) => {
+          {activeEtuts.map((etut) => {
             const assignedStudents =
               etut.assignedStudentIds === 'all'
                 ? students
@@ -1089,11 +1145,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   onChange={(e) => setSelectedAttendanceEtutId(e.target.value)}
                   className="w-full bg-slate-950 border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
                 >
-                  {etuts.map((e) => (
-                    <option key={e.id} value={e.id} className="bg-slate-900 text-white py-2">
-                      [{new Date(e.date).toLocaleDateString('tr-TR')} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
-                    </option>
-                  ))}
+                  {etuts.map((e) => {
+                    let formattedDate = e.date;
+                    try {
+                      const parts = (e.date || '').trim().split('T')[0].split('-');
+                      if (parts.length === 3) formattedDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+                      else formattedDate = new Date(e.date).toLocaleDateString('tr-TR');
+                    } catch {}
+                    return (
+                      <option key={e.id} value={e.id} className="bg-slate-900 text-white py-2">
+                        [{formattedDate} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

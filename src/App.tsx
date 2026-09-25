@@ -176,8 +176,7 @@ export default function App() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         performInactivityCheck();
-        dataService.syncEtutsFromSupabase(true);
-        dataService.forceSyncTeachers();
+        dataService.reconnectAllRealtime();
       }
     };
     const handleFocus = () => {
@@ -185,8 +184,7 @@ export default function App() {
       dataService.syncEtutsFromSupabase(true);
     };
     const handleOnline = () => {
-      dataService.syncEtutsFromSupabase(true);
-      dataService.forceSyncTeachers();
+      dataService.reconnectAllRealtime();
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -205,18 +203,36 @@ export default function App() {
   }, []);
 
   // Handle successful login or registration from AuthPortal
-  const handleAuthSuccess = (session: AuthSession) => {
+  const handleAuthSuccess = async (session: AuthSession) => {
     setAuthSession(session);
     setTeacherTab('home');
+
+    // Oturum açan kullanıcının (Yönetici / İzinli Öğretmen / Öğrenci) yetkilerine göre verileri anında filtrele ve yenile
+    const freshStudents = dataService.getStudents();
+    const freshClasses = dataService.getClasses();
+    setStudents(freshStudents);
+    setClasses(freshClasses);
+    setHomeworks(dataService.getHomeworks());
+    setEtuts(dataService.getEtuts());
+
     if (session.role === 'teacher') {
       setRole('teacher');
-      if (students.length > 0) {
-        setCurrentStudent(students[0]);
+      if (freshStudents.length > 0) {
+        setCurrentStudent(freshStudents[0]);
       }
     } else {
       setRole('student');
       setCurrentStudent(session.user as Student);
     }
+
+    // Bilgisayar, tablet ve telefon arasında etüt ve kullanıcı verilerini anında buluttan çek
+    try {
+      await dataService.syncEtutsFromSupabase(true);
+      await dataService.forceSyncTeachers();
+      setEtuts(dataService.getEtuts());
+      setStudents(dataService.getStudents());
+      setClasses(dataService.getClasses());
+    } catch {}
   };
 
   const handleRoleChange = (newRole: UserRole) => {

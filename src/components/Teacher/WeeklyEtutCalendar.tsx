@@ -227,8 +227,14 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
     });
 
     filteredEtuts.forEach((etut) => {
-      if (map[etut.date]) {
-        map[etut.date].push(etut);
+      if (!etut.date) return;
+      let dKey = etut.date.trim().split('T')[0].replace(/\//g, '-');
+      const parts = dKey.split('-');
+      if (parts.length === 3) {
+        dKey = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+      if (map[dKey]) {
+        map[dKey].push(etut);
       }
     });
 

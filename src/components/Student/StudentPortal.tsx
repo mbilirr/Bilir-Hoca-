@@ -143,10 +143,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     return false;
   });
 
-  // Filter etuts assigned to this student (or assigned to 'all')
+  // Filter etuts assigned to this student (or assigned to 'all', or in attendance list, or grade match)
   const myEtuts = etuts.filter((e) => {
     if (e.assignedStudentIds === 'all') return true;
-    if (Array.isArray(e.assignedStudentIds)) return e.assignedStudentIds.includes(currentStudent.id);
+    if (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.includes(currentStudent.id)) return true;
+    if (e.studentAttendance && e.studentAttendance[currentStudent.id]) return true;
+    if (!e.assignedStudentIds || (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.length === 0)) {
+      if (e.gradeLevel && currentStudent.className && currentStudent.className.toLowerCase().includes(e.gradeLevel.split('.')[0].toLowerCase())) {
+        return true;
+      }
+      return true;
+    }
     return false;
   });
 
