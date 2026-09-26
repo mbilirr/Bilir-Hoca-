@@ -115,6 +115,16 @@ const NAV_ITEMS: NavItemConfig[] = [
   },
 ];
 
+const ADMIN_NAV_ITEM: NavItemConfig = {
+  id: 'user_management',
+  title: 'Kullanıcı & Yetki Yönetimi (RBAC)',
+  shortTitle: 'Kullanıcı & RBAC',
+  icon: ShieldCheck,
+  accentColor: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+};
+
+const ALL_NAV_ITEMS: NavItemConfig[] = [...NAV_ITEMS, ADMIN_NAV_ITEM];
+
 export const Navbar: React.FC<NavbarProps> = ({
   role,
   currentRole: propCurrentRole,
@@ -189,15 +199,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   }, [activeTeacherTab]);
 
+  const currentTeacher = isTeacherSession ? (authSession.user as Teacher) : null;
+  const activeStudent = isStudentSession ? (authSession.user as Student) : currentStudent;
+
+  const isTeacherAdmin = isTeacherSession && (
+    !!currentTeacher?.isAdmin ||
+    currentTeacher?.id === 'teacher-1' ||
+    currentTeacher?.username?.toLowerCase() === 'mustafa bilir' ||
+    currentTeacher?.name?.toLowerCase() === 'mustafa bilir'
+  );
+  const currentNavItems = isTeacherAdmin ? ALL_NAV_ITEMS : NAV_ITEMS;
+
   const activeModuleId = selectedTeacherTab || (activeTeacherTab !== 'home' ? activeTeacherTab : null);
-  const activeModuleItem = NAV_ITEMS.find((item) => item.id === activeModuleId);
+  const activeModuleItem = ALL_NAV_ITEMS.find((item) => item.id === activeModuleId);
   const DisplayModuleIcon = activeModuleItem ? activeModuleItem.icon : LayoutGrid;
   const buttonDisplayTitle = activeModuleItem ? activeModuleItem.title : 'Çalışma Alanını Seçiniz';
   const buttonShortDisplayTitle = activeModuleItem ? activeModuleItem.shortTitle : 'Çalışma Alanı';
   const isHomeActive = activeTeacherTab === 'home' || (!activeTeacherTab && !selectedTeacherTab);
-
-  const currentTeacher = isTeacherSession ? (authSession.user as Teacher) : null;
-  const activeStudent = isStudentSession ? (authSession.user as Student) : currentStudent;
 
   const teacherName = currentTeacher?.name || '';
   const teacherBranch = currentTeacher?.branch || 'Fen Bilgisi Öğretmeni';
@@ -367,12 +385,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                         className="absolute z-50 left-0 w-80 sm:w-88 mt-2 bg-slate-950 border border-slate-700/90 rounded-2xl shadow-2xl p-2.5 backdrop-blur-xl animate-in fade-in slide-in-from-top-1 duration-150"
                       >
                         <div className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-800 flex items-center justify-between mb-1.5">
-                          <span>Öğretmen Çalışma Modülleri</span>
-                          <span className="text-[10px] text-indigo-400 font-semibold">{NAV_ITEMS.length} Modül</span>
+                          <span>{isTeacherAdmin ? 'Yönetici & Öğretmen Modülleri' : 'Öğretmen Çalışma Modülleri'}</span>
+                          <span className="text-[10px] text-indigo-400 font-semibold">{currentNavItems.length} Modül</span>
                         </div>
 
                         <div className="space-y-1">
-                          {NAV_ITEMS.map((item, index) => {
+                          {currentNavItems.map((item, index) => {
                             const ItemIcon = item.icon;
                             const isSelected = item.id === (selectedTeacherTab || activeTeacherTab);
 
@@ -662,6 +680,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                               {pendingTeachersCount}
                             </span>
                           )}
+                        </button>
+                      )}
+
+                      {currentTeacher?.isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsTeacherMenuOpen(false);
+                            onSelectTeacherTab('user_management');
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-xs text-amber-300 hover:text-white hover:bg-amber-500/20 flex items-center space-x-2.5 transition-colors cursor-pointer border-t border-slate-800"
+                        >
+                          <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span className="font-bold">Kullanıcı & Yetki Yönetimi (RBAC)</span>
                         </button>
                       )}
 

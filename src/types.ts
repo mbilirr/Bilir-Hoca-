@@ -1,4 +1,6 @@
 export type UserRole = 'teacher' | 'student';
+export type SystemRole = 'admin' | 'teacher' | 'student';
+export type UserStatus = 'active' | 'approved' | 'pending' | 'suspended' | 'rejected' | 'inactive';
 
 export type TeacherTabType =
   | 'home'
@@ -8,7 +10,8 @@ export type TeacherTabType =
   | 'grades'
   | 'messages'
   | 'archive'
-  | 'question_tracking';
+  | 'question_tracking'
+  | 'user_management';
 
 export interface Teacher {
   id: string;
@@ -21,7 +24,8 @@ export interface Teacher {
   avatar?: string;
   createdAt: string;
   role: 'teacher';
-  status?: 'pending' | 'approved' | 'rejected';
+  status?: 'pending' | 'approved' | 'rejected' | 'suspended';
+  isSuspended?: boolean; // Hesabın yönetici tarafından geçici olarak dondurulması
   isAdmin?: boolean; // Kurum Yöneticisi / Admin yetkisi (tüm sınıfları ve öğrencileri görebilir)
   assignedClassIds?: string[]; // Admin tarafından izin verilen sınıfların ID listesi
   canViewAllStudentsAndClasses?: boolean; // Yöneticinin önceden eklenmiş sınıf ve öğrenci listelerini görme izni vermesi
@@ -47,9 +51,36 @@ export interface Student {
   phone?: string;
   avatar?: string;
   createdAt: string;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'suspended';
+  isSuspended?: boolean; // Hesabın dondurulması / askıya alınması
   createdTeacherId?: string; // Bu öğrenciyi kaydeden öğretmenin ID'si
   mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
+}
+
+export interface UnifiedUser {
+  id: string;
+  name: string;
+  username: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  role: SystemRole;
+  status: UserStatus;
+  isSuspended?: boolean;
+  createdAt: string;
+  password?: string;
+  // Öğretmen / Yönetici alanları
+  branch?: string;
+  isAdmin?: boolean;
+  assignedClassIds?: string[];
+  canViewAllStudentsAndClasses?: boolean;
+  // Öğrenci alanları
+  className?: string;
+  classId?: string;
+  studentNumber?: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
+  gradeLevel?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface ClassGroup {

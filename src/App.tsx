@@ -34,6 +34,7 @@ import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherD
 import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
+import { AdminUserManagement } from './components/Admin/AdminUserManagement';
 import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
@@ -417,6 +418,7 @@ export default function App() {
                       {teacherTab === 'messages' && 'Öğrenci Soruları & Mesajlaşma'}
                       {teacherTab === 'archive' && 'Plan & Zümre Arşivi'}
                       {teacherTab === 'question_tracking' && 'Soru Sayısı Takip & Analiz'}
+                      {teacherTab === 'user_management' && 'Kullanıcı & Yetki Yönetimi (RBAC)'}
                     </span>
                   </div>
 
@@ -439,7 +441,8 @@ export default function App() {
                     teacherTab === 'etuts' ? 'Etüt & Birebir Takip' :
                     teacherTab === 'messages' ? 'Öğrenci Soruları & Mesajlaşma' :
                     teacherTab === 'archive' ? 'Plan & Zümre Arşivi' :
-                    teacherTab === 'question_tracking' ? 'Soru Sayısı Takip & Analiz' : 'Modül'
+                    teacherTab === 'question_tracking' ? 'Soru Sayısı Takip & Analiz' :
+                    teacherTab === 'user_management' ? 'Kullanıcı & Yetki Yönetimi (RBAC)' : 'Modül'
                   }
                   onResetToHome={() => setTeacherTab('home')}
                 >
@@ -486,6 +489,13 @@ export default function App() {
                     <QuestionTrackingView
                       classes={classes}
                       students={students}
+                    />
+                  )}
+
+                  {teacherTab === 'user_management' && (
+                    <AdminUserManagement
+                      currentAdmin={currentTeacher}
+                      onNavigateHome={() => setTeacherTab('home')}
                     />
                   )}
                 </ModuleErrorBoundary>

@@ -19,6 +19,9 @@ import {
   StudentQuestionLog,
   WeeklyQuestionTarget,
   EtutStudentAttendance,
+  UnifiedUser,
+  SystemRole,
+  UserStatus,
 } from '../types';
 import { supabase } from '../lib/supabase';
 import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
@@ -2122,6 +2125,388 @@ export class DataService {
     }
   }
 
+  // =========================================================================
+  // RBAC & UNIFIED USER MANAGEMENT (Sistem Yöneticisi Tam Yetkili Yönetim)
+  // =========================================================================
+
+  public getAllUnifiedUsers(): UnifiedUser[] {
+    const list: UnifiedUser[] = [];
+
+    // 1. Öğretmenler ve Yöneticiler
+    this.teachers.forEach((t) => {
+      if (this.deletedTeacherIds.has(t.id)) return;
+      const isAdmin =
+        !!t.isAdmin ||
+        t.id === 'teacher-1' ||
+        t.username?.toLowerCase() === 'mustafa bilir' ||
+        t.name?.toLowerCase() === 'mustafa bilir';
+      const isSuspended = !!t.isSuspended || t.status === 'suspended';
+
+      list.push({
+        id: t.id,
+        name: t.name,
+        username: t.username,
+        email: t.email,
+        phone: t.phone || '',
+        avatar: t.avatar,
+        role: isAdmin ? 'admin' : 'teacher',
+        status: isSuspended ? 'suspended' : (t.status || 'approved'),
+        isSuspended,
+        createdAt: t.createdAt || new Date().toISOString(),
+        password: t.password || '',
+        branch: t.branch || (isAdmin ? 'Kurum Yöneticisi' : 'Öğretmen'),
+        isAdmin,
+        assignedClassIds: t.assignedClassIds || [],
+        canViewAllStudentsAndClasses: !!t.canViewAllStudentsAndClasses,
+      });
+    });
+
+    // 2. Öğrenciler
+    this.students.forEach((s) => {
+      if (this.deletedStudentIds.has(s.id)) return;
+      const isSuspended = !!s.isSuspended || s.status === 'suspended';
+
+      list.push({
+        id: s.id,
+        name: s.name,
+        username: s.username,
+        email: s.email || '',
+        phone: s.phone || '',
+        avatar: s.avatar,
+        role: 'student',
+        status: isSuspended ? 'suspended' : (s.status || 'active'),
+        isSuspended,
+        createdAt: s.createdAt || new Date().toISOString(),
+        password: s.password || '',
+        className: s.className || 'Genel',
+        classId: s.classId || 'class-default',
+        studentNumber: s.studentNumber || '',
+        schoolLevel: s.schoolLevel,
+        gradeLevel: s.gradeLevel,
+        mustChangePassword: !!s.mustChangePassword,
+      });
+    });
+
+    // En yeni kayıtlar üstte olacak şekilde sırala
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  public async adminChangeUserRole(
+    userId: string,
+    targetRole: SystemRole,
+    options?: { branch?: string; className?: string; classId?: string }
+  ): Promise<void> {
+    // 1. Kullanıcı şu anda öğretmen veya admin mi?
+    const teacher = this.teachers.find((t) => t.id === userId);
+    if (teacher) {
+      const isMustafaBilir =
+        teacher.username?.toLowerCase() === 'mustafa bilir' ||
+        teacher.name?.toLowerCase() === 'mustafa bilir' ||
+        teacher.id === 'teacher-1';
+
+      if (targetRole === 'admin') {
+        teacher.isAdmin = true;
+        teacher.status = 'approved';
+        teacher.isSuspended = false;
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+        await this.syncTeacherToCloud(teacher);
+        this.notify();
+        return;
+      }
+
+      if (targetRole === 'teacher') {
+        if (isMustafaBilir) {
+          throw new Error('Baş yönetici Mustafa Bilir yetkisi kaldırılamaz.');
+        }
+        const adminCount = this.teachers.filter(
+          (t) =>
+            (t.isAdmin || t.id === 'teacher-1' || t.username?.toLowerCase() === 'mustafa bilir') &&
+            !this.deletedTeacherIds.has(t.id) &&
+            !t.isSuspended
+        ).length;
+        if (adminCount <= 1) {
+          throw new Error('Sistemde en az 1 aktif yönetici (admin) bulunmalıdır.');
+        }
+
+        teacher.isAdmin = false;
+        teacher.status = 'approved';
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+        await this.syncTeacherToCloud(teacher);
+        this.notify();
+        return;
+      }
+
+      if (targetRole === 'student') {
+        if (isMustafaBilir) {
+          throw new Error('Baş yönetici hesabı öğrenci rolüne çevrilemez.');
+        }
+        const adminCount = this.teachers.filter(
+          (t) =>
+            (t.isAdmin || t.id === 'teacher-1' || t.username?.toLowerCase() === 'mustafa bilir') &&
+            !this.deletedTeacherIds.has(t.id) &&
+            !t.isSuspended
+        ).length;
+        if (teacher.isAdmin && adminCount <= 1) {
+          throw new Error('Sistemde tek yönetici kaldığı için bu hesap öğrenciye dönüştürülemez.');
+        }
+
+        // Öğretmenden öğrenci kaydı oluştur
+        const targetClass = options?.classId
+          ? this.classes.find((c) => c.id === options.classId)
+          : this.classes[0];
+
+        const newStudent: Student = {
+          id: `std-${Date.now()}`,
+          name: teacher.name,
+          username: teacher.username,
+          email: teacher.email,
+          password: teacher.password || '54321',
+          classId: targetClass?.id || 'class-default',
+          className: targetClass?.name || 'Genel',
+          phone: teacher.phone,
+          avatar: teacher.avatar,
+          createdAt: new Date().toISOString(),
+          status: 'active',
+          isSuspended: false,
+          createdTeacherId: 'teacher-1',
+          mustChangePassword: true,
+        };
+
+        this.students.unshift(newStudent);
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        } catch {}
+
+        await supabase.from('students').upsert([
+          {
+            id: newStudent.id,
+            name: newStudent.name,
+            student_number: `${Math.floor(1000 + Math.random() * 9000)}`,
+            class_id: newStudent.classId,
+            class_name: newStudent.className,
+            email: newStudent.email || null,
+            phone: newStudent.phone || null,
+            avatar: newStudent.avatar || null,
+            registered_at: newStudent.createdAt,
+          },
+        ]);
+
+        this.deleteTeacher(teacher.id);
+        this.notify();
+        return;
+      }
+    }
+
+    // 2. Kullanıcı şu anda öğrenci mi?
+    const student = this.students.find((s) => s.id === userId);
+    if (student) {
+      if (targetRole === 'admin' || targetRole === 'teacher') {
+        const cleanEmail =
+          student.email && student.email.includes('@')
+            ? student.email
+            : `${student.username.toLowerCase().replace(/[^a-z0-9]/g, '')}@egitim.com`;
+
+        const newTeacher: Teacher = {
+          id: `teacher-${Date.now()}`,
+          name: student.name,
+          username: student.username,
+          email: cleanEmail,
+          password: student.password || '123456',
+          branch: options?.branch || (targetRole === 'admin' ? 'Kurum Yöneticisi' : 'Öğretmen'),
+          phone: student.phone,
+          avatar: student.avatar,
+          createdAt: new Date().toISOString(),
+          role: 'teacher',
+          status: 'approved',
+          isAdmin: targetRole === 'admin',
+          assignedClassIds: targetRole === 'admin' ? this.classes.map((c) => c.id) : [],
+          canViewAllStudentsAndClasses: targetRole === 'admin',
+          isSuspended: false,
+        };
+
+        this.teachers.unshift(newTeacher);
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        } catch {}
+
+        await this.syncTeacherToCloud(newTeacher);
+        await this.deleteStudent(student.id);
+        this.notify();
+        return;
+      }
+    }
+
+    throw new Error('Kullanıcı kaydı bulunamadı.');
+  }
+
+  public async adminUpdateUserProfile(
+    userId: string,
+    updates: Partial<UnifiedUser> & { newPassword?: string }
+  ): Promise<void> {
+    // 1. Öğretmen kontrolü
+    const teacher = this.teachers.find((t) => t.id === userId);
+    if (teacher) {
+      const teacherUpdates: Partial<Teacher> = {};
+      if (updates.name && updates.name.trim()) teacherUpdates.name = updates.name.trim();
+      if (updates.username && updates.username.trim()) teacherUpdates.username = updates.username.trim();
+      if (updates.email !== undefined) teacherUpdates.email = updates.email.trim();
+      if (updates.phone !== undefined) teacherUpdates.phone = updates.phone.trim();
+      if (updates.branch !== undefined) teacherUpdates.branch = updates.branch.trim();
+      if (updates.avatar !== undefined) teacherUpdates.avatar = updates.avatar;
+      if (updates.assignedClassIds !== undefined) teacherUpdates.assignedClassIds = updates.assignedClassIds;
+      if (updates.canViewAllStudentsAndClasses !== undefined) teacherUpdates.canViewAllStudentsAndClasses = updates.canViewAllStudentsAndClasses;
+
+      // Admin şifre override
+      if (updates.newPassword && updates.newPassword.trim()) {
+        teacherUpdates.password = updates.newPassword.trim();
+      }
+
+      this.updateTeacherProfile(userId, teacherUpdates);
+      return;
+    }
+
+    // 2. Öğrenci kontrolü
+    const student = this.students.find((s) => s.id === userId);
+    if (student) {
+      const studentUpdates: Partial<Student> = {};
+      if (updates.name && updates.name.trim()) studentUpdates.name = updates.name.trim();
+      if (updates.username && updates.username.trim()) studentUpdates.username = updates.username.trim();
+      if (updates.email !== undefined) studentUpdates.email = cleanStudentEmail(updates.email);
+      if (updates.phone !== undefined) studentUpdates.phone = updates.phone.trim();
+      if (updates.studentNumber !== undefined) studentUpdates.studentNumber = updates.studentNumber.trim();
+      if (updates.avatar !== undefined) studentUpdates.avatar = updates.avatar;
+      if (updates.classId !== undefined) {
+        studentUpdates.classId = updates.classId;
+        const cls = this.classes.find((c) => c.id === updates.classId);
+        if (cls) studentUpdates.className = cls.name;
+      } else if (updates.className !== undefined) {
+        studentUpdates.className = updates.className;
+      }
+      if (updates.schoolLevel !== undefined) studentUpdates.schoolLevel = updates.schoolLevel;
+      if (updates.gradeLevel !== undefined) studentUpdates.gradeLevel = updates.gradeLevel;
+      if (updates.mustChangePassword !== undefined) studentUpdates.mustChangePassword = updates.mustChangePassword;
+
+      // Admin şifre override
+      if (updates.newPassword && updates.newPassword.trim()) {
+        studentUpdates.password = updates.newPassword.trim();
+      }
+
+      this.updateStudent(userId, studentUpdates);
+      return;
+    }
+
+    throw new Error('Güncellenecek kullanıcı kaydı bulunamadı.');
+  }
+
+  public async adminToggleUserSuspension(userId: string, suspend: boolean, reason?: string): Promise<void> {
+    // 1. Öğretmen / Admin
+    const teacher = this.teachers.find((t) => t.id === userId);
+    if (teacher) {
+      const isMustafaBilir =
+        teacher.username?.toLowerCase() === 'mustafa bilir' ||
+        teacher.name?.toLowerCase() === 'mustafa bilir' ||
+        teacher.id === 'teacher-1';
+
+      if (isMustafaBilir && suspend) {
+        throw new Error('Baş yönetici Mustafa Bilir hesabı dondurulamaz / askıya alınamaz.');
+      }
+
+      teacher.isSuspended = suspend;
+      teacher.status = suspend ? 'suspended' : 'approved';
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      } catch {}
+
+      await this.syncTeacherToCloud(teacher);
+
+      // Askıya alınan hesap şu an aktif oturumda ise oturumu sonlandır
+      const currentSession = this.getAuthSession();
+      if (currentSession?.role === 'teacher' && currentSession.user.id === userId && suspend) {
+        this.logout();
+      }
+
+      this.notify();
+      return;
+    }
+
+    // 2. Öğrenci
+    const student = this.students.find((s) => s.id === userId);
+    if (student) {
+      student.isSuspended = suspend;
+      student.status = suspend ? 'suspended' : 'active';
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+
+      await supabase
+        .from('students')
+        .update({
+          // status field or sync timestamp
+          phone: student.phone || null,
+        })
+        .eq('id', student.id);
+
+      // Askıya alınan öğrenci şu an aktif oturumda ise oturumu sonlandır
+      const currentSession = this.getAuthSession();
+      if (currentSession?.role === 'student' && currentSession.user.id === userId && suspend) {
+        this.logout();
+      }
+
+      this.notify();
+      return;
+    }
+
+    throw new Error('Kullanıcı bulunamadı.');
+  }
+
+  public async adminDeleteUser(userId: string): Promise<void> {
+    const teacher = this.teachers.find((t) => t.id === userId);
+    if (teacher) {
+      const isMustafaBilir =
+        teacher.username?.toLowerCase() === 'mustafa bilir' ||
+        teacher.name?.toLowerCase() === 'mustafa bilir' ||
+        teacher.id === 'teacher-1';
+
+      if (isMustafaBilir) {
+        throw new Error('Baş yönetici Mustafa Bilir hesabı silinemez.');
+      }
+
+      const adminCount = this.teachers.filter(
+        (t) =>
+          (t.isAdmin || t.id === 'teacher-1' || t.username?.toLowerCase() === 'mustafa bilir') &&
+          !this.deletedTeacherIds.has(t.id) &&
+          !t.isSuspended
+      ).length;
+      if (teacher.isAdmin && adminCount <= 1) {
+        throw new Error('Sistemde kalan son yönetici hesabı silinemez.');
+      }
+
+      this.deleteTeacher(userId);
+      return;
+    }
+
+    const student = this.students.find((s) => s.id === userId);
+    if (student) {
+      await this.deleteStudent(userId);
+      return;
+    }
+
+    throw new Error('Silinecek kullanıcı bulunamadı.');
+  }
+
+  public async adminResetPassword(userId: string, tempPassword?: string): Promise<string> {
+    const newPass = tempPassword || `Egitim#${Math.floor(1000 + Math.random() * 9000)}!`;
+    await this.adminUpdateUserProfile(userId, {
+      newPassword: newPass,
+      mustChangePassword: true,
+    });
+    return newPass;
+  }
+
   public registerTeacher(data: {
     name: string;
     username: string;
@@ -2555,6 +2940,9 @@ export class DataService {
     if (!teacher) return null;
     if (teacher.password && teacher.password !== password) return null;
 
+    if (teacher.isSuspended || teacher.status === 'suspended') {
+      throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
+    }
     if (teacher.status === 'pending') {
       throw new Error('Hesabınız henüz kurum yöneticisi (Mustafa Bilir) tarafından onaylanmamıştır. Onay verildikten sonra sisteme giriş yapabilirsiniz.');
     }
@@ -2570,11 +2958,16 @@ export class DataService {
     const student = this.students.find(
       (s) =>
         s.username.toLowerCase() === term ||
-        s.email.toLowerCase() === term ||
-        s.studentNumber.toLowerCase() === term
+        s.email?.toLowerCase() === term ||
+        s.studentNumber?.toLowerCase() === term
     );
     if (!student) return null;
     if (student.password && student.password !== password) return null;
+
+    if (student.isSuspended || student.status === 'suspended') {
+      throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz veya öğretmeniniz ile iletişime geçiniz.');
+    }
+
     return student;
   }
 
@@ -2607,6 +3000,10 @@ export class DataService {
             (t.email && (saved.user as Teacher).email && t.email.toLowerCase() === (saved.user as Teacher).email?.toLowerCase())
         );
         if (freshTeacher) {
+          if (freshTeacher.isSuspended || freshTeacher.status === 'suspended') {
+            this.logout();
+            return null;
+          }
           saved.user = freshTeacher;
         }
 
@@ -2637,6 +3034,10 @@ export class DataService {
             (s.studentNumber && (saved.user as Student).studentNumber && s.studentNumber.toLowerCase() === (saved.user as Student).studentNumber?.toLowerCase())
         );
         if (freshStudent) {
+          if (freshStudent.isSuspended || freshStudent.status === 'suspended') {
+            this.logout();
+            return null;
+          }
           saved.user = freshStudent;
         }
       }
