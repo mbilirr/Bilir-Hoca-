@@ -22,7 +22,25 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error in EduTrack application:', error, errorInfo);
+
+    // Sanal DOM veya dış tarayıcı çeviri eklentisi (Google Translate vb.) kaynaklı removeChild/insertBefore hatalarında otomatik temiz remount
+    const isDOMClash =
+      error.name === 'NotFoundError' ||
+      error.message?.includes('removeChild') ||
+      error.message?.includes('insertBefore') ||
+      error.message?.includes('not a child');
+
+    if (isDOMClash) {
+      console.warn('DOM çakışması tespit edildi, bileşen temiz bir şekilde yeniden başlatılıyor...');
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null });
+      }, 50);
+    }
   }
+
+  private handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
 
   private handleReset = () => {
     try {
@@ -48,10 +66,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
             <div className="space-y-2">
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Beklenmeyen Bir Hata Oluştu
+                Geçici Bir Görüntüleme Hatası Oluştu
               </h2>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Uygulama yüklenirken geçici bir hata meydana geldi. Sayfayı yenileyebilir veya verileri sıfırlayarak baştan başlatabilirsiniz.
+                Tarayıcı çeviri eklentisi veya ekran güncellemesi sırasında geçici bir durum oluştu. Aşağıdaki butona tıklayarak kaldığınız yerden devam edebilirsiniz.
               </p>
             </div>
 
@@ -66,20 +84,20 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={this.handleReload}
+                onClick={this.handleRetry}
                 className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>Sayfayı Yenile</span>
+                <span>Tekrar Dene</span>
               </button>
 
               <button
                 type="button"
-                onClick={this.handleReset}
+                onClick={this.handleReload}
                 className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all cursor-pointer border border-slate-700"
               >
-                <Home className="w-4 h-4" />
-                <span>Verileri Sıfırla</span>
+                <RefreshCw className="w-4 h-4" />
+                <span>Sayfayı Yenile</span>
               </button>
             </div>
           </div>

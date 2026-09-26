@@ -162,6 +162,8 @@ export const PERMANENT_KEYS = {
   MASTER_SUBMISSIONS: 'edu_sys_master_submissions_permanent',
   MASTER_QUESTION_LOGS: 'edu_sys_master_question_logs_permanent',
   MASTER_DOCUMENTS: 'edu_sys_master_documents_permanent',
+  DELETED_STUDENTS: 'edu_sys_master_deleted_students_permanent',
+  DELETED_CLASSES: 'edu_sys_master_deleted_classes_permanent',
 };
 
 // Safely clean up old versioned keys to free storage quota, but NEVER delete user data
@@ -242,9 +244,21 @@ function loadStudentsWithResilience(): Student[] {
       'edu_sys_students_backup',
     ];
 
+    // Load deleted student IDs to strictly prevent resurrection of deleted students
+    const deletedStudentSet = new Set<string>();
+    try {
+      const rawDel = localStorage.getItem(STORAGE_KEYS.DELETED_STUDENTS) || localStorage.getItem(PERMANENT_KEYS.DELETED_STUDENTS);
+      if (rawDel) {
+        const parsedDel = JSON.parse(rawDel);
+        if (Array.isArray(parsedDel)) {
+          parsedDel.forEach((id: string) => deletedStudentSet.add(id));
+        }
+      }
+    } catch {}
+
     const studentMap = new Map<string, Student>();
     loaded.forEach((s) => {
-      if (s && s.id) studentMap.set(s.id, s);
+      if (s && s.id && !deletedStudentSet.has(s.id)) studentMap.set(s.id, s);
     });
 
     for (const k of studentKeysToCheck) {
@@ -254,7 +268,7 @@ function loadStudentsWithResilience(): Student[] {
           const parsed = JSON.parse(val);
           if (Array.isArray(parsed)) {
             parsed.forEach((s: Student) => {
-              if (s && s.id && !studentMap.has(s.id)) {
+              if (s && s.id && !deletedStudentSet.has(s.id) && !studentMap.has(s.id)) {
                 studentMap.set(s.id, s);
               }
             });
@@ -263,12 +277,16 @@ function loadStudentsWithResilience(): Student[] {
       }
     }
 
-    const result = Array.from(studentMap.values());
+    const result = Array.from(studentMap.values()).filter((s) => !deletedStudentSet.has(s.id));
     if (result.length > 0) {
       saveData(STORAGE_KEYS.STUDENTS, result);
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(result));
       } catch {}
+      // Clean up obsolete keys so deleted students don't resurrect in future
+      studentKeysToCheck.forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
       return result;
     }
     return [];
@@ -278,7 +296,7 @@ function loadStudentsWithResilience(): Student[] {
   }
 }
 
-// Resilient class loader across all versioned, master, and backup keys
+// Resilient class loader across all versioned, master, and backup keys (Deduplicated strictly by canonical class name)
 function loadClassesWithResilience(): ClassGroup[] {
   try {
     let loaded: ClassGroup[] = [];
@@ -317,9 +335,21 @@ function loadClassesWithResilience(): ClassGroup[] {
       'edu_sys_classes_backup',
     ];
 
+    // Load deleted class IDs to strictly prevent resurrection of deleted classes
+    const deletedClassSet = new Set<string>();
+    try {
+      const rawDel = localStorage.getItem(STORAGE_KEYS.DELETED_CLASSES) || localStorage.getItem(PERMANENT_KEYS.DELETED_CLASSES);
+      if (rawDel) {
+        const parsedDel = JSON.parse(rawDel);
+        if (Array.isArray(parsedDel)) {
+          parsedDel.forEach((id: string) => deletedClassSet.add(id));
+        }
+      }
+    } catch {}
+
     const classMap = new Map<string, ClassGroup>();
     loaded.forEach((c) => {
-      if (c && c.id) classMap.set(c.id, c);
+      if (c && c.id && !deletedClassSet.has(c.id)) classMap.set(c.id, c);
     });
 
     for (const k of classKeysToCheck) {
@@ -329,7 +359,7 @@ function loadClassesWithResilience(): ClassGroup[] {
           const parsed = JSON.parse(val);
           if (Array.isArray(parsed)) {
             parsed.forEach((c: ClassGroup) => {
-              if (c && c.id && !classMap.has(c.id)) {
+              if (c && c.id && !deletedClassSet.has(c.id) && !classMap.has(c.id)) {
                 classMap.set(c.id, c);
               }
             });
@@ -338,12 +368,30 @@ function loadClassesWithResilience(): ClassGroup[] {
       }
     }
 
-    const result = Array.from(classMap.values());
+    // Deduplicate strictly by normalized name (e.g. only one "8/A", one "8/B", etc.)
+    const normClassMap = new Map<string, ClassGroup>();
+    for (const c of classMap.values()) {
+      if (!c || !c.id || deletedClassSet.has(c.id)) continue;
+      const norm = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+      if (!norm || norm === 'sinif' || norm === 'atanmadi' || norm === 'tanimsiz') continue;
+      if (!normClassMap.has(norm)) {
+        normClassMap.set(norm, c);
+      }
+    }
+
+    const result = Array.from(normClassMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'tr', { numeric: true })
+    );
+
     if (result.length > 0) {
       saveData(STORAGE_KEYS.CLASSES, result);
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(result));
       } catch {}
+      // Clean up obsolete keys so duplicate old classes don't resurrect in future
+      classKeysToCheck.forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
       return result;
     }
     return [];
@@ -2767,12 +2815,34 @@ export class DataService {
   public deleteClass(id: string): void {
     this.deletedClassIds.add(id);
     saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+    try {
+      localStorage.setItem(PERMANENT_KEYS.DELETED_CLASSES, JSON.stringify(Array.from(this.deletedClassIds)));
+    } catch {}
 
     this.classes = this.classes.filter((c) => c.id !== id);
     // Unassign students from this class
     this.students = this.students.map((s) => (s.classId === id ? { ...s, classId: '', className: 'Atanmadı' } : s));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+
+    // Clean legacy versioned keys
+    [
+      'edu_sys_classes_v6',
+      'edu_sys_classes_v5',
+      'edu_sys_classes_v4',
+      'edu_sys_classes_v3',
+      'edu_sys_classes_v2',
+      'edu_sys_classes_v1',
+      'edu_sys_classes',
+      'edu_sys_classes_backup',
+    ].forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+
     this.deleteClassFromCloud(id);
     this.notify();
   }
@@ -2917,52 +2987,34 @@ export class DataService {
         } catch {}
       }
 
-      // 3. Auto-recover any classes that exist in student records but missing from classes!
-      // (This guarantees no student ever has a missing class or 'Yok' class on iPhone or Windows)
-      this.students.forEach((s) => {
-        if (s.classId && s.classId !== 'class-default' && s.classId !== 'tanimsiz' && !this.deletedClassIds.has(s.classId)) {
-          if (!remoteMap.has(s.classId) && !this.classes.some((c) => c.id === s.classId)) {
-            const detectedName = s.className && s.className !== 'Atanmadı' ? s.className : 'Sınıf';
-            const recoveredClass: ClassGroup = {
-              id: s.classId,
-              name: detectedName,
-              branch: s.branch || 'Genel',
-              gradeLevel: s.gradeLevel,
-              schoolLevel: s.schoolLevel || (s.gradeLevel && parseInt(s.gradeLevel) >= 9 ? 'Lise' : 'Ortaokul'),
-              academicYear: '2026-2027',
-              createdTeacherId: 'teacher-1',
-            };
-            remoteMap.set(s.classId, recoveredClass);
-          }
-        }
-      });
-
-      // 4. Merge remote classes into local state
+      // 3. Merge remote classes into local state with strict deduplication
       remoteMap.forEach((rc, id) => {
         if (this.deletedClassIds.has(id)) return;
-        const localIdx = this.classes.findIndex((c) => c.id === id);
+        const normRcName = (rc.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+        if (!normRcName || normRcName === 'sinif' || normRcName === 'atanmadi' || normRcName === 'tanimsiz') return;
+
+        // Check if a class with the exact same normalized name or ID already exists locally
+        const localIdx = this.classes.findIndex((c) =>
+          c.id === id || (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '') === normRcName
+        );
+
         if (localIdx === -1) {
           this.classes.push(rc);
           changed = true;
         } else {
           const cur = this.classes[localIdx];
           if (cur.name !== rc.name || (rc.branch && cur.branch !== rc.branch)) {
-            this.classes[localIdx] = { ...cur, ...rc };
+            this.classes[localIdx] = { ...cur, ...rc, id: cur.id };
             changed = true;
           }
         }
       });
 
-      // 5. If this device has local classes that Supabase doesn't have, push them to cloud
-      let needsUpload = false;
-      for (const lc of this.classes) {
-        if (!this.deletedClassIds.has(lc.id) && !remoteMap.has(lc.id)) {
-          needsUpload = true;
-          break;
-        }
-      }
-      if (needsUpload) {
-        await this.syncAllClassesToCloud();
+      // Deduplicate this.classes strictly by normalized name
+      const deduplicatedClasses = this.deduplicateClasses(this.classes);
+      if (deduplicatedClasses.length !== this.classes.length) {
+        this.classes = deduplicatedClasses;
+        changed = true;
       }
 
       if (changed) {
@@ -2988,6 +3040,31 @@ export class DataService {
     const session = this.getAuthSession();
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
+
+    const cleanName = (studentData.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const cleanNumber = (studentData.studentNumber || '').trim();
+
+    // Check for duplicate student registration across all platforms
+    const duplicate = this.students.find((s) => {
+      const sName = (s.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (sName === cleanName) {
+        if (cleanNumber && s.studentNumber && s.studentNumber.trim() === cleanNumber) return true;
+        if (
+          studentData.className &&
+          s.className &&
+          s.className.trim().toLowerCase() === studentData.className.trim().toLowerCase()
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+
+    if (duplicate) {
+      throw new Error(
+        `"${studentData.name}" isimli ve ${duplicate.className || 'sınıfı kayıtlı'} öğrenci sistemde zaten mevcuttur. Mükerrer öğrenci kaydı oluşturulamaz.`
+      );
+    }
 
     const cleanUsername = studentData.username?.trim().toLowerCase();
     if (cleanUsername && this.students.some((s) => s.username?.toLowerCase() === cleanUsername)) {
@@ -3308,7 +3385,29 @@ export class DataService {
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
 
-    supabase.from('students').delete().in('id', ids).then();
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
+    } catch {}
+
+    // Clean legacy versioned keys so deleted students never resurrect
+    [
+      'edu_sys_students_v6',
+      'edu_sys_students_v5',
+      'edu_sys_students_v4',
+      'edu_sys_students_v3',
+      'edu_sys_students_v2',
+      'edu_sys_students_v1',
+      'edu_sys_students',
+      'edu_sys_students_backup',
+    ].forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+    });
+
+    // Delete permanently from Supabase
+    supabase.from('students').delete().in('id', ids).then(() => {
+      console.log('Students deleted permanently from Supabase:', ids);
+    });
 
     this.notify();
   }
@@ -3869,13 +3968,32 @@ export class DataService {
     return this.messages.filter((m) => m.studentId === studentId);
   }
 
+  // Helper to strictly deduplicate classes by canonical normalized name and eliminate dummy classes
+  public deduplicateClasses(classesList: ClassGroup[]): ClassGroup[] {
+    const seenNorm = new Set<string>();
+    const seenId = new Set<string>();
+    const result: ClassGroup[] = [];
+
+    for (const c of classesList) {
+      if (!c || !c.id || this.deletedClassIds.has(c.id)) continue;
+      const norm = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+      if (!norm || norm === 'sinif' || norm === 'atanmadi' || norm === 'tanimsiz') continue;
+      if (seenNorm.has(norm) || seenId.has(c.id)) continue;
+      seenNorm.add(norm);
+      seenId.add(c.id);
+      result.push(c);
+    }
+
+    return result.sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true }));
+  }
+
   // --- GETTERS (SCOPED BY AUTH & ROLE PERMISSION) ---
   public getAllStudents(): Student[] {
-    return [...this.students];
+    return [...this.students].filter((s) => !this.deletedStudentIds.has(s.id));
   }
 
   public getAllClasses(): ClassGroup[] {
-    return [...this.classes];
+    return this.deduplicateClasses(this.classes);
   }
 
   public getStudents(forTeacherId?: string): Student[] {
@@ -3890,12 +4008,12 @@ export class DataService {
 
       // Kurum Yöneticisi tüm öğrencileri görebilir
       if (this.isTeacherAdmin(teacher) || this.isTeacherAdmin(session?.user as Teacher)) {
-        return this.students;
+        return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       }
 
       // Yönetici bu öğretmene önceden eklenmiş tüm sınıf ve öğrenci listelerini görme izni vermişse görebilir
       if (teacher?.canViewAllStudentsAndClasses) {
-        return this.students;
+        return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       }
 
       // Normal öğretmen: İzinli sınıflardaki öğrencileri VEYA kendi eklediği öğrencileri görebilir
@@ -3906,6 +4024,7 @@ export class DataService {
       );
 
       return this.students.filter((s) => {
+        if (this.deletedStudentIds.has(s.id)) return false;
         if (s.createdTeacherId && s.createdTeacherId === teacherId) return true;
         if (s.classId && permittedClassIds.has(s.classId)) return true;
         if (s.className) {
@@ -3919,10 +4038,10 @@ export class DataService {
     // Öğrenci oturumu: öğrenci YALNIZCA kendi bilgilerini görebilir, diğer öğrencileri göremez
     if (session?.role === 'student') {
       const studentId = session.user.id;
-      return this.students.filter((s) => s.id === studentId);
+      return this.students.filter((s) => s.id === studentId && !this.deletedStudentIds.has(s.id));
     }
 
-    return this.students;
+    return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
   }
 
   public getClasses(forTeacherId?: string): ClassGroup[] {
@@ -3936,12 +4055,12 @@ export class DataService {
 
       // Yönetici tüm sınıfları görebilir
       if (this.isTeacherAdmin(teacher) || this.isTeacherAdmin(session?.user as Teacher)) {
-        return this.classes;
+        return this.deduplicateClasses(this.classes);
       }
 
       // Yönetici bu öğretmene önceden eklenmiş sınıf listelerini görme izni vermişse görebilir
       if (teacher?.canViewAllStudentsAndClasses) {
-        return this.classes;
+        return this.deduplicateClasses(this.classes);
       }
 
       // Normal kullanıcı/öğretmen: Yalnızca yöneticinin izin verdiği sınıfları veya kendi oluşturduğu sınıfları görebilir
@@ -3958,21 +4077,105 @@ export class DataService {
         }
       });
 
-      return this.classes.filter((c) => {
+      const filtered = this.classes.filter((c) => {
         if (c.createdTeacherId && c.createdTeacherId === teacherId) return true;
         if (assignedClassIds.has(c.id) || assignedClassIds.has(c.name)) return true;
         const normName = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
         if (assignedNormNames.has(normName)) return true;
         return false;
       });
+
+      return this.deduplicateClasses(filtered);
     }
 
     if (session?.role === 'student') {
       const student = session.user as Student;
-      return this.classes.filter((c) => c.id === student.classId || c.name === student.className);
+      const filtered = this.classes.filter((c) => c.id === student.classId || c.name === student.className);
+      return this.deduplicateClasses(filtered);
     }
 
-    return this.classes;
+    return this.deduplicateClasses(this.classes);
+  }
+
+  // Hızlı Sınıf Değiştirme / Aktarma (Öğrenci satırındaki açılır pencere için)
+  public updateStudentClass(studentId: string, newClassId: string): Student {
+    const studentIdx = this.students.findIndex((s) => s.id === studentId);
+    if (studentIdx === -1) {
+      throw new Error('Öğrenci kaydı bulunamadı.');
+    }
+
+    const currentStudent = this.students[studentIdx];
+    let newClassName = 'Atanmadı';
+    let newGradeLevel: string | undefined = undefined;
+    let newSchoolLevel: 'İlkokul' | 'Ortaokul' | 'Lise' | undefined = currentStudent.schoolLevel;
+    let newBranch: string | undefined = undefined;
+
+    if (newClassId && newClassId !== 'unassigned' && newClassId !== 'class-default') {
+      const cls = this.classes.find((c) => c.id === newClassId || c.name === newClassId);
+      if (cls) {
+        newClassName = cls.name;
+        newGradeLevel = cls.gradeLevel;
+        newSchoolLevel = cls.schoolLevel;
+        newBranch = cls.branch;
+      }
+    } else {
+      newClassId = 'class-default';
+    }
+
+    const updated: Student = {
+      ...currentStudent,
+      classId: newClassId,
+      className: newClassName,
+      gradeLevel: newGradeLevel || currentStudent.gradeLevel,
+      schoolLevel: newSchoolLevel || currentStudent.schoolLevel,
+      branch: newBranch || currentStudent.branch,
+    };
+
+    this.students[studentIdx] = updated;
+    saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+
+    // Update in Supabase immediately
+    supabase
+      .from('students')
+      .update({
+        class_id: newClassId,
+        class_name: newClassName,
+      })
+      .eq('id', studentId)
+      .then();
+
+    this.notify();
+    return updated;
+  }
+
+  // Mükerrer / Çift Kayıt Kontrolü (Aynı öğrencinin iki kez kayıt olmasını engelleme)
+  public checkDuplicateStudent(
+    name: string,
+    studentNumber?: string,
+    className?: string,
+    excludeId?: string
+  ): Student | null {
+    const cleanName = (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!cleanName) return null;
+    const cleanNum = (studentNumber || '').trim();
+    const cleanCls = (className || '').trim().toLowerCase();
+
+    return (
+      this.students.find((s) => {
+        if (excludeId && s.id === excludeId) return false;
+        if (this.deletedStudentIds.has(s.id)) return false;
+        const sName = (s.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (sName !== cleanName) return false;
+        // Same name AND same student number
+        if (cleanNum && s.studentNumber && s.studentNumber.trim() === cleanNum) return true;
+        // Same name AND same class
+        if (cleanCls && s.className && s.className.trim().toLowerCase() === cleanCls) return true;
+        return false;
+      }) || null
+    );
   }
 
   public getHomeworks(forTeacherId?: string): Homework[] {

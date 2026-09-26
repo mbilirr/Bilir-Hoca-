@@ -146,6 +146,14 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     }
 
     const constructedClassName = regBranch ? `${regGrade} - ${regBranch}` : regGrade;
+
+    // Sistemde mükerrer öğrenci kontrolü
+    const existingDup = dataService.checkDuplicateStudent(regName, undefined, constructedClassName);
+    if (existingDup) {
+      setError(`"${regName}" isimli öğrenci (${existingDup.className || 'sınıfı kayıtlı'}) sistemde zaten mevcuttur. Lütfen "Giriş Yap" sekmesinden giriş yapınız.`);
+      return;
+    }
+
     let matchedClass = classes.find(
       (c) =>
         c.gradeLevel === regGrade &&

@@ -114,7 +114,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentAvatar, setStudentAvatar] = useState<string>('');
   const [isProcessingStudentPhoto, setIsProcessingStudentPhoto] = useState(false);
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
+  const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Hızlı Sınıf Değiştirme / Aktarma İşleyicisi
+  const handleQuickChangeStudentClass = (student: Student, targetClassId: string) => {
+    try {
+      const updated = dataService.updateStudentClass(student.id, targetClassId);
+      const targetClassName = updated.className || 'Atanmadı';
+      setQuickClassChangeFeedback(`✓ ${student.name} başarıyla "${targetClassName}" sınıfına aktarıldı.`);
+      setTimeout(() => setQuickClassChangeFeedback(null), 3500);
+    } catch (e: any) {
+      alert(e.message || 'Sınıf aktarılırken bir hata oluştu.');
+    }
+  };
 
   // Duplicate student detection state
   interface DuplicateWarningState {
@@ -316,6 +329,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       let matchesClass = true;
       if (selectedClassFilter === 'all') {
         matchesClass = true;
+      } else if (selectedClassFilter === 'duplicates') {
+        matchesClass = duplicateStudentGroups.dupMap.has(s.id);
       } else if (selectedClassFilter === 'unassigned' || selectedClassFilter === 'tanimsiz') {
         matchesClass = isStudentUnassigned(s);
       } else {
@@ -1053,6 +1068,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
           )}
 
+          {/* Quick Class Change Feedback Banner */}
+          {quickClassChangeFeedback && (
+            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-900 text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{quickClassChangeFeedback}</span>
+            </div>
+          )}
+
           {/* Filter / Search Bar */}
           <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white">
             <div className="relative w-full md:w-80">
@@ -1076,6 +1099,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
                 >
                   <option value="all">Tüm Sınıflar ({students.length})</option>
+                  {duplicateStudentGroups.totalDuplicates > 0 && (
+                    <option value="duplicates">⚠️ Mükerrer Kayıtlar ({duplicateStudentGroups.totalDuplicates})</option>
+                  )}
                   <option value="unassigned">Tanımsız ({unassignedStudentsCount})</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
@@ -1259,26 +1285,48 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 </span>
                               )}
                             </div>
+
+                            {/* Öğrenci İsmine Bağlı Hızlı Sınıf Değiştirme / Aktarma Açılır Menüsü */}
+                            <div className="flex items-center space-x-1.5 mt-1.5">
+                              <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Sınıf Aktar:</span>
+                              <select
+                                value={std.classId || 'unassigned'}
+                                onChange={(e) => handleQuickChangeStudentClass(std, e.target.value)}
+                                className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:bg-indigo-100 transition-colors"
+                                title="Öğrencinin sınıfını bu açılır listeden anında değiştirebilirsiniz"
+                              >
+                                <option value="unassigned">Atanmadı (Sınıfsız)</option>
+                                {classes.map((cls) => (
+                                  <option key={cls.id} value={cls.id}>
+                                    {cls.name} {cls.branch ? `(${cls.branch})` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-6 py-4">
-                        {isStudentUnassigned(std) ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-100 text-slate-600 border-slate-300">
-                            Tanımsız
-                          </span>
-                        ) : (
-                          <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                              isDuplicate && dupInfo
-                                ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
-                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                            }`}
-                          >
-                            {formatClassDisplayName(std.className, std.branch, std.gradeLevel)}
-                          </span>
-                        )}
+                        <select
+                          value={std.classId || 'unassigned'}
+                          onChange={(e) => handleQuickChangeStudentClass(std, e.target.value)}
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
+                            isStudentUnassigned(std)
+                              ? 'bg-slate-100 text-slate-700 border-slate-300 hover:border-slate-400'
+                              : isDuplicate && dupInfo
+                              ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
+                              : 'bg-indigo-50 text-indigo-900 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-100'
+                          }`}
+                          title="Öğrencinin sınıfını anında değiştirmek için seçiniz"
+                        >
+                          <option value="unassigned">Tanımsız / Sınıfsız</option>
+                          {classes.map((cls) => (
+                            <option key={cls.id} value={cls.id}>
+                              {cls.name} {cls.branch ? `(${cls.branch})` : ''}
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
                       <td className="px-6 py-4">

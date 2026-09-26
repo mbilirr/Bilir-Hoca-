@@ -233,3 +233,21 @@ export function formatClassDisplayName(
   return branch || '-';
 }
 
+/**
+ * Returns a canonical normalized string key for a class (e.g. '8/a', '11/b')
+ * Used across Windows, iOS, and Android to completely eliminate duplicate classes
+ * regardless of how they were typed ('8/A', '8-A', '8. Sınıf - Şube A').
+ */
+export function getCanonicalClassKey(
+  className?: string,
+  branch?: string,
+  gradeLevel?: string
+): string {
+  const display = formatClassDisplayName(className, branch, gradeLevel);
+  if (!display || display === '-' || ['atanmadı', 'tanımsız', 'sınıfsız', 'sınıf', 'noclass'].includes(display.toLowerCase().trim())) {
+    return '';
+  }
+  return display.toLowerCase().trim();
+}
+
+
