@@ -226,8 +226,10 @@ export default function App() {
       setCurrentStudent(session.user as Student);
     }
 
-    // Bilgisayar, tablet ve telefon arasında etüt ve kullanıcı verilerini anında buluttan çek
+    // Bilgisayar, tablet ve telefon arasında sınıf, öğrenci ve etüt verilerini anında buluttan çek
     try {
+      await dataService.syncClassesFromSupabase(true);
+      await dataService.syncStudentsFromSupabase(true);
       await dataService.syncEtutsFromSupabase(true);
       await dataService.forceSyncTeachers();
       setEtuts(dataService.getEtuts());

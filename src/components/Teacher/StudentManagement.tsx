@@ -418,12 +418,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     );
   };
 
-  const handleConfirmBulkDelete = () => {
+  const handleConfirmBulkDelete = async () => {
     if (selectedStudentIds.length === 0) return;
     const count = selectedStudentIds.length;
-    dataService.deleteStudents(selectedStudentIds);
+    const idsToDelete = [...selectedStudentIds];
     setSelectedStudentIds([]);
     setIsBulkDeleteModalOpen(false);
+    await dataService.deleteStudents(idsToDelete);
     setStudentSuccessFeedback(`${count} öğrenci sistemden başarıyla silindi.`);
   };
 
@@ -2215,9 +2216,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       <ConfirmDeleteModal
         isOpen={!!studentToDelete}
         onClose={() => setStudentToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (studentToDelete) {
-            dataService.deleteStudent(studentToDelete.id);
+            const target = studentToDelete;
+            setStudentToDelete(null);
+            await dataService.deleteStudent(target.id);
+            setStudentSuccessFeedback(`"${target.name}" sistemden başarıyla silindi.`);
           }
         }}
         title="Öğrenciyi Sil"
@@ -2242,9 +2246,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       <ConfirmDeleteModal
         isOpen={!!classToDelete}
         onClose={() => setClassToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (classToDelete) {
-            dataService.deleteClass(classToDelete.id);
+            const target = classToDelete;
+            setClassToDelete(null);
+            await dataService.deleteClass(target.id);
+            setStudentSuccessFeedback(`"${target.name}" sınıfı sistemden başarıyla silindi.`);
           }
         }}
         title="Sınıfı Sil"

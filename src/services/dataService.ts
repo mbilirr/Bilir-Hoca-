@@ -203,7 +203,7 @@ function cleanUpLegacyKeys(): void {
   }
 }
 
-// Resilient student loader across all versioned, master, and backup keys
+// Resilient student loader (Strictly prevents resurrection of deleted or legacy dummy students)
 function loadStudentsWithResilience(): Student[] {
   try {
     let loaded: Student[] = [];
@@ -233,6 +233,7 @@ function loadStudentsWithResilience(): Student[] {
       }
     }
 
+    // Clean up obsolete legacy version keys once and for all so they never pollute or resurrect
     const studentKeysToCheck = [
       'edu_sys_students_v6',
       'edu_sys_students_v5',
@@ -243,6 +244,9 @@ function loadStudentsWithResilience(): Student[] {
       'edu_sys_students',
       'edu_sys_students_backup',
     ];
+    studentKeysToCheck.forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+    });
 
     // Load deleted student IDs to strictly prevent resurrection of deleted students
     const deletedStudentSet = new Set<string>();
@@ -256,47 +260,15 @@ function loadStudentsWithResilience(): Student[] {
       }
     } catch {}
 
-    const studentMap = new Map<string, Student>();
-    loaded.forEach((s) => {
-      if (s && s.id && !deletedStudentSet.has(s.id)) studentMap.set(s.id, s);
-    });
-
-    for (const k of studentKeysToCheck) {
-      const val = localStorage.getItem(k);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((s: Student) => {
-              if (s && s.id && !deletedStudentSet.has(s.id) && !studentMap.has(s.id)) {
-                studentMap.set(s.id, s);
-              }
-            });
-          }
-        } catch {}
-      }
-    }
-
-    const result = Array.from(studentMap.values()).filter((s) => !deletedStudentSet.has(s.id));
-    if (result.length > 0) {
-      saveData(STORAGE_KEYS.STUDENTS, result);
-      try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(result));
-      } catch {}
-      // Clean up obsolete keys so deleted students don't resurrect in future
-      studentKeysToCheck.forEach((k) => {
-        try { localStorage.removeItem(k); } catch {}
-      });
-      return result;
-    }
-    return [];
+    const result = loaded.filter((s) => s && s.id && !deletedStudentSet.has(s.id));
+    return result;
   } catch (e) {
     console.error('Error in loadStudentsWithResilience:', e);
     return [];
   }
 }
 
-// Resilient class loader across all versioned, master, and backup keys (Deduplicated strictly by canonical class name)
+// Resilient class loader (Deduplicated strictly by canonical class name, no stale resurrection)
 function loadClassesWithResilience(): ClassGroup[] {
   try {
     let loaded: ClassGroup[] = [];
@@ -324,6 +296,7 @@ function loadClassesWithResilience(): ClassGroup[] {
       }
     }
 
+    // Clean up obsolete legacy version keys once and for all
     const classKeysToCheck = [
       'edu_sys_classes_v6',
       'edu_sys_classes_v5',
@@ -334,6 +307,9 @@ function loadClassesWithResilience(): ClassGroup[] {
       'edu_sys_classes',
       'edu_sys_classes_backup',
     ];
+    classKeysToCheck.forEach((k) => {
+      try { localStorage.removeItem(k); } catch {}
+    });
 
     // Load deleted class IDs to strictly prevent resurrection of deleted classes
     const deletedClassSet = new Set<string>();
@@ -347,30 +323,9 @@ function loadClassesWithResilience(): ClassGroup[] {
       }
     } catch {}
 
-    const classMap = new Map<string, ClassGroup>();
-    loaded.forEach((c) => {
-      if (c && c.id && !deletedClassSet.has(c.id)) classMap.set(c.id, c);
-    });
-
-    for (const k of classKeysToCheck) {
-      const val = localStorage.getItem(k);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((c: ClassGroup) => {
-              if (c && c.id && !deletedClassSet.has(c.id) && !classMap.has(c.id)) {
-                classMap.set(c.id, c);
-              }
-            });
-          }
-        } catch {}
-      }
-    }
-
     // Deduplicate strictly by normalized name (e.g. only one "8/A", one "8/B", etc.)
     const normClassMap = new Map<string, ClassGroup>();
-    for (const c of classMap.values()) {
+    for (const c of loaded) {
       if (!c || !c.id || deletedClassSet.has(c.id)) continue;
       const norm = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
       if (!norm || norm === 'sinif' || norm === 'atanmadi' || norm === 'tanimsiz') continue;
@@ -383,18 +338,7 @@ function loadClassesWithResilience(): ClassGroup[] {
       a.name.localeCompare(b.name, 'tr', { numeric: true })
     );
 
-    if (result.length > 0) {
-      saveData(STORAGE_KEYS.CLASSES, result);
-      try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(result));
-      } catch {}
-      // Clean up obsolete keys so duplicate old classes don't resurrect in future
-      classKeysToCheck.forEach((k) => {
-        try { localStorage.removeItem(k); } catch {}
-      });
-      return result;
-    }
-    return [];
+    return result;
   } catch (e) {
     console.error('Error in loadClassesWithResilience:', e);
     return [];
@@ -848,42 +792,8 @@ export class DataService {
     const resilientAttendance = loadAttendanceWithResilience();
     const resilientQuestionLogs = loadQuestionLogsWithResilience();
 
-    const alreadyInitialized = isAlreadyInitialized();
-
-    if (
-      !alreadyInitialized &&
-      resilientStudents.length === 0 &&
-      resilientClasses.length === 0 &&
-      resilientTeachers.length === 0 &&
-      resilientEtuts.length === 0 &&
-      resilientGrades.length === 0
-    ) {
-      // First time initialization ONLY when completely empty
-      this.teachers = INITIAL_TEACHERS.map((t) => ({ ...t, status: 'approved' as const }));
-      this.classes = [...INITIAL_CLASSES];
-      this.students = [...INITIAL_STUDENTS];
-      this.homeworks = [...INITIAL_HOMEWORK];
-      this.submissions = [...INITIAL_SUBMISSIONS];
-      this.etuts = [...INITIAL_ETUTS];
-      this.attendance = [...INITIAL_ATTENDANCE];
-      this.grades = [...INITIAL_GRADES];
-      this.messages = [...INITIAL_MESSAGES];
-      this.documents = [...INITIAL_TEACHER_DOCUMENTS];
-
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      saveData(STORAGE_KEYS.CLASSES, this.classes);
-      saveData(STORAGE_KEYS.STUDENTS, this.students);
-      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-      saveData(STORAGE_KEYS.ETUTS, this.etuts);
-      saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-      saveData(STORAGE_KEYS.GRADES, this.grades);
-      saveData(STORAGE_KEYS.MESSAGES, this.messages);
-      saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
-      saveData(STORAGE_KEYS.IS_SEEDED, 'true');
-    } else {
-      // Load strictly what is saved in storage; never wipe existing students, teachers, etuts or classes
-      this.teachers = resilientTeachers.length > 0 ? resilientTeachers : loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
+    // Load strictly what is saved in storage or fetch from central DB; NEVER seed dummy demo students or classes
+    this.teachers = resilientTeachers.length > 0 ? resilientTeachers : loadDataWithLegacyFallback(STORAGE_KEYS.TEACHERS, INITIAL_TEACHERS);
       if (!this.teachers || this.teachers.length === 0) {
         this.teachers = INITIAL_TEACHERS.map((t) => ({ ...t, status: 'approved' as const }));
         saveData(STORAGE_KEYS.TEACHERS, this.teachers);
@@ -1031,7 +941,6 @@ export class DataService {
       }
 
       saveData(STORAGE_KEYS.IS_SEEDED, 'true');
-    }
 
     // Migration: Önceden sistem tarafından rastgele atanmış sahte/otomatik mailleri temizle ve 54321 şifrelerini ilk girişte zorunlu güncellemeye al
     let studentsEmailCleaned = false;
@@ -1077,6 +986,14 @@ export class DataService {
     // Cross-device real-time and periodic sync for etuts (PC & Mobile sync)
     this.setupEtutsRealtimeSync();
     this.startPeriodicEtutsSync();
+
+    // Cross-device real-time and periodic sync for students (PC & Mobile live sync)
+    this.setupStudentsRealtimeSync();
+    this.startPeriodicStudentsSync();
+
+    // Cross-device real-time and periodic sync for classes (PC & Mobile live sync)
+    this.setupClassesRealtimeSync();
+    this.startPeriodicClassesSync();
 
     // Cross-tab synchronization for teacher registrations and status changes
     if (typeof window !== 'undefined') {
@@ -1191,13 +1108,295 @@ export class DataService {
     }
   }
 
+  // --- REAL-TIME STUDENT SYNC (MULTI-DEVICE INSTANT SYNC) ---
+  private studentRealtimeChannel: any = null;
+  private studentSyncInterval: any = null;
+
+  public setupStudentsRealtimeSync() {
+    try {
+      if (this.studentRealtimeChannel) {
+        try { supabase.removeChannel(this.studentRealtimeChannel); } catch {}
+        this.studentRealtimeChannel = null;
+      }
+      this.studentRealtimeChannel = supabase
+        .channel(`students-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'students' },
+          (payload) => {
+            this.handleRemoteStudentRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncStudentsFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for students:', e);
+    }
+  }
+
+  public startPeriodicStudentsSync() {
+    if (this.studentSyncInterval) return;
+    if (typeof window !== 'undefined') {
+      this.studentSyncInterval = window.setInterval(() => {
+        this.syncStudentsFromSupabase(true);
+      }, 4000);
+    }
+  }
+
+  public handleRemoteStudentRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType; // 'INSERT' | 'UPDATE' | 'DELETE'
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.deletedStudentIds.add(oldRow.id);
+          saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
+          this.students = this.students.filter((s) => s.id !== oldRow.id);
+          saveData(STORAGE_KEYS.STUDENTS, this.students);
+          try {
+            localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+          } catch {}
+          this.notify();
+        }
+        return;
+      }
+
+      const row = payload.new;
+      if (!row || !row.id || this.deletedStudentIds.has(row.id)) return;
+
+      const cleanRemoteEmail = cleanStudentEmail(row.email);
+      const existingIdx = this.students.findIndex((s) => s.id === row.id);
+
+      if (existingIdx !== -1) {
+        const cur = this.students[existingIdx];
+        this.students[existingIdx] = {
+          ...cur,
+          name: row.name || cur.name,
+          studentNumber: row.student_number || cur.studentNumber,
+          className: row.class_name || cur.className,
+          classId: row.class_id || cur.classId,
+          email: cleanRemoteEmail || cur.email,
+          phone: row.phone || cur.phone,
+          avatar: row.avatar || cur.avatar,
+          schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
+        };
+      } else {
+        const newStd: Student = {
+          id: row.id,
+          name: row.name,
+          username:
+            row.student_number ||
+            cleanRemoteEmail?.split('@')[0] ||
+            row.name.toLowerCase().replace(/\s+/g, '_'),
+          email: cleanRemoteEmail,
+          password: row.password || '54321',
+          mustChangePassword: true,
+          className: row.class_name || 'Genel',
+          classId: row.class_id || 'class-default',
+          studentNumber: row.student_number || '',
+          phone: row.phone || '',
+          avatar:
+            row.avatar ||
+            `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(row.name)}`,
+          createdAt: row.registered_at || new Date().toISOString(),
+          status: 'active',
+          createdTeacherId: 'teacher-1',
+          schoolLevel: detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
+        };
+        this.students.push(newStd);
+      }
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+    } catch (err) {
+      console.warn('Error handling student realtime event:', err);
+    }
+  }
+
+  // --- REAL-TIME CLASS SYNC (MULTI-DEVICE INSTANT SYNC) ---
+  private classRealtimeChannel: any = null;
+  private classSyncInterval: any = null;
+
+  public setupClassesRealtimeSync() {
+    try {
+      if (this.classRealtimeChannel) {
+        try { supabase.removeChannel(this.classRealtimeChannel); } catch {}
+        this.classRealtimeChannel = null;
+      }
+      this.classRealtimeChannel = supabase
+        .channel(`classes-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'classes' },
+          (payload) => {
+            this.handleRemoteClassRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncClassesFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for classes:', e);
+    }
+  }
+
+  public startPeriodicClassesSync() {
+    if (this.classSyncInterval) return;
+    if (typeof window !== 'undefined') {
+      this.classSyncInterval = window.setInterval(() => {
+        this.syncClassesFromSupabase(true);
+      }, 4000);
+    }
+  }
+
+  public handleRemoteClassRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType; // 'INSERT' | 'UPDATE' | 'DELETE'
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.deletedClassIds.add(oldRow.id);
+          saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+          this.classes = this.classes.filter((c) => c.id !== oldRow.id);
+          saveData(STORAGE_KEYS.CLASSES, this.classes);
+          try {
+            localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+          } catch {}
+          this.notify();
+        }
+        return;
+      }
+
+      const row = payload.new;
+      if (!row || !row.id || this.deletedClassIds.has(row.id)) return;
+
+      const normName = (row.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+      if (!normName || normName === 'sinif' || normName === 'atanmadi' || normName === 'tanimsiz') return;
+
+      const existingIdx = this.classes.findIndex(
+        (c) => c.id === row.id || (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '') === normName
+      );
+
+      const mapped: ClassGroup = {
+        id: row.id,
+        name: row.name,
+        branch: row.branch || 'Genel',
+        gradeLevel: row.level ? `${row.level}. Sınıf` : undefined,
+        schoolLevel: row.level && row.level >= 9 ? 'Lise' : 'Ortaokul',
+        academicYear: row.academic_year || '2026-2027',
+        createdTeacherId: 'teacher-1',
+      };
+
+      if (existingIdx !== -1) {
+        this.classes[existingIdx] = { ...this.classes[existingIdx], ...mapped };
+      } else {
+        this.classes.push(mapped);
+      }
+      this.classes = this.deduplicateClasses(this.classes);
+      saveData(STORAGE_KEYS.CLASSES, this.classes);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+      } catch {}
+      this.notify();
+    } catch (e) {
+      console.warn('Error handling class realtime event:', e);
+    }
+  }
+
+  // --- TOMBSTONES SYNCHRONIZATION (CROSS-DEVICE GUARANTEE FOR DELETIONS) ---
+  public async syncTombstonesToCloud(): Promise<void> {
+    try {
+      const payload = {
+        deletedStudentIds: Array.from(this.deletedStudentIds),
+        deletedClassIds: Array.from(this.deletedClassIds),
+        updatedAt: new Date().toISOString(),
+      };
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_tombstones__',
+        title: 'Tombstones Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(payload),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (e) {
+      console.warn('Error syncing tombstones to cloud:', e);
+    }
+  }
+
+  public async syncTombstonesFromCloud(): Promise<void> {
+    try {
+      const { data } = await supabase
+        .from('homeworks')
+        .select('description')
+        .eq('id', '__system_sync_tombstones__')
+        .maybeSingle();
+
+      if (data && data.description) {
+        try {
+          const parsed = JSON.parse(data.description);
+          let changed = false;
+          if (Array.isArray(parsed.deletedStudentIds)) {
+            parsed.deletedStudentIds.forEach((id: string) => {
+              if (id && !this.deletedStudentIds.has(id)) {
+                this.deletedStudentIds.add(id);
+                changed = true;
+              }
+            });
+          }
+          if (Array.isArray(parsed.deletedClassIds)) {
+            parsed.deletedClassIds.forEach((id: string) => {
+              if (id && !this.deletedClassIds.has(id)) {
+                this.deletedClassIds.add(id);
+                changed = true;
+              }
+            });
+          }
+          if (changed) {
+            saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
+            saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+            const prevStdLen = this.students.length;
+            this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
+            if (this.students.length !== prevStdLen) {
+              saveData(STORAGE_KEYS.STUDENTS, this.students);
+              try {
+                localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+              } catch {}
+            }
+            const prevClsLen = this.classes.length;
+            this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+            if (this.classes.length !== prevClsLen) {
+              saveData(STORAGE_KEYS.CLASSES, this.classes);
+              try {
+                localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+              } catch {}
+            }
+            this.notify();
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Error fetching tombstones from cloud:', e);
+    }
+  }
+
   public reconnectAllRealtime() {
     this.setupTeachersRealtimeSync();
     this.setupEtutsRealtimeSync();
+    this.setupStudentsRealtimeSync();
+    this.setupClassesRealtimeSync();
+    this.syncTombstonesFromCloud();
     this.syncClassesFromSupabase(true);
+    this.syncStudentsFromSupabase(true);
     this.syncEtutsFromSupabase(true);
     this.syncTeachersFromSupabase(true);
-    this.syncFromSupabase();
   }
 
   public handleRemoteEtutRealtimeEvent(payload: any) {
@@ -1451,45 +1650,40 @@ export class DataService {
     this.listeners.forEach((l) => l());
   }
 
-  // --- SUPABASE BACKGROUND SYNC ---
-  private async syncFromSupabase() {
+  // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---
+  public async syncStudentsFromSupabase(isBackground = false): Promise<Student[]> {
     try {
-      // 0. Synchronize teachers across devices (registrations, approvals, permissions)
-      await this.syncTeachersFromSupabase(true);
+      await this.syncTombstonesFromCloud();
 
-      // 1. Fetch remote students from Supabase
       const { data: remoteStudents, error: errStd } = await supabase.from('students').select('*');
-      if (!errStd && remoteStudents && remoteStudents.length > 0) {
-        let hasChanges = false;
+      if (errStd) {
+        if (!isBackground) console.warn('Error fetching students from Supabase:', errStd);
+        return this.students;
+      }
+
+      if (remoteStudents && Array.isArray(remoteStudents)) {
+        const studentList: Student[] = [];
+
         remoteStudents.forEach((rs: any) => {
-          // If this student was deleted locally by user, do NOT re-add!
-          if (this.deletedStudentIds.has(rs.id)) return;
+          if (!rs.id || this.deletedStudentIds.has(rs.id)) return;
 
-          const existingIdx = this.students.findIndex(
-            (s) => s.id === rs.id || (s.studentNumber && s.studentNumber === rs.student_number)
-          );
+          const existing = this.students.find((s) => s.id === rs.id);
+          const cleanRemoteEmail = cleanStudentEmail(rs.email);
 
-          if (existingIdx !== -1) {
-            const cur = this.students[existingIdx];
-            const cleanRemoteEmail = cleanStudentEmail(rs.email);
-            const updated: Student = {
-              ...cur,
-              name: cur.name || rs.name,
-              studentNumber: cur.studentNumber || rs.student_number,
-              className: cur.className || rs.class_name,
-              classId: cur.classId || rs.class_id,
-              email: cur.email || cleanRemoteEmail,
-              phone: cur.phone || rs.phone,
-              avatar: cur.avatar || rs.avatar,
-              schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
-            };
-            if (JSON.stringify(updated) !== JSON.stringify(cur)) {
-              this.students[existingIdx] = updated;
-              hasChanges = true;
-            }
+          if (existing) {
+            studentList.push({
+              ...existing,
+              name: rs.name || existing.name,
+              studentNumber: rs.student_number || existing.studentNumber,
+              className: rs.class_name || existing.className,
+              classId: rs.class_id || existing.classId,
+              email: cleanRemoteEmail || existing.email,
+              phone: rs.phone || existing.phone,
+              avatar: rs.avatar || existing.avatar,
+              schoolLevel: existing.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
+            });
           } else {
-            const cleanRemoteEmail = cleanStudentEmail(rs.email);
-            const newStd: Student = {
+            studentList.push({
               id: rs.id,
               name: rs.name,
               username:
@@ -1510,43 +1704,43 @@ export class DataService {
               status: 'active',
               createdTeacherId: 'teacher-1',
               schoolLevel: detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
-            };
-            this.students.push(newStd);
-            hasChanges = true;
+            });
           }
         });
 
-        if (hasChanges) {
-          saveData(STORAGE_KEYS.STUDENTS, this.students);
-          this.notify();
-        }
+        // The central database is the single source of truth:
+        // Any student deleted on computer is cleanly removed from local state on all devices!
+        this.students = studentList;
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        } catch {}
+        this.notify();
       }
 
-      // 2. Upload local students to Supabase to guarantee cloud persistence
-      if (this.students.length > 0) {
-        const payload = this.students
-          .filter((s) => !this.deletedStudentIds.has(s.id))
-          .map((s) => ({
-            id: s.id,
-            name: s.name,
-            student_number: s.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-            class_id: s.classId || 'class-default',
-            class_name: s.className || 'Genel',
-            email: s.email || null,
-            phone: s.phone || null,
-            avatar: s.avatar || null,
-            registered_at: s.createdAt || new Date().toISOString(),
-          }));
+      return this.students;
+    } catch (e) {
+      if (!isBackground) console.warn('Exception in syncStudentsFromSupabase:', e);
+      return this.students;
+    }
+  }
 
-        if (payload.length > 0) {
-          await supabase.from('students').upsert(payload);
-        }
-      }
+  // --- SUPABASE BACKGROUND SYNC ---
+  private async syncFromSupabase() {
+    try {
+      // 0. Synchronize tombstones first
+      await this.syncTombstonesFromCloud();
 
-      // 3. Sync classes with Supabase (bidirectional and auto-recovery)
+      // 1. Synchronize teachers across devices
+      await this.syncTeachersFromSupabase(true);
+
+      // 2. Synchronize students from Supabase (Central DB is source of truth, never overwrite with stale cache)
+      await this.syncStudentsFromSupabase(true);
+
+      // 3. Synchronize classes with Supabase
       await this.syncClassesFromSupabase(true);
 
-      // 4. Sync etuts with Supabase (Cross-device etuts & attendance)
+      // 4. Synchronize etuts with Supabase (Cross-device etuts & attendance)
       await this.syncEtutsFromSupabase(true);
 
       // 5. Sync homeworks & cross-device system payloads (question targets and logs)
@@ -2473,7 +2667,10 @@ export class DataService {
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      sessionStorage.removeItem('edu_sys_last_activity_ts');
+      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
     } catch {}
+    this.notify();
   }
 
   // --- BENİ HATIRLA / KOLAY GİRİŞ ---
@@ -2812,7 +3009,7 @@ export class DataService {
     this.notify();
   }
 
-  public deleteClass(id: string): void {
+  public async deleteClass(id: string): Promise<void> {
     this.deletedClassIds.add(id);
     saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
     try {
@@ -2843,7 +3040,10 @@ export class DataService {
       try { localStorage.removeItem(k); } catch {}
     });
 
-    this.deleteClassFromCloud(id);
+    // Await deletion permanently from central database
+    await this.deleteClassFromCloud(id);
+    // Sync tombstones so all devices immediately purge this class
+    await this.syncTombstonesToCloud();
     this.notify();
   }
 
@@ -2941,12 +3141,14 @@ export class DataService {
 
   public async syncClassesFromSupabase(isBackground = false): Promise<ClassGroup[]> {
     try {
-      let changed = false;
+      // 0. Ensure tombstones are loaded first
+      await this.syncTombstonesFromCloud();
 
-      // 1. Fetch from Supabase classes table
+      // 1. Fetch from Supabase classes table (Central DB is source of truth)
       const { data: remoteClasses, error: errCls } = await supabase.from('classes').select('*');
       if (errCls && !isBackground) {
         console.warn('Error fetching classes from Supabase:', errCls);
+        return this.classes;
       }
 
       // 2. Fetch from aggregate __system_sync_classes__ row in homeworks
@@ -2960,6 +3162,9 @@ export class DataService {
       if (remoteClasses && Array.isArray(remoteClasses)) {
         remoteClasses.forEach((rc: any) => {
           if (!rc.id || this.deletedClassIds.has(rc.id)) return;
+          const normRcName = (rc.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+          if (!normRcName || normRcName === 'sinif' || normRcName === 'atanmadi' || normRcName === 'tanimsiz') return;
+
           remoteMap.set(rc.id, {
             id: rc.id,
             name: rc.name,
@@ -2987,43 +3192,15 @@ export class DataService {
         } catch {}
       }
 
-      // 3. Merge remote classes into local state with strict deduplication
-      remoteMap.forEach((rc, id) => {
-        if (this.deletedClassIds.has(id)) return;
-        const normRcName = (rc.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
-        if (!normRcName || normRcName === 'sinif' || normRcName === 'atanmadi' || normRcName === 'tanimsiz') return;
-
-        // Check if a class with the exact same normalized name or ID already exists locally
-        const localIdx = this.classes.findIndex((c) =>
-          c.id === id || (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '') === normRcName
-        );
-
-        if (localIdx === -1) {
-          this.classes.push(rc);
-          changed = true;
-        } else {
-          const cur = this.classes[localIdx];
-          if (cur.name !== rc.name || (rc.branch && cur.branch !== rc.branch)) {
-            this.classes[localIdx] = { ...cur, ...rc, id: cur.id };
-            changed = true;
-          }
-        }
-      });
-
-      // Deduplicate this.classes strictly by normalized name
-      const deduplicatedClasses = this.deduplicateClasses(this.classes);
-      if (deduplicatedClasses.length !== this.classes.length) {
-        this.classes = deduplicatedClasses;
-        changed = true;
-      }
-
-      if (changed) {
-        saveData(STORAGE_KEYS.CLASSES, this.classes);
-        try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
-        } catch {}
-        this.notify();
-      }
+      // The central database is the single source of truth:
+      // Any class deleted on computer is cleanly removed from local state on all devices!
+      const deduplicatedClasses = this.deduplicateClasses(Array.from(remoteMap.values()));
+      this.classes = deduplicatedClasses;
+      saveData(STORAGE_KEYS.CLASSES, this.classes);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+      } catch {}
+      this.notify();
 
       return this.classes;
     } catch (e) {
@@ -3348,11 +3525,11 @@ export class DataService {
     this.notify();
   }
 
-  public deleteStudent(id: string): void {
-    this.deleteStudents([id]);
+  public async deleteStudent(id: string): Promise<void> {
+    await this.deleteStudents([id]);
   }
 
-  public deleteStudents(ids: string[]): void {
+  public async deleteStudents(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids);
     ids.forEach((id) => this.deletedStudentIds.add(id));
@@ -3404,10 +3581,18 @@ export class DataService {
       try { localStorage.removeItem(k); } catch {}
     });
 
-    // Delete permanently from Supabase
-    supabase.from('students').delete().in('id', ids).then(() => {
-      console.log('Students deleted permanently from Supabase:', ids);
-    });
+    // Delete permanently from Supabase and wait for completion
+    try {
+      const { error } = await supabase.from('students').delete().in('id', ids);
+      if (error) {
+        console.error('Supabase student delete error:', error);
+      }
+    } catch (e) {
+      console.warn('Exception during student deletion:', e);
+    }
+
+    // Persist tombstones to cloud so other devices immediately purge these IDs
+    await this.syncTombstonesToCloud();
 
     this.notify();
   }

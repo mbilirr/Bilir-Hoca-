@@ -166,6 +166,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsNavSyncing(true);
     try {
       await dataService.syncClassesFromSupabase(false);
+      await dataService.syncStudentsFromSupabase(false);
       await dataService.syncTeachersFromSupabase(false);
       await dataService.syncEtutsFromSupabase(false);
       dataService.reconnectAllRealtime();
