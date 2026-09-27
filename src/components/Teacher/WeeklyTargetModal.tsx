@@ -6,6 +6,7 @@ import {
   Sparkles,
   BookOpen,
   Calendar,
+  CalendarDays,
   User,
   Users,
   CheckCircle2,
@@ -18,6 +19,7 @@ import confetti from 'canvas-confetti';
 import { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
+import { formatTurkishDate, formatDateISO } from '../../utils/questionAnalytics';
 
 interface WeeklyTargetModalProps {
   isOpen: boolean;
@@ -85,8 +87,8 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
   initialTargetType = 'student',
   classes = [],
   students = [],
-  weekStartDate,
-  weekEndDate,
+  weekStartDate: defaultStartDate,
+  weekEndDate: defaultEndDate,
   existingTarget,
   onSaved,
 }) => {
@@ -105,7 +107,20 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
     return existingTarget?.classId || targetClass?.id || student?.classId || (classes[0]?.id || '');
   });
 
-  // Hedef Gün Sayısı (Varsayılan 7 gün, manuel seçilebilir)
+  // Tarih Aralığı (Start Date - End Date)
+  const [startDate, setStartDate] = useState<string>(() => {
+    return existingTarget?.weekStartDate || defaultStartDate || formatDateISO(new Date());
+  });
+
+  const [endDate, setEndDate] = useState<string>(() => {
+    if (existingTarget?.weekEndDate) return existingTarget.weekEndDate;
+    if (defaultEndDate) return defaultEndDate;
+    const end = new Date();
+    end.setDate(end.getDate() + 6);
+    return formatDateISO(end);
+  });
+
+  // Hedef Gün Sayısı
   const [targetDays, setTargetDays] = useState<number>(() => {
     return existingTarget?.targetDays || 7;
   });
@@ -142,6 +157,11 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
       if (existingTarget.studentId) setSelectedStudentId(existingTarget.studentId);
       if (existingTarget.classId) setSelectedClassId(existingTarget.classId);
 
+      const sDate = existingTarget.weekStartDate || defaultStartDate || formatDateISO(new Date());
+      const eDate = existingTarget.weekEndDate || defaultEndDate || formatDateISO(new Date());
+      setStartDate(sDate);
+      setEndDate(eDate);
+
       const days = existingTarget.targetDays || 7;
       setTargetDays(days);
 
@@ -156,18 +176,108 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
       if (targetClass) setSelectedClassId(targetClass.id);
       else if (student?.classId) setSelectedClassId(student.classId);
 
+      const sDate = defaultStartDate || formatDateISO(new Date());
+      const eDate = defaultEndDate || (() => {
+        const d = new Date(sDate);
+        d.setDate(d.getDate() + 6);
+        return formatDateISO(d);
+      })();
+
+      setStartDate(sDate);
+      setEndDate(eDate);
       setTargetDays(7);
       setDailyTargetCount(50);
       setTargetCount(350);
       setNotes('');
       setSubjectTargets({});
     }
-  }, [existingTarget, student, targetClass, initialTargetType, isOpen]);
+  }, [existingTarget, student, targetClass, initialTargetType, isOpen, defaultStartDate, defaultEndDate]);
+
+  // Tarihler değiştiğinde gün sayısını ve hedefi otomatik hesapla
+  const handleStartDateChange = (newStart: string) => {
+    setStartDate(newStart);
+    if (newStart && endDate) {
+      const s = new Date(newStart + 'T00:00:00');
+      const e = new Date(endDate + 'T00:00:00');
+      if (e >= s) {
+        const diffDays = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        setTargetDays(diffDays);
+        setTargetCount(dailyTargetCount * diffDays);
+      } else {
+        // Otomatik end date'i start + targetDays yap
+        const newEnd = new Date(s);
+        newEnd.setDate(s.getDate() + targetDays - 1);
+        setEndDate(formatDateISO(newEnd));
+      }
+    }
+  };
+
+  const handleEndDateChange = (newEnd: string) => {
+    setEndDate(newEnd);
+    if (startDate && newEnd) {
+      const s = new Date(startDate + 'T00:00:00');
+      const e = new Date(newEnd + 'T00:00:00');
+      if (e >= s) {
+        const diffDays = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        setTargetDays(diffDays);
+        setTargetCount(dailyTargetCount * diffDays);
+      }
+    }
+  };
+
+  // Hızlı Ön Tanımlı Tarih Aralıkları (Preset Quick Dates)
+  const applyDatePreset = (presetType: 'this_week' | 'next_week' | '15_days' | 'this_month') => {
+    const today = new Date();
+    if (presetType === 'this_week') {
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(today.setDate(diff));
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      setStartDate(formatDateISO(mon));
+      setEndDate(formatDateISO(sun));
+      setTargetDays(7);
+      setTargetCount(dailyTargetCount * 7);
+    } else if (presetType === 'next_week') {
+      const day = today.getDay();
+      const diff = today.getDate() - day + (day === 0 ? -6 : 1) + 7;
+      const mon = new Date(today.setDate(diff));
+      const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      setStartDate(formatDateISO(mon));
+      setEndDate(formatDateISO(sun));
+      setTargetDays(7);
+      setTargetCount(dailyTargetCount * 7);
+    } else if (presetType === '15_days') {
+      const start = new Date();
+      const end = new Date();
+      end.setDate(start.getDate() + 14);
+      setStartDate(formatDateISO(start));
+      setEndDate(formatDateISO(end));
+      setTargetDays(15);
+      setTargetCount(dailyTargetCount * 15);
+    } else if (presetType === 'this_month') {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setStartDate(formatDateISO(start));
+      setEndDate(formatDateISO(end));
+      const diffDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      setTargetDays(diffDays);
+      setTargetCount(dailyTargetCount * diffDays);
+    }
+  };
 
   // Gün Sayısı Değiştiğinde
   const handleDaysChange = (newDays: number) => {
     const cleanDays = Math.max(1, Math.min(365, newDays));
     setTargetDays(cleanDays);
+    // End Date'i start + cleanDays - 1 olarak güncelle
+    if (startDate) {
+      const s = new Date(startDate + 'T00:00:00');
+      const e = new Date(s);
+      e.setDate(s.getDate() + cleanDays - 1);
+      setEndDate(formatDateISO(e));
+    }
     // Günlük hedefe göre toplam hedefi güncelle
     setTargetCount(dailyTargetCount * cleanDays);
   };
@@ -229,12 +339,8 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
   };
 
   const handleSave = async () => {
-    const periodLabel =
-      targetDays === 7
-        ? 'Haftalık (7 Gün)'
-        : targetDays === 1
-        ? '1 Günlük'
-        : `${targetDays} Günlük`;
+    const formattedRange = `${formatTurkishDate(startDate)} - ${formatTurkishDate(endDate)}`;
+    const periodLabel = `${formattedRange} (${targetDays} Gün)`;
 
     if (targetType === 'class') {
       if (!selectedClassId) {
@@ -258,8 +364,8 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
           targetQuestions: targetCount,
           weeklyTarget: targetCount,
           dailyTarget: dailyTargetCount,
-          weekStartDate,
-          weekEndDate,
+          weekStartDate: startDate,
+          weekEndDate: endDate,
           subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
           notes: notes.trim() || undefined,
           assignedBy: 'Öğretmen',
@@ -284,8 +390,8 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
         targetQuestions: targetCount,
         weeklyTarget: targetCount,
         dailyTarget: dailyTargetCount,
-        weekStartDate,
-        weekEndDate,
+        weekStartDate: startDate,
+        weekEndDate: endDate,
         subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
         notes: notes.trim() || undefined,
         assignedBy: 'Öğretmen',
@@ -312,9 +418,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
 
   const handleDelete = async () => {
     if (targetType === 'class' && selectedClassId) {
-      await dataService.deleteClassQuestionTarget(selectedClassId, weekStartDate);
+      await dataService.deleteClassQuestionTarget(selectedClassId, startDate);
     } else if (selectedStudentId) {
-      await dataService.deleteWeeklyQuestionTarget(selectedStudentId, weekStartDate);
+      await dataService.deleteWeeklyQuestionTarget(selectedStudentId, startDate);
     }
     if (onSaved) onSaved();
     onClose();
@@ -322,25 +428,25 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
               <Target className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                 <span>Soru Sayısı Hedefi Belirleme</span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1.5 mt-0.5">
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
+              <p className="text-xs text-slate-500 flex items-center space-x-1.5 mt-0.5">
+                <span className="font-semibold text-slate-700">
                   {targetType === 'class'
                     ? `Sınıf: ${
                         currentSelectedClass
@@ -354,30 +460,30 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                     : `Öğrenci: ${currentSelectedStudent?.name || 'Öğrenci Seçiniz'}`}
                 </span>
                 <span>•</span>
-                <span>{targetDays === 7 ? 'Haftalık Hedef' : `${targetDays} Günlük Hedef`}</span>
+                <span className="text-orange-600 font-bold">{targetDays} Günlük Hedef</span>
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content Form */}
-        <div className="p-6 overflow-y-auto space-y-5">
+        <div className="p-6 overflow-y-auto space-y-4">
           {/* 1. HEDEF TİPİ SEÇİMİ (Öğrenci Bazlı / Sınıfa Toplu) */}
-          <div className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl flex items-center gap-1">
+          <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1">
             <button
               type="button"
               onClick={() => setTargetType('student')}
               className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 targetType === 'student'
-                  ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white text-orange-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <User className="w-4 h-4" />
@@ -388,8 +494,8 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
               onClick={() => setTargetType('class')}
               className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 targetType === 'class'
-                  ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white text-orange-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Users className="w-4 h-4" />
@@ -399,13 +505,13 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
 
           {/* Sınıf veya Öğrenci Seçim Kartı */}
           {targetType === 'class' ? (
-            <div className="p-4 bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-500/30 rounded-xl space-y-3">
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+            <div className="p-4 bg-orange-50/70 border border-orange-200 rounded-xl space-y-2.5 shadow-2xs">
+              <label className="block text-xs font-bold text-slate-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-orange-600" />
                   <span>Hedef Verilecek Sınıf:</span>
                 </span>
-                <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
+                <span className="text-xs font-bold text-orange-800 bg-white px-2 py-0.5 rounded border border-orange-200">
                   {classStudentsCount} Öğrenciye Uygulanacak
                 </span>
               </label>
@@ -413,7 +519,7 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
               <select
                 value={selectedClassId}
                 onChange={(e) => setSelectedClassId(e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-orange-300 dark:border-orange-500/40 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
               >
                 <option value="">Sınıf Seçiniz</option>
                 {classes.map((cls) => {
@@ -425,12 +531,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                   );
                 })}
               </select>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                * Bu hedef kaydedildiğinde seçilen sınıftaki tüm öğrencilerin panelinde hedef olarak tanımlanacaktır.
-              </p>
             </div>
           ) : (
-            <div className="p-3.5 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-500/30 rounded-xl flex items-center gap-3">
+            <div className="p-3.5 bg-orange-50/70 border border-orange-200 rounded-xl flex items-center gap-3 shadow-2xs">
               {currentSelectedStudent ? (
                 <>
                   <img
@@ -441,13 +544,13 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                       )}`
                     }
                     alt={currentSelectedStudent.name}
-                    className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0 ring-2 ring-orange-300 dark:ring-orange-500/40"
+                    className="w-11 h-11 rounded-full bg-slate-200 shrink-0 ring-2 ring-orange-300 shadow-2xs"
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                    <div className="text-sm font-bold text-slate-900 truncate">
                       {currentSelectedStudent.name}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="text-[11px] text-slate-600">
                       {currentSelectedStudent.className || 'Sınıf Belirtilmedi'} • No: #
                       {currentSelectedStudent.studentNumber || '-'}
                     </div>
@@ -455,13 +558,13 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                 </>
               ) : (
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
                     Hedef Verilecek Öğrenciyi Seçiniz:
                   </label>
                   <select
                     value={selectedStudentId}
                     onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-orange-300 dark:border-orange-500/40 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                    className="w-full px-3 py-2 bg-white border border-orange-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
                   >
                     <option value="">Öğrenci Seçiniz</option>
                     {students.map((st) => (
@@ -475,50 +578,52 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
             </div>
           )}
 
-          {/* 2. HEDEF GÜN SAYISI SEÇİM BUTONLARI (HAFTALIK / ÖZEL GÜN SAYISI) */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
-                <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                <span>Hedef Süresi / Gün Sayısı Seçimi:</span>
+          {/* 2. TARİH SEÇİMİ BÖLÜMÜ (BAŞLANGIÇ VE BİTİŞ TARİHLERİ) */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+              <label className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                <CalendarDays className="w-4 h-4 text-orange-600" />
+                <span>Hedef Tarih Seçimi:</span>
               </label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={targetDays}
-                  onChange={(e) => handleDaysChange(Number(e.target.value) || 1)}
-                  className="w-16 px-2 py-1 text-xs font-extrabold text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-800 border border-orange-300 dark:border-orange-500/50 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-orange-500/30"
-                />
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Gün</span>
-              </div>
+              <span className="text-[11px] font-bold text-orange-700 bg-orange-100/70 border border-orange-200 px-2 py-0.5 rounded-md">
+                {targetDays} Günlük Süre
+              </span>
             </div>
 
-            {/* Hızlı Gün Butonları */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-              {PRESET_DAYS.map((preset) => (
-                <button
-                  key={preset.days}
-                  type="button"
-                  onClick={() => handleDaysChange(preset.days)}
-                  className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all text-center cursor-pointer border ${
-                    targetDays === preset.days
-                      ? 'bg-orange-500 text-white border-orange-600 shadow-xs'
-                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-orange-50 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
+            {/* Başlangıç ve Bitiş Tarihleri */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Başlangıç Tarihi:
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Bitiş Tarihi:
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleEndDateChange(e.target.value)}
+                  min={startDate}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
+                />
+              </div>
             </div>
           </div>
 
           {/* 3. GÜNLÜK VE TOPLAM SORU HEDEFİ GİRİŞİ */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Günlük Hedef */}
-            <div className="p-4 bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-500/30 rounded-xl space-y-2">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <div className="p-4 bg-orange-50/70 border border-orange-200 rounded-xl space-y-2 shadow-2xs">
+              <label className="block text-[11px] font-bold text-slate-800">
                 Günlük Soru Hedefi:
               </label>
               <div className="flex items-center gap-2">
@@ -529,9 +634,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                   step="5"
                   value={dailyTargetCount}
                   onChange={(e) => handleDailyTargetChange(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-base font-black text-orange-600 dark:text-orange-400 bg-white dark:bg-slate-800 border border-orange-300 dark:border-orange-500/50 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 text-base font-black text-orange-700 bg-white border border-orange-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-2xs"
                 />
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <span className="text-xs font-bold text-slate-600 whitespace-nowrap">
                   Soru/Gün
                 </span>
               </div>
@@ -542,13 +647,13 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                 step="5"
                 value={dailyTargetCount}
                 onChange={(e) => handleDailyTargetChange(Number(e.target.value))}
-                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
               />
             </div>
 
             {/* Toplam Soru Hedefi (Seçilen Gün Sayısına Göre) */}
-            <div className="p-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
-              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-2xs">
+              <label className="block text-[11px] font-bold text-slate-800">
                 {targetDays} Günlük Toplam Hedef:
               </label>
               <div className="flex items-center gap-2">
@@ -559,9 +664,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                   step="25"
                   value={targetCount}
                   onChange={(e) => handleTotalTargetChange(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-base font-black text-slate-900 dark:text-white bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full px-3 py-2 text-base font-black text-slate-900 bg-white border border-slate-300 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-2xs"
                 />
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <span className="text-xs font-bold text-slate-600 whitespace-nowrap">
                   Toplam Soru
                 </span>
               </div>
@@ -572,23 +677,23 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                 step="25"
                 value={targetCount}
                 onChange={(e) => handleTotalTargetChange(Number(e.target.value))}
-                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
               />
             </div>
           </div>
 
           {/* Hızlı Toplam Hedef Presetleri */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold text-slate-500 mr-1">Hızlı Seçim:</span>
+            <span className="text-[11px] font-bold text-slate-500 mr-1">Hızlı Soru Hedefi:</span>
             {[140, 210, 350, 500, 700, 1000, 1500].map((preset) => (
               <button
                 key={preset}
                 type="button"
                 onClick={() => handleTotalTargetChange(preset)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                   targetCount === preset
                     ? 'bg-orange-500 text-white shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
                 {preset} Soru
@@ -597,10 +702,10 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
           </div>
 
           {/* 4. DERS BAZLI HEDEFLER (İsteğe Bağlı) */}
-          <div className="p-4 bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 shadow-2xs">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center space-x-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Ders Bazlı Branş Hedefleri (İsteğe Bağlı)</span>
               </span>
               <span className="text-[10px] text-slate-500">Özel ders hedefleri ekle</span>
@@ -610,7 +715,7 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
               <select
                 value={selectedSubjectToAdd}
                 onChange={(e) => setSelectedSubjectToAdd(e.target.value)}
-                className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-white"
+                className="flex-1 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800"
               >
                 {COMMON_SUBJECTS.map((sub) => (
                   <option key={sub} value={sub}>
@@ -621,7 +726,7 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
               <button
                 type="button"
                 onClick={handleAddSubjectTarget}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
               >
                 + Ders Ekle
               </button>
@@ -632,9 +737,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                 {Object.entries(subjectTargets).map(([sub, count]) => (
                   <div
                     key={sub}
-                    className="flex items-center justify-between p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs"
+                    className="flex items-center justify-between p-2 bg-white border border-slate-200 rounded-lg text-xs shadow-2xs"
                   >
-                    <span className="font-semibold text-slate-700 dark:text-slate-200">{sub}</span>
+                    <span className="font-bold text-slate-800">{sub}</span>
                     <div className="flex items-center space-x-2">
                       <input
                         type="number"
@@ -643,13 +748,13 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
                         step="10"
                         value={count}
                         onChange={(e) => handleSubjectTargetChange(sub, Number(e.target.value))}
-                        className="w-16 px-2 py-1 text-center bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-xs font-bold text-slate-900 dark:text-white"
+                        className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-300 rounded text-xs font-bold text-slate-900"
                       />
-                      <span className="text-[11px] text-slate-400">Soru</span>
+                      <span className="text-[11px] text-slate-500">Soru</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveSubjectTarget(sub)}
-                        className="text-slate-400 hover:text-rose-500 p-1"
+                        className="text-slate-400 hover:text-rose-600 p-1"
                         title="Ders hedefini kaldır"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -663,7 +768,7 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
 
           {/* 5. ÖĞRETMEN NOTU & TAVSİYESİ */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
               Öğrencilere / Sınıfa Motivasyon Notu (İsteğe Bağlı)
             </label>
             <textarea
@@ -671,19 +776,19 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Örn: Bu dönem özellikle yeni nesil sorulara odaklanalım ve günlük hedefleri aksatmayalım. Başarılar!"
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs placeholder-slate-400 focus:ring-2 focus:ring-orange-500"
+              className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50 shrink-0">
           <div>
             {existingTarget && (
               <button
                 type="button"
                 onClick={handleDelete}
-                className="text-xs text-rose-500 hover:text-rose-600 font-semibold flex items-center space-x-1 cursor-pointer"
+                className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Hedefi Sil</span>
@@ -695,14 +800,14 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
             >
               Vazgeç
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center space-x-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-orange-500/25 cursor-pointer"
+              className="flex items-center space-x-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/25 cursor-pointer"
             >
               <Save className="w-4 h-4" />
               <span>

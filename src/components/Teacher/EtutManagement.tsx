@@ -1395,35 +1395,52 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* CREATE/EDIT ETUT MODAL */}
       {isCreateModalOpen && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
           onClick={() => setIsCreateModalOpen(false)}
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-                <div className="flex items-center space-x-2">
-                  <CalendarDays className="w-5 h-5 text-indigo-400" />
-                  <h3 className="text-lg font-bold text-white">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">
                     {editingEtut ? 'Etüt Bilgilerini Düzenle' : 'Yeni Etüt Oluştur'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
             <form onSubmit={handleSaveEtut} className="space-y-4">
+              {/* ETÜT KONUSU & KAZANIM (EN ÜSTTE) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Etüt Konusu & Kazanım *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Örn: Paragrafta Anlam ve Soru Çözümü / İkinci Dereceden Denklemler"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
+                />
+              </div>
+
               {/* 1. BLOK: Okul, Ders ve Etüt Öğretmeni Seçimi */}
-              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <School className="w-4 h-4 text-indigo-400" />
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-600" />
                     <span>Okul, Ders ve Öğretmen Bilgileri</span>
                   </span>
                 </div>
@@ -1431,13 +1448,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Okul Açılır Penceresi */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       Okul *
                     </label>
                     <select
                       value={schoolLevel}
                       onChange={(e) => handleSchoolChange(e.target.value as SchoolLevelType)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Ortaokul">🏫 Ortaokul</option>
                       <option value="Lise">🎓 Lise</option>
@@ -1446,13 +1463,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Ders Açılır Penceresi */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       Ders *
                     </label>
                     <select
                       value={subject}
                       onChange={(e) => handleSubjectChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {currentAvailableSubjects.map((s) => (
                         <option key={s} value={s}>
@@ -1464,14 +1481,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Ders Saati / Periyodu Açılır Penceresi (İsteğe Bağlı) */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                       <span>Ders Saati</span>
-                      <span className="text-[10px] text-slate-400 font-normal">İsteğe Bağlı</span>
+                      <span className="text-[10px] text-slate-500 font-normal">İsteğe Bağlı</span>
                     </label>
                     <select
                       value={lessonPeriod}
                       onChange={(e) => setLessonPeriod(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {LESSON_PERIOD_OPTIONS.map((opt) => (
                         <option key={opt} value={opt}>
@@ -1482,27 +1499,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
                 </div>
 
-                {/* Etüt Öğretmeni Açılır Penceresi (Dropdown & Kalıcı Kayıt) */}
-                <div className="pt-2 border-t border-slate-800/80">
+                {/* Etüt Öğretmeni Açılır Penceresi */}
+                <div className="pt-2 border-t border-slate-200/80">
                   <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                     <div className="flex items-center space-x-2">
-                      <Users className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold text-slate-200">Etüt Öğretmeni</span>
+                      <Users className="w-4 h-4 text-amber-600" />
+                      <span className="text-xs font-bold text-slate-800">Etüt Öğretmeni</span>
                     </div>
 
                     <div className="flex items-center space-x-2 text-xs">
                       <button
                         type="button"
                         onClick={() => setIsQuickTeacherOpen((p) => !p)}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-2 cursor-pointer"
+                        className="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline underline-offset-2 cursor-pointer"
                       >
                         {isQuickTeacherOpen ? '✕ Kapat' : '+ Hızlı Öğretmen Ata'}
                       </button>
-                      <span className="text-slate-600">•</span>
+                      <span className="text-slate-400">•</span>
                       <button
                         type="button"
                         onClick={() => setIsSubjectTeacherModalOpen(true)}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-bold underline underline-offset-2 cursor-pointer"
+                        className="text-xs text-indigo-700 hover:text-indigo-900 font-bold underline underline-offset-2 cursor-pointer"
                         title="Bu dersin açılır menüsüne öğretmen ata veya sil"
                       >
                         Öğretmen Listesini Yönet
@@ -1512,7 +1529,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Hızlı Öğretmen Ekleme Girişi */}
                   {isQuickTeacherOpen && (
-                    <div className="p-3 mb-2 rounded-xl bg-slate-900 border border-emerald-500/30 flex items-center gap-2">
+                    <div className="p-3 mb-2 rounded-xl bg-white border border-emerald-300 shadow-2xs flex items-center gap-2">
                       <input
                         type="text"
                         autoFocus
@@ -1525,12 +1542,12 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             handleQuickAddTeacher();
                           }
                         }}
-                        className="flex-1 px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-xs placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500"
                       />
                       <button
                         type="button"
                         onClick={() => handleQuickAddTeacher()}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer shrink-0"
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer shrink-0 transition-colors"
                       >
                         Kaydet & Ata
                       </button>
@@ -1538,7 +1555,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   )}
 
                   {quickTeacherSuccess && (
-                    <div className="p-2 mb-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-medium animate-in fade-in">
+                    <div className="p-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold animate-in fade-in">
                       ✓ {quickTeacherSuccess}
                     </div>
                   )}
@@ -1560,7 +1577,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           }
                         }
                       }}
-                      className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Öğretmen Seçiniz</option>
                       {dataService.getTeachersForSubject(subject).map((tName) => (
@@ -1573,9 +1590,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
 
                   {selectedTeacherName ? (
-                    <div className="flex items-center justify-between p-2 mt-2 rounded-lg bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200">
+                    <div className="flex items-center justify-between p-2.5 mt-2 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-950">
                       <span className="font-semibold">
-                        Görevlendirilen Öğretmen: <strong className="text-white">{selectedTeacherName}</strong> ({subject})
+                        Görevlendirilen Öğretmen: <strong className="text-indigo-900">{selectedTeacherName}</strong> ({subject})
                       </span>
                       <button
                         type="button"
@@ -1583,7 +1600,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           setSelectedTeacherName('');
                           setSelectedTeacherBranch('');
                         }}
-                        className="text-rose-400 hover:text-rose-300 font-bold text-xs cursor-pointer ml-2"
+                        className="text-rose-600 hover:text-rose-800 font-bold text-xs cursor-pointer ml-2"
                       >
                         Seçimi Temizle ✕
                       </button>
@@ -1592,25 +1609,25 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 </div>
               </div>
 
-              {/* 2. BLOK: Sınıf, Şube ve Öğrenci Seçimi (Yan Yana & Sınıftan Bağımsız Öğrenci Seçimi) */}
-              <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <GraduationCap className="w-4 h-4 text-indigo-400" />
+              {/* 2. BLOK: Sınıf, Şube ve Öğrenci Seçimi */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 flex-wrap gap-2">
+                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                    <GraduationCap className="w-4 h-4 text-indigo-600" />
                     <span>Sınıf, Şube ve Öğrenci Seçimi</span>
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Sınıf Açılır Butonu */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Sınıf Açılır Butonu (Yalnızca Sınıf İsimleri) */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Sınıf (Kademe)
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Sınıf *
                     </label>
                     <select
                       value={gradeLevel}
                       onChange={(e) => setGradeLevel(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Tüm Sınıflar">Sınıf Seçiniz (Tüm Sınıflar)</option>
                       {currentAvailableGrades.map((g) => (
@@ -1618,28 +1635,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           {g}
                         </option>
                       ))}
-                      {classes && classes.length > 0 && (
-                        <optgroup label="Tanımlı Şube/Sınıf Grupları">
-                          {classes.map((c) => (
-                            <option key={c.id} value={c.name}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
                     </select>
                   </div>
 
                   {/* Şube Açılır Butonu */}
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
                       Şube
                     </label>
                     <select
                       id="etut-branch-filter"
                       value={selectedBranchFilter}
                       onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-semibold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Şube">Şube Seçiniz (Tümü)</option>
                       <option value="A">A Şubesi</option>
@@ -1650,485 +1658,179 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <option value="F">F Şubesi</option>
                     </select>
                   </div>
-
-                  {/* Öğrenci Seçiniz Açılır Butonu (Arama Kutulu & Sınıftan Bağımsız) */}
-                  <div className="relative">
-                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Öğrenci Seçiniz</span>
-                    </label>
-
-                    {/* Dropdown Açma Butonu */}
-                    <button
-                      type="button"
-                      onClick={() => setIsStudentDropdownOpen((prev) => !prev)}
-                      className={`w-full px-2.5 py-2 bg-slate-800 border rounded-xl text-left text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
-                        selectedStudentIds.length > 0
-                          ? 'border-indigo-500 text-white bg-indigo-950/30'
-                          : 'border-slate-700 text-slate-300 hover:border-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-1.5 min-w-0 flex-1 truncate pr-1">
-                        <Search className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span className="truncate text-xs">
-                          {selectedStudentIds.length === 0
-                            ? 'Öğrenci Seçiniz'
-                            : selectedStudentIds.length === 1
-                            ? `${(students || []).find((s) => s.id === selectedStudentIds[0])?.name || '1 Öğrenci'}`
-                            : `${selectedStudentIds.length} Öğrenci Seçildi`}
-                        </span>
-                      </div>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${
-                          isStudentDropdownOpen ? 'rotate-180 text-indigo-400' : ''
-                        }`}
-                      />
-                    </button>
-
-                    {/* Açılır Panel (Arama Kutusu + Sadece Okul No ve İsim Listesi) */}
-                    {isStudentDropdownOpen && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setIsStudentDropdownOpen(false)}
-                        />
-                        <div className="absolute right-0 left-auto top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col w-[300px] sm:w-[350px] max-w-[92vw] max-h-80 animate-in fade-in slide-in-from-top-2 duration-150">
-                          {/* Arama Kutusu (En Üstte) */}
-                          <div className="p-2.5 bg-slate-950 border-b border-slate-800 sticky top-0 z-10">
-                            <div className="relative">
-                              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                              <input
-                                autoFocus
-                                type="text"
-                                value={studentDropdownSearch}
-                                onChange={(e) => setStudentDropdownSearch(e.target.value)}
-                                placeholder="Öğrenci ara (isim veya okul no)..."
-                                className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                              />
-                              {studentDropdownSearch && (
-                                <button
-                                  type="button"
-                                  onClick={() => setStudentDropdownSearch('')}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Filtre Bilgi ve Toggle */}
-                            <div className="flex items-center justify-between mt-2 pt-1 text-[11px] text-slate-400">
-                              <span>
-                                {dropdownStudents.length} öğrenci listelendi
-                              </span>
-                              {gradeLevel && gradeLevel !== 'Tüm Sınıflar' && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowOnlySelectedGradeInDropdown((p) => !p)}
-                                  className="text-indigo-400 hover:text-indigo-300 font-semibold underline underline-offset-2 cursor-pointer"
-                                >
-                                  {showOnlySelectedGradeInDropdown
-                                    ? 'Tüm Okulu Göster'
-                                    : `Sadece ${gradeLevel}`}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Liste: Sadece Okul No ve Öğrenci İsmi */}
-                          <div className="overflow-y-auto p-1.5 space-y-1 max-h-56 divide-y divide-slate-800/40">
-                            {dropdownStudents.length > 0 ? (
-                              dropdownStudents.map((std) => {
-                                const isSelected = selectedStudentIds.includes(std.id);
-                                const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
-                                const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
-
-                                return (
-                                  <div
-                                    key={std.id}
-                                    onClick={() => {
-                                      handleToggleStudent(std.id);
-                                      setAssigneeMode('custom');
-                                    }}
-                                    className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer text-xs transition-colors gap-2 ${
-                                      isSelected
-                                        ? 'bg-indigo-600/25 text-white font-medium'
-                                        : 'hover:bg-slate-800 text-slate-200'
-                                    }`}
-                                  >
-                                    <div className="flex items-center space-x-2.5 min-w-0 flex-1 truncate">
-                                      {hasValidNo ? (
-                                        <span className="shrink-0 px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-mono text-[11px] font-bold">
-                                          No: {rawNo}
-                                        </span>
-                                      ) : (
-                                        <span className="shrink-0 px-1.5 py-0.5 rounded bg-slate-800/60 border border-slate-700/60 text-slate-400 font-mono text-[10px]">
-                                          No Yok
-                                        </span>
-                                      )}
-                                      <span className="truncate text-xs font-semibold text-slate-100">
-                                        {std.name}
-                                      </span>
-                                    </div>
-
-                                    <div
-                                      className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${
-                                        isSelected
-                                          ? 'bg-indigo-600 border-indigo-500 text-white'
-                                          : 'border-slate-700 bg-slate-800/60'
-                                      }`}
-                                    >
-                                      {isSelected && <Check className="w-3 h-3 stroke-[2.5]" />}
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div className="p-4 text-center text-xs text-slate-400">
-                                Öğrenci bulunamadı.
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Alt Bilgi & Kapat */}
-                          <div className="p-2 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs">
-                            <span className="text-[11px] text-slate-400">
-                              {selectedStudentIds.length} öğrenci seçildi
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setIsStudentDropdownOpen(false)}
-                              className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
-                            >
-                              Tamam
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
                 </div>
 
-                {/* ÖĞRENCİ SEÇİMİ KUTUSU (Sınıf, Şube, Öğrenci Seçiniz Butonlarının Hemen Altında) */}
-                <div className="pt-2 border-t border-slate-800 space-y-3">
-                  {/* Mod Seçimi: Tüm Kademe vs Bireysel Öğrenciler */}
-                  <div className="flex items-center space-x-2">
+                {/* ÖĞRENCİ LİSTESİ VE SEÇİM KUTULARI (AŞAĞIDA TEK LİSTE, ŞUBENİN ÖĞRENCİLERİ) */}
+                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-slate-700 font-bold">Öğrenci Listesi:</span>
+                      <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 font-bold">
+                        {gradeLevel} {selectedBranchFilter !== 'Şube' && selectedBranchFilter !== 'Tüm Şubeler' ? `• ${selectedBranchFilter} Şubesi` : ''}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        ({filteredStudents.length} öğrenci, {selectedStudentIds.length} seçildi)
+                      </span>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => setAssigneeMode('custom')}
-                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                        assigneeMode === 'custom'
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
+                      onClick={handleToggleAllFiltered}
+                      disabled={filteredStudents.length === 0}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer disabled:opacity-40 disabled:no-underline"
                     >
-                      <Users className="w-3.5 h-3.5" />
-                      <span>🎯 Bireysel / Seçili Öğrenciler ({selectedStudentIds.length})</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAssigneeMode('all')}
-                      className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                        assigneeMode === 'all'
-                          ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span>👥 Tüm {gradeLevel} Öğrencileri ({gradeStudents.length})</span>
+                      {filteredStudents.length > 0 &&
+                      filteredStudents.every((s) => selectedStudentIds.includes(s.id))
+                        ? 'Tümünü Kaldır'
+                        : 'Tümünü Seç'}
                     </button>
                   </div>
 
-                  {/* Bireysel Seçilen Öğrenci Rozetleri (Chips) */}
-                  {selectedStudentIds.length > 0 && (
-                    <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Seçilen Öğrenciler ({selectedStudentIds.length}):</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedStudentIds([])}
-                          className="text-[11px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer underline"
-                        >
-                          Tümünü Kaldır
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                        {selectedStudentIds.map((id) => {
-                          const std = (students || []).find((s) => s.id === id);
-                          if (!std) return null;
+                  <div className="max-h-52 overflow-y-auto pr-1">
+                    {filteredStudents.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {filteredStudents.map((std) => {
+                          const isChecked = selectedStudentIds.includes(std.id);
                           const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
                           const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
 
                           return (
-                            <span
-                              key={id}
-                              className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-white text-xs font-medium"
+                            <label
+                              key={std.id}
+                              className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
+                                isChecked
+                                  ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-semibold shadow-2xs'
+                                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                              }`}
                             >
-                              {hasValidNo && (
-                                <span className="text-[10px] text-amber-300 font-mono font-bold">
-                                  No: {rawNo}
-                                </span>
-                              )}
-                              <span>{std.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleStudent(id)}
-                                className="text-slate-400 hover:text-rose-400 cursor-pointer p-0.5 ml-1"
-                                title="Seçimi Kaldır"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleStudent(std.id)}
+                                className="rounded text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <div className="flex-1 min-w-0 flex items-center space-x-1.5 truncate">
+                                {hasValidNo && (
+                                  <span className="shrink-0 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-amber-800 font-mono text-[10px] font-bold">
+                                    No: {rawNo}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-slate-900 truncate">{std.name}</span>
+                              </div>
+                            </label>
                           );
                         })}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Öğrenci Seçim Kutusu Listesi */}
-                  {assigneeMode === 'custom' && (
-                    <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-xl space-y-2.5">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-800 flex-wrap gap-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-slate-300 font-semibold">Öğrenci Listesi:</span>
-                          <span className="text-[11px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-500/30 font-medium">
-                            {gradeLevel} {selectedBranchFilter !== 'Şube' && selectedBranchFilter !== 'Tüm Şubeler' ? `• ${selectedBranchFilter}` : ''}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            ({filteredStudents.length} öğrenci)
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleToggleAllFiltered}
-                          disabled={filteredStudents.length === 0}
-                          className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline font-semibold cursor-pointer disabled:opacity-40 disabled:no-underline"
-                        >
-                          {filteredStudents.length > 0 &&
-                          filteredStudents.every((s) => selectedStudentIds.includes(s.id))
-                            ? 'Tümünü Kaldır'
-                            : 'Tümünü Seç'}
-                        </button>
+                    ) : (
+                      <div className="p-3 text-center rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                        <Users className="w-5 h-5 mx-auto mb-1 text-slate-400 opacity-60" />
+                        <p className="font-bold text-slate-700">Bu Sınıf/Şubede Kayıtlı Öğrenci Bulunamadı</p>
                       </div>
-
-                      <div className="max-h-48 overflow-y-auto pr-1">
-                        {filteredStudents.length > 0 ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {filteredStudents.map((std) => {
-                              const isChecked = selectedStudentIds.includes(std.id);
-                              const rawNo = (std.studentNumber || (std as any).number || '').toString().trim();
-                              const hasValidNo = rawNo && rawNo !== 'Atandı' && rawNo !== 'Atanmadı' && !rawNo.includes('Atan');
-
-                              return (
-                                <label
-                                  key={std.id}
-                                  className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
-                                    isChecked
-                                      ? 'bg-indigo-600/15 border-indigo-500/40 text-white shadow-xs'
-                                      : 'bg-slate-950/40 border-slate-800/80 hover:bg-slate-800/60 text-slate-300'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => handleToggleStudent(std.id)}
-                                    className="rounded text-indigo-600 focus:ring-indigo-500"
-                                  />
-                                  <div className="flex-1 min-w-0 flex items-center space-x-1.5 truncate">
-                                    {hasValidNo && (
-                                      <span className="shrink-0 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-mono text-[10px] font-bold">
-                                        No: {rawNo}
-                                      </span>
-                                    )}
-                                    <span className="text-white font-medium truncate">{std.name}</span>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="p-3 text-center rounded-xl bg-slate-950/50 border border-slate-800 text-xs text-slate-400">
-                            <Users className="w-5 h-5 mx-auto mb-1 text-slate-500 opacity-60" />
-                            <p className="font-semibold text-slate-300">Bu Kriterlere Uygun Öğrenci Bulunamadı</p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              Yukarıdaki "Öğrenci Seçiniz" arama kutusunu kullanarak sınıf fark etmeksizin tüm okuldaki öğrencileri seçebilirsiniz.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Etüt Konusu & Kazanım *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Örn: Paragrafta Anlam ve Soru Çözümü / İkinci Dereceden Denklemler"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
+              {/* TARİH, SAAT VE SÜRE */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Tarih *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tarih *</label>
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Başlangıç Saati *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Başlangıç Saati *</label>
                   <input
                     type="time"
                     required
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Süre (Dk)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Süre (Dk)</label>
                   <input
                     type="number"
                     min={15}
                     step={5}
                     value={duration}
                     onChange={(e) => setDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Derslik / Yer</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Derslik / Yer</label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="Örn: 204 No'lu Fen Laboratuvarı"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Açıklama / Kısa Not</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Açıklama / Kısa Not</label>
                   <input
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Örn: Yanlarında soru bankasını getirsinler..."
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
               </div>
 
-              {/* ETÜT VEREN ÖĞRETMENİN DÜŞÜNCE VE GÖRÜŞLERİ (İSTEĞE BAĞLI) */}
-              <div className="p-4 bg-gradient-to-br from-amber-500/10 via-slate-900 to-indigo-950/30 border border-amber-500/30 rounded-2xl space-y-2.5 shadow-sm">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center space-x-2">
-                    <MessageSquareQuote className="w-4 h-4 text-amber-400 shrink-0" />
-                    <label htmlFor="etut-teacher-feedback-input" className="text-xs font-bold text-amber-300">
-                      Etüt Veren Öğretmenin Düşünce ve Görüşleri
-                    </label>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
-                      İsteğe Bağlı
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-slate-400">
-                    Öğrenci veya ders değerlendirmesi
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Etütü veren öğretmenin etüt süreci, işlenen kazanımlar veya etüt verdiği öğrencinin / öğrencilerin kavrama durumu, ders içi performansı ve çalışma disiplini hakkındaki kişisel düşünce, görüş ve tavsiyelerini bu alana kaydedebilirsiniz.
-                </p>
-
+              {/* ETÜT VEREN ÖĞRETMENİN DÜŞÜNCE VE GÖRÜŞLERİ (SADECE KUTUCUK) */}
+              <div className="space-y-1.5">
+                <label htmlFor="etut-teacher-feedback-input" className="block text-xs font-bold text-slate-800">
+                  Etüt Veren Öğretmenin Düşünce ve Görüşleri
+                </label>
                 <textarea
                   id="etut-teacher-feedback-input"
                   rows={3}
                   value={teacherFeedback}
                   onChange={(e) => setTeacherFeedback(e.target.value)}
-                  placeholder="Örn: Öğrenci çarpanlara ayırma ve özdeşlikler konusunu başarıyla pekiştirdi. Soru çözüm hızında belirgin artış var. Evde ek 30 soru çözmesi ve zorlandığı soruları işaretlemesi tavsiye edildi..."
-                  className="w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-700 hover:border-amber-500/50 focus:border-amber-500 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-amber-500/30 transition-all resize-y leading-relaxed"
+                  placeholder="Öğretmen düşünce ve görüşlerinizi buraya yazabilirsiniz..."
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-y leading-relaxed shadow-2xs"
                 />
-
-                {/* Hızlı Seçim / Yardımcı İfadeler */}
-                <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                  <span className="text-[10px] text-slate-500 font-semibold">Hızlı Not Ekle:</span>
-                  {[
-                    'Konu çok iyi kavrandı, pekiştirildi.',
-                    'Soru çözümlerinde gayretli ve istekliydi.',
-                    'Eksik kazanımlar tamamlandı, ödevlendirildi.',
-                    'Birebir soru pratiği yapıldı, gelişim olumlu.',
-                    'Ek soru çözümü ve tekrar önerildi.',
-                  ].map((quickText) => (
-                    <button
-                      key={quickText}
-                      type="button"
-                      onClick={() => {
-                        setTeacherFeedback((prev) =>
-                          prev.trim() ? `${prev.trim()} ${quickText}` : quickText
-                        );
-                      }}
-                      className="text-[10px] px-2 py-0.5 bg-slate-800/80 hover:bg-amber-500/20 text-slate-300 hover:text-amber-200 border border-slate-700 hover:border-amber-500/40 rounded-lg transition-all cursor-pointer"
-                    >
-                      + {quickText}
-                    </button>
-                  ))}
-                  {teacherFeedback && (
-                    <button
-                      type="button"
-                      onClick={() => setTeacherFeedback('')}
-                      className="text-[10px] px-2 py-0.5 text-rose-400 hover:text-rose-300 underline font-medium cursor-pointer ml-auto"
-                    >
-                      Temizle
-                    </button>
-                  )}
-                </div>
               </div>
 
               {/* Otomatik Bildirim & E-Posta Bilgilendirme Notu */}
-              <div className="p-3 bg-teal-950/40 border border-teal-500/30 rounded-xl flex items-start space-x-2.5 text-xs text-teal-200">
-                <Mail className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-start space-x-2.5 text-xs text-indigo-950">
+                <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-white block">
+                  <span className="font-bold block">
                     🔔 Otomatik Sistem Bildirimi ve E-Posta İletimi
                   </span>
-                  <span>
-                    Etüt kaydedildiğinde atanan öğrencilere anında sistem bildirimi düşer ve tarih, saat, derslik bilgilerini içeren kurumsal HTML e-posta otomatik olarak iletilir.
+                  <span className="text-slate-600 text-[11px]">
+                    Etüt kaydedildiğinde atanan öğrencilere anında sistem bildirimi düşer ve detaylı e-posta otomatik iletilir.
                   </span>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer"
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all"
                 >
                   <Save className="w-4 h-4" />
                   <span>{editingEtut ? 'Değişiklikleri Kaydet' : 'Etütü Kaydet'}</span>

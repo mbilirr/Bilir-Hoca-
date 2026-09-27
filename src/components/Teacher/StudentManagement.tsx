@@ -1004,15 +1004,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             isAdmin ? (
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setIsExcelClassModalOpen(true)}
-                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
-                  title="Excel (.xlsx, .xls) veya CSV dosyasından toplu sınıf ekle"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>Excel'den Toplu Sınıf Yükle</span>
-                </button>
-
-                <button
                   onClick={() => {
                     setEditingClass(null);
                     setClassName('');
@@ -1553,29 +1544,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {/* ADD/EDIT STUDENT MODAL */}
       {isAddStudentOpen && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
           onClick={() => setIsAddStudentOpen(false)}
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-                <h3 className="text-lg font-bold text-white">
-                  {editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
-                </h3>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
+                  </h3>
+                </div>
                 <button
                   onClick={() => setIsAddStudentOpen(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
             {studentFormError && (
-              <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center space-x-2 text-xs text-rose-400">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{studentFormError}</span>
               </div>
             )}
@@ -1583,42 +1579,42 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <form onSubmit={handleSaveStudent} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Ad Soyad *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Ad Soyad *</label>
                   <input
                     type="text"
                     required
                     placeholder="Örn: Ahmet Yılmaz"
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Kullanıcı Adı</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Kullanıcı Adı</label>
                   <input
                     type="text"
                     value={studentUsername}
                     onChange={(e) => setStudentUsername(e.target.value)}
                     placeholder="ornek_kullanici"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
               </div>
 
               {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-              <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <School className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-600" />
                     <span>Okul, Sınıf ve Şube Belirleme (Mecburi)</span>
                   </span>
-                  <span className="text-[11px] text-amber-400 font-semibold">* Zorunlu</span>
+                  <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Okul Açılır Buton */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Okul *
                     </label>
                     <select
@@ -1633,24 +1629,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           setStudentGradeLevel('9. Sınıf');
                         }
                       }}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Okul Seçiniz *</option>
-                      <option value="Ortaokul">Ortaokul</option>
-                      <option value="Lise">Lise</option>
+                      <option value="Ortaokul">🏫 Ortaokul</option>
+                      <option value="Lise">🎓 Lise</option>
                     </select>
                   </div>
 
                   {/* Sınıf Açılır Penceresi */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Sınıf *
                     </label>
                     <select
                       required
                       value={studentGradeLevel}
                       onChange={(e) => setStudentGradeLevel(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {!studentSchoolLevel ? (
                         <option value="">Önce Okul Seçiniz *</option>
@@ -1667,15 +1663,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   {/* Şube Açılır Buton (İsteğe Bağlı) */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-semibold text-slate-300">
+                      <label className="block text-[11px] font-bold text-slate-700">
                         Şube
                       </label>
-                      <span className="text-[9px] text-slate-400">İsteğe Bağlı</span>
+                      <span className="text-[9px] text-slate-500 font-medium">İsteğe Bağlı</span>
                     </div>
                     <select
                       value={studentBranch}
                       onChange={(e) => setStudentBranch(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Şube Yok / İsteğe Bağlı</option>
                       {BRANCH_OPTIONS.map((b) => (
@@ -1687,9 +1683,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800/60">
+                <div className="text-[11px] text-slate-600 flex items-center justify-between pt-2 border-t border-slate-200/80">
                   <span>Atanacak Sınıf Grubu:</span>
-                  <span className="font-bold text-emerald-400 font-mono">
+                  <span className="font-bold text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
                     {studentGradeLevel} - {studentBranch} ({studentSchoolLevel || 'Seçilmedi'})
                   </span>
                 </div>
@@ -1697,49 +1693,49 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">E-Posta</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">E-Posta</label>
                   <input
                     type="email"
                     value={studentEmail}
                     onChange={(e) => setStudentEmail(e.target.value)}
                     placeholder="ogrenci@okul.com"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Öğrenci No</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Öğrenci No</label>
                   <input
                     type="text"
                     value={studentNumber}
                     onChange={(e) => setStudentNumber(e.target.value)}
                     placeholder="Örn: 1042"
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Telefon</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Telefon</label>
                 <input
                   type="text"
                   value={studentPhone}
                   onChange={(e) => setStudentPhone(e.target.value)}
                   placeholder="0555 123 4567"
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                 />
               </div>
 
               {/* Öğrenci Giriş Şifresi ve E-posta Bildirimi */}
-              <div className="p-3.5 bg-indigo-950/40 rounded-xl border border-indigo-500/30 space-y-2">
+              <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-100 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-indigo-200 flex items-center space-x-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-400" />
+                  <label className="block text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Öğrenci Giriş Şifresi *</span>
                   </label>
                   <button
                     type="button"
                     onClick={() => setStudentPassword(Math.floor(100000 + Math.random() * 900000).toString())}
-                    className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold underline cursor-pointer"
+                    className="text-[11px] text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer"
                   >
                     🎲 Rastgele Şifre Oluştur
                   </button>
@@ -1751,48 +1747,44 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={studentPassword}
                     onChange={(e) => setStudentPassword(e.target.value)}
                     placeholder="Örn: 123456"
-                    className="w-full pl-3 pr-10 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm font-mono tracking-wider focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-3 pr-10 py-2 bg-white border border-indigo-200 rounded-xl text-slate-900 text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   />
                   <button
                     type="button"
                     onClick={() => setShowStudentPassword(!showStudentPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                     title={showStudentPassword ? 'Gizle' : 'Göster'}
                   >
                     {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <div className="p-2.5 bg-emerald-950/30 border border-emerald-500/30 rounded-lg text-xs text-emerald-300 space-y-1.5">
-                  <div className="flex items-center space-x-1.5 font-semibold text-emerald-400">
-                    <Mail className="w-3.5 h-3.5" />
+                <div className="p-3 bg-white rounded-lg border border-indigo-100 text-xs text-slate-700 space-y-1 shadow-2xs">
+                  <div className="flex items-center space-x-1.5 font-bold text-indigo-900">
+                    <Mail className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Otomatik E-posta & Giriş Bildirimi</span>
                   </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi mailini anında öğrencinin adresine iletir. Öğrenci bu kullanıcı adı ve şifreyle "Öğrenci Girişi" panelinden sisteme erişebilir.
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi mailini anında öğrencinin adresine iletir.
                   </p>
-                  <div className="flex items-center space-x-2 pt-1 text-[11px] text-emerald-300 font-medium">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span>Giriş bilgileri e-postası kayıt sonrasında sistem tarafından otomatik olarak gönderilir.</span>
-                  </div>
                 </div>
               </div>
 
               {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-                    <Camera className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Öğrenci Profil Fotoğrafı (Bilgisayardan Resim Seç)</span>
+                  <label className="block text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                    <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Öğrenci Profil Fotoğrafı</span>
                   </label>
-                  <span className="text-[10px] text-slate-400">İsteğe Bağlı</span>
+                  <span className="text-[10px] text-slate-500 font-medium">İsteğe Bağlı</span>
                 </div>
 
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-xl bg-slate-800 ring-2 ring-indigo-500/30 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 shadow-2xs overflow-hidden shrink-0 flex items-center justify-center">
                     {studentAvatar ? (
                       <img src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
                     ) : (
-                      <Users className="w-6 h-6 text-slate-500" />
+                      <Users className="w-6 h-6 text-slate-400" />
                     )}
                   </div>
 
@@ -1809,9 +1801,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         type="button"
                         onClick={() => studentFileInputRef.current?.click()}
                         disabled={isProcessingStudentPhoto}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-indigo-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                       >
-                        <Upload className="w-3.5 h-3.5" />
+                        <Upload className="w-3.5 h-3.5 text-indigo-600" />
                         <span>{isProcessingStudentPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
                       </button>
 
@@ -1819,31 +1811,31 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => setStudentAvatar('')}
-                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                           title="Fotoğrafı Kaldır"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-500 mt-1">
                       PNG, JPG veya WebP • Otomatik optimize edilir
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddStudentOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-md cursor-pointer"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
                 >
                   {editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle'}
                 </button>
@@ -1857,77 +1849,53 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {/* ADD/EDIT CLASS MODAL */}
       {isAddClassOpen && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
           onClick={() => setIsAddClassOpen(false)}
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-                <h3 className="text-lg font-bold text-white">
-                  {editingClass ? 'Sınıfı Düzenle' : 'Yeni Sınıf Oluştur'}
-                </h3>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <School className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {editingClass ? 'Sınıfı Düzenle' : 'Sınıf Ekle'}
+                  </h3>
+                </div>
                 <button
                   onClick={() => setIsAddClassOpen(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Excel'den Sınıfı Toplu Ekle Butonu / Hızlı Erişim Barı */}
-              <div className="mb-4 p-3 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-indigo-950/40 border border-emerald-500/30 rounded-xl flex items-center justify-between gap-3">
-                <div className="flex items-center space-x-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
-                    <FileSpreadsheet className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-white truncate">
-                      Excel'den Sınıfı Toplu Ekle
-                    </div>
-                    <div className="text-[11px] text-slate-300 truncate">
-                      Öğrencileri Excel listesiyle bu sınıfa tek tıkla yükleyin
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddClassOpen(false);
-                    setIsExcelClassModalOpen(true);
-                  }}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shrink-0 shadow-sm flex items-center space-x-1 cursor-pointer transition-all"
-                  title="Çoklu sınıf aktarımı sihirbazını aç"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Toplu Sınıf Sihirbazı</span>
-                </button>
-              </div>
-
             {classFormError && (
-              <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center space-x-2 text-xs text-rose-400">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{classFormError}</span>
               </div>
             )}
 
             <form onSubmit={handleSaveClass} className="space-y-4">
               {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-              <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center space-x-1.5">
-                    <School className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-600" />
                     <span>Kademe & Şube Belirleme (Mecburi)</span>
                   </span>
-                  <span className="text-[11px] text-amber-400 font-semibold">* Zorunlu</span>
+                  <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Okul Açılır Buton */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Okul *
                     </label>
                     <select
@@ -1940,17 +1908,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassGradeLevel(firstGrade);
                         setClassName(`${firstGrade} - ${classBranch}`);
                       }}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Okul Seçiniz *</option>
-                      <option value="Ortaokul">Ortaokul</option>
-                      <option value="Lise">Lise</option>
+                      <option value="Ortaokul">🏫 Ortaokul</option>
+                      <option value="Lise">🎓 Lise</option>
                     </select>
                   </div>
 
                   {/* Sınıf Açılır Penceresi */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Sınıf *
                     </label>
                     <select
@@ -1961,7 +1929,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassGradeLevel(newGrade);
                         setClassName(formatClassDisplayName('', classBranch, newGrade));
                       }}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {!classSchoolLevel ? (
                         <option value="">Önce Okul Seçiniz *</option>
@@ -1977,7 +1945,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                   {/* Şube Açılır Buton */}
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       Şube *
                     </label>
                     <select
@@ -1988,7 +1956,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassBranch(newBranch);
                         setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
                       }}
-                      className="w-full px-2.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs font-medium focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Şube Seçiniz *</option>
                       {BRANCH_OPTIONS.map((b) => (
@@ -2002,60 +1970,38 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Sınıf Adı *</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Sınıf Adı *</label>
                 <input
                   type="text"
                   required
                   placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Eğitim Yılı</label>
-                  <input
-                    type="text"
-                    value={classAcademicYear}
-                    onChange={(e) => setClassAcademicYear(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Şube Kodu / Etiketi</label>
-                  <input
-                    type="text"
-                    value={classBranch}
-                    readOnly
-                    className="w-full px-3 py-2 bg-slate-800/60 border border-slate-700 rounded-xl text-indigo-300 text-sm font-semibold"
-                  />
-                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Açıklama</label>
-                <textarea
-                  rows={2}
-                  value={classDescription}
-                  onChange={(e) => setClassDescription(e.target.value)}
-                  placeholder="Sınıfın hedefi ve eğitim programı..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                <label className="block text-xs font-bold text-slate-700 mb-1">Eğitim Yılı</label>
+                <input
+                  type="text"
+                  value={classAcademicYear}
+                  onChange={(e) => setClassAcademicYear(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                 />
               </div>
 
-              {/* Excel ile Bu Sınıfa Toplu Öğrenci Yükleme Bölümü */}
-              <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-3">
+              {/* Toplu Öğrenci Yükleme Bölümü */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-400 flex items-center space-x-1.5">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                    <span>Excel ile Bu Sınıfa Toplu Öğrenci Yükle (İsteğe Bağlı)</span>
+                  <span className="text-xs font-bold text-emerald-900 flex items-center space-x-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                    <span>Toplu Öğrenci Yükle</span>
                   </span>
                   <button
                     type="button"
                     onClick={downloadSampleClassExcel}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline flex items-center space-x-1 cursor-pointer"
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline flex items-center space-x-1 font-bold cursor-pointer"
                     title="Excel şablonunu bilgisayarınıza indirin"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -2063,17 +2009,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </button>
                 </div>
 
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Excel dosyanızdaki öğrenciler, bu sınıf oluşturulduğunda otomatik olarak sisteme eklenip doğrudan{' '}
-                  <span className="text-indigo-300 font-semibold">
-                    {classGradeLevel} - {classBranch}
-                  </span>{' '}
-                  şubesine atanacaktır.
-                </p>
-
                 {classExcelError && (
-                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center space-x-2 text-xs text-rose-400">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                     <span>{classExcelError}</span>
                   </div>
                 )}
@@ -2082,7 +2020,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <div>
                     <label
                       htmlFor="class-excel-upload"
-                      className="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 bg-slate-900/40 hover:bg-slate-850 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                      className="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group shadow-2xs"
                     >
                       <input
                         id="class-excel-upload"
@@ -2095,28 +2033,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           e.target.value = '';
                         }}
                       />
-                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                         <Upload className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-semibold text-white group-hover:text-emerald-300">
+                      <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">
                         {isReadingClassExcel
                           ? 'Excel Okunuyor...'
                           : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
                       </span>
-                      <span className="text-[11px] text-slate-400 mt-0.5">
+                      <span className="text-[11px] text-slate-500 mt-0.5">
                         veya bilgisayarınızdan dosyayı buraya sürükleyip bırakın
                       </span>
                     </label>
                   </div>
                 ) : (
-                  <div className="space-y-2 bg-slate-900/90 p-3 rounded-xl border border-emerald-500/30">
+                  <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span className="text-xs font-bold text-emerald-300">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-xs font-bold text-emerald-900">
                           {classExcelStudents.length} Öğrenci Hazır
                         </span>
-                        <span className="text-[11px] text-slate-400 truncate max-w-[140px]">
+                        <span className="text-[11px] text-slate-500 truncate max-w-[140px]">
                           ({classExcelFileName})
                         </span>
                       </div>
@@ -2124,7 +2062,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowExcelStudentList(!showExcelStudentList)}
-                          className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                          className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
                         >
                           {showExcelStudentList ? 'Gizle' : 'Öğrencileri Gör'}
                         </button>
@@ -2135,7 +2073,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             setClassExcelFileName('');
                             setClassExcelError(null);
                           }}
-                          className="p-1 text-slate-400 hover:text-rose-400 rounded cursor-pointer"
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
                           title="Listeyi Temizle"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2144,16 +2082,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </div>
 
                     {showExcelStudentList && (
-                      <div className="max-h-36 overflow-y-auto border border-slate-800 rounded-lg bg-slate-950/70 p-2 space-y-1">
+                      <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50 p-2 space-y-1">
                         {classExcelStudents.map((st, i) => (
                           <div
                             key={i}
-                            className="flex items-center justify-between text-[11px] py-1 px-2 hover:bg-slate-800/60 rounded text-slate-300"
+                            className="flex items-center justify-between text-[11px] py-1 px-2 hover:bg-slate-100 rounded text-slate-700"
                           >
-                            <span className="font-medium text-white truncate max-w-[170px]">
+                            <span className="font-semibold text-slate-900 truncate max-w-[170px]">
                               {i + 1}. {st.fullName}
                             </span>
-                            <span className="text-slate-400 font-mono">No: {st.studentNumber}</span>
+                            <span className="text-slate-500 font-mono">No: {st.studentNumber}</span>
                           </div>
                         ))}
                       </div>
@@ -2162,21 +2100,21 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddClassOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-md flex items-center space-x-1.5 cursor-pointer"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all"
                 >
                   {classExcelStudents.length > 0 ? (
                     <>
-                      <Sparkles className="w-4 h-4 text-emerald-300" />
+                      <Sparkles className="w-4 h-4 text-emerald-200" />
                       <span>Sınıfı & {classExcelStudents.length} Öğrenciyi Oluştur</span>
                     </>
                   ) : (
