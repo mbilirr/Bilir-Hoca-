@@ -1,0 +1,266 @@
+{
+  "entities": {
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher and administrator profiles",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "branch": { "type": "string" },
+        "phone": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["pending", "approved", "suspended"] },
+        "assignedClassIds": { "type": "array" },
+        "avatar": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "status"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student record enrolled in a class or institution",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "mustChangePassword": { "type": "boolean" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "studentNumber": { "type": "string" },
+        "schoolLevel": { "type": "string" },
+        "gradeLevel": { "type": "string" },
+        "branch": { "type": "string" },
+        "phone": { "type": "string" },
+        "avatar": { "type": "string" },
+        "status": { "type": "string" },
+        "createdTeacherId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "ClassGroup": {
+      "title": "ClassGroup",
+      "description": "School class and branch group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "branch": { "type": "string" },
+        "schoolLevel": { "type": "string" },
+        "gradeLevel": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "description": { "type": "string" },
+        "createdTeacherId": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Homework": {
+      "title": "Homework",
+      "description": "Assigned homework item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "targetClassIds": { "type": "array" },
+        "schoolLevel": { "type": "string" },
+        "resources": { "type": "array" },
+        "outcomes": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "title", "subject", "dueDate"]
+    },
+    "HomeworkSubmission": {
+      "title": "HomeworkSubmission",
+      "description": "Student homework submission and grading",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "homeworkId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "status": { "type": "string" },
+        "submittedAt": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" }
+      },
+      "required": ["id", "homeworkId", "studentId", "status"]
+    },
+    "Etut": {
+      "title": "Etut",
+      "description": "Study and review session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "room": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "assignedClassIds": { "type": "array" },
+        "assignedStudentIds": { "type": "array" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "title", "subject", "date"]
+    },
+    "StudentQuestionLog": {
+      "title": "StudentQuestionLog",
+      "description": "Daily solved questions tracking log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "date": { "type": "string" },
+        "course": { "type": "string" },
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "totalQuestions": { "type": "number" },
+        "correctCount": { "type": "number" },
+        "incorrectCount": { "type": "number" },
+        "emptyCount": { "type": "number" },
+        "netCount": { "type": "number" },
+        "source": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "date", "course", "totalQuestions"]
+    },
+    "WeeklyQuestionTarget": {
+      "title": "WeeklyQuestionTarget",
+      "description": "Weekly question targets assigned by teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "weekStartDate": { "type": "string" },
+        "targetQuestions": { "type": "number" },
+        "assignedTeacherId": { "type": "string" },
+        "assignedDate": { "type": "string" }
+      },
+      "required": ["studentId", "weekStartDate", "targetQuestions"]
+    },
+    "StudentMessage": {
+      "title": "StudentMessage",
+      "description": "Messages between students and teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "senderId", "message", "timestamp"]
+    },
+    "TeacherDocument": {
+      "title": "TeacherDocument",
+      "description": "Uploaded or saved documents by teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileType": { "type": "string" },
+        "uploadedAt": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Class attendance session record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "date": { "type": "string" },
+        "records": { "type": "array" }
+      },
+      "required": ["id", "classId", "date"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Student exam and assessment score record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "examTitle": { "type": "string" },
+        "score": { "type": "number" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "studentId", "score"]
+    }
+  },
+  "firestore": {
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/Teacher" },
+      "description": "Teacher and staff user accounts"
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Enrolled student records"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassGroup" },
+      "description": "Classes and student branches"
+    },
+    "/homeworks/{homeworkId}": {
+      "schema": { "$ref": "#/entities/Homework" },
+      "description": "Assigned homework assignments"
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/HomeworkSubmission" },
+      "description": "Student homework submissions and grading feedback"
+    },
+    "/etuts/{etutId}": {
+      "schema": { "$ref": "#/entities/Etut" },
+      "description": "Study and review sessions"
+    },
+    "/question_logs/{logId}": {
+      "schema": { "$ref": "#/entities/StudentQuestionLog" },
+      "description": "Solved question tracking logs"
+    },
+    "/weekly_question_targets/{targetId}": {
+      "schema": { "$ref": "#/entities/WeeklyQuestionTarget" },
+      "description": "Weekly student question targets"
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/StudentMessage" },
+      "description": "Direct communication messages"
+    },
+    "/teacher_documents/{docId}": {
+      "schema": { "$ref": "#/entities/TeacherDocument" },
+      "description": "Institutional and curriculum documents"
+    },
+    "/attendance/{attId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Classroom attendance logs"
+    },
+    "/grades/{gradeId}": {
+      "schema": { "$ref": "#/entities/GradeRecord" },
+      "description": "Academic exam and grade logs"
+    }
+  }
+}
