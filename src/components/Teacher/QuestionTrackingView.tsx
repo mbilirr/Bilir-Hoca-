@@ -30,6 +30,8 @@ import {
   BookOpen,
   PieChart as PieIcon,
   RefreshCw,
+  Trash2,
+  ListOrdered,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -215,6 +217,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   // Soru logları
   const [allLogs, setAllLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
+  const [isManageLogsModalOpen, setIsManageLogsModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
@@ -721,6 +724,18 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <span>
                     {activeWeeklyTarget ? `Hedef: ${activeWeeklyTarget.targetQuestions} Soru (Düzenle)` : '🎯 Haftalık Hedef Ver'}
                   </span>
+                </button>
+
+                {/* Soru Kayıtları & Geçmiş Yönetimi Butonu */}
+                <button
+                  type="button"
+                  id="btn-manage-question-logs"
+                  onClick={() => setIsManageLogsModalOpen(true)}
+                  className="px-3.5 py-2 bg-[#0f172a] hover:bg-[#1e293b] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border border-slate-700"
+                  title="Öğrencinin tüm kayıtlı soru girişlerini listele ve yönet"
+                >
+                  <ListOrdered className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Soru Kayıtlarını Yönet</span>
                 </button>
 
                 {activeAnalysisMode === 'weekly' && weeklyAnalytics && (
@@ -2414,6 +2429,131 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             </div>
           )}
         </>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SORU KAYITLARI & GEÇMİŞ YÖNETİM MODALI                                    */}
+      {/* ========================================================================= */}
+      {isManageLogsModalOpen && activeStudent && (
+        <div
+          id="modal-manage-logs-backdrop"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsManageLogsModalOpen(false);
+            }
+          }}
+        >
+          <div
+            id="modal-manage-logs-content"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-200 flex items-start justify-between gap-4 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+                  <ListOrdered className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0f172a] flex items-center gap-2">
+                    <span>{activeStudent.name} — Soru Kayıtları & Geçmiş</span>
+                    <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                      Yönetim & Senkronizasyon
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Öğrenciye ait kayıtlı soru çözümlerini görüntüleyin, hatalı veya mükerrer kayıtları güvenle silin.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManageLogsModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer shrink-0"
+                title="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content List */}
+            <div className="p-5 overflow-y-auto max-h-[60vh] space-y-3">
+              {allLogs.filter((l) => l.studentId === activeStudent.id).length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                  <HelpCircle className="w-10 h-10 mx-auto text-slate-300 mb-2 opacity-70" />
+                  <p className="font-bold text-sm text-slate-600">Henüz Kayıtlı Soru Girişi Yok</p>
+                  <p className="text-xs text-slate-400 mt-1">Öğrenciye ait soru çözümü silinmiş veya henüz kayıt eklenmemiş.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#f8fafc] text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5">Tarih</th>
+                        <th className="px-4 py-2.5 text-center">Toplam Soru</th>
+                        <th className="px-4 py-2.5">Ders Dağılımı</th>
+                        <th className="px-4 py-2.5">Not</th>
+                        <th className="px-4 py-2.5 text-right">İşlem</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {allLogs
+                        .filter((l) => l.studentId === activeStudent.id)
+                        .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+                        .map((log) => (
+                          <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3 font-bold text-[#0f172a]">
+                              {formatTurkishDate(log.date)}
+                            </td>
+                            <td className="px-4 py-3 text-center font-extrabold text-[#1e3a8a] text-sm">
+                              {log.totalQuestions} Soru
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">
+                              {Array.isArray(log.entries) && log.entries.length > 0
+                                ? log.entries.map((e) => `${e.subject}: ${e.questionCount}`).join(', ')
+                                : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 italic max-w-xs truncate">
+                              {log.notes || '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (window.confirm('Bu soru kaydını silmek istediğinize emin misiniz? Ana sayfa özetleri ve grafikler anında güncellenecektir.')) {
+                                    await dataService.deleteQuestionLog(log.id);
+                                  }
+                                }}
+                                className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Kaydı Sil"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-[#f8fafc] flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Toplam <strong>{allLogs.filter((l) => l.studentId === activeStudent.id).length}</strong> kayıt
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsManageLogsModalOpen(false)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ========================================================================= */}

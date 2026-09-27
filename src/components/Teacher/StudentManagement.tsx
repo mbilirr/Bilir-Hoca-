@@ -1103,7 +1103,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   {duplicateStudentGroups.totalDuplicates > 0 && (
                     <option value="duplicates">⚠️ Mükerrer Kayıtlar ({duplicateStudentGroups.totalDuplicates})</option>
                   )}
-                  <option value="unassigned">Tanımsız ({unassignedStudentsCount})</option>
+                  <option value="unassigned">Yok ({unassignedStudentsCount})</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
                       {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({students.filter((s) => s.classId === cls.id).length})
@@ -1286,24 +1286,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 </span>
                               )}
                             </div>
-
-                            {/* Öğrenci İsmine Bağlı Hızlı Sınıf Değiştirme / Aktarma Açılır Menüsü */}
-                            <div className="flex items-center space-x-1.5 mt-1.5">
-                              <span className="text-[11px] font-semibold text-slate-400 whitespace-nowrap">Sınıf Aktar:</span>
-                              <select
-                                value={std.classId || 'unassigned'}
-                                onChange={(e) => handleQuickChangeStudentClass(std, e.target.value)}
-                                className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer hover:bg-indigo-100 transition-colors"
-                                title="Öğrencinin sınıfını bu açılır listeden anında değiştirebilirsiniz"
-                              >
-                                <option value="unassigned">Atanmadı (Sınıfsız)</option>
-                                {classes.map((cls) => (
-                                  <option key={cls.id} value={cls.id}>
-                                    {cls.name} {cls.branch ? `(${cls.branch})` : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
                           </div>
                         </div>
                       </td>
@@ -1321,7 +1303,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           }`}
                           title="Öğrencinin sınıfını anında değiştirmek için seçiniz"
                         >
-                          <option value="unassigned">Tanımsız / Sınıfsız</option>
+                          <option value="unassigned">Yok</option>
                           {classes.map((cls) => (
                             <option key={cls.id} value={cls.id}>
                               {cls.name} {cls.branch ? `(${cls.branch})` : ''}

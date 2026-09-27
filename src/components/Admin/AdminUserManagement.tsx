@@ -393,135 +393,297 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Toplam */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-sm hover:border-slate-700 transition-all">
+        <button
+          type="button"
+          onClick={() => {
+            setRoleFilter('all');
+            setStatusFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+            roleFilter === 'all' && statusFilter === 'all'
+              ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/20'
+              : 'border-slate-800 hover:border-slate-700 hover:bg-slate-850/50'
+          }`}
+        >
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-bold">Toplam Kullanıcı</span>
             <Users className="w-4 h-4 text-indigo-400" />
           </div>
           <p className="text-2xl font-black text-white">{stats.total}</p>
-          <span className="text-[10px] text-slate-500 mt-1 block">Aktif veritabanı kaydı</span>
-        </div>
+          <span className="text-[10px] text-slate-500 mt-1 block">Tüm kayıtları listele</span>
+        </button>
 
         {/* Yöneticiler */}
-        <div className="bg-slate-900/90 border border-amber-500/20 rounded-2xl p-4 shadow-sm hover:border-amber-500/40 transition-all bg-gradient-to-b from-amber-500/5 to-transparent">
+        <button
+          type="button"
+          onClick={() => {
+            setRoleFilter(roleFilter === 'admin' && statusFilter === 'all' ? 'all' : 'admin');
+            setStatusFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-amber-500/5 to-transparent ${
+            roleFilter === 'admin' && statusFilter === 'all'
+              ? 'border-amber-400 ring-2 ring-amber-400/50 bg-amber-950/30'
+              : 'border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-950/10'
+          }`}
+        >
           <div className="flex items-center justify-between text-amber-300 mb-2">
             <span className="text-xs font-bold">Yöneticiler</span>
             <Crown className="w-4 h-4 text-amber-400" />
           </div>
           <p className="text-2xl font-black text-white">{stats.admins}</p>
           <span className="text-[10px] text-amber-400/70 mt-1 block">Tam Yetkili (Admin)</span>
-        </div>
+        </button>
 
         {/* Öğretmenler */}
-        <div className="bg-slate-900/90 border border-indigo-500/20 rounded-2xl p-4 shadow-sm hover:border-indigo-500/40 transition-all">
+        <button
+          type="button"
+          onClick={() => {
+            setRoleFilter(roleFilter === 'teacher' && statusFilter === 'all' ? 'all' : 'teacher');
+            setStatusFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+            roleFilter === 'teacher' && statusFilter === 'all'
+              ? 'border-indigo-400 ring-2 ring-indigo-400/50 bg-indigo-950/30'
+              : 'border-indigo-500/20 hover:border-indigo-500/40 hover:bg-indigo-950/10'
+          }`}
+        >
           <div className="flex items-center justify-between text-indigo-300 mb-2">
             <span className="text-xs font-bold">Öğretmenler</span>
             <GraduationCap className="w-4 h-4 text-indigo-400" />
           </div>
           <p className="text-2xl font-black text-white">{stats.teachers}</p>
           <span className="text-[10px] text-indigo-400/70 mt-1 block">Aktif Branş Eğitmenleri</span>
-        </div>
+        </button>
 
         {/* Öğrenciler */}
-        <div className="bg-slate-900/90 border border-emerald-500/20 rounded-2xl p-4 shadow-sm hover:border-emerald-500/40 transition-all">
+        <button
+          type="button"
+          onClick={() => {
+            setRoleFilter(roleFilter === 'student' && statusFilter === 'all' ? 'all' : 'student');
+            setStatusFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+            roleFilter === 'student' && statusFilter === 'all'
+              ? 'border-emerald-400 ring-2 ring-emerald-400/50 bg-emerald-950/30'
+              : 'border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-950/10'
+          }`}
+        >
           <div className="flex items-center justify-between text-emerald-300 mb-2">
             <span className="text-xs font-bold">Öğrenciler</span>
             <School className="w-4 h-4 text-emerald-400" />
           </div>
           <p className="text-2xl font-black text-white">{stats.students}</p>
           <span className="text-[10px] text-emerald-400/70 mt-1 block">Kayıtlı Öğrenci Sayısı</span>
-        </div>
+        </button>
 
         {/* Askıya Alınanlar */}
-        <div className="bg-slate-900/90 border border-rose-500/20 rounded-2xl p-4 shadow-sm hover:border-rose-500/40 transition-all bg-gradient-to-b from-rose-500/5 to-transparent">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended');
+            setRoleFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-rose-500/5 to-transparent ${
+            statusFilter === 'suspended'
+              ? 'border-rose-400 ring-2 ring-rose-400/50 bg-rose-950/30'
+              : 'border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-950/10'
+          }`}
+        >
           <div className="flex items-center justify-between text-rose-300 mb-2">
             <span className="text-xs font-bold">Askıda / Dondurulan</span>
             <Ban className="w-4 h-4 text-rose-400" />
           </div>
           <p className="text-2xl font-black text-rose-200">{stats.suspended}</p>
           <span className="text-[10px] text-rose-400/70 mt-1 block">Girişleri Kapatılmış</span>
-        </div>
+        </button>
 
         {/* Onay Bekleyenler */}
-        <div className="bg-slate-900/90 border border-orange-500/20 rounded-2xl p-4 shadow-sm hover:border-orange-500/40 transition-all">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
+            setRoleFilter('all');
+          }}
+          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+            statusFilter === 'pending'
+              ? 'border-orange-400 ring-2 ring-orange-400/50 bg-orange-950/30'
+              : 'border-orange-500/20 hover:border-orange-500/40 hover:bg-orange-950/10'
+          }`}
+        >
           <div className="flex items-center justify-between text-orange-300 mb-2">
             <span className="text-xs font-bold">Onay Bekleyen</span>
             <AlertTriangle className="w-4 h-4 text-orange-400" />
           </div>
           <p className="text-2xl font-black text-orange-200">{stats.pending}</p>
           <span className="text-[10px] text-orange-400/70 mt-1 block">Öğretmen Başvurusu</span>
-        </div>
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="İsim, kullanıcı adı, e-posta, telefon, branş veya sınıf ile ara..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="İsim, kullanıcı adı, e-posta, telefon, branş veya sınıf ile ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
+            {/* Role Filter */}
+            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
+              <Filter className="w-3.5 h-3.5 text-indigo-400" />
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value as any)}
+                className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-slate-900 text-white">Tüm Roller</option>
+                <option value="admin" className="bg-slate-900 text-white">👑 Yöneticiler (Admin)</option>
+                <option value="teacher" className="bg-slate-900 text-white">🎓 Öğretmenler</option>
+                <option value="student" className="bg-slate-900 text-white">🎒 Öğrenciler</option>
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-slate-900 text-white">Tüm Durumlar</option>
+                <option value="active" className="bg-slate-900 text-white">🟢 Aktif</option>
+                <option value="suspended" className="bg-slate-900 text-white">⛔ Askıda (Dondurulmuş)</option>
+                <option value="pending" className="bg-slate-900 text-white">🟠 Onay Bekleyen</option>
+                <option value="rejected" className="bg-slate-900 text-white">🔴 Reddedilen</option>
+              </select>
+            </div>
+
+            {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setRoleFilter('all');
+                  setStatusFilter('all');
+                }}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
-          {/* Role Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
-            <Filter className="w-3.5 h-3.5 text-indigo-400" />
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as any)}
-              className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-slate-900 text-white">Tüm Roller</option>
-              <option value="admin" className="bg-slate-900 text-white">👑 Yöneticiler (Admin)</option>
-              <option value="teacher" className="bg-slate-900 text-white">🎓 Öğretmenler</option>
-              <option value="student" className="bg-slate-900 text-white">🎒 Öğrenciler</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-slate-900 text-white">Tüm Durumlar</option>
-              <option value="active" className="bg-slate-900 text-white">🟢 Aktif</option>
-              <option value="suspended" className="bg-slate-900 text-white">⛔ Askıda (Dondurulmuş)</option>
-              <option value="pending" className="bg-slate-900 text-white">🟠 Onay Bekleyen</option>
-              <option value="rejected" className="bg-slate-900 text-white">🔴 Reddedilen</option>
-            </select>
-          </div>
-
-          {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setRoleFilter('all');
-                setStatusFilter('all');
-              }}
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-bold transition-colors cursor-pointer"
-            >
-              Temizle
-            </button>
-          )}
+        {/* Quick Role & Status Filter Pill Buttons */}
+        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-800">
+          <span className="text-[11px] font-bold text-slate-400">Hızlı Filtre:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setRoleFilter('all');
+              setStatusFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              roleFilter === 'all' && statusFilter === 'all'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
+            }`}
+          >
+            Tümü ({stats.total})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRoleFilter(roleFilter === 'admin' && statusFilter === 'all' ? 'all' : 'admin');
+              setStatusFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+              roleFilter === 'admin' && statusFilter === 'all'
+                ? 'bg-amber-500 text-slate-950 shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-amber-300'
+            }`}
+          >
+            <Crown className="w-3.5 h-3.5" />
+            <span>Yöneticiler ({stats.admins})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRoleFilter(roleFilter === 'teacher' && statusFilter === 'all' ? 'all' : 'teacher');
+              setStatusFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+              roleFilter === 'teacher' && statusFilter === 'all'
+                ? 'bg-indigo-500 text-white shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-indigo-300'
+            }`}
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            <span>Öğretmenler ({stats.teachers})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRoleFilter(roleFilter === 'student' && statusFilter === 'all' ? 'all' : 'student');
+              setStatusFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+              roleFilter === 'student' && statusFilter === 'all'
+                ? 'bg-emerald-500 text-white shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-emerald-300'
+            }`}
+          >
+            <School className="w-3.5 h-3.5" />
+            <span>Öğrenciler ({stats.students})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended');
+              setRoleFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+              statusFilter === 'suspended'
+                ? 'bg-rose-500 text-white shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-rose-300'
+            }`}
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span>Askıda ({stats.suspended})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
+              setRoleFilter('all');
+            }}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
+              statusFilter === 'pending'
+                ? 'bg-orange-500 text-white shadow-xs'
+                : 'bg-slate-800 hover:bg-slate-750 text-orange-300'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Onay Bekleyen ({stats.pending})</span>
+          </button>
         </div>
       </div>
 

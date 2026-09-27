@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users,
   CalendarClock,
@@ -16,8 +16,9 @@ import {
   Target,
   Award,
 } from 'lucide-react';
-import { Student, ClassGroup, Homework, HomeworkSubmission, Etut, TeacherTabType } from '../../types';
+import { Student, ClassGroup, Homework, HomeworkSubmission, Etut, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
+import { getMondayOfWeek, formatDateISO } from '../../utils/questionAnalytics';
 
 interface TeacherStatsOverviewProps {
   students: Student[];
@@ -42,6 +43,34 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
   currentRole = 'teacher',
   onRoleChange,
 }) => {
+  // Live reactive data from dataService for 100% synchronization across all modules
+  const [liveQuestionLogs, setLiveQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
+  const [liveHomeworks, setLiveHomeworks] = useState<Homework[]>(homeworks);
+  const [liveSubmissions, setLiveSubmissions] = useState<HomeworkSubmission[]>(submissions);
+  const [liveEtuts, setLiveEtuts] = useState<Etut[]>(etuts);
+
+  useEffect(() => {
+    setLiveHomeworks(homeworks);
+  }, [homeworks]);
+
+  useEffect(() => {
+    setLiveSubmissions(submissions);
+  }, [submissions]);
+
+  useEffect(() => {
+    setLiveEtuts(etuts);
+  }, [etuts]);
+
+  useEffect(() => {
+    const unsub = dataService.subscribe(() => {
+      setLiveQuestionLogs(dataService.getQuestionLogs());
+      setLiveHomeworks(dataService.getHomeworks());
+      setLiveSubmissions(dataService.getSubmissions());
+      setLiveEtuts(dataService.getEtuts());
+    });
+    return unsub;
+  }, []);
+
   const todayStr = new Date().toISOString().slice(0, 10);
   const now = new Date();
   const maxUpcomingStr = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -49,7 +78,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
     .slice(0, 10);
 
   // 1. YAKLAŞAN ÖDEVLER HESABI
-  const safeHomeworks = Array.isArray(homeworks) ? homeworks : [];
+  const safeHomeworks = Array.isArray(liveHomeworks) ? liveHomeworks : [];
   const upcomingHomeworks = safeHomeworks
     .filter((hw) => {
       if (!hw || !hw.dueDate) return false;
@@ -75,7 +104,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
   };
 
   // 2. ETÜT İSTATİSTİKLERİ
-  const safeEtuts = Array.isArray(etuts) ? etuts : [];
+  const safeEtuts = Array.isArray(liveEtuts) ? liveEtuts : [];
   const todayEtuts = safeEtuts.filter((e) => e && e.date === todayStr);
   const upcomingEtuts = safeEtuts
     .filter((e) => e && e.date && e.date >= todayStr && e.date <= maxUpcomingStr)
@@ -90,7 +119,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
 
   // 3. TAMAMLANMAMIŞ VE TAMAMLANMIŞ ÖDEV ORANI HESABI
   let totalExpectedSubmissions = 0;
-  homeworks.forEach((hw) => {
+  liveHomeworks.forEach((hw) => {
     if (hw.assignedTo === 'all') {
       if (hw.targetClassIds && hw.targetClassIds.length > 0) {
         const classStudents = students.filter((s) => hw.targetClassIds?.includes(s.classId));
@@ -105,11 +134,11 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
     }
   });
 
-  if (totalExpectedSubmissions === 0 && homeworks.length > 0) {
-    totalExpectedSubmissions = homeworks.length * Math.max(students.length, 1);
+  if (totalExpectedSubmissions === 0 && liveHomeworks.length > 0) {
+    totalExpectedSubmissions = liveHomeworks.length * Math.max(students.length, 1);
   }
 
-  const completedSubmissionsCount = submissions.filter(
+  const completedSubmissionsCount = liveSubmissions.filter(
     (s) => s.status === 'on_time' || s.status === 'late'
   ).length;
 
@@ -125,16 +154,31 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
 
   const uncompletedRate = 100 - completedRate;
 
-  // 4. BU HAFTA ÇÖZÜLEN SORU HESABI
-  const questionLogs = dataService.getQuestionLogs();
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString().slice(0, 10);
-  const currentWeekQuestions = questionLogs
-    .filter((log) => log.date >= weekAgoStr)
+  // 4. BU HAFTA ÇÖZÜLEN SORU HESABI (Pazartesi - Pazar takvim haftası, Soru Analiz modülüyle %100 tam senkron)
+  const currentMonday = getMondayOfWeek(new Date());
+  const currentSunday = new Date(currentMonday);
+  currentSunday.setDate(currentSunday.getDate() + 6);
+  const weekStartStr = formatDateISO(currentMonday);
+  const weekEndStr = formatDateISO(currentSunday);
+
+  const accessibleStudentIds = new Set(students.map((s) => s.id));
+
+  const currentWeekQuestions = liveQuestionLogs
+    .filter((log) => {
+      if (!log || !log.date) return false;
+      if (log.studentId && accessibleStudentIds.size > 0 && !accessibleStudentIds.has(log.studentId)) return false;
+      return log.date >= weekStartStr && log.date <= weekEndStr;
+    })
     .reduce((sum, log) => sum + (log.totalQuestions || 0), 0);
+
   const activeStudentsCount = new Set(
-    questionLogs.filter((l) => l.date >= weekAgoStr && l.totalQuestions > 0).map((l) => l.studentId)
+    liveQuestionLogs
+      .filter((l) => {
+        if (!l || !l.date) return false;
+        if (l.studentId && accessibleStudentIds.size > 0 && !accessibleStudentIds.has(l.studentId)) return false;
+        return l.date >= weekStartStr && l.date <= weekEndStr && (l.totalQuestions || 0) > 0;
+      })
+      .map((l) => l.studentId)
   ).size;
 
   return (

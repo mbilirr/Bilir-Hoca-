@@ -53,6 +53,7 @@ import {
   UserRole,
   TeacherDocument,
   TeacherTabType,
+  StudentQuestionLog,
 } from './types';
 
 export default function App() {
@@ -100,6 +101,7 @@ export default function App() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(dataService.getAttendance());
   const [messages, setMessages] = useState<StudentMessage[]>(dataService.getMessages());
   const [documents, setDocuments] = useState<TeacherDocument[]>(dataService.getTeacherDocuments());
+  const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(dataService.getQuestionLogs());
 
   // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
@@ -117,6 +119,7 @@ export default function App() {
       setAttendance(dataService.getAttendance());
       setMessages(dataService.getMessages());
       setDocuments(dataService.getTeacherDocuments());
+      setQuestionLogs(dataService.getQuestionLogs());
 
       const activeSession = dataService.getAuthSession();
       setAuthSession(activeSession);

@@ -134,6 +134,7 @@ const STORAGE_KEYS = {
   STUDENT_NOTIFICATIONS: 'edu_sys_student_notifications_v6',
   SENT_EMAILS: 'edu_sys_sent_emails_v6',
   QUESTION_LOGS: 'edu_sys_question_logs_v6',
+  DELETED_QUESTION_LOGS: 'edu_sys_deleted_question_logs_v6',
   WEEKLY_QUESTION_TARGETS: 'edu_sys_weekly_question_targets_v6',
 };
 
@@ -167,6 +168,7 @@ export const PERMANENT_KEYS = {
   MASTER_DOCUMENTS: 'edu_sys_master_documents_permanent',
   DELETED_STUDENTS: 'edu_sys_master_deleted_students_permanent',
   DELETED_CLASSES: 'edu_sys_master_deleted_classes_permanent',
+  DELETED_QUESTION_LOGS: 'edu_sys_master_deleted_question_logs_permanent',
 };
 
 // Safely clean up old versioned keys to free storage quota, but NEVER delete user data
@@ -586,44 +588,31 @@ function loadAttendanceWithResilience(): AttendanceRecord[] {
 // Resilient question logs loader across versioned, master, and legacy keys
 function loadQuestionLogsWithResilience(): StudentQuestionLog[] {
   try {
-    let loaded: StudentQuestionLog[] = [];
+    const deletedIds = new Set<string>(
+      loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_QUESTION_LOGS, [])
+    );
+
     const direct = localStorage.getItem(STORAGE_KEYS.QUESTION_LOGS);
-    if (direct) {
+    if (direct !== null) {
       try {
         const parsed = JSON.parse(direct);
-        if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((q) => q && q.id && !deletedIds.has(q.id));
+        }
       } catch {}
     }
-    if (loaded.length === 0) {
-      const master = localStorage.getItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS);
-      if (master) {
-        try {
-          const parsed = JSON.parse(master);
-          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
-        } catch {}
-      }
+
+    const master = localStorage.getItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS);
+    if (master !== null) {
+      try {
+        const parsed = JSON.parse(master);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((q) => q && q.id && !deletedIds.has(q.id));
+        }
+      } catch {}
     }
-    const qKeys = [
-      'edu_sys_question_logs_v6', 'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4',
-      'edu_sys_question_logs_v3', 'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1',
-      'edu_sys_question_logs', 'edu_sys_question_logs_backup',
-    ];
-    const qMap = new Map<string, StudentQuestionLog>();
-    loaded.forEach((q) => { if (q && q.id) qMap.set(q.id, q); });
-    for (const k of qKeys) {
-      const val = localStorage.getItem(k);
-      if (val) {
-        try {
-          const parsed = JSON.parse(val);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((q: StudentQuestionLog) => {
-              if (q && q.id && !qMap.has(q.id)) qMap.set(q.id, q);
-            });
-          }
-        } catch {}
-      }
-    }
-    return Array.from(qMap.values());
+
+    return [];
   } catch (e) {
     console.error('Error in loadQuestionLogsWithResilience:', e);
     return [];
@@ -764,6 +753,7 @@ export class DataService {
   public deletedClassIds: Set<string> = new Set();
   public deletedHomeworkIds: Set<string> = new Set();
   public deletedEtutIds: Set<string> = new Set();
+  public deletedQuestionLogIds: Set<string> = new Set();
 
   private listeners: (() => void)[] = [];
 
@@ -784,6 +774,7 @@ export class DataService {
     this.deletedClassIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_CLASSES, []));
     this.deletedHomeworkIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_HOMEWORK, []));
     this.deletedEtutIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_ETUTS, []));
+    this.deletedQuestionLogIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_QUESTION_LOGS, []));
 
     // Load resiliently across all storage keys
     const resilientStudents = loadStudentsWithResilience();
@@ -836,6 +827,7 @@ export class DataService {
       this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       this.homeworks = this.homeworks.filter((h) => !this.deletedHomeworkIds.has(h.id));
       this.etuts = this.etuts.filter((e) => !this.deletedEtutIds.has(e.id));
+      this.questionLogs = this.questionLogs.filter((q) => !this.deletedQuestionLogIds.has(q.id));
 
       // Apply any saved custom teacher profile overrides from dedicated local storage
       this.teachers = this.teachers.map((t) => {
@@ -1406,6 +1398,7 @@ export class DataService {
       const payload = {
         deletedStudentIds: Array.from(this.deletedStudentIds),
         deletedClassIds: Array.from(this.deletedClassIds),
+        deletedQuestionLogIds: Array.from(this.deletedQuestionLogIds),
         updatedAt: new Date().toISOString(),
       };
       await supabase.from('homeworks').upsert({
@@ -1449,9 +1442,18 @@ export class DataService {
               }
             });
           }
+          if (Array.isArray(parsed.deletedQuestionLogIds)) {
+            parsed.deletedQuestionLogIds.forEach((id: string) => {
+              if (id && !this.deletedQuestionLogIds.has(id)) {
+                this.deletedQuestionLogIds.add(id);
+                changed = true;
+              }
+            });
+          }
           if (changed) {
             saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
             saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+            saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
             const prevStdLen = this.students.length;
             this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
             if (this.students.length !== prevStdLen) {
@@ -1466,6 +1468,14 @@ export class DataService {
               saveData(STORAGE_KEYS.CLASSES, this.classes);
               try {
                 localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+              } catch {}
+            }
+            const prevQLogLen = this.questionLogs.length;
+            this.questionLogs = this.questionLogs.filter((q) => !this.deletedQuestionLogIds.has(q.id));
+            if (this.questionLogs.length !== prevQLogLen) {
+              saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+              try {
+                localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
               } catch {}
             }
             this.notify();
@@ -1816,31 +1826,43 @@ export class DataService {
 
   // --- QUESTION LOGS & TARGETS REALTIME DESERIALIZERS ---
   public handleRemoteQuestionLogsPayload(raw: string) {
-    if (!raw) return;
+    if (raw === undefined || raw === null) return;
     try {
       const remoteLogs: StudentQuestionLog[] = JSON.parse(raw);
-      if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
-        let changed = false;
+      if (Array.isArray(remoteLogs)) {
+        const remoteMap = new Map<string, StudentQuestionLog>();
         remoteLogs.forEach((rl) => {
-          const exIdx = this.questionLogs.findIndex((l) => l.id === rl.id);
-          if (exIdx === -1) {
-            this.questionLogs.push(rl);
-            changed = true;
-          } else {
-            this.questionLogs[exIdx] = rl;
+          if (!this.deletedQuestionLogIds?.has(rl.id)) {
+            remoteMap.set(rl.id, rl);
           }
         });
-        if (changed) {
-          this.questionLogs.sort(
-            (a, b) =>
-              new Date(b.date || b.createdAt || 0).getTime() -
-              new Date(a.date || a.createdAt || 0).getTime()
-          );
-          saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-          this.notify();
-        }
+
+        // Retain only very recent unsaved local entries (< 15s old) that haven't been deleted
+        const now = Date.now();
+        const pendingLocal = this.questionLogs.filter((l) => {
+          if (this.deletedQuestionLogIds?.has(l.id)) return false;
+          if (remoteMap.has(l.id)) return false;
+          const created = new Date(l.createdAt || l.date || 0).getTime();
+          return now - created < 15000;
+        });
+
+        const merged = [...Array.from(remoteMap.values()), ...pendingLocal];
+        merged.sort(
+          (a, b) =>
+            new Date(b.date || b.createdAt || 0).getTime() -
+            new Date(a.date || a.createdAt || 0).getTime()
+        );
+
+        this.questionLogs = merged;
+        saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+        } catch {}
+        this.notify();
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[QuestionLogsRealtime] Error:', e);
+    }
   }
 
   public handleRemoteQuestionTargetsPayload(raw: string) {
@@ -1893,13 +1915,27 @@ export class DataService {
           }
         });
       }
+      if (Array.isArray(parsed.deletedQuestionLogIds)) {
+        parsed.deletedQuestionLogIds.forEach((id: string) => {
+          if (id && !this.deletedQuestionLogIds.has(id)) {
+            this.deletedQuestionLogIds.add(id);
+            changed = true;
+          }
+        });
+      }
       if (changed) {
         saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
         saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+        saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
         this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
         this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+        this.questionLogs = this.questionLogs.filter((q) => !this.deletedQuestionLogIds.has(q.id));
         saveData(STORAGE_KEYS.STUDENTS, this.students);
         saveData(STORAGE_KEYS.CLASSES, this.classes);
+        saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+        } catch {}
         this.notify();
       }
     } catch {}
@@ -6197,8 +6233,38 @@ export class DataService {
   }
 
   public async deleteQuestionLog(id: string): Promise<void> {
+    if (!this.deletedQuestionLogIds) {
+      this.deletedQuestionLogIds = new Set<string>();
+    }
+    this.deletedQuestionLogIds.add(id);
+    saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
+    try {
+      localStorage.setItem(PERMANENT_KEYS.DELETED_QUESTION_LOGS, JSON.stringify(Array.from(this.deletedQuestionLogIds)));
+    } catch {}
+
     this.questionLogs = this.questionLogs.filter((q) => q.id !== id);
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+    } catch {}
+
+    // Clean legacy versioned keys so deleted question logs never resurrect
+    [
+      'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4', 'edu_sys_question_logs_v3',
+      'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1', 'edu_sys_question_logs', 'edu_sys_question_logs_backup',
+    ].forEach((legacyKey) => {
+      try {
+        const val = localStorage.getItem(legacyKey);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter((q: any) => q.id !== id);
+            localStorage.setItem(legacyKey, JSON.stringify(filtered));
+          }
+        }
+      } catch {}
+    });
+
     this.notify();
 
     // Cross-device Supabase push with await confirmation
@@ -6211,6 +6277,7 @@ export class DataService {
         assigned_to: '__SYSTEM__',
         due_date: '2099-12-31',
       });
+      await this.syncTombstonesToCloud();
     } catch (err) {
       console.warn('[QuestionLogsSync] Exception deleting question log:', err);
     }
@@ -6232,10 +6299,46 @@ export class DataService {
     }
   }
 
-  public clearAllQuestionLogs(): void {
+  public async clearAllQuestionLogs(): Promise<void> {
+    if (!this.deletedQuestionLogIds) {
+      this.deletedQuestionLogIds = new Set<string>();
+    }
+    this.questionLogs.forEach((q) => this.deletedQuestionLogIds.add(q.id));
+    saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
+    try {
+      localStorage.setItem(PERMANENT_KEYS.DELETED_QUESTION_LOGS, JSON.stringify(Array.from(this.deletedQuestionLogIds)));
+    } catch {}
+
     this.questionLogs = [];
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify([]));
+    } catch {}
+
+    [
+      'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4', 'edu_sys_question_logs_v3',
+      'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1', 'edu_sys_question_logs', 'edu_sys_question_logs_backup',
+    ].forEach((legacyKey) => {
+      try {
+        localStorage.removeItem(legacyKey);
+      } catch {}
+    });
+
     this.notify();
+
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_question_logs__',
+        title: 'Question Logs Sync',
+        description: JSON.stringify([]),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+      await this.syncTombstonesToCloud();
+    } catch (err) {
+      console.warn('[QuestionLogsSync] Exception clearing question logs:', err);
+    }
   }
 
   public seedInitialQuestionLogs(): void {
