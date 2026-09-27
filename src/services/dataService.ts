@@ -2113,71 +2113,167 @@ export class DataService {
   }
 
   // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---
+  public async syncStudentsToCloud(): Promise<void> {
+    try {
+      const activeStudents = this.students.filter((s) => s && s.id && !this.deletedStudentIds.has(s.id));
+      
+      // 1. Full-fidelity aggregate payload in homeworks table
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_students__',
+        title: 'Students Sync',
+        subject: 'SystemSync',
+        description: JSON.stringify(activeStudents),
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+
+      // 2. Individual student table upsert
+      const payload = activeStudents.map((s) => ({
+        id: s.id,
+        name: s.name,
+        student_number: s.studentNumber || '',
+        class_id: s.classId || 'class-default',
+        class_name: s.className || 'Genel',
+        email: s.email || null,
+        phone: s.phone || null,
+        avatar: s.avatar || null,
+        registered_at: s.createdAt || new Date().toISOString(),
+      }));
+
+      if (payload.length > 0) {
+        await supabase.from('students').upsert(payload);
+      }
+    } catch (e) {
+      console.warn('Error syncing students to cloud:', e);
+    }
+  }
+
   public async syncStudentsFromSupabase(isBackground = false): Promise<Student[]> {
     try {
       await this.syncTombstonesFromCloud();
 
+      // 1. Fetch individual rows from students table
       const { data: remoteStudents, error: errStd } = await supabase.from('students').select('*');
-      if (errStd) {
-        if (!isBackground) console.warn('Error fetching students from Supabase:', errStd);
-        return this.students;
+      if (errStd && !isBackground) {
+        console.warn('Error fetching students from Supabase:', errStd);
       }
 
-      if (remoteStudents && Array.isArray(remoteStudents)) {
-        const studentList: Student[] = [];
+      // 2. Fetch full-fidelity aggregate payload from __system_sync_students__
+      const { data: sysRows } = await supabase
+        .from('homeworks')
+        .select('description')
+        .eq('id', '__system_sync_students__');
 
+      const remoteStudentMap = new Map<string, any>();
+
+      if (remoteStudents && Array.isArray(remoteStudents)) {
         remoteStudents.forEach((rs: any) => {
           if (!rs.id || this.deletedStudentIds.has(rs.id)) return;
+          remoteStudentMap.set(rs.id, rs);
+        });
+      }
 
-          const existing = this.students.find((s) => s.id === rs.id);
-          const cleanRemoteEmail = cleanStudentEmail(rs.email);
-
-          if (existing) {
-            studentList.push({
-              ...existing,
-              name: rs.name || existing.name,
-              studentNumber: rs.student_number || existing.studentNumber,
-              className: rs.class_name || existing.className,
-              classId: rs.class_id || existing.classId,
-              email: cleanRemoteEmail || existing.email,
-              phone: rs.phone || existing.phone,
-              avatar: rs.avatar || existing.avatar,
-              schoolLevel: existing.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
-            });
-          } else {
-            studentList.push({
-              id: rs.id,
-              name: rs.name,
-              username:
-                rs.student_number ||
-                cleanRemoteEmail?.split('@')[0] ||
-                rs.name.toLowerCase().replace(/\s+/g, '_'),
-              email: cleanRemoteEmail,
-              password: rs.password || '54321',
-              mustChangePassword: true,
-              className: rs.class_name || 'Genel',
-              classId: rs.class_id || 'class-default',
-              studentNumber: rs.student_number || '',
-              phone: rs.phone || '',
-              avatar:
-                rs.avatar ||
-                `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(rs.name)}`,
-              createdAt: rs.registered_at || new Date().toISOString(),
-              status: 'active',
-              createdTeacherId: 'teacher-1',
-              schoolLevel: detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
+      // Merge with full payload from __system_sync_students__
+      if (sysRows && sysRows.length > 0 && sysRows[0]?.description) {
+        try {
+          const parsed = JSON.parse(sysRows[0].description);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((s: Student) => {
+              if (s && s.id && !this.deletedStudentIds.has(s.id)) {
+                const existingInMap = remoteStudentMap.get(s.id);
+                remoteStudentMap.set(s.id, {
+                  ...s,
+                  ...(existingInMap || {}),
+                  className: s.className || existingInMap?.class_name || 'Genel',
+                  classId: s.classId || existingInMap?.class_id || 'class-default',
+                  schoolLevel: s.schoolLevel || detectSchoolLevelFromGrade(s.className),
+                  gradeLevel: s.gradeLevel,
+                  branch: s.branch,
+                  password: s.password || '54321',
+                  mustChangePassword: s.mustChangePassword,
+                });
+              }
             });
           }
-        });
-
-        // The central database is the single source of truth:
-        // Any student deleted on computer is cleanly removed from local state on all devices!
-        this.students = studentList;
-        saveData(STORAGE_KEYS.STUDENTS, this.students);
-        try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
         } catch {}
-        this.notify();
+      }
+
+      const mergedStudentMap = new Map<string, Student>();
+
+      // Populate from remote map
+      remoteStudentMap.forEach((rs: any, id: string) => {
+        if (this.deletedStudentIds.has(id)) return;
+        const existing = this.students.find((s) => s.id === id);
+        const cleanRemoteEmail = cleanStudentEmail(rs.email);
+
+        if (existing) {
+          const isLocalClassMoreSpecific =
+            existing.classId &&
+            existing.classId !== '' &&
+            existing.classId !== 'class-default' &&
+            existing.className &&
+            existing.className !== 'Atanmadı' &&
+            existing.className !== 'Genel';
+
+          mergedStudentMap.set(id, {
+            ...existing,
+            name: rs.name || existing.name,
+            studentNumber: rs.student_number || rs.studentNumber || existing.studentNumber,
+            className: isLocalClassMoreSpecific ? existing.className : (rs.class_name || rs.className || existing.className),
+            classId: isLocalClassMoreSpecific ? existing.classId : (rs.class_id || rs.classId || existing.classId),
+            email: cleanRemoteEmail || existing.email,
+            phone: rs.phone || existing.phone,
+            avatar: rs.avatar || existing.avatar,
+            schoolLevel: existing.schoolLevel || rs.schoolLevel || detectSchoolLevelFromGrade(rs.class_name || rs.className) || 'Ortaokul',
+            gradeLevel: existing.gradeLevel || rs.gradeLevel,
+            branch: existing.branch || rs.branch,
+          });
+        } else {
+          mergedStudentMap.set(id, {
+            id: rs.id,
+            name: rs.name,
+            username:
+              rs.username ||
+              rs.student_number ||
+              cleanRemoteEmail?.split('@')[0] ||
+              rs.name.toLowerCase().replace(/\s+/g, '_'),
+            email: cleanRemoteEmail,
+            password: rs.password || '54321',
+            mustChangePassword: rs.mustChangePassword !== undefined ? rs.mustChangePassword : true,
+            className: rs.class_name || rs.className || 'Genel',
+            classId: rs.class_id || rs.classId || 'class-default',
+            studentNumber: rs.student_number || rs.studentNumber || '',
+            phone: rs.phone || '',
+            avatar:
+              rs.avatar ||
+              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(rs.name)}`,
+            createdAt: rs.registered_at || rs.createdAt || new Date().toISOString(),
+            status: 'active',
+            createdTeacherId: rs.createdTeacherId || 'teacher-1',
+            schoolLevel: rs.schoolLevel || detectSchoolLevelFromGrade(rs.class_name || rs.className) || 'Ortaokul',
+            gradeLevel: rs.gradeLevel,
+            branch: rs.branch,
+          });
+        }
+      });
+
+      // Preserve local unsynced students so newly added students are NEVER deleted
+      const unsyncedLocals = this.students.filter(
+        (s) => !mergedStudentMap.has(s.id) && !this.deletedStudentIds.has(s.id)
+      );
+      unsyncedLocals.forEach((local) => {
+        mergedStudentMap.set(local.id, local);
+      });
+
+      this.students = Array.from(mergedStudentMap.values());
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+
+      if (unsyncedLocals.length > 0) {
+        this.syncStudentsToCloud().catch(() => {});
       }
 
       return this.students;
@@ -3889,6 +3985,10 @@ export class DataService {
 
     if (autoAssignedCount > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.syncStudentsToCloud().catch(() => {});
     }
 
     saveData(STORAGE_KEYS.CLASSES, this.classes);
@@ -3920,7 +4020,11 @@ export class DataService {
 
     if (count > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
       this.syncClassToCloud(cls);
+      this.syncStudentsToCloud().catch(() => {});
       this.notify();
     }
     return count;
@@ -3939,6 +4043,10 @@ export class DataService {
       return s;
     });
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+    this.syncStudentsToCloud().catch(() => {});
     this.notify();
   }
 
@@ -4277,28 +4385,11 @@ export class DataService {
     }
 
     // Direct central database upsert
+    // Sync to cloud
     try {
-      supabase
-        .from('students')
-        .upsert([
-          {
-            id: newStudent.id,
-            name: newStudent.name,
-            student_number: newStudent.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-            class_id: newStudent.classId || 'class-default',
-            class_name: newStudent.className || 'Genel',
-            email: newStudent.email || null,
-            phone: newStudent.phone || null,
-            avatar: newStudent.avatar || null,
-            registered_at: newStudent.createdAt,
-          },
-        ])
-        .then(({ error }) => {
-          if (error) console.error('[StudentsSync] Error upserting student:', error);
-        });
-    } catch (e) {
-      console.warn('[StudentsSync] Exception upserting student:', e);
-    }
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+    this.syncStudentsToCloud().catch(() => {});
 
     this.notify();
     return newStudent;
@@ -4408,32 +4499,11 @@ export class DataService {
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
 
-    // Direct central database upsert with await
-    if (createdList.length > 0) {
-      const payload = createdList.map((s) => ({
-        id: s.id,
-        name: s.name,
-        student_number: s.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-        class_id: s.classId || 'class-default',
-        class_name: s.className || 'Genel',
-        email: s.email || null,
-        phone: s.phone || null,
-        avatar: s.avatar || null,
-        registered_at: s.createdAt,
-      }));
-      try {
-        supabase
-          .from('students')
-          .upsert(payload)
-          .then(({ error }) => {
-            if (error) console.error('[StudentsSync] Error bulk upserting students to Supabase:', error);
-          });
-      } catch (e) {
-        console.warn('[StudentsSync] Exception bulk upserting students:', e);
-      }
-    }
-
+    this.syncStudentsToCloud().catch(() => {});
     this.notify();
     return createdList;
   }
@@ -4448,6 +4518,10 @@ export class DataService {
     }
     this.students = this.students.map((s) => (s.id === id ? { ...s, ...updates } : s));
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+    this.syncStudentsToCloud().catch(() => {});
     this.notify();
 
     const updated = this.students.find((s) => s.id === id);
@@ -4554,8 +4628,9 @@ export class DataService {
       console.warn('Exception during student deletion:', e);
     }
 
-    // Persist tombstones to cloud so other devices immediately purge these IDs
+    // Persist tombstones and student state to cloud so other devices immediately purge these IDs
     await this.syncTombstonesToCloud();
+    await this.syncStudentsToCloud();
 
     this.notify();
   }

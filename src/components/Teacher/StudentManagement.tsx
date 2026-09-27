@@ -851,22 +851,31 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     // Toplu Excel Öğrencilerini Oluştur ve Sınıfa Ata
     if (classExcelStudents.length > 0) {
-      classExcelStudents.forEach((std) => {
-        dataService.registerStudent({
-          name: std.fullName,
-          username:
-            std.email.split('@')[0] || `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          email: std.email,
-          classId: savedClassId,
-          className: finalClassName,
-          schoolLevel: classSchoolLevel,
-          gradeLevel: classGradeLevel,
-          branch: classBranch,
-          studentNumber: std.studentNumber,
-          phone: std.phone,
-          avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.fullName)}`,
+      const studentsToRegister = classExcelStudents.map((std) => ({
+        name: std.fullName,
+        username:
+          std.email.split('@')[0] || `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        email: std.email,
+        classId: savedClassId,
+        className: finalClassName,
+        schoolLevel: classSchoolLevel,
+        gradeLevel: classGradeLevel,
+        branch: classBranch,
+        studentNumber: std.studentNumber,
+        phone: std.phone,
+        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.fullName)}`,
+      }));
+
+      try {
+        dataService.registerStudentsBulk(studentsToRegister);
+      } catch (err) {
+        // Fallback to individual registration if bulk encounters conflict
+        studentsToRegister.forEach((s) => {
+          try {
+            dataService.registerStudent(s);
+          } catch {}
         });
-      });
+      }
 
       confetti({
         particleCount: 50,
