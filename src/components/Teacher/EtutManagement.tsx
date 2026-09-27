@@ -470,7 +470,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     }
   };
 
-  const handleSaveEtut = (e: React.FormEvent) => {
+  const handleSaveEtut = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim() || !date || !time) return;
 
@@ -493,7 +493,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         : selectedStudentIds;
 
     if (editingEtut) {
-      dataService.updateEtut(editingEtut.id, {
+      await dataService.updateEtut(editingEtut.id, {
         schoolLevel,
         gradeLevel,
         subject,
@@ -512,7 +512,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       });
       setEditingEtut(null);
     } else {
-      const createdEtut = dataService.createEtut({
+      const createdEtut = await dataService.createEtut({
         schoolLevel,
         gradeLevel,
         subject,

@@ -124,7 +124,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     setAttendanceMap(nextMap);
   };
 
-  const handleSaveAttendance = () => {
+  const handleSaveAttendance = async () => {
     const records = classStudents.map((std) => {
       const current = getStudentAttendance(std.id);
       return {
@@ -135,7 +135,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       };
     });
 
-    dataService.recordAttendance({
+    await dataService.recordAttendance({
       date: attendanceDate,
       classId: selectedClassId,
       subject: selectedSubject,
@@ -146,11 +146,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     setTimeout(() => setSaveFeedback(false), 2500);
   };
 
-  const handleDeleteCurrentAttendance = () => {
+  const handleDeleteCurrentAttendance = async () => {
     if (currentAttendanceRecord) {
-      dataService.deleteAttendance(currentAttendanceRecord.id);
+      await dataService.deleteAttendance(currentAttendanceRecord.id);
     } else {
-      dataService.deleteAttendanceForDate(attendanceDate, selectedClassId, selectedSubject);
+      await dataService.deleteAttendanceForDate(attendanceDate, selectedClassId, selectedSubject);
     }
     setAttendanceMap({});
   };
@@ -163,12 +163,12 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     setAttendanceMap(resetMap);
   };
 
-  const handleSaveGrade = (e: React.FormEvent) => {
+  const handleSaveGrade = async (e: React.FormEvent) => {
     e.preventDefault();
     const student = students.find((s) => s.id === gradeStudentId);
     if (!student) return;
 
-    dataService.addGrade({
+    await dataService.addGrade({
       studentId: gradeStudentId,
       classId: student.classId,
       subject: selectedSubject,
@@ -193,7 +193,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     }));
   };
 
-  const handleSaveBatchGrades = () => {
+  const handleSaveBatchGrades = async () => {
     const enteredStudentIds = Object.keys(batchGradesMap).filter((id) => {
       const val = batchGradesMap[id]?.score?.trim();
       return val !== undefined && val !== '' && !isNaN(Number(val));
@@ -204,13 +204,13 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       return;
     }
 
-    enteredStudentIds.forEach((studentId) => {
+    for (const studentId of enteredStudentIds) {
       const student = classStudents.find((s) => s.id === studentId);
-      if (!student) return;
+      if (!student) continue;
       const scoreVal = Math.min(100, Math.max(0, Number(batchGradesMap[studentId].score)));
       const remarks = batchGradesMap[studentId].remarks || '';
 
-      dataService.addGrade({
+      await dataService.addGrade({
         studentId: student.id,
         studentName: student.name,
         classId: selectedClassId,
@@ -221,7 +221,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
         date: new Date().toISOString().slice(0, 10),
         remarks,
       });
-    });
+    }
 
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
     setBatchSaveFeedback(`✓ ${enteredStudentIds.length} öğrencinin notu başarıyla sisteme kaydedildi!`);
@@ -1389,9 +1389,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       <ConfirmDeleteModal
         isOpen={!!gradeToDelete}
         onClose={() => setGradeToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (gradeToDelete) {
-            dataService.deleteGrade(gradeToDelete.id);
+            await dataService.deleteGrade(gradeToDelete.id);
           }
         }}
         title="Not Kaydını Sil"
@@ -1404,9 +1404,9 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
       <ConfirmDeleteModal
         isOpen={!!attendanceToDelete}
         onClose={() => setAttendanceToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (attendanceToDelete) {
-            dataService.deleteAttendance(attendanceToDelete.id);
+            await dataService.deleteAttendance(attendanceToDelete.id);
             if (attendanceToDelete.date === attendanceDate && attendanceToDelete.classId === selectedClassId) {
               setAttendanceMap({});
             }

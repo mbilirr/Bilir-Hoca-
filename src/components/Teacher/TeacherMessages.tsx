@@ -43,11 +43,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     }
   };
 
-  const handleSendReply = (e: React.FormEvent) => {
+  const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeMessage || !replyText.trim()) return;
 
-    dataService.replyToMessage(activeMessage.id, replyText.trim());
+    await dataService.replyToMessage(activeMessage.id, replyText.trim());
     setReplyText('');
   };
 

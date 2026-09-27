@@ -218,11 +218,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   };
 
   // Handle Send Message to Teacher
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageSubject.trim() || !messageText.trim()) return;
 
-    dataService.sendMessage({
+    await dataService.sendMessage({
       studentId: currentStudent.id,
       studentName: currentStudent.name,
       studentClass: currentStudent.className,

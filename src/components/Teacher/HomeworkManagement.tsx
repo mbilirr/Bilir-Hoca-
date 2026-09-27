@@ -297,12 +297,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     }
   };
 
-  const handleCreateHomework = (e: React.FormEvent) => {
+  const handleCreateHomework = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !dueDate) return;
 
     const currentTeacher = dataService.getCurrentTeacher();
-    const newHw = dataService.createHomework({
+    const newHw = await dataService.createHomework({
       title: title.trim(),
       subject,
       schoolLevel,

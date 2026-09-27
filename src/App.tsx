@@ -101,8 +101,12 @@ export default function App() {
   const [messages, setMessages] = useState<StudentMessage[]>(dataService.getMessages());
   const [documents, setDocuments] = useState<TeacherDocument[]>(dataService.getTeacherDocuments());
 
-  // Subscribe to state changes in dataService
+  // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
+    // Initial mount sync across all devices
+    dataService.setupAllRealtimeSync();
+    dataService.revalidateAndSyncAll(true);
+
     const unsubscribe = dataService.subscribe(() => {
       setStudents(dataService.getStudents());
       setClasses(dataService.getClasses());
@@ -183,7 +187,7 @@ export default function App() {
     };
     const handleFocus = () => {
       performInactivityCheck();
-      dataService.syncEtutsFromSupabase(true);
+      dataService.reconnectAllRealtime();
     };
     const handleOnline = () => {
       dataService.reconnectAllRealtime();
@@ -227,15 +231,19 @@ export default function App() {
       setCurrentStudent(session.user as Student);
     }
 
-    // Bilgisayar, tablet ve telefon arasında sınıf, öğrenci ve etüt verilerini anında buluttan çek
+    // Bilgisayar, tablet ve telefon arasında tek doğruluk kaynağı (Single Source of Truth):
+    // Tüm kayıtları (ödevler, yoklama, notlar, etütler, sınıflar, öğrenciler, mesajlar, dökümanlar) buluttan çek
     try {
-      await dataService.syncClassesFromSupabase(true);
-      await dataService.syncStudentsFromSupabase(true);
-      await dataService.syncEtutsFromSupabase(true);
-      await dataService.forceSyncTeachers();
-      setEtuts(dataService.getEtuts());
+      await dataService.revalidateAndSyncAll(false);
       setStudents(dataService.getStudents());
       setClasses(dataService.getClasses());
+      setHomeworks(dataService.getHomeworks());
+      setSubmissions(dataService.getSubmissions());
+      setEtuts(dataService.getEtuts());
+      setGrades(dataService.getGrades());
+      setAttendance(dataService.getAttendance());
+      setMessages(dataService.getMessages());
+      setDocuments(dataService.getTeacherDocuments());
     } catch {}
   };
 
@@ -275,13 +283,26 @@ export default function App() {
     setIsStudentAuthOpen(true);
   };
 
-  const handleStudentAuthSuccess = (student: Student) => {
+  const handleStudentAuthSuccess = async (student: Student) => {
     const session: AuthSession = { role: 'student', user: student };
     dataService.setAuthSession(session);
     setCurrentStudent(student);
     setRole('student');
     setTeacherTab('home');
     setIsStudentAuthOpen(false);
+
+    try {
+      await dataService.revalidateAndSyncAll(false);
+      setStudents(dataService.getStudents());
+      setClasses(dataService.getClasses());
+      setHomeworks(dataService.getHomeworks());
+      setSubmissions(dataService.getSubmissions());
+      setEtuts(dataService.getEtuts());
+      setGrades(dataService.getGrades());
+      setAttendance(dataService.getAttendance());
+      setMessages(dataService.getMessages());
+      setDocuments(dataService.getTeacherDocuments());
+    } catch {}
   };
 
   const unreadMessagesCount = messages.filter((m) => !m.read).length;

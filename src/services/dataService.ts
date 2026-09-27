@@ -979,24 +979,9 @@ export class DataService {
       this.seedInitialNotifications();
     }
 
-    // Background sync with Supabase (respects deleted students)
-    this.syncFromSupabase();
-
-    // Cross-device real-time and periodic sync for teacher registrations and approvals
-    this.setupTeachersRealtimeSync();
-    this.startPeriodicTeachersSync();
-
-    // Cross-device real-time and periodic sync for etuts (PC & Mobile sync)
-    this.setupEtutsRealtimeSync();
-    this.startPeriodicEtutsSync();
-
-    // Cross-device real-time and periodic sync for students (PC & Mobile live sync)
-    this.setupStudentsRealtimeSync();
-    this.startPeriodicStudentsSync();
-
-    // Cross-device real-time and periodic sync for classes (PC & Mobile live sync)
-    this.setupClassesRealtimeSync();
-    this.startPeriodicClassesSync();
+    // Background sync with Supabase and Realtime setup
+    this.setupAllRealtimeSync();
+    this.revalidateAndSyncAll(true);
 
     // Cross-tab synchronization for teacher registrations and status changes
     if (typeof window !== 'undefined') {
@@ -1018,104 +1003,81 @@ export class DataService {
       // Telefon, tablet veya bilgisayarda ekran açıldığında ya da internet bağlantısı geldiğinde anında eşitle
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-          this.reconnectAllRealtime();
+          this.revalidateAndSyncAll(true);
         }
       });
       window.addEventListener('online', () => {
-        this.reconnectAllRealtime();
+        this.revalidateAndSyncAll(true);
       });
       window.addEventListener('focus', () => {
-        this.syncEtutsFromSupabase(true);
+        this.revalidateAndSyncAll(true);
       });
     }
   }
 
-  // --- REAL-TIME TEACHER REGISTRATION & APPROVAL SYNC ---
-  private teacherRealtimeChannel: any = null;
-  private teacherSyncInterval: any = null;
-
-  public setupTeachersRealtimeSync() {
-    if (this.teacherRealtimeChannel) return;
-    try {
-      this.teacherRealtimeChannel = supabase
-        .channel('teachers-realtime-sync')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'homeworks' },
-          (payload) => {
-            const row = (payload.new || payload.old) as any;
-            if (
-              row &&
-              (row.id === '__system_sync_teachers__' ||
-                row.subject === 'TeacherSync' ||
-                (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_')))
-            ) {
-              this.syncTeachersFromSupabase(true);
-            }
-          }
-        )
-        .subscribe();
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for teachers:', e);
-    }
-  }
-
-  public startPeriodicTeachersSync() {
-    if (this.teacherSyncInterval) return;
-    if (typeof window !== 'undefined') {
-      // Periodic check every 4 seconds as robust fallback across different devices/browsers
-      this.teacherSyncInterval = window.setInterval(() => {
-        this.syncTeachersFromSupabase(true);
-      }, 4000);
-    }
-  }
-
-  // --- REAL-TIME & PERIODIC ETUT SYNC (PC & PHONE SYNCHRONIZATION) ---
-  private etutRealtimeChannel: any = null;
-  private etutSyncInterval: any = null;
-
-  public setupEtutsRealtimeSync() {
-    try {
-      if (this.etutRealtimeChannel) {
-        try {
-          supabase.removeChannel(this.etutRealtimeChannel);
-        } catch {}
-        this.etutRealtimeChannel = null;
-      }
-      this.etutRealtimeChannel = supabase
-        .channel(`etuts-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'etuts' },
-          (payload) => {
-            this.handleRemoteEtutRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncEtutsFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for etuts:', e);
-    }
-  }
-
-  public startPeriodicEtutsSync() {
-    if (this.etutSyncInterval) return;
-    if (typeof window !== 'undefined') {
-      // Hızlı bulut kontrolü (Bilgisayar, Tablet ve Telefon arasında anlık senkronizasyon için 3 saniye)
-      this.etutSyncInterval = window.setInterval(() => {
-        this.syncEtutsFromSupabase(true);
-      }, 3000);
-    }
-  }
-
-  // --- REAL-TIME STUDENT SYNC (MULTI-DEVICE INSTANT SYNC) ---
+  // --- REAL-TIME CHANNELS (MULTI-DEVICE INSTANT SYNCHRONIZATION) ---
   private studentRealtimeChannel: any = null;
-  private studentSyncInterval: any = null;
+  private classRealtimeChannel: any = null;
+  private etutRealtimeChannel: any = null;
+  private homeworkRealtimeChannel: any = null;
+  private attendanceRealtimeChannel: any = null;
+  private gradeRealtimeChannel: any = null;
+  private messageRealtimeChannel: any = null;
+  private syncPollInterval: any = null;
+  private classSyncInterval: any = null;
 
-  public setupStudentsRealtimeSync() {
+  public setupAllRealtimeSync(): void {
+    this.setupStudentsRealtimeSync();
+    this.setupClassesRealtimeSync();
+    this.setupEtutsRealtimeSync();
+    this.setupHomeworksRealtimeSync();
+    this.setupAttendanceRealtimeSync();
+    this.setupGradesRealtimeSync();
+    this.setupMessagesRealtimeSync();
+    this.startPeriodicSync();
+  }
+
+  public unsubscribeAllRealtime(): void {
+    const channels = [
+      this.studentRealtimeChannel,
+      this.classRealtimeChannel,
+      this.etutRealtimeChannel,
+      this.homeworkRealtimeChannel,
+      this.attendanceRealtimeChannel,
+      this.gradeRealtimeChannel,
+      this.messageRealtimeChannel,
+    ];
+    channels.forEach((ch) => {
+      if (ch) {
+        try { supabase.removeChannel(ch); } catch {}
+      }
+    });
+    this.studentRealtimeChannel = null;
+    this.classRealtimeChannel = null;
+    this.etutRealtimeChannel = null;
+    this.homeworkRealtimeChannel = null;
+    this.attendanceRealtimeChannel = null;
+    this.gradeRealtimeChannel = null;
+    this.messageRealtimeChannel = null;
+
+    if (this.syncPollInterval) {
+      clearInterval(this.syncPollInterval);
+      this.syncPollInterval = null;
+    }
+  }
+
+  public startPeriodicSync(): void {
+    if (this.syncPollInterval) return;
+    if (typeof window !== 'undefined') {
+      // Arka plan otomatik tazeleme: 5 saniyede bir hafif kontrol
+      this.syncPollInterval = window.setInterval(() => {
+        this.revalidateAndSyncAll(true);
+      }, 5000);
+    }
+  }
+
+  // --- 1. STUDENT REALTIME LISTENER ---
+  public setupStudentsRealtimeSync(): void {
     try {
       if (this.studentRealtimeChannel) {
         try { supabase.removeChannel(this.studentRealtimeChannel); } catch {}
@@ -1140,14 +1102,142 @@ export class DataService {
     }
   }
 
-  public startPeriodicStudentsSync() {
-    if (this.studentSyncInterval) return;
-    if (typeof window !== 'undefined') {
-      this.studentSyncInterval = window.setInterval(() => {
-        this.syncStudentsFromSupabase(true);
-      }, 4000);
+  // --- 2. ETUT REALTIME LISTENER ---
+  public setupEtutsRealtimeSync(): void {
+    try {
+      if (this.etutRealtimeChannel) {
+        try { supabase.removeChannel(this.etutRealtimeChannel); } catch {}
+        this.etutRealtimeChannel = null;
+      }
+      this.etutRealtimeChannel = supabase
+        .channel(`etuts-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'etuts' },
+          (payload) => {
+            this.handleRemoteEtutRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncEtutsFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for etuts:', e);
     }
   }
+
+  // --- 3. HOMEWORK & SYSTEM PAYLOADS REALTIME LISTENER ---
+  public setupHomeworksRealtimeSync(): void {
+    try {
+      if (this.homeworkRealtimeChannel) {
+        try { supabase.removeChannel(this.homeworkRealtimeChannel); } catch {}
+        this.homeworkRealtimeChannel = null;
+      }
+      this.homeworkRealtimeChannel = supabase
+        .channel(`homeworks-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'homeworks' },
+          (payload) => {
+            this.handleRemoteHomeworkRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncHomeworksFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for homeworks:', e);
+    }
+  }
+
+  // --- 4. ATTENDANCE REALTIME LISTENER ---
+  public setupAttendanceRealtimeSync(): void {
+    try {
+      if (this.attendanceRealtimeChannel) {
+        try { supabase.removeChannel(this.attendanceRealtimeChannel); } catch {}
+        this.attendanceRealtimeChannel = null;
+      }
+      this.attendanceRealtimeChannel = supabase
+        .channel(`attendance-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'attendance' },
+          (payload) => {
+            this.handleRemoteAttendanceRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncAttendanceFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for attendance:', e);
+    }
+  }
+
+  // --- 5. GRADES REALTIME LISTENER ---
+  public setupGradesRealtimeSync(): void {
+    try {
+      if (this.gradeRealtimeChannel) {
+        try { supabase.removeChannel(this.gradeRealtimeChannel); } catch {}
+        this.gradeRealtimeChannel = null;
+      }
+      this.gradeRealtimeChannel = supabase
+        .channel(`grades-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'grades' },
+          (payload) => {
+            this.handleRemoteGradeRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncGradesFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for grades:', e);
+    }
+  }
+
+  // --- 6. MESSAGES REALTIME LISTENER ---
+  public setupMessagesRealtimeSync(): void {
+    try {
+      if (this.messageRealtimeChannel) {
+        try { supabase.removeChannel(this.messageRealtimeChannel); } catch {}
+        this.messageRealtimeChannel = null;
+      }
+      this.messageRealtimeChannel = supabase
+        .channel(`messages-sync-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'messages' },
+          (payload) => {
+            this.handleRemoteMessageRealtimeEvent(payload);
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            this.syncMessagesFromSupabase(true);
+          }
+        });
+    } catch (e) {
+      console.warn('Realtime channel subscribe error for messages:', e);
+    }
+  }
+
+  public setupTeachersRealtimeSync() {
+    this.setupHomeworksRealtimeSync();
+  }
+  public startPeriodicTeachersSync() {}
+  public startPeriodicEtutsSync() {}
+  public startPeriodicStudentsSync() {}
 
   public handleRemoteStudentRealtimeEvent(payload: any) {
     try {
@@ -1222,9 +1312,6 @@ export class DataService {
   }
 
   // --- REAL-TIME CLASS SYNC (MULTI-DEVICE INSTANT SYNC) ---
-  private classRealtimeChannel: any = null;
-  private classSyncInterval: any = null;
-
   public setupClassesRealtimeSync() {
     try {
       if (this.classRealtimeChannel) {
@@ -1391,15 +1478,9 @@ export class DataService {
   }
 
   public reconnectAllRealtime() {
-    this.setupTeachersRealtimeSync();
-    this.setupEtutsRealtimeSync();
-    this.setupStudentsRealtimeSync();
-    this.setupClassesRealtimeSync();
-    this.syncTombstonesFromCloud();
-    this.syncClassesFromSupabase(true);
-    this.syncStudentsFromSupabase(true);
-    this.syncEtutsFromSupabase(true);
-    this.syncTeachersFromSupabase(true);
+    this.unsubscribeAllRealtime();
+    this.setupAllRealtimeSync();
+    this.revalidateAndSyncAll(true);
   }
 
   public handleRemoteEtutRealtimeEvent(payload: any) {
@@ -1480,6 +1561,348 @@ export class DataService {
     } catch (err) {
       console.warn('[EtutRealtime] Error handling realtime etut payload:', err);
     }
+  }
+
+  // --- HOMEWORK & SYSTEM REALTIME EVENT HANDLER ---
+  public handleRemoteHomeworkRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType; // 'INSERT' | 'UPDATE' | 'DELETE'
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.deletedHomeworkIds.add(oldRow.id);
+          saveData(STORAGE_KEYS.DELETED_HOMEWORK, Array.from(this.deletedHomeworkIds));
+          this.homeworks = this.homeworks.filter((h) => h.id !== oldRow.id);
+          this.submissions = this.submissions.filter((s) => s.homeworkId !== oldRow.id);
+          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+          this.notify();
+        }
+        return;
+      }
+
+      const row = payload.new;
+      if (!row || !row.id) return;
+
+      // Check system payloads
+      if (row.id === '__system_sync_question_logs__') {
+        this.handleRemoteQuestionLogsPayload(row.description);
+        return;
+      }
+      if (row.id === '__system_sync_question_targets__') {
+        this.handleRemoteQuestionTargetsPayload(row.description);
+        return;
+      }
+      if (row.id === '__system_sync_documents__') {
+        try {
+          const parsed = JSON.parse(row.description);
+          if (Array.isArray(parsed)) {
+            this.documents = parsed;
+            saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
+            this.notify();
+          }
+        } catch {}
+        return;
+      }
+      if (
+        row.id === '__system_sync_teachers__' ||
+        row.subject === 'TeacherSync' ||
+        (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_'))
+      ) {
+        this.syncTeachersFromSupabase(true);
+        return;
+      }
+      if (row.id === '__system_sync_tombstones__') {
+        this.handleRemoteTombstonesPayload(row.description);
+        return;
+      }
+      if (typeof row.id === 'string' && row.id.startsWith('__system_sync_')) {
+        return;
+      }
+
+      if (this.deletedHomeworkIds.has(row.id)) return;
+
+      let assignedTo: 'all' | string[] = 'all';
+      if (row.assigned_to) {
+        if (row.assigned_to === 'all') {
+          assignedTo = 'all';
+        } else if (typeof row.assigned_to === 'string' && row.assigned_to.startsWith('[')) {
+          try {
+            assignedTo = JSON.parse(row.assigned_to);
+          } catch {
+            assignedTo = [row.assigned_to];
+          }
+        } else {
+          assignedTo = [row.assigned_to];
+        }
+      }
+
+      const mappedHw: Homework = {
+        id: row.id,
+        title: row.title || 'Ödev',
+        description: row.description || '',
+        subject: row.subject || 'Genel',
+        learningOutcomes: Array.isArray(row.learning_outcomes) ? row.learning_outcomes : [],
+        dueDate: row.due_date || new Date().toISOString(),
+        createdAt: row.created_at || new Date().toISOString(),
+        assignedDate: row.created_at || new Date().toISOString(),
+        classId: row.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
+        assignedTo,
+        teacherId: row.teacher_id || 'teacher-1',
+        teacherName: row.teacher_name || 'Öğretmen',
+        submissions: Array.isArray(row.submissions) ? row.submissions : [],
+      };
+
+      if (Array.isArray(row.submissions) && row.submissions.length > 0) {
+        row.submissions.forEach((sub: HomeworkSubmission) => {
+          if (sub && sub.id) {
+            const sIdx = this.submissions.findIndex((s) => s.id === sub.id);
+            if (sIdx !== -1) {
+              this.submissions[sIdx] = sub;
+            } else {
+              this.submissions.unshift(sub);
+            }
+          }
+        });
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      }
+
+      const exIdx = this.homeworks.findIndex((h) => h.id === row.id);
+      if (exIdx !== -1) {
+        this.homeworks[exIdx] = { ...this.homeworks[exIdx], ...mappedHw };
+      } else {
+        this.homeworks.unshift(mappedHw);
+      }
+
+      this.homeworks.sort(
+        (a, b) =>
+          new Date(b.createdAt || b.dueDate || 0).getTime() -
+          new Date(a.createdAt || a.dueDate || 0).getTime()
+      );
+      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      this.notify();
+    } catch (e) {
+      console.warn('[HomeworkRealtime] Error:', e);
+    }
+  }
+
+  // --- ATTENDANCE REALTIME EVENT HANDLER ---
+  public handleRemoteAttendanceRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType;
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.attendance = this.attendance.filter((a) => a.id !== oldRow.id);
+          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+          this.notify();
+        }
+        return;
+      }
+      const row = payload.new;
+      if (!row || !row.id) return;
+
+      const record: AttendanceRecord = {
+        id: row.id,
+        classId: row.class_id,
+        date: row.date,
+        subject: row.subject || 'Genel',
+        records: Array.isArray(row.records) ? row.records : [],
+      };
+
+      const exIdx = this.attendance.findIndex((a) => a.id === row.id);
+      if (exIdx !== -1) {
+        this.attendance[exIdx] = record;
+      } else {
+        this.attendance.unshift(record);
+      }
+      this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+      this.notify();
+    } catch (e) {
+      console.warn('[AttendanceRealtime] Error:', e);
+    }
+  }
+
+  // --- GRADES REALTIME EVENT HANDLER ---
+  public handleRemoteGradeRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType;
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.grades = this.grades.filter((g) => g.id !== oldRow.id);
+          saveData(STORAGE_KEYS.GRADES, this.grades);
+          this.notify();
+        }
+        return;
+      }
+      const row = payload.new;
+      if (!row || !row.id) return;
+
+      const student = this.students.find((s) => s.id === row.student_id);
+      const grade: GradeRecord = {
+        id: row.id,
+        studentId: row.student_id,
+        studentName: student?.name,
+        classId: row.class_id,
+        subject: row.subject,
+        score: row.score,
+        examType: row.exam_type || '1. Yazılı',
+        date: row.date,
+        remarks: row.remarks,
+      };
+
+      const exIdx = this.grades.findIndex((g) => g.id === row.id);
+      if (exIdx !== -1) {
+        this.grades[exIdx] = grade;
+      } else {
+        this.grades.unshift(grade);
+      }
+      this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      saveData(STORAGE_KEYS.GRADES, this.grades);
+      this.notify();
+    } catch (e) {
+      console.warn('[GradeRealtime] Error:', e);
+    }
+  }
+
+  // --- MESSAGES REALTIME EVENT HANDLER ---
+  public handleRemoteMessageRealtimeEvent(payload: any) {
+    try {
+      const eventType = payload.eventType;
+      if (eventType === 'DELETE') {
+        const oldRow = payload.old;
+        if (oldRow?.id) {
+          this.messages = this.messages.filter((m) => m.id !== oldRow.id);
+          saveData(STORAGE_KEYS.MESSAGES, this.messages);
+          this.notify();
+        }
+        return;
+      }
+      const row = payload.new;
+      if (!row || !row.id) return;
+
+      const msg: StudentMessage = {
+        id: row.id,
+        studentId: row.student_id,
+        studentName: row.student_name,
+        studentClass: row.student_class,
+        studentAvatar: row.student_avatar,
+        subject: row.subject,
+        text: row.text,
+        linkUrl: row.link_url,
+        createdAt: row.created_at || new Date().toISOString(),
+        read: Boolean(row.read),
+        teacherReply: row.teacher_reply,
+        repliedAt: row.replied_at,
+      };
+
+      const exIdx = this.messages.findIndex((m) => m.id === row.id);
+      if (exIdx !== -1) {
+        this.messages[exIdx] = msg;
+      } else {
+        this.messages.unshift(msg);
+      }
+      this.messages.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      this.notify();
+    } catch (e) {
+      console.warn('[MessageRealtime] Error:', e);
+    }
+  }
+
+  // --- QUESTION LOGS & TARGETS REALTIME DESERIALIZERS ---
+  public handleRemoteQuestionLogsPayload(raw: string) {
+    if (!raw) return;
+    try {
+      const remoteLogs: StudentQuestionLog[] = JSON.parse(raw);
+      if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
+        let changed = false;
+        remoteLogs.forEach((rl) => {
+          const exIdx = this.questionLogs.findIndex((l) => l.id === rl.id);
+          if (exIdx === -1) {
+            this.questionLogs.push(rl);
+            changed = true;
+          } else {
+            this.questionLogs[exIdx] = rl;
+          }
+        });
+        if (changed) {
+          this.questionLogs.sort(
+            (a, b) =>
+              new Date(b.date || b.createdAt || 0).getTime() -
+              new Date(a.date || a.createdAt || 0).getTime()
+          );
+          saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+          this.notify();
+        }
+      }
+    } catch {}
+  }
+
+  public handleRemoteQuestionTargetsPayload(raw: string) {
+    if (!raw) return;
+    try {
+      const remoteTargets: WeeklyQuestionTarget[] = JSON.parse(raw);
+      if (Array.isArray(remoteTargets) && remoteTargets.length > 0) {
+        let changed = false;
+        remoteTargets.forEach((rt) => {
+          const exIdx = this.weeklyQuestionTargets.findIndex(
+            (t) => t.id === rt.id || t.studentId === rt.studentId
+          );
+          if (exIdx === -1) {
+            this.weeklyQuestionTargets.push(rt);
+            changed = true;
+          } else if (
+            new Date(rt.assignedDate || 0).getTime() >=
+            new Date(this.weeklyQuestionTargets[exIdx].assignedDate || 0).getTime()
+          ) {
+            this.weeklyQuestionTargets[exIdx] = rt;
+            changed = true;
+          }
+        });
+        if (changed) {
+          saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+          this.notify();
+        }
+      }
+    } catch {}
+  }
+
+  public handleRemoteTombstonesPayload(raw: string) {
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      let changed = false;
+      if (Array.isArray(parsed.deletedStudentIds)) {
+        parsed.deletedStudentIds.forEach((id: string) => {
+          if (id && !this.deletedStudentIds.has(id)) {
+            this.deletedStudentIds.add(id);
+            changed = true;
+          }
+        });
+      }
+      if (Array.isArray(parsed.deletedClassIds)) {
+        parsed.deletedClassIds.forEach((id: string) => {
+          if (id && !this.deletedClassIds.has(id)) {
+            this.deletedClassIds.add(id);
+            changed = true;
+          }
+        });
+      }
+      if (changed) {
+        saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
+        saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+        this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
+        this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        saveData(STORAGE_KEYS.CLASSES, this.classes);
+        this.notify();
+      }
+    } catch {}
   }
 
   public async pushEtutToSupabase(etut: Etut): Promise<boolean> {
@@ -1728,84 +2151,39 @@ export class DataService {
     }
   }
 
-  // --- SUPABASE BACKGROUND SYNC ---
-  private async syncFromSupabase() {
+  // --- CENTRAL DATABASE AS SINGLE SOURCE OF TRUTH (CROSS-DEVICE SYNC) ---
+
+  public async syncHomeworksFromSupabase(isBackground = false): Promise<Homework[]> {
     try {
-      // 0. Synchronize tombstones first
-      await this.syncTombstonesFromCloud();
-
-      // 1. Synchronize teachers across devices
-      await this.syncTeachersFromSupabase(true);
-
-      // 2. Synchronize students from Supabase (Central DB is source of truth, never overwrite with stale cache)
-      await this.syncStudentsFromSupabase(true);
-
-      // 3. Synchronize classes with Supabase
-      await this.syncClassesFromSupabase(true);
-
-      // 4. Synchronize etuts with Supabase (Cross-device etuts & attendance)
-      await this.syncEtutsFromSupabase(true);
-
-      // 5. Sync homeworks & cross-device system payloads (question targets and logs)
       const { data: remoteHws, error: errHws } = await supabase.from('homeworks').select('*');
-      if (!errHws && remoteHws && remoteHws.length > 0) {
-        let hwsChanged = false;
+      if (errHws) {
+        if (!isBackground) console.warn('[HomeworkSync] Error fetching homeworks from Supabase:', errHws);
+        return this.homeworks;
+      }
+
+      if (remoteHws && Array.isArray(remoteHws)) {
+        const validHws: Homework[] = [];
+        const subMap = new Map<string, HomeworkSubmission>();
+        this.submissions.forEach((s) => subMap.set(s.id, s));
+
         remoteHws.forEach((rh: any) => {
-          // Check for cross-device system sync payloads
+          // Check for system sync payloads
           if (rh.id === '__system_sync_question_targets__') {
-            try {
-              const remoteTargets: WeeklyQuestionTarget[] = JSON.parse(rh.description);
-              if (Array.isArray(remoteTargets) && remoteTargets.length > 0) {
-                let targetsChanged = false;
-                remoteTargets.forEach((rt) => {
-                  const exIdx = this.weeklyQuestionTargets.findIndex(
-                    (t) => t.id === rt.id || t.studentId === rt.studentId
-                  );
-                  if (exIdx === -1) {
-                    this.weeklyQuestionTargets.push(rt);
-                    targetsChanged = true;
-                  } else if (
-                    new Date(rt.assignedDate).getTime() >=
-                    new Date(this.weeklyQuestionTargets[exIdx].assignedDate).getTime()
-                  ) {
-                    this.weeklyQuestionTargets[exIdx] = rt;
-                    targetsChanged = true;
-                  }
-                });
-                if (targetsChanged) {
-                  saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-                  this.notify();
-                }
-              }
-            } catch (e) {}
+            this.handleRemoteQuestionTargetsPayload(rh.description);
             return;
           }
-
           if (rh.id === '__system_sync_question_logs__') {
-            try {
-              const remoteLogs: StudentQuestionLog[] = JSON.parse(rh.description);
-              if (Array.isArray(remoteLogs) && remoteLogs.length > 0) {
-                let logsChanged = false;
-                remoteLogs.forEach((rl) => {
-                  const exIdx = this.questionLogs.findIndex((l) => l.id === rl.id);
-                  if (exIdx === -1) {
-                    this.questionLogs.push(rl);
-                    logsChanged = true;
-                  }
-                });
-                if (logsChanged) {
-                  saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-                  this.notify();
-                }
-              }
-            } catch (e) {}
+            this.handleRemoteQuestionLogsPayload(rh.description);
             return;
           }
-
-          // Ignore teacher sync and system sync rows so they are not treated as student homeworks
+          if (rh.id === '__system_sync_tombstones__') {
+            this.handleRemoteTombstonesPayload(rh.description);
+            return;
+          }
           if (
             rh.id === '__system_sync_teachers__' ||
-            rh.id.startsWith('__teacher_sync_') ||
+            (typeof rh.id === 'string' && rh.id.startsWith('__teacher_sync_')) ||
+            (typeof rh.id === 'string' && rh.id.startsWith('__system_sync_')) ||
             rh.subject === 'TeacherSync' ||
             rh.subject === 'SystemSync'
           ) {
@@ -1813,141 +2191,264 @@ export class DataService {
           }
 
           if (this.deletedHomeworkIds.has(rh.id)) return;
-          const exIdx = this.homeworks.findIndex((h) => h.id === rh.id);
-          if (exIdx === -1) {
-            this.homeworks.push({
-              id: rh.id,
-              title: rh.title,
-              description: rh.description || '',
-              subject: rh.subject,
-              classId: rh.assigned_to || rh.class_id || 'class-default',
-              dueDate: rh.due_date,
-              assignedDate: rh.created_at || new Date().toISOString(),
-              teacherId: 'teacher-1',
-              teacherName: 'Öğretmen',
-              learningOutcomes: [],
+
+          // Process embedded submissions
+          if (Array.isArray(rh.submissions)) {
+            rh.submissions.forEach((sub: HomeworkSubmission) => {
+              if (sub && sub.id) subMap.set(sub.id, sub);
             });
-            hwsChanged = true;
           }
-        });
-        if (hwsChanged) {
-          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-          this.notify();
-        }
-      }
 
-      // Upload local homeworks to Supabase
-      const realHws = this.homeworks.filter((h) => !this.deletedHomeworkIds.has(h.id));
-      if (realHws.length > 0) {
-        const hwPayload = realHws.map((h) => ({
-          id: h.id,
-          title: h.title,
-          description: h.description,
-          subject: h.subject,
-          assigned_to: h.classId || 'class-default',
-          due_date: h.dueDate,
-        }));
-        await supabase.from('homeworks').upsert(hwPayload);
-      }
-
-      // Upload targets & question logs sync payloads to Supabase for cross-device persistence
-      if (this.weeklyQuestionTargets.length > 0) {
-        await supabase.from('homeworks').upsert({
-          id: '__system_sync_question_targets__',
-          title: 'Question Targets Sync',
-          description: JSON.stringify(this.weeklyQuestionTargets),
-          subject: 'SystemSync',
-          assigned_to: '__SYSTEM__',
-          due_date: '2099-12-31',
-        });
-      }
-      if (this.questionLogs.length > 0) {
-        await supabase.from('homeworks').upsert({
-          id: '__system_sync_question_logs__',
-          title: 'Question Logs Sync',
-          description: JSON.stringify(this.questionLogs.slice(-250)),
-          subject: 'SystemSync',
-          assigned_to: '__SYSTEM__',
-          due_date: '2099-12-31',
-        });
-      }
-
-      // 6. Sync attendance with Supabase
-      const { data: remoteAtt, error: errAtt } = await supabase.from('attendance').select('*');
-      if (!errAtt && remoteAtt && remoteAtt.length > 0) {
-        let attChanged = false;
-        remoteAtt.forEach((ra: any) => {
-          const exIdx = this.attendance.findIndex((a) => a.id === ra.id);
-          if (exIdx === -1) {
-            this.attendance.push({
-              id: ra.id,
-              classId: ra.class_id,
-              date: ra.date,
-              subject: ra.subject || 'Genel',
-              records: Array.isArray(ra.records) ? ra.records : [],
-            });
-            attChanged = true;
+          let assignedTo: 'all' | string[] = 'all';
+          if (rh.assigned_to) {
+            if (rh.assigned_to === 'all') {
+              assignedTo = 'all';
+            } else if (typeof rh.assigned_to === 'string' && rh.assigned_to.startsWith('[')) {
+              try {
+                assignedTo = JSON.parse(rh.assigned_to);
+              } catch {
+                assignedTo = [rh.assigned_to];
+              }
+            } else {
+              assignedTo = [rh.assigned_to];
+            }
           }
+
+          validHws.push({
+            id: rh.id,
+            title: rh.title || 'Ödev',
+            description: rh.description || '',
+            subject: rh.subject || 'Genel',
+            learningOutcomes: Array.isArray(rh.learning_outcomes) ? rh.learning_outcomes : [],
+            dueDate: rh.due_date || new Date().toISOString(),
+            createdAt: rh.created_at || new Date().toISOString(),
+            assignedDate: rh.created_at || new Date().toISOString(),
+            classId: rh.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
+            assignedTo,
+            teacherId: rh.teacher_id || 'teacher-1',
+            teacherName: rh.teacher_name || 'Öğretmen',
+            submissions: Array.isArray(rh.submissions) ? rh.submissions : [],
+          });
         });
-        if (attChanged) {
-          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-          this.notify();
-        }
-      }
-      if (this.attendance.length > 0) {
-        const attPayload = this.attendance.map((a) => ({
-          id: a.id,
-          class_id: a.classId,
-          date: a.date,
-          subject: a.subject || 'Genel',
-          records: a.records || [],
-        }));
-        await supabase.from('attendance').upsert(attPayload);
+
+        validHws.sort(
+          (a, b) =>
+            new Date(b.createdAt || b.dueDate || 0).getTime() -
+            new Date(a.createdAt || a.dueDate || 0).getTime()
+        );
+
+        this.homeworks = validHws;
+        this.submissions = Array.from(subMap.values());
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+        this.notify();
       }
 
-      // 7. Sync grades with Supabase
-      const { data: remoteGrades, error: errGrd } = await supabase.from('grades').select('*');
-      if (!errGrd && remoteGrades && remoteGrades.length > 0) {
-        let grdChanged = false;
-        remoteGrades.forEach((rg: any) => {
-          const exIdx = this.grades.findIndex((g) => g.id === rg.id);
-          if (exIdx === -1) {
-            this.grades.push({
-              id: rg.id,
-              studentId: rg.student_id,
-              classId: rg.class_id,
-              subject: rg.subject,
-              score: rg.score,
-              examType: (rg.exam_type as any) || '1. Yazılı',
-              date: rg.date,
-            });
-            grdChanged = true;
-          }
-        });
-        if (grdChanged) {
-          saveData(STORAGE_KEYS.GRADES, this.grades);
-          this.notify();
-        }
-      }
-      if (this.grades.length > 0) {
-        const grdPayload = this.grades.map((g) => ({
-          id: g.id,
-          student_id: g.studentId,
-          class_id: g.classId || 'c-1',
-          subject: g.subject,
-          score: g.score,
-          exam_type: g.examType || 'Yazılı',
-          date: g.date,
-        }));
-        await supabase.from('grades').upsert(grdPayload);
-      }
+      return this.homeworks;
     } catch (e) {
-      // Offline fallback is active
+      if (!isBackground) console.warn('[HomeworkSync] Exception:', e);
+      return this.homeworks;
     }
   }
 
+  public async syncAttendanceFromSupabase(isBackground = false): Promise<AttendanceRecord[]> {
+    try {
+      const { data: remoteAtt, error: errAtt } = await supabase
+        .from('attendance')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (errAtt) {
+        if (!isBackground) console.warn('[AttendanceSync] Error:', errAtt);
+        return this.attendance;
+      }
+
+      if (remoteAtt && Array.isArray(remoteAtt)) {
+        this.attendance = remoteAtt.map((ra: any) => ({
+          id: ra.id,
+          classId: ra.class_id,
+          date: ra.date,
+          subject: ra.subject || 'Genel',
+          records: Array.isArray(ra.records) ? ra.records : [],
+        }));
+
+        this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+        this.notify();
+      }
+
+      return this.attendance;
+    } catch (e) {
+      if (!isBackground) console.warn('[AttendanceSync] Exception:', e);
+      return this.attendance;
+    }
+  }
+
+  public async syncGradesFromSupabase(isBackground = false): Promise<GradeRecord[]> {
+    try {
+      const { data: remoteGrades, error: errGrd } = await supabase
+        .from('grades')
+        .select('*')
+        .order('date', { ascending: false });
+
+      if (errGrd) {
+        if (!isBackground) console.warn('[GradesSync] Error:', errGrd);
+        return this.grades;
+      }
+
+      if (remoteGrades && Array.isArray(remoteGrades)) {
+        this.grades = remoteGrades.map((rg: any) => {
+          const student = this.students.find((s) => s.id === rg.student_id);
+          return {
+            id: rg.id,
+            studentId: rg.student_id,
+            studentName: student?.name,
+            classId: rg.class_id,
+            subject: rg.subject,
+            score: rg.score,
+            examType: rg.exam_type || '1. Yazılı',
+            date: rg.date,
+            remarks: rg.remarks,
+          };
+        });
+
+        this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        saveData(STORAGE_KEYS.GRADES, this.grades);
+        this.notify();
+      }
+
+      return this.grades;
+    } catch (e) {
+      if (!isBackground) console.warn('[GradesSync] Exception:', e);
+      return this.grades;
+    }
+  }
+
+  public async syncMessagesFromSupabase(isBackground = false): Promise<StudentMessage[]> {
+    try {
+      const { data: remoteMsgs, error: errMsgs } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (errMsgs) {
+        if (!isBackground) console.warn('[MessagesSync] Error:', errMsgs);
+        return this.messages;
+      }
+
+      if (remoteMsgs && Array.isArray(remoteMsgs)) {
+        this.messages = remoteMsgs.map((rm: any) => ({
+          id: rm.id,
+          studentId: rm.student_id,
+          studentName: rm.student_name,
+          studentClass: rm.student_class,
+          studentAvatar: rm.student_avatar,
+          subject: rm.subject,
+          text: rm.text,
+          linkUrl: rm.link_url,
+          createdAt: rm.created_at || new Date().toISOString(),
+          read: Boolean(rm.read),
+          teacherReply: rm.teacher_reply,
+          repliedAt: rm.replied_at,
+        }));
+
+        this.messages.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+        this.notify();
+      }
+
+      return this.messages;
+    } catch (e) {
+      if (!isBackground) console.warn('[MessagesSync] Exception:', e);
+      return this.messages;
+    }
+  }
+
+  public async syncQuestionLogsAndTargetsFromSupabase(isBackground = false): Promise<void> {
+    try {
+      const { data: rows, error } = await supabase
+        .from('homeworks')
+        .select('id, description, subject')
+        .in('id', ['__system_sync_question_logs__', '__system_sync_question_targets__']);
+
+      if (error) {
+        if (!isBackground) console.warn('[QuestionLogsSync] Error:', error);
+        return;
+      }
+
+      if (rows && Array.isArray(rows)) {
+        rows.forEach((r) => {
+          if (r.id === '__system_sync_question_logs__') {
+            this.handleRemoteQuestionLogsPayload(r.description);
+          } else if (r.id === '__system_sync_question_targets__') {
+            this.handleRemoteQuestionTargetsPayload(r.description);
+          }
+        });
+      }
+    } catch (e) {
+      if (!isBackground) console.warn('[QuestionLogsSync] Exception:', e);
+    }
+  }
+
+  public async syncTeacherDocumentsFromSupabase(isBackground = false): Promise<TeacherDocument[]> {
+    try {
+      const { data: rows, error } = await supabase
+        .from('homeworks')
+        .select('description')
+        .eq('id', '__system_sync_documents__');
+
+      if (error) {
+        if (!isBackground) console.warn('[DocumentsSync] Error:', error);
+        return this.documents;
+      }
+
+      if (rows && rows.length > 0 && rows[0]?.description) {
+        try {
+          const parsed = JSON.parse(rows[0].description);
+          if (Array.isArray(parsed)) {
+            this.documents = parsed;
+            saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
+            this.notify();
+          }
+        } catch {}
+      }
+      return this.documents;
+    } catch (e) {
+      if (!isBackground) console.warn('[DocumentsSync] Exception:', e);
+      return this.documents;
+    }
+  }
+
+  public async revalidateAndSyncAll(isBackground = false): Promise<void> {
+    try {
+      this.setupAllRealtimeSync();
+      await Promise.allSettled([
+        this.syncTombstonesFromCloud(),
+        this.syncClassesFromSupabase(isBackground),
+        this.syncStudentsFromSupabase(isBackground),
+        this.syncEtutsFromSupabase(isBackground),
+        this.syncHomeworksFromSupabase(isBackground),
+        this.syncAttendanceFromSupabase(isBackground),
+        this.syncGradesFromSupabase(isBackground),
+        this.syncMessagesFromSupabase(isBackground),
+        this.syncQuestionLogsAndTargetsFromSupabase(isBackground),
+        this.syncTeacherDocumentsFromSupabase(isBackground),
+        this.syncTeachersFromSupabase(isBackground),
+      ]);
+      this.notify();
+    } catch (e) {
+      if (!isBackground) console.warn('[RevalidateAndSyncAll] Error:', e);
+    }
+  }
+
+  private async syncFromSupabase() {
+    await this.revalidateAndSyncAll(true);
+  }
+
   public async syncAllTeacherData(): Promise<void> {
-    await this.syncFromSupabase();
+    await this.revalidateAndSyncAll(false);
   }
 
   // --- AUTH & TEACHER MANAGEMENT ---
@@ -3053,10 +3554,14 @@ export class DataService {
       } catch (e) {
         console.error('SessionStorage set error:', e);
       }
+      // Oturum açıldığında anlık dinleyicileri bağla ve bulut veritabanından en güncel verileri çek
+      this.setupAllRealtimeSync();
+      this.revalidateAndSyncAll(true);
     } else {
       try {
         sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
       } catch {}
+      this.unsubscribeAllRealtime();
     }
     try {
       localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -3065,6 +3570,7 @@ export class DataService {
   }
 
   public logout(): void {
+    this.unsubscribeAllRealtime();
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -3734,23 +4240,29 @@ export class DataService {
       saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     }
 
-    // Also attempt async upsert to Supabase with valid schema fields
-    supabase
-      .from('students')
-      .upsert([
-        {
-          id: newStudent.id,
-          name: newStudent.name,
-          student_number: newStudent.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-          class_id: newStudent.classId || 'class-default',
-          class_name: newStudent.className || 'Genel',
-          email: newStudent.email || null,
-          phone: newStudent.phone || null,
-          avatar: newStudent.avatar || null,
-          registered_at: newStudent.createdAt,
-        },
-      ])
-      .then();
+    // Direct central database upsert
+    try {
+      supabase
+        .from('students')
+        .upsert([
+          {
+            id: newStudent.id,
+            name: newStudent.name,
+            student_number: newStudent.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
+            class_id: newStudent.classId || 'class-default',
+            class_name: newStudent.className || 'Genel',
+            email: newStudent.email || null,
+            phone: newStudent.phone || null,
+            avatar: newStudent.avatar || null,
+            registered_at: newStudent.createdAt,
+          },
+        ])
+        .then(({ error }) => {
+          if (error) console.error('[StudentsSync] Error upserting student:', error);
+        });
+    } catch (e) {
+      console.warn('[StudentsSync] Exception upserting student:', e);
+    }
 
     this.notify();
     return newStudent;
@@ -3861,7 +4373,7 @@ export class DataService {
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
 
-    // Attempt async upsert to Supabase for bulk records with matching columns
+    // Direct central database upsert with await
     if (createdList.length > 0) {
       const payload = createdList.map((s) => ({
         id: s.id,
@@ -3874,14 +4386,23 @@ export class DataService {
         avatar: s.avatar || null,
         registered_at: s.createdAt,
       }));
-      supabase.from('students').upsert(payload).then();
+      try {
+        supabase
+          .from('students')
+          .upsert(payload)
+          .then(({ error }) => {
+            if (error) console.error('[StudentsSync] Error bulk upserting students to Supabase:', error);
+          });
+      } catch (e) {
+        console.warn('[StudentsSync] Exception bulk upserting students:', e);
+      }
     }
 
     this.notify();
     return createdList;
   }
 
-  public updateStudent(id: string, updates: Partial<Student>): void {
+  public async updateStudent(id: string, updates: Partial<Student>): Promise<void> {
     if (updates.email !== undefined) {
       updates.email = cleanStudentEmail(updates.email);
     }
@@ -3891,25 +4412,30 @@ export class DataService {
     }
     this.students = this.students.map((s) => (s.id === id ? { ...s, ...updates } : s));
     saveData(STORAGE_KEYS.STUDENTS, this.students);
+    this.notify();
 
     const updated = this.students.find((s) => s.id === id);
     if (updated) {
-      supabase
-        .from('students')
-        .upsert([
-          {
-            id: updated.id,
-            name: updated.name,
-            student_number: updated.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-            class_id: updated.classId || 'class-default',
-            class_name: updated.className || 'Genel',
-            email: updated.email || null,
-            phone: updated.phone || null,
-            avatar: updated.avatar || null,
-            registered_at: updated.createdAt || new Date().toISOString(),
-          },
-        ])
-        .then();
+      try {
+        const { error } = await supabase
+          .from('students')
+          .upsert([
+            {
+              id: updated.id,
+              name: updated.name,
+              student_number: updated.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
+              class_id: updated.classId || 'class-default',
+              class_name: updated.className || 'Genel',
+              email: updated.email || null,
+              phone: updated.phone || null,
+              avatar: updated.avatar || null,
+              registered_at: updated.createdAt || new Date().toISOString(),
+            },
+          ]);
+        if (error) console.error('[StudentsSync] Error updating student in Supabase:', error);
+      } catch (e) {
+        console.warn('[StudentsSync] Exception updating student:', e);
+      }
     }
 
     const currentSession = this.getAuthSession();
@@ -3999,55 +4525,81 @@ export class DataService {
   }
 
   // --- HOMEWORK ---
-  public createHomework(homeworkData: Omit<Homework, 'id' | 'createdAt'>): Homework {
+  public async createHomework(homeworkData: Omit<Homework, 'id' | 'createdAt'>): Promise<Homework> {
     const session = this.getAuthSession();
     const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
+    const nowIso = new Date().toISOString();
     const newHw: Homework = {
       ...homeworkData,
       id: `hw-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       teacherId: homeworkData.teacherId || currentTeacher?.id,
       createdByName: homeworkData.createdByName || currentTeacher?.name || 'Öğretmen',
+      submissions: [],
     };
     this.homeworks.unshift(newHw);
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
 
     // Otomatik Öğrenci Bildirimi ve E-Posta Gönderimi
     this.dispatchHomeworkNotificationsAndEmails(newHw);
-
-    // Cross-device Supabase push
-    supabase.from('homeworks').upsert({
-      id: newHw.id,
-      title: newHw.title,
-      description: newHw.description || '',
-      subject: newHw.subject,
-      assigned_to: newHw.classId || 'class-default',
-      due_date: newHw.dueDate,
-    }).then();
-
     this.notify();
+
+    // Cross-device Supabase push with await confirmation
+    try {
+      const assignedVal = Array.isArray(newHw.assignedTo)
+        ? JSON.stringify(newHw.assignedTo)
+        : (newHw.assignedTo || newHw.classId || 'class-default');
+
+      const { error } = await supabase.from('homeworks').upsert({
+        id: newHw.id,
+        title: newHw.title,
+        description: newHw.description || '',
+        subject: newHw.subject,
+        assigned_to: assignedVal,
+        class_id: newHw.classId || 'class-default',
+        due_date: newHw.dueDate,
+        learning_outcomes: newHw.learningOutcomes || [],
+        submissions: [],
+      });
+      if (error) console.error('[HomeworkSync] Error creating homework in Supabase:', error);
+    } catch (err) {
+      console.error('[HomeworkSync] Exception creating homework:', err);
+    }
+
     return newHw;
   }
 
-  public updateHomework(id: string, updates: Partial<Homework>): void {
+  public async updateHomework(id: string, updates: Partial<Homework>): Promise<void> {
     this.homeworks = this.homeworks.map((h) => (h.id === id ? { ...h, ...updates } : h));
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
     this.notify();
 
     const updated = this.homeworks.find((h) => h.id === id);
     if (updated) {
-      supabase.from('homeworks').upsert({
-        id: updated.id,
-        title: updated.title,
-        description: updated.description || '',
-        subject: updated.subject,
-        assigned_to: updated.classId || 'class-default',
-        due_date: updated.dueDate,
-      }).then();
+      try {
+        const assignedVal = Array.isArray(updated.assignedTo)
+          ? JSON.stringify(updated.assignedTo)
+          : (updated.assignedTo || updated.classId || 'class-default');
+
+        const { error } = await supabase.from('homeworks').upsert({
+          id: updated.id,
+          title: updated.title,
+          description: updated.description || '',
+          subject: updated.subject,
+          assigned_to: assignedVal,
+          class_id: updated.classId || 'class-default',
+          due_date: updated.dueDate,
+          learning_outcomes: updated.learningOutcomes || [],
+          submissions: updated.submissions || this.submissions.filter((s) => s.homeworkId === id) || [],
+        });
+        if (error) console.error('[HomeworkSync] Error updating homework in Supabase:', error);
+      } catch (err) {
+        console.error('[HomeworkSync] Exception updating homework:', err);
+      }
     }
   }
 
-  public deleteHomework(id: string): void {
+  public async deleteHomework(id: string): Promise<void> {
     this.deletedHomeworkIds.add(id);
     saveData(STORAGE_KEYS.DELETED_HOMEWORK, Array.from(this.deletedHomeworkIds));
 
@@ -4057,17 +4609,22 @@ export class DataService {
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
     this.notify();
 
-    supabase.from('homeworks').delete().eq('id', id).then();
+    try {
+      const { error } = await supabase.from('homeworks').delete().eq('id', id);
+      if (error) console.error('[HomeworkSync] Error deleting homework from Supabase:', error);
+    } catch (err) {
+      console.error('[HomeworkSync] Exception deleting homework:', err);
+    }
   }
 
   // --- SUBMISSIONS ---
-  public submitHomework(
+  public async submitHomework(
     homeworkId: string,
     studentId: string,
     notes: string,
     attachmentLink?: string,
     resources?: HomeworkResource[]
-  ): HomeworkSubmission {
+  ): Promise<HomeworkSubmission> {
     const student = this.students.find((s) => s.id === studentId);
     const homework = this.homeworks.find((h) => h.id === homeworkId);
 
@@ -4099,44 +4656,88 @@ export class DataService {
     }
 
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+
+    // Update homework embedded submissions and sync to Supabase
+    const hw = this.homeworks.find((h) => h.id === homeworkId);
+    if (hw) {
+      hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
+      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      try {
+        await supabase.from('homeworks').upsert({
+          id: hw.id,
+          title: hw.title,
+          description: hw.description || '',
+          subject: hw.subject,
+          assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
+          class_id: hw.classId || 'class-default',
+          due_date: hw.dueDate,
+          submissions: hw.submissions,
+        });
+      } catch (err) {
+        console.warn('[SubmissionsSync] Exception updating homework submissions:', err);
+      }
+    }
+
     this.notify();
     return submission;
   }
 
-  public gradeSubmission(submissionId: string, score: number, feedback: string): void {
+  public async gradeSubmission(submissionId: string, score: number, feedback: string): Promise<void> {
     this.submissions = this.submissions.map((s) =>
       s.id === submissionId ? { ...s, score, feedback } : s
     );
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+
+    const sub = this.submissions.find((s) => s.id === submissionId);
+    if (sub) {
+      const hw = this.homeworks.find((h) => h.id === sub.homeworkId);
+      if (hw) {
+        hw.submissions = this.submissions.filter((s) => s.homeworkId === hw.id);
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+        try {
+          await supabase.from('homeworks').upsert({
+            id: hw.id,
+            title: hw.title,
+            description: hw.description || '',
+            subject: hw.subject,
+            assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
+            class_id: hw.classId || 'class-default',
+            due_date: hw.dueDate,
+            submissions: hw.submissions,
+          });
+        } catch (err) {
+          console.warn('[SubmissionsSync] Exception updating graded submission:', err);
+        }
+      }
+    }
+
     this.notify();
   }
 
-  public updateHomeworkCheckStatus(
+  public async updateHomeworkCheckStatus(
     homeworkId: string,
     studentId: string,
     checkStatus: HomeworkCheckStatus,
     note?: string
-  ): HomeworkSubmission {
+  ): Promise<HomeworkSubmission> {
     const student = this.students.find((s) => s.id === studentId);
     const existingIndex = this.submissions.findIndex(
       (s) => s.homeworkId === homeworkId && s.studentId === studentId
     );
 
     const submissionStatus = checkStatus === 'yapti' ? 'on_time' : 'not_submitted';
+    let targetSub: HomeworkSubmission;
 
     if (existingIndex >= 0) {
-      const updated: HomeworkSubmission = {
+      targetSub = {
         ...this.submissions[existingIndex],
         checkStatus,
         status: checkStatus === 'yapti' ? 'on_time' : this.submissions[existingIndex].status,
         notes: note !== undefined ? note : this.submissions[existingIndex].notes,
       };
-      this.submissions[existingIndex] = updated;
-      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-      this.notify();
-      return updated;
+      this.submissions[existingIndex] = targetSub;
     } else {
-      const newSub: HomeworkSubmission = {
+      targetSub = {
         id: `sub-${Date.now()}-${studentId}`,
         homeworkId,
         studentId,
@@ -4146,21 +4747,44 @@ export class DataService {
         checkStatus,
         notes: note || (checkStatus === 'yapti' ? 'Ödev tamamlandı' : checkStatus === 'eksik' ? 'Eksik ödev' : checkStatus === 'yapmadi' ? 'Ödev yapılmadı' : checkStatus === 'izinli' ? 'İzinli' : 'Derse gelmedi'),
       };
-      this.submissions.unshift(newSub);
-      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-      this.notify();
-      return newSub;
+      this.submissions.unshift(targetSub);
     }
+
+    saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+
+    const hw = this.homeworks.find((h) => h.id === homeworkId);
+    if (hw) {
+      hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
+      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      try {
+        await supabase.from('homeworks').upsert({
+          id: hw.id,
+          title: hw.title,
+          description: hw.description || '',
+          subject: hw.subject,
+          assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
+          class_id: hw.classId || 'class-default',
+          due_date: hw.dueDate,
+          submissions: hw.submissions,
+        });
+      } catch (err) {
+        console.warn('[SubmissionsSync] Exception updating homework check status:', err);
+      }
+    }
+
+    this.notify();
+    return targetSub;
   }
 
   // --- ETUTS ---
-  public createEtut(etutData: Omit<Etut, 'id' | 'createdAt'>): Etut {
+  public async createEtut(etutData: Omit<Etut, 'id' | 'createdAt'>): Promise<Etut> {
     const session = this.getAuthSession();
     const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
+    const nowIso = new Date().toISOString();
     const newEtut: Etut = {
       ...etutData,
       id: `etut-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       lessonPeriod: etutData.lessonPeriod || 'Ders',
       teacherId: etutData.teacherId || currentTeacher?.id,
       teacherName: etutData.teacherName || currentTeacher?.name || 'Öğretmen',
@@ -4178,16 +4802,15 @@ export class DataService {
 
     // Otomatik Öğrenci Bildirimi ve E-Posta Gönderimi
     this.dispatchEtutNotificationsAndEmails(newEtut);
-
     this.notify();
 
-    // Supabase anında bulut senkronizasyonu - Masaüstü & Telefon arasında anında görünürlük
-    this.pushEtutToSupabase(newEtut);
+    // Supabase anında bulut senkronizasyonu ile sunucu yanıtını doğrula
+    await this.pushEtutToSupabase(newEtut);
 
     return newEtut;
   }
 
-  public updateEtut(id: string, updates: Partial<Etut>): void {
+  public async updateEtut(id: string, updates: Partial<Etut>): Promise<void> {
     this.etuts = this.etuts.map((e) => (e.id === id ? { ...e, ...updates } : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
@@ -4199,16 +4822,16 @@ export class DataService {
 
     this.notify();
 
-    // Push to Supabase
+    // Push to Supabase with await
     if (updated) {
-      this.pushEtutToSupabase(updated);
+      await this.pushEtutToSupabase(updated);
     }
   }
 
-  public updateEtutAttendance(
+  public async updateEtutAttendance(
     etutId: string,
     attendanceData: Record<string, EtutStudentAttendance>
-  ): void {
+  ): Promise<void> {
     const etutIndex = this.etuts.findIndex((e) => e.id === etutId);
     if (etutIndex === -1) return;
 
@@ -4242,7 +4865,7 @@ export class DataService {
         this.students.find((s) => s.id === attendanceRecordsList[0]?.studentId)?.classId ||
         'class-etut-general';
 
-      this.recordAttendance({
+      await this.recordAttendance({
         date: updatedEtut.date,
         classId: etutClassId,
         subject: `${updatedEtut.subject} (Etüt)`,
@@ -4252,11 +4875,11 @@ export class DataService {
 
     this.notify();
 
-    // Supabase push
-    this.pushEtutToSupabase(updatedEtut);
+    // Supabase push with await
+    await this.pushEtutToSupabase(updatedEtut);
   }
 
-  public deleteEtut(id: string): void {
+  public async deleteEtut(id: string): Promise<void> {
     this.deletedEtutIds.add(id);
     saveData(STORAGE_KEYS.DELETED_ETUTS, Array.from(this.deletedEtutIds));
 
@@ -4264,14 +4887,17 @@ export class DataService {
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
     this.notify();
 
-    // Supabase delete
-    supabase.from('etuts').delete().eq('id', id).then(({ error }) => {
+    // Supabase delete with await
+    try {
+      const { error } = await supabase.from('etuts').delete().eq('id', id);
       if (error) console.error('[EtutSync] Error deleting etut from Supabase:', error);
-    });
+    } catch (err) {
+      console.error('[EtutSync] Exception deleting etut:', err);
+    }
   }
 
   // --- ATTENDANCE ---
-  public recordAttendance(attData: Omit<AttendanceRecord, 'id'>): AttendanceRecord {
+  public async recordAttendance(attData: Omit<AttendanceRecord, 'id'>): Promise<AttendanceRecord> {
     const existingIndex = this.attendance.findIndex(
       (a) => a.date === attData.date && a.classId === attData.classId && a.subject === attData.subject
     );
@@ -4287,30 +4913,41 @@ export class DataService {
       this.attendance.unshift(record);
     }
 
+    this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    // Supabase push
-    supabase.from('attendance').upsert({
-      id: record.id,
-      class_id: record.classId,
-      date: record.date,
-      subject: record.subject || 'Genel',
-      records: record.records || [],
-    }).then();
+    // Central Database is Single Source of Truth: await remote confirmation
+    try {
+      const { error } = await supabase.from('attendance').upsert({
+        id: record.id,
+        class_id: record.classId,
+        date: record.date,
+        subject: record.subject || 'Genel',
+        records: record.records || [],
+      });
+      if (error) console.error('[AttendanceSync] Error saving attendance to Supabase:', error);
+    } catch (err) {
+      console.error('[AttendanceSync] Exception saving attendance:', err);
+    }
 
     return record;
   }
 
-  public deleteAttendance(id: string): void {
+  public async deleteAttendance(id: string): Promise<void> {
     this.attendance = this.attendance.filter((a) => a.id !== id);
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    supabase.from('attendance').delete().eq('id', id).then();
+    try {
+      const { error } = await supabase.from('attendance').delete().eq('id', id);
+      if (error) console.error('[AttendanceSync] Error deleting attendance from Supabase:', error);
+    } catch (err) {
+      console.error('[AttendanceSync] Exception deleting attendance:', err);
+    }
   }
 
-  public deleteAttendanceForDate(date: string, classId: string, subject?: string): void {
+  public async deleteAttendanceForDate(date: string, classId: string, subject?: string): Promise<void> {
     const toDelete = this.attendance.filter(
       (a) => a.date === date && a.classId === classId && (!subject || a.subject === subject)
     );
@@ -4320,12 +4957,16 @@ export class DataService {
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    toDelete.forEach((a) => {
-      supabase.from('attendance').delete().eq('id', a.id).then();
-    });
+    for (const a of toDelete) {
+      try {
+        await supabase.from('attendance').delete().eq('id', a.id);
+      } catch (err) {
+        console.error('[AttendanceSync] Exception deleting date attendance:', err);
+      }
+    }
   }
 
-  public deleteAttendanceStudentRecord(attendanceId: string, studentId: string): void {
+  public async deleteAttendanceStudentRecord(attendanceId: string, studentId: string): Promise<void> {
     this.attendance = this.attendance.map((att) => {
       if (att.id === attendanceId) {
         return {
@@ -4340,18 +4981,22 @@ export class DataService {
 
     const updated = this.attendance.find((a) => a.id === attendanceId);
     if (updated) {
-      supabase.from('attendance').upsert({
-        id: updated.id,
-        class_id: updated.classId,
-        date: updated.date,
-        subject: updated.subject || 'Genel',
-        records: updated.records || [],
-      }).then();
+      try {
+        await supabase.from('attendance').upsert({
+          id: updated.id,
+          class_id: updated.classId,
+          date: updated.date,
+          subject: updated.subject || 'Genel',
+          records: updated.records || [],
+        });
+      } catch (err) {
+        console.error('[AttendanceSync] Exception updating student attendance record:', err);
+      }
     }
   }
 
   // --- GRADES ---
-  public addGrade(gradeData: Omit<GradeRecord, 'id'>): GradeRecord {
+  public async addGrade(gradeData: Omit<GradeRecord, 'id'>): Promise<GradeRecord> {
     const student = this.students.find((s) => s.id === gradeData.studentId);
     const newGrade: GradeRecord = {
       ...gradeData,
@@ -4359,56 +5004,73 @@ export class DataService {
       studentName: student?.name,
     };
     this.grades.unshift(newGrade);
+    this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
-    supabase.from('grades').upsert({
-      id: newGrade.id,
-      student_id: newGrade.studentId,
-      class_id: newGrade.classId || 'c-1',
-      subject: newGrade.subject,
-      score: newGrade.score,
-      exam_type: newGrade.examType || 'Yazılı',
-      date: newGrade.date,
-    }).then();
+    try {
+      const { error } = await supabase.from('grades').upsert({
+        id: newGrade.id,
+        student_id: newGrade.studentId,
+        class_id: newGrade.classId || 'c-1',
+        subject: newGrade.subject,
+        score: newGrade.score,
+        exam_type: newGrade.examType || '1. Yazılı',
+        date: newGrade.date,
+      });
+      if (error) console.error('[GradesSync] Error saving grade to Supabase:', error);
+    } catch (err) {
+      console.error('[GradesSync] Exception saving grade:', err);
+    }
 
     return newGrade;
   }
 
-  public updateGrade(id: string, updates: Partial<GradeRecord>): void {
+  public async updateGrade(id: string, updates: Partial<GradeRecord>): Promise<void> {
     this.grades = this.grades.map((g) => (g.id === id ? { ...g, ...updates } : g));
+    this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
     const updated = this.grades.find((g) => g.id === id);
     if (updated) {
-      supabase.from('grades').upsert({
-        id: updated.id,
-        student_id: updated.studentId,
-        class_id: updated.classId || 'c-1',
-        subject: updated.subject,
-        score: updated.score,
-        exam_type: updated.examType || 'Yazılı',
-        date: updated.date,
-      }).then();
+      try {
+        const { error } = await supabase.from('grades').upsert({
+          id: updated.id,
+          student_id: updated.studentId,
+          class_id: updated.classId || 'c-1',
+          subject: updated.subject,
+          score: updated.score,
+          exam_type: updated.examType || '1. Yazılı',
+          date: updated.date,
+        });
+        if (error) console.error('[GradesSync] Error updating grade in Supabase:', error);
+      } catch (err) {
+        console.error('[GradesSync] Exception updating grade:', err);
+      }
     }
   }
 
-  public deleteGrade(id: string): void {
+  public async deleteGrade(id: string): Promise<void> {
     this.grades = this.grades.filter((g) => g.id !== id);
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
-    supabase.from('grades').delete().eq('id', id).then();
+    try {
+      const { error } = await supabase.from('grades').delete().eq('id', id);
+      if (error) console.error('[GradesSync] Error deleting grade from Supabase:', error);
+    } catch (err) {
+      console.error('[GradesSync] Exception deleting grade:', err);
+    }
   }
 
   // --- MESSAGES ---
-  public sendMessageToTeacher(
+  public async sendMessageToTeacher(
     studentId: string,
     subject: string,
     text: string,
     linkUrl?: string
-  ): StudentMessage {
+  ): Promise<StudentMessage> {
     const student = this.students.find((s) => s.id === studentId);
     const newMsg: StudentMessage = {
       id: `msg-${Date.now()}`,
@@ -4424,36 +5086,84 @@ export class DataService {
     };
 
     this.messages.unshift(newMsg);
+    this.messages.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
+
+    try {
+      const { error } = await supabase.from('messages').upsert({
+        id: newMsg.id,
+        student_id: newMsg.studentId,
+        student_name: newMsg.studentName,
+        student_class: newMsg.studentClass,
+        student_avatar: newMsg.studentAvatar,
+        subject: newMsg.subject,
+        text: newMsg.text,
+        link_url: newMsg.linkUrl,
+        created_at: newMsg.createdAt,
+        read: newMsg.read,
+      });
+      if (error) console.error('[MessagesSync] Error sending message to Supabase:', error);
+    } catch (err) {
+      console.error('[MessagesSync] Exception sending message:', err);
+    }
+
     return newMsg;
   }
 
-  public markMessageAsRead(id: string): void {
+  public async markMessageAsRead(id: string): Promise<void> {
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, read: true } : m));
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
+
+    try {
+      const { error } = await supabase.from('messages').update({ read: true }).eq('id', id);
+      if (error) console.error('[MessagesSync] Error updating message read status:', error);
+    } catch (err) {
+      console.error('[MessagesSync] Exception marking message as read:', err);
+    }
   }
 
-  public replyToMessage(id: string, replyText: string): void {
+  public async replyToMessage(id: string, replyText: string): Promise<void> {
+    const nowIso = new Date().toISOString();
     this.messages = this.messages.map((m) =>
       m.id === id
         ? {
             ...m,
             teacherReply: replyText,
-            repliedAt: new Date().toISOString(),
+            repliedAt: nowIso,
             read: true,
           }
         : m
     );
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
+
+    try {
+      const { error } = await supabase.from('messages').update({
+        teacher_reply: replyText,
+        replied_at: nowIso,
+        read: true,
+      }).eq('id', id);
+      if (error) console.error('[MessagesSync] Error saving reply to Supabase:', error);
+    } catch (err) {
+      console.error('[MessagesSync] Exception replying to message:', err);
+    }
   }
 
-  public deleteMessage(id: string): void {
+  public async deleteMessage(id: string): Promise<void> {
     this.messages = this.messages.filter((m) => m.id !== id);
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
+
+    try {
+      const { error } = await supabase.from('messages').delete().eq('id', id);
+      if (error) console.error('[MessagesSync] Error deleting message from Supabase:', error);
+    } catch (err) {
+      console.error('[MessagesSync] Exception deleting message:', err);
+    }
   }
 
   // --- HELPER QUERIES ---
@@ -4919,7 +5629,7 @@ export class DataService {
     return this.submissions;
   }
 
-  public sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): StudentMessage {
+  public async sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): Promise<StudentMessage> {
     const newMsg: StudentMessage = {
       ...msgData,
       id: `msg-${Date.now()}`,
@@ -4927,8 +5637,30 @@ export class DataService {
       read: false,
     };
     this.messages.unshift(newMsg);
+    this.messages.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
+
+    try {
+      const { error } = await supabase.from('messages').upsert({
+        id: newMsg.id,
+        student_id: newMsg.studentId,
+        student_name: newMsg.studentName,
+        student_class: newMsg.studentClass,
+        student_avatar: newMsg.studentAvatar,
+        subject: newMsg.subject,
+        text: newMsg.text,
+        link_url: newMsg.linkUrl,
+        created_at: newMsg.createdAt,
+        read: newMsg.read,
+      });
+      if (error) console.error('[MessagesSync] Error sending message to Supabase:', error);
+    } catch (err) {
+      console.error('[MessagesSync] Exception sending message:', err);
+    }
+
     return newMsg;
   }
 
@@ -4994,7 +5726,7 @@ export class DataService {
     return this.documents;
   }
 
-  public addTeacherDocument(doc: Omit<TeacherDocument, 'id' | 'uploadedAt'>): TeacherDocument {
+  public async addTeacherDocument(doc: Omit<TeacherDocument, 'id' | 'uploadedAt'>): Promise<TeacherDocument> {
     const newDoc: TeacherDocument = {
       ...doc,
       id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -5003,13 +5735,40 @@ export class DataService {
     this.documents = [newDoc, ...this.documents];
     saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
     this.notify();
+
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_documents__',
+        title: 'Teacher Documents Sync',
+        description: JSON.stringify(this.documents.slice(0, 100)),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (err) {
+      console.warn('[DocumentsSync] Exception syncing documents:', err);
+    }
+
     return newDoc;
   }
 
-  public deleteTeacherDocument(id: string): void {
+  public async deleteTeacherDocument(id: string): Promise<void> {
     this.documents = this.documents.filter((d) => d.id !== id);
     saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
     this.notify();
+
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_documents__',
+        title: 'Teacher Documents Sync',
+        description: JSON.stringify(this.documents.slice(0, 100)),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (err) {
+      console.warn('[DocumentsSync] Exception deleting document:', err);
+    }
   }
 
   // ==================== NOTIFICATIONS & EMAILS ====================
@@ -5325,12 +6084,12 @@ export class DataService {
     return this.questionLogs.filter((q) => q.classId === classId);
   }
 
-  public saveQuestionLog(
+  public async saveQuestionLog(
     logData: Omit<StudentQuestionLog, 'id' | 'createdAt' | 'totalQuestions'> & {
       id?: string;
       totalQuestions?: number;
     }
-  ): StudentQuestionLog {
+  ): Promise<StudentQuestionLog> {
     let calculatedTotal = 0;
     let calculatedCorrect = 0;
     let calculatedWrong = 0;
@@ -5384,15 +6143,19 @@ export class DataService {
       saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
       this.notify();
 
-      // Cross-device Supabase push
-      supabase.from('homeworks').upsert({
-        id: '__system_sync_question_logs__',
-        title: 'Question Logs Sync',
-        description: JSON.stringify(this.questionLogs.slice(-250)),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      }).then();
+      // Cross-device Supabase push with await confirmation
+      try {
+        await supabase.from('homeworks').upsert({
+          id: '__system_sync_question_logs__',
+          title: 'Question Logs Sync',
+          description: JSON.stringify(this.questionLogs.slice(-250)),
+          subject: 'SystemSync',
+          assigned_to: '__SYSTEM__',
+          due_date: '2099-12-31',
+        });
+      } catch (err) {
+        console.warn('[QuestionLogsSync] Exception syncing question logs:', err);
+      }
 
       return updated;
     } else {
@@ -5415,34 +6178,42 @@ export class DataService {
       saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
       this.notify();
 
-      // Cross-device Supabase push
-      supabase.from('homeworks').upsert({
+      // Cross-device Supabase push with await confirmation
+      try {
+        await supabase.from('homeworks').upsert({
+          id: '__system_sync_question_logs__',
+          title: 'Question Logs Sync',
+          description: JSON.stringify(this.questionLogs.slice(-250)),
+          subject: 'SystemSync',
+          assigned_to: '__SYSTEM__',
+          due_date: '2099-12-31',
+        });
+      } catch (err) {
+        console.warn('[QuestionLogsSync] Exception syncing question logs:', err);
+      }
+
+      return newLog;
+    }
+  }
+
+  public async deleteQuestionLog(id: string): Promise<void> {
+    this.questionLogs = this.questionLogs.filter((q) => q.id !== id);
+    saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    this.notify();
+
+    // Cross-device Supabase push with await confirmation
+    try {
+      await supabase.from('homeworks').upsert({
         id: '__system_sync_question_logs__',
         title: 'Question Logs Sync',
         description: JSON.stringify(this.questionLogs.slice(-250)),
         subject: 'SystemSync',
         assigned_to: '__SYSTEM__',
         due_date: '2099-12-31',
-      }).then();
-
-      return newLog;
+      });
+    } catch (err) {
+      console.warn('[QuestionLogsSync] Exception deleting question log:', err);
     }
-  }
-
-  public deleteQuestionLog(id: string): void {
-    this.questionLogs = this.questionLogs.filter((q) => q.id !== id);
-    saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-    this.notify();
-
-    // Cross-device Supabase push
-    supabase.from('homeworks').upsert({
-      id: '__system_sync_question_logs__',
-      title: 'Question Logs Sync',
-      description: JSON.stringify(this.questionLogs.slice(-250)),
-      subject: 'SystemSync',
-      assigned_to: '__SYSTEM__',
-      due_date: '2099-12-31',
-    }).then();
   }
 
   public clearAutoSeededQuestionLogs(): void {
@@ -5498,7 +6269,7 @@ export class DataService {
     return this.weeklyQuestionTargets.find((t) => t.studentId === studentId) || null;
   }
 
-  public setWeeklyQuestionTarget(target: WeeklyQuestionTarget): WeeklyQuestionTarget {
+  public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
     const existingIdx = this.weeklyQuestionTargets.findIndex((t) => {
       if (t.studentId !== target.studentId) return false;
       if (target.weekStartDate && t.weekStartDate) {
@@ -5534,20 +6305,24 @@ export class DataService {
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
 
-    // Cross-device Supabase push
-    supabase.from('homeworks').upsert({
-      id: '__system_sync_question_targets__',
-      title: 'Question Targets Sync',
-      description: JSON.stringify(this.weeklyQuestionTargets),
-      subject: 'SystemSync',
-      assigned_to: '__SYSTEM__',
-      due_date: '2099-12-31',
-    }).then();
+    // Cross-device Supabase push with await confirmation
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_question_targets__',
+        title: 'Question Targets Sync',
+        description: JSON.stringify(this.weeklyQuestionTargets),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (err) {
+      console.warn('[QuestionTargetsSync] Exception syncing question targets:', err);
+    }
 
     return savedTarget;
   }
 
-  public deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): void {
+  public async deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): Promise<void> {
     this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
       if (weekStartDate) {
         if (t.studentId === studentIdOrId && t.weekStartDate === weekStartDate) return false;
@@ -5557,15 +6332,19 @@ export class DataService {
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
 
-    // Cross-device Supabase push
-    supabase.from('homeworks').upsert({
-      id: '__system_sync_question_targets__',
-      title: 'Question Targets Sync',
-      description: JSON.stringify(this.weeklyQuestionTargets),
-      subject: 'SystemSync',
-      assigned_to: '__SYSTEM__',
-      due_date: '2099-12-31',
-    }).then();
+    // Cross-device Supabase push with await confirmation
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_question_targets__',
+        title: 'Question Targets Sync',
+        description: JSON.stringify(this.weeklyQuestionTargets),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (err) {
+      console.warn('[QuestionTargetsSync] Exception deleting question target:', err);
+    }
   }
 
   // =========================================================================
