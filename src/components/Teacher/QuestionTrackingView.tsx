@@ -53,6 +53,8 @@ import {
 import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget, StudentNotification } from '../../types';
 import { dataService } from '../../services/dataService';
 import { WeeklyTargetModal } from './WeeklyTargetModal';
+import { StudentTargetsModal } from './StudentTargetsModal';
+import { ClassTargetsModal } from './ClassTargetsModal';
 import {
   computeWeeklyAnalytics,
   computeMonthlyAnalytics,
@@ -321,6 +323,50 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     if (!activeStudent) return null;
     return dataService.getWeeklyQuestionTarget(activeStudent.id, currentWeekStartDate);
   }, [activeStudent, currentWeekStartDate, targetUpdateTrigger, allLogs]);
+
+  // Hedef Modalleri Durumları ('Öğrenci Hedefleri' & 'Sınıf Hedefleri')
+  const [isStudentTargetsModalOpen, setIsStudentTargetsModalOpen] = useState<boolean>(false);
+  const [isClassTargetsModalOpen, setIsClassTargetsModalOpen] = useState<boolean>(false);
+  const [targetModalStudent, setTargetModalStudent] = useState<Student | null>(null);
+  const [targetModalClass, setTargetModalClass] = useState<ClassGroup | null>(null);
+  const [targetModalInitialType, setTargetModalInitialType] = useState<'student' | 'class'>('student');
+  const [targetModalExistingTarget, setTargetModalExistingTarget] = useState<WeeklyQuestionTarget | null>(null);
+
+  const studentTargetsCount = useMemo(() => {
+    return dataService.getStudentQuestionTargets().length;
+  }, [targetUpdateTrigger, allLogs, students]);
+
+  const classTargetsCount = useMemo(() => {
+    return dataService.getClassQuestionTargets().length;
+  }, [targetUpdateTrigger, allLogs, classes]);
+
+  const handleOpenStudentTargetModal = (st?: Student | null, existing?: WeeklyQuestionTarget | null) => {
+    setTargetModalStudent(st || activeStudent || students[0] || null);
+    setTargetModalClass(null);
+    setTargetModalInitialType('student');
+    setTargetModalExistingTarget(
+      existing ||
+        (st
+          ? dataService.getWeeklyQuestionTarget(st.id, currentWeekStartDate)
+          : activeWeeklyTarget)
+    );
+    setIsWeeklyTargetModalOpen(true);
+  };
+
+  const handleOpenClassTargetModal = (cls?: ClassGroup | null, existing?: WeeklyQuestionTarget | null) => {
+    const targetC =
+      cls || (activeClass && activeClass.id !== 'all' ? activeClass : classes[0]) || null;
+    setTargetModalClass(targetC);
+    setTargetModalStudent(null);
+    setTargetModalInitialType('class');
+    setTargetModalExistingTarget(
+      existing ||
+        (targetC
+          ? dataService.getClassQuestionTarget(targetC.id, currentWeekStartDate)
+          : null)
+    );
+    setIsWeeklyTargetModalOpen(true);
+  };
 
   const weeklyAnalytics = useMemo(() => {
     if (!activeStudent) return null;
@@ -708,24 +754,74 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             </div>
           </div>
 
-          {/* Quick PDF & Export Bar */}
-          <div className="flex items-center gap-2">
+          {/* Target Menus & Quick Action Bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Öğrenci Hedefleri Açılır Butonu */}
+            <button
+              type="button"
+              id="btn-open-student-targets"
+              onClick={() => setIsStudentTargetsModalOpen(true)}
+              className="px-3.5 py-2 bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/40 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              title="Kayıtlı öğrenci soru hedeflerini görüntüle ve yönet"
+            >
+              <User className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+              <span>Öğrenci Hedefleri</span>
+              {studentTargetsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-orange-500 text-white">
+                  {studentTargetsCount}
+                </span>
+              )}
+              <ChevronDown className="w-3.5 h-3.5 text-orange-500/70" />
+            </button>
+
+            {/* 2. Sınıf Hedefleri Açılır Butonu */}
+            <button
+              type="button"
+              id="btn-open-class-targets"
+              onClick={() => setIsClassTargetsModalOpen(true)}
+              className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/80 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              title="Kayıtlı sınıf toplu soru hedeflerini görüntüle ve yönet"
+            >
+              <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Sınıf Hedefleri</span>
+              {classTargetsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-indigo-600 text-white">
+                  {classTargetsCount}
+                </span>
+              )}
+              <ChevronDown className="w-3.5 h-3.5 text-indigo-500/70" />
+            </button>
+
+            {/* Soru Hedefi Belirleme Butonu */}
+            <button
+              type="button"
+              id="btn-set-weekly-target"
+              onClick={() => {
+                if (activeStudent) {
+                  handleOpenStudentTargetModal(activeStudent);
+                } else if (activeClass && activeClass.id !== 'all') {
+                  handleOpenClassTargetModal(activeClass);
+                } else {
+                  handleOpenStudentTargetModal();
+                }
+              }}
+              className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-orange-500/20 cursor-pointer"
+              title="Soru sayısı hedefi belirle"
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>
+                {activeStudent
+                  ? activeWeeklyTarget
+                    ? `Hedef: ${activeWeeklyTarget.targetQuestions} Soru (Düzenle)`
+                    : '🎯 Öğrenci Hedefi Ver'
+                  : activeClass && activeClass.id !== 'all'
+                  ? '🎯 Sınıfa Toplu Hedef Ver'
+                  : '🎯 Soru Hedefi Belirle'}
+              </span>
+            </button>
+
             {activeStudent && (
               <>
-                {/* Haftalık Hedef Belirleme Butonu */}
-                <button
-                  type="button"
-                  id="btn-set-weekly-target"
-                  onClick={() => setIsWeeklyTargetModalOpen(true)}
-                  className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-orange-500/20 cursor-pointer"
-                  title="Öğrenciye bu hafta için soru sayısı hedefi ata"
-                >
-                  <Target className="w-3.5 h-3.5" />
-                  <span>
-                    {activeWeeklyTarget ? `Hedef: ${activeWeeklyTarget.targetQuestions} Soru (Düzenle)` : '🎯 Haftalık Hedef Ver'}
-                  </span>
-                </button>
-
                 {/* Soru Kayıtları & Geçmiş Yönetimi Butonu */}
                 <button
                   type="button"
@@ -3162,18 +3258,59 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         </div>
       )}
 
-      {/* Haftalık Soru Hedefi Belirleme Modalı */}
-      {isWeeklyTargetModalOpen && activeStudent && (
+      {/* Soru Hedefi Belirleme Modalı (Öğrenci veya Sınıf) */}
+      {isWeeklyTargetModalOpen && (
         <WeeklyTargetModal
           isOpen={isWeeklyTargetModalOpen}
           onClose={() => {
             setIsWeeklyTargetModalOpen(false);
             setTargetUpdateTrigger((prev) => prev + 1);
           }}
-          student={activeStudent}
+          student={targetModalStudent || activeStudent || null}
+          targetClass={targetModalClass || (activeClass && activeClass.id !== 'all' ? activeClass : null)}
+          initialTargetType={targetModalInitialType}
+          classes={classes}
+          students={students}
           weekStartDate={currentWeekStartDate}
           weekEndDate={currentWeekEndDate}
-          existingTarget={activeWeeklyTarget}
+          existingTarget={targetModalExistingTarget || activeWeeklyTarget}
+          onSaved={() => {
+            setTargetUpdateTrigger((prev) => prev + 1);
+          }}
+        />
+      )}
+
+      {/* Öğrenci Hedefleri Açılır Listesi Modalı */}
+      {isStudentTargetsModalOpen && (
+        <StudentTargetsModal
+          isOpen={isStudentTargetsModalOpen}
+          onClose={() => setIsStudentTargetsModalOpen(false)}
+          students={students}
+          classes={classes}
+          allLogs={allLogs}
+          onOpenTargetModalForStudent={(st, existing) => {
+            handleOpenStudentTargetModal(st, existing);
+          }}
+          onSelectStudentToAnalyze={(stId) => {
+            handleSelectStudent(stId);
+          }}
+        />
+      )}
+
+      {/* Sınıf Hedefleri Açılır Listesi Modalı */}
+      {isClassTargetsModalOpen && (
+        <ClassTargetsModal
+          isOpen={isClassTargetsModalOpen}
+          onClose={() => setIsClassTargetsModalOpen(false)}
+          classes={classes}
+          students={students}
+          allLogs={allLogs}
+          onOpenTargetModalForClass={(cls, existing) => {
+            handleOpenClassTargetModal(cls, existing);
+          }}
+          onSelectClassToAnalyze={(clsId) => {
+            handleSelectClass(clsId);
+          }}
         />
       )}
 

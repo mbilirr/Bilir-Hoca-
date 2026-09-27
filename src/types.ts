@@ -178,9 +178,14 @@ export interface Etut {
 
 export interface WeeklyQuestionTarget {
   id?: string;
-  studentId: string;
+  targetType?: 'student' | 'class'; // 'student' (öğrenci hedefi) veya 'class' (sınıf hedefi)
+  studentId?: string;
   studentName?: string;
-  weeklyTarget?: number; // Haftalık soru hedefi (Örn: 500)
+  classId?: string;
+  className?: string;
+  targetDays?: number; // Hedef gün sayısı (Varsayılan: 7 gün, veya 1, 3, 5, 10, 14, 21, 30 vb.)
+  targetPeriodLabel?: string; // Örn: 'Haftalık (7 Gün)', '3 Günlük', '14 Günlük'
+  weeklyTarget?: number; // Toplam soru hedefi (Örn: 500)
   targetQuestions?: number; // Soru sayısı hedefi
   dailyTarget?: number; // Günlük ortalama (Örn: 70)
   assignedByTeacherId?: string;

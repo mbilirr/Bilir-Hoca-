@@ -824,8 +824,15 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   </div>
                   <div>
                     <h4 className="text-sm font-black text-slate-900 flex items-center gap-1.5 flex-wrap">
-                      <span>🎯 Öğretmeninizin Bu Hafta İçin Belirlediği Soru Hedefi:</span>
+                      <span>
+                        🎯 Öğretmeninizin {activeWeeklyTarget.targetPeriodLabel || 'Bu Dönem İçin'} Belirlediği Soru Hedefi:
+                      </span>
                       <span className="text-orange-700 font-black text-base">{activeWeeklyTarget.targetQuestions} Soru</span>
+                      {activeWeeklyTarget.dailyTarget && (
+                        <span className="text-xs font-bold text-slate-500">
+                          (Günlük {activeWeeklyTarget.dailyTarget} Soru/Gün)
+                        </span>
+                      )}
                     </h4>
                     <p className="text-xs text-slate-600">
                       Tarih Aralığı: {formatTurkishDate(currentWeekStartDate)} - {formatTurkishDate(currentWeekEndDate)}

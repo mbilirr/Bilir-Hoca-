@@ -6867,7 +6867,7 @@ export class DataService {
     // Soru sayıları otomatik yüklenmez; kullanıcıların ve öğrencilerin kendi girdiği gerçek kayıtlar tutulur.
   }
 
-  // --- WEEKLY QUESTION TARGETS (ÖĞRENCİ HAFTALIK SORU HEDEFLERİ) ---
+  // --- WEEKLY & CUSTOM QUESTION TARGETS (ÖĞRENCİ VE SINIF SORU HEDEFLERİ) ---
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
@@ -6879,9 +6879,34 @@ export class DataService {
         return [...this.weeklyQuestionTargets];
       }
       const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
-      return this.weeklyQuestionTargets.filter((t) => visibleStudentIds.has(t.studentId));
+      const visibleClassIds = new Set(this.getClasses().map((c) => c.id));
+      return this.weeklyQuestionTargets.filter(
+        (t) => (t.studentId && visibleStudentIds.has(t.studentId)) || (t.classId && visibleClassIds.has(t.classId))
+      );
     }
     return [...this.weeklyQuestionTargets];
+  }
+
+  public getStudentQuestionTargets(): WeeklyQuestionTarget[] {
+    return this.getWeeklyQuestionTargets().filter((t) => t.targetType !== 'class' && !!t.studentId);
+  }
+
+  public getClassQuestionTargets(): WeeklyQuestionTarget[] {
+    return this.weeklyQuestionTargets.filter((t) => t.targetType === 'class' || (!!t.classId && !t.studentId));
+  }
+
+  public getClassQuestionTarget(classId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
+    if (weekStartDate) {
+      const match = this.weeklyQuestionTargets.find(
+        (t) => (t.targetType === 'class' || (!t.studentId && !!t.classId)) && t.classId === classId && t.weekStartDate === weekStartDate
+      );
+      if (match) return match;
+    }
+    return (
+      this.weeklyQuestionTargets.find(
+        (t) => (t.targetType === 'class' || (!t.studentId && !!t.classId)) && t.classId === classId
+      ) || null
+    );
   }
 
   public getWeeklyQuestionTarget(studentId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
@@ -6895,7 +6920,16 @@ export class DataService {
   }
 
   public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
+    const isClassTarget = target.targetType === 'class' || (!!target.classId && !target.studentId);
+    
     const existingIdx = this.weeklyQuestionTargets.findIndex((t) => {
+      if (isClassTarget) {
+        if (t.classId !== target.classId || t.targetType !== 'class') return false;
+        if (target.weekStartDate && t.weekStartDate) {
+          return t.weekStartDate === target.weekStartDate;
+        }
+        return true;
+      }
       if (t.studentId !== target.studentId) return false;
       if (target.weekStartDate && t.weekStartDate) {
         return t.weekStartDate === target.weekStartDate;
@@ -6904,11 +6938,20 @@ export class DataService {
     });
     let savedTarget: WeeklyQuestionTarget;
 
+    const days = target.targetDays && target.targetDays > 0 ? target.targetDays : 7;
+    const targetQ = target.targetQuestions || target.weeklyTarget || 350;
+    const dailyQ = target.dailyTarget || Math.max(1, Math.round(targetQ / days));
+
     const normalizedTarget: WeeklyQuestionTarget = {
       ...target,
-      targetQuestions: target.targetQuestions || target.weeklyTarget || 350,
-      weeklyTarget: target.weeklyTarget || target.targetQuestions || 350,
-      dailyTarget: target.dailyTarget || Math.round((target.targetQuestions || target.weeklyTarget || 350) / 7),
+      targetType: isClassTarget ? 'class' : 'student',
+      targetDays: days,
+      targetPeriodLabel:
+        target.targetPeriodLabel ||
+        (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`),
+      targetQuestions: targetQ,
+      weeklyTarget: targetQ,
+      dailyTarget: dailyQ,
     };
 
     if (existingIdx !== -1) {
@@ -6919,9 +6962,12 @@ export class DataService {
       };
       this.weeklyQuestionTargets[existingIdx] = savedTarget;
     } else {
+      const generatedId = isClassTarget
+        ? `class_target_${target.classId}_${target.weekStartDate || Date.now()}`
+        : target.id || `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       savedTarget = {
         ...normalizedTarget,
-        id: target.id || `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: generatedId,
         assignedDate: target.assignedDate || new Date().toISOString(),
       };
       this.weeklyQuestionTargets.unshift(savedTarget);
@@ -6929,6 +6975,13 @@ export class DataService {
 
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
+
+    // Firestore push with error resilience
+    if (savedTarget.id) {
+      try {
+        await setDoc(doc(db, 'weekly_question_targets', savedTarget.id), savedTarget, { merge: true }).catch(() => {});
+      } catch {}
+    }
 
     // Cross-device Supabase push with await confirmation
     try {
@@ -6947,7 +7000,102 @@ export class DataService {
     return savedTarget;
   }
 
+  public async setClassQuestionTarget(
+    classId: string,
+    className: string,
+    targetData: Partial<WeeklyQuestionTarget>,
+    applyToStudents: boolean = true
+  ): Promise<WeeklyQuestionTarget> {
+    const days = targetData.targetDays && targetData.targetDays > 0 ? targetData.targetDays : 7;
+    const targetQ = targetData.targetQuestions || targetData.weeklyTarget || 350;
+    const dailyQ = targetData.dailyTarget || Math.max(1, Math.round(targetQ / days));
+
+    // 1. Set Class Target
+    const classTarget: WeeklyQuestionTarget = {
+      ...targetData,
+      id: `class_target_${classId}_${targetData.weekStartDate || Date.now()}`,
+      targetType: 'class',
+      classId,
+      className,
+      targetDays: days,
+      targetPeriodLabel:
+        targetData.targetPeriodLabel ||
+        (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`),
+      targetQuestions: targetQ,
+      weeklyTarget: targetQ,
+      dailyTarget: dailyQ,
+      assignedDate: new Date().toISOString(),
+    };
+
+    const savedClassTarget = await this.setWeeklyQuestionTarget(classTarget);
+
+    // 2. Propagate target to all enrolled students in the class
+    if (applyToStudents) {
+      const classStudents = this.students.filter((s) => s.classId === classId);
+      for (const std of classStudents) {
+        await this.setWeeklyQuestionTarget({
+          ...targetData,
+          id: `target_${std.id}_${targetData.weekStartDate || Date.now()}`,
+          targetType: 'student',
+          studentId: std.id,
+          studentName: std.name,
+          classId: classId,
+          className: className,
+          targetDays: days,
+          targetPeriodLabel: classTarget.targetPeriodLabel,
+          targetQuestions: targetQ,
+          weeklyTarget: targetQ,
+          dailyTarget: dailyQ,
+          assignedDate: new Date().toISOString(),
+        });
+      }
+    }
+
+    return savedClassTarget;
+  }
+
+  public async deleteClassQuestionTarget(classId: string, weekStartDate?: string): Promise<void> {
+    const targetToDelete = this.getClassQuestionTarget(classId, weekStartDate);
+    this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
+      if (t.targetType === 'class' && t.classId === classId) {
+        if (weekStartDate && t.weekStartDate) {
+          return t.weekStartDate !== weekStartDate;
+        }
+        return false;
+      }
+      return true;
+    });
+    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+    this.notify();
+
+    if (targetToDelete?.id) {
+      try {
+        await deleteDoc(doc(db, 'weekly_question_targets', targetToDelete.id)).catch(() => {});
+      } catch {}
+    }
+
+    try {
+      await supabase.from('homeworks').upsert({
+        id: '__system_sync_question_targets__',
+        title: 'Question Targets Sync',
+        description: JSON.stringify(this.weeklyQuestionTargets),
+        subject: 'SystemSync',
+        assigned_to: '__SYSTEM__',
+        due_date: '2099-12-31',
+      });
+    } catch (err) {
+      console.warn('[QuestionTargetsSync] Exception deleting class question target:', err);
+    }
+  }
+
   public async deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): Promise<void> {
+    const targetToDelete = this.weeklyQuestionTargets.find((t) => {
+      if (weekStartDate) {
+        return (t.studentId === studentIdOrId || t.id === studentIdOrId) && t.weekStartDate === weekStartDate;
+      }
+      return t.id === studentIdOrId || t.studentId === studentIdOrId;
+    });
+
     this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
       if (weekStartDate) {
         if (t.studentId === studentIdOrId && t.weekStartDate === weekStartDate) return false;
@@ -6956,6 +7104,12 @@ export class DataService {
     });
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
+
+    if (targetToDelete?.id) {
+      try {
+        await deleteDoc(doc(db, 'weekly_question_targets', targetToDelete.id)).catch(() => {});
+      } catch {}
+    }
 
     // Cross-device Supabase push with await confirmation
     try {

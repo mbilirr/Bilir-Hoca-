@@ -1315,7 +1315,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <option value="unassigned">Yok</option>
                           {classes.map((cls) => (
                             <option key={cls.id} value={cls.id}>
-                              {cls.name} {cls.branch ? `(${cls.branch})` : ''}
+                              {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
                             </option>
                           ))}
                         </select>
