@@ -55,6 +55,7 @@ export interface Student {
   isSuspended?: boolean; // Hesabın dondurulması / askıya alınması
   createdTeacherId?: string; // Bu öğrenciyi kaydeden öğretmenin ID'si
   mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
+  authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
 }
 
 export interface UnifiedUser {
@@ -81,6 +82,7 @@ export interface UnifiedUser {
   schoolLevel?: 'Ortaokul' | 'Lise';
   gradeLevel?: string;
   mustChangePassword?: boolean;
+  authorizedTeacherIds?: string[];
 }
 
 export interface ClassGroup {
@@ -92,6 +94,7 @@ export interface ClassGroup {
   academicYear: string;
   description?: string;
   createdTeacherId?: string; // Sınıfı oluşturan öğretmenin ID'si
+  authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
 }
 
 export type HomeworkResourceType = 'video' | 'link' | 'pdf';

@@ -59,6 +59,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [roleModalUser, setRoleModalUser] = useState<UnifiedUser | null>(null);
   const [deleteModalUser, setDeleteModalUser] = useState<UnifiedUser | null>(null);
   const [suspendModalUser, setSuspendModalUser] = useState<UnifiedUser | null>(null);
+  const [authModalTeacher, setAuthModalTeacher] = useState<UnifiedUser | null>(null);
+  const [selectedAuthClassIds, setSelectedAuthClassIds] = useState<string[]>([]);
+  const [selectedAuthStudentIds, setSelectedAuthStudentIds] = useState<string[]>([]);
+  const [authStudentSearch, setAuthStudentSearch] = useState('');
 
   // Edit form state
   const [editFormData, setEditFormData] = useState<{
@@ -327,6 +331,46 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       loadData();
     } catch (err: any) {
       showToast(err.message || 'Kullanıcı silinemedi.', 'error');
+    }
+  };
+
+  // Open Teacher Authorization Modal
+  const handleOpenAuthModal = (teacher: UnifiedUser) => {
+    setAuthModalTeacher(teacher);
+    // Find authorized classes
+    const currentTeacherClasses = classes.filter(
+      (c) =>
+        (c.authorizedTeacherIds && c.authorizedTeacherIds.includes(teacher.id)) ||
+        (teacher.assignedClassIds && (teacher.assignedClassIds.includes(c.id) || teacher.assignedClassIds.includes(c.name)))
+    );
+    setSelectedAuthClassIds(currentTeacherClasses.map((c) => c.id));
+
+    // Find direct authorized individual students
+    const allStds = dataService.getAllStudents();
+    const currentAuthStds = allStds.filter(
+      (s) => s.authorizedTeacherIds && s.authorizedTeacherIds.includes(teacher.id)
+    );
+    setSelectedAuthStudentIds(currentAuthStds.map((s) => s.id));
+    setAuthStudentSearch('');
+  };
+
+  // Save Teacher Authorization
+  const handleSaveAuthModal = async () => {
+    if (!authModalTeacher) return;
+    try {
+      await dataService.adminUpdateTeacherAuthorizations(
+        authModalTeacher.id,
+        selectedAuthClassIds,
+        selectedAuthStudentIds
+      );
+      showToast(
+        `✓ "${authModalTeacher.name}" için sınıf ve öğrenci erişim yetkileri başarıyla güncellendi.`,
+        'success'
+      );
+      setAuthModalTeacher(null);
+      loadData();
+    } catch (err: any) {
+      showToast(err.message || 'Yetkilendirme kaydedilemedi.', 'error');
     }
   };
 
@@ -869,6 +913,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right sm:pr-6">
                         <div className="flex items-center justify-end space-x-1.5">
+                          {/* Sınıf & Öğrenci Erişim Yetkilendirmesi (Erişim Matrisi) */}
+                          {u.role !== 'student' && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAuthModal(u)}
+                              className="p-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-500/40 transition-colors cursor-pointer"
+                              title="Sınıf ve Öğrenci Erişim Yetkilerini Yönet (Erişim Matrisi)"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
                           {/* Rol Değiştir Butonu */}
                           <button
                             type="button"
@@ -1375,6 +1431,226 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-950 cursor-pointer"
               >
                 Evet, Kalıcı Olarak Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ========================================================================= */}
+      {/* MODAL 5: ÖĞRETMEN SINIF VE ÖĞRENCİ ERİŞİM YETKİLENDİRMESİ (ERİŞİM MATRİSİ) */}
+      {/* ========================================================================= */}
+      {authModalTeacher && (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <div
+            className="relative w-full max-w-2xl bg-slate-900 border border-indigo-500/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                    <span>Erişim Yetki Matrisi</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
+                      {authModalTeacher.name}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Öğretmenin sisteme eriştiğinde görebileceği ve işlem yapabileceği sınıf ile öğrencileri belirleyin.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuthModalTeacher(null)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-5 sm:p-6 space-y-5 overflow-y-auto max-h-[65vh]">
+              {/* Info Alert */}
+              <div className="p-3.5 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-200 flex items-start space-x-2.5">
+                <Shield className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  <strong>Güvenlik Kuralı:</strong> Bir öğretmen yalnızca burada yönetici tarafından yetkilendirilen sınıfları ve öğrencileri görebilir. Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiçbir şekilde listelenmez.
+                </p>
+              </div>
+
+              {/* 1. Sınıf Yetkilendirmeleri */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+                    <School className="w-4 h-4 text-indigo-400" />
+                    <span>Sınıf Erişim Yetkileri ({selectedAuthClassIds.length}/{classes.length} Sınıf Seçili)</span>
+                  </h4>
+                  <div className="flex items-center space-x-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAuthClassIds(classes.map((c) => c.id))}
+                      className="px-2 py-0.5 rounded text-indigo-400 hover:bg-indigo-950/60 font-medium cursor-pointer"
+                    >
+                      Tümünü Seç
+                    </button>
+                    <span className="text-slate-600">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAuthClassIds([])}
+                      className="px-2 py-0.5 rounded text-rose-400 hover:bg-rose-950/60 font-medium cursor-pointer"
+                    >
+                      Temizle
+                    </button>
+                  </div>
+                </div>
+
+                {classes.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">Sistemde henüz kayıtlı sınıf bulunmuyor.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {classes.map((cls) => {
+                      const isChecked = selectedAuthClassIds.includes(cls.id);
+                      return (
+                        <label
+                          key={cls.id}
+                          className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                            isChecked
+                              ? 'bg-indigo-600/15 border-indigo-500/50 text-white'
+                              : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-750'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedAuthClassIds([...selectedAuthClassIds, cls.id]);
+                                } else {
+                                  setSelectedAuthClassIds(selectedAuthClassIds.filter((id) => id !== cls.id));
+                                }
+                              }}
+                              className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                            />
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold block truncate text-slate-100">
+                                {cls.name}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block truncate">
+                                {cls.gradeLevel || cls.schoolLevel || cls.branch || 'Genel'}
+                              </span>
+                            </div>
+                          </div>
+                          {isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 ml-2" />}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Bireysel Öğrenci Yetkilendirmeleri */}
+              <div className="space-y-3 pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+                    <GraduationCap className="w-4 h-4 text-emerald-400" />
+                    <span>Bireysel / Etüt Öğrenci Yetkileri ({selectedAuthStudentIds.length} Bireysel Yetkili)</span>
+                  </h4>
+                </div>
+
+                <p className="text-[11px] text-slate-400">
+                  Sınıf haricinde bu öğretmene özel olarak atanmış bireysel öğrencileri seçebilirsiniz.
+                </p>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Öğrenci ara (Ad, Sınıf, Numara)..."
+                    value={authStudentSearch}
+                    onChange={(e) => setAuthStudentSearch(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-800/50">
+                  {dataService
+                    .getAllStudents()
+                    .filter((s) => {
+                      if (!authStudentSearch.trim()) return true;
+                      const q = authStudentSearch.toLowerCase();
+                      return (
+                        s.name.toLowerCase().includes(q) ||
+                        (s.className || '').toLowerCase().includes(q) ||
+                        (s.studentNumber || '').includes(q)
+                      );
+                    })
+                    .slice(0, 30)
+                    .map((std) => {
+                      const isDirectAuth = selectedAuthStudentIds.includes(std.id);
+                      const isViaClass = selectedAuthClassIds.includes(std.classId);
+
+                      return (
+                        <div
+                          key={std.id}
+                          className="pt-1.5 flex items-center justify-between text-xs py-1"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <span className="font-bold text-slate-200 truncate">{std.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                              {std.className}
+                            </span>
+                            {isViaClass && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono">
+                                Sınıfından Yetkili
+                              </span>
+                            )}
+                          </div>
+
+                          <label className="flex items-center space-x-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isDirectAuth}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedAuthStudentIds([...selectedAuthStudentIds, std.id]);
+                                } else {
+                                  setSelectedAuthStudentIds(
+                                    selectedAuthStudentIds.filter((id) => id !== std.id)
+                                  );
+                                }
+                              }}
+                              className="rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-0 w-3.5 h-3.5"
+                            />
+                            <span className="text-[11px] text-slate-400">Bireysel İzin</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950 flex items-center justify-end space-x-2.5">
+              <button
+                type="button"
+                onClick={() => setAuthModalTeacher(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAuthModal}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 flex items-center space-x-1.5 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Yetkileri Kaydet ve Uygula</span>
               </button>
             </div>
           </div>

@@ -3300,6 +3300,7 @@ export class DataService {
         schoolLevel: s.schoolLevel,
         gradeLevel: s.gradeLevel,
         mustChangePassword: !!s.mustChangePassword,
+        authorizedTeacherIds: s.authorizedTeacherIds || [],
       });
     });
 
@@ -3577,6 +3578,79 @@ export class DataService {
     }
 
     throw new Error('Kullanıcı bulunamadı.');
+  }
+
+  // =========================================================================
+  // ÖĞRETMEN ERİŞİM YETKİLENDİRMESİ (YÖNETİCİ KONTROLÜNDE)
+  // =========================================================================
+  public async adminUpdateTeacherAuthorizations(
+    teacherId: string,
+    assignedClassIds: string[],
+    assignedStudentIds: string[]
+  ): Promise<void> {
+    const teacher = this.teachers.find((t) => t.id === teacherId);
+    if (!teacher) throw new Error('Öğretmen bulunamadı.');
+
+    teacher.assignedClassIds = [...assignedClassIds];
+    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+    } catch {}
+    await setDoc(doc(db, 'teachers', teacher.id), teacher, { merge: true }).catch(() => {});
+
+    // 1. Sınıflardaki authorizedTeacherIds listesini güncelle
+    for (const cls of this.classes) {
+      const currentAuth: string[] = cls.authorizedTeacherIds ? [...cls.authorizedTeacherIds] : [];
+      const shouldHave = assignedClassIds.includes(cls.id) || assignedClassIds.includes(cls.name);
+      const has = currentAuth.includes(teacherId);
+
+      let changed = false;
+      if (shouldHave && !has) {
+        currentAuth.push(teacherId);
+        changed = true;
+      } else if (!shouldHave && has) {
+        const idx = currentAuth.indexOf(teacherId);
+        if (idx !== -1) currentAuth.splice(idx, 1);
+        changed = true;
+      }
+
+      if (changed) {
+        cls.authorizedTeacherIds = currentAuth;
+        await setDoc(doc(db, 'classes', cls.id), cls, { merge: true }).catch(() => {});
+      }
+    }
+    saveData(STORAGE_KEYS.CLASSES, this.classes);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+    } catch {}
+
+    // 2. Öğrencilerdeki authorizedTeacherIds listesini güncelle
+    for (const std of this.students) {
+      const currentAuth: string[] = std.authorizedTeacherIds ? [...std.authorizedTeacherIds] : [];
+      const shouldHave = assignedStudentIds.includes(std.id);
+      const has = currentAuth.includes(teacherId);
+
+      let changed = false;
+      if (shouldHave && !has) {
+        currentAuth.push(teacherId);
+        changed = true;
+      } else if (!shouldHave && has) {
+        const idx = currentAuth.indexOf(teacherId);
+        if (idx !== -1) currentAuth.splice(idx, 1);
+        changed = true;
+      }
+
+      if (changed) {
+        std.authorizedTeacherIds = currentAuth;
+        await setDoc(doc(db, 'students', std.id), std, { merge: true }).catch(() => {});
+      }
+    }
+    saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+
+    this.notify();
   }
 
   public async adminDeleteUser(userId: string): Promise<void> {
@@ -5906,7 +5980,7 @@ export class DataService {
         return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       }
 
-      // Normal öğretmen: İzinli sınıflardaki öğrencileri VEYA kendi eklediği öğrencileri görebilir
+      // Normal öğretmen: İzinli sınıflardaki öğrencileri VEYA bireysel olarak yetkilendirildiği öğrencileri görebilir
       const permittedClasses = this.getClasses(teacherId);
       const permittedClassIds = new Set(permittedClasses.map((c) => c.id));
       const permittedClassNames = new Set(
@@ -5915,7 +5989,11 @@ export class DataService {
 
       return this.students.filter((s) => {
         if (this.deletedStudentIds.has(s.id)) return false;
-        if (s.createdTeacherId && s.createdTeacherId === teacherId) return true;
+        // Bireysel öğrenci yetkilendirmesi
+        if (s.authorizedTeacherIds && Array.isArray(s.authorizedTeacherIds) && s.authorizedTeacherIds.includes(teacherId!)) {
+          return true;
+        }
+        // Sınıf bazlı yetkilendirme
         if (s.classId && permittedClassIds.has(s.classId)) return true;
         if (s.className) {
           const normS = s.className.trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
@@ -5953,25 +6031,14 @@ export class DataService {
         return this.deduplicateClasses(this.classes);
       }
 
-      // Normal kullanıcı/öğretmen: Yalnızca yöneticinin izin verdiği sınıfları veya kendi oluşturduğu sınıfları görebilir
+      // Normal öğretmen: SADECE admin'in yetkilendirdiği (authorizedTeacherIds veya assignedClassIds içinde bulunan) sınıfları görebilir
       const rawAssigned = teacher?.assignedClassIds || [];
       const assignedClassIds = new Set(rawAssigned);
 
-      // Collect normalized names of assigned classes to handle ID mismatches across devices
-      const assignedNormNames = new Set<string>();
-      rawAssigned.forEach((item) => {
-        assignedNormNames.add(item.trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''));
-        const matched = this.classes.find((c) => c.id === item || c.name === item);
-        if (matched?.name) {
-          assignedNormNames.add(matched.name.trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''));
-        }
-      });
-
       const filtered = this.classes.filter((c) => {
-        if (c.createdTeacherId && c.createdTeacherId === teacherId) return true;
-        if (assignedClassIds.has(c.id) || assignedClassIds.has(c.name)) return true;
-        const normName = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
-        if (assignedNormNames.has(normName)) return true;
+        if (this.deletedClassIds.has(c.id)) return false;
+        if (c.authorizedTeacherIds && Array.isArray(c.authorizedTeacherIds) && c.authorizedTeacherIds.includes(teacherId!)) return true;
+        if (assignedClassIds.has(c.id) || (c.name && assignedClassIds.has(c.name))) return true;
         return false;
       });
 
