@@ -38,6 +38,7 @@ import { AdminUserManagement } from './components/Admin/AdminUserManagement';
 import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
+import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { dataService } from './services/dataService';
 import {
   Student,
@@ -315,6 +316,7 @@ export default function App() {
   if (!authSession) {
     return (
       <div className="relative min-h-screen">
+        <NetworkSyncStatusBanner />
         <AuthPortal
           onAuthSuccess={handleAuthSuccess}
           classes={classes}
@@ -331,6 +333,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+      <NetworkSyncStatusBanner />
       {/* Top Main Navbar */}
       <Navbar
         role={role}

@@ -776,6 +776,8 @@ export class DataService {
   private classSyncInterval: number | null = null;
 
   private listeners: (() => void)[] = [];
+  private lastSyncTimestamp: number = Date.now();
+  private sessionDeviceId: string = '';
 
   private constructor() {
     this.initData();
@@ -2556,7 +2558,37 @@ export class DataService {
   }
 
   private notify() {
+    this.lastSyncTimestamp = Date.now();
     this.listeners.forEach((l) => l());
+  }
+
+  public getSessionDeviceId(): string {
+    if (!this.sessionDeviceId) {
+      try {
+        let devId = sessionStorage.getItem('edu_sys_device_session_id');
+        if (!devId) {
+          devId = 'DEV-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+          sessionStorage.setItem('edu_sys_device_session_id', devId);
+        }
+        this.sessionDeviceId = devId;
+      } catch {
+        this.sessionDeviceId = 'DEV-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      }
+    }
+    return this.sessionDeviceId;
+  }
+
+  public getLastSyncTimestamp(): number {
+    return this.lastSyncTimestamp;
+  }
+
+  public getLastSyncTime(): Date {
+    return new Date(this.lastSyncTimestamp);
+  }
+
+  public updateSyncTimestamp() {
+    this.lastSyncTimestamp = Date.now();
+    this.notify();
   }
 
   // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---

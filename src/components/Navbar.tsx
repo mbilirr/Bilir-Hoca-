@@ -37,6 +37,7 @@ import { StudentNotificationCenterModal } from './Student/StudentNotificationCen
 import { TeacherAvatarModal } from './Teacher/TeacherAvatarModal';
 import { StudentAvatarModal } from './Student/StudentAvatarModal';
 import { StudentProfileEditModal, StudentPasswordModal } from './Student/StudentProfileModals';
+import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService } from '../services/dataService';
 
 export interface NavbarProps {
@@ -516,6 +517,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Live Sync Monitor Badge */}
+            <SyncStatusIndicator variant="badge" className="hidden md:inline-flex" />
+
             {/* TEACHER LOGGED IN */}
             {isTeacherSession && currentTeacher ? (
               <div className="flex items-center space-x-2.5 sm:space-x-3 pl-2 border-l border-slate-700">
@@ -710,6 +714,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span>Giden E-Posta & Bildirimler</span>
                       </button>
 
+                      <div className="p-2 border-t border-slate-800">
+                        <SyncStatusIndicator variant="card" />
+                      </div>
+
                       <div className="my-1 border-t border-slate-800" />
 
                       <button
@@ -856,6 +864,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
                         <span>Profil Resmi Değiştir / Yükle</span>
                       </button>
+
+                      <div className="p-2 border-t border-slate-800">
+                        <SyncStatusIndicator variant="card" />
+                      </div>
 
                       <div className="my-1 border-t border-slate-800" />
 

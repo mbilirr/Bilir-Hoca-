@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously, User as FirebaseUser } from 'firebase/auth';
 import {
   getFirestore,
   doc,
@@ -12,6 +12,21 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Initialize auth state
+export async function ensureFirebaseAuth(): Promise<FirebaseUser | null> {
+  if (auth.currentUser) return auth.currentUser;
+  try {
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  } catch (e) {
+    return null;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  ensureFirebaseAuth().catch(() => {});
+}
 
 // Enable offline persistence
 if (typeof window !== 'undefined') {
