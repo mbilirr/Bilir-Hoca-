@@ -24,7 +24,7 @@ import {
   UserStatus,
 } from '../types';
 import { supabase } from '../lib/supabase';
-import { db, auth, handleFirestoreError, OperationType, testFirestoreConnection } from '../lib/firebase';
+import { db, auth, ensureFirebaseAuth, handleFirestoreError, OperationType, testFirestoreConnection } from '../lib/firebase';
 import {
   collection,
   doc,
@@ -1153,10 +1153,14 @@ export class DataService {
     this.startPeriodicSync();
   }
 
-  public setupFirestoreRealtimeSync(): void {
+  public async setupFirestoreRealtimeSync(): Promise<void> {
     if (typeof window === 'undefined') return;
     if (this.isFirestoreSynced) return;
     this.isFirestoreSynced = true;
+
+    try {
+      await ensureFirebaseAuth();
+    } catch {}
 
     testFirestoreConnection().catch(() => {});
 

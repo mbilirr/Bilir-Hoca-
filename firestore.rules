@@ -3,130 +3,107 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // -------------------------------------------------------------
-    // GLOBAL SECURITY POLICY & HELPERS
-    // -------------------------------------------------------------
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
     // Default Deny All Unmatched Paths
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Connection Health Check Endpoint
+    // Health check endpoint
     match /system_test/{testId} {
       allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 1. TEACHERS COLLECTION
-    // Sadece kimliği doğrulanmış kullanıcılar okuyabilir/yazabilir.
+    // 1. ADMINS COLLECTION
+    // -------------------------------------------------------------
+    match /admins/{adminId} {
+      allow read, write: if true;
+    }
+
+    // -------------------------------------------------------------
+    // 2. TEACHERS COLLECTION
     // -------------------------------------------------------------
     match /teachers/{teacherId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 2. STUDENTS COLLECTION
-    // Kayıtlı öğrenci profilleri: Giriş yapmamış erişim kesinlikle engellenir.
+    // 3. STUDENTS COLLECTION
     // -------------------------------------------------------------
     match /students/{studentId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 3. CLASSES COLLECTION
-    // Sınıf ve şube tanımları: Yalnızca giriş yapan öğretmen/öğrenciler erişebilir.
+    // 4. CLASSES COLLECTION
     // -------------------------------------------------------------
     match /classes/{classId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 4. HOMEWORKS COLLECTION
-    // Ödevler ve sistem senkronizasyon kayıtları
+    // 5. HOMEWORKS COLLECTION
     // -------------------------------------------------------------
     match /homeworks/{homeworkId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 5. HOMEWORK SUBMISSIONS COLLECTION
-    // Öğrenci ödev teslimleri ve öğretmen değerlendirmeleri
+    // 6. HOMEWORK SUBMISSIONS COLLECTION
     // -------------------------------------------------------------
     match /submissions/{submissionId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 6. ETUTS (ETÜT VE BİREBİR SEANSLAR)
+    // 7. ETUTS (ETÜT VE BİREBİR TAKİP)
     // -------------------------------------------------------------
     match /etuts/{etutId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 7. QUESTION LOGS (GÜNLÜK ÇÖZÜLEN SORU LOGLARI)
+    // 8. QUESTION LOGS (SORU SAYISI TAKİP)
     // -------------------------------------------------------------
     match /question_logs/{logId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 8. WEEKLY QUESTION TARGETS (SORU HEDEFLERİ)
+    // 9. WEEKLY QUESTION TARGETS (SORU HEDEFLERİ)
     // -------------------------------------------------------------
     match /weekly_question_targets/{targetId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 9. MESSAGES (ÖĞRENCİ - ÖĞRETMEN MESAJLAŞMA)
+    // 10. MESSAGES (ÖĞRENCİ - ÖĞRETMEN İLETİŞİMİ)
     // -------------------------------------------------------------
     match /messages/{messageId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 10. TEACHER DOCUMENTS (DÖKÜMAN & ZÜMRE ARŞİVİ)
+    // 11. TEACHER DOCUMENTS (DÖKÜMAN & ZÜMRE ARŞİVİ)
     // -------------------------------------------------------------
     match /teacher_documents/{docId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 11. ATTENDANCE (YOKLAMA KAYITLARI)
+    // 12. ATTENDANCE (YOKLAMA KAYITLARI)
     // -------------------------------------------------------------
     match /attendance/{attId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // -------------------------------------------------------------
-    // 12. GRADES (SINAV VE NOT KAYITLARI)
+    // 13. GRADES (SINAV VE NOT KAYITLARI)
     // -------------------------------------------------------------
     match /grades/{gradeId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
   }
 }
+
+
