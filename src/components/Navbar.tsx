@@ -169,24 +169,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isStudentChangePasswordOpen, setIsStudentChangePasswordOpen] = useState(false);
   const [isStudentAvatarModalOpen, setIsStudentAvatarModalOpen] = useState(false);
 
-  // Cross-device cloud sync state in Navbar
-  const [isNavSyncing, setIsNavSyncing] = useState(false);
-  const [lastNavSyncText, setLastNavSyncText] = useState('');
-
-  const handleNavSync = async () => {
-    setIsNavSyncing(true);
-    try {
-      await dataService.syncClassesFromSupabase(false);
-      await dataService.syncStudentsFromSupabase(false);
-      await dataService.syncTeachersFromSupabase(false);
-      await dataService.syncEtutsFromSupabase(false);
-      dataService.reconnectAllRealtime();
-      setLastNavSyncText('Eşitlendi');
-      setTimeout(() => setLastNavSyncText(''), 3000);
-    } catch {}
-    setTimeout(() => setIsNavSyncing(false), 500);
-  };
-
   const teacherMenuRef = useRef<HTMLDivElement | null>(null);
   const studentMenuRef = useRef<HTMLDivElement | null>(null);
   const moduleDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -468,20 +450,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action & Profile info */}
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Quick Multi-Device Cloud Sync Button (Windows, Mac, Android) */}
-            <button
-              type="button"
-              onClick={handleNavSync}
-              disabled={isNavSyncing}
-              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-white transition-all text-xs font-semibold cursor-pointer shadow-sm group"
-              title="Windows, Mac, Android ve iOS cihazları arasında bulut senkronizasyonu yap"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isNavSyncing ? 'animate-spin text-cyan-400' : 'text-cyan-400/80 group-hover:text-cyan-300'}`} />
-              <span className="hidden md:inline text-[11px]">
-                {isNavSyncing ? 'Eşitleniyor...' : lastNavSyncText ? '✓ Eşitlendi' : 'Bulut Senkron'}
-              </span>
-            </button>
-
             {/* Google Calendar shortcut */}
             <a
               href="https://calendar.google.com"

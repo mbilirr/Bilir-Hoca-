@@ -132,6 +132,7 @@ SET search_path = public, pg_temp;
 -- 5. ROW LEVEL SECURITY (RLS) ETKİNLEŞTİRME
 ALTER TABLE public.teacher_class_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.teacher_student_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.grades ENABLE ROW LEVEL SECURITY;
@@ -209,6 +210,10 @@ DROP POLICY IF EXISTS "messages_teacher_update" ON public.messages;
 DROP POLICY IF EXISTS "messages_teacher_delete" ON public.messages;
 DROP POLICY IF EXISTS "messages_student_select" ON public.messages;
 DROP POLICY IF EXISTS "messages_student_insert" ON public.messages;
+
+DROP POLICY IF EXISTS "teachers_admin_all" ON public.teachers;
+DROP POLICY IF EXISTS "teachers_auth_select" ON public.teachers;
+DROP POLICY IF EXISTS "teachers_self_update" ON public.teachers;
 
 -- ============================================================================
 -- 7. TABLOLAR İÇİN RLS POLİTİKALARI (HER TABLO VE İŞLEM İÇİN AYRI AYRI)
@@ -616,6 +621,21 @@ WITH CHECK (
     WHERE (s.auth_user_id = auth.uid() OR s.id = auth.uid()::text) AND s.id = messages.student_id
   )
 );
+
+-- K) TEACHERS TABLOSU (ÖĞRETMENLER VE YÖNETİCİLER)
+CREATE POLICY "teachers_admin_all" ON public.teachers
+FOR ALL TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "teachers_auth_select" ON public.teachers
+FOR SELECT TO authenticated
+USING (true);
+
+CREATE POLICY "teachers_self_update" ON public.teachers
+FOR UPDATE TO authenticated
+USING (auth_user_id = auth.uid() OR id = auth.uid()::text)
+WITH CHECK (auth_user_id = auth.uid() OR id = auth.uid()::text);
 
 -- ============================================================================
 -- 8. YÖNETİCİ İÇİN ATOMİK ERİŞİM ATAMA FONKSİYONU (RPC TRANSACTION)

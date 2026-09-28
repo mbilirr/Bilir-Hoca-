@@ -1612,14 +1612,6 @@ export class DataService {
         } catch {}
         return;
       }
-      if (
-        row.id === '__system_sync_teachers__' ||
-        row.subject === 'TeacherSync' ||
-        (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_'))
-      ) {
-        this.syncTeachersFromSupabase(true);
-        return;
-      }
       if (row.id === '__system_sync_tombstones__') {
         this.handleRemoteTombstonesPayload(row.description);
         return;
@@ -1941,8 +1933,22 @@ export class DataService {
 
   public async pushEtutToSupabase(etut: Etut): Promise<boolean> {
     try {
+      // 1. RLS Güvencesi: Yalnızca Supabase Auth ile doğrulanmış aktif bir oturum varsa buluta yaz
+      const { data: sessionData } = await supabase.auth.getSession();
+      const authUser = sessionData?.session?.user;
+      if (!authUser) {
+        // Oturum açılmamışsa (anon) RLS yazma işlemine izin vermez; sessizce yerel state korunur
+        return false;
+      }
+
+      // Öğrenciler etüt ekleme veya güncelleme yetkisine sahip değildir
+      const userRole = authUser.app_metadata?.role;
+      if (userRole === 'student') {
+        return false;
+      }
+
       const attendanceStudentIds = Object.keys(etut.studentAttendance || {});
-      let finalAssigned: string[] | null = null;
+      let finalAssigned: string[] = [];
       if (Array.isArray(etut.assignedStudentIds)) {
         finalAssigned = Array.from(new Set([...etut.assignedStudentIds, ...attendanceStudentIds]));
       } else if (attendanceStudentIds.length > 0) {
@@ -1979,12 +1985,16 @@ export class DataService {
       });
 
       if (error) {
-        console.error('[EtutSync] Error upserting etut to Supabase:', error);
+        if (error.code === '42501' || error.message?.includes('violates row-level security policy')) {
+          console.warn('[EtutSync] Etüt senkronizasyonu RLS yetki sınırına takıldı (bu kayıt için yetki yok):', error.message);
+        } else {
+          console.warn('[EtutSync] Etüt buluta yüklenemedi:', error.message);
+        }
         return false;
       }
       return true;
-    } catch (err) {
-      console.error('[EtutSync] Exception upserting etut to Supabase:', err);
+    } catch (err: any) {
+      console.warn('[EtutSync] Etüt senkronizasyon istisnası:', err?.message || err);
       return false;
     }
   }
@@ -2078,14 +2088,21 @@ export class DataService {
           }
         });
 
-        // Bilgisayarda önceden oluşturulup henüz Supabase'e yüklenmemiş yerel etütleri tespit et ve anında buluta yükle
-        const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
-        const unsyncedLocals = this.etuts.filter(
-          (e) => !remoteIds.has(e.id) && !this.deletedEtutIds.has(e.id)
-        );
-        if (unsyncedLocals.length > 0) {
-          for (const localEtut of unsyncedLocals) {
-            await this.pushEtutToSupabase(localEtut);
+        // Yalnızca kullanıcı Supabase Auth ile giriş yapmış bir öğretmen/yönetici ise yerel etütleri buluta yüklemeyi dene
+        const { data: sessionData } = await supabase.auth.getSession();
+        const authUser = sessionData?.session?.user;
+        const role = authUser?.app_metadata?.role;
+        const canSync = authUser && (role === 'teacher' || role === 'admin' || authUser.email === 'm.bilirr@gmail.com');
+
+        if (canSync) {
+          const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
+          const unsyncedLocals = this.etuts.filter(
+            (e) => !remoteIds.has(e.id) && !this.deletedEtutIds.has(e.id)
+          );
+          if (unsyncedLocals.length > 0) {
+            for (const localEtut of unsyncedLocals) {
+              await this.pushEtutToSupabase(localEtut);
+            }
           }
         }
 
@@ -3536,187 +3553,186 @@ export class DataService {
     this.updateTeacherProfile(teacherId, { password: newPassword });
   }
 
-  // --- CLOUD SYNCHRONIZATION FOR TEACHERS ---
+  // --- CLOUD SYNCHRONIZATION FOR TEACHERS (DIRECT public.teachers TABLE) ---
 
   public async syncTeacherToCloud(teacher: Teacher): Promise<void> {
     try {
-      // 1. Upsert individual teacher sync row in homeworks
-      await supabase.from('homeworks').upsert({
-        id: `__teacher_sync_${teacher.id}__`,
-        title: teacher.name,
-        subject: 'TeacherSync',
-        description: JSON.stringify(teacher),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const authUserId =
+        teacher.auth_user_id && uuidRegex.test(teacher.auth_user_id) ? teacher.auth_user_id : null;
 
-      // 2. Also update aggregate master teacher sync row
-      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_teachers__',
-        title: 'Teachers Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeTeachers),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (e) {
-      console.error('Error syncing teacher to cloud:', e);
+      const payload: any = {
+        id: teacher.id,
+        name: teacher.name,
+        username: teacher.username || null,
+        email: teacher.email || null,
+        branch: teacher.branch || null,
+        avatar: teacher.avatar || null,
+        role: teacher.role || 'teacher',
+        status: teacher.status || 'approved',
+        is_admin: Boolean(teacher.isAdmin),
+        created_at: teacher.createdAt || new Date().toISOString(),
+      };
+
+      if (authUserId) {
+        payload.auth_user_id = authUserId;
+      }
+
+      const { error } = await supabase.from('teachers').upsert(payload);
+      if (error) {
+        console.warn('[TeacherSync] Error syncing teacher to public.teachers:', error.message);
+      }
+    } catch (e: any) {
+      console.warn('[TeacherSync] Exception syncing teacher to cloud:', e?.message || e);
     }
   }
 
   public async deleteTeacherFromCloud(teacherId: string): Promise<void> {
     try {
-      await supabase
-        .from('homeworks')
-        .delete()
-        .eq('id', `__teacher_sync_${teacherId}__`);
-
-      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_teachers__',
-        title: 'Teachers Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeTeachers),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (e) {
-      console.error('Error deleting teacher from cloud:', e);
+      const { error } = await supabase.from('teachers').delete().eq('id', teacherId);
+      if (error) {
+        console.warn('[TeacherSync] Error deleting teacher from public.teachers:', error.message);
+      }
+    } catch (e: any) {
+      console.warn('[TeacherSync] Exception deleting teacher from cloud:', e?.message || e);
     }
   }
 
   public async syncAllTeachersToCloud(): Promise<void> {
     try {
       const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_teachers__',
-        title: 'Teachers Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeTeachers),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      const payload = activeTeachers.map((teacher) => {
+        const authUserId =
+          teacher.auth_user_id && uuidRegex.test(teacher.auth_user_id) ? teacher.auth_user_id : null;
+        const row: any = {
+          id: teacher.id,
+          name: teacher.name,
+          username: teacher.username || null,
+          email: teacher.email || null,
+          branch: teacher.branch || null,
+          avatar: teacher.avatar || null,
+          role: teacher.role || 'teacher',
+          status: teacher.status || 'approved',
+          is_admin: Boolean(teacher.isAdmin),
+          created_at: teacher.createdAt || new Date().toISOString(),
+        };
+        if (authUserId) {
+          row.auth_user_id = authUserId;
+        }
+        return row;
       });
 
-      // Ensure each active teacher has an individual sync row for conflict-free multi-device operations
-      for (const t of activeTeachers) {
-        await supabase.from('homeworks').upsert({
-          id: `__teacher_sync_${t.id}__`,
-          title: t.name,
-          subject: 'TeacherSync',
-          description: JSON.stringify(t),
-          assigned_to: '__SYSTEM__',
-          due_date: '2099-12-31',
-        });
+      if (payload.length > 0) {
+        const { error } = await supabase.from('teachers').upsert(payload);
+        if (error) {
+          console.warn('[TeacherSync] Error in syncAllTeachersToCloud:', error.message);
+        }
       }
-    } catch (e) {
-      console.error('Error syncing all teachers to cloud:', e);
+    } catch (e: any) {
+      console.warn('[TeacherSync] Exception in syncAllTeachersToCloud:', e?.message || e);
     }
   }
 
   public async syncTeachersFromSupabase(isBackground = false): Promise<Teacher[]> {
     try {
+      // Doğrudan public.teachers tablosundan sorgula (homeworks hack'i kullanılmaz)
       const { data: remoteRows, error } = await supabase
-        .from('homeworks')
-        .select('id, description, subject, title, created_at')
-        .or('id.eq.__system_sync_teachers__,subject.eq.TeacherSync,id.like.__teacher_sync_%');
+        .from('teachers')
+        .select('*');
 
       if (error) {
-        if (!isBackground) console.error('Error fetching teachers from Supabase:', error);
+        if (!isBackground) {
+          console.error('[TeacherSync] Error fetching teachers from public.teachers:', error.message);
+        }
         return this.teachers;
       }
 
       if (!remoteRows || remoteRows.length === 0) {
-        // If Supabase has no teacher records yet, seed our local teachers to cloud
-        await this.syncAllTeachersToCloud();
+        // Eğer Supabase'de henüz öğretmen kaydı yoksa yerel öğretmenleri buluta yükle
+        if (this.teachers.length > 0) {
+          await this.syncAllTeachersToCloud();
+        }
         return this.teachers;
       }
-
-      const remoteTeachersMap = new Map<string, Teacher>();
-
-      remoteRows.forEach((row: any) => {
-        if (!row.description) return;
-        try {
-          if (row.id === '__system_sync_teachers__') {
-            const list = JSON.parse(row.description);
-            if (Array.isArray(list)) {
-              list.forEach((t: Teacher) => {
-                if (t && t.id) remoteTeachersMap.set(t.id, t);
-              });
-            }
-          } else if (
-            row.subject === 'TeacherSync' ||
-            (typeof row.id === 'string' && row.id.startsWith('__teacher_sync_'))
-          ) {
-            const single = JSON.parse(row.description);
-            if (single && single.id) {
-              remoteTeachersMap.set(single.id, single);
-            }
-          }
-        } catch (err) {
-          // ignore row parse failure
-        }
-      });
 
       let changed = false;
       let newPendingCount = 0;
       const localTeacherMap = new Map<string, Teacher>();
       this.teachers.forEach((t) => localTeacherMap.set(t.id, t));
 
-      // Process remote teachers into local state
-      remoteTeachersMap.forEach((remoteT, id) => {
-        if (this.deletedTeacherIds.has(id)) return;
+      for (const row of remoteRows) {
+        if (!row.id || this.deletedTeacherIds.has(row.id)) continue;
 
-        const localT = localTeacherMap.get(id);
+        const localT = localTeacherMap.get(row.id);
+        const remoteIsAdmin = Boolean(row.is_admin);
+
         if (!localT) {
-          // Newly arrived teacher registered from another PC / phone / tablet!
-          this.teachers.unshift(remoteT);
-          localTeacherMap.set(id, remoteT);
+          // Yeni gelen öğretmen kaydı
+          const newTeacher: Teacher = {
+            id: row.id,
+            auth_user_id: row.auth_user_id || undefined,
+            name: row.name || 'Öğretmen',
+            username: row.username || row.name || 'ogretmen',
+            email: row.email || '',
+            branch: row.branch || 'Öğretmen',
+            avatar: row.avatar || undefined,
+            role: (row.role as 'teacher') || 'teacher',
+            status: (row.status as any) || 'approved',
+            isAdmin: remoteIsAdmin,
+            createdAt: row.created_at || new Date().toISOString(),
+            assignedClassIds: [],
+            canViewAllStudentsAndClasses: false,
+          };
+
+          this.teachers.unshift(newTeacher);
+          localTeacherMap.set(row.id, newTeacher);
           changed = true;
-          if (remoteT.status === 'pending') {
+          if (newTeacher.status === 'pending') {
             newPendingCount++;
           }
         } else {
-          // Existing teacher: merge status and permission updates
-          let statusUpdated = false;
-          let permissionsUpdated = false;
+          // Mevcut öğretmen: veritabanı verileriyle güncelle
+          let updated = false;
 
-          if (remoteT.status && remoteT.status !== localT.status) {
-            // If local was already approved/rejected by admin, keep local and push to cloud
-            if (localT.status === 'approved' && remoteT.status === 'pending') {
-              this.syncTeacherToCloud(localT);
-            } else {
-              localT.status = remoteT.status;
-              statusUpdated = true;
-            }
+          if (row.name && row.name !== localT.name) {
+            localT.name = row.name;
+            updated = true;
+          }
+          if (row.username && row.username !== localT.username) {
+            localT.username = row.username;
+            updated = true;
+          }
+          if (row.email && row.email !== localT.email) {
+            localT.email = row.email;
+            updated = true;
+          }
+          if (row.branch && row.branch !== localT.branch) {
+            localT.branch = row.branch;
+            updated = true;
+          }
+          if (row.avatar && row.avatar !== localT.avatar) {
+            localT.avatar = row.avatar;
+            updated = true;
+          }
+          if (row.auth_user_id && row.auth_user_id !== localT.auth_user_id) {
+            localT.auth_user_id = row.auth_user_id;
+            updated = true;
+          }
+          if (row.status && row.status !== localT.status) {
+            localT.status = row.status;
+            updated = true;
+          }
+          if (localT.isAdmin !== remoteIsAdmin) {
+            localT.isAdmin = remoteIsAdmin;
+            updated = true;
           }
 
-          if (
-            remoteT.assignedClassIds &&
-            JSON.stringify(remoteT.assignedClassIds) !== JSON.stringify(localT.assignedClassIds)
-          ) {
-            localT.assignedClassIds = remoteT.assignedClassIds;
-            permissionsUpdated = true;
-          }
-
-          if (remoteT.canViewAllStudentsAndClasses !== undefined) {
-            if (localT.canViewAllStudentsAndClasses !== remoteT.canViewAllStudentsAndClasses) {
-              localT.canViewAllStudentsAndClasses = remoteT.canViewAllStudentsAndClasses;
-              permissionsUpdated = true;
-            }
-          }
-
-          if (remoteT.isAdmin !== undefined && remoteT.id !== 'teacher-1') {
-            if (localT.isAdmin !== remoteT.isAdmin) {
-              localT.isAdmin = remoteT.isAdmin;
-              permissionsUpdated = true;
-            }
-          }
-
-          if (statusUpdated || permissionsUpdated) {
+          if (updated) {
             changed = true;
             const currentSession = this.getAuthSession();
-            if (currentSession?.role === 'teacher' && currentSession.user.id === id) {
+            if (currentSession?.role === 'teacher' && currentSession.user.id === row.id) {
               this.setAuthSession({
                 ...currentSession,
                 user: {
@@ -3727,12 +3743,13 @@ export class DataService {
             }
           }
         }
-      });
+      }
 
-      // Also check if this device has registered teachers locally that are NOT yet in Supabase
+      // Ayrıca yerelde olup Supabase'de henüz bulunmayan öğretmenleri tespit et ve yükle
+      const remoteIdSet = new Set(remoteRows.map((r: any) => r.id));
       let needsUpload = false;
       for (const lt of this.teachers) {
-        if (!this.deletedTeacherIds.has(lt.id) && !remoteTeachersMap.has(lt.id)) {
+        if (!this.deletedTeacherIds.has(lt.id) && !remoteIdSet.has(lt.id)) {
           needsUpload = true;
           break;
         }
@@ -3760,8 +3777,8 @@ export class DataService {
       }
 
       return this.teachers;
-    } catch (e) {
-      if (!isBackground) console.error('syncTeachersFromSupabase error:', e);
+    } catch (e: any) {
+      if (!isBackground) console.error('[TeacherSync] syncTeachersFromSupabase error:', e?.message || e);
       return this.teachers;
     }
   }
