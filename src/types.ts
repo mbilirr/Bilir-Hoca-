@@ -15,6 +15,7 @@ export type TeacherTabType =
 
 export interface Teacher {
   id: string;
+  auth_user_id?: string;
   name: string;
   username: string;
   password?: string;
@@ -38,6 +39,7 @@ export interface AuthSession {
 
 export interface Student {
   id: string;
+  auth_user_id?: string;
   name: string;
   username: string;
   email?: string;
@@ -60,6 +62,7 @@ export interface Student {
 
 export interface UnifiedUser {
   id: string;
+  auth_user_id?: string;
   name: string;
   username: string;
   email?: string;

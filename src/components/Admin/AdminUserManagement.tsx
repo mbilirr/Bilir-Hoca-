@@ -138,11 +138,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   };
 
   // Route Guard: Sadece yöneticiler erişebilir
-  const isSuperAdmin =
-    !!currentAdmin?.isAdmin ||
-    currentAdmin?.id === 'teacher-1' ||
-    currentAdmin?.username?.toLowerCase() === 'mustafa bilir' ||
-    currentAdmin?.name?.toLowerCase() === 'mustafa bilir';
+  const isSuperAdmin = Boolean(currentAdmin?.isAdmin);
 
   if (!isSuperAdmin) {
     return (
@@ -335,23 +331,34 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   };
 
   // Open Teacher Authorization Modal
-  const handleOpenAuthModal = (teacher: UnifiedUser) => {
-    setAuthModalTeacher(teacher);
-    // Find authorized classes
-    const currentTeacherClasses = classes.filter(
-      (c) =>
-        (c.authorizedTeacherIds && c.authorizedTeacherIds.includes(teacher.id)) ||
-        (teacher.assignedClassIds && (teacher.assignedClassIds.includes(c.id) || teacher.assignedClassIds.includes(c.name)))
-    );
-    setSelectedAuthClassIds(currentTeacherClasses.map((c) => c.id));
+  const handleOpenAuthModal = async (teacher: UnifiedUser) => {
+    // 1. auth_user_id doğrulama
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const authUserId = teacher.auth_user_id || (uuidRegex.test(teacher.id) ? teacher.id : null);
 
-    // Find direct authorized individual students
-    const allStds = dataService.getAllStudents();
-    const currentAuthStds = allStds.filter(
-      (s) => s.authorizedTeacherIds && s.authorizedTeacherIds.includes(teacher.id)
-    );
-    setSelectedAuthStudentIds(currentAuthStds.map((s) => s.id));
-    setAuthStudentSearch('');
+    if (!authUserId) {
+      showToast(
+        `"${teacher.name}" kullanıcısının Supabase Auth hesabı (auth_user_id) bulunamadı. Veritabanı erişim matrisi açılamıyor.`,
+        'error'
+      );
+      return;
+    }
+
+    // 2. Doğrudan ve SADECE veritabanından çek (eski yerel dizilerle union yapma)
+    try {
+      const cloudAccess = await dataService.getTeacherCloudAccess(authUserId);
+      setSelectedAuthClassIds(cloudAccess.classIds || []);
+      setSelectedAuthStudentIds(cloudAccess.studentIds || []);
+      setAuthStudentSearch('');
+      // SADECE sorgu başarılı olursa modalı aç
+      setAuthModalTeacher(teacher);
+    } catch (err: any) {
+      showToast(
+        `Erişim izinleri veritabanından çekilemedi: ${err.message || 'Bilinmeyen hata'}`,
+        'error'
+      );
+      // Hata durumunda modal açılmaz
+    }
   };
 
   // Save Teacher Authorization
@@ -367,10 +374,12 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         `✓ "${authModalTeacher.name}" için sınıf ve öğrenci erişim yetkileri başarıyla güncellendi.`,
         'success'
       );
+      // SADECE başarılı olduğunda modalı kapat
       setAuthModalTeacher(null);
       loadData();
     } catch (err: any) {
-      showToast(err.message || 'Yetkilendirme kaydedilemedi.', 'error');
+      // Hata durumunda modal KAPANMAZ, admin hatayı görüp düzeltebilir
+      showToast(err.message || 'Yetkilendirme veritabanına kaydedilemedi.', 'error');
     }
   };
 
@@ -757,11 +766,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               ) : (
                 filteredUsers.map((u) => {
                   const isCurrentAdminSelf = u.id === currentAdmin?.id;
-                  const isMustafaBilir =
-                    u.username?.toLowerCase() === 'mustafa bilir' ||
-                    u.name?.toLowerCase() === 'mustafa bilir' ||
-                    u.id === 'teacher-1';
-
+                  const isProtectedAdmin = isCurrentAdminSelf || (u.role === 'admin' && stats.admins <= 1);
                   const isSuspended = u.isSuspended || u.status === 'suspended';
 
                   return (
@@ -949,7 +954,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setSuspendModalUser(u)}
-                            disabled={isMustafaBilir}
+                            disabled={isProtectedAdmin}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                               isSuspended
                                 ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border-emerald-500/30'
@@ -964,7 +969,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setDeleteModalUser(u)}
-                            disabled={isMustafaBilir || (u.role === 'admin' && stats.admins <= 1)}
+                            disabled={isProtectedAdmin}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 border border-slate-700/80 transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
                             title="Kullanıcıyı Kalıcı Olarak Sil"
                           >

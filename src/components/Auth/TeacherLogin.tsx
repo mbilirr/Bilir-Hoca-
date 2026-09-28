@@ -25,43 +25,41 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
   // If isOpen is explicitly passed as false, do not render
   if (isOpen !== undefined && !isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      try {
-        const teacher = dataService.authenticateTeacher(username.trim(), password);
-        if (teacher) {
-          if (rememberMe) {
-            dataService.setRememberedUser({
-              role: 'teacher',
-              identifier: teacher.username,
-              name: teacher.name,
-              avatar: teacher.avatar,
-              branch: teacher.branch,
-              savedPassword: password,
-            });
-          } else {
-            dataService.setRememberedUser(null, 'teacher');
-          }
-          dataService.setAuthSession({
+    try {
+      const teacher = await dataService.authenticateTeacher(username.trim(), password);
+      if (teacher) {
+        if (rememberMe) {
+          dataService.setRememberedUser({
             role: 'teacher',
-            user: teacher,
+            identifier: teacher.username,
+            name: teacher.name,
+            avatar: teacher.avatar,
+            branch: teacher.branch,
+            savedPassword: password,
           });
-          setIsLoading(false);
-          onSuccess();
-          if (onClose) onClose();
         } else {
-          setIsLoading(false);
-          setError('Geçersiz kullanıcı adı veya şifre! Lütfen kontrol ediniz.');
+          dataService.setRememberedUser(null, 'teacher');
         }
-      } catch (err: unknown) {
+        dataService.setAuthSession({
+          role: 'teacher',
+          user: teacher,
+        });
         setIsLoading(false);
-        setError(err instanceof Error ? err.message : 'Giriş yapılamadı.');
+        onSuccess();
+        if (onClose) onClose();
+      } else {
+        setIsLoading(false);
+        setError('Geçersiz kullanıcı adı veya şifre! Lütfen kontrol ediniz.');
       }
-    }, 250);
+    } catch (err: unknown) {
+      setIsLoading(false);
+      setError(err instanceof Error ? err.message : 'Giriş yapılamadı.');
+    }
   };
 
   const formContent = (

@@ -156,7 +156,9 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
             <div className="flex items-center justify-between">
               <span className="text-slate-400">Aktif Anon Key:</span>
               <span className="font-mono text-slate-300 text-[11px] truncate max-w-md">
-                {SUPABASE_CONFIG.anonKey.slice(0, 24)}...
+                {SUPABASE_CONFIG.anonKey
+                  ? `${SUPABASE_CONFIG.anonKey.slice(0, 24)}...`
+                  : '(VITE_SUPABASE_ANON_KEY ile tanımlanır)'}
               </span>
             </div>
             <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">

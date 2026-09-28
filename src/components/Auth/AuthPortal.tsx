@@ -215,7 +215,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // --- SUBMIT LOGIN ---
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
@@ -230,41 +230,35 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      setIsLoading(false);
-
+    try {
       if (selectedRole === 'teacher') {
-        try {
-          const teacher = dataService.authenticateTeacher(cleanUser, cleanPass);
-          if (teacher) {
-            if (rememberMe) {
-              dataService.setRememberedUser({
-                role: 'teacher',
-                identifier: teacher.username,
-                name: teacher.name,
-                avatar: teacher.avatar,
-                branch: teacher.branch,
-                savedPassword: cleanPass,
-              });
-              setRememberedTeacher(dataService.getRememberedUser('teacher'));
-            } else {
-              dataService.setRememberedUser(null, 'teacher');
-              setRememberedTeacher(null);
-            }
-
-            const session: AuthSession = { role: 'teacher', user: teacher };
-            dataService.setAuthSession(session);
-            confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-            setSuccessMsg(`Hoş geldiniz Sn. ${teacher.name}! Panele yönlendiriliyorsunuz...`);
-            setTimeout(() => onAuthSuccess(session), 400);
+        const teacher = await dataService.authenticateTeacher(cleanUser, cleanPass);
+        if (teacher) {
+          if (rememberMe) {
+            dataService.setRememberedUser({
+              role: 'teacher',
+              identifier: teacher.username,
+              name: teacher.name,
+              avatar: teacher.avatar,
+              branch: teacher.branch,
+              savedPassword: cleanPass,
+            });
+            setRememberedTeacher(dataService.getRememberedUser('teacher'));
           } else {
-            setError('Öğretmen kullanıcı adı veya şifre hatalı! Lütfen kontrol edip tekrar deneyiniz.');
+            dataService.setRememberedUser(null, 'teacher');
+            setRememberedTeacher(null);
           }
-        } catch (err: any) {
-          setError(err.message || 'Giriş yapılamadı.');
+
+          const session: AuthSession = { role: 'teacher', user: teacher };
+          dataService.setAuthSession(session);
+          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+          setSuccessMsg(`Hoş geldiniz Sn. ${teacher.name}! Panele yönlendiriliyorsunuz...`);
+          setTimeout(() => onAuthSuccess(session), 400);
+        } else {
+          setError('Öğretmen kullanıcı adı veya şifre hatalı! Lütfen kontrol edip tekrar deneyiniz.');
         }
       } else {
-        const student = dataService.authenticateStudent(cleanUser, cleanPass);
+        const student = await dataService.authenticateStudent(cleanUser, cleanPass);
         if (student) {
           if (rememberMe) {
             dataService.setRememberedUser({
@@ -292,7 +286,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           );
         }
       }
-    }, 350);
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- SUBMIT TEACHER REGISTER ---

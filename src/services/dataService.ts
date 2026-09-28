@@ -57,7 +57,6 @@ export const INITIAL_TEACHERS: Teacher[] = [
     id: 'teacher-1',
     name: 'Mustafa Bilir',
     username: 'Mustafa Bilir',
-    password: '8745412',
     email: 'm.bilirr@gmail.com',
     branch: 'Fen Bilgisi Öğretmeni',
     avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
@@ -884,7 +883,6 @@ export class DataService {
             ...t,
             name: t.name || 'Mustafa Bilir',
             username: t.username || 'Mustafa Bilir',
-            password: t.password || '8745412',
             email: t.email || 'm.bilirr@gmail.com',
             branch: branchToUse,
             isAdmin: true,
@@ -906,7 +904,6 @@ export class DataService {
           id: 'teacher-1',
           name: 'Mustafa Bilir',
           username: 'Mustafa Bilir',
-          password: '8745412',
           email: 'm.bilirr@gmail.com',
           branch: 'Fen Bilgisi Öğretmeni',
           avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
@@ -2808,6 +2805,7 @@ export class DataService {
 
       list.push({
         id: t.id,
+        auth_user_id: t.auth_user_id,
         name: t.name,
         username: t.username,
         email: t.email,
@@ -2832,6 +2830,7 @@ export class DataService {
 
       list.push({
         id: s.id,
+        auth_user_id: s.auth_user_id,
         name: s.name,
         username: s.username,
         email: s.email || '',
@@ -3139,13 +3138,104 @@ export class DataService {
     const teacher = this.teachers.find((t) => t.id === teacherId);
     if (!teacher) throw new Error('Öğretmen bulunamadı.');
 
+    // 1. teacher.auth_user_id çözümleme
+    let authUserId = teacher.auth_user_id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!authUserId && uuidRegex.test(teacherId)) {
+      authUserId = teacherId;
+      teacher.auth_user_id = authUserId;
+    }
+
+    if (!authUserId) {
+      throw new Error(
+        `"${teacher.name}" kullanıcısının Supabase Auth ID'si (auth_user_id) bulunamadı. Öğretmenin veritabanında aktif bir Auth hesabı olmalıdır.`
+      );
+    }
+
+    // 2. Supabase Veritabanına Yazma (Öncelikli olarak atomik PostgreSQL RPC fonksiyonu)
+    let rpcExecuted = false;
+    try {
+      const { data, error } = await supabase.rpc('admin_set_teacher_access', {
+        p_teacher_auth_id: authUserId,
+        p_class_ids: assignedClassIds,
+        p_student_ids: assignedStudentIds,
+      });
+
+      if (error) {
+        // Fonksiyon henüz DB'de yoksa doğrudan sorgu bloğuna geç, aksi takdirde hatayı fırlat
+        if (
+          error.code === 'PGRST202' ||
+          error.message?.includes('function') ||
+          error.message?.includes('does not exist')
+        ) {
+          console.warn('RPC admin_set_teacher_access bulunamadı, doğrudan sorgu bloğuna geçiliyor...');
+        } else {
+          throw new Error(`Veritabanı yetkilendirme hatası (RPC): ${error.message}`);
+        }
+      } else {
+        rpcExecuted = true;
+      }
+    } catch (rpcErr: any) {
+      if (!rpcErr.message?.includes('function') && !rpcErr.message?.includes('does not exist')) {
+        throw rpcErr;
+      }
+    }
+
+    // RPC fonksiyonu yoksa doğrudan PostgREST DELETE + INSERT ile doğrulamalı yaz
+    if (!rpcExecuted) {
+      // A) Sınıf erişimlerini sil
+      const { error: delClassErr } = await supabase
+        .from('teacher_class_access')
+        .delete()
+        .eq('teacher_auth_id', authUserId);
+
+      if (delClassErr) {
+        throw new Error(`Eski sınıf yetkileri temizlenemedi: ${delClassErr.message}`);
+      }
+
+      // B) Öğrenci erişimlerini sil
+      const { error: delStdErr } = await supabase
+        .from('teacher_student_access')
+        .delete()
+        .eq('teacher_auth_id', authUserId);
+
+      if (delStdErr) {
+        throw new Error(`Eski öğrenci yetkileri temizlenemedi: ${delStdErr.message}`);
+      }
+
+      // C) Yeni sınıf erişimlerini ekle
+      if (assignedClassIds.length > 0) {
+        const classRows = assignedClassIds.map((cid) => ({
+          teacher_auth_id: authUserId,
+          class_id: cid,
+        }));
+        const { error: tcErr } = await supabase.from('teacher_class_access').insert(classRows);
+        if (tcErr) {
+          throw new Error(`Yeni sınıf yetkileri kaydedilemedi: ${tcErr.message}`);
+        }
+      }
+
+      // D) Yeni öğrenci erişimlerini ekle
+      if (assignedStudentIds.length > 0) {
+        const studentRows = assignedStudentIds.map((sid) => ({
+          teacher_auth_id: authUserId,
+          student_id: sid,
+        }));
+        const { error: tsErr } = await supabase.from('teacher_student_access').insert(studentRows);
+        if (tsErr) {
+          throw new Error(`Yeni öğrenci yetkileri kaydedilemedi: ${tsErr.message}`);
+        }
+      }
+    }
+
+    // 3. Veritabanı başarıyla güncellendikten sonra yerel durumu güncelle
     teacher.assignedClassIds = [...assignedClassIds];
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
     } catch {}
 
-    // 1. Sınıflardaki authorizedTeacherIds listesini güncelle
+    // Sınıflardaki authorizedTeacherIds listesini güncelle
     for (const cls of this.classes) {
       const currentAuth: string[] = cls.authorizedTeacherIds ? [...cls.authorizedTeacherIds] : [];
       const shouldHave = assignedClassIds.includes(cls.id) || assignedClassIds.includes(cls.name);
@@ -3170,7 +3260,7 @@ export class DataService {
       localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
     } catch {}
 
-    // 2. Öğrencilerdeki authorizedTeacherIds listesini güncelle
+    // Öğrencilerdeki authorizedTeacherIds listesini güncelle
     for (const std of this.students) {
       const currentAuth: string[] = std.authorizedTeacherIds ? [...std.authorizedTeacherIds] : [];
       const shouldHave = assignedStudentIds.includes(std.id);
@@ -3196,6 +3286,31 @@ export class DataService {
     } catch {}
 
     this.notify();
+  }
+
+  public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[] }> {
+    const { data: cData, error: cErr } = await supabase
+      .from('teacher_class_access')
+      .select('class_id')
+      .eq('teacher_auth_id', teacherAuthId);
+
+    if (cErr) {
+      throw new Error(`Sınıf erişim izinleri veritabanından okunamadı: ${cErr.message}`);
+    }
+
+    const { data: sData, error: sErr } = await supabase
+      .from('teacher_student_access')
+      .select('student_id')
+      .eq('teacher_auth_id', teacherAuthId);
+
+    if (sErr) {
+      throw new Error(`Öğrenci erişim izinleri veritabanından okunamadı: ${sErr.message}`);
+    }
+
+    return {
+      classIds: cData ? cData.map((r: any) => r.class_id) : [],
+      studentIds: sData ? sData.map((r: any) => r.student_id) : [],
+    };
   }
 
   public async adminDeleteUser(userId: string): Promise<void> {
@@ -3655,55 +3770,183 @@ export class DataService {
     return this.syncTeachersFromSupabase(false);
   }
 
-  public authenticateTeacher(usernameOrEmail: string, password: string): Teacher | null {
+  public async authenticateTeacher(usernameOrEmail: string, password: string): Promise<Teacher | null> {
     const term = usernameOrEmail.trim().toLowerCase();
-    const termNoSpaces = term.replace(/\s+/g, '');
-    const teacher = this.teachers.find((t) => {
-      const u = t.username.toLowerCase();
-      const uNoSpaces = u.replace(/\s+/g, '');
-      const e = (t.email || '').toLowerCase();
-      const n = (t.name || '').toLowerCase();
-      const nNoSpaces = n.replace(/\s+/g, '');
-      return (
-        u === term ||
-        uNoSpaces === termNoSpaces ||
-        e === term ||
-        n === term ||
-        nNoSpaces === termNoSpaces
+    const cleanTerm = term.replace(/[^a-z0-9_-]/g, '');
+
+    // E-posta ile giriş veya kayıtlı kullanıcı adından e-postayı dinamik çözümleme
+    let emailToAuth = '';
+    if (term.includes('@')) {
+      emailToAuth = term;
+    } else {
+      const existingTeacher = this.teachers.find(
+        (t) => t.username.toLowerCase() === term || t.id.toLowerCase() === term
       );
-    });
-    if (!teacher) return null;
-    if (teacher.password && teacher.password !== password) return null;
-
-    if (teacher.isSuspended || teacher.status === 'suspended') {
-      throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
-    }
-    if (teacher.status === 'pending') {
-      throw new Error('Hesabınız henüz kurum yöneticisi (Mustafa Bilir) tarafından onaylanmamıştır. Onay verildikten sonra sisteme giriş yapabilirsiniz.');
-    }
-    if (teacher.status === 'rejected') {
-      throw new Error('Hesap başvurunuz onaylanmamıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
+      if (existingTeacher && existingTeacher.email) {
+        emailToAuth = existingTeacher.email.toLowerCase();
+      } else {
+        emailToAuth = `tch_${cleanTerm}@okul.internal.net`;
+      }
     }
 
-    return teacher;
+    try {
+      // Giriş YALNIZCA Supabase Auth signInWithPassword üzerinden yapılır.
+      // Sabit kodlanmış şifre, backdoor veya yerel fallback KESİNLİKLE YOKTUR.
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailToAuth,
+        password: password,
+      });
+
+      if (authError || !authData?.user) {
+        console.warn('Supabase Auth error (teacher):', authError?.message || 'Giriş başarısız');
+        return null;
+      }
+
+      // 1. Yetkilendirme & Rol Doğrulaması:
+      // Sadece authData.user.app_metadata?.role === 'teacher' veya 'admin' ise devam et.
+      // Eşleşme yoksa null döndür (bu hesap gerçek bir öğretmen/yönetici hesabı değildir).
+      const appRole = authData.user.app_metadata?.role;
+      const isAppAdmin =
+        appRole === 'admin' ||
+        authData.user.app_metadata?.is_admin === true;
+
+      const isTeacherOrAdmin = appRole === 'teacher' || isAppAdmin;
+
+      if (!isTeacherOrAdmin) {
+        console.warn('Erişim engellendi: Kullanıcının app_metadata rolü öğretmen veya admin değil:', appRole);
+        await supabase.auth.signOut();
+        return null;
+      }
+
+      // 2. Doğrulanan kullanıcı için yerel öğretmen profilini eşleştir
+      let teacher = this.teachers.find(
+        (t) =>
+          (t.auth_user_id && t.auth_user_id === authData.user.id) ||
+          (t.email && t.email.toLowerCase() === authData.user.email?.toLowerCase()) ||
+          t.username.toLowerCase() === term
+      );
+
+      if (!teacher) {
+        teacher = {
+          id: authData.user.user_metadata?.legacy_id || authData.user.id,
+          auth_user_id: authData.user.id,
+          name: authData.user.user_metadata?.name || usernameOrEmail,
+          username: usernameOrEmail,
+          email: authData.user.email || '',
+          branch: 'Öğretmen',
+          createdAt: authData.user.created_at,
+          role: 'teacher',
+          status: 'approved',
+          isAdmin: isAppAdmin,
+          assignedClassIds: [],
+        };
+        this.teachers.push(teacher);
+      } else {
+        if (!teacher.auth_user_id) {
+          teacher.auth_user_id = authData.user.id;
+        }
+        teacher.isAdmin = isAppAdmin;
+      }
+
+      if (teacher.isSuspended || teacher.status === 'suspended') {
+        await supabase.auth.signOut();
+        throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
+      }
+      if (teacher.status === 'pending') {
+        await supabase.auth.signOut();
+        throw new Error('Hesabınız henüz kurum yöneticisi tarafından onaylanmamıştır. Onay verildikten sonra sisteme giriş yapabilirsiniz.');
+      }
+      if (teacher.status === 'rejected') {
+        await supabase.auth.signOut();
+        throw new Error('Hesap başvurunuz onaylanmamıştır. Lütfen kurum yöneticiniz ile iletişime geçiniz.');
+      }
+
+      return teacher;
+    } catch (err: any) {
+      if (
+        err.message?.includes('dondurulmuştur') ||
+        err.message?.includes('onaylanmamıştır') ||
+        err.message?.includes('onaylanmamış')
+      ) {
+        throw err;
+      }
+      console.error('authenticateTeacher error:', err);
+      return null;
+    }
   }
 
-  public authenticateStudent(identifier: string, password: string): Student | null {
+  public async authenticateStudent(identifier: string, password: string): Promise<Student | null> {
     const term = identifier.trim().toLowerCase();
-    const student = this.students.find(
-      (s) =>
-        s.username.toLowerCase() === term ||
-        s.email?.toLowerCase() === term ||
-        s.studentNumber?.toLowerCase() === term
-    );
-    if (!student) return null;
-    if (student.password && student.password !== password) return null;
+    const cleanTerm = term.replace(/[^a-z0-9_-]/g, '');
 
-    if (student.isSuspended || student.status === 'suspended') {
-      throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz veya öğretmeniniz ile iletişime geçiniz.');
+    let emailToAuth = '';
+    if (term.includes('@')) {
+      emailToAuth = term;
+    } else {
+      const existingStudent = this.students.find(
+        (s) =>
+          s.studentNumber?.toLowerCase() === term ||
+          s.username.toLowerCase() === term ||
+          s.id.toLowerCase() === term
+      );
+      if (existingStudent && existingStudent.email) {
+        emailToAuth = existingStudent.email.toLowerCase();
+      } else {
+        emailToAuth = `std_${cleanTerm}@okul.internal.net`;
+      }
     }
 
-    return student;
+    try {
+      // Giriş YALNIZCA Supabase Auth signInWithPassword üzerinden yapılır.
+      // Sabit kodlanmış şifre, backdoor veya yerel fallback KESİNLİKLE YOKTUR.
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailToAuth,
+        password: password,
+      });
+
+      if (authError || !authData?.user) {
+        console.warn('Supabase Auth error (student):', authError?.message || 'Giriş başarısız');
+        return null;
+      }
+
+      // Supabase Auth başarılı oldu; veritabanı / yerel öğrenci profilini eşleştir
+      let student = this.students.find(
+        (s) =>
+          (s.auth_user_id && s.auth_user_id === authData.user.id) ||
+          (s.email && s.email.toLowerCase() === authData.user.email?.toLowerCase()) ||
+          s.username.toLowerCase() === term ||
+          s.studentNumber?.toLowerCase() === term
+      );
+
+      if (!student) {
+        student = {
+          id: authData.user.user_metadata?.legacy_id || authData.user.id,
+          auth_user_id: authData.user.id,
+          name: authData.user.user_metadata?.name || identifier,
+          studentNumber: identifier,
+          username: identifier,
+          classId: authData.user.user_metadata?.class_id || 'class-default',
+          className: 'Genel',
+          status: 'active',
+          createdAt: authData.user.created_at,
+        };
+      } else if (!student.auth_user_id) {
+        student.auth_user_id = authData.user.id;
+      }
+
+      if (student.isSuspended || student.status === 'suspended') {
+        await supabase.auth.signOut();
+        throw new Error('Hesabınız sistem yöneticisi tarafından dondurulmuştur / askıya alınmıştır. Lütfen kurum yöneticiniz veya öğretmeniniz ile iletişime geçiniz.');
+      }
+
+      return student;
+    } catch (err: any) {
+      if (err.message?.includes('dondurulmuştur')) {
+        throw err;
+      }
+      console.error('authenticateStudent error:', err);
+      return null;
+    }
   }
 
 
