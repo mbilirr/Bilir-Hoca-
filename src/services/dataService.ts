@@ -24,16 +24,6 @@ import {
   UserStatus,
 } from '../types';
 import { supabase } from '../lib/supabase';
-import { db, auth, ensureFirebaseAuth, handleFirestoreError, OperationType, testFirestoreConnection } from '../lib/firebase';
-import {
-  collection,
-  doc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  getDocs,
-  Unsubscribe,
-} from 'firebase/firestore';
 import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
 import {
   generateHomeworkEmail,
@@ -1029,120 +1019,7 @@ export class DataService {
     }
   }
 
-  // --- FIRESTORE REAL-TIME CHANNELS (MULTI-DEVICE INSTANT SYNCHRONIZATION) ---
-  private firestoreUnsubscribes: Unsubscribe[] = [];
-  private isFirestoreSynced = false;
-
-  public async migrateLocalStorageToFirestore(): Promise<void> {
-    try {
-      const isMigrated = localStorage.getItem('edu_sys_firestore_migrated_v2');
-      if (isMigrated === 'true') return;
-
-      // Migrate Teachers
-      if (this.teachers && this.teachers.length > 0) {
-        for (const t of this.teachers) {
-          if (!this.deletedTeacherIds.has(t.id)) {
-            await setDoc(doc(db, 'teachers', t.id), t, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Classes
-      if (this.classes && this.classes.length > 0) {
-        for (const c of this.classes) {
-          if (!this.deletedClassIds.has(c.id)) {
-            await setDoc(doc(db, 'classes', c.id), c, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Students
-      if (this.students && this.students.length > 0) {
-        for (const s of this.students) {
-          if (!this.deletedStudentIds.has(s.id)) {
-            await setDoc(doc(db, 'students', s.id), s, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Homeworks
-      if (this.homeworks && this.homeworks.length > 0) {
-        for (const h of this.homeworks) {
-          if (!this.deletedHomeworkIds.has(h.id)) {
-            await setDoc(doc(db, 'homeworks', h.id), h, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Submissions
-      if (this.submissions && this.submissions.length > 0) {
-        for (const sub of this.submissions) {
-          await setDoc(doc(db, 'submissions', sub.id), sub, { merge: true }).catch(() => {});
-        }
-      }
-
-      // Migrate Etuts
-      if (this.etuts && this.etuts.length > 0) {
-        for (const e of this.etuts) {
-          if (!this.deletedEtutIds.has(e.id)) {
-            await setDoc(doc(db, 'etuts', e.id), e, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Question Logs
-      if (this.questionLogs && this.questionLogs.length > 0) {
-        for (const q of this.questionLogs) {
-          if (!this.deletedQuestionLogIds.has(q.id)) {
-            await setDoc(doc(db, 'question_logs', q.id), q, { merge: true }).catch(() => {});
-          }
-        }
-      }
-
-      // Migrate Weekly Targets
-      if (this.weeklyQuestionTargets && this.weeklyQuestionTargets.length > 0) {
-        for (const wt of this.weeklyQuestionTargets) {
-          const tid = wt.id || `wt_${wt.studentId}_${wt.weekStartDate}`;
-          await setDoc(doc(db, 'weekly_question_targets', tid), { ...wt, id: tid }, { merge: true }).catch(() => {});
-        }
-      }
-
-      // Migrate Documents
-      if (this.documents && this.documents.length > 0) {
-        for (const d of this.documents) {
-          await setDoc(doc(db, 'teacher_documents', d.id), d, { merge: true }).catch(() => {});
-        }
-      }
-
-      // Migrate Messages
-      if (this.messages && this.messages.length > 0) {
-        for (const m of this.messages) {
-          await setDoc(doc(db, 'messages', m.id), m, { merge: true }).catch(() => {});
-        }
-      }
-
-      // Migrate Attendance
-      if (this.attendance && this.attendance.length > 0) {
-        for (const att of this.attendance) {
-          await setDoc(doc(db, 'attendance', att.id), att, { merge: true }).catch(() => {});
-        }
-      }
-
-      // Migrate Grades
-      if (this.grades && this.grades.length > 0) {
-        for (const g of this.grades) {
-          await setDoc(doc(db, 'grades', g.id), g, { merge: true }).catch(() => {});
-        }
-      }
-
-      localStorage.setItem('edu_sys_firestore_migrated_v2', 'true');
-    } catch (err) {
-      console.warn('Firestore initial migration info:', err);
-    }
-  }
-
   public setupAllRealtimeSync(): void {
-    this.setupFirestoreRealtimeSync();
     this.setupStudentsRealtimeSync();
     this.setupClassesRealtimeSync();
     this.setupEtutsRealtimeSync();
@@ -1153,336 +1030,7 @@ export class DataService {
     this.startPeriodicSync();
   }
 
-  public async setupFirestoreRealtimeSync(): Promise<void> {
-    if (typeof window === 'undefined') return;
-    if (this.isFirestoreSynced) return;
-    this.isFirestoreSynced = true;
-
-    try {
-      await ensureFirebaseAuth();
-    } catch {}
-
-    testFirestoreConnection().catch(() => {});
-
-    try {
-      // 1. Students onSnapshot
-      const unsubStudents = onSnapshot(
-        collection(db, 'students'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Student[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as Student;
-              if (data && data.id && !this.deletedStudentIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            if (list.length > 0) {
-              this.students = list;
-              saveData(STORAGE_KEYS.STUDENTS, this.students);
-              try {
-                localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
-              } catch {}
-              this.notify();
-            }
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'students');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubStudents);
-
-      // 2. Classes onSnapshot
-      const unsubClasses = onSnapshot(
-        collection(db, 'classes'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: ClassGroup[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as ClassGroup;
-              if (data && data.id && !this.deletedClassIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            if (list.length > 0) {
-              this.classes = this.deduplicateClasses(list);
-              saveData(STORAGE_KEYS.CLASSES, this.classes);
-              try {
-                localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
-              } catch {}
-              this.notify();
-            }
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'classes');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubClasses);
-
-      // 3. Homeworks onSnapshot
-      const unsubHomeworks = onSnapshot(
-        collection(db, 'homeworks'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Homework[] = [];
-            snapshot.forEach((docSnap) => {
-              if (docSnap.id.startsWith('__system_sync_')) return;
-              const data = docSnap.data() as Homework;
-              if (data && data.id && !this.deletedHomeworkIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.homeworks = list;
-            saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-            try {
-              localStorage.setItem(PERMANENT_KEYS.MASTER_HOMEWORK, JSON.stringify(this.homeworks));
-            } catch {}
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'homeworks');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubHomeworks);
-
-      // 4. Submissions onSnapshot
-      const unsubSubmissions = onSnapshot(
-        collection(db, 'submissions'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: HomeworkSubmission[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as HomeworkSubmission;
-              if (data && data.id) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.submissions = list;
-            saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'submissions');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubSubmissions);
-
-      // 5. Etuts onSnapshot
-      const unsubEtuts = onSnapshot(
-        collection(db, 'etuts'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Etut[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as Etut;
-              if (data && data.id && !this.deletedEtutIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.etuts = list;
-            saveData(STORAGE_KEYS.ETUTS, this.etuts);
-            try {
-              localStorage.setItem(PERMANENT_KEYS.MASTER_ETUTS, JSON.stringify(this.etuts));
-            } catch {}
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'etuts');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubEtuts);
-
-      // 6. Question Logs onSnapshot
-      const unsubQLogs = onSnapshot(
-        collection(db, 'question_logs'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: StudentQuestionLog[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as StudentQuestionLog;
-              if (data && data.id && !this.deletedQuestionLogIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.questionLogs = list;
-            saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-            try {
-              localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
-            } catch {}
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'question_logs');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubQLogs);
-
-      // 7. Weekly Targets onSnapshot
-      const unsubTargets = onSnapshot(
-        collection(db, 'weekly_question_targets'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: WeeklyQuestionTarget[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as WeeklyQuestionTarget;
-              if (data && data.studentId) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.weeklyQuestionTargets = list;
-            saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'weekly_question_targets');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubTargets);
-
-      // 8. Documents onSnapshot
-      const unsubDocs = onSnapshot(
-        collection(db, 'teacher_documents'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: TeacherDocument[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as TeacherDocument;
-              if (data && data.id) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            if (list.length > 0) {
-              this.documents = list;
-              saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
-              this.notify();
-            }
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'teacher_documents');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubDocs);
-
-      // 9. Messages onSnapshot
-      const unsubMessages = onSnapshot(
-        collection(db, 'messages'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: StudentMessage[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as StudentMessage;
-              if (data && data.id) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.messages = list;
-            saveData(STORAGE_KEYS.MESSAGES, this.messages);
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'messages');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubMessages);
-
-      // 10. Attendance onSnapshot
-      const unsubAttendance = onSnapshot(
-        collection(db, 'attendance'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: AttendanceRecord[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as AttendanceRecord;
-              if (data && data.id) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.attendance = list;
-            saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'attendance');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubAttendance);
-
-      // 11. Grades onSnapshot
-      const unsubGrades = onSnapshot(
-        collection(db, 'grades'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: GradeRecord[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as GradeRecord;
-              if (data && data.id) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            this.grades = list;
-            saveData(STORAGE_KEYS.GRADES, this.grades);
-            this.notify();
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'grades');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubGrades);
-
-      // 12. Teachers onSnapshot
-      const unsubTeachers = onSnapshot(
-        collection(db, 'teachers'),
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Teacher[] = [];
-            snapshot.forEach((docSnap) => {
-              const data = docSnap.data() as Teacher;
-              if (data && data.id && !this.deletedTeacherIds.has(data.id)) {
-                list.push({ ...data, id: docSnap.id || data.id });
-              }
-            });
-            if (list.length > 0) {
-              this.teachers = list;
-              saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-              this.notify();
-            }
-          }
-        },
-        (error) => {
-          handleFirestoreError(error, OperationType.GET, 'teachers');
-        }
-      );
-      this.firestoreUnsubscribes.push(unsubTeachers);
-
-      // One-time automatic migration of local storage into Firestore
-      this.migrateLocalStorageToFirestore().catch(() => {});
-    } catch (e) {
-      console.warn('Firestore realtime listeners exception:', e);
-    }
-  }
-
   public unsubscribeAllRealtime(): void {
-    if (this.firestoreUnsubscribes && this.firestoreUnsubscribes.length > 0) {
-      this.firestoreUnsubscribes.forEach((unsub) => {
-        try {
-          unsub();
-        } catch {}
-      });
-      this.firestoreUnsubscribes = [];
-    }
-    this.isFirestoreSynced = false;
-
     const channels = [
       this.studentRealtimeChannel,
       this.classRealtimeChannel,
@@ -3596,7 +3144,6 @@ export class DataService {
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
     } catch {}
-    await setDoc(doc(db, 'teachers', teacher.id), teacher, { merge: true }).catch(() => {});
 
     // 1. Sınıflardaki authorizedTeacherIds listesini güncelle
     for (const cls of this.classes) {
@@ -3616,7 +3163,6 @@ export class DataService {
 
       if (changed) {
         cls.authorizedTeacherIds = currentAuth;
-        await setDoc(doc(db, 'classes', cls.id), cls, { merge: true }).catch(() => {});
       }
     }
     saveData(STORAGE_KEYS.CLASSES, this.classes);
@@ -3642,7 +3188,6 @@ export class DataService {
 
       if (changed) {
         std.authorizedTeacherIds = currentAuth;
-        await setDoc(doc(db, 'students', std.id), std, { merge: true }).catch(() => {});
       }
     }
     saveData(STORAGE_KEYS.STUDENTS, this.students);
@@ -7079,13 +6624,6 @@ export class DataService {
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
 
-    // Firestore push with error resilience
-    if (savedTarget.id) {
-      try {
-        await setDoc(doc(db, 'weekly_question_targets', savedTarget.id), savedTarget, { merge: true }).catch(() => {});
-      } catch {}
-    }
-
     // Cross-device Supabase push with await confirmation
     try {
       await supabase.from('homeworks').upsert({
@@ -7171,12 +6709,6 @@ export class DataService {
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
 
-    if (targetToDelete?.id) {
-      try {
-        await deleteDoc(doc(db, 'weekly_question_targets', targetToDelete.id)).catch(() => {});
-      } catch {}
-    }
-
     try {
       await supabase.from('homeworks').upsert({
         id: '__system_sync_question_targets__',
@@ -7207,12 +6739,6 @@ export class DataService {
     });
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
-
-    if (targetToDelete?.id) {
-      try {
-        await deleteDoc(doc(db, 'weekly_question_targets', targetToDelete.id)).catch(() => {});
-      } catch {}
-    }
 
     // Cross-device Supabase push with await confirmation
     try {

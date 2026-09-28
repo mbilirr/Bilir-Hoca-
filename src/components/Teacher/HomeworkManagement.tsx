@@ -268,9 +268,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [subject, setSubject] = useState('Matematik');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [selectedCreateClassId, setSelectedCreateClassId] = useState<string>('all');
   const [targetClassIds, setTargetClassIds] = useState<string[]>(classes.map((c) => c.id));
-  const [assigneeMode, setAssigneeMode] = useState<'all' | 'custom'>('all');
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(() => students.map((s) => s.id));
   const [resources, setResources] = useState<HomeworkResource[]>([]);
 
   const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
@@ -278,14 +278,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     const subjects = SCHOOL_SUBJECTS[level];
     if (!subjects.includes(subject)) {
       setSubject(subjects[0]);
-    }
-  };
-
-  const handleSelectAllStudents = () => {
-    if (selectedStudentIds.length === students.length) {
-      setSelectedStudentIds([]);
-    } else {
-      setSelectedStudentIds(students.map((s) => s.id));
     }
   };
 
@@ -302,6 +294,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     if (!title.trim() || !dueDate) return;
 
     const currentTeacher = dataService.getCurrentTeacher();
+    const finalTargetClasses =
+      selectedCreateClassId === 'all'
+        ? classes.map((c) => c.id)
+        : [selectedCreateClassId];
+
+    const isAllSelected =
+      selectedStudentIds.length === 0 ||
+      (selectedCreateClassId === 'all' && selectedStudentIds.length === students.length);
+
     const newHw = await dataService.createHomework({
       title: title.trim(),
       subject,
@@ -309,8 +310,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       description: description.trim(),
       dueDate,
       outcomes: [],
-      assignedTo: assigneeMode === 'all' ? 'all' : selectedStudentIds,
-      targetClassIds: targetClassIds.length > 0 ? targetClassIds : undefined,
+      assignedTo: isAllSelected ? 'all' : selectedStudentIds,
+      targetClassIds: finalTargetClasses.length > 0 ? finalTargetClasses : undefined,
       resources,
       isGlobalForNewStudents: true,
       createdByName: currentTeacher?.name || 'Öğretmen',
@@ -335,9 +336,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setSubject('Matematik');
     setDescription('');
     setDueDate('');
+    setSelectedCreateClassId('all');
     setTargetClassIds(classes.map((c) => c.id));
-    setAssigneeMode('all');
-    setSelectedStudentIds([]);
+    setSelectedStudentIds(students.map((s) => s.id));
     setResources([]);
   };
 
@@ -1541,257 +1542,276 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       })()}
 
       {/* CREATE HOMEWORK MODAL */}
-      {isCreateModalOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
-          onClick={() => setIsCreateModalOpen(false)}
-        >
-          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-            <div
-              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
-                <div className="flex items-center space-x-2">
-                  <Target className="w-5 h-5 text-indigo-400" />
-                  <h3 className="text-lg font-bold text-white">Yeni Kazanımlı Ödev Tanımla</h3>
-                </div>
-                <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+      {isCreateModalOpen && (() => {
+        const currentClassStudents =
+          selectedCreateClassId === 'all'
+            ? students
+            : students.filter(
+                (s) =>
+                  s.classId === selectedCreateClassId ||
+                  (s.className && s.className.includes(selectedCreateClassId))
+              );
 
-            <form onSubmit={handleCreateHomework} className="space-y-4">
-              {/* Okul ve Dersler Açılır Pencereleri */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Okul *
-                  </label>
-                  <select
-                    value={schoolLevel}
-                    onChange={(e) =>
-                      handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')
-                    }
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer font-medium"
-                  >
-                    <option value="Ortaokul">Ortaokul</option>
-                    <option value="Lise">Lise</option>
-                  </select>
-                </div>
+        const currentClassStudentIds = currentClassStudents.map((s) => s.id);
+        const allCurrentSelected =
+          currentClassStudentIds.length > 0 &&
+          currentClassStudentIds.every((id) => selectedStudentIds.includes(id));
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Dersler *
-                  </label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer font-medium"
-                  >
-                    {SCHOOL_SUBJECTS[schoolLevel].map((subj) => (
-                      <option key={subj} value={subj}>
-                        {subj}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        const selectedInCurrentCount = selectedStudentIds.filter((id) =>
+          currentClassStudentIds.includes(id)
+        ).length;
 
-              {/* Ödev Başlığı */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Ödev Başlığı *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ödev başlığını giriniz..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+        const handleToggleAllCurrentClass = () => {
+          if (allCurrentSelected) {
+            setSelectedStudentIds(
+              selectedStudentIds.filter((id) => !currentClassStudentIds.includes(id))
+            );
+          } else {
+            const merged = Array.from(new Set([...selectedStudentIds, ...currentClassStudentIds]));
+            setSelectedStudentIds(merged);
+          }
+        };
 
-              {/* Ödev Açıklaması */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Ödev Açıklaması
-                </label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ödev açıklaması, teslim şartları ve detayları..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              {/* Tarih (Son Teslim) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Tarih (Son Teslim Tarihi ve Saati) *
-                </label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                />
-              </div>
-
-              {/* Video Ekleme, İnternet Linki Ekleme, PDF Ekleme */}
-              <HomeworkResourceUploader
-                resources={resources}
-                onChange={setResources}
-              />
-
-              {/* Sınıf Seçme */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Sınıf Seçimi
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (targetClassIds.length === classes.length) {
-                        setTargetClassIds([]);
-                      } else {
-                        setTargetClassIds(classes.map((c) => c.id));
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      targetClassIds.length === classes.length
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-sm'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Tüm Sınıflar ({classes.length})
-                  </button>
-                  {classes.map((cls) => {
-                    const isSelected = targetClassIds.includes(cls.id);
-                    return (
-                      <button
-                        key={cls.id}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setTargetClassIds(targetClassIds.filter((id) => id !== cls.id));
-                          } else {
-                            setTargetClassIds([...targetClassIds, cls.id]);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
-                            : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700/80 hover:text-slate-200'
-                        }`}
-                      >
-                        {cls.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Öğrenci Seçme */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Öğrenci Seçimi
-                </label>
-                <div className="flex items-center space-x-3 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssigneeMode('all');
-                      setSelectedStudentIds([]);
-                    }}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      assigneeMode === 'all'
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    👥 Tüm Öğrenciler ({students.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAssigneeMode('custom')}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      assigneeMode === 'custom'
-                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    🎯 Öğrenci Seç ({selectedStudentIds.length})
-                  </button>
-                </div>
-
-                {assigneeMode === 'custom' && (
-                  <div className="p-3 bg-slate-800/70 border border-slate-700 rounded-xl space-y-2 max-h-48 overflow-y-auto">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-700">
-                      <span className="text-xs text-slate-400 font-medium">Öğrenci Listesi:</span>
-                      <button
-                        type="button"
-                        onClick={handleSelectAllStudents}
-                        className="text-xs text-indigo-400 hover:underline font-semibold cursor-pointer"
-                      >
-                        {selectedStudentIds.length === students.length ? 'Seçimi Kaldır' : 'Tümünü Seç'}
-                      </button>
+        return (
+          <div
+            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
+            onClick={() => setIsCreateModalOpen(false)}
+          >
+            <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
+              <div
+                className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                      <Target className="w-5 h-5" />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {students
-                        .filter(
-                          (std) =>
-                            targetClassIds.length === 0 ||
-                            (std.classId && targetClassIds.includes(std.classId))
-                        )
-                        .map((std) => (
-                          <label
-                            key={std.id}
-                            className="flex items-center space-x-2 p-1.5 rounded-lg hover:bg-slate-700/50 cursor-pointer text-xs"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedStudentIds.includes(std.id)}
-                              onChange={() => handleToggleStudent(std.id)}
-                              className="rounded text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-white truncate">{std.name}</span>
-                            <span className="text-slate-400 text-[10px]">({std.className})</span>
-                          </label>
-                        ))}
+                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">ÖDEV</h3>
+                  </div>
+                  <button
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleCreateHomework} className="space-y-4">
+                  {/* Okul ve Dersler Açılır Pencereleri */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                      <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                        <School className="w-4 h-4 text-indigo-600" />
+                        <span>Ders & Kademe Seçimi</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Okul *
+                        </label>
+                        <select
+                          value={schoolLevel}
+                          onChange={(e) =>
+                            handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')
+                          }
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                        >
+                          <option value="Ortaokul">🏫 Ortaokul</option>
+                          <option value="Lise">🎓 Lise</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Dersler *
+                        </label>
+                        <select
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                        >
+                          {SCHOOL_SUBJECTS[schoolLevel].map((subj) => (
+                            <option key={subj} value={subj}>
+                              {subj}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-2 cursor-pointer"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>Ödevi Kaydet</span>
-                </button>
+                  {/* Ödev Başlığı */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Ödev Başlığı *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ödev başlığını giriniz..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
+                    />
+                  </div>
+
+                  {/* Ödev Açıklaması */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Ödev Açıklaması
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Ödev açıklaması, teslim şartları ve detayları..."
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs resize-y"
+                    />
+                  </div>
+
+                  {/* Tarih (Son Teslim) */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Tarih (Son Teslim Tarihi ve Saati) *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer shadow-2xs"
+                    />
+                  </div>
+
+                  {/* Video Ekleme, İnternet Linki Ekleme, PDF Ekleme */}
+                  <HomeworkResourceUploader
+                    resources={resources}
+                    onChange={setResources}
+                  />
+
+                  {/* Sınıf Seçimi ve Öğrenci Listesi */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
+                    {/* Sınıf Seçimi */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+                        <span className="flex items-center space-x-1.5">
+                          <School className="w-4 h-4 text-indigo-600" />
+                          <span>Sınıf Seçimi *</span>
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Seçilen sınıfa ait öğrenciler aşağıda listelenir
+                        </span>
+                      </label>
+                      <select
+                        value={selectedCreateClassId}
+                        onChange={(e) => {
+                          const newClassId = e.target.value;
+                          setSelectedCreateClassId(newClassId);
+                          const targetStudents =
+                            newClassId === 'all'
+                              ? students
+                              : students.filter(
+                                  (s) =>
+                                    s.classId === newClassId ||
+                                    (s.className && s.className.includes(newClassId))
+                                );
+                          setSelectedStudentIds(targetStudents.map((s) => s.id));
+                        }}
+                        className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      >
+                        <option value="all">
+                          🏫 Tüm Sınıflar ({classes.length} Sınıf, {students.length} Öğrenci)
+                        </option>
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Öğrenci Listesi & Hepsi Seç Butonu */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div className="flex items-center space-x-2">
+                          <Users className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-bold text-slate-800">
+                            Öğrenci Seçimi ({selectedInCurrentCount} / {currentClassStudents.length} Seçili)
+                          </span>
+                        </div>
+
+                        {currentClassStudents.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleToggleAllCurrentClass}
+                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                          >
+                            <span>{allCurrentSelected ? 'Seçimi Kaldır' : 'Hepsi Seç'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {currentClassStudents.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-slate-500 font-medium">
+                          Bu sınıfa kayıtlı öğrenci bulunamadı.
+                        </div>
+                      ) : (
+                        <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-1">
+                          {currentClassStudents.map((std) => {
+                            const isChecked = selectedStudentIds.includes(std.id);
+                            return (
+                              <label
+                                key={std.id}
+                                className={`flex items-center space-x-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-all ${
+                                  isChecked
+                                    ? 'bg-indigo-50/80 border-indigo-200 text-indigo-950 font-semibold shadow-2xs'
+                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleStudent(std.id)}
+                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                                />
+                                <span className="truncate flex-1">{std.name}</span>
+                                <span className="text-[11px] text-slate-500 shrink-0 font-normal">
+                                  ({std.className || std.studentNumber || '-'})
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateModalOpen(false)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                    >
+                      İptal
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Ödevi Kaydet</span>
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      </div>
-      )}
+        );
+      })()}
 
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
