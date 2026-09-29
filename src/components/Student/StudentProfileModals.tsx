@@ -180,7 +180,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
                   type="text"
                   disabled
                   value={student.username || ''}
-                  className="w-full px-3 py-2 bg-slate-850/80 border border-slate-800 rounded-xl text-slate-400 text-xs sm:text-sm cursor-not-allowed"
+                  className="w-full px-3 py-2 bg-slate-855/80 border border-slate-800 rounded-xl text-slate-400 text-xs sm:text-sm cursor-not-allowed"
                 />
               </div>
               <p className="text-[10px] text-slate-500">Kullanıcı adı sistem tarafından atanır.</p>
@@ -258,7 +258,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
   isMandatory = false,
   onSuccess,
 }) => {
-  const [currentPassword, setCurrentPassword] = useState(isMandatory && student.password === '54321' ? '54321' : '');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
@@ -269,7 +269,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentPassword(isMandatory && student.password === '54321' ? '54321' : '');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setErrorMsg(null);
@@ -282,14 +282,13 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check current password if student has an existing one
-    if (student.password && currentPassword !== student.password) {
-      setErrorMsg('Mevcut şifrenizi hatalı girdiniz.');
+    if (!currentPassword) {
+      setErrorMsg('Lütfen mevcut şifrenizi giriniz.');
       return;
     }
 
-    if (newPassword.length < 4) {
-      setErrorMsg('Yeni şifreniz en az 4 karakter uzunluğunda olmalıdır.');
+    if (newPassword.length < 6) {
+      setErrorMsg('Yeni şifreniz en az 6 karakter uzunluğunda olmalıdır.');
       return;
     }
 
@@ -302,10 +301,10 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
       setIsSaving(true);
       setErrorMsg(null);
 
-      await dataService.updateStudent(student.id, {
-        password: newPassword,
-        mustChangePassword: false,
-      });
+      // Önce mevcut şifre Supabase'de doğrulanır, doğruysa yeni şifre Supabase'e yazılır
+      await dataService.changeOwnPassword(currentPassword, newPassword);
+      // "İlk girişte şifre değiştir" zorunluluğunu kaldır (şifre yerelde saklanmaz)
+      dataService.markStudentPasswordChanged(student.id);
 
       confetti({
         particleCount: 50,
@@ -379,7 +378,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             </div>
           )}
 
-          {student.password && (
+          {(
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-300">
                 Mevcut Şifreniz <span className="text-rose-400">*</span>
@@ -415,7 +414,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-800/80 border border-slate-700 rounded-xl text-white text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 pr-10"
-                placeholder="Yeni şifrenizi girin (en az 4 karakter)"
+                placeholder="Yeni şifrenizi girin (en az 6 karakter)"
               />
               <button
                 type="button"
@@ -445,7 +444,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-start space-x-2 text-[11px] text-slate-400">
             <ShieldCheck className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-            <span>Şifreniz güvenli bir şekilde tarayıcınızda ve veritabanında saklanır. Unuttuğunuzda öğretmeninizden şifrenizi sıfırlamasını isteyebilirsiniz.</span>
+            <span>Şifreniz güvenli bir şekilde sunucuda güncellenir. Unuttuğunuzda öğretmeninizden veya yöneticinizden şifrenizi sıfırlamasını isteyebilirsiniz.</span>
           </div>
 
           {/* Footer Actions */}

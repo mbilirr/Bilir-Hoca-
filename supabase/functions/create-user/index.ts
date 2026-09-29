@@ -1,9 +1,9 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 // Generates a clean, synthetic email compliant with Supabase GoTrue domain checks
@@ -28,7 +28,7 @@ export function generateRandomPassword(length = 8): string {
   return pass;
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   // CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -145,11 +145,23 @@ serve(async (req: Request) => {
     const email = generateSyntheticEmail(type, identifier);
     const password = customPassword?.trim() || generateRandomPassword(8);
 
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: 'Şifre en az 6 karakter olmalıdır.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // RLS kurallarının (is_teacher / is_student) okuduğu rol bilgisi app_metadata'da olmalıdır.
+    // (user_metadata kullanıcı tarafından değiştirilebilir ve RLS için kullanılmaz.)
+    const appMetadata = { role: type, is_admin: false };
+
     // 4. Supabase Auth kullanıcısı oluştur veya güncelle (email_confirm: true ile anında aktif)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
+      app_metadata: appMetadata,
       user_metadata: {
         role: type,
         legacy_id: id,
@@ -166,18 +178,29 @@ serve(async (req: Request) => {
         authError.message.includes('already registered') ||
         (authError as any).code === 'email_exists'
       ) {
-        // Kullanıcı daha önce varsa şifresini güvenle güncelle
-        const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-        const existing = listData?.users?.find(
-          (u) => u.email?.toLowerCase() === email.toLowerCase()
-        );
+        // Kullanıcı daha önce varsa şifresini güvenle güncelle (tüm sayfalarda ara)
+        let existing: { id: string; app_metadata?: Record<string, unknown> } | undefined;
+        for (let page = 1; page <= 50 && !existing; page++) {
+          const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage: 1000,
+          });
+          if (listError) throw listError;
+          const users = listData?.users || [];
+          existing = users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+          if (users.length < 1000) break;
+        }
         if (!existing) {
           throw authError;
         }
         authUserId = existing.id;
-        await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+        // Yönetici hesabının rolü bu fonksiyonla asla düşürülmez
+        const existingRole = (existing.app_metadata as any)?.role;
+        const keepAdmin = existingRole === 'admin' || (existing.app_metadata as any)?.is_admin === true;
+        const { error: updError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
           password,
           email_confirm: true,
+          app_metadata: keepAdmin ? { role: 'admin', is_admin: true } : appMetadata,
           user_metadata: {
             role: type,
             legacy_id: id,
@@ -185,6 +208,7 @@ serve(async (req: Request) => {
             updated_by_admin: callerUser.id,
           },
         });
+        if (updError) throw updError;
       } else {
         throw authError;
       }

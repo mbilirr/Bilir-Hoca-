@@ -216,6 +216,42 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setRememberMe(false);
   };
 
+  // --- ŞİFREMİ UNUTTUM ---
+  // Gerçek e-posta ile kayıtlı hesaplara Supabase sıfırlama bağlantısı gönderilir.
+  // Sistemin ürettiği adresleri kullanan öğretmen/öğrenci hesaplarında şifreyi yönetici belirler.
+  const handleForgotPassword = async () => {
+    setError(null);
+    setSuccessMsg(null);
+
+    if (selectedRole === 'student') {
+      setSuccessMsg(
+        'Şifrenizi unuttuysanız öğretmeninize veya okul yöneticinize başvurunuz. Size yeni bir şifre belirleyeceklerdir.'
+      );
+      return;
+    }
+
+    const ident = loginUsername.trim().toLowerCase();
+    const isRealEmail = ident.includes('@') && !ident.endsWith('@okul.internal.net');
+    if (!isRealEmail) {
+      setSuccessMsg(
+        'Öğretmen hesaplarında şifreyi yönetici yeniler; lütfen yöneticinize başvurunuz. Hesabınız gerçek bir e-posta adresiyle kayıtlıysa, e-posta adresinizi yukarıdaki kutuya yazıp tekrar "Şifremi unuttum"a basınız.'
+      );
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await dataService.sendPasswordResetEmail(ident);
+      setSuccessMsg(
+        'Bu e-posta adresi sistemde kayıtlıysa şifre sıfırlama bağlantısı gönderildi. Gelen kutunuzu ve gereksiz (spam) klasörünü kontrol ediniz.'
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Sıfırlama e-postası gönderilemedi.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // --- SUBMIT LOGIN ---
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -691,6 +727,14 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     />
                     <span>Beni Hatırla</span>
                   </label>
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    disabled={isLoading}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 hover:underline cursor-pointer disabled:opacity-50"
+                  >
+                    Şifremi unuttum
+                  </button>
                 </div>
 
                 {/* Submit Button */}

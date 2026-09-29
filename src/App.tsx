@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { AuthPortal } from './components/Auth/AuthPortal';
+import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { TeacherLogin } from './components/Auth/TeacherLogin';
 import { StudentAuthModal } from './components/Auth/StudentAuthModal';
 import { StudentManagement } from './components/Teacher/StudentManagement';
@@ -368,6 +369,7 @@ export default function App() {
     return (
       <div className="relative min-h-screen">
         <NetworkSyncStatusBanner />
+        <PasswordRecoveryModal />
         <AuthPortal
           onAuthSuccess={handleAuthSuccess}
           classes={classes}
@@ -669,6 +671,9 @@ export default function App() {
         isOpen={isAdminApprovalModalOpen}
         onClose={() => setIsAdminApprovalModalOpen(false)}
       />
+
+      {/* Şifre sıfırlama bağlantısıyla gelindiyse yeni şifre penceresi */}
+      <PasswordRecoveryModal />
     </div>
   );
 }

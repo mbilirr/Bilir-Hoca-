@@ -4,7 +4,7 @@ import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 
-interface TeacherLoginProps {
+export interface TeacherLoginProps {
   isOpen?: boolean;
   onClose?: () => void;
   onSuccess: () => void;
@@ -109,6 +109,9 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder="Kullanıcı adı veya e-posta"
           leftIcon={<User className="w-4 h-4" />}
         />
@@ -120,6 +123,9 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder="••••••••"
           leftIcon={<Lock className="w-4 h-4" />}
         />

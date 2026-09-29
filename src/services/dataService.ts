@@ -23,7 +23,7 @@ import {
   SystemRole,
   UserStatus,
 } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, invokeCreateUserEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
 import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
 import {
   generateHomeworkEmail,
@@ -3079,12 +3079,16 @@ export class DataService {
       if (updates.assignedClassIds !== undefined) teacherUpdates.assignedClassIds = updates.assignedClassIds;
       if (updates.canViewAllStudentsAndClasses !== undefined) teacherUpdates.canViewAllStudentsAndClasses = updates.canViewAllStudentsAndClasses;
 
-      // Admin şifre override
-      if (updates.newPassword && updates.newPassword.trim()) {
-        teacherUpdates.password = updates.newPassword.trim();
-      }
-
       this.updateTeacherProfile(userId, teacherUpdates);
+
+      // Admin şifre belirleme: gerçek giriş şifresi Supabase Auth üzerinde değiştirilir
+      if (updates.newPassword && updates.newPassword.trim()) {
+        try {
+          await this.adminSetUserPassword('teacher', teacher, updates.newPassword.trim());
+        } catch (err: any) {
+          throw new Error(`Bilgiler kaydedildi ancak şifre belirlenemedi: ${err?.message || 'bilinmeyen hata'}`);
+        }
+      }
       return;
     }
 
@@ -3109,12 +3113,16 @@ export class DataService {
       if (updates.gradeLevel !== undefined) studentUpdates.gradeLevel = updates.gradeLevel;
       if (updates.mustChangePassword !== undefined) studentUpdates.mustChangePassword = updates.mustChangePassword;
 
-      // Admin şifre override
-      if (updates.newPassword && updates.newPassword.trim()) {
-        studentUpdates.password = updates.newPassword.trim();
-      }
-
       await this.updateStudent(userId, studentUpdates);
+
+      // Admin şifre belirleme: gerçek giriş şifresi Supabase Auth üzerinde değiştirilir (hesap yoksa oluşturulur)
+      if (updates.newPassword && updates.newPassword.trim()) {
+        try {
+          await this.adminSetUserPassword('student', student, updates.newPassword.trim());
+        } catch (err: any) {
+          throw new Error(`Bilgiler kaydedildi ancak şifre belirlenemedi: ${err?.message || 'bilinmeyen hata'}`);
+        }
+      }
       return;
     }
 
@@ -3582,15 +3590,164 @@ export class DataService {
     return updated;
   }
 
-  public updateTeacherPassword(teacherId: string, oldPassword: string, newPassword: string): void {
-    const teacher = this.teachers.find((t) => t.id === teacherId);
-    if (!teacher) {
-      throw new Error('Öğretmen kaydı bulunamadı.');
+  public async updateTeacherPassword(_teacherId: string, oldPassword: string, newPassword: string): Promise<void> {
+    // Şifre yalnızca Supabase Auth üzerinde değiştirilir (yerel kopya tutulmaz)
+    await this.changeOwnPassword(oldPassword, newPassword);
+  }
+
+  // =========================================================================
+  // ŞİFRE İŞLEMLERİ (Supabase Auth)
+  // =========================================================================
+  public static readonly MIN_PASSWORD_LENGTH = 6;
+
+  // Sistemin öğretmen/öğrenci hesapları için ürettiği giriş adresi (create-user fonksiyonu ile aynı kural)
+  private canonicalAuthEmail(type: 'teacher' | 'student', identifier: string): string {
+    const clean = (identifier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    return `${type === 'teacher' ? 'tch' : 'std'}_${clean || 'user'}@okul.internal.net`;
+  }
+
+  private translatePasswordError(message?: string): string {
+    const m = (message || '').toLowerCase();
+    if (m.includes('at least')) return `Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`;
+    if (m.includes('different from the old')) return 'Yeni şifreniz mevcut şifrenizden farklı olmalıdır.';
+    if (m.includes('weak') || m.includes('pwned') || m.includes('leaked')) {
+      return 'Bu şifre çok zayıf. Lütfen harf ve rakam içeren daha güçlü bir şifre seçiniz.';
     }
-    if (teacher.password && teacher.password !== oldPassword) {
+    if (m.includes('reauthentication') || m.includes('nonce')) {
+      return 'Güvenlik nedeniyle yeniden giriş gerekiyor. Çıkış yapıp tekrar giriş yaptıktan sonra deneyiniz.';
+    }
+    if (m.includes('rate limit') || m.includes('security purposes')) {
+      return 'Çok sık deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
+    }
+    return message || 'Şifre işlemi sırasında bir hata oluştu.';
+  }
+
+  // Oturumdaki kullanıcının KENDİ şifresini değiştirir. Önce eski şifre Supabase'de doğrulanır.
+  public async changeOwnPassword(oldPassword: string, newPassword: string): Promise<void> {
+    if (!oldPassword) throw new Error('Lütfen mevcut şifrenizi giriniz.');
+    if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
+      throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
+    }
+    if (oldPassword === newPassword) {
+      throw new Error('Yeni şifreniz mevcut şifrenizden farklı olmalıdır.');
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const email = sessionData?.session?.user?.email;
+    if (!email) {
+      throw new Error('Oturumunuz bulunamadı. Lütfen çıkış yapıp tekrar giriş yapınız.');
+    }
+
+    // 1) Eski şifreyi doğrula (yanlışsa mevcut oturum bozulmaz, işlem burada durur)
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: oldPassword });
+    if (verifyError) {
+      const vm = (verifyError.message || '').toLowerCase();
+      if (vm.includes('rate limit') || vm.includes('too many')) {
+        throw new Error(this.translatePasswordError(verifyError.message));
+      }
       throw new Error('Mevcut şifreniz hatalı. Lütfen kontrol edip tekrar deneyiniz.');
     }
-    this.updateTeacherProfile(teacherId, { password: newPassword });
+
+    // 2) Yeni şifreyi Supabase'e yaz
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) {
+      throw new Error(this.translatePasswordError(updateError.message));
+    }
+  }
+
+  // Öğrencinin "ilk girişte şifre değiştir" zorunluluğunu yerelde kaldırır (şifre yerelde saklanmaz)
+  public markStudentPasswordChanged(studentId: string): void {
+    this.students = this.students.map((s) =>
+      s.id === studentId ? { ...s, mustChangePassword: false, password: '' } : s
+    );
+    saveData(STORAGE_KEYS.STUDENTS, this.students);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+    } catch {}
+    const session = this.getAuthSession();
+    if (session?.role === 'student' && session.user.id === studentId) {
+      const fresh = this.students.find((s) => s.id === studentId);
+      if (fresh) this.setAuthSession({ ...session, user: fresh });
+    }
+    this.notify();
+  }
+
+  // "Şifremi unuttum": gerçek e-posta adresine Supabase sıfırlama bağlantısı gönderir
+  public async sendPasswordResetEmail(email: string): Promise<void> {
+    const clean = (email || '').trim().toLowerCase();
+    if (!clean.includes('@') || clean.endsWith('@okul.internal.net')) {
+      throw new Error('Şifre sıfırlama bağlantısı yalnızca gerçek bir e-posta adresine gönderilebilir.');
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(clean, {
+      redirectTo: `${window.location.origin}/`,
+    });
+    if (error) {
+      throw new Error(this.translatePasswordError(error.message));
+    }
+  }
+
+  // Sıfırlama bağlantısıyla gelen kullanıcının yeni şifresini kaydeder, ardından oturumu kapatır
+  public async completePasswordRecovery(newPassword: string): Promise<void> {
+    if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
+      throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      throw new Error(this.translatePasswordError(error.message));
+    }
+    clearPasswordRecovery();
+    await supabase.auth.signOut().catch(() => {});
+  }
+
+  // Yönetici, bir öğretmen/öğrencinin giriş şifresini belirler (hesap yoksa oluşturulur).
+  // İşlem 'create-user' sunucu fonksiyonu ile Supabase Auth üzerinde yapılır.
+  private async adminSetUserPassword(
+    type: 'teacher' | 'student',
+    record: Teacher | Student,
+    newPassword: string
+  ): Promise<void> {
+    if (newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
+      throw new Error(`Yeni şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
+    }
+
+    if (type === 'teacher') {
+      const t = record as Teacher;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const myAuthId = sessionData?.session?.user?.id;
+      const isRealEmailAccount = (t.email || '').toLowerCase() === 'm.bilirr@gmail.com';
+      if (isRealEmailAccount || (myAuthId && t.auth_user_id === myAuthId)) {
+        throw new Error('Kendi şifrenizi buradan değil, profil menüsündeki "Şifre Değiştir" ekranından değiştiriniz.');
+      }
+    }
+
+    const identifier =
+      type === 'teacher'
+        ? (record as Teacher).username || record.id
+        : (record as Student).studentNumber?.trim() || record.id;
+
+    const result = await invokeCreateUserEdgeFunction({
+      type,
+      id: record.id,
+      identifier,
+      name: record.name,
+      password: newPassword,
+    });
+
+    // Supabase hesabının kimliğini yerel kayda işle
+    if (result?.auth_user_id) {
+      if (type === 'teacher') {
+        this.teachers = this.teachers.map((t) =>
+          t.id === record.id ? { ...t, auth_user_id: result.auth_user_id } : t
+        );
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      } else {
+        this.students = this.students.map((s) =>
+          s.id === record.id ? { ...s, auth_user_id: result.auth_user_id } : s
+        );
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+      }
+      this.notify();
+    }
   }
 
   // --- CLOUD SYNCHRONIZATION FOR TEACHERS (DIRECT public.teachers TABLE) ---
@@ -3845,10 +4002,24 @@ export class DataService {
     try {
       // Giriş YALNIZCA Supabase Auth signInWithPassword üzerinden yapılır.
       // Sabit kodlanmış şifre, backdoor veya yerel fallback KESİNLİKLE YOKTUR.
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: emailToAuth,
         password: password,
       });
+
+      // İlk deneme başarısızsa hesabın standart (sistemin ürettiği) giriş adresiyle bir kez daha dene
+      if ((authError || !authData?.user) && !term.includes('@')) {
+        const matched = this.teachers.find(
+          (t) => t.username.toLowerCase() === term || t.id.toLowerCase() === term
+        );
+        const canonical = matched ? this.canonicalAuthEmail('teacher', matched.username || matched.id) : '';
+        if (canonical && canonical !== emailToAuth) {
+          ({ data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: canonical,
+            password: password,
+          }));
+        }
+      }
 
       if (authError || !authData?.user) {
         console.warn('Supabase Auth error (teacher):', authError?.message || 'Giriş başarısız');
@@ -3952,10 +4123,29 @@ export class DataService {
     try {
       // Giriş YALNIZCA Supabase Auth signInWithPassword üzerinden yapılır.
       // Sabit kodlanmış şifre, backdoor veya yerel fallback KESİNLİKLE YOKTUR.
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      let { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: emailToAuth,
         password: password,
       });
+
+      // İlk deneme başarısızsa öğrencinin standart giriş adresiyle (öğrenci no tabanlı) bir kez daha dene
+      if ((authError || !authData?.user) && !term.includes('@')) {
+        const matched = this.students.find(
+          (s) =>
+            s.studentNumber?.toLowerCase() === term ||
+            s.username.toLowerCase() === term ||
+            s.id.toLowerCase() === term
+        );
+        const canonical = matched
+          ? this.canonicalAuthEmail('student', matched.studentNumber?.trim() || matched.id)
+          : '';
+        if (canonical && canonical !== emailToAuth) {
+          ({ data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: canonical,
+            password: password,
+          }));
+        }
+      }
 
       if (authError || !authData?.user) {
         console.warn('Supabase Auth error (student):', authError?.message || 'Giriş başarısız');

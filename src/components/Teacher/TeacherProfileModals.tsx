@@ -45,8 +45,6 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
   const [email, setEmail] = useState(teacher.email || '');
   const [phone, setPhone] = useState(teacher.phone || '');
   const [avatar, setAvatar] = useState(teacher.avatar || '');
-  const [newPassword, setNewPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -63,7 +61,6 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
       setEmail(teacher.email || '');
       setPhone(teacher.phone || '');
       setAvatar(teacher.avatar || '');
-      setNewPassword('');
       setErrorMsg(null);
       setSuccessMsg(null);
     }
@@ -143,7 +140,6 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
         email: email.trim(),
         phone: phone.trim(),
         avatar: avatar.trim() || undefined,
-        ...(newPassword.trim() ? { password: newPassword.trim() } : {}),
       });
 
       confetti({
@@ -411,29 +407,10 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             </div>
           </div>
 
-          {/* Yeni Şifre (İsteğe Bağlı) */}
-          <div className="pt-2 border-t border-slate-800/80">
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Yeni Şifre Belirle <span className="text-slate-500 font-normal">(Değiştirmek istemiyorsanız boş bırakınız)</span>
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Yeni şifrenizi giriniz..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-slate-400 hover:text-slate-200"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
+          {/* Şifre bu ekrandan değiştirilmez: profil menüsündeki "Şifre Değiştir" ekranı kullanılır */}
+          <p className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
+            Şifrenizi değiştirmek için profil menüsündeki <strong className="text-slate-200">"Şifre Değiştir"</strong> seçeneğini kullanınız.
+          </p>
 
           {/* Footer Save Button */}
           <div className="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3">
@@ -482,8 +459,11 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setErrorMsg(null);
     setSuccessMsg(null);
 
@@ -495,8 +475,8 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
       setErrorMsg('Lütfen yeni şifrenizi giriniz.');
       return;
     }
-    if (newPassword.length < 4) {
-      setErrorMsg('Yeni şifreniz en az 4 karakter uzunluğunda olmalıdır.');
+    if (newPassword.length < 6) {
+      setErrorMsg('Yeni şifreniz en az 6 karakter uzunluğunda olmalıdır.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -505,7 +485,9 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
     }
 
     try {
-      dataService.updateTeacherPassword(teacher.id, oldPassword, newPassword);
+      setIsSaving(true);
+      // Önce mevcut şifre Supabase'de doğrulanır, doğruysa yeni şifre Supabase'e yazılır
+      await dataService.updateTeacherPassword(teacher.id, oldPassword, newPassword);
 
       confetti({
         particleCount: 40,
@@ -522,6 +504,8 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
       }, 800);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Şifre güncellenirken bir hata oluştu.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -606,7 +590,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Yeni şifreniz (En az 4 karakter)"
+                placeholder="Yeni şifreniz (En az 6 karakter)"
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
@@ -652,7 +636,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
               className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Şifreyi Güncelle</span>
+              <span>{isSaving ? 'Kontrol ediliyor...' : 'Şifreyi Güncelle'}</span>
             </button>
           </div>
         </form>

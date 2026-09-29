@@ -142,8 +142,8 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
       setError('Lütfen Şifre Tekrar alanını doldurunuz.');
       return;
     }
-    if (regPassword.length < 3) {
-      setError('Şifre en az 3 karakter olmalıdır.');
+    if (regPassword.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır.');
       return;
     }
     if (regPassword !== regConfirmPassword) {
@@ -216,38 +216,39 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsLoading(true);
 
-    const term = loginIdentifier.trim().toLowerCase();
-    const student = currentExistingStudents.find(
-      (s) =>
-        (s.email && s.email.toLowerCase() === term) ||
-        (s.username && s.username.toLowerCase() === term) ||
-        (s.studentNumber && s.studentNumber === term)
-    );
-
-    if (student) {
-      if (student.password && student.password !== loginPassword) {
-        setError('Şifre hatalı! Lütfen kontrol ediniz.');
-        return;
-      }
-      if (rememberMe) {
-        dataService.setRememberedUser({
+    try {
+      const student = await dataService.authenticateStudent(loginIdentifier.trim(), loginPassword);
+      if (student) {
+        if (rememberMe) {
+          dataService.setRememberedUser({
+            role: 'student',
+            identifier: student.studentNumber || student.username,
+            name: student.name,
+            avatar: student.avatar,
+            className: student.className,
+            savedPassword: loginPassword,
+          });
+        } else {
+          dataService.setRememberedUser(null, 'student');
+        }
+        dataService.setAuthSession({
           role: 'student',
-          identifier: student.username,
-          name: student.name,
-          avatar: student.avatar,
-          className: student.className,
-          savedPassword: loginPassword,
+          user: student,
         });
+        setIsLoading(false);
+        handleAuthCompleted(student);
       } else {
-        dataService.setRememberedUser(null, 'student');
+        setIsLoading(false);
+        setError('Öğrenci bulunamadı veya şifre hatalı. Lütfen kontrol ediniz.');
       }
-      handleAuthCompleted(student);
-    } else {
-      setError('Öğrenci bulunamadı. Lütfen bilgilerinizi kontrol edin veya yeni kayıt oluşturun.');
+    } catch (err: any) {
+      setIsLoading(false);
+      setError(err?.message || 'Giriş yapılamadı.');
     }
   };
 
@@ -268,7 +269,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
               leftIcon={<UserPlus className="w-4 h-4" />}
               className={
                 activeTab === 'register'
-                  ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
+                  ? 'shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }
             >
@@ -285,7 +286,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
               leftIcon={<LogIn className="w-4 h-4" />}
               className={
                 activeTab === 'login'
-                  ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
+                  ? 'shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }
             >
@@ -294,6 +295,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
           </div>
 
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
           >
@@ -338,12 +340,12 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 </div>
 
                 {customAvatarUrl ? (
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-sky-300">
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-indigo-300">
                     <div className="flex items-center space-x-3">
                       <img
                         src={customAvatarUrl}
                         alt="Yüklenen Fotoğraf"
-                        className="w-12 h-12 rounded-xl object-cover ring-2 ring-sky-500"
+                        className="w-12 h-12 rounded-xl object-cover ring-2 ring-indigo-500"
                       />
                       <div>
                         <span className="text-xs font-bold text-slate-900 block">
@@ -375,7 +377,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                         }}
                         className={`relative rounded-full p-0.5 transition-all shrink-0 cursor-pointer ${
                           selectedAvatarSeed === seed && !customAvatarUrl
-                            ? 'ring-2 ring-sky-500 scale-105 shadow-sm'
+                            ? 'ring-2 ring-indigo-500 scale-105 shadow-sm'
                             : 'opacity-60 hover:opacity-100'
                         }`}
                       >
@@ -417,8 +419,8 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
               {/* 2. Okul (Mecburi), Sınıf (Mecburi) & Şube (İsteğe Bağlı) */}
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-sky-700 flex items-center space-x-1.5">
-                    <School className="w-3.5 h-3.5 text-sky-600" />
+                  <span className="text-xs font-bold text-indigo-700 flex items-center space-x-1.5">
+                    <School className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Okul, Sınıf ve Şube Bilgileri</span>
                   </span>
                   <span className="text-[10px] text-amber-600 font-semibold">Okul & Sınıf Zorunlu</span>
@@ -441,7 +443,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                           setRegGrade('9. Sınıf');
                         }
                       }}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                     >
                       <option value="">Okul Seçiniz *</option>
                       <option value="Ortaokul">Ortaokul</option>
@@ -457,7 +459,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                       required
                       value={regGrade}
                       onChange={(e) => setRegGrade(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                     >
                       {!regSchool ? (
                         <option value="">Önce Okul Seçiniz *</option>
@@ -478,7 +480,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                     <select
                       value={regBranch}
                       onChange={(e) => setRegBranch(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-sky-500 focus:outline-none cursor-pointer"
+                      className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
                     >
                       <option value="">Şube Seçiniz (İsteğe Bağlı)</option>
                       {BRANCH_OPTIONS.map((b) => (
@@ -499,7 +501,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                   required
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="En az 3 karakter"
+                  placeholder="En az 6 karakter"
                   leftIcon={<Lock className="w-4 h-4" />}
                   rightIcon={showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   onRightIconClick={() => setShowRegPassword(!showRegPassword)}
@@ -549,7 +551,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 isLoading={isLoading}
                 loadingText="Kaydediliyor..."
                 leftIcon={<UserPlus className="w-4 h-4" />}
-                className="w-full mt-2 py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white"
+                className="w-full mt-2 py-2.5"
               >
                 Kayıt Ol
               </Button>
@@ -587,7 +589,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 accent-sky-600 cursor-pointer"
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
                   />
                   <span className="text-xs text-slate-600 font-medium">Bu cihazda beni hatırla</span>
                 </label>
@@ -598,8 +600,10 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 id="student-login-submit"
                 variant="primary"
                 size="md"
+                isLoading={isLoading}
+                loadingText="Giriş Yapılıyor..."
                 leftIcon={<LogIn className="w-4 h-4" />}
-                className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white"
+                className="w-full py-2.5"
               >
                 Giriş Yap
               </Button>

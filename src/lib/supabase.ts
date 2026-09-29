@@ -28,12 +28,45 @@ export const SUPABASE_CONFIG = {
   restApi: `${SUPABASE_URL}/rest/v1/`,
 };
 
+// Şifre sıfırlama e-postasındaki bağlantıyla mı gelindi? Supabase adresi işleyip temizlemeden ÖNCE okunur.
+const initialUrlIsRecovery =
+  typeof window !== 'undefined' &&
+  /type=recovery/.test(`${window.location.hash}${window.location.search}`);
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
   },
 });
+
+// --- ŞİFRE SIFIRLAMA (PASSWORD RECOVERY) DURUMU ---
+// Dinleyici istemci oluşturulur oluşturulmaz bağlanır; böylece Supabase'in açılışta yaydığı
+// PASSWORD_RECOVERY olayı hiçbir zaman kaçırılmaz.
+let passwordRecoveryActive = initialUrlIsRecovery;
+const passwordRecoveryListeners = new Set<() => void>();
+
+supabase.auth.onAuthStateChange((event) => {
+  if (event === 'PASSWORD_RECOVERY') {
+    passwordRecoveryActive = true;
+    passwordRecoveryListeners.forEach((listener) => listener());
+  }
+});
+
+export function isPasswordRecoveryActive(): boolean {
+  return passwordRecoveryActive;
+}
+
+export function clearPasswordRecovery(): void {
+  passwordRecoveryActive = false;
+}
+
+export function onPasswordRecovery(listener: () => void): () => void {
+  passwordRecoveryListeners.add(listener);
+  return () => {
+    passwordRecoveryListeners.delete(listener);
+  };
+}
 
 // Helper to check connection health or Supabase readiness
 export async function testSupabaseConnection(): Promise<boolean> {
@@ -94,7 +127,21 @@ export async function invokeCreateUserEdgeFunction(
   });
 
   if (error) {
-    throw new Error(error.message || 'Kullanıcı hesabı oluşturulamadı.');
+    // Sunucu fonksiyonunun döndürdüğü gerçek hata mesajını çıkar
+    let detail = '';
+    const ctx = (error as any).context;
+    try {
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json();
+        detail = body?.error || body?.message || '';
+      }
+    } catch {
+      // gövde okunamadı
+    }
+    if (ctx?.status === 404) {
+      detail = 'Sunucu fonksiyonu (create-user) bulunamadı. Supabase panelinde Edge Functions bölümünde kurulu olduğundan emin olunuz.';
+    }
+    throw new Error(detail || error.message || 'Kullanıcı hesabı oluşturulamadı.');
   }
 
   return data as EdgeCreateUserResponse;
