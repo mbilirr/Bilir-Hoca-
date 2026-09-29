@@ -52,7 +52,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setErrorMsg('Öğrenci adı soyadı boş bırakılamaz.');
@@ -70,7 +70,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
         studentNumber: studentNumber.trim() || undefined,
       };
 
-      dataService.updateStudent(student.id, updates);
+      await dataService.updateStudent(student.id, updates);
 
       confetti({
         particleCount: 50,
@@ -279,7 +279,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Check current password if student has an existing one
@@ -302,7 +302,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
       setIsSaving(true);
       setErrorMsg(null);
 
-      dataService.updateStudent(student.id, {
+      await dataService.updateStudent(student.id, {
         password: newPassword,
         mustChangePassword: false,
       });

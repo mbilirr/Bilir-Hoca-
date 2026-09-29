@@ -1059,10 +1059,10 @@ export class DataService {
   public startPeriodicSync(): void {
     if (this.syncPollInterval) return;
     if (typeof window !== 'undefined') {
-      // Arka plan otomatik tazeleme: 5 saniyede bir hafif kontrol
+      // Arka plan otomatik tazeleme: 30 saniyede bir hafif kontrol
       this.syncPollInterval = window.setInterval(() => {
         this.revalidateAndSyncAll(true);
-      }, 5000);
+      }, 30000);
     }
   }
 
@@ -2158,21 +2158,11 @@ export class DataService {
   }
 
   // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---
-  public async syncStudentsToCloud(): Promise<void> {
+  public async syncStudentsToCloud(): Promise<{ success: boolean; error?: any }> {
     try {
       const activeStudents = this.students.filter((s) => s && s.id && !this.deletedStudentIds.has(s.id));
-      
-      // 1. Full-fidelity aggregate payload in homeworks table
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_students__',
-        title: 'Students Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeStudents),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
 
-      // 2. Individual student table upsert
+      // Individual student table upsert
       const payload = activeStudents.map((s) => ({
         id: s.id,
         name: s.name,
@@ -2186,10 +2176,70 @@ export class DataService {
       }));
 
       if (payload.length > 0) {
-        await supabase.from('students').upsert(payload);
+        const { error } = await supabase.from('students').upsert(payload);
+        if (error) {
+          console.warn('[StudentsSync] Error syncing students to cloud:', error);
+          return { success: false, error };
+        }
       }
+      return { success: true };
     } catch (e) {
       console.warn('Error syncing students to cloud:', e);
+      return { success: false, error: e };
+    }
+  }
+
+  public async syncStudentToCloud(student: Student): Promise<{ success: boolean; error?: any }> {
+    try {
+      const payload = {
+        id: student.id,
+        name: student.name,
+        student_number: student.studentNumber || '',
+        class_id: student.classId || 'class-default',
+        class_name: student.className || 'Genel',
+        email: student.email || null,
+        phone: student.phone || null,
+        avatar: student.avatar || null,
+        registered_at: student.createdAt || new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from('students').upsert([payload]);
+      if (error) {
+        console.warn('[StudentSync] Error upserting student to cloud:', error);
+        return { success: false, error };
+      }
+      return { success: true };
+    } catch (e) {
+      console.warn('[StudentSync] Exception syncing student to cloud:', e);
+      return { success: false, error: e };
+    }
+  }
+
+  public async deleteStudentFromCloud(studentId: string): Promise<{ success: boolean; error?: any }> {
+    try {
+      const { error } = await supabase.from('students').delete().eq('id', studentId);
+      if (error) {
+        console.warn('[StudentSync] Error deleting student from cloud:', error);
+        return { success: false, error };
+      }
+      return { success: true };
+    } catch (e) {
+      console.warn('[StudentSync] Exception deleting student from cloud:', e);
+      return { success: false, error: e };
+    }
+  }
+
+  public async deleteStudentsFromCloud(studentIds: string[]): Promise<{ success: boolean; error?: any }> {
+    try {
+      const { error } = await supabase.from('students').delete().in('id', studentIds);
+      if (error) {
+        console.warn('[StudentsSync] Error deleting students from cloud:', error);
+        return { success: false, error };
+      }
+      return { success: true };
+    } catch (e) {
+      console.warn('[StudentsSync] Exception deleting students from cloud:', e);
+      return { success: false, error: e };
     }
   }
 
@@ -2199,15 +2249,10 @@ export class DataService {
 
       // 1. Fetch individual rows from students table
       const { data: remoteStudents, error: errStd } = await supabase.from('students').select('*');
-      if (errStd && !isBackground) {
+      if (errStd) {
         console.warn('Error fetching students from Supabase:', errStd);
+        return this.students;
       }
-
-      // 2. Fetch full-fidelity aggregate payload from __system_sync_students__
-      const { data: sysRows } = await supabase
-        .from('homeworks')
-        .select('description')
-        .eq('id', '__system_sync_students__');
 
       const remoteStudentMap = new Map<string, any>();
 
@@ -2216,31 +2261,6 @@ export class DataService {
           if (!rs.id || this.deletedStudentIds.has(rs.id)) return;
           remoteStudentMap.set(rs.id, rs);
         });
-      }
-
-      // Merge with full payload from __system_sync_students__
-      if (sysRows && sysRows.length > 0 && sysRows[0]?.description) {
-        try {
-          const parsed = JSON.parse(sysRows[0].description);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((s: Student) => {
-              if (s && s.id && !this.deletedStudentIds.has(s.id)) {
-                const existingInMap = remoteStudentMap.get(s.id);
-                remoteStudentMap.set(s.id, {
-                  ...s,
-                  ...(existingInMap || {}),
-                  className: s.className || existingInMap?.class_name || 'Genel',
-                  classId: s.classId || existingInMap?.class_id || 'class-default',
-                  schoolLevel: s.schoolLevel || detectSchoolLevelFromGrade(s.className),
-                  gradeLevel: s.gradeLevel,
-                  branch: s.branch,
-                  password: s.password || '54321',
-                  mustChangePassword: s.mustChangePassword,
-                });
-              }
-            });
-          }
-        } catch {}
       }
 
       const mergedStudentMap = new Map<string, Student>();
@@ -2302,24 +2322,12 @@ export class DataService {
         }
       });
 
-      // Preserve local unsynced students so newly added students are NEVER deleted
-      const unsyncedLocals = this.students.filter(
-        (s) => !mergedStudentMap.has(s.id) && !this.deletedStudentIds.has(s.id)
-      );
-      unsyncedLocals.forEach((local) => {
-        mergedStudentMap.set(local.id, local);
-      });
-
       this.students = Array.from(mergedStudentMap.values());
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
       } catch {}
       this.notify();
-
-      if (unsyncedLocals.length > 0) {
-        this.syncStudentsToCloud().catch(() => {});
-      }
 
       return this.students;
     } catch (e) {
@@ -3074,7 +3082,7 @@ export class DataService {
         studentUpdates.password = updates.newPassword.trim();
       }
 
-      this.updateStudent(userId, studentUpdates);
+      await this.updateStudent(userId, studentUpdates);
       return;
     }
 
@@ -4276,11 +4284,34 @@ export class DataService {
     }
   }
 
+  private showFloatingErrorToast(message: string): void {
+    if (typeof document === 'undefined') return;
+    try {
+      const existing = document.getElementById('dataservice-error-toast');
+      if (existing) existing.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'dataservice-error-toast';
+      toast.className =
+        'fixed top-5 right-5 z-50 max-w-md bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2.5 border border-rose-500 animate-in slide-in-from-top-2 text-xs font-semibold';
+      toast.innerHTML = `
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span>${message}</span>
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 5000);
+    } catch {}
+  }
+
   // --- CLASSES ---
-  public addClass(
+  public async addClass(
     classData: Omit<ClassGroup, 'id'>,
     forcedTeacherId?: string
-  ): ClassGroup & { autoAssignedCount?: number } {
+  ): Promise<ClassGroup & { autoAssignedCount?: number }> {
     const session = this.getAuthSession();
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
@@ -4290,6 +4321,12 @@ export class DataService {
       id: `class-${Date.now()}`,
       createdTeacherId: currentTeacherId,
     };
+
+    // Rollback için önceki durumların yedeğini al
+    const prevClasses = [...this.classes];
+    const prevStudents = [...this.students];
+    const prevTeachers = JSON.parse(JSON.stringify(this.teachers));
+
     this.classes.push(newClass);
 
     // If added by a teacher, automatically add this class to their assignedClassIds
@@ -4354,15 +4391,41 @@ export class DataService {
     }
 
     saveData(STORAGE_KEYS.CLASSES, this.classes);
-    this.syncClassToCloud(newClass);
+
+    // Bulut yazmasını AWAIT et ve sonucunu doğrula:
+    const cloudRes = await this.syncClassToCloud(newClass);
+
+    if (!cloudRes.success) {
+      // ROLLBACK: Buluta yazılamadıysa yerel state ve depolamayı tamamen eski haline döndür
+      this.classes = prevClasses;
+      this.students = prevStudents;
+      this.teachers = prevTeachers;
+      saveData(STORAGE_KEYS.CLASSES, this.classes);
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      this.notify();
+
+      const errMsg =
+        cloudRes.error?.message ||
+        (cloudRes.error?.code === '42501'
+          ? 'Sınıf oluşturma yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Sınıf bulut veritabanına kaydedilemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[addClass] Sınıf buluta kaydedilemedi: ${errMsg}`);
+    }
+
     this.notify();
     return { ...newClass, autoAssignedCount };
   }
 
   // Öğrencileri tek tek veya toplu olarak belirli bir sınıfa aktarma
-  public assignStudentsToClass(studentIds: string[], classId: string): number {
+  public async assignStudentsToClass(studentIds: string[], classId: string): Promise<number> {
     const cls = this.classes.find((c) => c.id === classId);
     if (!cls || !studentIds || studentIds.length === 0) return 0;
+
+    // Rollback için önceki durumun yedeğini al
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
 
     let count = 0;
     this.students = this.students.map((s) => {
@@ -4385,15 +4448,40 @@ export class DataService {
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
       } catch {}
-      this.syncClassToCloud(cls);
-      this.syncStudentsToCloud().catch(() => {});
+
+      // Sadece öğrencileri buluta senkronize et ve sonucunu doğrula
+      const studentRes = await this.syncStudentsToCloud();
+
+      if (!studentRes.success) {
+        // ROLLBACK: Öğrenciler buluta yazılamadıysa yerel state'i geri al
+        this.students = prevStudents;
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        } catch {}
+        this.notify();
+
+        const errMsg =
+          studentRes.error?.message ||
+          (studentRes.error?.code === '42501'
+            ? 'Öğrencileri sınıfa aktarma yetkiniz bulunmamaktadır (RLS kuralı).'
+            : 'Öğrenci sınıf aktarımı bulut veritabanına kaydedilemedi.');
+
+        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+        throw new Error(`[assignStudentsToClass] Buluta aktarım başarısız: ${errMsg}`);
+      }
+
       this.notify();
     }
     return count;
   }
 
   // Öğrenciyi sınıftan çıkarma
-  public removeStudentFromClass(studentId: string): void {
+  public async removeStudentFromClass(studentId: string): Promise<void> {
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
+    const targetStudent = this.students.find((s) => s.id === studentId);
+    if (!targetStudent) return;
+
     this.students = this.students.map((s) => {
       if (s.id === studentId) {
         return {
@@ -4408,7 +4496,29 @@ export class DataService {
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
     } catch {}
-    this.syncStudentsToCloud().catch(() => {});
+
+    const updated = this.students.find((s) => s.id === studentId);
+    const cloudRes = updated ? await this.syncStudentToCloud(updated) : { success: true };
+
+    if (!cloudRes.success) {
+      // ROLLBACK
+      this.students = prevStudents;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+
+      const errMsg =
+        cloudRes.error?.message ||
+        (cloudRes.error?.code === '42501'
+          ? 'Öğrenciyi sınıftan çıkarma yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Öğrenci sınıftan çıkarma işlemi bulut veritabanına kaydedilemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[removeStudentFromClass] Sınıftan çıkarma başarısız: ${errMsg}`);
+    }
+
     this.notify();
   }
 
@@ -4461,7 +4571,7 @@ export class DataService {
   }
 
   // --- CLOUD SYNCHRONIZATION FOR CLASSES ---
-  public async syncClassToCloud(cls: ClassGroup): Promise<void> {
+  public async syncClassToCloud(cls: ClassGroup): Promise<{ success: boolean; error?: any }> {
     try {
       const studentCount = this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length;
       let levelNum = 8;
@@ -4473,7 +4583,7 @@ export class DataService {
         if (m) levelNum = parseInt(m[0], 10);
       }
 
-      await supabase.from('classes').upsert({
+      const { error } = await supabase.from('classes').upsert({
         id: cls.id,
         name: cls.name,
         branch: cls.branch || 'Genel',
@@ -4482,32 +4592,24 @@ export class DataService {
         academic_year: cls.academicYear || '2026-2027',
       });
 
-      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_classes__',
-        title: 'Classes Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeClasses),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
+      if (error) {
+        console.warn('Error syncing class to cloud:', error);
+        return { success: false, error };
+      }
+
+      return { success: true };
     } catch (e) {
-      console.warn('Error syncing class to cloud:', e);
+      console.warn('Exception syncing class to cloud:', e);
+      return { success: false, error: e };
     }
   }
 
   public async deleteClassFromCloud(classId: string): Promise<void> {
     try {
-      await supabase.from('classes').delete().eq('id', classId);
-      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_classes__',
-        title: 'Classes Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeClasses),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
+      const { error } = await supabase.from('classes').delete().eq('id', classId);
+      if (error) {
+        console.warn('Error deleting class from cloud:', error);
+      }
     } catch (e) {
       console.warn('Error deleting class from cloud:', e);
     }
@@ -4536,17 +4638,11 @@ export class DataService {
       });
 
       if (payload.length > 0) {
-        await supabase.from('classes').upsert(payload);
+        const { error } = await supabase.from('classes').upsert(payload);
+        if (error) {
+          console.warn('Error syncing all classes to cloud:', error);
+        }
       }
-
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_classes__',
-        title: 'Classes Sync',
-        subject: 'SystemSync',
-        description: JSON.stringify(activeClasses),
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
     } catch (e) {
       console.warn('Error syncing all classes to cloud:', e);
     }
@@ -4559,16 +4655,12 @@ export class DataService {
 
       // 1. Fetch from Supabase classes table (Central DB is source of truth)
       const { data: remoteClasses, error: errCls } = await supabase.from('classes').select('*');
-      if (errCls && !isBackground) {
-        console.warn('Error fetching classes from Supabase:', errCls);
+      if (errCls) {
+        if (!isBackground) {
+          console.warn('Error fetching classes from Supabase:', errCls);
+        }
         return this.classes;
       }
-
-      // 2. Fetch from aggregate __system_sync_classes__ row in homeworks
-      const { data: sysRows } = await supabase
-        .from('homeworks')
-        .select('description')
-        .eq('id', '__system_sync_classes__');
 
       const remoteMap = new Map<string, ClassGroup>();
 
@@ -4590,21 +4682,6 @@ export class DataService {
         });
       }
 
-      if (sysRows && sysRows.length > 0 && sysRows[0]?.description) {
-        try {
-          const parsed = JSON.parse(sysRows[0].description);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((c: ClassGroup) => {
-              if (c && c.id && !this.deletedClassIds.has(c.id)) {
-                if (!remoteMap.has(c.id)) {
-                  remoteMap.set(c.id, c);
-                }
-              }
-            });
-          }
-        } catch {}
-      }
-
       // The central database is the single source of truth:
       // Any class deleted on computer is cleanly removed from local state on all devices!
       const deduplicatedClasses = this.deduplicateClasses(Array.from(remoteMap.values()));
@@ -4623,10 +4700,10 @@ export class DataService {
   }
 
   // --- STUDENTS ---
-  public registerStudent(
+  public async registerStudent(
     studentData: Omit<Student, 'id' | 'createdAt' | 'status'>,
     forcedTeacherId?: string
-  ): Student {
+  ): Promise<Student> {
     const session = this.getAuthSession();
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
@@ -4688,6 +4765,11 @@ export class DataService {
         `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentData.name)}`,
     };
 
+    // Rollback için önceki durumların yedeğini al
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
+    const prevSentEmails = JSON.parse(JSON.stringify(this.sentEmails));
+    const prevStudentNotifications = JSON.parse(JSON.stringify(this.studentNotifications));
+
     this.students.unshift(newStudent);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
 
@@ -4746,131 +4828,192 @@ export class DataService {
       saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     }
 
-    // Direct central database upsert
-    // Sync to cloud
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
     } catch {}
-    this.syncStudentsToCloud().catch(() => {});
+
+    // Bulut yazmasını AWAIT et ve sonucunu doğrula
+    const cloudRes = await this.syncStudentToCloud(newStudent);
+
+    if (!cloudRes.success) {
+      // ROLLBACK: Buluta yazılamadıysa yerel state ve depolamayı tamamen eski haline döndür
+      this.students = prevStudents;
+      this.sentEmails = prevSentEmails;
+      this.studentNotifications = prevStudentNotifications;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
+      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+
+      const errMsg =
+        cloudRes.error?.message ||
+        (cloudRes.error?.code === '42501'
+          ? 'Öğrenci kaydetme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Öğrenci bulut veritabanına kaydedilemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[registerStudent] Öğrenci buluta kaydedilemedi: ${errMsg}`);
+    }
 
     this.notify();
     return newStudent;
   }
 
-  public registerStudentsBulk(
+  public async registerStudentsBulk(
     studentsData: Array<Omit<Student, 'id' | 'createdAt' | 'status'> & { autoCreateClass?: boolean }>,
     forcedTeacherId?: string
-  ): Student[] {
+  ): Promise<Student[]> {
     const session = this.getAuthSession();
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
     const createdList: Student[] = [];
     const timestamp = Date.now();
 
-    studentsData.forEach((item, index) => {
-      let classObj = this.classes.find(
-        (c) =>
-          c.id === item.classId ||
-          c.name.toLowerCase() === (item.className || '').trim().toLowerCase()
-      );
+    // Rollback için önceki durumların yedeğini al
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
+    const prevClasses = JSON.parse(JSON.stringify(this.classes));
+    const prevTeachers = JSON.parse(JSON.stringify(this.teachers));
 
-      // Auto-create class if not exists and className provided
-      if (!classObj && item.className && item.className.trim() !== '') {
-        const newClassId = `class-${timestamp + index}`;
-        const newClass: ClassGroup = {
-          id: newClassId,
-          name: item.className.trim(),
-          branch: 'Genel',
-          academicYear: '2026-2027',
-          description: 'Excel yüklemesi ile otomatik oluşturuldu',
+    try {
+      for (let index = 0; index < studentsData.length; index++) {
+        const item = studentsData[index];
+        let classObj = this.classes.find(
+          (c) =>
+            c.id === item.classId ||
+            c.name.toLowerCase() === (item.className || '').trim().toLowerCase()
+        );
+
+        // Auto-create class if not exists and className provided using addClass()
+        if (!classObj && item.className && item.className.trim() !== '') {
+          const newClass = await this.addClass(
+            {
+              name: item.className.trim(),
+              branch: 'Genel',
+              academicYear: '2026-2027',
+              description: 'Excel yüklemesi ile otomatik oluşturuldu',
+            },
+            currentTeacherId
+          );
+          classObj = newClass;
+        }
+
+        const finalClassId = classObj ? classObj.id : item.classId || (this.classes[0]?.id ?? '');
+        const finalClassName = classObj ? classObj.name : item.className || (this.classes[0]?.name ?? 'Genel');
+
+        const studentId = `std-${timestamp + index}-${Math.floor(Math.random() * 1000)}`;
+        const cleanName = item.name.trim();
+
+        // Excelden eklenen öğrenciler kullanıcı adı 'ad' (küçük harf, türkçe karakter normalize edilmiş)
+        const rawFirstName = cleanName.split(' ')[0] || 'ogrenci';
+        const cleanFirstName = rawFirstName
+          .replace(/İ/g, 'i')
+          .replace(/I/g, 'i')
+          .toLowerCase()
+          .replace(/ğ/g, 'g')
+          .replace(/ü/g, 'u')
+          .replace(/ş/g, 's')
+          .replace(/ı/g, 'i')
+          .replace(/ö/g, 'o')
+          .replace(/ç/g, 'c')
+          .replace(/[^a-z0-9]/g, '');
+        const baseUsername = item.username?.trim().toLowerCase() || cleanFirstName || 'ogrenci';
+
+        // Benzersiz kullanıcı adı sağlama
+        let finalUsername = baseUsername;
+        let counter = 1;
+        while (
+          this.students.some((s) => s.username?.toLowerCase() === finalUsername) ||
+          createdList.some((s) => s.username?.toLowerCase() === finalUsername)
+        ) {
+          counter++;
+          finalUsername = `${baseUsername}${counter}`;
+        }
+
+        const stdPassword = item.password?.trim() || '54321';
+        const isMustChange = item.mustChangePassword !== undefined
+          ? item.mustChangePassword
+          : (stdPassword === '54321' || !item.password);
+
+        const newStudent: Student = {
+          id: studentId,
+          name: cleanName,
+          username: finalUsername,
+          email: cleanStudentEmail(item.email),
+          password: stdPassword,
+          mustChangePassword: isMustChange,
+          classId: finalClassId,
+          className: finalClassName,
+          studentNumber: item.studentNumber?.trim() || `${Math.floor(1000 + Math.random() * 9000)}`,
+          phone: item.phone?.trim() || '',
+          avatar:
+            item.avatar ||
+            `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
+          createdAt: new Date().toISOString(),
+          status: 'active',
           createdTeacherId: currentTeacherId,
         };
-        this.classes.push(newClass);
-        classObj = newClass;
-        if (currentTeacherId) {
-          const t = this.teachers.find((item) => item.id === currentTeacherId);
-          if (t) {
-            if (!t.assignedClassIds) t.assignedClassIds = [];
-            if (!t.assignedClassIds.includes(newClassId)) {
-              t.assignedClassIds.push(newClassId);
-            }
-          }
-        }
+
+        this.students.unshift(newStudent);
+        createdList.push(newStudent);
       }
 
-      const finalClassId = classObj ? classObj.id : item.classId || (this.classes[0]?.id ?? '');
-      const finalClassName = classObj ? classObj.name : item.className || (this.classes[0]?.name ?? 'Genel');
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
 
-      const studentId = `std-${timestamp + index}-${Math.floor(Math.random() * 1000)}`;
-      const cleanName = item.name.trim();
+      // Await cloud sync for students
+      const cloudRes = await this.syncStudentsToCloud();
+      if (!cloudRes.success) {
+        // ROLLBACK
+        this.students = prevStudents;
+        this.classes = prevClasses;
+        this.teachers = prevTeachers;
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        saveData(STORAGE_KEYS.CLASSES, this.classes);
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+        try {
+          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+          localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+        } catch {}
+        this.notify();
 
-      // Excelden eklenen öğrenciler kullanıcı adı 'ad' (küçük harf, türkçe karakter normalize edilmiş)
-      const rawFirstName = cleanName.split(' ')[0] || 'ogrenci';
-      const cleanFirstName = rawFirstName
-        .replace(/İ/g, 'i')
-        .replace(/I/g, 'i')
-        .toLowerCase()
-        .replace(/ğ/g, 'g')
-        .replace(/ü/g, 'u')
-        .replace(/ş/g, 's')
-        .replace(/ı/g, 'i')
-        .replace(/ö/g, 'o')
-        .replace(/ç/g, 'c')
-        .replace(/[^a-z0-9]/g, '');
-      const baseUsername = item.username?.trim().toLowerCase() || cleanFirstName || 'ogrenci';
+        const errMsg =
+          cloudRes.error?.message ||
+          (cloudRes.error?.code === '42501'
+            ? 'Öğrencileri kaydetme yetkiniz bulunmamaktadır (RLS kuralı).'
+            : 'Toplu öğrenci listesi bulut veritabanına kaydedilemedi.');
 
-      // Benzersiz kullanıcı adı sağlama
-      let finalUsername = baseUsername;
-      let counter = 1;
-      while (
-        this.students.some((s) => s.username?.toLowerCase() === finalUsername) ||
-        createdList.some((s) => s.username?.toLowerCase() === finalUsername)
-      ) {
-        counter++;
-        finalUsername = `${baseUsername}${counter}`;
+        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+        throw new Error(`[registerStudentsBulk] Öğrenciler buluta kaydedilemedi: ${errMsg}`);
       }
 
-      const stdPassword = item.password?.trim() || '54321';
-      const isMustChange = item.mustChangePassword !== undefined
-        ? item.mustChangePassword
-        : (stdPassword === '54321' || !item.password);
-
-      const newStudent: Student = {
-        id: studentId,
-        name: cleanName,
-        username: finalUsername,
-        email: cleanStudentEmail(item.email),
-        password: stdPassword,
-        mustChangePassword: isMustChange,
-        classId: finalClassId,
-        className: finalClassName,
-        studentNumber: item.studentNumber?.trim() || `${Math.floor(1000 + Math.random() * 9000)}`,
-        phone: item.phone?.trim() || '',
-        avatar:
-          item.avatar ||
-          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
-        createdAt: new Date().toISOString(),
-        status: 'active',
-        createdTeacherId: currentTeacherId,
-      };
-
-      this.students.unshift(newStudent);
-      createdList.push(newStudent);
-    });
-
-    saveData(STORAGE_KEYS.CLASSES, this.classes);
-    saveData(STORAGE_KEYS.STUDENTS, this.students);
-    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
-    } catch {}
-
-    this.syncStudentsToCloud().catch(() => {});
-    this.notify();
-    return createdList;
+      this.notify();
+      return createdList;
+    } catch (err: any) {
+      // General error during loop or addClass
+      this.students = prevStudents;
+      this.classes = prevClasses;
+      this.teachers = prevTeachers;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      saveData(STORAGE_KEYS.CLASSES, this.classes);
+      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+      } catch {}
+      this.notify();
+      this.showFloatingErrorToast(`Hata: ${err.message || 'Toplu öğrenci kaydı başarısız oldu.'} Değişiklikler geri alındı.`);
+      throw err;
+    }
   }
 
   public async updateStudent(id: string, updates: Partial<Student>): Promise<void> {
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
+
     if (updates.email !== undefined) {
       updates.email = cleanStudentEmail(updates.email);
     }
@@ -4879,46 +5022,41 @@ export class DataService {
       if (cls) updates.className = cls.name;
     }
     this.students = this.students.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    const updated = this.students.find((s) => s.id === id);
+    if (!updated) return;
+
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
     } catch {}
-    this.syncStudentsToCloud().catch(() => {});
-    this.notify();
 
-    const updated = this.students.find((s) => s.id === id);
-    if (updated) {
+    // Bulut yazmasını AWAIT et ve sonucunu kontrol et
+    const cloudRes = await this.syncStudentToCloud(updated);
+    if (!cloudRes.success) {
+      // ROLLBACK
+      this.students = prevStudents;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        const { error } = await supabase
-          .from('students')
-          .upsert([
-            {
-              id: updated.id,
-              name: updated.name,
-              student_number: updated.studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-              class_id: updated.classId || 'class-default',
-              class_name: updated.className || 'Genel',
-              email: updated.email || null,
-              phone: updated.phone || null,
-              avatar: updated.avatar || null,
-              registered_at: updated.createdAt || new Date().toISOString(),
-            },
-          ]);
-        if (error) console.error('[StudentsSync] Error updating student in Supabase:', error);
-      } catch (e) {
-        console.warn('[StudentsSync] Exception updating student:', e);
-      }
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+
+      const errMsg =
+        cloudRes.error?.message ||
+        (cloudRes.error?.code === '42501'
+          ? 'Öğrenci güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Öğrenci bilgileri bulut veritabanında güncellenemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[updateStudent] Öğrenci bulutta güncellenemedi: ${errMsg}`);
     }
 
     const currentSession = this.getAuthSession();
     if (currentSession?.role === 'student' && currentSession.user.id === id) {
-      const updatedStudent = this.students.find((s) => s.id === id);
-      if (updatedStudent) {
-        this.setAuthSession({
-          ...currentSession,
-          user: updatedStudent,
-        });
-      }
+      this.setAuthSession({
+        ...currentSession,
+        user: updated,
+      });
     }
 
     this.notify();
@@ -4931,6 +5069,16 @@ export class DataService {
   public async deleteStudents(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
     const idSet = new Set(ids);
+
+    // Rollback için önceki durumların tam kopyasını al
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
+    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
+    const prevGrades = JSON.parse(JSON.stringify(this.grades));
+    const prevMessages = JSON.parse(JSON.stringify(this.messages));
+    const prevEtuts = JSON.parse(JSON.stringify(this.etuts));
+    const prevAttendance = JSON.parse(JSON.stringify(this.attendance));
+    const prevDeletedStudentIds = new Set(this.deletedStudentIds);
+
     ids.forEach((id) => this.deletedStudentIds.add(id));
     saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
 
@@ -4980,20 +5128,44 @@ export class DataService {
       try { localStorage.removeItem(k); } catch {}
     });
 
-    // Delete permanently from Supabase and wait for completion
-    try {
-      const { error } = await supabase.from('students').delete().in('id', ids);
-      if (error) {
-        console.error('Supabase student delete error:', error);
-      }
-    } catch (e) {
-      console.warn('Exception during student deletion:', e);
+    // Buluttan silme işlemini AWAIT et ve doğrula
+    const deleteRes = await this.deleteStudentsFromCloud(ids);
+    if (!deleteRes.success) {
+      // ROLLBACK: Buluttan silinemezse yerel verileri geri yükle
+      this.students = prevStudents;
+      this.submissions = prevSubmissions;
+      this.grades = prevGrades;
+      this.messages = prevMessages;
+      this.etuts = prevEtuts;
+      this.attendance = prevAttendance;
+      this.deletedStudentIds = prevDeletedStudentIds;
+
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      saveData(STORAGE_KEYS.GRADES, this.grades);
+      saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      saveData(STORAGE_KEYS.ETUTS, this.etuts);
+      saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+      saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
+
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
+      } catch {}
+      this.notify();
+
+      const errMsg =
+        deleteRes.error?.message ||
+        (deleteRes.error?.code === '42501'
+          ? 'Öğrenci silme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Öğrenci bulut veritabanından silinemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[deleteStudents] Öğrenci silme işlemi başarısız: ${errMsg}`);
     }
 
-    // Persist tombstones and student state to cloud so other devices immediately purge these IDs
+    // Persist tombstones to cloud so other devices immediately purge these IDs
     await this.syncTombstonesToCloud();
-    await this.syncStudentsToCloud();
-
     this.notify();
   }
 
@@ -5010,6 +5182,12 @@ export class DataService {
       createdByName: homeworkData.createdByName || currentTeacher?.name || 'Öğretmen',
       submissions: [],
     };
+
+    // Rollback için önceki durumların yedeğini al
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+    const prevNotifications = JSON.parse(JSON.stringify(this.studentNotifications));
+    const prevSentEmails = JSON.parse(JSON.stringify(this.sentEmails));
+
     this.homeworks.unshift(newHw);
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
 
@@ -5034,15 +5212,36 @@ export class DataService {
         learning_outcomes: newHw.learningOutcomes || [],
         submissions: [],
       });
-      if (error) console.error('[HomeworkSync] Error creating homework in Supabase:', error);
-    } catch (err) {
-      console.error('[HomeworkSync] Exception creating homework:', err);
+
+      if (error) {
+        throw error;
+      }
+    } catch (err: any) {
+      // ROLLBACK: Buluta yazılamadıysa yerel state ve depolamayı eski haline döndür
+      this.homeworks = prevHomeworks;
+      this.studentNotifications = prevNotifications;
+      this.sentEmails = prevSentEmails;
+      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+      saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
+      this.notify();
+
+      const errMsg =
+        err?.message ||
+        (err?.code === '42501'
+          ? 'Ödev oluşturma yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Ödev bulut veritabanına kaydedilemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[createHomework] Ödev buluta kaydedilemedi: ${errMsg}`);
     }
 
     return newHw;
   }
 
   public async updateHomework(id: string, updates: Partial<Homework>): Promise<void> {
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+
     this.homeworks = this.homeworks.map((h) => (h.id === id ? { ...h, ...updates } : h));
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
     this.notify();
@@ -5065,14 +5264,33 @@ export class DataService {
           learning_outcomes: updated.learningOutcomes || [],
           submissions: updated.submissions || this.submissions.filter((s) => s.homeworkId === id) || [],
         });
-        if (error) console.error('[HomeworkSync] Error updating homework in Supabase:', error);
-      } catch (err) {
-        console.error('[HomeworkSync] Exception updating homework:', err);
+
+        if (error) {
+          throw error;
+        }
+      } catch (err: any) {
+        // ROLLBACK: Buluta yazılamadıysa eski haline döndür
+        this.homeworks = prevHomeworks;
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+        this.notify();
+
+        const errMsg =
+          err?.message ||
+          (err?.code === '42501'
+            ? 'Ödev güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
+            : 'Ödev güncellemeleri bulut veritabanına kaydedilemedi.');
+
+        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+        throw new Error(`[updateHomework] Ödev güncellenemedi: ${errMsg}`);
       }
     }
   }
 
   public async deleteHomework(id: string): Promise<void> {
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
+    const prevDeletedHomeworkIds = new Set(this.deletedHomeworkIds);
+
     this.deletedHomeworkIds.add(id);
     saveData(STORAGE_KEYS.DELETED_HOMEWORK, Array.from(this.deletedHomeworkIds));
 
@@ -5084,9 +5302,27 @@ export class DataService {
 
     try {
       const { error } = await supabase.from('homeworks').delete().eq('id', id);
-      if (error) console.error('[HomeworkSync] Error deleting homework from Supabase:', error);
-    } catch (err) {
-      console.error('[HomeworkSync] Exception deleting homework:', err);
+      if (error) {
+        throw error;
+      }
+    } catch (err: any) {
+      // ROLLBACK: Buluttan silinemezse yerel state'i eski haline döndür
+      this.homeworks = prevHomeworks;
+      this.submissions = prevSubmissions;
+      this.deletedHomeworkIds = prevDeletedHomeworkIds;
+      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      saveData(STORAGE_KEYS.DELETED_HOMEWORK, Array.from(this.deletedHomeworkIds));
+      this.notify();
+
+      const errMsg =
+        err?.message ||
+        (err?.code === '42501'
+          ? 'Ödev silme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Ödev bulut veritabanından silinemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[deleteHomework] Ödev silinemedi: ${errMsg}`);
     }
   }
 
@@ -5103,6 +5339,9 @@ export class DataService {
 
     const isLate = homework ? new Date() > new Date(homework.dueDate) : false;
     const status: 'on_time' | 'late' = isLate ? 'late' : 'on_time';
+
+    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
 
     const existingIndex = this.submissions.findIndex(
       (s) => s.homeworkId === homeworkId && s.studentId === studentId
@@ -5135,8 +5374,9 @@ export class DataService {
     if (hw) {
       hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
       saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+
       try {
-        await supabase.from('homeworks').upsert({
+        const { error } = await supabase.from('homeworks').upsert({
           id: hw.id,
           title: hw.title,
           description: hw.description || '',
@@ -5146,8 +5386,26 @@ export class DataService {
           due_date: hw.dueDate,
           submissions: hw.submissions,
         });
-      } catch (err) {
-        console.warn('[SubmissionsSync] Exception updating homework submissions:', err);
+
+        if (error) {
+          throw error;
+        }
+      } catch (err: any) {
+        // ROLLBACK: Buluta yazılamadıysa yerel teslimatları ve ödevi geri al
+        this.submissions = prevSubmissions;
+        this.homeworks = prevHomeworks;
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+        this.notify();
+
+        const errMsg =
+          err?.message ||
+          (err?.code === '42501'
+            ? 'Ödev teslim yetkiniz bulunmamaktadır (RLS kuralı).'
+            : 'Ödev teslimi bulut veritabanına kaydedilemedi.');
+
+        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+        throw new Error(`[submitHomework] Ödev teslimi kaydedilemedi: ${errMsg}`);
       }
     }
 
@@ -5156,6 +5414,9 @@ export class DataService {
   }
 
   public async gradeSubmission(submissionId: string, score: number, feedback: string): Promise<void> {
+    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+
     this.submissions = this.submissions.map((s) =>
       s.id === submissionId ? { ...s, score, feedback } : s
     );
@@ -5167,8 +5428,9 @@ export class DataService {
       if (hw) {
         hw.submissions = this.submissions.filter((s) => s.homeworkId === hw.id);
         saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+
         try {
-          await supabase.from('homeworks').upsert({
+          const { error } = await supabase.from('homeworks').upsert({
             id: hw.id,
             title: hw.title,
             description: hw.description || '',
@@ -5178,8 +5440,26 @@ export class DataService {
             due_date: hw.dueDate,
             submissions: hw.submissions,
           });
-        } catch (err) {
-          console.warn('[SubmissionsSync] Exception updating graded submission:', err);
+
+          if (error) {
+            throw error;
+          }
+        } catch (err: any) {
+          // ROLLBACK: Buluta yazılamadıysa yerel puanlamayı ve ödevi geri al
+          this.submissions = prevSubmissions;
+          this.homeworks = prevHomeworks;
+          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+          this.notify();
+
+          const errMsg =
+            err?.message ||
+            (err?.code === '42501'
+              ? 'Ödev puanlama yetkiniz bulunmamaktadır (RLS kuralı).'
+              : 'Ödev puanı bulut veritabanına kaydedilemedi.');
+
+          this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+          throw new Error(`[gradeSubmission] Puanlama kaydedilemedi: ${errMsg}`);
         }
       }
     }
@@ -5197,6 +5477,9 @@ export class DataService {
     const existingIndex = this.submissions.findIndex(
       (s) => s.homeworkId === homeworkId && s.studentId === studentId
     );
+
+    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
+    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
 
     const submissionStatus = checkStatus === 'yapti' ? 'on_time' : 'not_submitted';
     let targetSub: HomeworkSubmission;
@@ -5229,8 +5512,9 @@ export class DataService {
     if (hw) {
       hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
       saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+
       try {
-        await supabase.from('homeworks').upsert({
+        const { error } = await supabase.from('homeworks').upsert({
           id: hw.id,
           title: hw.title,
           description: hw.description || '',
@@ -5240,8 +5524,26 @@ export class DataService {
           due_date: hw.dueDate,
           submissions: hw.submissions,
         });
-      } catch (err) {
-        console.warn('[SubmissionsSync] Exception updating homework check status:', err);
+
+        if (error) {
+          throw error;
+        }
+      } catch (err: any) {
+        // ROLLBACK: Buluta yazılamadıysa yerel kontrol durumunu ve ödevi geri al
+        this.submissions = prevSubmissions;
+        this.homeworks = prevHomeworks;
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+        this.notify();
+
+        const errMsg =
+          err?.message ||
+          (err?.code === '42501'
+            ? 'Ödev kontrol durumunu güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
+            : 'Ödev kontrol durumu bulut veritabanına kaydedilemedi.');
+
+        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+        throw new Error(`[updateHomeworkCheckStatus] Durum kaydedilemedi: ${errMsg}`);
       }
     }
 
@@ -5860,12 +6162,13 @@ export class DataService {
   }
 
   // Hızlı Sınıf Değiştirme / Aktarma (Öğrenci satırındaki açılır pencere için)
-  public updateStudentClass(studentId: string, newClassId: string): Student {
+  public async updateStudentClass(studentId: string, newClassId: string): Promise<Student> {
     const studentIdx = this.students.findIndex((s) => s.id === studentId);
     if (studentIdx === -1) {
       throw new Error('Öğrenci kaydı bulunamadı.');
     }
 
+    const prevStudents = JSON.parse(JSON.stringify(this.students));
     const currentStudent = this.students[studentIdx];
     let newClassName = 'Atanmadı';
     let newGradeLevel: string | undefined = undefined;
@@ -5899,15 +6202,37 @@ export class DataService {
       localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
     } catch {}
 
-    // Update in Supabase immediately
-    supabase
-      .from('students')
-      .update({
-        class_id: newClassId,
-        class_name: newClassName,
-      })
-      .eq('id', studentId)
-      .then();
+    // Bulut yazmasını AWAIT et ve sonucunu kontrol et
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({
+          class_id: newClassId,
+          class_name: newClassName,
+        })
+        .eq('id', studentId);
+
+      if (error) {
+        throw error;
+      }
+    } catch (e: any) {
+      // ROLLBACK: Buluta yazılamadıysa eski haline döndür
+      this.students = prevStudents;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      } catch {}
+      this.notify();
+
+      const errMsg =
+        e?.message ||
+        (e?.code === '42501'
+          ? 'Öğrenci sınıfını güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Öğrencinin yeni sınıfı bulut veritabanına kaydedilemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[updateStudentClass] Sınıf güncelleme başarısız: ${errMsg}`);
+    }
 
     this.notify();
     return updated;

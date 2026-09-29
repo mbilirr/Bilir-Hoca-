@@ -315,35 +315,40 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
     XLSX.writeFile(workbook, 'Ornek_Sinif_Yukleme_Sablonu.xlsx');
   };
 
-  const handleSaveAllClasses = () => {
+  const handleSaveAllClasses = async () => {
     const validRows = parsedRows.filter((r) => r.isValid);
     if (validRows.length === 0) {
       setErrorMessage('Kaydedilecek geçerli bir sınıf bulunmuyor.');
       return;
     }
 
+    setErrorMessage(null);
     const createdClasses: ClassGroup[] = [];
 
-    validRows.forEach((row) => {
-      const newClass = dataService.addClass({
-        name: row.name,
-        branch: row.branch,
-        schoolLevel: row.schoolLevel,
-        gradeLevel: row.gradeLevel,
-        academicYear: row.academicYear || '2026-2027',
-        description: row.description,
-      });
-      createdClasses.push(newClass);
-    });
+    try {
+      for (const row of validRows) {
+        const newClass = await dataService.addClass({
+          name: row.name,
+          branch: row.branch,
+          schoolLevel: row.schoolLevel,
+          gradeLevel: row.gradeLevel,
+          academicYear: row.academicYear || '2026-2027',
+          description: row.description,
+        });
+        createdClasses.push(newClass);
+      }
 
-    setSuccessMessage(`${createdClasses.length} sınıf sisteme başarıyla eklendi!`);
-    if (onUploadSuccess) {
-      onUploadSuccess(createdClasses);
+      setSuccessMessage(`${createdClasses.length} sınıf sisteme başarıyla eklendi!`);
+      if (onUploadSuccess) {
+        onUploadSuccess(createdClasses);
+      }
+
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Sınıflar yüklenirken bir hata oluştu.');
     }
-
-    setTimeout(() => {
-      onClose();
-    }, 1500);
   };
 
   const removeRow = (id: string) => {

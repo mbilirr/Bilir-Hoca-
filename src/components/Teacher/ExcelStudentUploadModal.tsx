@@ -311,7 +311,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
   };
 
   // Save all parsed valid students to dataService
-  const handleCommitUpload = () => {
+  const handleCommitUpload = async () => {
     const validRows = parsedRows.filter((r) => r.isValid);
     if (validRows.length === 0) {
       setErrorMessage('Kaydedilecek geçerli bir öğrenci satırı bulunmuyor.');
@@ -338,7 +338,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         };
       });
 
-      const created = dataService.registerStudentsBulk(studentPayloads);
+      const created = await dataService.registerStudentsBulk(studentPayloads);
 
       if (onUploadSuccess) {
         onUploadSuccess(created);

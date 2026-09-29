@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Lock, User, ShieldCheck, AlertCircle, Sparkles, ArrowRight, X } from 'lucide-react';
+import { Lock, User, ShieldCheck, AlertCircle, ArrowRight, X } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
 
 interface TeacherLoginProps {
   isOpen?: boolean;
@@ -62,81 +64,65 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
     }
   };
 
-  const formContent = (
-    <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+  const isModalMode = isOpen !== undefined;
+
+  const formCard = (
+    <div
+      className={`w-full max-w-md ${
+        isModalMode ? 'bg-white shadow-2xl' : 'bg-white/95 backdrop-blur-sm shadow-xl'
+      } border border-slate-200 rounded-2xl p-6 sm:p-8 relative overflow-hidden`}
+    >
       {/* Close button if modal */}
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors z-20"
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors z-20 cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
       )}
 
-      {/* Decorative background glow */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="text-center mb-8 relative z-10">
-        <div className="w-14 h-14 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-400 shadow-inner">
-          <ShieldCheck className="w-7 h-7" />
+      <div className="text-center mb-6 relative z-10">
+        <div className="w-12 h-12 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-indigo-600 shadow-sm">
+          <ShieldCheck className="w-6 h-6" />
         </div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">Yönetici & Öğretmen Girişi</h2>
-        <p className="text-slate-400 text-sm mt-1.5">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+          Yönetici & Öğretmen Girişi
+        </h2>
+        <p className="text-slate-500 text-xs sm:text-sm mt-1">
           Sınıf, ödev, etüt ve öğrenci yönetimi için lütfen giriş yapın.
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-3 text-rose-300 text-sm">
-          <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+        <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-center space-x-3 text-red-700 text-xs sm:text-sm">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500" />
           <span>{error}</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-            Kullanıcı Adı veya E-posta
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-              <User className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              id="teacher-username-input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              placeholder="Kullanıcı adı veya e-posta"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
-            />
-          </div>
-        </div>
+        <Input
+          id="teacher-username-input"
+          label="Kullanıcı Adı veya E-posta"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          placeholder="Kullanıcı adı veya e-posta"
+          leftIcon={<User className="w-4 h-4" />}
+        />
 
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Şifre
-            </label>
-          </div>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-              <Lock className="w-4 h-4" />
-            </div>
-            <input
-              type="password"
-              id="teacher-password-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
-            />
-          </div>
-        </div>
+        <Input
+          id="teacher-password-input"
+          label="Şifre"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          placeholder="••••••••"
+          leftIcon={<Lock className="w-4 h-4" />}
+        />
 
         {/* Beni Hatırla Checkbox */}
         <div className="flex items-center justify-between py-1">
@@ -145,60 +131,63 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="w-4 h-4 rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 cursor-pointer"
+              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
             />
-            <span className="text-xs text-slate-300 font-medium">Bu cihazda beni hatırla</span>
+            <span className="text-xs text-slate-600 font-medium">Bu cihazda beni hatırla</span>
           </label>
         </div>
 
-        <button
+        <Button
           type="submit"
-          disabled={isLoading}
           id="teacher-login-submit"
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold rounded-xl text-sm transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-50"
+          variant="primary"
+          size="md"
+          isLoading={isLoading}
+          loadingText="Giriş Yapılıyor..."
+          rightIcon={<ArrowRight className="w-4 h-4" />}
+          className="w-full py-2.5"
         >
-          {isLoading ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <>
-              <span>Giriş Yap</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
+          Giriş Yap
+        </Button>
       </form>
 
       {/* Switch to Student */}
       {onSwitchToStudent && (
-        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
+        <div className="mt-6 pt-5 border-t border-slate-100 text-center">
           <button
             type="button"
             onClick={() => {
               if (onClose) onClose();
               onSwitchToStudent();
             }}
-            className="inline-flex items-center space-x-2 text-sm text-slate-400 hover:text-indigo-400 font-medium transition-colors"
+            className="inline-flex items-center space-x-1.5 text-xs sm:text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span>Öğrenci Portalı</span>
+            <span>Öğrenci Portalı Girişi</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
     </div>
   );
 
-  // If opened as a modal
-  if (isOpen !== undefined) {
+  // If opened as a modal (modal modu aynen korunur)
+  if (isModalMode) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-        {formContent}
+        {formCard}
       </div>
     );
   }
 
+  // Tam sayfa render edildiği durum (isOpen === undefined dalı)
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-slate-950/40">
-      {formContent}
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 relative overflow-hidden">
+      {/* DEKORATİF STATİK RENK LEKELERİ (ANİMASYONSUZ, SABİT) */}
+      <div className="absolute -top-24 -left-24 w-72 h-72 md:w-96 md:h-96 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -right-20 w-64 h-64 md:w-80 md:h-80 bg-amber-100/50 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-emerald-100/40 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 w-full flex justify-center">{formCard}</div>
     </div>
   );
 };

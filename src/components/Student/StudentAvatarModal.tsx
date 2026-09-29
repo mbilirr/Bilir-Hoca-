@@ -226,10 +226,10 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
     setSuccessMsg('Özel emoji profil resmi olarak ayarlandı.');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
-      dataService.updateStudent(student.id, {
+      await dataService.updateStudent(student.id, {
         avatar: finalAvatar,
       });
 

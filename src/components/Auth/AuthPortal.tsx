@@ -11,19 +11,13 @@ import {
   UserPlus,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
   School,
   Hash,
   Mail,
   Phone,
   Briefcase,
   ArrowRight,
-  Clock,
   Zap,
-  Star,
-  Check,
-  X,
-  RefreshCw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
@@ -33,6 +27,8 @@ import {
   BRANCH_OPTIONS,
   getGradesForSchoolLevel,
 } from '../../constants/schoolConstants';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
 
 interface AuthPortalProps {
   onAuthSuccess: (session: AuthSession) => void;
@@ -79,9 +75,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   // Active remembered user strictly matches selectedRole
   const activeRememberedUser = selectedRole === 'teacher' ? rememberedTeacher : rememberedStudent;
-
-  const primaryTeacher = teachers.find((t) => t.status === 'approved') || teachers[0];
-  const primaryStudent = students[0];
 
   // --- LOGIN FORM STATE ---
   const [loginUsername, setLoginUsername] = useState(() => {
@@ -144,7 +137,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       return;
     }
 
-    // Strict integrity check: selectedRole must match targetUser.role
     if (targetUser.role !== selectedRole) {
       setError('Seçilen rol ile kayıtlı profil türü uyuşmuyor.');
       return;
@@ -281,9 +273,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           setSuccessMsg(`Hoş geldin ${student.name}! Öğrenci paneline yönlendiriliyorsunuz...`);
           setTimeout(() => onAuthSuccess(session), 400);
         } else {
-          setError(
-            'Öğrenci bulunamadı veya şifre hatalı! Lütfen bilgilerinizi kontrol ediniz.'
-          );
+          setError('Öğrenci bulunamadı veya şifre hatalı! Lütfen bilgilerinizi kontrol ediniz.');
         }
       }
     } catch (err: any) {
@@ -316,7 +306,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
     try {
       setIsLoading(true);
-      // Registers new teacher with status: 'pending' (requires admin approval)
       const newTeacher = dataService.registerTeacher({
         name: tRegName.trim(),
         username: tRegUsername.trim(),
@@ -337,8 +326,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       }
 
       setIsLoading(false);
-
-      // In accordance with: "yeni kayıt olan öğretmenler kayıt olduktan sonra admin tarafından onaylanmadan sayfa açılmasın."
       setSuccessMsg('Kayıt başvurunuz alındı. Yönetici onayından sonra giriş yapabilirsiniz.');
       setAuthMode('login');
       setSelectedRole('teacher');
@@ -351,12 +338,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   // --- SUBMIT STUDENT REGISTER ---
-  const handleStudentRegister = (e: React.FormEvent) => {
+  const handleStudentRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
 
-    // Zorunlu alanlar: Adı Soyadı, Kullanıcı Adı, Okul, Sınıf, Şifre, Şifre Tekrar (Şube isteğe bağlı)
     if (!sRegName.trim()) {
       setError('Lütfen Adı Soyadı alanını doldurunuz.');
       return;
@@ -392,35 +378,35 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       return;
     }
 
-    const constructedClassName = sRegBranch ? `${sRegGrade} - ${sRegBranch}` : sRegGrade;
-    let matchedClass = classes.find(
-      (c) =>
-        c.gradeLevel === sRegGrade &&
-        (!sRegBranch || c.branch === sRegBranch) &&
-        (!c.schoolLevel || c.schoolLevel === sRegSchool)
-    );
-
-    if (!matchedClass) {
-      matchedClass = classes.find((c) => c.name.toLowerCase().includes(sRegGrade.toLowerCase()));
-    }
-
-    let targetClassId = matchedClass?.id;
-    if (!targetClassId) {
-      const newCls = dataService.addClass({
-        name: constructedClassName,
-        branch: sRegBranch || 'Genel',
-        schoolLevel: sRegSchool,
-        gradeLevel: sRegGrade,
-        academicYear: '2026-2027',
-        description: `${sRegSchool} ${sRegGrade} ${sRegBranch ? `(${sRegBranch})` : ''} öğrenci grubu`,
-      });
-      targetClassId = newCls.id;
-    }
-
     try {
       setIsLoading(true);
 
-      const newStudent = dataService.registerStudent({
+      const constructedClassName = sRegBranch ? `${sRegGrade} - ${sRegBranch}` : sRegGrade;
+      let matchedClass = classes.find(
+        (c) =>
+          c.gradeLevel === sRegGrade &&
+          (!sRegBranch || c.branch === sRegBranch) &&
+          (!c.schoolLevel || c.schoolLevel === sRegSchool)
+      );
+
+      if (!matchedClass) {
+        matchedClass = classes.find((c) => c.name.toLowerCase().includes(sRegGrade.toLowerCase()));
+      }
+
+      let targetClassId = matchedClass?.id;
+      if (!targetClassId) {
+        const newCls = await dataService.addClass({
+          name: constructedClassName,
+          branch: sRegBranch || 'Genel',
+          schoolLevel: sRegSchool,
+          gradeLevel: sRegGrade,
+          academicYear: '2026-2027',
+          description: `${sRegSchool} ${sRegGrade} ${sRegBranch ? `(${sRegBranch})` : ''} öğrenci grubu`,
+        });
+        targetClassId = newCls.id;
+      }
+
+      const newStudent = await dataService.registerStudent({
         name: sRegName.trim(),
         username: sRegUsername.trim().toLowerCase(),
         email: sRegEmail.trim() || '',
@@ -458,36 +444,25 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full text-slate-100 flex flex-col justify-between relative overflow-hidden font-sans selection:bg-indigo-500 selection:text-white">
-      {/* CANLI VE DİKKAT ÇEKİCİ EĞİTİM ARKA PLANI */}
-      <div
-        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat transition-all duration-1000 transform scale-105"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=2070&auto=format&fit=crop')`,
-        }}
-      />
-      {/* Canlı Degrade Katmanları & Parlayan Işık Küreleri */}
-      <div className="absolute inset-0 z-0 bg-gradient-to-br from-slate-950/92 via-indigo-950/88 to-slate-950/94 backdrop-blur-[3px]" />
-      <div className="absolute -top-32 -left-32 w-96 h-96 bg-gradient-to-tr from-indigo-500/30 to-purple-600/30 rounded-full blur-3xl pointer-events-none animate-pulse" />
-      <div className="absolute top-1/3 -right-32 w-96 h-96 bg-gradient-to-tr from-pink-500/25 to-amber-500/25 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-32 left-1/4 w-96 h-96 bg-gradient-to-tr from-emerald-500/25 to-cyan-500/25 rounded-full blur-3xl pointer-events-none" />
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 text-slate-900 flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white relative overflow-hidden">
+      {/* DEKORATİF STATİK RENK LEKELERİ (TAMAMEN ANİMASYONSUZ & YUMUŞAK) */}
+      <div className="absolute -top-24 -left-24 w-72 h-72 md:w-96 md:h-96 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -right-20 w-64 h-64 md:w-80 md:h-80 bg-amber-100/50 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-emerald-100/40 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Brand Bar */}
       <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
         <div className="flex items-center space-x-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 p-1 flex items-center justify-center shadow-xl shadow-indigo-600/30 ring-2 ring-white/25 transform hover:scale-105 transition-all overflow-hidden">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-white to-indigo-50 border border-slate-200 p-1.5 flex items-center justify-center shadow-xs overflow-hidden">
             <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-white drop-shadow-sm">
+              <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-slate-900">
                 Eğitim & Öğrenci Takip Sistemi
               </span>
-              <span className="hidden sm:inline-block text-[11px] px-3 py-0.5 rounded-full font-bold bg-gradient-to-r from-amber-500/20 to-pink-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
-                ✨ Canlı Portal
-              </span>
             </div>
-            <p className="text-xs text-slate-300 font-medium">
+            <p className="text-xs text-slate-500 font-medium">
               Ödev Yönetimi, Etüt Takibi & Başarı Analizi
             </p>
           </div>
@@ -495,66 +470,59 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       </header>
 
       {/* Main Center Authentication Card */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-6 sm:px-6">
-        <div className="w-full max-w-xl bg-slate-900/90 backdrop-blur-2xl border-2 border-indigo-500/40 rounded-3xl shadow-2xl shadow-indigo-950/80 overflow-hidden p-6 sm:p-8 transition-all relative">
-          {/* Top Decorative Color Line */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:px-6">
+        <div className="w-full max-w-xl bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-xl p-6 sm:p-8 relative">
           {/* Main Auth Mode Tabs (Giriş Yap vs Kayıt Ol) */}
-          <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 mb-6">
-            <button
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6">
+            <Button
               type="button"
+              variant={authMode === 'login' ? 'primary' : 'ghost'}
+              size="md"
               onClick={() => {
                 setAuthMode('login');
                 setError(null);
                 setSuccessMsg(null);
               }}
-              className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                authMode === 'login'
-                  ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/40 ring-1 ring-white/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              leftIcon={<LogIn className="w-4 h-4" />}
+              className="flex-1"
             >
-              <LogIn className="w-4 h-4" />
-              <span>Giriş Yap</span>
-            </button>
+              Giriş Yap
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant={authMode === 'register' ? 'primary' : 'ghost'}
+              size="md"
               onClick={() => {
                 setAuthMode('register');
                 setError(null);
                 setSuccessMsg(null);
               }}
-              className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                authMode === 'register'
-                  ? 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/40 ring-1 ring-white/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              leftIcon={<UserPlus className="w-4 h-4" />}
+              className="flex-1"
             >
-              <UserPlus className="w-4 h-4" />
-              <span>Kayıt Ol</span>
-            </button>
+              Kayıt Ol
+            </Button>
           </div>
 
           {/* Role Selector Pill */}
           <div className="mb-6">
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 text-center">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
               {authMode === 'login' ? 'Giriş Yapılacak Rol' : 'Kayıt Olunacak Rol'}
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handleSelectRole('teacher')}
-                className={`flex items-center justify-center space-x-2.5 p-3 rounded-2xl border transition-all cursor-pointer ${
+                className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'teacher'
-                    ? 'bg-indigo-950/70 border-indigo-400 text-white ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-600/20 font-bold'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 <ShieldCheck
                   className={`w-5 h-5 ${
-                    selectedRole === 'teacher' ? 'text-indigo-400' : 'text-slate-500'
+                    selectedRole === 'teacher' ? 'text-indigo-600' : 'text-slate-400'
                   }`}
                 />
                 <span className="text-xs sm:text-sm">Öğretmen (Yönetici)</span>
@@ -563,15 +531,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               <button
                 type="button"
                 onClick={() => handleSelectRole('student')}
-                className={`flex items-center justify-center space-x-2.5 p-3 rounded-2xl border transition-all cursor-pointer ${
+                className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'student'
-                    ? 'bg-pink-950/60 border-pink-400 text-white ring-2 ring-pink-500/40 shadow-lg shadow-pink-600/20 font-bold'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 <BookOpen
                   className={`w-5 h-5 ${
-                    selectedRole === 'student' ? 'text-pink-400' : 'text-slate-500'
+                    selectedRole === 'student' ? 'text-indigo-600' : 'text-slate-400'
                   }`}
                 />
                 <span className="text-xs sm:text-sm">Öğrenci Portalı</span>
@@ -581,15 +549,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {/* Error & Success Feedback Alerts */}
           {error && (
-            <div className="mb-5 p-4 bg-rose-500/15 border-2 border-rose-500/40 rounded-2xl flex items-start space-x-3 text-rose-200 text-xs sm:text-sm shadow-md">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
+            <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-3 text-red-700 text-xs sm:text-sm">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" />
               <div className="flex-1">{error}</div>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-5 p-4 bg-emerald-500/15 border-2 border-emerald-500/40 rounded-2xl flex items-start space-x-3 text-emerald-200 text-xs sm:text-sm shadow-md">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400 mt-0.5" />
+            <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3 text-emerald-700 text-xs sm:text-sm">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-500 mt-0.5" />
               <div className="flex-1 leading-relaxed">{successMsg}</div>
             </div>
           )}
@@ -599,15 +567,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             <div className="space-y-5">
               {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
               {activeRememberedUser && (
-                <div
-                  className={`p-4 rounded-2xl border-2 shadow-xl relative overflow-hidden transition-all ${
-                    selectedRole === 'teacher'
-                      ? 'bg-gradient-to-r from-indigo-950/90 via-slate-900/90 to-purple-950/80 border-indigo-500/50 shadow-indigo-950/50'
-                      : 'bg-gradient-to-r from-pink-950/90 via-slate-900/90 to-purple-950/80 border-pink-500/50 shadow-pink-950/50'
-                  }`}
-                >
+                <div className="p-4 rounded-2xl border transition-all bg-indigo-50/50 border-indigo-200">
                   <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center space-x-3.5 min-w-0">
+                    <div className="flex items-center space-x-3 min-w-0">
                       <img
                         src={
                           activeRememberedUser.avatar ||
@@ -616,151 +578,120 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           )}`
                         }
                         alt={activeRememberedUser.name}
-                        className={`w-12 h-12 rounded-2xl bg-slate-800 border-2 shadow-md object-cover flex-shrink-0 ${
-                          selectedRole === 'teacher' ? 'border-indigo-400/60' : 'border-pink-400/60'
-                        }`}
+                        className="w-11 h-11 rounded-xl bg-white border border-slate-200 shadow-xs object-cover shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="text-[11px] font-bold text-amber-400 flex items-center space-x-1">
-                            <Zap className="w-3.5 h-3.5 fill-amber-400" />
+                          <span className="text-[11px] font-medium text-slate-500 flex items-center space-x-1">
+                            <Zap className="w-3.5 h-3.5 text-slate-400" />
                             <span>Kayıtlı Profil:</span>
                           </span>
-                          <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                              selectedRole === 'teacher'
-                                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
-                                : 'bg-pink-500/20 text-pink-300 border-pink-500/30'
-                            }`}
-                          >
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-indigo-100 text-indigo-800 border-indigo-200">
                             {selectedRole === 'teacher' ? 'Öğretmen Hesabı' : 'Öğrenci Hesabı'}
                           </span>
                         </div>
-                        <div className="text-base font-bold text-white tracking-tight truncate">
+                        <div className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
                           {activeRememberedUser.name}
                         </div>
-                        <div className="text-xs text-slate-300 truncate">
-                          {activeRememberedUser.branch || activeRememberedUser.className || activeRememberedUser.identifier}
+                        <div className="text-xs text-slate-500 truncate">
+                          {activeRememberedUser.branch ||
+                            activeRememberedUser.className ||
+                            activeRememberedUser.identifier}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center space-x-2 ml-auto">
-                      <button
+                      <Button
                         type="button"
+                        variant="primary"
                         onClick={handleQuickRememberedLogin}
                         disabled={isLoading}
-                        className={`flex items-center space-x-2 px-3.5 py-2 font-black rounded-xl text-xs shadow-lg transition-all transform hover:scale-105 active:scale-95 cursor-pointer ${
-                          selectedRole === 'teacher'
-                            ? 'bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 shadow-amber-500/25'
-                            : 'bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white shadow-pink-500/25'
-                        }`}
+                        size="sm"
+                        leftIcon={<Zap className="w-4 h-4" />}
                       >
-                        <Zap className={`w-4 h-4 ${selectedRole === 'teacher' ? 'fill-slate-950' : 'fill-white'}`} />
-                        <span>Hızlı Giriş Yap</span>
-                      </button>
+                        Hızlı Giriş Yap
+                      </Button>
 
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={handleForgetRememberedUser}
-                        className="text-[11px] text-slate-400 hover:text-rose-400 px-2.5 py-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="text-slate-500 hover:text-red-600"
                         title="Bu rol için kayıtlı profili kaldır"
                       >
                         Unut
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                  <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
                     <span>Farklı hesap bilgileriyle girmek için aşağıdaki formu kullanınız:</span>
                   </div>
                 </div>
               )}
 
               <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-200 mb-1.5">
-                  {selectedRole === 'teacher'
-                    ? 'Öğretmen Kullanıcı Adı veya E-posta *'
-                    : 'Öğrenci Kullanıcı Adı, E-posta veya Öğrenci No *'}
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    placeholder={
-                      selectedRole === 'teacher' ? 'Kullanıcı adı veya e-posta' : 'Kullanıcı adı, e-posta veya no'
-                    }
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  />
-                </div>
-              </div>
+                <Input
+                  label={
+                    selectedRole === 'teacher'
+                      ? 'Öğretmen Kullanıcı Adı veya E-posta *'
+                      : 'Öğrenci Kullanıcı Adı, E-posta veya Öğrenci No *'
+                  }
+                  type="text"
+                  required
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder={
+                    selectedRole === 'teacher'
+                      ? 'Kullanıcı adı veya e-posta'
+                      : 'Kullanıcı adı, e-posta veya no'
+                  }
+                  leftIcon={<User className="w-4 h-4" />}
+                />
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold text-slate-200">Şifre *</label>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+                <Input
+                  label="Şifre *"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  leftIcon={<Lock className="w-4 h-4" />}
+                  rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  onRightIconClick={() => setShowPassword(!showPassword)}
+                  rightIconLabel="Şifreyi göster/gizle"
+                />
 
-              {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
-              <div className="flex items-center justify-between pt-1">
-                <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-slate-300 hover:text-white select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950/80 cursor-pointer accent-indigo-600"
-                  />
-                  <span>Beni Hatırla</span>
-                </label>
-              </div>
+                {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-slate-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                    />
+                    <span>Beni Hatırla</span>
+                  </label>
+                </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-extrabold rounded-2xl shadow-xl shadow-indigo-600/30 flex items-center justify-center space-x-2 text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 cursor-pointer"
-              >
-                {isLoading ? (
-                  <span className="flex items-center space-x-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Giriş Yapılıyor...</span>
-                  </span>
-                ) : (
-                  <>
-                    <span>Giriş Yap</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        )}
+                {/* Submit Button */}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={isLoading}
+                  isLoading={isLoading}
+                  loadingText="Giriş Yapılıyor..."
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                  className="w-full py-2.5"
+                >
+                  Giriş Yap
+                </Button>
+              </form>
+            </div>
+          )}
 
           {/* ================= MODE 2: REGISTER ================= */}
           {authMode === 'register' && (
@@ -768,125 +699,82 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               {selectedRole === 'teacher' ? (
                 /* TEACHER REGISTRATION FORM */
                 <form onSubmit={handleTeacherRegister} className="space-y-3.5">
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs flex items-center space-x-2">
-                    <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-amber-600" />
                     <span>
                       <strong>Güvenlik Notu:</strong> Yeni öğretmen kayıtları güvenlik amacıyla admin
                       onayından sonra aktif olmaktadır.
                     </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1">
-                      Ad Soyad *
-                    </label>
-                    <div className="relative">
-                      <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                      <input
-                        type="text"
-                        required
-                        value={tRegName}
-                        onChange={(e) => setTRegName(e.target.value)}
-                        placeholder="Örn: Ayşe Demir"
-                        className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    label="Ad Soyad *"
+                    type="text"
+                    required
+                    value={tRegName}
+                    onChange={(e) => setTRegName(e.target.value)}
+                    placeholder="Örn: Ayşe Demir"
+                    leftIcon={<User className="w-4 h-4" />}
+                  />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Kullanıcı Adı *
-                      </label>
-                      <div className="relative">
-                        <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="text"
-                          required
-                          value={tRegUsername}
-                          onChange={(e) => setTRegUsername(e.target.value)}
-                          placeholder="ademir"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Branş</label>
-                      <div className="relative">
-                        <Briefcase className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="text"
-                          value={tRegBranch}
-                          onChange={(e) => setTRegBranch(e.target.value)}
-                          placeholder="Fizik, Biyoloji vb."
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
+                    <Input
+                      label="Kullanıcı Adı *"
+                      type="text"
+                      required
+                      value={tRegUsername}
+                      onChange={(e) => setTRegUsername(e.target.value)}
+                      placeholder="ademir"
+                      leftIcon={<Hash className="w-4 h-4" />}
+                    />
+                    <Input
+                      label="Branş"
+                      type="text"
+                      value={tRegBranch}
+                      onChange={(e) => setTRegBranch(e.target.value)}
+                      placeholder="Fizik, Biyoloji vb."
+                      leftIcon={<Briefcase className="w-4 h-4" />}
+                    />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1">
-                      E-posta Adresi *
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                      <input
-                        type="email"
-                        required
-                        value={tRegEmail}
-                        onChange={(e) => setTRegEmail(e.target.value)}
-                        placeholder="ornek@okul.k12.tr"
-                        className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
+                  <Input
+                    label="E-posta Adresi *"
+                    type="email"
+                    required
+                    value={tRegEmail}
+                    onChange={(e) => setTRegEmail(e.target.value)}
+                    placeholder="ornek@okul.k12.tr"
+                    leftIcon={<Mail className="w-4 h-4" />}
+                  />
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Şifre *</label>
-                      <div className="relative">
-                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          value={tRegPassword}
-                          onChange={(e) => setTRegPassword(e.target.value)}
-                          placeholder="En az 4 karakter"
-                          className="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                        >
-                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    <Input
+                      label="Şifre *"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={tRegPassword}
+                      onChange={(e) => setTRegPassword(e.target.value)}
+                      placeholder="En az 4 karakter"
+                      leftIcon={<Lock className="w-4 h-4" />}
+                      rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      onRightIconClick={() => setShowPassword(!showPassword)}
+                      rightIconLabel="Şifreyi göster/gizle"
+                    />
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Şifre Tekrar *</label>
-                      <div className="relative">
-                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          required
-                          value={tRegConfirmPassword}
-                          onChange={(e) => setTRegConfirmPassword(e.target.value)}
-                          placeholder="Şifreyi tekrar girin"
-                          className="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    <Input
+                      label="Şifre Tekrar *"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={tRegConfirmPassword}
+                      onChange={(e) => setTRegConfirmPassword(e.target.value)}
+                      placeholder="Şifreyi tekrar girin"
+                      leftIcon={<Lock className="w-4 h-4" />}
+                      rightIcon={
+                        showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />
+                      }
+                      onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      rightIconLabel="Şifreyi göster/gizle"
+                    />
                   </div>
 
                   {/* BENİ HATIRLA SEÇENEĞİ */}
@@ -896,76 +784,64 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       id="t-remember"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950 cursor-pointer accent-indigo-600"
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
                     />
-                    <label htmlFor="t-remember" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                    <label htmlFor="t-remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
                       Beni Hatırla
                     </label>
                   </div>
 
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
                     disabled={isLoading}
-                    className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-extrabold rounded-2xl shadow-xl shadow-indigo-600/30 flex items-center justify-center space-x-2 text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    isLoading={isLoading}
+                    loadingText="Kayıt Yapılıyor..."
+                    leftIcon={<ShieldCheck className="w-4 h-4" />}
+                    className="w-full mt-2 py-2.5"
                   >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Kayıt Ol</span>
-                  </button>
+                    Kayıt Ol
+                  </Button>
                 </form>
               ) : (
                 /* STUDENT REGISTRATION FORM */
                 <form onSubmit={handleStudentRegister} className="space-y-3">
                   {/* 1. Adı Soyadı & Kullanıcı Adı (Zorunlu) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Adı Soyadı *
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="text"
-                          required
-                          value={sRegName}
-                          onChange={(e) => setSRegName(e.target.value)}
-                          placeholder="Ad Soyad"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Kullanıcı Adı *
-                      </label>
-                      <div className="relative">
-                        <Hash className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="text"
-                          required
-                          value={sRegUsername}
-                          onChange={(e) => setSRegUsername(e.target.value)}
-                          placeholder="kullaniciadi"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </div>
+                    <Input
+                      label="Adı Soyadı *"
+                      type="text"
+                      required
+                      value={sRegName}
+                      onChange={(e) => setSRegName(e.target.value)}
+                      placeholder="Ad Soyad"
+                      leftIcon={<User className="w-4 h-4" />}
+                    />
+                    <Input
+                      label="Kullanıcı Adı *"
+                      type="text"
+                      required
+                      value={sRegUsername}
+                      onChange={(e) => setSRegUsername(e.target.value)}
+                      placeholder="kullaniciadi"
+                      leftIcon={<Hash className="w-4 h-4" />}
+                    />
                   </div>
 
                   {/* 2. Okul (Mecburi), Sınıf (Mecburi) & Şube (İsteğe Bağlı) */}
-                  <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 space-y-2.5">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-pink-300 flex items-center space-x-1.5">
-                        <School className="w-3.5 h-3.5 text-pink-400" />
+                      <span className="text-xs font-bold text-indigo-700 flex items-center space-x-1.5">
+                        <School className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Okul, Sınıf ve Şube Bilgileri</span>
                       </span>
-                      <span className="text-[11px] text-amber-400 font-semibold">Okul & Sınıf Zorunlu</span>
+                      <span className="text-[11px] text-amber-600 font-semibold">Okul & Sınıf Zorunlu</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       {/* Okul Açılır Buton (Mecburi) */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
                           Okul *
                         </label>
                         <select
@@ -980,7 +856,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                               setSRegGrade('9. Sınıf');
                             }
                           }}
-                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           <option value="">Okul Seçiniz *</option>
                           <option value="Ortaokul">Ortaokul</option>
@@ -990,14 +866,14 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                       {/* Sınıf Açılır Penceresi (Mecburi) */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
                           Sınıf *
                         </label>
                         <select
                           required
                           value={sRegGrade}
                           onChange={(e) => setSRegGrade(e.target.value)}
-                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           {!sRegSchool ? (
                             <option value="">Önce Okul Seçiniz *</option>
@@ -1013,13 +889,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                       {/* Şube Açılır Buton (İsteğe Bağlı) */}
                       <div>
-                        <label className="block text-[11px] font-bold text-slate-200 mb-1">
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
                           Şube (İsteğe Bağlı)
                         </label>
                         <select
                           value={sRegBranch}
                           onChange={(e) => setSRegBranch(e.target.value)}
-                          className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                         >
                           <option value="">Şube Seçiniz (İsteğe Bağlı)</option>
                           {BRANCH_OPTIONS.map((b) => (
@@ -1034,89 +910,59 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                   {/* 3. Şifre * & Şifre Tekrar * (Zorunlu) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Şifre *</label>
-                      <div className="relative">
-                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type={showPassword ? 'text' : 'password'}
-                          required
-                          value={sRegPassword}
-                          onChange={(e) => setSRegPassword(e.target.value)}
-                          placeholder="En az 3 karakter"
-                          className="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                        >
-                          {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    <Input
+                      label="Şifre *"
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={sRegPassword}
+                      onChange={(e) => setSRegPassword(e.target.value)}
+                      placeholder="En az 3 karakter"
+                      leftIcon={<Lock className="w-4 h-4" />}
+                      rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      onRightIconClick={() => setShowPassword(!showPassword)}
+                      rightIconLabel="Şifreyi göster/gizle"
+                    />
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">Şifre Tekrar *</label>
-                      <div className="relative">
-                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          required
-                          value={sRegConfirmPassword}
-                          onChange={(e) => setSRegConfirmPassword(e.target.value)}
-                          placeholder="Şifreyi onaylayın"
-                          className="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                    </div>
+                    <Input
+                      label="Şifre Tekrar *"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={sRegConfirmPassword}
+                      onChange={(e) => setSRegConfirmPassword(e.target.value)}
+                      placeholder="Şifreyi tekrar girin"
+                      leftIcon={<Lock className="w-4 h-4" />}
+                      rightIcon={
+                        showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />
+                      }
+                      onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      rightIconLabel="Şifreyi göster/gizle"
+                    />
                   </div>
 
                   {/* 4. Telefon (İsteğe Bağlı) & Mail (İsteğe Bağlı) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Telefon (İsteğe Bağlı)
-                      </label>
-                      <div className="relative">
-                        <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="tel"
-                          value={sRegPhone}
-                          onChange={(e) => setSRegPhone(e.target.value)}
-                          placeholder="05XX XXX XX XX"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </div>
+                    <Input
+                      label="Telefon (İsteğe Bağlı)"
+                      type="tel"
+                      value={sRegPhone}
+                      onChange={(e) => setSRegPhone(e.target.value)}
+                      placeholder="05XX XXX XX XX"
+                      leftIcon={<Phone className="w-4 h-4" />}
+                    />
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-200 mb-1">
-                        Mail (İsteğe Bağlı)
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                        <input
-                          type="email"
-                          value={sRegEmail}
-                          onChange={(e) => setSRegEmail(e.target.value)}
-                          placeholder="ornek@mail.com"
-                          className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 text-xs focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-                      </div>
-                    </div>
+                    <Input
+                      label="Mail (İsteğe Bağlı)"
+                      type="email"
+                      value={sRegEmail}
+                      onChange={(e) => setSRegEmail(e.target.value)}
+                      placeholder="ornek@mail.com"
+                      leftIcon={<Mail className="w-4 h-4" />}
+                    />
                   </div>
 
                   {/* Avatar Seçimi */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Profil Karakteri / Avatarı
                     </label>
                     <div className="flex items-center space-x-2 overflow-x-auto pb-1">
@@ -1125,10 +971,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           type="button"
                           key={seed}
                           onClick={() => setSelectedAvatarSeed(seed)}
-                          className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all flex-shrink-0 cursor-pointer ${
+                          className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 cursor-pointer ${
                             selectedAvatarSeed === seed
-                              ? 'border-pink-500 scale-110 ring-2 ring-pink-500/40'
-                              : 'border-slate-700 opacity-60 hover:opacity-100'
+                              ? 'border-indigo-500 scale-105 shadow-sm'
+                              : 'border-slate-200 opacity-60 hover:opacity-100'
                           }`}
                         >
                           <img
@@ -1150,21 +996,24 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       id="s-remember"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-700 text-pink-600 focus:ring-pink-500 bg-slate-950 cursor-pointer accent-pink-600"
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
                     />
-                    <label htmlFor="s-remember" className="text-xs font-semibold text-slate-300 cursor-pointer">
+                    <label htmlFor="s-remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
                       Beni Hatırla
                     </label>
                   </div>
 
-                  <button
+                  <Button
                     type="submit"
+                    variant="primary"
                     disabled={isLoading}
-                    className="w-full mt-3 py-3 px-4 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl shadow-xl shadow-pink-600/30 flex items-center justify-center space-x-2 text-sm transition-all transform hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    isLoading={isLoading}
+                    loadingText="Kayıt Yapılıyor..."
+                    leftIcon={<BookOpen className="w-4 h-4" />}
+                    className="w-full mt-2 py-2.5"
                   >
-                    <BookOpen className="w-4 h-4" />
-                    <span>Kayıt Ol</span>
-                  </button>
+                    Kayıt Ol
+                  </Button>
                 </form>
               )}
             </div>
@@ -1173,7 +1022,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 w-full text-center py-4 text-xs text-slate-400 border-t border-slate-800/80 bg-slate-950/60 backdrop-blur-md">
+      <footer className="relative z-10 w-full text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white/80 backdrop-blur-xs">
         <p>© {new Date().getFullYear()} • Eğitim & Öğrenci Takip Sistemi • Tüm Hakları Saklıdır.</p>
       </footer>
     </div>

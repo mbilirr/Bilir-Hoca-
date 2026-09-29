@@ -118,9 +118,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Hızlı Sınıf Değiştirme / Aktarma İşleyicisi
-  const handleQuickChangeStudentClass = (student: Student, targetClassId: string) => {
+  const handleQuickChangeStudentClass = async (student: Student, targetClassId: string) => {
     try {
-      const updated = dataService.updateStudentClass(student.id, targetClassId);
+      const updated = await dataService.updateStudentClass(student.id, targetClassId);
       const targetClassName = updated.className || 'Atanmadı';
       setQuickClassChangeFeedback(`✓ ${student.name} başarıyla "${targetClassName}" sınıfına aktarıldı.`);
       setTimeout(() => setQuickClassChangeFeedback(null), 3500);
@@ -429,7 +429,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   };
 
   // Handle Add Student
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setStudentFormError(null);
 
@@ -452,127 +452,139 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
 
-    const constructedClassName = `${studentGradeLevel} - ${studentBranch}`;
-    // Eşleşen sınıf bul veya yoksa otomatik oluştur
-    let matchedClass = classes.find(
-      (c) =>
-        (c.gradeLevel === studentGradeLevel && c.branch === studentBranch) ||
-        c.name.toLowerCase() === constructedClassName.toLowerCase()
-    );
-    let targetClassId = matchedClass?.id;
+    try {
+      const constructedClassName = `${studentGradeLevel} - ${studentBranch}`;
+      // Eşleşen sınıf bul veya yoksa otomatik oluştur
+      let matchedClass = classes.find(
+        (c) =>
+          (c.gradeLevel === studentGradeLevel && c.branch === studentBranch) ||
+          c.name.toLowerCase() === constructedClassName.toLowerCase()
+      );
+      let targetClassId = matchedClass?.id;
 
-    if (!targetClassId) {
-      const createdClass = dataService.addClass({
-        name: constructedClassName,
-        branch: studentBranch,
+      if (!targetClassId) {
+        const createdClass = await dataService.addClass({
+          name: constructedClassName,
+          branch: studentBranch,
+          schoolLevel: studentSchoolLevel,
+          gradeLevel: studentGradeLevel,
+          academicYear: '2026-2027',
+          description: `${studentSchoolLevel} ${studentGradeLevel} ${studentBranch} grubu`,
+        });
+        targetClassId = createdClass.id;
+      }
+
+      const effectiveStudentNumber = studentNumber.trim();
+      // Sistem kontrolü: Aynı isim, sınıf ve okul numarasına sahip kayıtlı öğrenci var mı?
+      const existingDuplicate = students.find((s) => {
+        if (editingStudent && s.id === editingStudent.id) return false;
+        const sameName = s.name.trim().toLowerCase() === studentName.trim().toLowerCase();
+        const sameClass =
+          (s.classId && s.classId === targetClassId) ||
+          (s.className && s.className.trim().toLowerCase() === constructedClassName.trim().toLowerCase()) ||
+          (s.gradeLevel === studentGradeLevel && s.branch === studentBranch);
+        const sameNumber = effectiveStudentNumber
+          ? s.studentNumber?.trim() === effectiveStudentNumber
+          : (!s.studentNumber || s.studentNumber.trim() === '');
+        return sameName && sameClass && sameNumber;
+      });
+
+      const safeUsername =
+        studentUsername ||
+        (studentEmail && studentEmail.includes('@')
+          ? studentEmail.split('@')[0]
+          : studentNumber
+          ? `ogr_${studentNumber}`
+          : `ogr_${studentName.trim().toLowerCase().replace(/\s+/g, '_') || Math.floor(1000 + Math.random() * 9000)}`);
+
+      const studentPayload = {
+        name: studentName,
+        username: safeUsername,
+        email: studentEmail.trim(),
+        password: studentPassword || editingStudent?.password || '123456',
+        classId: targetClassId,
+        className: constructedClassName,
         schoolLevel: studentSchoolLevel,
         gradeLevel: studentGradeLevel,
-        academicYear: '2026-2027',
-        description: `${studentSchoolLevel} ${studentGradeLevel} ${studentBranch} grubu`,
-      });
-      targetClassId = createdClass.id;
-    }
+        branch: studentBranch,
+        studentNumber: studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
+        phone: studentPhone || '0555 000 0000',
+        avatar:
+          studentAvatar ||
+          editingStudent?.avatar ||
+          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
+      };
 
-    const effectiveStudentNumber = studentNumber.trim();
-    // Sistem kontrolü: Aynı isim, sınıf ve okul numarasına sahip kayıtlı öğrenci var mı?
-    const existingDuplicate = students.find((s) => {
-      if (editingStudent && s.id === editingStudent.id) return false;
-      const sameName = s.name.trim().toLowerCase() === studentName.trim().toLowerCase();
-      const sameClass =
-        (s.classId && s.classId === targetClassId) ||
-        (s.className && s.className.trim().toLowerCase() === constructedClassName.trim().toLowerCase()) ||
-        (s.gradeLevel === studentGradeLevel && s.branch === studentBranch);
-      const sameNumber = effectiveStudentNumber
-        ? s.studentNumber?.trim() === effectiveStudentNumber
-        : (!s.studentNumber || s.studentNumber.trim() === '');
-      return sameName && sameClass && sameNumber;
-    });
-
-    const safeUsername =
-      studentUsername ||
-      (studentEmail && studentEmail.includes('@')
-        ? studentEmail.split('@')[0]
-        : studentNumber
-        ? `ogr_${studentNumber}`
-        : `ogr_${studentName.trim().toLowerCase().replace(/\s+/g, '_') || Math.floor(1000 + Math.random() * 9000)}`);
-
-    const studentPayload = {
-      name: studentName,
-      username: safeUsername,
-      email: studentEmail.trim(),
-      password: studentPassword || editingStudent?.password || '123456',
-      classId: targetClassId,
-      className: constructedClassName,
-      schoolLevel: studentSchoolLevel,
-      gradeLevel: studentGradeLevel,
-      branch: studentBranch,
-      studentNumber: studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-      phone: studentPhone || '0555 000 0000',
-      avatar:
-        studentAvatar ||
-        editingStudent?.avatar ||
-        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
-    };
-
-    if (existingDuplicate) {
-      setDuplicateWarning({
-        existingStudent: existingDuplicate,
-        newStudentPayload: studentPayload,
-      });
-      return;
-    }
-
-    if (editingStudent) {
-      dataService.updateStudent(editingStudent.id, studentPayload);
-      setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla güncellendi.`);
-      setTimeout(() => setStudentSuccessFeedback(null), 4000);
-      setEditingStudent(null);
-    } else {
-      const createdStudent = dataService.registerStudent(studentPayload);
-      setIsAddStudentOpen(false);
-      setSelectedCredentialsStudent(createdStudent);
-      if (studentEmail) {
-        setStudentSuccessFeedback(`✅ Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-postası öğrenciye sistem tarafından otomatik olarak gönderildi.`);
-      } else {
-        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş şifresi: ${studentPassword || '123456'}`);
+      if (existingDuplicate) {
+        setDuplicateWarning({
+          existingStudent: existingDuplicate,
+          newStudentPayload: studentPayload,
+        });
+        return;
       }
-      setTimeout(() => setStudentSuccessFeedback(null), 5000);
+
+      if (editingStudent) {
+        await dataService.updateStudent(editingStudent.id, studentPayload);
+        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla güncellendi.`);
+        setTimeout(() => setStudentSuccessFeedback(null), 4000);
+        setEditingStudent(null);
+      } else {
+        const createdStudent = await dataService.registerStudent(studentPayload);
+        setIsAddStudentOpen(false);
+        setSelectedCredentialsStudent(createdStudent);
+        if (studentEmail) {
+          setStudentSuccessFeedback(`✅ Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-postası öğrenciye sistem tarafından otomatik olarak gönderildi.`);
+        } else {
+          setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş şifresi: ${studentPassword || '123456'}`);
+        }
+        setTimeout(() => setStudentSuccessFeedback(null), 5000);
+      }
+      resetStudentForm();
+    } catch (err: any) {
+      setStudentFormError(err.message || 'Öğrenci veya sınıf kaydedilirken bir hata oluştu.');
     }
-    resetStudentForm();
   };
 
-  const handleDuplicateReplace = () => {
+  const handleDuplicateReplace = async () => {
     if (!duplicateWarning) return;
     const { existingStudent, newStudentPayload } = duplicateWarning;
-    dataService.updateStudent(existingStudent.id, {
-      ...newStudentPayload,
-      id: existingStudent.id,
-    });
-    setDuplicateWarning(null);
-    setIsAddStudentOpen(false);
-    setEditingStudent(null);
-    resetStudentForm();
-    setStudentSuccessFeedback(
-      `✅ Kayıtlı öğrenci "${newStudentPayload.name}" güncellendi ve yeni bilgilerle değiştirildi.`
-    );
-    setTimeout(() => setStudentSuccessFeedback(null), 5000);
+    try {
+      await dataService.updateStudent(existingStudent.id, {
+        ...newStudentPayload,
+        id: existingStudent.id,
+      });
+      setDuplicateWarning(null);
+      setIsAddStudentOpen(false);
+      setEditingStudent(null);
+      resetStudentForm();
+      setStudentSuccessFeedback(
+        `✅ Kayıtlı öğrenci "${newStudentPayload.name}" güncellendi ve yeni bilgilerle değiştirildi.`
+      );
+      setTimeout(() => setStudentSuccessFeedback(null), 5000);
+    } catch (err: any) {
+      setStudentFormError(err.message || 'Öğrenci güncellenirken bir hata oluştu.');
+    }
   };
 
-  const handleDuplicateKeepBoth = () => {
+  const handleDuplicateKeepBoth = async () => {
     if (!duplicateWarning) return;
     const { newStudentPayload } = duplicateWarning;
-    const createdStudent = dataService.registerStudent({
-      ...newStudentPayload,
-    });
-    setDuplicateWarning(null);
-    setIsAddStudentOpen(false);
-    setEditingStudent(null);
-    setSelectedCredentialsStudent(createdStudent);
-    resetStudentForm();
-    setStudentSuccessFeedback(
-      `⚠️ Sistem Uyarısı: "${newStudentPayload.name}" adlı öğrenci eklendi. Aynı isim, sınıf ve numaraya sahip iki kayıt listede otomatik olarak yan yana getirildi ve farklı renklerde (1. Kayıt / 2. Kayıt) işaretlendi.`
-    );
-    setTimeout(() => setStudentSuccessFeedback(null), 5000);
+    try {
+      const createdStudent = await dataService.registerStudent({
+        ...newStudentPayload,
+      });
+      setDuplicateWarning(null);
+      setIsAddStudentOpen(false);
+      setEditingStudent(null);
+      setSelectedCredentialsStudent(createdStudent);
+      resetStudentForm();
+      setStudentSuccessFeedback(
+        `⚠️ Sistem Uyarısı: "${newStudentPayload.name}" adlı öğrenci eklendi. Aynı isim, sınıf ve numaraya sahip iki kayıt listede otomatik olarak yan yana getirildi ve farklı renklerde (1. Kayıt / 2. Kayıt) işaretlendi.`
+      );
+      setTimeout(() => setStudentSuccessFeedback(null), 5000);
+    } catch (err: any) {
+      setStudentFormError(err.message || 'Öğrenci kaydedilirken bir hata oluştu.');
+    }
   };
 
   const resetStudentForm = () => {
@@ -785,7 +797,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   };
 
   // Handle Save Class
-  const handleSaveClass = (e: React.FormEvent) => {
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
     setClassFormError(null);
 
@@ -808,93 +820,97 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
 
-    const finalClassName = className.trim() || `${classGradeLevel} - ${classBranch}`;
+    try {
+      const finalClassName = className.trim() || `${classGradeLevel} - ${classBranch}`;
 
-    let savedClassId = '';
-    if (editingClass) {
-      dataService.updateClass(editingClass.id, {
-        name: finalClassName,
-        schoolLevel: classSchoolLevel,
-        gradeLevel: classGradeLevel,
-        branch: classBranch,
-        academicYear: classAcademicYear,
-        description: classDescription,
-      });
-      savedClassId = editingClass.id;
-      setEditingClass(null);
-    } else {
-      const created = dataService.addClass({
-        name: finalClassName,
-        schoolLevel: classSchoolLevel,
-        gradeLevel: classGradeLevel,
-        branch: classBranch,
-        academicYear: classAcademicYear,
-        description: classDescription,
-      });
-      savedClassId = created.id;
+      let savedClassId = '';
+      if (editingClass) {
+        dataService.updateClass(editingClass.id, {
+          name: finalClassName,
+          schoolLevel: classSchoolLevel,
+          gradeLevel: classGradeLevel,
+          branch: classBranch,
+          academicYear: classAcademicYear,
+          description: classDescription,
+        });
+        savedClassId = editingClass.id;
+        setEditingClass(null);
+      } else {
+        const created = await dataService.addClass({
+          name: finalClassName,
+          schoolLevel: classSchoolLevel,
+          gradeLevel: classGradeLevel,
+          branch: classBranch,
+          academicYear: classAcademicYear,
+          description: classDescription,
+        });
+        savedClassId = created.id;
 
-      if (created.autoAssignedCount && created.autoAssignedCount > 0) {
-        setStudentSuccessFeedback(
-          `"${finalClassName}" sınıfı oluşturuldu ve eşleşen ${created.autoAssignedCount} kayıtlı öğrenci otomatik olarak bu sınıfa aktarıldı!`
-        );
+        if (created.autoAssignedCount && created.autoAssignedCount > 0) {
+          setStudentSuccessFeedback(
+            `"${finalClassName}" sınıfı oluşturuldu ve eşleşen ${created.autoAssignedCount} kayıtlı öğrenci otomatik olarak bu sınıfa aktarıldı!`
+          );
+          confetti({
+            particleCount: 60,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } else {
+          setStudentSuccessFeedback(
+            `"${finalClassName}" sınıfı başarıyla oluşturuldu. Sınıf içine yeni öğrenci ekleyebilir veya sistemdeki öğrencileri aktarabilirsiniz.`
+          );
+        }
+      }
+
+      // Toplu Excel Öğrencilerini Oluştur ve Sınıfa Ata
+      if (classExcelStudents.length > 0) {
+        const studentsToRegister = classExcelStudents.map((std) => ({
+          name: std.fullName,
+          username:
+            std.email.split('@')[0] || `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          email: std.email,
+          classId: savedClassId,
+          className: finalClassName,
+          schoolLevel: classSchoolLevel,
+          gradeLevel: classGradeLevel,
+          branch: classBranch,
+          studentNumber: std.studentNumber,
+          phone: std.phone,
+          avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.fullName)}`,
+        }));
+
+        try {
+          await dataService.registerStudentsBulk(studentsToRegister);
+        } catch (err) {
+          // Fallback to individual registration if bulk encounters conflict
+          for (const s of studentsToRegister) {
+            try {
+              await dataService.registerStudent(s);
+            } catch {}
+          }
+        }
+
         confetti({
-          particleCount: 60,
-          spread: 70,
+          particleCount: 50,
+          spread: 60,
           origin: { y: 0.6 },
         });
-      } else {
-        setStudentSuccessFeedback(
-          `"${finalClassName}" sınıfı başarıyla oluşturuldu. Sınıf içine yeni öğrenci ekleyebilir veya sistemdeki öğrencileri aktarabilirsiniz.`
-        );
-      }
-    }
-
-    // Toplu Excel Öğrencilerini Oluştur ve Sınıfa Ata
-    if (classExcelStudents.length > 0) {
-      const studentsToRegister = classExcelStudents.map((std) => ({
-        name: std.fullName,
-        username:
-          std.email.split('@')[0] || `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        email: std.email,
-        classId: savedClassId,
-        className: finalClassName,
-        schoolLevel: classSchoolLevel,
-        gradeLevel: classGradeLevel,
-        branch: classBranch,
-        studentNumber: std.studentNumber,
-        phone: std.phone,
-        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.fullName)}`,
-      }));
-
-      try {
-        dataService.registerStudentsBulk(studentsToRegister);
-      } catch (err) {
-        // Fallback to individual registration if bulk encounters conflict
-        studentsToRegister.forEach((s) => {
-          try {
-            dataService.registerStudent(s);
-          } catch {}
-        });
       }
 
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
+      setClassName('');
+      setClassSchoolLevel('Ortaokul');
+      setClassGradeLevel('5. Sınıf');
+      setClassBranch('A');
+      setClassDescription('');
+      setClassFormError(null);
+      setClassExcelStudents([]);
+      setClassExcelFileName('');
+      setClassExcelError(null);
+      setShowExcelStudentList(false);
+      setIsAddClassOpen(false);
+    } catch (err: any) {
+      setClassFormError(err.message || 'Sınıf oluşturulurken bir hata oluştu.');
     }
-
-    setClassName('');
-    setClassSchoolLevel('Ortaokul');
-    setClassGradeLevel('5. Sınıf');
-    setClassBranch('A');
-    setClassDescription('');
-    setClassFormError(null);
-    setClassExcelStudents([]);
-    setClassExcelFileName('');
-    setClassExcelError(null);
-    setShowExcelStudentList(false);
-    setIsAddClassOpen(false);
   };
 
   const openEditClass = (cls: ClassGroup) => {
@@ -2463,10 +2479,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (confirm(`"${std.name}" adlı öğrenciyi "${viewingClassStudents.name}" sınıfından çıkarmak istediğinize emin misiniz?`)) {
-                                      dataService.removeStudentFromClass(std.id);
-                                      setStudentSuccessFeedback(`"${std.name}" adlı öğrenci ${viewingClassStudents.name} sınıfından çıkarıldı.`);
+                                      try {
+                                        await dataService.removeStudentFromClass(std.id);
+                                        setStudentSuccessFeedback(`"${std.name}" adlı öğrenci ${viewingClassStudents.name} sınıfından çıkarıldı.`);
+                                      } catch (e: any) {
+                                        console.error(e);
+                                      }
                                     }
                                   }}
                                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
@@ -2540,28 +2560,36 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           );
         };
 
-        const handleTransferSingle = (student: Student) => {
-          const count = dataService.assignStudentsToClass([student.id], transferTargetClass.id);
-          if (count > 0) {
-            setStudentSuccessFeedback(
-              `"${student.name}" başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
-            );
-            confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+        const handleTransferSingle = async (student: Student) => {
+          try {
+            const count = await dataService.assignStudentsToClass([student.id], transferTargetClass.id);
+            if (count > 0) {
+              setStudentSuccessFeedback(
+                `"${student.name}" başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
+              );
+              confetti({ particleCount: 40, spread: 50, origin: { y: 0.6 } });
+            }
+          } catch (e: any) {
+            console.error(e);
           }
         };
 
-        const handleTransferBulk = () => {
+        const handleTransferBulk = async () => {
           if (transferSelectedStudentIds.length === 0) return;
-          const count = dataService.assignStudentsToClass(
-            transferSelectedStudentIds,
-            transferTargetClass.id
-          );
-          if (count > 0) {
-            setStudentSuccessFeedback(
-              `${count} öğrenci başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
+          try {
+            const count = await dataService.assignStudentsToClass(
+              transferSelectedStudentIds,
+              transferTargetClass.id
             );
-            setTransferSelectedStudentIds([]);
-            confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+            if (count > 0) {
+              setStudentSuccessFeedback(
+                `${count} öğrenci başarıyla "${transferTargetClass.name}" sınıfına aktarıldı!`
+              );
+              setTransferSelectedStudentIds([]);
+              confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+            }
+          } catch (e: any) {
+            console.error(e);
           }
         };
 
