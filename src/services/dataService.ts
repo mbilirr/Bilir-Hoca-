@@ -4563,11 +4563,13 @@ export class DataService {
       try { localStorage.removeItem(k); } catch {}
     });
 
+    // Yerel state zaten güncellendi: arayüz bulut çağrılarını beklemeden hemen güncellensin
+    this.notify();
+
     // Await deletion permanently from central database
     await this.deleteClassFromCloud(id);
     // Sync tombstones so all devices immediately purge this class
     await this.syncTombstonesToCloud();
-    this.notify();
   }
 
   // --- CLOUD SYNCHRONIZATION FOR CLASSES ---
@@ -5566,7 +5568,10 @@ export class DataService {
       teacherBranch: etutData.teacherBranch || currentTeacher?.branch || etutData.subject,
       duration: Number(etutData.duration) || 45,
     };
-    this.etuts.unshift(newEtut);
+    // Rollback için önceki durumun yedeğini al
+    const prevEtutsOnCreate = JSON.parse(JSON.stringify(this.etuts));
+
+    this.etuts = [newEtut, ...this.etuts];
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
     // Öğretmen ismini bu ders için kalıcı olarak kaydet
@@ -5580,12 +5585,26 @@ export class DataService {
     this.notify();
 
     // Supabase anında bulut senkronizasyonu ile sunucu yanıtını doğrula
-    await this.pushEtutToSupabase(newEtut);
+    const pushed = await this.pushEtutToSupabase(newEtut);
+
+    if (!pushed) {
+      // ROLLBACK: Buluta yazılamadıysa yerel state'i eski haline döndür
+      this.etuts = prevEtutsOnCreate;
+      saveData(STORAGE_KEYS.ETUTS, this.etuts);
+      this.notify();
+
+      this.showFloatingErrorToast(
+        'Hata: Etüt buluta kaydedilemedi (yetki veya bağlantı sorunu). Değişiklikler geri alındı.'
+      );
+      throw new Error('[createEtut] Etüt buluta kaydedilemedi.');
+    }
 
     return newEtut;
   }
 
   public async updateEtut(id: string, updates: Partial<Etut>): Promise<void> {
+    const prevEtutsOnUpdate = JSON.parse(JSON.stringify(this.etuts));
+
     this.etuts = this.etuts.map((e) => (e.id === id ? { ...e, ...updates } : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
@@ -5597,9 +5616,20 @@ export class DataService {
 
     this.notify();
 
-    // Push to Supabase with await
+    // Push to Supabase with await + hata kontrolü
     if (updated) {
-      await this.pushEtutToSupabase(updated);
+      const pushed = await this.pushEtutToSupabase(updated);
+      if (!pushed) {
+        // ROLLBACK: Buluta yazılamadıysa yerel state'i eski haline döndür
+        this.etuts = prevEtutsOnUpdate;
+        saveData(STORAGE_KEYS.ETUTS, this.etuts);
+        this.notify();
+
+        this.showFloatingErrorToast(
+          'Hata: Etüt güncellemesi buluta kaydedilemedi. Değişiklikler geri alındı.'
+        );
+        throw new Error('[updateEtut] Etüt buluta güncellenemedi.');
+      }
     }
   }
 
@@ -5610,6 +5640,7 @@ export class DataService {
     const etutIndex = this.etuts.findIndex((e) => e.id === etutId);
     if (etutIndex === -1) return;
 
+    const prevEtutsOnAttendance = JSON.parse(JSON.stringify(this.etuts));
     const currentEtut = this.etuts[etutIndex];
     const updatedEtut: Etut = {
       ...currentEtut,
@@ -5619,7 +5650,7 @@ export class DataService {
       },
     };
 
-    this.etuts[etutIndex] = updatedEtut;
+    this.etuts = this.etuts.map((e, idx) => (idx === etutIndex ? updatedEtut : e));
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
 
     // Genel devamsızlık kayıtlarına da etüt yoklamasını yansıt
@@ -5650,11 +5681,25 @@ export class DataService {
 
     this.notify();
 
-    // Supabase push with await
-    await this.pushEtutToSupabase(updatedEtut);
+    // Supabase push with await + hata kontrolü
+    const pushed = await this.pushEtutToSupabase(updatedEtut);
+    if (!pushed) {
+      // ROLLBACK: Yoklama buluta kaydedilemediyse etüt state'ini eski haline döndür
+      this.etuts = prevEtutsOnAttendance;
+      saveData(STORAGE_KEYS.ETUTS, this.etuts);
+      this.notify();
+
+      this.showFloatingErrorToast(
+        'Hata: Etüt yoklaması buluta kaydedilemedi. Değişiklikler geri alındı.'
+      );
+      throw new Error('[updateEtutAttendance] Yoklama buluta kaydedilemedi.');
+    }
   }
 
   public async deleteEtut(id: string): Promise<void> {
+    const prevEtutsOnDelete = JSON.parse(JSON.stringify(this.etuts));
+    const prevDeletedEtutIds = new Set(this.deletedEtutIds);
+
     this.deletedEtutIds.add(id);
     saveData(STORAGE_KEYS.DELETED_ETUTS, Array.from(this.deletedEtutIds));
 
@@ -5662,12 +5707,26 @@ export class DataService {
     saveData(STORAGE_KEYS.ETUTS, this.etuts);
     this.notify();
 
-    // Supabase delete with await
+    // Supabase delete with await + hata kontrolü
     try {
       const { error } = await supabase.from('etuts').delete().eq('id', id);
-      if (error) console.error('[EtutSync] Error deleting etut from Supabase:', error);
-    } catch (err) {
-      console.error('[EtutSync] Exception deleting etut:', err);
+      if (error) throw error;
+    } catch (err: any) {
+      // ROLLBACK: Buluttan silinemezse yerel state'i eski haline döndür
+      this.etuts = prevEtutsOnDelete;
+      this.deletedEtutIds = prevDeletedEtutIds;
+      saveData(STORAGE_KEYS.ETUTS, this.etuts);
+      saveData(STORAGE_KEYS.DELETED_ETUTS, Array.from(this.deletedEtutIds));
+      this.notify();
+
+      const errMsg =
+        err?.message ||
+        (err?.code === '42501'
+          ? 'Etüt silme yetkiniz bulunmamaktadır (RLS kuralı).'
+          : 'Etüt bulut veritabanından silinemedi.');
+
+      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
+      throw new Error(`[deleteEtut] Etüt buluttan silinemedi: ${errMsg}`);
     }
   }
 
@@ -6276,7 +6335,7 @@ export class DataService {
 
       // Yönetici tüm ödevleri görebilir
       if (this.isTeacherAdmin(teacher)) {
-        return this.homeworks;
+        return [...this.homeworks];
       }
 
       // Normal öğretmen daha önce veya başka öğretmenlerin verdiği ödevleri GÖREMEZ. YALNIZCA KENDİ verdiği ödevleri görebilir.
@@ -6296,7 +6355,7 @@ export class DataService {
       });
     }
 
-    return this.homeworks;
+    return [...this.homeworks];
   }
 
   public getEtuts(forTeacherId?: string): Etut[] {
@@ -6305,7 +6364,7 @@ export class DataService {
     // Öğretmen ve Yönetici Görünümü:
     // Bilgisayar, tablet ve telefondan açılan tüm oturumlarda kurumdaki planlı etütlerin eksiksiz görünmesi sağlanır
     if (forTeacherId || session?.role === 'teacher') {
-      return this.etuts;
+      return [...this.etuts];
     }
 
     if (session?.role === 'student') {
@@ -6333,7 +6392,7 @@ export class DataService {
       });
     }
 
-    return this.etuts;
+    return [...this.etuts];
   }
 
   public getGrades(forTeacherId?: string): GradeRecord[] {
@@ -6342,7 +6401,7 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return this.grades;
+      if (teacher?.isAdmin) return [...this.grades];
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       return this.grades.filter((g) => visibleStudents.has(g.studentId));
@@ -6352,7 +6411,7 @@ export class DataService {
       return this.grades.filter((g) => g.studentId === session.user.id);
     }
 
-    return this.grades;
+    return [...this.grades];
   }
 
   public getAttendance(forTeacherId?: string): AttendanceRecord[] {
@@ -6361,7 +6420,7 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return this.attendance;
+      if (teacher?.isAdmin) return [...this.attendance];
 
       const visibleClasses = new Set(this.getClasses(teacherId).map((c) => c.id));
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
@@ -6379,7 +6438,7 @@ export class DataService {
       return this.attendance.filter((a) => a.records.some((r) => r.studentId === studentId));
     }
 
-    return this.attendance;
+    return [...this.attendance];
   }
 
   public getMessages(forTeacherId?: string): StudentMessage[] {
@@ -6388,7 +6447,7 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return this.messages;
+      if (teacher?.isAdmin) return [...this.messages];
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       return this.messages.filter((m) => visibleStudents.has(m.studentId));
@@ -6398,7 +6457,7 @@ export class DataService {
       return this.messages.filter((m) => m.studentId === session.user.id);
     }
 
-    return this.messages;
+    return [...this.messages];
   }
 
   public getSubmissions(forTeacherId?: string): HomeworkSubmission[] {
@@ -6407,7 +6466,7 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return this.submissions;
+      if (teacher?.isAdmin) return [...this.submissions];
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
       return this.submissions.filter((sub) => visibleStudents.has(sub.studentId));
@@ -6417,7 +6476,7 @@ export class DataService {
       return this.submissions.filter((sub) => sub.studentId === session.user.id);
     }
 
-    return this.submissions;
+    return [...this.submissions];
   }
 
   public async sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): Promise<StudentMessage> {
@@ -6514,7 +6573,7 @@ export class DataService {
 
   // ==================== TEACHER DOCUMENTS ARCHIVE ====================
   public getTeacherDocuments(): TeacherDocument[] {
-    return this.documents;
+    return [...this.documents];
   }
 
   public async addTeacherDocument(doc: Omit<TeacherDocument, 'id' | 'uploadedAt'>): Promise<TeacherDocument> {

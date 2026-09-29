@@ -57,14 +57,28 @@ import {
   StudentQuestionLog,
 } from './types';
 
+// URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
+// Component dışında tanımlı, her render'da yeniden oluşturulmaz.
+function parseRouteHash(): { role: UserRole | null; tab: TeacherTabType } {
+  const parts = window.location.hash.replace(/^#\/?/, '').split('/');
+  const hRole = parts[0] === 'student' ? 'student' : parts[0] === 'teacher' ? 'teacher' : null;
+  const hTab = parts[1];
+  return {
+    role: hRole,
+    tab: hRole === 'teacher' && hTab ? (hTab as TeacherTabType) : 'home',
+  };
+}
+
 export default function App() {
   // Authentication session gatekeeper (null = show AuthPortal before app opens)
   const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
     dataService.getAuthSession()
   );
 
-  // Active view role ('teacher' or 'student')
+  // Active view role ('teacher' or 'student') — sayfa yenilenirse önce URL hash'ine bakılır
   const [role, setRole] = useState<UserRole>(() => {
+    const fromHash = parseRouteHash();
+    if (fromHash.role) return fromHash.role;
     const saved = dataService.getAuthSession();
     return saved?.role === 'student' ? 'student' : 'teacher';
   });
@@ -86,8 +100,8 @@ export default function App() {
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
 
-  // Teacher active navigation tab (Varsayılan olarak 'home' - Sadece Ajanda ve Durum Özetleri)
-  const [teacherTab, setTeacherTab] = useState<TeacherTabType>('home');
+  // Teacher active navigation tab — sayfa yenilenirse URL hash'inden geri yüklenir, yoksa 'home'
+  const [teacherTab, setTeacherTab] = useState<TeacherTabType>(() => parseRouteHash().tab);
 
   // Mobile drawer state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -131,6 +145,27 @@ export default function App() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // role/teacherTab her değiştiğinde URL hash'ine yaz (geri tuşu için geçmiş kaydı oluşturur,
+  // sayfa yenilenince de aynı sekmede kalınmasını sağlar)
+  useEffect(() => {
+    if (!authSession) return;
+    const hash = `#/${role}${role === 'teacher' ? '/' + teacherTab : ''}`;
+    if (window.location.hash !== hash) {
+      window.history.pushState(null, '', hash);
+    }
+  }, [role, teacherTab, authSession]);
+
+  // Tarayıcıda geri/ileri tuşuna basıldığında hash'ten state'i geri yükle
+  useEffect(() => {
+    const handlePopState = () => {
+      const { role: hRole, tab } = parseRouteHash();
+      if (hRole) setRole(hRole);
+      setTeacherTab(tab);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const lastActivityRef = useRef<number>(Date.now());
