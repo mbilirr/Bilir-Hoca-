@@ -457,9 +457,10 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
+  // Not: React kuralı gereği tüm hook'lar erken "return"den ÖNCE çağrılmalıdır
   const [isSaving, setIsSaving] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
