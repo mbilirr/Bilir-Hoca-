@@ -210,7 +210,7 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
               <span>Akademik Öğretmen Portalı</span>
             </div>
 
-            <div className="mt-4 flex items-center space-x-3.5">
+            <div className="mt-4 flex items-center space-x-3.5 min-w-0">
               {/* Öğretmen Profil Resmi veya Emojisi */}
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-2 ring-indigo-400/80 shadow-lg shadow-indigo-950/70 flex items-center justify-center overflow-hidden shrink-0">
                 {currentTeacher?.avatar ? (
@@ -240,14 +240,14 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
                 )}
               </div>
 
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-md">
+              <div className="min-w-0">
+                <h2 className="text-lg sm:text-2xl font-black text-white tracking-tight drop-shadow-md truncate">
                   Hoş Geldiniz,{' '}
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-indigo-200">
                     {currentTeacher?.name || 'Öğretmenimiz'}
                   </span>
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5 drop-shadow">
+                <p className="text-xs sm:text-sm text-slate-300 font-medium mt-0.5 drop-shadow truncate">
                   {currentTeacher?.branch
                     ? currentTeacher.branch.includes('Öğretmen')
                       ? currentTeacher.branch

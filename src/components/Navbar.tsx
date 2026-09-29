@@ -207,13 +207,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     nameLen > 24
       ? 'text-[10px] sm:text-[11px] md:text-xs'
       : nameLen > 16
-      ? 'text-[11px] sm:text-xs md:text-[13px]'
-      : 'text-xs sm:text-[13px] md:text-sm';
+      ? 'text-[10px] sm:text-xs md:text-[13px]'
+      : 'text-[11px] sm:text-[13px] md:text-sm';
   const branchLen = teacherBranch.length;
   const teacherBranchFontClass =
     branchLen > 22
-      ? 'text-[8.5px] sm:text-[9px] md:text-[10px]'
-      : 'text-[9px] sm:text-[10px] md:text-[11px]';
+      ? 'text-[8px] sm:text-[9px] md:text-[10px]'
+      : 'text-[8.5px] sm:text-[10px] md:text-[11px]';
 
   const teacherInitials = currentTeacher?.name
     ? currentTeacher.name
@@ -295,10 +295,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white shadow-lg">
-      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-[4rem] py-1.5 gap-2 sm:gap-3 flex-nowrap w-full">
+      <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between min-h-[3.5rem] sm:min-h-[4rem] py-1 sm:py-1.5 gap-1.5 sm:gap-3 flex-nowrap w-full">
           {/* Logo & Modül Butonu: Kep Resminin Yanında Tam Solda Çalışma Modülü */}
-          <div className="flex items-center space-x-2 sm:space-x-3 flex-nowrap min-w-0 shrink-0">
+          <div className="flex items-center space-x-1.5 sm:space-x-3 flex-nowrap min-w-0 shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -306,13 +306,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onSelectTeacherTab && onSelectTeacherTab('home');
               }}
               title="Ana Sayfaya Git (Ajanda & Özetler)"
-              className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 p-1.5 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all overflow-hidden"
+              className="w-8 h-8 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 p-1 sm:p-1.5 flex items-center justify-center shadow-md shadow-indigo-500/20 ring-1 ring-white/10 shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-all overflow-hidden"
             >
               <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
             </button>
 
             {isTeacherSession && currentTeacher ? (
-              <div className="flex items-center space-x-2 flex-nowrap min-w-0">
+              <div className="flex items-center space-x-1.5 sm:space-x-2 flex-nowrap min-w-0">
                 {/* Öğretmen Çalışma Modül Butonu: Tam Solda, Turuncu Yanan Sönen Işık Efektli */}
                 {onSelectTeacherTab && (
                   <div className="relative shrink-0" ref={moduleDropdownRef}>
@@ -322,7 +322,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       aria-expanded={isModuleOpen}
                       aria-haspopup="true"
                       id="teacher-module-sticky-btn"
-                      className={`px-2 sm:px-3 lg:px-3.5 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1.5 sm:space-x-2 transition-all cursor-pointer border-2 shadow-lg whitespace-nowrap shrink-0 ${
+                      className={`px-1.5 sm:px-3 lg:px-3.5 py-1 sm:py-2 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 transition-all cursor-pointer border-2 shadow-lg whitespace-nowrap shrink-0 ${
                         isModuleOpen
                           ? 'bg-orange-600 text-white border-orange-400 shadow-orange-500/50 ring-2 ring-orange-400/60 scale-[1.01]'
                           : 'bg-gradient-to-r from-orange-950/70 via-slate-900 to-orange-950/70 hover:from-orange-900/80 hover:to-slate-850 text-white border-orange-500/85 hover:border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.45)] hover:shadow-[0_0_30px_rgba(249,115,22,0.7)]'
@@ -449,13 +449,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Right Action & Profile info */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 shrink">
             {/* Google Calendar shortcut */}
             <a
               href="https://calendar.google.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors"
+              className="hidden md:inline-flex p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors shrink-0"
               title="Google Takvim'i Yeni Sekmede Aç"
             >
               <Calendar className="w-4 h-4" />
@@ -466,16 +466,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm ${
+                className={`items-center space-x-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0 ${
                   pendingTeachersCount > 0
-                    ? 'bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-amber-500/30 animate-pulse'
-                    : 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
+                    ? 'flex bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-amber-500/30 animate-pulse'
+                    : 'hidden lg:inline-flex bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
                 }`}
                 title="Öğretmen Başvuruları & Yönetici Yetkilendirme"
               >
                 <ShieldCheck className={`w-4 h-4 ${pendingTeachersCount > 0 ? 'text-amber-300 animate-bounce' : 'text-indigo-400'}`} />
                 <span className={pendingTeachersCount > 0 ? 'inline' : 'hidden sm:inline'}>
-                  {pendingTeachersCount > 0 ? '🔔 Onay Bekleyen:' : 'Öğretmen Yönetimi'}
+                  {pendingTeachersCount > 0 ? '🔔 Onay:' : 'Öğretmen Yönetimi'}
                 </span>
                 {pendingTeachersCount > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
@@ -486,11 +486,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Live Sync Monitor Badge */}
-            <SyncStatusIndicator variant="badge" className="hidden md:inline-flex" />
+            <SyncStatusIndicator variant="badge" className="hidden md:inline-flex shrink-0" />
 
             {/* TEACHER LOGGED IN */}
             {isTeacherSession && currentTeacher ? (
-              <div className="flex items-center space-x-2.5 sm:space-x-3 pl-2 border-l border-slate-700">
+              <div className="flex items-center space-x-1.5 sm:space-x-2.5 pl-1.5 sm:pl-2 border-l border-slate-700 min-w-0 shrink">
                 {/* 1. Öğretmen Resminin Değiştirildiği Bölüm (Takvim ile Bilgileri Güncelleme Butonunun Arasında) */}
                 <div
                   className="relative group cursor-pointer shrink-0"
@@ -498,7 +498,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="Profil Resmini Değiştir / Fotoğraf Yükle (Tıklayın)"
                   id="navbar-teacher-avatar-trigger"
                 >
-                  <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-2 ring-indigo-400/80 hover:ring-indigo-300 shadow-md shadow-indigo-950/70 flex items-center justify-center overflow-hidden transition-all group-hover:scale-105">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-2 ring-indigo-400/80 hover:ring-indigo-300 shadow-md shadow-indigo-950/70 flex items-center justify-center overflow-hidden transition-all group-hover:scale-105">
                     {currentTeacher.avatar ? (
                       currentTeacher.avatar.startsWith('http') || currentTeacher.avatar.startsWith('data:') ? (
                         <img
@@ -507,7 +507,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
-                        <span className="text-xl sm:text-2xl select-none leading-none">
+                        <span className="text-lg sm:text-2xl select-none leading-none">
                           {currentTeacher.avatar}
                         </span>
                       )
@@ -520,17 +520,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Fotoğraf Değiştir İpucu / Overlay */}
                   <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="w-4 h-4 text-white drop-shadow-md" />
+                    <Camera className="w-3.5 h-3.5 text-white drop-shadow-md" />
                   </div>
 
                   {/* Köşedeki Küçük Kamera Rozeti */}
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm transition-transform group-hover:scale-110">
-                    <Camera className="w-2.5 h-2.5" />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm transition-transform group-hover:scale-110">
+                    <Camera className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
                   </div>
 
                   {currentTeacher.isAdmin && (
                     <span
-                      className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[10px] shadow-sm font-black"
+                      className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] shadow-sm font-black"
                       title="Yönetici (Admin)"
                     >
                       👑
@@ -538,12 +538,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
 
-                {/* 2. Öğretmen Bilgileri ve Menü Butonu (İçinden Resim Silindi) */}
-                <div className="relative shrink-0" ref={teacherMenuRef}>
+                {/* 2. Öğretmen Bilgileri ve Menü Butonu */}
+                <div className="relative min-w-0" ref={teacherMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsTeacherMenuOpen(!isTeacherMenuOpen)}
-                    className={`flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl border transition-all cursor-pointer shadow-sm whitespace-nowrap shrink-0 ${
+                    className={`flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer shadow-sm min-w-0 max-w-[110px] xs:max-w-[145px] sm:max-w-[200px] md:max-w-none ${
                       isTeacherMenuOpen
                         ? 'bg-slate-800/95 border-indigo-500 text-white ring-2 ring-indigo-500/30'
                         : 'bg-gradient-to-b from-slate-850 to-slate-900 hover:from-slate-800 hover:to-slate-850 border-slate-700/80 hover:border-indigo-400 text-slate-200 hover:text-white'
@@ -552,18 +552,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     id="navbar-teacher-profile-dropdown-btn"
                   >
                     {/* Öğretmen İsmi ve Branş Yazısı */}
-                    <div className="flex flex-col text-left justify-center min-w-max pr-0.5">
-                      <span className={`${teacherNameFontClass} font-black text-white tracking-tight uppercase leading-tight whitespace-nowrap`}>
+                    <div className="flex flex-col text-left justify-center min-w-0 overflow-hidden pr-0.5">
+                      <span className={`${teacherNameFontClass} font-black text-white tracking-tight uppercase leading-tight truncate`}>
                         {teacherName}
                       </span>
-                      <span className={`${teacherBranchFontClass} font-bold text-amber-300 leading-tight whitespace-nowrap mt-0.5`}>
+                      <span className={`${teacherBranchFontClass} font-bold text-amber-300 leading-tight truncate mt-0.5`}>
                         {teacherBranch}
                       </span>
                     </div>
 
                     {currentTeacher.isAdmin && (
                       <span
-                        className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 hidden sm:inline-flex items-center"
+                        className="px-1 py-0.2 rounded text-[8.5px] sm:text-[9px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 hidden md:inline-flex items-center"
                         title="Yönetici (Admin)"
                       >
                         👑 Admin
@@ -572,7 +572,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {/* Açılır Menü Oku */}
                     <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                      className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
                         isTeacherMenuOpen ? 'rotate-180 text-indigo-400' : ''
                       }`}
                     />
@@ -580,7 +580,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Açılır Pencere / Dropdown Menü */}
                   {isTeacherMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       <div className="px-4 py-2 border-b border-slate-800 mb-1">
                         <div className="flex items-center justify-between gap-1">
                           <p className="text-xs font-bold text-white truncate">
