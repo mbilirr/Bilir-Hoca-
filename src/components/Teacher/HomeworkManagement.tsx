@@ -1599,7 +1599,36 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </div>
 
                 <form onSubmit={handleCreateHomework} className="space-y-4">
-                  {/* Okul ve Dersler Açılır Pencereleri */}
+                  {/* 1. Ödev Başlığı */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Ödev Başlığı *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ödev başlığını giriniz..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
+                    />
+                  </div>
+
+                  {/* 2. Ödev Açıklaması */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Ödev Açıklaması
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Ödev açıklaması, teslim şartları ve detayları..."
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs resize-y"
+                    />
+                  </div>
+
+                  {/* 3. Ders & Kademe Seçimi */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                       <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
@@ -1644,36 +1673,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     </div>
                   </div>
 
-                  {/* Ödev Başlığı */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
-                      Ödev Başlığı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ödev başlığını giriniz..."
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
-                    />
-                  </div>
-
-                  {/* Ödev Açıklaması */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
-                      Ödev Açıklaması
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Ödev açıklaması, teslim şartları ve detayları..."
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs resize-y"
-                    />
-                  </div>
-
-                  {/* Tarih (Son Teslim) */}
+                  {/* 4. Tarih (Son Teslim Tarihi ve Saati) * */}
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1">
                       Tarih (Son Teslim Tarihi ve Saati) *
@@ -1687,13 +1687,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     />
                   </div>
 
-                  {/* Video Ekleme, İnternet Linki Ekleme, PDF Ekleme */}
-                  <HomeworkResourceUploader
-                    resources={resources}
-                    onChange={setResources}
-                  />
-
-                  {/* Sınıf Seçimi ve Öğrenci Listesi */}
+                  {/* 5. Sınıf Seçimi * ve Öğrenci Listesi */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
                     {/* Sınıf Seçimi */}
                     <div>
@@ -1789,6 +1783,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       )}
                     </div>
                   </div>
+
+                  {/* Ödev Materyalleri (Video, İnternet Linki, PDF) */}
+                  <HomeworkResourceUploader
+                    resources={resources}
+                    onChange={setResources}
+                  />
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                     <button
