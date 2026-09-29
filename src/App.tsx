@@ -40,6 +40,7 @@ import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { dataService } from './services/dataService';
+import { supabase } from './lib/supabase';
 import {
   Student,
   Teacher,
@@ -166,6 +167,21 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Açılışta: uygulama oturumu var ama Supabase oturumu yoksa (süresi dolmuş vb.) çıkış yap,
+  // böylece kullanıcı yetkisiz (anon) istek atan "hayalet" bir oturumda kalmaz.
+  useEffect(() => {
+    if (!dataService.getAuthSession()) return;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data?.session) {
+        dataService.logout();
+        setAuthSession(null);
+        setCurrentStudent(null);
+        setRole('teacher');
+        setTeacherTab('home');
+      }
+    });
   }, []);
 
   const lastActivityRef = useRef<number>(Date.now());

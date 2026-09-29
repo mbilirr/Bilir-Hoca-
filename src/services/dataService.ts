@@ -1413,6 +1413,9 @@ export class DataService {
   }
 
   public async syncTombstonesFromCloud(): Promise<void> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return;
     try {
       const { data } = await supabase
         .from('homeworks')
@@ -2000,6 +2003,9 @@ export class DataService {
   }
 
   public async syncEtutsFromSupabase(isBackground = false): Promise<void> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return;
     try {
       const { data: remoteEtuts, error: errEtuts } = await supabase.from('etuts').select('*');
       if (errEtuts) {
@@ -2088,22 +2094,14 @@ export class DataService {
           }
         });
 
-        // Yalnızca kullanıcı Supabase Auth ile giriş yapmış bir öğretmen/yönetici ise yerel etütleri buluta yüklemeyi dene
-        const { data: sessionData } = await supabase.auth.getSession();
-        const authUser = sessionData?.session?.user;
-        const role = authUser?.app_metadata?.role;
-        const canSync = authUser && (role === 'teacher' || role === 'admin' || authUser.email === 'm.bilirr@gmail.com');
-
-        if (canSync) {
-          const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
-          const unsyncedLocals = this.etuts.filter(
-            (e) => !remoteIds.has(e.id) && !this.deletedEtutIds.has(e.id)
-          );
-          if (unsyncedLocals.length > 0) {
-            for (const localEtut of unsyncedLocals) {
-              await this.pushEtutToSupabase(localEtut);
-            }
-          }
+        // Merkezi veritabanı tek doğruluk kaynağıdır: bulutta olmayan (başka cihazdan silinmiş)
+        // etütler yerelden de kaldırılır. ÖNCEKİ DAVRANIŞ bunları buluta geri yüklüyordu ve
+        // bir cihazda silinen etüt diğer cihazdan tekrar "diriliyordu".
+        const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
+        const beforeCount = this.etuts.length;
+        this.etuts = this.etuts.filter((e) => remoteIds.has(e.id));
+        if (this.etuts.length !== beforeCount) {
+          etutsChanged = true;
         }
 
         if (etutsChanged) {
@@ -2158,9 +2156,12 @@ export class DataService {
   }
 
   // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---
-  public async syncStudentsToCloud(): Promise<{ success: boolean; error?: any }> {
+  public async syncStudentsToCloud(onlyThese?: Student[]): Promise<{ success: boolean; error?: any }> {
     try {
-      const activeStudents = this.students.filter((s) => s && s.id && !this.deletedStudentIds.has(s.id));
+      // Yalnızca değişen öğrencileri gönder. Tüm yerel listeyi göndermek, bu cihazda eski
+      // (başka cihazdan silinmiş) öğrenci kopyaları varsa onları buluta geri yüklüyordu.
+      const source = onlyThese ?? this.students;
+      const activeStudents = source.filter((s) => s && s.id && !this.deletedStudentIds.has(s.id));
 
       // Individual student table upsert
       const payload = activeStudents.map((s) => ({
@@ -2244,6 +2245,9 @@ export class DataService {
   }
 
   public async syncStudentsFromSupabase(isBackground = false): Promise<Student[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.students;
     try {
       await this.syncTombstonesFromCloud();
 
@@ -2339,6 +2343,9 @@ export class DataService {
   // --- CENTRAL DATABASE AS SINGLE SOURCE OF TRUTH (CROSS-DEVICE SYNC) ---
 
   public async syncHomeworksFromSupabase(isBackground = false): Promise<Homework[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.homeworks;
     try {
       const { data: remoteHws, error: errHws } = await supabase.from('homeworks').select('*');
       if (errHws) {
@@ -2437,6 +2444,9 @@ export class DataService {
   }
 
   public async syncAttendanceFromSupabase(isBackground = false): Promise<AttendanceRecord[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.attendance;
     try {
       const { data: remoteAtt, error: errAtt } = await supabase
         .from('attendance')
@@ -2470,6 +2480,9 @@ export class DataService {
   }
 
   public async syncGradesFromSupabase(isBackground = false): Promise<GradeRecord[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.grades;
     try {
       const { data: remoteGrades, error: errGrd } = await supabase
         .from('grades')
@@ -2510,6 +2523,9 @@ export class DataService {
   }
 
   public async syncMessagesFromSupabase(isBackground = false): Promise<StudentMessage[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.messages;
     try {
       const { data: remoteMsgs, error: errMsgs } = await supabase
         .from('messages')
@@ -2552,6 +2568,9 @@ export class DataService {
   }
 
   public async syncQuestionLogsAndTargetsFromSupabase(isBackground = false): Promise<void> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return;
     try {
       const { data: rows, error } = await supabase
         .from('homeworks')
@@ -2578,6 +2597,9 @@ export class DataService {
   }
 
   public async syncTeacherDocumentsFromSupabase(isBackground = false): Promise<TeacherDocument[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.documents;
     try {
       const { data: rows, error } = await supabase
         .from('homeworks')
@@ -2603,6 +2625,16 @@ export class DataService {
     } catch (e) {
       if (!isBackground) console.warn('[DocumentsSync] Exception:', e);
       return this.documents;
+    }
+  }
+
+  // Supabase Auth oturumu (JWT) gerçekten var mı? Yoksa istekler 'anon' rolüyle gider.
+  private async hasCloudSession(): Promise<boolean> {
+    try {
+      const { data } = await supabase.auth.getSession();
+      return !!data?.session;
+    } catch {
+      return false;
     }
   }
 
@@ -3644,6 +3676,9 @@ export class DataService {
   }
 
   public async syncTeachersFromSupabase(isBackground = false): Promise<Teacher[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.teachers;
     try {
       // Doğrudan public.teachers tablosundan sorgula (homeworks hack'i kullanılmaz)
       const { data: remoteRows, error } = await supabase
@@ -3658,10 +3693,7 @@ export class DataService {
       }
 
       if (!remoteRows || remoteRows.length === 0) {
-        // Eğer Supabase'de henüz öğretmen kaydı yoksa yerel öğretmenleri buluta yükle
-        if (this.teachers.length > 0) {
-          await this.syncAllTeachersToCloud();
-        }
+        // Bulutta hiç öğretmen kaydı dönmediyse yerel listeye dokunma (buluta da otomatik yükleme yapma)
         return this.teachers;
       }
 
@@ -3753,18 +3785,14 @@ export class DataService {
         }
       }
 
-      // Ayrıca yerelde olup Supabase'de henüz bulunmayan öğretmenleri tespit et ve yükle
+      // Merkezi veritabanı tek doğruluk kaynağıdır: yerelde olup bulutta olmayan öğretmenler
+      // (ör. her yeni cihazda yerelde otomatik oluşturulan 'teacher-1' yönetici kopyası)
+      // artık buluta YÜKLENMEZ, yerelden kaldırılır. Önceki davranış çift admin kaydı üretiyordu.
       const remoteIdSet = new Set(remoteRows.map((r: any) => r.id));
-      let needsUpload = false;
-      for (const lt of this.teachers) {
-        if (!this.deletedTeacherIds.has(lt.id) && !remoteIdSet.has(lt.id)) {
-          needsUpload = true;
-          break;
-        }
-      }
-
-      if (needsUpload) {
-        await this.syncAllTeachersToCloud();
+      const teacherCountBefore = this.teachers.length;
+      this.teachers = this.teachers.filter((lt) => remoteIdSet.has(lt.id));
+      if (this.teachers.length !== teacherCountBefore) {
+        changed = true;
       }
 
       if (changed) {
@@ -4073,6 +4101,8 @@ export class DataService {
 
   public logout(): void {
     this.unsubscribeAllRealtime();
+    // Uygulama oturumu kapanınca Supabase oturumu da kapansın
+    supabase.auth.signOut().catch(() => {});
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -4387,7 +4417,7 @@ export class DataService {
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
       } catch {}
-      this.syncStudentsToCloud().catch(() => {});
+      this.syncStudentsToCloud(this.students.filter((s) => s.classId === newClass.id)).catch(() => {});
     }
 
     saveData(STORAGE_KEYS.CLASSES, this.classes);
@@ -4449,8 +4479,8 @@ export class DataService {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
       } catch {}
 
-      // Sadece öğrencileri buluta senkronize et ve sonucunu doğrula
-      const studentRes = await this.syncStudentsToCloud();
+      // Sadece sınıfı değişen öğrencileri buluta senkronize et ve sonucunu doğrula
+      const studentRes = await this.syncStudentsToCloud(this.students.filter((s) => studentIds.includes(s.id)));
 
       if (!studentRes.success) {
         // ROLLBACK: Öğrenciler buluta yazılamadıysa yerel state'i geri al
@@ -4651,6 +4681,9 @@ export class DataService {
   }
 
   public async syncClassesFromSupabase(isBackground = false): Promise<ClassGroup[]> {
+    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
+    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
+    if (!(await this.hasCloudSession())) return this.classes;
     try {
       // 0. Ensure tombstones are loaded first
       await this.syncTombstonesFromCloud();
@@ -4967,8 +5000,8 @@ export class DataService {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
       } catch {}
 
-      // Await cloud sync for students
-      const cloudRes = await this.syncStudentsToCloud();
+      // Await cloud sync for students (yalnızca bu işlemde oluşturulanlar)
+      const cloudRes = await this.syncStudentsToCloud(createdList);
       if (!cloudRes.success) {
         // ROLLBACK
         this.students = prevStudents;
@@ -5129,6 +5162,9 @@ export class DataService {
     ].forEach((k) => {
       try { localStorage.removeItem(k); } catch {}
     });
+
+    // Yerel state güncellendi: arayüz bulut çağrısını beklemeden hemen güncellensin
+    this.notify();
 
     // Buluttan silme işlemini AWAIT et ve doğrula
     const deleteRes = await this.deleteStudentsFromCloud(ids);

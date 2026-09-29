@@ -22,6 +22,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
+import { supabase } from '../../lib/supabase';
 import {
   SCHOOL_LEVELS,
   BRANCH_OPTIONS,
@@ -146,7 +147,16 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setSuccessMsg(null);
     setIsLoading(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      // Hızlı giriş YALNIZCA geçerli bir Supabase oturumu varken yapılabilir.
+      // Aksi halde uygulama "giriş yapılmış" görünür ama bulut istekleri yetkisiz gider.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        setIsLoading(false);
+        setLoginUsername(targetUser.identifier);
+        setError('Oturum süreniz dolmuş. Lütfen şifrenizi girip "Giriş Yap" butonuna basınız.');
+        return;
+      }
       setIsLoading(false);
       if (selectedRole === 'teacher') {
         const teacher = dataService.getAllTeachersInternal().find(
@@ -643,6 +653,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   required
                   value={loginUsername}
                   onChange={(e) => setLoginUsername(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={
                     selectedRole === 'teacher'
                       ? 'Kullanıcı adı veya e-posta'
@@ -657,6 +670,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   required
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder="••••••••"
                   leftIcon={<Lock className="w-4 h-4" />}
                   rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
