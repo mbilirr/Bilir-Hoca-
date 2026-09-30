@@ -350,7 +350,7 @@ export default function App() {
     authSession.role === 'teacher' ? (authSession.user as Teacher) : null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white overflow-x-hidden w-full max-w-full">
       <NetworkSyncStatusBanner />
       {/* Top Main Navbar */}
       <Navbar

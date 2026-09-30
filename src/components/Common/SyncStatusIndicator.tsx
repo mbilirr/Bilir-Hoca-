@@ -60,12 +60,9 @@ export const SyncStatusIndicator: React.FC<{
         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
       </span>
 
-      {/* Son senkronizasyon zamanı */}
-      <span className="text-[11px] text-slate-300 whitespace-nowrap">
-        Son senkronizasyon:{' '}
-        <span className="font-semibold text-emerald-400 font-mono">
-          {formattedTime}
-        </span>
+      {/* Senkronizasyon zamanı */}
+      <span className="text-[11px] font-semibold text-emerald-400 font-mono whitespace-nowrap">
+        {formattedTime}
       </span>
 
       <span className="text-slate-700 select-none text-xs">|</span>
