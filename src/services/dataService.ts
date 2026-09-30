@@ -769,7 +769,27 @@ export class DataService {
   private sessionDeviceId: string = '';
 
   private constructor() {
+    this.purgeSavedPasswords();
     this.initData();
+  }
+
+  // GÜVENLİK: "Beni Hatırla" için daha önce tarayıcıya açık metin kaydedilmiş şifreleri sil.
+  private purgeSavedPasswords(): void {
+    if (typeof localStorage === 'undefined') return;
+    ['edu_sys_remember_me_v6', 'edu_sys_remember_me_teacher_v6', 'edu_sys_remember_me_student_v6'].forEach((key) => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && 'savedPassword' in parsed) {
+          delete parsed.savedPassword;
+          localStorage.setItem(key, JSON.stringify(parsed));
+        }
+      } catch {
+        // bozuk kayıt: tamamen kaldır
+        try { localStorage.removeItem(key); } catch {}
+      }
+    });
   }
 
   public static getInstance(): DataService {
@@ -4398,7 +4418,6 @@ export class DataService {
           name: liveTeacher.name,
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
-          savedPassword: saved.savedPassword,
           deviceId: saved.deviceId,
         };
       }
@@ -4419,7 +4438,6 @@ export class DataService {
           name: liveStudent.name,
           avatar: liveStudent.avatar,
           className: liveStudent.className,
-          savedPassword: saved.savedPassword,
           deviceId: saved.deviceId,
         };
       }
@@ -4451,8 +4469,10 @@ export class DataService {
     targetRole?: UserRole
   ): void {
     if (data) {
+      // GÜVENLİK: şifre asla tarayıcıya kaydedilmez; yalnızca kullanıcı adı ve görünen bilgiler hatırlanır
+      const { savedPassword: _neverStored, ...safeData } = data;
       const payload = {
-        ...data,
+        ...safeData,
         deviceId: getLocalDeviceId(),
       };
       saveData(STORAGE_KEYS.REMEMBER_ME, payload);
@@ -4514,12 +4534,26 @@ export class DataService {
       toast.id = 'dataservice-error-toast';
       toast.className =
         'fixed top-5 right-5 z-50 max-w-md bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2.5 border border-rose-500 animate-in slide-in-from-top-2 text-xs font-semibold';
-      toast.innerHTML = `
-        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-        </svg>
-        <span>${message}</span>
-      `;
+      // GÜVENLİK: mesaj (sunucudan gelen hata metnini içerebilir) HTML olarak değil düz metin olarak eklenir
+      const svgNs = 'http://www.w3.org/2000/svg';
+      const icon = document.createElementNS(svgNs, 'svg');
+      icon.setAttribute('class', 'w-4 h-4 shrink-0');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      const path = document.createElementNS(svgNs, 'path');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute(
+        'd',
+        'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
+      );
+      icon.appendChild(path);
+      const text = document.createElement('span');
+      text.textContent = message;
+      toast.appendChild(icon);
+      toast.appendChild(text);
       document.body.appendChild(toast);
       setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);

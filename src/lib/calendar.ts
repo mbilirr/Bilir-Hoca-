@@ -28,13 +28,13 @@ export function createGoogleCalendarUrlForHomework(homework: Homework): string {
     ? `\n\n📌 Kazanımlar:\n${homework.outcomes.map(o => `• ${o}`).join('\n')}`
     : '';
   const desc = encodeURIComponent(
-    `📚 Ders: ${homework.subject}\n📝 Açıklama: ${homework.description}${outcomesText}\n\nÖğretmen: ${homework.createdByName || 'M. Bilir'}\nSistem: Eğitim & Öğrenci Takip Portalı`
+    `📚 Ders: ${homework.subject}\n📝 Açıklama: ${homework.description}${outcomesText}\n\nÖğretmen: ${homework.createdByName || 'Öğretmen'}\nSistem: Eğitim & Öğrenci Takip Portalı`
   );
 
   const startIso = formatToGoogleCalendarDate(homework.dueDate);
   const endIso = formatEndTime(homework.dueDate, 60);
 
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}&dates=${startIso}/${endIso}&add=m.bilirr@gmail.com`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}&dates=${startIso}/${endIso}`;
 }
 
 /**
@@ -51,7 +51,7 @@ export function createGoogleCalendarUrlForEtut(etut: Etut): string {
   const endIso = formatEndTime(startDateTime, etut.duration || 60);
   const location = encodeURIComponent(etut.location || 'Okul Derslik');
 
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}&location=${location}&dates=${startIso}/${endIso}&add=m.bilirr@gmail.com`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${desc}&location=${location}&dates=${startIso}/${endIso}`;
 }
 
 /**

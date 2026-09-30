@@ -43,9 +43,9 @@ export const NetworkSyncStatusBanner: React.FC = () => {
         className="fixed top-0 inset-x-0 z-50 bg-amber-500 dark:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm py-2 px-4 shadow-lg flex items-center justify-center space-x-2 animate-in slide-in-from-top duration-300 border-b border-amber-600 dark:border-amber-700"
       >
         <WifiOff className="w-4 h-4 text-slate-950 animate-pulse shrink-0" />
-        <span>Bağlantı yok, değişiklikler cihazınızda bekletiliyor</span>
+        <span>İnternet bağlantısı yok</span>
         <span className="text-[11px] font-normal bg-amber-600/30 dark:bg-amber-700/40 px-2 py-0.5 rounded-full ml-2 hidden sm:inline-block">
-          Bağlantı geldiğinde otomatik senkronize edilecektir
+          Bağlantı gelene kadar yapılan değişiklikler kaydedilemez
         </span>
       </div>
     );
