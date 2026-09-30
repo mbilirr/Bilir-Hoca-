@@ -364,3 +364,52 @@ export interface StudentQuestionLog {
 }
 
 
+
+// =========================================================================
+// GİRİŞ HESAPLARI VE KAYIT BAŞVURULARI (Aşama 3)
+// =========================================================================
+export interface StudentAccountInput {
+  name: string;
+  studentNumber: string; // Öğrencinin giriş adı
+  classId: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  schoolLevel?: 'Ortaokul' | 'Lise';
+  gradeLevel?: string;
+  branch?: string;
+  password?: string; // Boşsa rastgele şifre üretilir
+}
+
+// Yeni açılan veya şifresi yenilenen hesabın giriş bilgisi (şifre YALNIZCA bu an gösterilir, saklanmaz)
+export interface StudentCredential {
+  student: Student;
+  password: string;
+}
+
+export interface StudentAccountFailure {
+  name: string;
+  studentNumber: string;
+  error: string;
+}
+
+export interface StudentAccountResult {
+  created: StudentCredential[];
+  failed: StudentAccountFailure[];
+}
+
+export interface StudentApplication {
+  id: string;
+  name: string;
+  studentNumber: string;
+  classId?: string;
+  requestedClass?: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectReason?: string;
+  studentId?: string;
+  createdAt: string;
+  reviewedAt?: string;
+}

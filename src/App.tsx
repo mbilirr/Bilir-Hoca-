@@ -22,8 +22,6 @@ import {
 import { Navbar } from './components/Navbar';
 import { AuthPortal } from './components/Auth/AuthPortal';
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
-import { TeacherLogin } from './components/Auth/TeacherLogin';
-import { StudentAuthModal } from './components/Auth/StudentAuthModal';
 import { StudentManagement } from './components/Teacher/StudentManagement';
 import { HomeworkManagement } from './components/Teacher/HomeworkManagement';
 import { EtutManagement } from './components/Teacher/EtutManagement';
@@ -96,9 +94,6 @@ export default function App() {
   const currentTeacher = authSession?.role === 'teacher' ? (authSession.user as Teacher) : null;
 
   // Modals
-  const [isTeacherLoginOpen, setIsTeacherLoginOpen] = useState(false);
-  const [isStudentAuthOpen, setIsStudentAuthOpen] = useState(false);
-  const [studentAuthMode, setStudentAuthMode] = useState<'login' | 'register'>('login');
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
 
@@ -119,6 +114,7 @@ export default function App() {
   const [messages, setMessages] = useState<StudentMessage[]>(dataService.getMessages());
   const [documents, setDocuments] = useState<TeacherDocument[]>(dataService.getTeacherDocuments());
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(dataService.getQuestionLogs());
+  const [pendingApplications, setPendingApplications] = useState<number>(dataService.getPendingApplicationCount());
 
   // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
@@ -137,6 +133,7 @@ export default function App() {
       setMessages(dataService.getMessages());
       setDocuments(dataService.getTeacherDocuments());
       setQuestionLogs(dataService.getQuestionLogs());
+      setPendingApplications(dataService.getPendingApplicationCount());
 
       const activeSession = dataService.getAuthSession();
       setAuthSession(activeSession);
@@ -329,38 +326,6 @@ export default function App() {
     setTeacherTab('home');
   };
 
-  const handleOpenStudentLogin = () => {
-    setStudentAuthMode('login');
-    setIsStudentAuthOpen(true);
-  };
-
-  const handleOpenStudentRegister = () => {
-    setStudentAuthMode('register');
-    setIsStudentAuthOpen(true);
-  };
-
-  const handleStudentAuthSuccess = async (student: Student) => {
-    const session: AuthSession = { role: 'student', user: student };
-    dataService.setAuthSession(session);
-    setCurrentStudent(student);
-    setRole('student');
-    setTeacherTab('home');
-    setIsStudentAuthOpen(false);
-
-    try {
-      await dataService.revalidateAndSyncAll(false);
-      setStudents(dataService.getStudents());
-      setClasses(dataService.getClasses());
-      setHomeworks(dataService.getHomeworks());
-      setSubmissions(dataService.getSubmissions());
-      setEtuts(dataService.getEtuts());
-      setGrades(dataService.getGrades());
-      setAttendance(dataService.getAttendance());
-      setMessages(dataService.getMessages());
-      setDocuments(dataService.getTeacherDocuments());
-    } catch {}
-  };
-
   const unreadMessagesCount = messages.filter((m) => !m.read).length;
 
   // ================= GATEKEEPER CHECK =================
@@ -392,9 +357,6 @@ export default function App() {
         role={role}
         authSession={authSession}
         onRoleChange={handleRoleChange}
-        onOpenTeacherLogin={() => setIsTeacherLoginOpen(true)}
-        onOpenStudentLogin={handleOpenStudentLogin}
-        onOpenStudentRegister={handleOpenStudentRegister}
         onOpenSupabaseGuide={() => setIsSupabaseModalOpen(true)}
         currentStudent={currentStudent}
         onLogout={handleLogout}
@@ -446,6 +408,25 @@ export default function App() {
               <AdminTeacherApprovalBanner
                 onOpenFullModal={() => setIsAdminApprovalModalOpen(true)}
               />
+            )}
+
+            {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
+            {activeTeacher?.isAdmin && pendingApplications > 0 && teacherTab !== 'user_management' && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-100">
+                <div className="flex items-center space-x-2.5 text-sm">
+                  <Bell className="w-4 h-4 text-amber-300" />
+                  <span>
+                    <strong>{pendingApplications}</strong> öğrenci kayıt başvurusu onayınızı bekliyor.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTeacherTab('user_management')}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold"
+                >
+                  Başvuruları İncele
+                </button>
+              </div>
             )}
 
             {/* ANA SAYFA: Sadece Ajanda Duvarı ve Durum Özetleri Duvarı */}
@@ -600,20 +581,14 @@ export default function App() {
               <GraduationCap className="w-12 h-12 text-indigo-400 mx-auto" />
               <h2 className="text-xl font-bold text-white">Öğrenci Girişi Yapılmadı</h2>
               <p className="text-xs text-slate-400">
-                Ödevlerinizi, etütlerinizi ve ders notlarınızı görüntülemek için lütfen giriş yapın veya yeni kayıt oluşturun.
+                Öğrenci görünümünü incelemek için sistemde en az bir öğrenci bulunmalıdır.
               </p>
               <div className="flex items-center justify-center space-x-3 pt-2">
                 <button
-                  onClick={handleOpenStudentLogin}
+                  onClick={() => handleRoleChange('teacher')}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md"
                 >
-                  Giriş Yap
-                </button>
-                <button
-                  onClick={handleOpenStudentRegister}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700"
-                >
-                  Kayıt Ol
+                  Öğretmen Paneline Dön
                 </button>
               </div>
             </div>
@@ -647,22 +622,6 @@ export default function App() {
       </footer>
 
       {/* MODALS */}
-      <TeacherLogin
-        isOpen={isTeacherLoginOpen}
-        onClose={() => setIsTeacherLoginOpen(false)}
-        onSuccess={() => {
-          setRole('teacher');
-        }}
-      />
-
-      <StudentAuthModal
-        isOpen={isStudentAuthOpen}
-        onClose={() => setIsStudentAuthOpen(false)}
-        initialMode={studentAuthMode}
-        classes={classes}
-        onSuccess={handleStudentAuthSuccess}
-      />
-
       <SupabaseGuideModal
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}

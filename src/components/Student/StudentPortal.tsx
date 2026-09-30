@@ -70,7 +70,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const isMandatoryPasswordChange =
-    Boolean(currentStudent.mustChangePassword || currentStudent.password === '54321');
+    Boolean(currentStudent.mustChangePassword);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange);
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
