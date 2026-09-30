@@ -222,15 +222,20 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     e.preventDefault();
     if (!messageSubject.trim() || !messageText.trim()) return;
 
-    await dataService.sendMessage({
-      studentId: currentStudent.id,
-      studentName: currentStudent.name,
-      studentClass: currentStudent.className,
-      studentAvatar: currentStudent.avatar,
-      subject: messageSubject.trim(),
-      text: messageText.trim(),
-      linkUrl: messageLink.trim() || undefined,
-    });
+    try {
+      await dataService.sendMessage({
+        studentId: currentStudent.id,
+        studentName: currentStudent.name,
+        studentClass: currentStudent.className,
+        studentAvatar: currentStudent.avatar,
+        subject: messageSubject.trim(),
+        text: messageText.trim(),
+        linkUrl: messageLink.trim() || undefined,
+      });
+    } catch {
+      // Hata uyarısı zaten gösterildi; yazılan mesaj kaybolmasın diye form temizlenmez
+      return;
+    }
 
     setMessageSubject('');
     setMessageText('');

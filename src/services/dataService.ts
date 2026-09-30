@@ -1671,10 +1671,14 @@ export class DataService {
         assignedDate: row.created_at || new Date().toISOString(),
         classId: row.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
         assignedTo,
-        teacherId: row.teacher_id || 'teacher-1',
-        teacherName: row.teacher_name || 'Öğretmen',
+        teacherId: this.homeworks.find((h) => h.id === row.id)?.teacherId || 'teacher-1',
+        teacherName: this.homeworks.find((h) => h.id === row.id)?.teacherName || 'Öğretmen',
         submissions: Array.isArray(row.submissions) ? row.submissions : [],
       };
+      const mappedWithExtras = this.applyHomeworkRowExtras(row, {
+        ...(this.homeworks.find((h) => h.id === row.id) || {}),
+        ...mappedHw,
+      } as Homework);
 
       if (Array.isArray(row.submissions) && row.submissions.length > 0) {
         row.submissions.forEach((sub: HomeworkSubmission) => {
@@ -1692,9 +1696,9 @@ export class DataService {
 
       const exIdx = this.homeworks.findIndex((h) => h.id === row.id);
       if (exIdx !== -1) {
-        this.homeworks[exIdx] = { ...this.homeworks[exIdx], ...mappedHw };
+        this.homeworks = this.homeworks.map((h, i) => (i === exIdx ? mappedWithExtras : h));
       } else {
-        this.homeworks.unshift(mappedHw);
+        this.homeworks = [mappedWithExtras, ...this.homeworks];
       }
 
       this.homeworks.sort(
@@ -1763,18 +1767,7 @@ export class DataService {
       const row = payload.new;
       if (!row || !row.id) return;
 
-      const student = this.students.find((s) => s.id === row.student_id);
-      const grade: GradeRecord = {
-        id: row.id,
-        studentId: row.student_id,
-        studentName: student?.name,
-        classId: row.class_id,
-        subject: row.subject,
-        score: row.score,
-        examType: row.exam_type || '1. Yazılı',
-        date: row.date,
-        remarks: row.remarks,
-      };
+      const grade: GradeRecord = this.gradeFromRow(row);
 
       const exIdx = this.grades.findIndex((g) => g.id === row.id);
       if (exIdx !== -1) {
@@ -2252,7 +2245,7 @@ export class DataService {
 
   public async deleteStudentsFromCloud(studentIds: string[]): Promise<{ success: boolean; error?: any }> {
     try {
-      const { error } = await supabase.from('students').delete().in('id', studentIds);
+      const { error } = await this.deleteRowsVerified('students', studentIds);
       if (error) {
         console.warn('[StudentsSync] Error deleting students from cloud:', error);
         return { success: false, error };
@@ -2426,7 +2419,9 @@ export class DataService {
             }
           }
 
-          validHws.push({
+          const localHw = this.homeworks.find((h) => h.id === rh.id);
+          const baseHw: Homework = {
+            ...(localHw || {}),
             id: rh.id,
             title: rh.title || 'Ödev',
             description: rh.description || '',
@@ -2434,13 +2429,14 @@ export class DataService {
             learningOutcomes: Array.isArray(rh.learning_outcomes) ? rh.learning_outcomes : [],
             dueDate: rh.due_date || new Date().toISOString(),
             createdAt: rh.created_at || new Date().toISOString(),
-            assignedDate: rh.created_at || new Date().toISOString(),
+            assignedDate: localHw?.assignedDate || rh.created_at || new Date().toISOString(),
             classId: rh.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
             assignedTo,
-            teacherId: rh.teacher_id || 'teacher-1',
-            teacherName: rh.teacher_name || 'Öğretmen',
+            teacherId: localHw?.teacherId || 'teacher-1',
+            teacherName: localHw?.teacherName || 'Öğretmen',
             submissions: Array.isArray(rh.submissions) ? rh.submissions : [],
-          });
+          };
+          validHws.push(this.applyHomeworkRowExtras(rh, baseHw));
         });
 
         validHws.sort(
@@ -2515,20 +2511,7 @@ export class DataService {
       }
 
       if (remoteGrades && Array.isArray(remoteGrades)) {
-        this.grades = remoteGrades.map((rg: any) => {
-          const student = this.students.find((s) => s.id === rg.student_id);
-          return {
-            id: rg.id,
-            studentId: rg.student_id,
-            studentName: student?.name,
-            classId: rg.class_id,
-            subject: rg.subject,
-            score: rg.score,
-            examType: rg.exam_type || '1. Yazılı',
-            date: rg.date,
-            remarks: rg.remarks,
-          };
-        });
+        this.grades = remoteGrades.map((rg: any) => this.gradeFromRow(rg));
 
         this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         saveData(STORAGE_KEYS.GRADES, this.grades);
@@ -2646,6 +2629,158 @@ export class DataService {
       if (!isBackground) console.warn('[DocumentsSync] Exception:', e);
       return this.documents;
     }
+  }
+
+  // =========================================================================
+  // BULUT YAZMA YARDIMCILARI (Aşama 2)
+  // =========================================================================
+
+  // Bulut yazmasını bekler; hata olursa yerel değişikliği geri alır, kullanıcıya uyarı gösterir ve hata fırlatır.
+  // `silent: true` ise uyarı göstermez ve hata fırlatmaz (yalnızca geri alır).
+  private async runCloudWrite(
+    op: () => PromiseLike<{ error: any }>,
+    rollback: () => void,
+    userMessage: string,
+    options?: { silent?: boolean }
+  ): Promise<boolean> {
+    let error: any = null;
+    try {
+      const res = await op();
+      error = res?.error || null;
+    } catch (e) {
+      error = e;
+    }
+    if (!error) return true;
+
+    rollback();
+    this.notify();
+    const reason =
+      error?.code === '42501'
+        ? 'Bu işlem için yetkiniz yok'
+        : error?.message || 'Bağlantı sorunu';
+    console.warn(`[CloudWrite] ${userMessage}:`, error);
+    if (options?.silent) return false;
+    this.showFloatingErrorToast(`Hata: ${userMessage} (${reason}). Değişiklikler geri alındı.`);
+    throw new Error(`${userMessage}: ${reason}`);
+  }
+
+  // RLS bir silmeyi engellerse Supabase hata DÖNDÜRMEZ, sadece 0 satır siler.
+  // Bu yüzden silmeden sonra kayıtların gerçekten gittiği doğrulanır.
+  private async deleteRowsVerified(table: string, ids: string[]): Promise<{ error: any }> {
+    const cleanIds = ids.filter(Boolean);
+    if (cleanIds.length === 0) return { error: null };
+    const { error } = await supabase.from(table).delete().in('id', cleanIds);
+    if (error) return { error };
+    const { data: remaining, error: checkError } = await supabase.from(table).select('id').in('id', cleanIds);
+    if (checkError) return { error: null }; // doğrulama yapılamadı; silme hatasız tamamlandı
+    if (remaining && remaining.length > 0) {
+      return { error: { code: '42501', message: 'Kayıt silinemedi, bu işlem için yetkiniz yok' } };
+    }
+    return { error: null };
+  }
+
+  // Ödevin tabloda ayrı sütunu olmayan bilgileri (hedef sınıflar, kaynak linkleri vb.) 'meta' sütununda saklanır.
+  private homeworkRowExtras(hw: Homework): { teacher_id: string | null; teacher_name: string | null; meta: Record<string, any> } {
+    const resources = Array.isArray(hw.resources) ? hw.resources : [];
+    // Çok büyük gömülü dosyalar (≈1 MB üzeri) veritabanı satırına yazılmaz; Aşama 4'te dosya deposuna taşınacak.
+    const MAX_INLINE_FILE_CHARS = 1_400_000;
+    const keptResources = resources.filter(
+      (r) => !(typeof r?.url === 'string' && r.url.startsWith('data:') && r.url.length > MAX_INLINE_FILE_CHARS)
+    );
+    if (keptResources.length < resources.length) {
+      this.showFloatingErrorToast(
+        'Uyarı: 1 MB üzerindeki dosya kaynakları şimdilik yalnızca bu cihazda saklanıyor. Bağlantı (link) olarak eklemeniz önerilir.'
+      );
+    }
+    return {
+      teacher_id: hw.teacherId || null,
+      teacher_name: hw.teacherName || hw.createdByName || null,
+      meta: {
+        targetClassIds: hw.targetClassIds || [],
+        isGlobalForNewStudents: hw.isGlobalForNewStudents ?? false,
+        createdByName: hw.createdByName || null,
+        schoolLevel: hw.schoolLevel || null,
+        attachmentUrl: hw.attachmentUrl || null,
+        outcomes: hw.outcomes || [],
+        assignedDate: hw.assignedDate || null,
+        resources: keptResources,
+      },
+    };
+  }
+
+  // Buluttan gelen ödev satırındaki ek bilgileri ödeve uygular. Eski satırlarda (meta yoksa) yerel değerler korunur.
+  private applyHomeworkRowExtras(row: any, base: Homework): Homework {
+    const meta = row?.meta && typeof row.meta === 'object' ? row.meta : {};
+    const hasMeta = Object.keys(meta).length > 0;
+    return {
+      ...base,
+      teacherId: row?.teacher_id || base.teacherId,
+      teacherName: row?.teacher_name || base.teacherName,
+      createdByName: meta.createdByName || row?.teacher_name || base.createdByName,
+      targetClassIds: hasMeta && Array.isArray(meta.targetClassIds) ? meta.targetClassIds : base.targetClassIds,
+      isGlobalForNewStudents:
+        typeof meta.isGlobalForNewStudents === 'boolean' ? meta.isGlobalForNewStudents : base.isGlobalForNewStudents,
+      schoolLevel: meta.schoolLevel || base.schoolLevel,
+      attachmentUrl: meta.attachmentUrl || base.attachmentUrl,
+      outcomes: hasMeta && Array.isArray(meta.outcomes) ? meta.outcomes : base.outcomes,
+      assignedDate: meta.assignedDate || base.assignedDate,
+      resources: hasMeta && Array.isArray(meta.resources) ? meta.resources : base.resources,
+    };
+  }
+
+  private gradeFromRow(rg: any): GradeRecord {
+    const student = this.students.find((s) => s.id === rg.student_id);
+    return {
+      id: rg.id,
+      studentId: rg.student_id,
+      studentName: student?.name,
+      classId: rg.class_id,
+      subject: rg.subject,
+      score: Number(rg.score),
+      maxScore: rg.max_score !== null && rg.max_score !== undefined ? Number(rg.max_score) : undefined,
+      examType: rg.exam_type || '1. Yazılı',
+      date: rg.date,
+      remarks: rg.remarks || undefined,
+    };
+  }
+
+  private gradeToRow(g: GradeRecord) {
+    return {
+      id: g.id,
+      student_id: g.studentId,
+      class_id: g.classId || 'c-1',
+      subject: g.subject,
+      score: g.score,
+      max_score: g.maxScore ?? 100,
+      exam_type: g.examType || '1. Yazılı',
+      date: g.date,
+      remarks: g.remarks || null,
+    };
+  }
+
+  private attendanceToRow(a: AttendanceRecord) {
+    return {
+      id: a.id,
+      class_id: a.classId,
+      date: a.date,
+      subject: a.subject || 'Genel',
+      records: a.records || [],
+    };
+  }
+
+  private messageToRow(m: StudentMessage) {
+    return {
+      id: m.id,
+      student_id: m.studentId,
+      student_name: m.studentName,
+      student_class: m.studentClass,
+      student_avatar: m.studentAvatar || null,
+      subject: m.subject,
+      text: m.text,
+      link_url: m.linkUrl || null,
+      created_at: m.createdAt,
+      read: m.read,
+    };
   }
 
   // Supabase Auth oturumu (JWT) gerçekten var mı? Yoksa istekler 'anon' rolüyle gider.
@@ -4776,17 +4911,33 @@ export class DataService {
     this.notify();
   }
 
-  public updateClass(id: string, updates: Partial<ClassGroup>): void {
+  public async updateClass(id: string, updates: Partial<ClassGroup>): Promise<void> {
+    const prevClasses = this.classes;
     this.classes = this.classes.map((c) => (c.id === id ? { ...c, ...updates } : c));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
+    this.notify();
     const updated = this.classes.find((c) => c.id === id);
     if (updated) {
-      this.syncClassToCloud(updated);
+      await this.runCloudWrite(
+        async () => {
+          const res = await this.syncClassToCloud(updated);
+          return { error: res.success ? null : res.error || { message: 'Sınıf kaydedilemedi' } };
+        },
+        () => {
+          this.classes = prevClasses;
+          saveData(STORAGE_KEYS.CLASSES, this.classes);
+        },
+        'Sınıf güncellemesi buluta kaydedilemedi'
+      );
     }
-    this.notify();
   }
 
   public async deleteClass(id: string): Promise<void> {
+    // Geri alma için önceki durumların kopyası
+    const prevClassesForDelete = this.classes;
+    const prevStudentsForDelete = this.students;
+    const prevDeletedClassIds = new Set(this.deletedClassIds);
+
     this.deletedClassIds.add(id);
     saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
     try {
@@ -4820,8 +4971,32 @@ export class DataService {
     // Yerel state zaten güncellendi: arayüz bulut çağrılarını beklemeden hemen güncellensin
     this.notify();
 
-    // Await deletion permanently from central database
-    await this.deleteClassFromCloud(id);
+    // Buluttan silmeyi bekle ve doğrula; başarısızsa her şeyi geri al
+    const { error: classDeleteError } = await this.deleteRowsVerified('classes', [id]);
+    if (classDeleteError) {
+      this.classes = prevClassesForDelete;
+      this.students = prevStudentsForDelete;
+      this.deletedClassIds = prevDeletedClassIds;
+      saveData(STORAGE_KEYS.CLASSES, this.classes);
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+      saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+      try {
+        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        localStorage.setItem(PERMANENT_KEYS.DELETED_CLASSES, JSON.stringify(Array.from(this.deletedClassIds)));
+      } catch {}
+      this.notify();
+      const reason = classDeleteError?.code === '42501' ? 'Bu işlem için yetkiniz yok' : classDeleteError?.message || 'Bağlantı sorunu';
+      this.showFloatingErrorToast(`Hata: Sınıf buluttan silinemedi (${reason}). Değişiklikler geri alındı.`);
+      throw new Error(`[deleteClass] Sınıf silinemedi: ${reason}`);
+    }
+
+    // Sınıftaki öğrencilerin sınıf bilgisini bulutta da temizle (başka cihazlarda eski sınıf görünmesin)
+    const unassigned = this.students.filter((s) => prevStudentsForDelete.some((p) => p.id === s.id && p.classId === id));
+    if (unassigned.length > 0) {
+      await this.syncStudentsToCloud(unassigned);
+    }
+
     // Sync tombstones so all devices immediately purge this class
     await this.syncTombstonesToCloud();
   }
@@ -5441,6 +5616,7 @@ export class DataService {
       id: `hw-${Date.now()}`,
       createdAt: nowIso,
       teacherId: homeworkData.teacherId || currentTeacher?.id,
+      teacherName: homeworkData.teacherName || currentTeacher?.name,
       createdByName: homeworkData.createdByName || currentTeacher?.name || 'Öğretmen',
       submissions: [],
     };
@@ -5473,6 +5649,7 @@ export class DataService {
         due_date: newHw.dueDate,
         learning_outcomes: newHw.learningOutcomes || [],
         submissions: [],
+        ...this.homeworkRowExtras(newHw),
       });
 
       if (error) {
@@ -5525,6 +5702,7 @@ export class DataService {
           due_date: updated.dueDate,
           learning_outcomes: updated.learningOutcomes || [],
           submissions: updated.submissions || this.submissions.filter((s) => s.homeworkId === id) || [],
+          ...this.homeworkRowExtras(updated),
         });
 
         if (error) {
@@ -5563,7 +5741,7 @@ export class DataService {
     this.notify();
 
     try {
-      const { error } = await supabase.from('homeworks').delete().eq('id', id);
+      const { error } = await this.deleteRowsVerified('homeworks', [id]);
       if (error) {
         throw error;
       }
@@ -5647,6 +5825,7 @@ export class DataService {
           class_id: hw.classId || 'class-default',
           due_date: hw.dueDate,
           submissions: hw.submissions,
+          ...this.homeworkRowExtras(hw),
         });
 
         if (error) {
@@ -5701,6 +5880,7 @@ export class DataService {
             class_id: hw.classId || 'class-default',
             due_date: hw.dueDate,
             submissions: hw.submissions,
+            ...this.homeworkRowExtras(hw),
           });
 
           if (error) {
@@ -5785,6 +5965,7 @@ export class DataService {
           class_id: hw.classId || 'class-default',
           due_date: hw.dueDate,
           submissions: hw.submissions,
+          ...this.homeworkRowExtras(hw),
         });
 
         if (error) {
@@ -5931,12 +6112,16 @@ export class DataService {
         this.students.find((s) => s.id === attendanceRecordsList[0]?.studentId)?.classId ||
         'class-etut-general';
 
-      await this.recordAttendance({
-        date: updatedEtut.date,
-        classId: etutClassId,
-        subject: `${updatedEtut.subject} (Etüt)`,
-        records: attendanceRecordsList,
-      });
+      // Etüt yoklamasının asıl kaydı etütün kendisidir; genel yoklama tablosuna yazılamazsa etüt kaydı yine de devam eder
+      await this.recordAttendance(
+        {
+          date: updatedEtut.date,
+          classId: etutClassId,
+          subject: `${updatedEtut.subject} (Etüt)`,
+          records: attendanceRecordsList,
+        },
+        { silent: true }
+      );
     }
 
     this.notify();
@@ -5969,7 +6154,7 @@ export class DataService {
 
     // Supabase delete with await + hata kontrolü
     try {
-      const { error } = await supabase.from('etuts').delete().eq('id', id);
+      const { error } = await this.deleteRowsVerified('etuts', [id]);
       if (error) throw error;
     } catch (err: any) {
       // ROLLBACK: Buluttan silinemezse yerel state'i eski haline döndür
@@ -5991,7 +6176,10 @@ export class DataService {
   }
 
   // --- ATTENDANCE ---
-  public async recordAttendance(attData: Omit<AttendanceRecord, 'id'>): Promise<AttendanceRecord> {
+  public async recordAttendance(
+    attData: Omit<AttendanceRecord, 'id'>,
+    options?: { silent?: boolean }
+  ): Promise<AttendanceRecord> {
     const existingIndex = this.attendance.findIndex(
       (a) => a.date === attData.date && a.classId === attData.classId && a.subject === attData.subject
     );
@@ -6001,44 +6189,42 @@ export class DataService {
       id: existingIndex >= 0 ? this.attendance[existingIndex].id : `att-${Date.now()}`,
     };
 
-    if (existingIndex >= 0) {
-      this.attendance[existingIndex] = record;
-    } else {
-      this.attendance.unshift(record);
-    }
-
-    this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const prevAttendance = this.attendance;
+    const next = existingIndex >= 0
+      ? this.attendance.map((a, i) => (i === existingIndex ? record : a))
+      : [record, ...this.attendance];
+    this.attendance = next.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    // Central Database is Single Source of Truth: await remote confirmation
-    try {
-      const { error } = await supabase.from('attendance').upsert({
-        id: record.id,
-        class_id: record.classId,
-        date: record.date,
-        subject: record.subject || 'Genel',
-        records: record.records || [],
-      });
-      if (error) console.error('[AttendanceSync] Error saving attendance to Supabase:', error);
-    } catch (err) {
-      console.error('[AttendanceSync] Exception saving attendance:', err);
-    }
+    // Merkezi veritabanı tek doğruluk kaynağıdır: bulut onayı beklenir, hata varsa geri alınır
+    await this.runCloudWrite(
+      () => supabase.from('attendance').upsert(this.attendanceToRow(record)),
+      () => {
+        this.attendance = prevAttendance;
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+      },
+      'Yoklama buluta kaydedilemedi',
+      options
+    );
 
     return record;
   }
 
   public async deleteAttendance(id: string): Promise<void> {
+    const prevAttendance = this.attendance;
     this.attendance = this.attendance.filter((a) => a.id !== id);
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('attendance').delete().eq('id', id);
-      if (error) console.error('[AttendanceSync] Error deleting attendance from Supabase:', error);
-    } catch (err) {
-      console.error('[AttendanceSync] Exception deleting attendance:', err);
-    }
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('attendance', [id]),
+      () => {
+        this.attendance = prevAttendance;
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+      },
+      'Yoklama buluttan silinemedi'
+    );
   }
 
   public async deleteAttendanceForDate(date: string, classId: string, subject?: string): Promise<void> {
@@ -6051,16 +6237,19 @@ export class DataService {
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
     this.notify();
 
-    for (const a of toDelete) {
-      try {
-        await supabase.from('attendance').delete().eq('id', a.id);
-      } catch (err) {
-        console.error('[AttendanceSync] Exception deleting date attendance:', err);
-      }
-    }
+    const prevAttendanceAll = [...this.attendance, ...toDelete];
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('attendance', toDelete.map((a) => a.id)),
+      () => {
+        this.attendance = prevAttendanceAll.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+      },
+      'Yoklama kayıtları buluttan silinemedi'
+    );
   }
 
   public async deleteAttendanceStudentRecord(attendanceId: string, studentId: string): Promise<void> {
+    const prevAttendance = this.attendance;
     this.attendance = this.attendance.map((att) => {
       if (att.id === attendanceId) {
         return {
@@ -6075,17 +6264,14 @@ export class DataService {
 
     const updated = this.attendance.find((a) => a.id === attendanceId);
     if (updated) {
-      try {
-        await supabase.from('attendance').upsert({
-          id: updated.id,
-          class_id: updated.classId,
-          date: updated.date,
-          subject: updated.subject || 'Genel',
-          records: updated.records || [],
-        });
-      } catch (err) {
-        console.error('[AttendanceSync] Exception updating student attendance record:', err);
-      }
+      await this.runCloudWrite(
+        () => supabase.from('attendance').update({ records: updated.records || [] }).eq('id', attendanceId),
+        () => {
+          this.attendance = prevAttendance;
+          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+        },
+        'Yoklama güncellemesi buluta kaydedilemedi'
+      );
     }
   }
 
@@ -6097,65 +6283,59 @@ export class DataService {
       id: `gr-${Date.now()}`,
       studentName: student?.name,
     };
-    this.grades.unshift(newGrade);
-    this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const prevGrades = this.grades;
+    this.grades = [newGrade, ...this.grades].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('grades').upsert({
-        id: newGrade.id,
-        student_id: newGrade.studentId,
-        class_id: newGrade.classId || 'c-1',
-        subject: newGrade.subject,
-        score: newGrade.score,
-        exam_type: newGrade.examType || '1. Yazılı',
-        date: newGrade.date,
-      });
-      if (error) console.error('[GradesSync] Error saving grade to Supabase:', error);
-    } catch (err) {
-      console.error('[GradesSync] Exception saving grade:', err);
-    }
+    await this.runCloudWrite(
+      () => supabase.from('grades').insert(this.gradeToRow(newGrade)),
+      () => {
+        this.grades = prevGrades;
+        saveData(STORAGE_KEYS.GRADES, this.grades);
+      },
+      'Not buluta kaydedilemedi'
+    );
 
     return newGrade;
   }
 
   public async updateGrade(id: string, updates: Partial<GradeRecord>): Promise<void> {
-    this.grades = this.grades.map((g) => (g.id === id ? { ...g, ...updates } : g));
-    this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const prevGrades = this.grades;
+    this.grades = this.grades
+      .map((g) => (g.id === id ? { ...g, ...updates } : g))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
     const updated = this.grades.find((g) => g.id === id);
     if (updated) {
-      try {
-        const { error } = await supabase.from('grades').upsert({
-          id: updated.id,
-          student_id: updated.studentId,
-          class_id: updated.classId || 'c-1',
-          subject: updated.subject,
-          score: updated.score,
-          exam_type: updated.examType || '1. Yazılı',
-          date: updated.date,
-        });
-        if (error) console.error('[GradesSync] Error updating grade in Supabase:', error);
-      } catch (err) {
-        console.error('[GradesSync] Exception updating grade:', err);
-      }
+      const { id: _id, ...changes } = this.gradeToRow(updated);
+      await this.runCloudWrite(
+        () => supabase.from('grades').update(changes).eq('id', id),
+        () => {
+          this.grades = prevGrades;
+          saveData(STORAGE_KEYS.GRADES, this.grades);
+        },
+        'Not güncellemesi buluta kaydedilemedi'
+      );
     }
   }
 
   public async deleteGrade(id: string): Promise<void> {
+    const prevGrades = this.grades;
     this.grades = this.grades.filter((g) => g.id !== id);
     saveData(STORAGE_KEYS.GRADES, this.grades);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('grades').delete().eq('id', id);
-      if (error) console.error('[GradesSync] Error deleting grade from Supabase:', error);
-    } catch (err) {
-      console.error('[GradesSync] Exception deleting grade:', err);
-    }
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('grades', [id]),
+      () => {
+        this.grades = prevGrades;
+        saveData(STORAGE_KEYS.GRADES, this.grades);
+      },
+      'Not buluttan silinemedi'
+    );
   }
 
   // --- MESSAGES ---
@@ -6179,49 +6359,47 @@ export class DataService {
       read: false,
     };
 
-    this.messages.unshift(newMsg);
-    this.messages.sort(
+    const prevMessages = this.messages;
+    this.messages = [newMsg, ...this.messages].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('messages').upsert({
-        id: newMsg.id,
-        student_id: newMsg.studentId,
-        student_name: newMsg.studentName,
-        student_class: newMsg.studentClass,
-        student_avatar: newMsg.studentAvatar,
-        subject: newMsg.subject,
-        text: newMsg.text,
-        link_url: newMsg.linkUrl,
-        created_at: newMsg.createdAt,
-        read: newMsg.read,
-      });
-      if (error) console.error('[MessagesSync] Error sending message to Supabase:', error);
-    } catch (err) {
-      console.error('[MessagesSync] Exception sending message:', err);
-    }
+    // Yeni mesaj: "insert" kullanılır (upsert, öğrencide olmayan güncelleme iznini de gerektirir)
+    await this.runCloudWrite(
+      () => supabase.from('messages').insert(this.messageToRow(newMsg)),
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Mesaj gönderilemedi'
+    );
 
     return newMsg;
   }
 
   public async markMessageAsRead(id: string): Promise<void> {
+    const prevMessages = this.messages;
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, read: true } : m));
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('messages').update({ read: true }).eq('id', id);
-      if (error) console.error('[MessagesSync] Error updating message read status:', error);
-    } catch (err) {
-      console.error('[MessagesSync] Exception marking message as read:', err);
-    }
+    // "Okundu" işareti kritik değil: başarısız olursa sessizce geri alınır
+    await this.runCloudWrite(
+      () => supabase.from('messages').update({ read: true }).eq('id', id),
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Mesaj okundu olarak işaretlenemedi',
+      { silent: true }
+    );
   }
 
   public async replyToMessage(id: string, replyText: string): Promise<void> {
     const nowIso = new Date().toISOString();
+    const prevMessages = this.messages;
     this.messages = this.messages.map((m) =>
       m.id === id
         ? {
@@ -6235,29 +6413,34 @@ export class DataService {
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('messages').update({
-        teacher_reply: replyText,
-        replied_at: nowIso,
-        read: true,
-      }).eq('id', id);
-      if (error) console.error('[MessagesSync] Error saving reply to Supabase:', error);
-    } catch (err) {
-      console.error('[MessagesSync] Exception replying to message:', err);
-    }
+    await this.runCloudWrite(
+      () =>
+        supabase
+          .from('messages')
+          .update({ teacher_reply: replyText, replied_at: nowIso, read: true })
+          .eq('id', id),
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Cevap buluta kaydedilemedi'
+    );
   }
 
   public async deleteMessage(id: string): Promise<void> {
+    const prevMessages = this.messages;
     this.messages = this.messages.filter((m) => m.id !== id);
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('messages').delete().eq('id', id);
-      if (error) console.error('[MessagesSync] Error deleting message from Supabase:', error);
-    } catch (err) {
-      console.error('[MessagesSync] Exception deleting message:', err);
-    }
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('messages', [id]),
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Mesaj buluttan silinemedi'
+    );
   }
 
   // --- HELPER QUERIES ---
@@ -6746,30 +6929,22 @@ export class DataService {
       createdAt: new Date().toISOString(),
       read: false,
     };
-    this.messages.unshift(newMsg);
-    this.messages.sort(
+    const prevMessages = this.messages;
+    this.messages = [newMsg, ...this.messages].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
     this.notify();
 
-    try {
-      const { error } = await supabase.from('messages').upsert({
-        id: newMsg.id,
-        student_id: newMsg.studentId,
-        student_name: newMsg.studentName,
-        student_class: newMsg.studentClass,
-        student_avatar: newMsg.studentAvatar,
-        subject: newMsg.subject,
-        text: newMsg.text,
-        link_url: newMsg.linkUrl,
-        created_at: newMsg.createdAt,
-        read: newMsg.read,
-      });
-      if (error) console.error('[MessagesSync] Error sending message to Supabase:', error);
-    } catch (err) {
-      console.error('[MessagesSync] Exception sending message:', err);
-    }
+    // Yeni mesaj: "insert" kullanılır (upsert, öğrencide olmayan güncelleme iznini de gerektirir)
+    await this.runCloudWrite(
+      () => supabase.from('messages').insert(this.messageToRow(newMsg)),
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Mesaj gönderilemedi'
+    );
 
     return newMsg;
   }
@@ -7258,7 +7433,7 @@ export class DataService {
         await supabase.from('homeworks').upsert({
           id: '__system_sync_question_logs__',
           title: 'Question Logs Sync',
-          description: JSON.stringify(this.questionLogs.slice(-250)),
+          description: JSON.stringify(this.questionLogs.slice(0, 250)),
           subject: 'SystemSync',
           assigned_to: '__SYSTEM__',
           due_date: '2099-12-31',
@@ -7293,7 +7468,7 @@ export class DataService {
         await supabase.from('homeworks').upsert({
           id: '__system_sync_question_logs__',
           title: 'Question Logs Sync',
-          description: JSON.stringify(this.questionLogs.slice(-250)),
+          description: JSON.stringify(this.questionLogs.slice(0, 250)),
           subject: 'SystemSync',
           assigned_to: '__SYSTEM__',
           due_date: '2099-12-31',
@@ -7346,7 +7521,7 @@ export class DataService {
       await supabase.from('homeworks').upsert({
         id: '__system_sync_question_logs__',
         title: 'Question Logs Sync',
-        description: JSON.stringify(this.questionLogs.slice(-250)),
+        description: JSON.stringify(this.questionLogs.slice(0, 250)),
         subject: 'SystemSync',
         assigned_to: '__SYSTEM__',
         due_date: '2099-12-31',

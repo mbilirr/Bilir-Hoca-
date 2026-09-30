@@ -825,7 +825,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
       let savedClassId = '';
       if (editingClass) {
-        dataService.updateClass(editingClass.id, {
+        await dataService.updateClass(editingClass.id, {
           name: finalClassName,
           schoolLevel: classSchoolLevel,
           gradeLevel: classGradeLevel,

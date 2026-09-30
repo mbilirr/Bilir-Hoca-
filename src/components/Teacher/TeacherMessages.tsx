@@ -47,8 +47,12 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     e.preventDefault();
     if (!activeMessage || !replyText.trim()) return;
 
-    await dataService.replyToMessage(activeMessage.id, replyText.trim());
-    setReplyText('');
+    try {
+      await dataService.replyToMessage(activeMessage.id, replyText.trim());
+      setReplyText('');
+    } catch {
+      // Hata uyarısı zaten gösterildi; yazılan cevap kaybolmasın diye kutu temizlenmez
+    }
   };
 
   return (
