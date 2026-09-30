@@ -1,10 +1,19 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// GÜVENLİK: Yalnızca uygulamanın kendi adreslerinden gelen tarayıcı isteklerine izin verilir.
+// (bilir-hoca.vercel.app ve bu projenin Vercel önizleme adresleri)
+const ALLOWED_ORIGIN_PATTERN = /^https:\/\/bilir-hoca(-[a-z0-9-]+)?\.vercel\.app$/;
+const DEFAULT_ORIGIN = 'https://bilir-hoca.vercel.app';
+
+function buildCorsHeaders(origin: string | null): Record<string, string> {
+  const allowed = origin && ALLOWED_ORIGIN_PATTERN.test(origin) ? origin : DEFAULT_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  };
+}
 
 // Generates a clean, synthetic email compliant with Supabase GoTrue domain checks
 export function generateSyntheticEmail(type: 'student' | 'teacher', identifier: string): string {
@@ -29,6 +38,8 @@ export function generateRandomPassword(length = 8): string {
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+
   // CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -94,23 +105,8 @@ Deno.serve(async (req: Request) => {
       isCallerAdmin = true;
     }
 
-    // C) Veritabanı Teachers Tablosundaki Admin Statüsü Kontrolü
-    if (!isCallerAdmin) {
-      const { data: teacherRow } = await supabaseAdmin
-        .from('teachers')
-        .select('is_admin, isAdmin, role, status')
-        .or(`auth_user_id.eq.${callerUser.id},email.eq.${callerUser.email}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (
-        teacherRow &&
-        (teacherRow.is_admin === true || teacherRow.isAdmin === true || teacherRow.role === 'admin') &&
-        teacherRow.status !== 'suspended'
-      ) {
-        isCallerAdmin = true;
-      }
-    }
+    // Not: Öğretmen tablosundaki is_admin alanına GÜVENİLMEZ (öğretmen kendi kaydını düzenleyebilir).
+    // Yönetici yalnızca Supabase hesabındaki app_metadata rolünden (veya baş yönetici e-postasından) anlaşılır.
 
     // Çağıran kişi admin değilse işlemi anında 403 ile reddet
     if (!isCallerAdmin) {

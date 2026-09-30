@@ -202,18 +202,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const teacherName = currentTeacher?.name || '';
   const teacherBranch = currentTeacher?.branch || 'Fen Bilgisi Öğretmeni';
-  const nameLen = teacherName.length;
-  const teacherNameFontClass =
-    nameLen > 24
-      ? 'text-[10px] sm:text-[11px] md:text-xs'
-      : nameLen > 16
-      ? 'text-[10px] sm:text-xs md:text-[13px]'
-      : 'text-[11px] sm:text-[13px] md:text-sm';
-  const branchLen = teacherBranch.length;
-  const teacherBranchFontClass =
-    branchLen > 22
-      ? 'text-[8px] sm:text-[9px] md:text-[10px]'
-      : 'text-[8.5px] sm:text-[10px] md:text-[11px]';
 
   const teacherInitials = currentTeacher?.name
     ? currentTeacher.name
@@ -296,9 +284,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     <>
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between min-h-[3.5rem] sm:min-h-[4rem] py-1 sm:py-1.5 gap-1.5 sm:gap-3 flex-nowrap w-full">
+        <div className="flex items-center justify-between min-h-[3.25rem] sm:min-h-[4rem] py-1 sm:py-1.5 gap-1 sm:gap-3 flex-nowrap w-full">
           {/* Logo & Modül Butonu: Kep Resminin Yanında Tam Solda Çalışma Modülü */}
-          <div className="flex items-center space-x-1.5 sm:space-x-3 flex-nowrap min-w-0 shrink-0">
+          <div className="flex items-center space-x-1 sm:space-x-3 flex-nowrap min-w-0 shrink">
             <button
               type="button"
               onClick={() => {
@@ -312,34 +300,34 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {isTeacherSession && currentTeacher ? (
-              <div className="flex items-center space-x-1.5 sm:space-x-2 flex-nowrap min-w-0">
+              <div className="flex items-center space-x-1 sm:space-x-2 flex-nowrap min-w-0 shrink">
                 {/* Öğretmen Çalışma Modül Butonu: Tam Solda, Turuncu Yanan Sönen Işık Efektli */}
                 {onSelectTeacherTab && (
-                  <div className="relative shrink-0" ref={moduleDropdownRef}>
+                  <div className="relative min-w-0 shrink" ref={moduleDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setIsModuleOpen(!isModuleOpen)}
                       aria-expanded={isModuleOpen}
                       aria-haspopup="true"
                       id="teacher-module-sticky-btn"
-                      className={`px-1.5 sm:px-3 lg:px-3.5 py-1 sm:py-2 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 transition-all cursor-pointer border-2 shadow-lg whitespace-nowrap shrink-0 ${
+                      className={`px-1.5 sm:px-3 lg:px-3.5 py-1 sm:py-2 rounded-xl sm:rounded-2xl font-black text-xs sm:text-sm flex items-center space-x-1 sm:space-x-2 transition-all cursor-pointer border-2 shadow-lg min-w-0 shrink ${
                         isModuleOpen
                           ? 'bg-orange-600 text-white border-orange-400 shadow-orange-500/50 ring-2 ring-orange-400/60 scale-[1.01]'
                           : 'bg-gradient-to-r from-orange-950/70 via-slate-900 to-orange-950/70 hover:from-orange-900/80 hover:to-slate-850 text-white border-orange-500/85 hover:border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.45)] hover:shadow-[0_0_30px_rgba(249,115,22,0.7)]'
                       }`}
                     >
                       {/* Turuncu Yanıp Sönen Canlı Işık Efekti */}
-                      <span className="relative flex h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 shrink-0" title="Aktif Çalışma Işığı">
+                      <span className="relative flex h-2 w-2 sm:h-3.5 sm:w-3.5 shrink-0" title="Aktif Çalışma Işığı">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-90 duration-1000"></span>
                         <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-[0_0_14px_#f97316] ring-2 ring-amber-200"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 sm:h-3.5 sm:w-3.5 bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 shadow-[0_0_14px_#f97316] ring-1 sm:ring-2 ring-amber-200"></span>
                       </span>
 
-                      <div className="flex items-center space-x-1 sm:space-x-1.5">
-                        <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 font-black text-[11px] sm:text-xs md:text-sm shadow-md flex items-center space-x-1 sm:space-x-1.5">
-                          <DisplayModuleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-950 stroke-[2.5]" />
+                      <div className="flex items-center space-x-1 sm:space-x-1.5 min-w-0">
+                        <span className="px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl bg-orange-500 hover:bg-orange-400 text-slate-950 font-black text-[10px] sm:text-xs md:text-sm shadow-md flex items-center space-x-1 sm:space-x-1.5 min-w-0">
+                          <DisplayModuleIcon className="w-3 h-3 sm:w-4 sm:h-4 text-slate-950 stroke-[2.5] shrink-0" />
                           <span className="hidden lg:inline tracking-tight">{buttonDisplayTitle}</span>
-                          <span className="lg:hidden tracking-tight">{buttonShortDisplayTitle}</span>
+                          <span className="lg:hidden tracking-tight truncate max-w-[65px] sm:max-w-[130px]">{buttonShortDisplayTitle}</span>
                         </span>
                       </div>
 
@@ -449,7 +437,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Right Action & Profile info */}
-          <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 shrink">
+          <div className="flex items-center space-x-1 sm:space-x-2.5 min-w-0 shrink">
             {/* Google Calendar shortcut */}
             <a
               href="https://calendar.google.com"
@@ -466,19 +454,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
-                className={`items-center space-x-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0 ${
+                className={`items-center space-x-1 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm shrink-0 ${
                   pendingTeachersCount > 0
-                    ? 'flex bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border-2 border-amber-400 ring-2 ring-amber-400/40 shadow-amber-500/30 animate-pulse'
+                    ? 'flex bg-amber-500/30 hover:bg-amber-500/40 text-amber-200 border border-amber-400 ring-1 ring-amber-400/40 shadow-amber-500/30 animate-pulse'
                     : 'hidden lg:inline-flex bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30'
                 }`}
                 title="Öğretmen Başvuruları & Yönetici Yetkilendirme"
               >
-                <ShieldCheck className={`w-4 h-4 ${pendingTeachersCount > 0 ? 'text-amber-300 animate-bounce' : 'text-indigo-400'}`} />
-                <span className={pendingTeachersCount > 0 ? 'inline' : 'hidden sm:inline'}>
+                <ShieldCheck className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${pendingTeachersCount > 0 ? 'text-amber-300 animate-bounce' : 'text-indigo-400'}`} />
+                <span className={pendingTeachersCount > 0 ? 'hidden md:inline' : 'hidden sm:inline'}>
                   {pendingTeachersCount > 0 ? '🔔 Onay:' : 'Öğretmen Yönetimi'}
                 </span>
                 {pendingTeachersCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                  <span className="px-1 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[9px] sm:text-[10px] font-black">
                     {pendingTeachersCount}
                   </span>
                 )}
@@ -490,7 +478,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* TEACHER LOGGED IN */}
             {isTeacherSession && currentTeacher ? (
-              <div className="flex items-center space-x-1.5 sm:space-x-2.5 pl-1.5 sm:pl-2 border-l border-slate-700 min-w-0 shrink">
+              <div className="flex items-center space-x-1 sm:space-x-2 pl-1 sm:pl-2 border-l border-slate-700 min-w-0 shrink">
                 {/* 1. Öğretmen Resminin Değiştirildiği Bölüm (Takvim ile Bilgileri Güncelleme Butonunun Arasında) */}
                 <div
                   className="relative group cursor-pointer shrink-0"
@@ -498,7 +486,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="Profil Resmini Değiştir / Fotoğraf Yükle (Tıklayın)"
                   id="navbar-teacher-avatar-trigger"
                 >
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-2 ring-indigo-400/80 hover:ring-indigo-300 shadow-md shadow-indigo-950/70 flex items-center justify-center overflow-hidden transition-all group-hover:scale-105">
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-indigo-700 via-indigo-600 to-blue-500 ring-1.5 sm:ring-2 ring-indigo-400/80 hover:ring-indigo-300 shadow-md shadow-indigo-950/70 flex items-center justify-center overflow-hidden transition-all group-hover:scale-105 shrink-0">
                     {currentTeacher.avatar ? (
                       currentTeacher.avatar.startsWith('http') || currentTeacher.avatar.startsWith('data:') ? (
                         <img
@@ -507,12 +495,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                           className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
-                        <span className="text-lg sm:text-2xl select-none leading-none">
+                        <span className="text-base sm:text-2xl select-none leading-none">
                           {currentTeacher.avatar}
                         </span>
                       )
                     ) : (
-                      <span className="font-black text-xs sm:text-sm text-white tracking-wider">
+                      <span className="font-black text-[10px] sm:text-sm text-white tracking-wider">
                         {teacherInitials}
                       </span>
                     )}
@@ -520,17 +508,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Fotoğraf Değiştir İpucu / Overlay */}
                   <div className="absolute inset-0 bg-black/45 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="w-3.5 h-3.5 text-white drop-shadow-md" />
+                    <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white drop-shadow-md" />
                   </div>
 
                   {/* Köşedeki Küçük Kamera Rozeti */}
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center border-2 border-slate-900 shadow-sm transition-transform group-hover:scale-110">
-                    <Camera className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-4.5 sm:h-4.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center border-1.5 sm:border-2 border-slate-900 shadow-sm transition-transform group-hover:scale-110">
+                    <Camera className="w-1.5 h-1.5 sm:w-2.5 sm:h-2.5" />
                   </div>
 
                   {currentTeacher.isAdmin && (
                     <span
-                      className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] shadow-sm font-black"
+                      className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[8px] sm:text-[10px] shadow-sm font-black"
                       title="Yönetici (Admin)"
                     >
                       👑
@@ -539,11 +527,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
 
                 {/* 2. Öğretmen Bilgileri ve Menü Butonu */}
-                <div className="relative min-w-0" ref={teacherMenuRef}>
+                <div className="relative min-w-0 shrink" ref={teacherMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsTeacherMenuOpen(!isTeacherMenuOpen)}
-                    className={`flex items-center space-x-1 sm:space-x-2 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer shadow-sm min-w-0 max-w-[110px] xs:max-w-[145px] sm:max-w-[200px] md:max-w-none ${
+                    className={`flex items-center space-x-1 sm:space-x-1.5 px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer shadow-sm min-w-0 max-w-[100px] sm:max-w-[175px] md:max-w-none ${
                       isTeacherMenuOpen
                         ? 'bg-slate-800/95 border-indigo-500 text-white ring-2 ring-indigo-500/30'
                         : 'bg-gradient-to-b from-slate-850 to-slate-900 hover:from-slate-800 hover:to-slate-850 border-slate-700/80 hover:border-indigo-400 text-slate-200 hover:text-white'
@@ -553,10 +541,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     {/* Öğretmen İsmi ve Branş Yazısı */}
                     <div className="flex flex-col text-left justify-center min-w-0 overflow-hidden pr-0.5">
-                      <span className={`${teacherNameFontClass} font-black text-white tracking-tight uppercase leading-tight truncate`}>
+                      <span className="text-[10px] sm:text-[12px] md:text-sm font-black text-white tracking-tight uppercase leading-tight truncate">
                         {teacherName}
                       </span>
-                      <span className={`${teacherBranchFontClass} font-bold text-amber-300 leading-tight truncate mt-0.5`}>
+                      <span className="text-[7.5px] sm:text-[9.5px] md:text-[11px] font-bold text-amber-300 leading-tight truncate mt-0.5">
                         {teacherBranch}
                       </span>
                     </div>
@@ -572,7 +560,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     {/* Açılır Menü Oku */}
                     <ChevronDown
-                      className={`w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                      className={`w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
                         isTeacherMenuOpen ? 'rotate-180 text-indigo-400' : ''
                       }`}
                     />
@@ -580,7 +568,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Açılır Pencere / Dropdown Menü */}
                   {isTeacherMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                       <div className="px-4 py-2 border-b border-slate-800 mb-1">
                         <div className="flex items-center justify-between gap-1">
                           <p className="text-xs font-bold text-white truncate">

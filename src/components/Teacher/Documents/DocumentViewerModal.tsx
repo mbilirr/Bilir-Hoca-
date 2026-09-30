@@ -17,6 +17,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { TeacherDocument } from '../../../types';
+import { sanitizeHtml } from '../../../lib/sanitizeHtml';
 
 interface DocumentViewerModalProps {
   document: TeacherDocument | null;
@@ -25,13 +26,20 @@ interface DocumentViewerModalProps {
   onDownload: (doc: TeacherDocument) => void;
 }
 
-export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
+// Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
+export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = (props) => {
+  if (!props.isOpen || !props.document) return null;
+  return <DocumentViewerModalContent {...props} />;
+};
+
+const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
   document,
   isOpen,
   onClose,
   onDownload,
 }) => {
-  if (!isOpen || !document) return null;
+  // GÜVENLİK: belge önizlemesi ekrana basılmadan önce zararlı koddan temizlenir
+  const safePreviewHtml = sanitizeHtml(document.htmlPreview);
 
   const [activeSheetIndex, setActiveSheetIndex] = useState(0);
   const [sheetSearchQuery, setSheetSearchQuery] = useState('');
@@ -361,7 +369,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 {document.htmlPreview ? (
                   <div
                     className="prose prose-slate max-w-none text-slate-800"
-                    dangerouslySetInnerHTML={{ __html: document.htmlPreview }}
+                    dangerouslySetInnerHTML={{ __html: safePreviewHtml }}
                   />
                 ) : (
                   <div className="space-y-4">
@@ -396,7 +404,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 >
                   <div className="w-full max-w-4xl bg-white text-slate-900 rounded-lg shadow-2xl p-8 sm:p-12 border border-slate-300 min-h-[850px] relative">
                     <div
-                      dangerouslySetInnerHTML={{ __html: document.htmlPreview }}
+                      dangerouslySetInnerHTML={{ __html: safePreviewHtml }}
                     />
                     <div className="mt-8 pt-4 border-t border-slate-200 flex justify-between text-xs text-slate-400">
                       <span>{document.title}</span>

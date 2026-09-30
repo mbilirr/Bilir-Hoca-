@@ -22,6 +22,7 @@ import mammoth from 'mammoth';
 import confetti from 'canvas-confetti';
 import { TeacherDocument, DocumentCategory } from '../../../types';
 import { dataService } from '../../../services/dataService';
+import { sanitizeHtml } from '../../../lib/sanitizeHtml';
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
@@ -61,13 +62,17 @@ const ALL_SUBJECTS = [
   'Edebiyat',
 ];
 
-export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
+// Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
+export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = (props) => {
+  if (!props.isOpen) return null;
+  return <UploadDocumentModalContent {...props} />;
+};
+
+const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
   isOpen,
   onClose,
   onUploadSuccess,
 }) => {
-  if (!isOpen) return null;
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState('');
@@ -206,7 +211,8 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
       if (fileFormat === 'docx') {
         try {
           const result = await mammoth.convertToHtml({ arrayBuffer });
-          htmlPreview = result.value;
+          // GÜVENLİK: Word'den üretilen HTML kaydedilmeden önce temizlenir
+          htmlPreview = sanitizeHtml(result.value);
         } catch (err) {
           console.warn('Mammoth docx parse error:', err);
         }
