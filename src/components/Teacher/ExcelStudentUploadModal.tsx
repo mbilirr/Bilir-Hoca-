@@ -15,14 +15,17 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ClassGroup, Student } from '../../types';
+import { ClassGroup, Student, StudentAccountResult } from '../../types';
 import { dataService } from '../../services/dataService';
 
 interface ExcelStudentUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   classes: ClassGroup[];
+  existingStudents?: Student[];
   onUploadSuccess?: (createdStudents: Student[]) => void;
+  // Hesapları açılan öğrencilerin giriş bilgileri (şifreler yalnızca bu an gösterilir)
+  onAccountsCreated?: (result: StudentAccountResult) => void;
 }
 
 interface ParsedStudentRow {
@@ -35,6 +38,7 @@ interface ParsedStudentRow {
   studentNumber: string;
   email: string;
   phone: string;
+  password: string;
   isNewClass: boolean;
   isValid: boolean;
   validationError?: string;
@@ -44,8 +48,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
   isOpen,
   onClose,
   classes,
+  existingStudents = [],
   onUploadSuccess,
+  onAccountsCreated,
 }) => {
+  const isAdmin = dataService.isCurrentUserAdmin();
   const [activeInputMode, setActiveInputMode] = useState<'file' | 'paste'>('file');
   const [pastedText, setPastedText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedStudentRow[]>([]);
@@ -107,6 +114,29 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     };
   };
 
+  // Satırları doğrula: numara zorunlu/benzersiz, sınıf sistemde olmalı (yalnızca yönetici yeni sınıf açabilir)
+  const validateRows = (rows: ParsedStudentRow[], allowNewClasses: boolean): ParsedStudentRow[] => {
+    const counts = new Map<string, number>();
+    rows.forEach((r) => {
+      const k = r.studentNumber.trim().toLowerCase();
+      if (k) counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    const taken = new Set(existingStudents.map((s) => (s.studentNumber || '').trim().toLowerCase()).filter(Boolean));
+    return rows.map((r) => {
+      const num = r.studentNumber.trim();
+      let error: string | undefined;
+      if (r.fullName.trim().length < 2) error = 'İsim bilgisi geçersiz';
+      else if (!num) error = 'Öğrenci no zorunlu (giriş adı)';
+      else if (!/^[0-9A-Za-z_-]{1,20}$/.test(num)) error = 'Numara yalnızca rakam/harf olmalı';
+      else if ((counts.get(num.toLowerCase()) || 0) > 1) error = 'Numara listede tekrar ediyor';
+      else if (taken.has(num.toLowerCase())) error = 'Bu numara sistemde kayıtlı';
+      else if (r.password && r.password.trim().length > 0 && r.password.trim().length < 6) error = 'Şifre en az 6 karakter';
+      else if (r.isNewClass && !(isAdmin && allowNewClasses)) error = isAdmin ? 'Sınıf sistemde yok' : 'Sınıf yok / yetkiniz yok';
+      else if (!r.isNewClass && !r.matchedClassId) error = 'Sınıf seçilmedi';
+      return { ...r, isValid: !error, validationError: error };
+    });
+  };
+
   // Process raw object rows from XLSX or CSV
   const processRawData = (rows: Record<string, unknown>[]) => {
     if (!rows || rows.length === 0) {
@@ -152,15 +182,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
       ).trim();
 
       const rawClass = getVal('sinif', 'sinifi', 'sube', 'subesi', 'class', 'grade', 'alan', 'sinif/sube');
-      const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id') || `${1000 + index + Math.floor(Math.random() * 8999)}`;
+      const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id');
       const email = getVal('eposta', 'e-posta', 'email', 'mail') || '';
       const phone = getVal('telefon', 'tel', 'phone', 'gsm', 'veli tel') || '';
+      const password = getVal('sifre', 'parola', 'password');
 
       const match = findMatchingClass(rawClass);
-
-      // Validate
-      const isValid = finalFullName.length >= 2;
-      const validationError = !isValid ? 'İsim bilgisi geçersiz' : undefined;
 
       mapped.push({
         id: `parsed-${index}-${Date.now()}`,
@@ -172,13 +199,13 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         studentNumber,
         email,
         phone,
+        password,
         isNewClass: match.isNew,
-        isValid,
-        validationError,
+        isValid: false,
       });
     });
 
-    setParsedRows(mapped);
+    setParsedRows(validateRows(mapped, autoCreateClasses));
     setErrorMessage(null);
     setSuccessMessage(`${mapped.length} adet öğrenci satırı başarıyla ayrıştırıldı. Lütfen aşağıdaki önizlemeyi kontrol ediniz.`);
   };
@@ -287,13 +314,13 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
   // Remove a row from parsed rows
   const handleRemoveRow = (id: string) => {
-    setParsedRows((prev) => prev.filter((r) => r.id !== id));
+    setParsedRows((prev) => validateRows(prev.filter((r) => r.id !== id), autoCreateClasses));
   };
 
   // Update a row in parsed rows
   const handleUpdateRow = (id: string, field: keyof ParsedStudentRow, value: string) => {
     setParsedRows((prev) =>
-      prev.map((row) => {
+      validateRows(prev.map((row) => {
         if (row.id !== id) return row;
         const updated = { ...row, [field]: value };
         if (field === 'firstName' || field === 'lastName') {
@@ -306,11 +333,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           updated.isNewClass = match.isNew;
         }
         return updated;
-      })
+      }), autoCreateClasses)
     );
   };
 
-  // Save all parsed valid students to dataService
+  // Geçerli satırları kaydet: her öğrenci için kayıt + gerçek giriş hesabı açılır
   const handleCommitUpload = async () => {
     const validRows = parsedRows.filter((r) => r.isValid);
     if (validRows.length === 0) {
@@ -319,38 +346,46 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     }
 
     setIsProcessing(true);
+    setErrorMessage(null);
 
     try {
-      const studentPayloads = validRows.map((row) => {
-        const rawFirstName = row.firstName || row.fullName.trim().split(' ')[0] || 'ogrenci';
-        const cleanAd = normalizeStr(rawFirstName).toLowerCase().replace(/[^a-z0-9]/g, '') || 'ogrenci';
-        return {
-          name: row.fullName,
-          username: cleanAd,
-          email: row.email ? row.email.trim() : '',
-          password: '54321',
-          mustChangePassword: true,
-          classId: row.matchedClassId || defaultClassId,
-          className: row.className,
-          studentNumber: row.studentNumber,
-          phone: row.phone,
-          autoCreateClass: autoCreateClasses,
-        };
-      });
-
-      const created = await dataService.registerStudentsBulk(studentPayloads);
-
-      if (onUploadSuccess) {
-        onUploadSuccess(created);
+      // Yalnızca yönetici: Excel'de olup sistemde olmayan sınıfları önce oluştur
+      const createdClassIds = new Map<string, string>();
+      if (isAdmin && autoCreateClasses) {
+        const newNames = Array.from(new Set(validRows.filter((r) => r.isNewClass).map((r) => r.className.trim())));
+        for (const name of newNames) {
+          const created = await dataService.addClass({
+            name,
+            branch: 'Genel',
+            academicYear: '2026-2027',
+            description: 'Excel yüklemesi ile oluşturuldu',
+          });
+          createdClassIds.set(name, created.id);
+        }
       }
 
-      setSuccessMessage(`${created.length} öğrenci başarıyla sisteme aktarıldı ve sınıflarına yerleştirildi!`);
-      setTimeout(() => {
-        onClose();
-      }, 1200);
-    } catch (err) {
+      const result = await dataService.createStudentsWithAccounts(
+        validRows.map((row) => ({
+          name: row.fullName,
+          studentNumber: row.studentNumber.trim(),
+          classId: row.isNewClass ? createdClassIds.get(row.className.trim()) || '' : row.matchedClassId || defaultClassId,
+          email: row.email ? row.email.trim() : '',
+          phone: row.phone,
+          password: row.password?.trim() || undefined,
+        }))
+      );
+
+      if (onUploadSuccess) {
+        onUploadSuccess(result.created.map((c) => c.student));
+      }
+      if (onAccountsCreated) {
+        onAccountsCreated(result);
+      }
+      setParsedRows([]);
+      onClose();
+    } catch (err: any) {
       console.error('Commit error:', err);
-      setErrorMessage('Öğrenciler kaydedilirken bir hata oluştu.');
+      setErrorMessage(err?.message || 'Öğrenciler kaydedilirken bir hata oluştu.');
     } finally {
       setIsProcessing(false);
     }
@@ -650,15 +685,26 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     <p className="font-semibold text-amber-300">
                       Excel'de yeni sınıflar tespit edildi: {detectedNewClasses.join(', ')}
                     </p>
-                    <label className="flex items-center space-x-2 cursor-pointer text-slate-300 hover:text-white">
-                      <input
-                        type="checkbox"
-                        checked={autoCreateClasses}
-                        onChange={(e) => setAutoCreateClasses(e.target.checked)}
-                        className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>Bu sınıfları sistemde otomatik olarak yeni sınıf grubu olarak oluştur</span>
-                    </label>
+                    {isAdmin ? (
+                      <label className="flex items-center space-x-2 cursor-pointer text-slate-300 hover:text-white">
+                        <input
+                          type="checkbox"
+                          checked={autoCreateClasses}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setAutoCreateClasses(checked);
+                            setParsedRows((prev) => validateRows(prev, checked));
+                          }}
+                          className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>Bu sınıfları sistemde otomatik olarak yeni sınıf grubu olarak oluştur</span>
+                      </label>
+                    ) : (
+                      <p className="text-slate-300">
+                        Bu sınıflar sistemde yok veya yetkiniz bulunmuyor. Satırlardaki sınıf adını yetkili olduğunuz bir
+                        sınıfla değiştiriniz ya da yöneticinizden sınıf açmasını isteyiniz.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -764,8 +810,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                               Hazır
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                              Hatalı
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              title={row.validationError}
+                            >
+                              {row.validationError || 'Hatalı'}
                             </span>
                           )}
                         </td>
@@ -803,7 +852,15 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                 Eğer tek bir sütunda <strong>"Ad Soyad"</strong> şeklinde yazılmışsa sistem bunu otomatik olarak ad ve soyada ayırır.
               </li>
               <li>
-                Excel'deki sınıf isimleri (örn: <em>12-A Sayısal</em>) sistemdeki sınıflarla otomatik eşleştirilir. Eğer sınıf henüz yoksa otomatik olarak yeni sınıf oluşturulur.
+                Excel'deki sınıf isimleri (örn: <em>12-A Sayısal</em>) sistemdeki sınıflarla otomatik eşleştirilir.{' '}
+                {isAdmin ? 'Sınıf henüz yoksa (seçeneği işaretlerseniz) yeni sınıf oluşturulur.' : 'Yalnızca yetkili olduğunuz sınıflara öğrenci ekleyebilirsiniz.'}
+              </li>
+              <li>
+                <strong>Öğrenci No zorunludur</strong>: öğrenci sisteme bu numarayla giriş yapar ve her öğrencide farklı olmalıdır.
+              </li>
+              <li>
+                İsteğe bağlı <strong>Şifre</strong> sütunu ekleyebilirsiniz (en az 6 karakter). Boş bırakılırsa sistem her öğrenciye
+                rastgele şifre üretir. Aktarım bitince tüm giriş bilgilerini Excel olarak indirebilirsiniz.
               </li>
             </ul>
           </div>

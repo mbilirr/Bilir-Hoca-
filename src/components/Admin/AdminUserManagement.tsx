@@ -30,9 +30,11 @@ import {
   ArrowRight,
   Shield,
   CheckCircle2,
+  UserPlus,
 } from 'lucide-react';
 import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
+import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 
 interface AdminUserManagementProps {
   currentAdmin?: Teacher | null;
@@ -98,6 +100,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [selectedTargetRole, setSelectedTargetRole] = useState<SystemRole>('teacher');
+  const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text, type });
@@ -136,32 +139,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       setIsRefreshing(false);
     }
   };
-
-  // Route Guard: Sadece yöneticiler erişebilir
-  const isSuperAdmin = Boolean(currentAdmin?.isAdmin);
-
-  if (!isSuperAdmin) {
-    return (
-      <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
-        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold text-white">Yetkisiz Erişim (403 Forbidden)</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Bu alan <strong>Rol Tabanlı Yetkilendirme (RBAC)</strong> kuralları gereği yalnızca Kurum Yöneticisi (Admin) erişimine açıktır.
-        </p>
-        <div className="pt-2">
-          <button
-            type="button"
-            onClick={onNavigateHome}
-            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all border border-slate-700 cursor-pointer"
-          >
-            Öğretmen Paneline Dön
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   // Summary Metrics
   const stats = useMemo(() => {
@@ -205,6 +182,33 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       return true;
     });
   }, [users, roleFilter, statusFilter, searchQuery]);
+
+  // Route Guard: Sadece yöneticiler erişebilir
+  const isSuperAdmin = Boolean(currentAdmin?.isAdmin);
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Yetkisiz Erişim (403 Forbidden)</h2>
+        <p className="text-sm text-slate-400 leading-relaxed">
+          Bu alan <strong>Rol Tabanlı Yetkilendirme (RBAC)</strong> kuralları gereği yalnızca Kurum Yöneticisi (Admin) erişimine açıktır.
+        </p>
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onNavigateHome}
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+          >
+            Öğretmen Paneline Dön
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   // Open Edit Form
   const handleOpenEdit = (user: UnifiedUser) => {
@@ -260,12 +264,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   // Generate Random Password
   const handleGeneratePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!#@';
-    let res = 'Egitim#';
-    for (let i = 0; i < 4; i++) {
-      res += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    res += '!';
+    const res = dataService.generatePassword();
     setEditFormData((prev) => ({ ...prev, newPassword: res }));
     setShowPassword(true);
     setCopiedPassword(false);
@@ -434,6 +433,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <div className="flex items-center space-x-2 self-start md:self-auto shrink-0">
             <button
               type="button"
+              onClick={() => setIsCreateTeacherOpen(true)}
+              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+              title="Yeni öğretmen için giriş hesabı aç"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Yeni Öğretmen Hesabı</span>
+            </button>
+            <button
+              type="button"
               onClick={handleRefresh}
               disabled={isRefreshing}
               className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-750 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
@@ -445,6 +453,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Öğrenci kayıt başvuruları (onay / red) */}
+      <StudentApplicationsPanel classes={classes} onToast={showToast} />
 
       {/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
@@ -930,15 +941,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             </button>
                           )}
 
-                          {/* Rol Değiştir Butonu */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRoleModal(u)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-amber-300 border border-slate-700/80 transition-colors cursor-pointer"
-                            title="Rol ve Yetki Değiştir (RBAC)"
-                          >
-                            <Shield className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Rol Değiştir Butonu (öğretmen <-> yönetici) */}
+                          {u.role !== 'student' && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRoleModal(u)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-amber-300 border border-slate-700/80 transition-colors cursor-pointer"
+                              title="Öğretmen / Yönetici yetkisi"
+                            >
+                              <Shield className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
                           {/* Bilgi & Şifre Düzenle (Admin Override) */}
                           <button
@@ -1297,34 +1310,12 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </div>
               </div>
 
-              {/* Student */}
-              <div
-                onClick={() => setSelectedTargetRole('student')}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start space-x-3 ${
-                  selectedTargetRole === 'student'
-                    ? 'bg-emerald-500/15 border-emerald-500/60 ring-2 ring-emerald-500/20 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                }`}
-              >
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <School className="w-4 h-4" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white">Öğrenci Portalı</span>
-                    {selectedTargetRole === 'student' && <Check className="w-4 h-4 text-emerald-400" />}
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Yalnızca öğrenci portalına erişebilir; verilen ödevleri ve katıldığı etütleri görüntüleyebilir.
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* Notice */}
             <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Rol değişikliği veritabanında anında geçerli olur ve kullanıcının yetki alanı güncellenir.</span>
+              <span>Yetki, kullanıcının giriş hesabına işlenir. Kullanıcı açık oturumdaysa yeni yetkisi çıkış yapıp tekrar girdiğinde (en geç 1 saat içinde) tamamen geçerli olur.</span>
             </div>
 
             {/* Actions */}
@@ -1661,6 +1652,219 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           </div>
         </div>
       )}
+      {/* YENİ ÖĞRETMEN HESABI */}
+      <CreateTeacherAccountModal
+        isOpen={isCreateTeacherOpen}
+        onClose={() => setIsCreateTeacherOpen(false)}
+        onCreated={(name) => {
+          showToast(`✓ "${name}" için öğretmen hesabı açıldı.`, 'success');
+          loadData();
+        }}
+      />
     </div>
   );
 };
+
+// =============================================================================
+// Yeni öğretmen hesabı (yalnızca yönetici). Kayıt + giriş hesabı birlikte açılır.
+// =============================================================================
+interface CreateTeacherAccountModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: (name: string) => void;
+}
+
+const toUsernameSuggestion = (name: string) =>
+  name
+    .toLocaleLowerCase('tr')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]+/g, '.')
+    .replace(/^\.+|\.+$/g, '')
+    .replace(/\./g, '')
+    .slice(0, 30);
+
+const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({ onClose, onCreated }) => {
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
+  const [branch, setBranch] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState(() => dataService.generatePassword());
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [created, setCreated] = useState<{ name: string; username: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSaving(true);
+    try {
+      const res = await dataService.createTeacherAccount({ name, username, branch, email, password });
+      setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
+      onCreated(res.teacher.name);
+    } catch (err: any) {
+      setError(err?.message || 'Öğretmen hesabı açılamadı.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const credentialText = created
+    ? `Merhaba ${created.name},\nEğitim & Öğrenci Takip Sistemi öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${created.username}\nŞifre: ${created.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
+    : '';
+
+  const inputCls =
+    'w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500';
+
+  return (
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center">
+      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl p-6 space-y-4 my-auto">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center justify-center">
+              <UserPlus className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">Yeni Öğretmen Hesabı</h3>
+              <p className="text-xs text-slate-400">Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar.</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Kapat">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {created ? (
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs">
+              Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="block text-[10px] text-slate-500">Kullanıcı adı</span>
+                <span className="font-mono font-bold text-indigo-300 select-all">{created.username}</span>
+              </div>
+              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                <span className="block text-[10px] text-slate-500">Şifre</span>
+                <span className="font-mono font-bold text-amber-300 select-all">{created.password}</span>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(credentialText);
+                    setCopied(true);
+                  } catch {
+                    window.prompt('Kopyalamak için metni seçiniz:', credentialText);
+                  }
+                }}
+                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold border border-slate-700"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <span>Bilgileri Kopyala</span>
+              </button>
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+                Kapat
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs flex items-start space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">Ad Soyad *</label>
+              <input
+                required
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!usernameTouched) setUsername(toUsernameSuggestion(e.target.value));
+                }}
+                placeholder="Örn: Ayşe Demir"
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">Kullanıcı adı * (giriş adı)</label>
+              <input
+                required
+                value={username}
+                onChange={(e) => {
+                  setUsernameTouched(true);
+                  setUsername(e.target.value.toLowerCase());
+                }}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="Örn: aysedemir"
+                className={`${inputCls} font-mono`}
+              />
+              <p className="text-[10px] text-slate-500 mt-1">Küçük harf, rakam, - ve _ (Türkçe karakter ve boşluk olmadan).</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">Branş</label>
+                <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">E-posta (iletişim)</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-300 mb-1">Giriş şifresi *</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className={`${inputCls} font-mono font-bold`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setPassword(dataService.generatePassword())}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold border border-slate-700 shrink-0"
+                >
+                  🎲 Üret
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
+            </p>
+            <div className="flex justify-end space-x-2 pt-1">
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">
+                Vazgeç
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-bold"
+              >
+                {isSaving ? 'Hesap açılıyor...' : 'Hesabı Aç'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const CreateTeacherAccountModal: React.FC<CreateTeacherAccountModalProps> = (props) =>
+  props.isOpen ? <CreateTeacherAccountContent {...props} /> : null;

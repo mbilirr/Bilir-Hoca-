@@ -47,7 +47,10 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
   const [avatar, setAvatar] = useState(teacher.avatar || '');
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Kullanıcı adı giriş adıdır: yalnızca yönetici değiştirebilir
+  const canEditUsername = dataService.isCurrentUserAdmin();
 
   useEffect(() => {
     if (isOpen && teacher) {
@@ -98,7 +101,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -133,9 +136,10 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
     }
 
     try {
-      dataService.updateTeacherProfile(teacher.id, {
+      setIsSavingProfile(true);
+      await dataService.saveTeacherProfile(teacher.id, {
         name: cleanName,
-        username: cleanUsername,
+        ...(canEditUsername ? { username: cleanUsername } : {}),
         branch: branch.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -148,12 +152,14 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
         origin: { y: 0.6 },
       });
 
-      setSuccessMsg('Kullanıcı bilgileriniz ve kullanıcı adınız başarıyla ve kalıcı olarak güncellendi.');
+      setSuccessMsg('Bilgileriniz kaydedildi.');
       setTimeout(() => {
         onClose();
       }, 750);
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Güncelleme sırasında bir hata oluştu.');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -342,13 +348,18 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                readOnly={!canEditUsername}
                 placeholder="Örn: mbilir veya mehmetb"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className={`w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors ${
+                  canEditUsername ? 'text-white' : 'text-slate-400 cursor-not-allowed'
+                }`}
                 required
               />
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
-              Giriş ekranında veya hızlı girişte bu kullanıcı adınız geçerli olacaktır.
+              {canEditUsername
+                ? 'Giriş ekranında bu kullanıcı adı kullanılır.'
+                : 'Giriş adınızdır; değiştirilmesi için yöneticinize başvurunuz.'}
             </p>
           </div>
 
@@ -423,10 +434,11 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
+              disabled={isSavingProfile}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>Bilgileri Kaydet</span>
+              <span>{isSavingProfile ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}</span>
             </button>
           </div>
         </form>

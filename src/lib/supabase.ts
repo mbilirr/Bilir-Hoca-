@@ -33,10 +33,37 @@ const initialUrlIsRecovery =
   typeof window !== 'undefined' &&
   /type=recovery/.test(`${window.location.hash}${window.location.search}`);
 
+// GÜVENLİK: Giriş oturumu (JWT) yalnızca bu sekme açıkken saklanır (sessionStorage).
+// Sekme/tarayıcı kapanınca oturum da biter; uygulamanın kendi oturumuyla aynı ömre sahiptir.
+// Böylece "uygulamadan çıkılmış ama arka planda geçerli oturum kalmış" (hayalet oturum) durumu oluşmaz.
+function getSessionScopedStorage(): Storage | undefined {
+  try {
+    if (typeof window === 'undefined') return undefined;
+    const probe = '__sb_probe__';
+    window.sessionStorage.setItem(probe, '1');
+    window.sessionStorage.removeItem(probe);
+    return window.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+// Önceki sürümlerden kalan kalıcı (localStorage) oturum anahtarlarını temizle
+try {
+  if (typeof window !== 'undefined') {
+    Object.keys(window.localStorage)
+      .filter((key) => /^sb-.*-auth-token/.test(key))
+      .forEach((key) => window.localStorage.removeItem(key));
+  }
+} catch {
+  // depolama erişilemiyor: yok say
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storage: getSessionScopedStorage(),
   },
 });
 
@@ -87,63 +114,85 @@ export async function testSupabaseConnection(): Promise<boolean> {
 }
 
 export interface EdgeCreateUserPayload {
-  type: 'student' | 'teacher';
-  id: string;
-  identifier: string;
+  action?: string;
+  type?: 'student' | 'teacher';
+  id?: string;
+  identifier?: string;
   name?: string;
   password?: string;
+  [key: string]: unknown;
 }
 
 export interface EdgeCreateUserResponse {
   success: boolean;
-  type: string;
-  id: string;
-  auth_user_id: string;
-  email: string;
-  password?: string;
-  name: string;
-  createdBy?: string;
+  type?: string;
+  id?: string;
+  auth_user_id?: string | null;
+  email?: string;
+  account?: boolean;
+  created?: boolean;
+  password_set?: boolean;
+  results?: Array<{ ok: boolean; id: string; error?: string; auth_user_id?: string | null; deleted?: boolean }>;
+  student?: Record<string, any>;
+  status?: string;
+  role?: string;
+  [key: string]: unknown;
 }
 
 /**
- * Invokes the 'create-user' Supabase Edge Function securely.
- * Explicitly attaches the active Admin user's session JWT token in the Authorization header.
+ * Bir Supabase sunucu fonksiyonunu (Edge Function) çağırır ve sunucunun döndürdüğü
+ * Türkçe hata mesajını olduğu gibi fırlatır.
+ * requireSession: true ise giriş yapmış kullanıcının oturum anahtarı zorunludur.
  */
-export async function invokeCreateUserEdgeFunction(
-  payload: EdgeCreateUserPayload
-): Promise<EdgeCreateUserResponse> {
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr || !sessionData?.session?.access_token) {
-    throw new Error('Yetkilendirme hatası: Aktif yönetici oturumu bulunamadı. Lütfen tekrar giriş yapınız.');
+export async function invokeEdgeFunction<T = any>(
+  name: string,
+  body: Record<string, unknown>,
+  options: { requireSession?: boolean } = {}
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (options.requireSession) {
+    const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr || !sessionData?.session?.access_token) {
+      throw new Error('Oturumunuzun süresi dolmuş. Lütfen çıkış yapıp tekrar giriş yapınız.');
+    }
+    headers.Authorization = `Bearer ${sessionData.session.access_token}`;
   }
 
-  const token = sessionData.session.access_token;
+  let result: { data: any; error: any };
+  try {
+    result = await supabase.functions.invoke(name, { body, headers });
+  } catch (err: any) {
+    throw new Error(`Sunucuya ulaşılamadı: ${err?.message || 'bağlantı hatası'}`);
+  }
 
-  const { data, error } = await supabase.functions.invoke('create-user', {
-    body: payload,
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
+  const { data, error } = result;
   if (error) {
-    // Sunucu fonksiyonunun döndürdüğü gerçek hata mesajını çıkar
     let detail = '';
     const ctx = (error as any).context;
     try {
       if (ctx && typeof ctx.json === 'function') {
-        const body = await ctx.json();
-        detail = body?.error || body?.message || '';
+        const errBody = await ctx.json();
+        detail = errBody?.error || errBody?.message || '';
       }
     } catch {
       // gövde okunamadı
     }
-    if (ctx?.status === 404) {
-      detail = 'Sunucu fonksiyonu (create-user) bulunamadı. Supabase panelinde Edge Functions bölümünde kurulu olduğundan emin olunuz.';
+    if (ctx?.status === 404 && !detail) {
+      detail = `Sunucu fonksiyonu (${name}) bulunamadı. Supabase panelinde Edge Functions bölümünde "${name}" adıyla kurulu olduğundan emin olunuz.`;
     }
-    throw new Error(detail || error.message || 'Kullanıcı hesabı oluşturulamadı.');
+    if (!detail && (error as any).name === 'FunctionsFetchError') {
+      detail = `Sunucu fonksiyonuna (${name}) ulaşılamadı. İnternet bağlantınızı kontrol ediniz.`;
+    }
+    throw new Error(detail || error.message || 'Sunucu işlemi başarısız oldu.');
   }
-
-  return data as EdgeCreateUserResponse;
+  return data as T;
 }
 
+/**
+ * 'create-user' sunucu fonksiyonu: giriş hesabı işlemleri (yönetici / öğretmen oturumu gerekir).
+ */
+export async function invokeCreateUserEdgeFunction(
+  payload: EdgeCreateUserPayload
+): Promise<EdgeCreateUserResponse> {
+  return invokeEdgeFunction<EdgeCreateUserResponse>('create-user', payload, { requireSession: true });
+}

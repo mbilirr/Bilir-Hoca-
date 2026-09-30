@@ -263,9 +263,9 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
     setSuccessMsg(`Profil resmi kaldırıldı. Varsayılan '${initials}' baş harfleri görünecek.`);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
-      dataService.updateTeacherProfile(teacher.id, {
+      await dataService.saveTeacherProfile(teacher.id, {
         avatar: avatarUrl.trim() || undefined,
       });
 

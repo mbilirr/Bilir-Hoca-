@@ -33,7 +33,7 @@ import {
   ArrowUpDown,
   ShieldCheck,
 } from 'lucide-react';
-import { Student, ClassGroup } from '../../types';
+import { Student, ClassGroup, StudentCredential, StudentAccountFailure } from '../../types';
 import { dataService } from '../../services/dataService';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
@@ -41,10 +41,6 @@ import { ExcelClassUploadModal } from './ExcelClassUploadModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import {
-  generateStudentWelcomeEmail,
-  createGmailComposeLink,
-} from '../../lib/emailTemplates';
 import {
   SCHOOL_LEVELS,
   BRANCH_OPTIONS,
@@ -73,8 +69,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'students' | 'classes'>('students');
 
-  // Kurum Yöneticisi kontrolü (Yalnızca yönetici öğrenci ve sınıf ekleyebilir)
+  // Kurum Yöneticisi kontrolü (Yalnızca yönetici sınıf açabilir)
   const isAdmin = dataService.isCurrentUserAdmin();
+  // Yönetici ve en az bir sınıfa yetkili öğretmen öğrenci ekleyebilir (yalnızca yetkili sınıflarına)
+  const canAddStudents = isAdmin || classes.length > 0;
 
   // Modals
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -95,20 +93,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Delete modals state
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
-  const [selectedCredentialsStudent, setSelectedCredentialsStudent] = useState<Student | null>(null);
+  // Hesap açma / şifre belirleme sonrası gösterilecek giriş bilgileri (şifre yalnızca bu an görünür)
+  const [credentialsResult, setCredentialsResult] = useState<{
+    credentials: StudentCredential[];
+    failures: StudentAccountFailure[];
+    title?: string;
+  } | null>(null);
+  // Şifre belirleme penceresi
+  const [passwordTarget, setPasswordTarget] = useState<Student | null>(null);
+  const [passwordTargetValue, setPasswordTargetValue] = useState('');
+  const [passwordTargetError, setPasswordTargetError] = useState<string | null>(null);
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [isSavingStudent, setIsSavingStudent] = useState(false);
 
   // New student form state
   const [studentName, setStudentName] = useState('');
-  const [studentUsername, setStudentUsername] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
-  const [studentPassword, setStudentPassword] = useState('123456');
+  const [studentPassword, setStudentPassword] = useState('');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
-  const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
-  const [studentSchoolLevel, setStudentSchoolLevel] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
-  const [studentGradeLevel, setStudentGradeLevel] = useState('5. Sınıf');
-  const [studentBranch, setStudentBranch] = useState('A');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [studentAvatar, setStudentAvatar] = useState<string>('');
@@ -129,23 +133,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
   };
 
-  // Duplicate student detection state
+  // Öğrenci formundan gelen bilgiler
+  interface StudentFormPayload {
+    name: string;
+    email: string;
+    classId: string;
+    studentNumber: string;
+    phone: string;
+    avatar: string;
+    password: string;
+  }
+  // Aynı ad ve numarayla kayıtlı öğrenci uyarısı
   interface DuplicateWarningState {
     existingStudent: Student;
-    newStudentPayload: {
-      name: string;
-      username: string;
-      email: string;
-      password: string;
-      classId: string;
-      className: string;
-      schoolLevel: 'Ortaokul' | 'Lise';
-      gradeLevel: string;
-      branch: string;
-      studentNumber: string;
-      phone: string;
-      avatar: string;
-    };
+    newStudentPayload: StudentFormPayload;
   }
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarningState | null>(null);
 
@@ -424,181 +425,165 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const idsToDelete = [...selectedStudentIds];
     setSelectedStudentIds([]);
     setIsBulkDeleteModalOpen(false);
-    await dataService.deleteStudents(idsToDelete);
-    setStudentSuccessFeedback(`${count} öğrenci sistemden başarıyla silindi.`);
+    try {
+      await dataService.deleteStudents(idsToDelete);
+      setStudentSuccessFeedback(`${count} öğrenci ve giriş hesapları sistemden silindi.`);
+    } catch (err: any) {
+      setStudentSuccessFeedback(`⚠️ ${err?.message || 'Bazı öğrenciler silinemedi.'}`);
+    }
   };
 
-  // Handle Add Student
+  // Handle Add / Edit Student (kayıt + gerçek giriş hesabı birlikte)
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setStudentFormError(null);
 
-    if (!editingStudent && !isAdmin) {
-      setStudentFormError('Sisteme yeni öğrenci ekleme yetkisi yalnızca Kurum Yöneticisine aittir.');
+    if (!editingStudent && !canAddStudents) {
+      setStudentFormError('Öğrenci ekleyebilmeniz için yöneticinin size en az bir sınıf yetkisi vermesi gerekir.');
+      return;
+    }
+    const cleanName = studentName.trim().replace(/\s+/g, ' ');
+    const cleanNumber = studentNumber.trim();
+    if (cleanName.length < 2) {
+      setStudentFormError('Lütfen öğrencinin adını ve soyadını giriniz.');
+      return;
+    }
+    if (!cleanNumber) {
+      setStudentFormError('Öğrenci numarası zorunludur: öğrenci sisteme bu numara ve şifresiyle giriş yapar.');
+      return;
+    }
+    if (!dataService.isValidLoginIdentifier(cleanNumber)) {
+      setStudentFormError('Öğrenci numarası yalnızca rakam/harf içermelidir (boşluksuz, en fazla 20 karakter).');
+      return;
+    }
+    const targetClass = classes.find((c) => c.id === studentClassId);
+    if (!targetClass) {
+      setStudentFormError('Lütfen öğrencinin sınıfını seçiniz.');
+      return;
+    }
+    const cleanPassword = studentPassword.trim();
+    if (!editingStudent && cleanPassword.length < 6) {
+      setStudentFormError('Giriş şifresi en az 6 karakter olmalıdır.');
+      return;
+    }
+    if (editingStudent && cleanPassword && cleanPassword.length < 6) {
+      setStudentFormError('Yeni şifre en az 6 karakter olmalıdır (şifreyi değiştirmeyecekseniz alanı boş bırakınız).');
       return;
     }
 
-    // Zorunluluk Kontrolleri: Okul, Sınıf, Şube MECBURİ
-    if (!studentSchoolLevel) {
-      setStudentFormError('Lütfen Okul seçimini (Ortaokul / Lise) yapınız.');
-      return;
-    }
-    if (!studentGradeLevel) {
-      setStudentFormError('Lütfen Sınıf seçimini yapınız.');
-      return;
-    }
-    if (!studentBranch) {
-      setStudentFormError('Lütfen Şube seçimini yapınız.');
-      return;
-    }
+    const payload: StudentFormPayload = {
+      name: cleanName,
+      email: studentEmail.trim(),
+      classId: targetClass.id,
+      studentNumber: cleanNumber,
+      phone: studentPhone.trim(),
+      avatar:
+        studentAvatar ||
+        editingStudent?.avatar ||
+        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
+      password: cleanPassword,
+    };
 
-    try {
-      const constructedClassName = `${studentGradeLevel} - ${studentBranch}`;
-      // Eşleşen sınıf bul veya yoksa otomatik oluştur
-      let matchedClass = classes.find(
-        (c) =>
-          (c.gradeLevel === studentGradeLevel && c.branch === studentBranch) ||
-          c.name.toLowerCase() === constructedClassName.toLowerCase()
-      );
-      let targetClassId = matchedClass?.id;
-
-      if (!targetClassId) {
-        const createdClass = await dataService.addClass({
-          name: constructedClassName,
-          branch: studentBranch,
-          schoolLevel: studentSchoolLevel,
-          gradeLevel: studentGradeLevel,
-          academicYear: '2026-2027',
-          description: `${studentSchoolLevel} ${studentGradeLevel} ${studentBranch} grubu`,
-        });
-        targetClassId = createdClass.id;
-      }
-
-      const effectiveStudentNumber = studentNumber.trim();
-      // Sistem kontrolü: Aynı isim, sınıf ve okul numarasına sahip kayıtlı öğrenci var mı?
-      const existingDuplicate = students.find((s) => {
-        if (editingStudent && s.id === editingStudent.id) return false;
-        const sameName = s.name.trim().toLowerCase() === studentName.trim().toLowerCase();
-        const sameClass =
-          (s.classId && s.classId === targetClassId) ||
-          (s.className && s.className.trim().toLowerCase() === constructedClassName.trim().toLowerCase()) ||
-          (s.gradeLevel === studentGradeLevel && s.branch === studentBranch);
-        const sameNumber = effectiveStudentNumber
-          ? s.studentNumber?.trim() === effectiveStudentNumber
-          : (!s.studentNumber || s.studentNumber.trim() === '');
-        return sameName && sameClass && sameNumber;
-      });
-
-      const safeUsername =
-        studentUsername ||
-        (studentEmail && studentEmail.includes('@')
-          ? studentEmail.split('@')[0]
-          : studentNumber
-          ? `ogr_${studentNumber}`
-          : `ogr_${studentName.trim().toLowerCase().replace(/\s+/g, '_') || Math.floor(1000 + Math.random() * 9000)}`);
-
-      const studentPayload = {
-        name: studentName,
-        username: safeUsername,
-        email: studentEmail.trim(),
-        password: studentPassword || editingStudent?.password || '123456',
-        classId: targetClassId,
-        className: constructedClassName,
-        schoolLevel: studentSchoolLevel,
-        gradeLevel: studentGradeLevel,
-        branch: studentBranch,
-        studentNumber: studentNumber || `${Math.floor(1000 + Math.random() * 9000)}`,
-        phone: studentPhone || '0555 000 0000',
-        avatar:
-          studentAvatar ||
-          editingStudent?.avatar ||
-          `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(studentName)}`,
-      };
-
-      if (existingDuplicate) {
-        setDuplicateWarning({
-          existingStudent: existingDuplicate,
-          newStudentPayload: studentPayload,
-        });
+    // Aynı numara başka bir öğrencide mi? (Numara giriş adıdır, benzersiz olmalı)
+    const numberOwner = students.find(
+      (s) => s.id !== editingStudent?.id && (s.studentNumber || '').trim().toLowerCase() === cleanNumber.toLowerCase()
+    );
+    if (numberOwner) {
+      const sameName = numberOwner.name.trim().toLocaleLowerCase('tr') === cleanName.toLocaleLowerCase('tr');
+      if (sameName && !editingStudent) {
+        setDuplicateWarning({ existingStudent: numberOwner, newStudentPayload: payload });
         return;
       }
+      setStudentFormError(`"${cleanNumber}" numarası "${numberOwner.name}" adlı öğrenciye ait. Lütfen farklı bir numara giriniz.`);
+      return;
+    }
 
+    setIsSavingStudent(true);
+    try {
       if (editingStudent) {
-        await dataService.updateStudent(editingStudent.id, studentPayload);
-        setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla güncellendi.`);
+        await dataService.updateStudent(
+          editingStudent.id,
+          {
+            name: payload.name,
+            email: payload.email,
+            classId: payload.classId,
+            studentNumber: payload.studentNumber,
+            phone: payload.phone,
+            avatar: payload.avatar,
+          },
+          { newPassword: payload.password || undefined }
+        );
+        const fresh = dataService.getAllStudents().find((s) => s.id === editingStudent.id);
+        if (payload.password && fresh) {
+          setCredentialsResult({ credentials: [{ student: fresh, password: payload.password }], failures: [], title: 'Yeni Giriş Bilgileri' });
+        }
+        setStudentSuccessFeedback(`Öğrenci "${payload.name}" başarıyla güncellendi.`);
         setTimeout(() => setStudentSuccessFeedback(null), 4000);
         setEditingStudent(null);
-      } else {
-        const createdStudent = await dataService.registerStudent(studentPayload);
         setIsAddStudentOpen(false);
-        setSelectedCredentialsStudent(createdStudent);
-        if (studentEmail) {
-          setStudentSuccessFeedback(`✅ Öğrenci "${studentName}" başarıyla eklendi! Giriş bilgileri e-postası öğrenciye sistem tarafından otomatik olarak gönderildi.`);
-        } else {
-          setStudentSuccessFeedback(`Öğrenci "${studentName}" başarıyla eklendi! Giriş şifresi: ${studentPassword || '123456'}`);
-        }
+      } else {
+        const credential = await dataService.createStudentAccount({
+          name: payload.name,
+          studentNumber: payload.studentNumber,
+          classId: payload.classId,
+          email: payload.email,
+          phone: payload.phone,
+          avatar: payload.avatar,
+          password: payload.password,
+        });
+        setIsAddStudentOpen(false);
+        setCredentialsResult({ credentials: [credential], failures: [], title: 'Öğrenci Eklendi' });
+        setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.`);
         setTimeout(() => setStudentSuccessFeedback(null), 5000);
       }
       resetStudentForm();
     } catch (err: any) {
-      setStudentFormError(err.message || 'Öğrenci veya sınıf kaydedilirken bir hata oluştu.');
+      setStudentFormError(err.message || 'Öğrenci kaydedilirken bir hata oluştu.');
+    } finally {
+      setIsSavingStudent(false);
     }
   };
 
+  // Aynı ad ve numaralı kayıtlı öğrenci bulunduğunda: kayıtlı öğrenciyi yeni bilgilerle güncelle
   const handleDuplicateReplace = async () => {
     if (!duplicateWarning) return;
     const { existingStudent, newStudentPayload } = duplicateWarning;
     try {
-      await dataService.updateStudent(existingStudent.id, {
-        ...newStudentPayload,
-        id: existingStudent.id,
-      });
+      await dataService.updateStudent(
+        existingStudent.id,
+        {
+          name: newStudentPayload.name,
+          email: newStudentPayload.email,
+          classId: newStudentPayload.classId,
+          phone: newStudentPayload.phone,
+          avatar: newStudentPayload.avatar,
+        },
+        { newPassword: newStudentPayload.password || undefined }
+      );
+      const fresh = dataService.getAllStudents().find((s) => s.id === existingStudent.id);
+      if (newStudentPayload.password && fresh) {
+        setCredentialsResult({ credentials: [{ student: fresh, password: newStudentPayload.password }], failures: [], title: 'Yeni Giriş Bilgileri' });
+      }
       setDuplicateWarning(null);
       setIsAddStudentOpen(false);
       setEditingStudent(null);
       resetStudentForm();
-      setStudentSuccessFeedback(
-        `✅ Kayıtlı öğrenci "${newStudentPayload.name}" güncellendi ve yeni bilgilerle değiştirildi.`
-      );
+      setStudentSuccessFeedback(`✅ Kayıtlı öğrenci "${newStudentPayload.name}" yeni bilgilerle güncellendi.`);
       setTimeout(() => setStudentSuccessFeedback(null), 5000);
     } catch (err: any) {
+      setDuplicateWarning(null);
       setStudentFormError(err.message || 'Öğrenci güncellenirken bir hata oluştu.');
-    }
-  };
-
-  const handleDuplicateKeepBoth = async () => {
-    if (!duplicateWarning) return;
-    const { newStudentPayload } = duplicateWarning;
-    try {
-      const createdStudent = await dataService.registerStudent({
-        ...newStudentPayload,
-      });
-      setDuplicateWarning(null);
-      setIsAddStudentOpen(false);
-      setEditingStudent(null);
-      setSelectedCredentialsStudent(createdStudent);
-      resetStudentForm();
-      setStudentSuccessFeedback(
-        `⚠️ Sistem Uyarısı: "${newStudentPayload.name}" adlı öğrenci eklendi. Aynı isim, sınıf ve numaraya sahip iki kayıt listede otomatik olarak yan yana getirildi ve farklı renklerde (1. Kayıt / 2. Kayıt) işaretlendi.`
-      );
-      setTimeout(() => setStudentSuccessFeedback(null), 5000);
-    } catch (err: any) {
-      setStudentFormError(err.message || 'Öğrenci kaydedilirken bir hata oluştu.');
     }
   };
 
   const resetStudentForm = () => {
     setStudentName('');
-    setStudentUsername('');
     setStudentEmail('');
-    setStudentPassword('123456');
-    setShowStudentPassword(false);
+    setStudentPassword(dataService.generatePassword());
+    setShowStudentPassword(true);
     setStudentNumber('');
     setStudentPhone('');
     setStudentAvatar('');
-    setStudentSchoolLevel('Ortaokul');
-    setStudentGradeLevel('5. Sınıf');
-    setStudentBranch('A');
     setStudentClassId(classes[0]?.id || '');
     setStudentFormError(null);
   };
@@ -606,28 +591,36 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const openEditStudent = (student: Student) => {
     setEditingStudent(student);
     setStudentName(student.name);
-    setStudentUsername(student.username);
-    setStudentEmail(student.email);
-    setStudentPassword(student.password || '123456');
-    setShowStudentPassword(false);
-    setStudentClassId(student.classId);
-    setStudentNumber(student.studentNumber);
+    setStudentEmail(student.email || '');
+    setStudentPassword('');
+    setShowStudentPassword(true);
+    setStudentClassId(classes.some((c) => c.id === student.classId) ? student.classId : '');
+    setStudentNumber(student.studentNumber || '');
     setStudentPhone(student.phone || '');
     setStudentAvatar(student.avatar || '');
-
-    const detectedSchool =
-      student.schoolLevel || detectSchoolLevelFromGrade(student.className) || 'Ortaokul';
-    const detectedGrades = getGradesForSchoolLevel(detectedSchool);
-    const matchedGrade =
-      student.gradeLevel ||
-      (student.className ? detectedGrades.find((g) => student.className.includes(g)) : undefined) ||
-      detectedGrades[0];
-
-    setStudentSchoolLevel(detectedSchool);
-    setStudentGradeLevel(matchedGrade);
-    setStudentBranch(student.branch?.replace(/şube\s*/i, '').trim() || 'A');
     setStudentFormError(null);
     setIsAddStudentOpen(true);
+  };
+
+  // Öğrencinin giriş şifresini yenile (hesabı yoksa açılır)
+  const handleConfirmSetPassword = async () => {
+    if (!passwordTarget) return;
+    const pw = passwordTargetValue.trim();
+    if (pw.length < 6) {
+      setPasswordTargetError('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    setIsSettingPassword(true);
+    setPasswordTargetError(null);
+    try {
+      const credential = await dataService.setStudentPassword(passwordTarget.id, pw);
+      setPasswordTarget(null);
+      setCredentialsResult({ credentials: [credential], failures: [], title: 'Yeni Giriş Bilgileri' });
+    } catch (err: any) {
+      setPasswordTargetError(err?.message || 'Şifre belirlenemedi.');
+    } finally {
+      setIsSettingPassword(false);
+    }
   };
 
   // Excel bulk upload state for Add Class modal
@@ -754,12 +747,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             `Öğrenci ${idx + 1}`
           ).trim();
 
-          const studentNumber =
-            getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id') ||
-            `${100 + idx + 1}`;
-          const email =
-            getVal('eposta', 'e-posta', 'email', 'mail') ||
-            `${normalizeStr(firstName || 'ogrenci')}.${normalizeStr(lastName || `${idx + 1}`)}@okul.k12.tr`;
+          const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id');
+          const email = getVal('eposta', 'e-posta', 'email', 'mail');
           const phone = getVal('telefon', 'tel', 'phone', 'gsm', 'veli tel') || '';
 
           if (fullName.length >= 2) {
@@ -862,39 +851,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         }
       }
 
-      // Toplu Excel Öğrencilerini Oluştur ve Sınıfa Ata
+      // Excel'deki öğrencileri bu sınıfa ekle: her öğrenci için gerçek giriş hesabı açılır
       if (classExcelStudents.length > 0) {
-        const studentsToRegister = classExcelStudents.map((std) => ({
-          name: std.fullName,
-          username:
-            std.email.split('@')[0] || `std_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          email: std.email,
-          classId: savedClassId,
-          className: finalClassName,
-          schoolLevel: classSchoolLevel,
-          gradeLevel: classGradeLevel,
-          branch: classBranch,
-          studentNumber: std.studentNumber,
-          phone: std.phone,
-          avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.fullName)}`,
-        }));
-
-        try {
-          await dataService.registerStudentsBulk(studentsToRegister);
-        } catch (err) {
-          // Fallback to individual registration if bulk encounters conflict
-          for (const s of studentsToRegister) {
-            try {
-              await dataService.registerStudent(s);
-            } catch {}
-          }
+        const result = await dataService.createStudentsWithAccounts(
+          classExcelStudents.map((std) => ({
+            name: std.fullName,
+            studentNumber: std.studentNumber,
+            classId: savedClassId,
+            email: std.email,
+            phone: std.phone,
+            schoolLevel: classSchoolLevel || undefined,
+            gradeLevel: classGradeLevel,
+            branch: classBranch,
+          }))
+        );
+        setCredentialsResult({ credentials: result.created, failures: result.failed, title: 'Sınıfa Eklenen Öğrenciler' });
+        if (result.created.length > 0) {
+          confetti({
+            particleCount: 50,
+            spread: 60,
+            origin: { y: 0.6 },
+          });
         }
-
-        confetti({
-          particleCount: 50,
-          spread: 60,
-          origin: { y: 0.6 },
-        });
       }
 
       setClassName('');
@@ -987,7 +965,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
 
           {activeTab === 'students' ? (
-            isAdmin ? (
+            canAddStudents ? (
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setIsExcelModalOpen(true)}
@@ -1013,7 +991,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             ) : (
               <div className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 border border-slate-700/80 text-amber-300 text-xs">
                 <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="font-semibold">Öğrenci ekleme yetkisi yalnızca Kurum Yöneticisine aittir</span>
+                <span className="font-semibold">Öğrenci eklemek için yöneticinin size sınıf yetkisi vermesi gerekir</span>
               </div>
             )
           ) : (
@@ -1055,7 +1033,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <ShieldCheck className="w-4 h-4 text-indigo-700" />
               </div>
               <div className="flex-1">
-                <strong className="font-bold text-indigo-900">Yönetici İzinli Öğrenci Görünümü:</strong> Bu ekranda yalnızca Kurum Yöneticisinin erişim izni verdiği sınıflar ({classes.length}) ve bu sınıflara bağlı kayıtlı öğrenciler listelenmektedir. Sisteme yeni öğrenci veya sınıf ekleme yetkisi yalnızca Kurum Yöneticisine aittir.
+                <strong className="font-bold text-indigo-900">Yetkili Sınıflarınız:</strong> Bu ekranda yalnızca yöneticinin size yetki verdiği sınıflar ({classes.length}) ve bu sınıfların öğrencileri listelenir. Bu sınıflara öğrenci ekleyebilir ve öğrencilerin giriş şifresini yenileyebilirsiniz. Yeni sınıf açma yetkisi yöneticiye aittir.
               </div>
             </div>
           )}
@@ -1215,7 +1193,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <th className="px-6 py-3.5 font-semibold">Öğrenci</th>
                   <th className="px-6 py-3.5 font-semibold">Sınıf / Şube</th>
                   <th className="px-6 py-3.5 font-semibold">Öğrenci No</th>
-                  <th className="px-6 py-3.5 font-semibold">Giriş Şifresi</th>
+                  <th className="px-6 py-3.5 font-semibold">Giriş Hesabı</th>
                   <th className="px-6 py-3.5 font-semibold">Kayıt Durumu</th>
                   <th className="px-6 py-3.5 font-semibold text-right">İşlemler</th>
                 </tr>
@@ -1342,24 +1320,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-md">
-                            {std.password || '54321'}
-                          </span>
+                          {std.auth_user_id ? (
+                            <span
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              title="Öğrenci, öğrenci numarası ve şifresiyle giriş yapabilir"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Açık</span>
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                              title="Bu öğrencinin giriş hesabı yok. Şifre belirleyerek hesap açabilirsiniz."
+                            >
+                              <Lock className="w-3 h-3" />
+                              <span>Hesap yok</span>
+                            </span>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
-                              navigator.clipboard?.writeText(std.password || '54321');
-                              setCopiedPasswordId(std.id);
-                              setTimeout(() => setCopiedPasswordId(null), 2000);
+                              setPasswordTarget(std);
+                              setPasswordTargetValue(dataService.generatePassword());
+                              setPasswordTargetError(null);
                             }}
-                            className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                            title="Şifreyi Kopyala"
+                            className="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-indigo-50 transition-colors cursor-pointer"
+                            title={std.auth_user_id ? 'Yeni şifre belirle' : 'Şifre belirleyip giriş hesabı aç'}
                           >
-                            {copiedPasswordId === std.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
+                            <Key className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1372,6 +1360,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <AlertTriangle className="w-3.5 h-3.5" />
                             <span>Mükerrer ({dupInfo.colorTheme.label})</span>
                           </span>
+                        ) : std.isSuspended || std.status === 'suspended' ? (
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>Askıda</span>
+                          </span>
                         ) : (
                           <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -1382,14 +1375,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCredentialsStudent(std)}
-                            className="p-2 bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
-                            title="Giriş Bilgilerini & Şifreyi Mail / WhatsApp İle Gönder"
-                          >
-                            <Mail className="w-3.5 h-3.5 text-indigo-600" />
-                          </button>
                           <button
                             type="button"
                             onClick={() => openEditStudent(std)}
@@ -1524,10 +1509,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        resetStudentForm();
+                        setEditingStudent(null);
                         setStudentClassId(cls.id);
-                        setStudentSchoolLevel(cls.schoolLevel || 'Ortaokul');
-                        setStudentGradeLevel(cls.gradeLevel || '5. Sınıf');
-                        setStudentBranch(cls.branch || 'Şube A');
                         setIsAddStudentOpen(true);
                       }}
                       className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
@@ -1606,105 +1590,45 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Kullanıcı Adı</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Öğrenci No * <span className="font-medium text-slate-500">(giriş adı)</span></label>
                   <input
                     type="text"
-                    value={studentUsername}
-                    onChange={(e) => setStudentUsername(e.target.value)}
-                    placeholder="ornek_kullanici"
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={studentNumber}
+                    onChange={(e) => setStudentNumber(e.target.value)}
+                    placeholder="Örn: 1042"
                     className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
               </div>
 
-              {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                    <School className="w-4 h-4 text-indigo-600" />
-                    <span>Okul, Sınıf ve Şube Belirleme (Mecburi)</span>
-                  </span>
-                  <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Okul Açılır Buton */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Okul *
-                    </label>
-                    <select
-                      required
-                      value={studentSchoolLevel}
-                      onChange={(e) => {
-                        const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
-                        setStudentSchoolLevel(newSchool);
-                        if (newSchool === 'Ortaokul') {
-                          setStudentGradeLevel('5. Sınıf');
-                        } else if (newSchool === 'Lise') {
-                          setStudentGradeLevel('9. Sınıf');
-                        }
-                      }}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      <option value="">Okul Seçiniz *</option>
-                      <option value="Ortaokul">🏫 Ortaokul</option>
-                      <option value="Lise">🎓 Lise</option>
-                    </select>
-                  </div>
-
-                  {/* Sınıf Açılır Penceresi */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Sınıf *
-                    </label>
-                    <select
-                      required
-                      value={studentGradeLevel}
-                      onChange={(e) => setStudentGradeLevel(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      {!studentSchoolLevel ? (
-                        <option value="">Önce Okul Seçiniz *</option>
-                      ) : (
-                        getGradesForSchoolLevel(studentSchoolLevel).map((g) => (
-                          <option key={g} value={g}>
-                            {g}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Şube Açılır Buton (İsteğe Bağlı) */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        Şube
-                      </label>
-                      <span className="text-[9px] text-slate-500 font-medium">İsteğe Bağlı</span>
-                    </div>
-                    <select
-                      value={studentBranch}
-                      onChange={(e) => setStudentBranch(e.target.value)}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      <option value="">Şube Yok / İsteğe Bağlı</option>
-                      {BRANCH_OPTIONS.map((b) => (
-                        <option key={b.id} value={b.label}>
-                          {b.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="text-[11px] text-slate-600 flex items-center justify-between pt-2 border-t border-slate-200/80">
-                  <span>Atanacak Sınıf Grubu:</span>
-                  <span className="font-bold text-indigo-700 font-mono bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                    {studentGradeLevel} - {studentBranch} ({studentSchoolLevel || 'Seçilmedi'})
-                  </span>
-                </div>
+              {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
+                  <School className="w-4 h-4 text-indigo-600" />
+                  <span>Sınıf *</span>
+                </label>
+                <select
+                  required
+                  value={studentClassId}
+                  onChange={(e) => setStudentClassId(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                >
+                  <option value="">Sınıf seçiniz *</option>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500">
+                  {isAdmin
+                    ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
+                    : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1719,38 +1643,30 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Öğrenci No</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Telefon</label>
                   <input
-                    type="text"
-                    value={studentNumber}
-                    onChange={(e) => setStudentNumber(e.target.value)}
-                    placeholder="Örn: 1042"
+                    type="tel"
+                    value={studentPhone}
+                    onChange={(e) => setStudentPhone(e.target.value)}
+                    placeholder="0555 123 4567"
                     className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Telefon</label>
-                <input
-                  type="text"
-                  value={studentPhone}
-                  onChange={(e) => setStudentPhone(e.target.value)}
-                  placeholder="0555 123 4567"
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
-                />
-              </div>
-
-              {/* Öğrenci Giriş Şifresi ve E-posta Bildirimi */}
+              {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
               <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-100 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
                     <Key className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Öğrenci Giriş Şifresi *</span>
+                    <span>{editingStudent ? 'Yeni Giriş Şifresi (isteğe bağlı)' : 'Giriş Şifresi *'}</span>
                   </label>
                   <button
                     type="button"
-                    onClick={() => setStudentPassword(Math.floor(100000 + Math.random() * 900000).toString())}
+                    onClick={() => {
+                      setStudentPassword(dataService.generatePassword());
+                      setShowStudentPassword(true);
+                    }}
                     className="text-[11px] text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer"
                   >
                     🎲 Rastgele Şifre Oluştur
@@ -1759,10 +1675,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <div className="relative">
                   <input
                     type={showStudentPassword ? 'text' : 'password'}
-                    required
+                    required={!editingStudent}
+                    minLength={6}
+                    autoComplete="new-password"
                     value={studentPassword}
                     onChange={(e) => setStudentPassword(e.target.value)}
-                    placeholder="Örn: 123456"
+                    placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
                     className="w-full pl-3 pr-10 py-2 bg-white border border-indigo-200 rounded-xl text-slate-900 text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   />
                   <button
@@ -1774,15 +1692,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <div className="p-3 bg-white rounded-lg border border-indigo-100 text-xs text-slate-700 space-y-1 shadow-2xs">
-                  <div className="flex items-center space-x-1.5 font-bold text-indigo-900">
-                    <Mail className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Otomatik E-posta & Giriş Bildirimi</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">
-                    Öğrenci e-postası girildiğinde sistem otomatik hoş geldin ve giriş bilgisi mailini anında öğrencinin adresine iletir.
-                  </p>
-                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Öğrenci, giriş ekranında <strong>Öğrenci Portalı</strong> sekmesinden <strong>öğrenci numarası</strong> ve bu
+                  şifreyle giriş yapar; ilk girişte şifresini değiştirmesi istenir. Kaydettikten sonra giriş bilgilerini
+                  WhatsApp/e-posta ile iletebileceğiniz bir pencere açılır. Şifreler sistemde saklanmaz.
+                </p>
               </div>
 
               {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
@@ -1851,9 +1765,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                  disabled={isSavingStudent}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
                 >
-                  {editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle'}
+                  {isSavingStudent ? 'Kaydediliyor...' : editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle ve Hesap Aç'}
                 </button>
               </div>
             </form>
@@ -2149,6 +2064,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         isOpen={isExcelModalOpen}
         onClose={() => setIsExcelModalOpen(false)}
         classes={classes}
+        existingStudents={students}
+        onAccountsCreated={(result) =>
+          setCredentialsResult({ credentials: result.created, failures: result.failed, title: "Excel'den Eklenen Öğrenciler" })
+        }
       />
 
       {/* EXCEL BULK UPLOAD MODAL - CLASSES */}
@@ -2165,8 +2084,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           if (studentToDelete) {
             const target = studentToDelete;
             setStudentToDelete(null);
-            await dataService.deleteStudent(target.id);
-            setStudentSuccessFeedback(`"${target.name}" sistemden başarıyla silindi.`);
+            try {
+              await dataService.deleteStudent(target.id);
+              setStudentSuccessFeedback(`"${target.name}" ve giriş hesabı sistemden silindi.`);
+            } catch (err: any) {
+              setStudentSuccessFeedback(`⚠️ "${target.name}" silinemedi: ${err?.message || 'bilinmeyen hata'}`);
+            }
           }
         }}
         title="Öğrenciyi Sil"
@@ -2205,12 +2128,92 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         confirmButtonText="Sınıfı Sil"
       />
 
-      {/* STUDENT WELCOME CREDENTIALS & EMAIL DISPATCH MODAL */}
+      {/* GİRİŞ BİLGİLERİ (hesap açıldıktan / şifre belirlendikten sonra, yalnızca bir kez gösterilir) */}
       <StudentWelcomeCredentialsModal
-        isOpen={!!selectedCredentialsStudent}
-        onClose={() => setSelectedCredentialsStudent(null)}
-        student={selectedCredentialsStudent}
+        isOpen={!!credentialsResult}
+        onClose={() => setCredentialsResult(null)}
+        credentials={credentialsResult?.credentials || []}
+        failures={credentialsResult?.failures || []}
+        title={credentialsResult?.title}
       />
+
+      {/* ŞİFRE BELİRLEME PENCERESİ */}
+      {passwordTarget && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 flex items-center justify-center">
+          <div className="w-full max-w-md bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">
+                    {passwordTarget.auth_user_id ? 'Yeni Şifre Belirle' : 'Giriş Hesabı Aç'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {passwordTarget.name} • No: {passwordTarget.studentNumber || '-'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPasswordTarget(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                aria-label="Kapat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              {passwordTarget.auth_user_id
+                ? 'Öğrencinin eski şifresi geçersiz olur. Öğrenci yeni şifreyle giriş yapınca şifresini değiştirmesi istenir.'
+                : 'Bu öğrencinin henüz giriş hesabı yok. Belirlediğiniz şifreyle hesap açılır; öğrenci, öğrenci numarası ve bu şifreyle giriş yapar.'}
+            </p>
+            {passwordTargetError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{passwordTargetError}</span>
+              </div>
+            )}
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={passwordTargetValue}
+                onChange={(e) => setPasswordTargetValue(e.target.value)}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="En az 6 karakter"
+              />
+              <button
+                type="button"
+                onClick={() => setPasswordTargetValue(dataService.generatePassword())}
+                className="px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl"
+              >
+                🎲 Üret
+              </button>
+            </div>
+            <div className="flex justify-end space-x-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPasswordTarget(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSetPassword}
+                disabled={isSettingPassword}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold"
+              >
+                {isSettingPassword ? 'Kaydediliyor...' : passwordTarget.auth_user_id ? 'Şifreyi Kaydet' : 'Hesabı Aç'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SINIF ÖĞRENCİ LİSTESİ PENCERESİ (MODAL) */}
       {viewingClassStudents && (() => {
@@ -2293,10 +2296,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      resetStudentForm();
+                      setEditingStudent(null);
                       setStudentClassId(viewingClassStudents.id);
-                      setStudentSchoolLevel(viewingClassStudents.schoolLevel || 'Ortaokul');
-                      setStudentGradeLevel(viewingClassStudents.gradeLevel || '5. Sınıf');
-                      setStudentBranch(viewingClassStudents.branch || 'Şube A');
                       setIsAddStudentOpen(true);
                     }}
                     className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer shadow-md shadow-indigo-600/20"
@@ -2360,10 +2362,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       <button
                         type="button"
                         onClick={() => {
+                          resetStudentForm();
+                          setEditingStudent(null);
                           setStudentClassId(viewingClassStudents.id);
-                          setStudentSchoolLevel(viewingClassStudents.schoolLevel || 'Ortaokul');
-                          setStudentGradeLevel(viewingClassStudents.gradeLevel || '5. Sınıf');
-                          setStudentBranch(viewingClassStudents.branch || 'Şube A');
                           setIsAddStudentOpen(true);
                         }}
                         className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center space-x-1.5"
@@ -2805,7 +2806,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
-                  Aynı İsim, Sınıf ve Numaraya Sahip Öğrenci Bulundu!
+                  Bu Numarayla Kayıtlı Öğrenci Var!
                 </h3>
                 <p className="text-xs text-slate-400 mt-1">
                   Sistemde bu öğrenciyle tamamen eşleşen kayıtlı bir profil tespit edildi.
@@ -2847,7 +2848,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
 
             <p className="text-xs text-slate-300 mb-5 leading-relaxed">
-              Nasıl devam etmek istersiniz? Mevcut kayıtlı öğrenciyi yeni bilgilerle güncelleyebilir veya her iki kaydı da ayrı ayrı tutabilirsiniz:
+              Öğrenci numarası giriş adı olarak kullanıldığı için aynı numarayla ikinci bir kayıt açılamaz. Kayıtlı öğrenciyi yeni bilgilerle güncelleyebilir veya geri dönüp numarayı düzeltebilirsiniz:
             </p>
 
             {/* Aksiyon Butonları */}
@@ -2858,17 +2859,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Kayıtlı Öğrenciyi Değiştir</span>
+                <span>Kayıtlı Öğrenciyi Güncelle</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleDuplicateKeepBoth}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
-              >
-                <Users className="w-4 h-4" />
-                <span>İkisini de Tut (Ayrı Kaydet)</span>
-              </button>
             </div>
 
             <div className="mt-3 text-center">

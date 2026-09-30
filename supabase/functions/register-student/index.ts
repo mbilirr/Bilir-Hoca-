@@ -1,198 +1,232 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
-// Safe placeholder key for initialisation when VITE_SUPABASE_ANON_KEY is not yet set in environment.
-// This prevents @supabase/supabase-js from throwing fatal synchronous "Error: supabaseKey is required." during module startup.
-const DEFAULT_FALLBACK_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder-anon-key';
+// =============================================================================
+// register-student: Giriş yapmamış öğrencinin KAYIT BAŞVURUSU.
+//   action 'classes' : başvuru formundaki sınıf listesi (yalnızca ad ve kimlik)
+//   action 'apply'   : başvuruyu kaydeder. Öğrencinin belirlediği şifreyle bir giriş
+//                      hesabı açılır ama KİLİTLİ tutulur; yönetici onaylayınca açılır,
+//                      reddedince silinir. Şifre hiçbir tabloda saklanmaz.
+// =============================================================================
 
-export const SUPABASE_URL =
-  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ||
-  'https://zzdchsxfjzedgciejuxd.supabase.co';
+const ALLOWED_ORIGIN_PATTERN = /^https:\/\/bilir-hoca(-[a-z0-9-]+)?\.vercel\.app$/;
+const DEFAULT_ORIGIN = 'https://bilir-hoca.vercel.app';
+const MIN_PASSWORD_LENGTH = 6;
+const MAX_PASSWORD_LENGTH = 72;
+const MAX_APPLICATIONS_PER_IP_PER_HOUR = 3;
+const MAX_PENDING_APPLICATIONS = 200;
+const BAN_FOREVER = '876000h';
 
-const rawAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
-
-export const isSupabaseConfigured = Boolean(
-  rawAnonKey &&
-  rawAnonKey !== 'your_legacy_anon_jwt_key_here' &&
-  rawAnonKey !== DEFAULT_FALLBACK_ANON_KEY
-);
-
-export const SUPABASE_ANON_KEY = isSupabaseConfigured
-  ? (rawAnonKey as string)
-  : DEFAULT_FALLBACK_ANON_KEY;
-
-export const SUPABASE_CONFIG = {
-  projectId: 'zzdchsxfjzedgciejuxd',
-  url: SUPABASE_URL,
-  anonKey: isSupabaseConfigured ? SUPABASE_ANON_KEY : '',
-  restApi: `${SUPABASE_URL}/rest/v1/`,
-};
-
-// Şifre sıfırlama e-postasındaki bağlantıyla mı gelindi? Supabase adresi işleyip temizlemeden ÖNCE okunur.
-const initialUrlIsRecovery =
-  typeof window !== 'undefined' &&
-  /type=recovery/.test(`${window.location.hash}${window.location.search}`);
-
-// GÜVENLİK: Giriş oturumu (JWT) yalnızca bu sekme açıkken saklanır (sessionStorage).
-// Sekme/tarayıcı kapanınca oturum da biter; uygulamanın kendi oturumuyla aynı ömre sahiptir.
-// Böylece "uygulamadan çıkılmış ama arka planda geçerli oturum kalmış" (hayalet oturum) durumu oluşmaz.
-function getSessionScopedStorage(): Storage | undefined {
-  try {
-    if (typeof window === 'undefined') return undefined;
-    const probe = '__sb_probe__';
-    window.sessionStorage.setItem(probe, '1');
-    window.sessionStorage.removeItem(probe);
-    return window.sessionStorage;
-  } catch {
-    return undefined;
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
   }
 }
 
-// Önceki sürümlerden kalan kalıcı (localStorage) oturum anahtarlarını temizle
-try {
-  if (typeof window !== 'undefined') {
-    Object.keys(window.localStorage)
-      .filter((key) => /^sb-.*-auth-token/.test(key))
-      .forEach((key) => window.localStorage.removeItem(key));
-  }
-} catch {
-  // depolama erişilemiyor: yok say
-}
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    storage: getSessionScopedStorage(),
-  },
-});
-
-// --- ŞİFRE SIFIRLAMA (PASSWORD RECOVERY) DURUMU ---
-// Dinleyici istemci oluşturulur oluşturulmaz bağlanır; böylece Supabase'in açılışta yaydığı
-// PASSWORD_RECOVERY olayı hiçbir zaman kaçırılmaz.
-let passwordRecoveryActive = initialUrlIsRecovery;
-const passwordRecoveryListeners = new Set<() => void>();
-
-supabase.auth.onAuthStateChange((event) => {
-  if (event === 'PASSWORD_RECOVERY') {
-    passwordRecoveryActive = true;
-    passwordRecoveryListeners.forEach((listener) => listener());
-  }
-});
-
-export function isPasswordRecoveryActive(): boolean {
-  return passwordRecoveryActive;
-}
-
-export function clearPasswordRecovery(): void {
-  passwordRecoveryActive = false;
-}
-
-export function onPasswordRecovery(listener: () => void): () => void {
-  passwordRecoveryListeners.add(listener);
-  return () => {
-    passwordRecoveryListeners.delete(listener);
+function buildCorsHeaders(origin: string | null): Record<string, string> {
+  const allowed = origin && ALLOWED_ORIGIN_PATTERN.test(origin) ? origin : DEFAULT_ORIGIN;
+  return {
+    'Access-Control-Allow-Origin': allowed,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
   };
 }
 
-// Helper to check connection health or Supabase readiness
-export async function testSupabaseConnection(): Promise<boolean> {
-  if (!isSupabaseConfigured) {
-    return false;
+function cleanText(value: unknown, max: number): string {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req.headers.get('origin'));
+  const reply = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
+  if (req.method !== 'POST') {
+    return reply({ error: 'Yalnızca POST isteği kabul edilir.' }, 405);
+  }
+
   try {
-    const { error } = await supabase.from('students').select('id').limit(1);
-    // If the table exists or returns empty data without network crash, we're connected
-    if (error && error.code !== 'PGRST116') {
-      console.warn('Supabase ping notice:', error.message);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!supabaseUrl || !serviceKey) {
+      return reply({ error: 'Sunucu yapılandırması eksik.' }, 500);
     }
-    return true;
-  } catch (err) {
-    console.warn('Supabase offline or fallback active:', err);
-    return false;
-  }
-}
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
-export interface EdgeCreateUserPayload {
-  action?: string;
-  type?: 'student' | 'teacher';
-  id?: string;
-  identifier?: string;
-  name?: string;
-  password?: string;
-  [key: string]: unknown;
-}
+    const body = await req.json().catch(() => ({}));
+    const action = String(body?.action || 'apply');
 
-export interface EdgeCreateUserResponse {
-  success: boolean;
-  type?: string;
-  id?: string;
-  auth_user_id?: string | null;
-  email?: string;
-  account?: boolean;
-  created?: boolean;
-  password_set?: boolean;
-  results?: Array<{ ok: boolean; id: string; error?: string; auth_user_id?: string | null; deleted?: boolean }>;
-  student?: Record<string, any>;
-  status?: string;
-  role?: string;
-  [key: string]: unknown;
-}
-
-/**
- * Bir Supabase sunucu fonksiyonunu (Edge Function) çağırır ve sunucunun döndürdüğü
- * Türkçe hata mesajını olduğu gibi fırlatır.
- * requireSession: true ise giriş yapmış kullanıcının oturum anahtarı zorunludur.
- */
-export async function invokeEdgeFunction<T = any>(
-  name: string,
-  body: Record<string, unknown>,
-  options: { requireSession?: boolean } = {}
-): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (options.requireSession) {
-    const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-    if (sessionErr || !sessionData?.session?.access_token) {
-      throw new Error('Oturumunuzun süresi dolmuş. Lütfen çıkış yapıp tekrar giriş yapınız.');
+    // -------------------------------------------------------------------
+    // Başvuru formundaki sınıf listesi
+    // -------------------------------------------------------------------
+    if (action === 'classes') {
+      const { data, error } = await admin.from('classes').select('id, name').order('name', { ascending: true });
+      if (error) throw new HttpError(500, 'Sınıf listesi alınamadı.');
+      return reply({ success: true, classes: (data || []).map((c: any) => ({ id: c.id, name: c.name })) });
     }
-    headers.Authorization = `Bearer ${sessionData.session.access_token}`;
-  }
 
-  let result: { data: any; error: any };
-  try {
-    result = await supabase.functions.invoke(name, { body, headers });
-  } catch (err: any) {
-    throw new Error(`Sunucuya ulaşılamadı: ${err?.message || 'bağlantı hatası'}`);
-  }
+    if (action !== 'apply') {
+      throw new HttpError(400, 'Bilinmeyen işlem.');
+    }
 
-  const { data, error } = result;
-  if (error) {
-    let detail = '';
-    const ctx = (error as any).context;
-    try {
-      if (ctx && typeof ctx.json === 'function') {
-        const errBody = await ctx.json();
-        detail = errBody?.error || errBody?.message || '';
+    // Bot tuzağı: gerçek kullanıcılar bu alanı görmez / doldurmaz
+    if (cleanText(body?.website, 100)) {
+      return reply({ success: true });
+    }
+
+    // -------------------------------------------------------------------
+    // Alan doğrulama
+    // -------------------------------------------------------------------
+    const name = cleanText(body?.name, 80);
+    if (name.length < 3 || !/^[\p{L}][\p{L} .'-]*$/u.test(name)) {
+      throw new HttpError(400, 'Lütfen adınızı ve soyadınızı (yalnızca harflerle) giriniz.');
+    }
+    const studentNumber = cleanText(body?.studentNumber, 20);
+    if (!/^[0-9A-Za-z_-]{1,20}$/.test(studentNumber)) {
+      throw new HttpError(400, 'Öğrenci numarası yalnızca rakam ve harflerden oluşmalıdır (boşluksuz).');
+    }
+    const password = String(body?.password ?? '');
+    if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+      throw new HttpError(400, `Şifre en az ${MIN_PASSWORD_LENGTH}, en fazla ${MAX_PASSWORD_LENGTH} karakter olmalıdır.`);
+    }
+    const email = cleanText(body?.email, 120).toLowerCase();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      throw new HttpError(400, 'E-posta adresi geçersiz.');
+    }
+    const phone = cleanText(body?.phone, 20);
+    if (phone && !/^[0-9 +()-]{7,20}$/.test(phone)) {
+      throw new HttpError(400, 'Telefon numarası geçersiz.');
+    }
+    const requestedClass = cleanText(body?.requestedClass, 60);
+    const avatarRaw = cleanText(body?.avatar, 300);
+    const avatar = /^https:\/\/api\.dicebear\.com\/[\w./?=&%-]+$/.test(avatarRaw) ? avatarRaw : null;
+
+    let classId: string | null = null;
+    const requestedClassId = cleanText(body?.classId, 80);
+    if (requestedClassId) {
+      const { data: cls } = await admin.from('classes').select('id').eq('id', requestedClassId).maybeSingle();
+      if (!cls) throw new HttpError(400, 'Seçilen sınıf bulunamadı. Lütfen listeden tekrar seçiniz.');
+      classId = cls.id;
+    }
+
+    // -------------------------------------------------------------------
+    // Kötüye kullanım sınırları
+    // -------------------------------------------------------------------
+    const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'bilinmiyor';
+    const ipHash = await sha256Hex(`${ip}|${serviceKey.slice(-16)}`);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    const { count: recentCount } = await admin
+      .from('student_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('created_at', oneHourAgo);
+    if ((recentCount || 0) >= MAX_APPLICATIONS_PER_IP_PER_HOUR) {
+      throw new HttpError(429, 'Kısa sürede çok fazla başvuru yapıldı. Lütfen bir saat sonra tekrar deneyiniz.');
+    }
+
+    const { count: pendingCount } = await admin
+      .from('student_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    if ((pendingCount || 0) >= MAX_PENDING_APPLICATIONS) {
+      throw new HttpError(503, 'Şu anda çok sayıda bekleyen başvuru var. Lütfen daha sonra tekrar deneyiniz veya öğretmeninize başvurunuz.');
+    }
+
+    // -------------------------------------------------------------------
+    // Aynı numara kontrolü
+    // -------------------------------------------------------------------
+    const { data: existingStudent } = await admin
+      .from('students')
+      .select('id')
+      .eq('student_number', studentNumber)
+      .limit(1);
+    if (existingStudent && existingStudent.length > 0) {
+      throw new HttpError(409, 'Bu öğrenci numarasıyla kayıtlı bir öğrenci zaten var. Giriş yapmayı deneyiniz; şifrenizi bilmiyorsanız öğretmeninize başvurunuz.');
+    }
+    const { data: existingApp } = await admin
+      .from('student_applications')
+      .select('id')
+      .eq('student_number', studentNumber)
+      .eq('status', 'pending')
+      .limit(1);
+    if (existingApp && existingApp.length > 0) {
+      throw new HttpError(409, 'Bu öğrenci numarasıyla yapılmış ve onay bekleyen bir başvuru zaten var.');
+    }
+
+    // -------------------------------------------------------------------
+    // Kilitli giriş hesabı + başvuru kaydı
+    // -------------------------------------------------------------------
+    const loginEmail = `std_${studentNumber.toLowerCase().replace(/[^a-z0-9_-]/g, '')}@okul.internal.net`;
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: loginEmail,
+      password,
+      email_confirm: true,
+      ban_duration: BAN_FOREVER,
+      app_metadata: { role: 'applicant', is_admin: false },
+      user_metadata: { name, application: true },
+    });
+    if (createError || !created?.user) {
+      const exists =
+        (createError as any)?.code === 'email_exists' ||
+        /already (been )?registered|already exists/i.test(createError?.message || '');
+      if (exists) {
+        throw new HttpError(409, 'Bu öğrenci numarasıyla açılmış bir hesap zaten var. Giriş yapmayı deneyiniz veya öğretmeninize başvurunuz.');
       }
-    } catch {
-      // gövde okunamadı
+      throw new HttpError(500, 'Başvuru kaydedilemedi. Lütfen daha sonra tekrar deneyiniz.');
     }
-    if (ctx?.status === 404 && !detail) {
-      detail = `Sunucu fonksiyonu (${name}) bulunamadı. Supabase panelinde Edge Functions bölümünde "${name}" adıyla kurulu olduğundan emin olunuz.`;
-    }
-    if (!detail && (error as any).name === 'FunctionsFetchError') {
-      detail = `Sunucu fonksiyonuna (${name}) ulaşılamadı. İnternet bağlantınızı kontrol ediniz.`;
-    }
-    throw new Error(detail || error.message || 'Sunucu işlemi başarısız oldu.');
-  }
-  return data as T;
-}
+    const authUserId = created.user.id;
 
-/**
- * 'create-user' sunucu fonksiyonu: giriş hesabı işlemleri (yönetici / öğretmen oturumu gerekir).
- */
-export async function invokeCreateUserEdgeFunction(
-  payload: EdgeCreateUserPayload
-): Promise<EdgeCreateUserResponse> {
-  return invokeEdgeFunction<EdgeCreateUserResponse>('create-user', payload, { requireSession: true });
-}
+    // Bazı sürümlerde oluştururken kilit uygulanmayabilir: garantiye al
+    if (!created.user.banned_until) {
+      const { error: banError } = await admin.auth.admin.updateUserById(authUserId, { ban_duration: BAN_FOREVER });
+      if (banError) {
+        await admin.auth.admin.deleteUser(authUserId).catch(() => {});
+        throw new HttpError(500, 'Başvuru kaydedilemedi. Lütfen daha sonra tekrar deneyiniz.');
+      }
+    }
+
+    const { error: insertError } = await admin.from('student_applications').insert({
+      name,
+      student_number: studentNumber,
+      class_id: classId,
+      requested_class: requestedClass || null,
+      email: email || null,
+      phone: phone || null,
+      avatar,
+      auth_user_id: authUserId,
+      status: 'pending',
+      ip_hash: ipHash,
+    });
+    if (insertError) {
+      await admin.auth.admin.deleteUser(authUserId).catch(() => {});
+      throw new HttpError(500, 'Başvuru kaydedilemedi. Lütfen daha sonra tekrar deneyiniz.');
+    }
+
+    return reply({ success: true });
+  } catch (err: any) {
+    const status = err instanceof HttpError ? err.status : 500;
+    return reply({ error: err instanceof HttpError ? err.message : 'Sunucu içi hata oluştu.' }, status);
+  }
+});

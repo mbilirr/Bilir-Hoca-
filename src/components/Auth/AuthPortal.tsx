@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   GraduationCap,
   ShieldCheck,
@@ -22,12 +22,6 @@ import {
 import confetti from 'canvas-confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
-import { supabase } from '../../lib/supabase';
-import {
-  SCHOOL_LEVELS,
-  BRANCH_OPTIONS,
-  getGradesForSchoolLevel,
-} from '../../constants/schoolConstants';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 
@@ -82,32 +76,37 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     const rem = dataService.getRememberedUser('teacher');
     return rem?.identifier || '';
   });
-  const [loginPassword, setLoginPassword] = useState(() => {
-    const rem = dataService.getRememberedUser('teacher');
-    return rem?.savedPassword || '';
-  });
+  const [loginPassword, setLoginPassword] = useState('');
 
-  // --- TEACHER REGISTER STATE ---
-  const [tRegName, setTRegName] = useState('');
-  const [tRegUsername, setTRegUsername] = useState('');
-  const [tRegEmail, setTRegEmail] = useState('');
-  const [tRegBranch, setTRegBranch] = useState('Matematik');
-  const [tRegPassword, setTRegPassword] = useState('');
-  const [tRegConfirmPassword, setTRegConfirmPassword] = useState('');
-
-  // --- STUDENT REGISTER STATE ---
-  const [sRegName, setSRegName] = useState('');
-  const [sRegUsername, setSRegUsername] = useState('');
-  const [sRegSchool, setSRegSchool] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
-  const [sRegGrade, setSRegGrade] = useState('5. Sınıf');
-  const [sRegBranch, setSRegBranch] = useState('');
-  const [sRegPhone, setSRegPhone] = useState('');
-  const [sRegEmail, setSRegEmail] = useState('');
-  const [sRegPassword, setSRegPassword] = useState('');
-  const [sRegConfirmPassword, setSRegConfirmPassword] = useState('');
+  // --- ÖĞRENCİ KAYIT BAŞVURUSU (yönetici onayından sonra hesap açılır) ---
+  const [aName, setAName] = useState('');
+  const [aNumber, setANumber] = useState('');
+  const [aClassId, setAClassId] = useState('');
+  const [aRequestedClass, setARequestedClass] = useState('');
+  const [aPhone, setAPhone] = useState('');
+  const [aEmail, setAEmail] = useState('');
+  const [aPassword, setAPassword] = useState('');
+  const [aConfirmPassword, setAConfirmPassword] = useState('');
+  const [aWebsite, setAWebsite] = useState(''); // bot tuzağı (görünmez alan)
   const [selectedAvatarSeed, setSelectedAvatarSeed] = useState('Zeynep');
+  const [applicationClasses, setApplicationClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [applicationClassesState, setApplicationClassesState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
 
   const avatarSeeds = ['Zeynep', 'Emir', 'Elif', 'Burak', 'Ayse', 'Mert', 'Deniz', 'Selin'];
+
+  // Başvuru formu açılınca sınıf listesini sunucudan al (giriş yapmadan okunabilen tek bilgi)
+  useEffect(() => {
+    if (authMode !== 'register' || applicationClassesState !== 'idle') return;
+    setApplicationClassesState('loading');
+    dataService
+      .fetchApplicationClasses()
+      .then((list) => {
+        setApplicationClasses(list);
+        setApplicationClassesState('ready');
+      })
+      .catch(() => setApplicationClassesState('error'));
+  }, [authMode, applicationClassesState]);
 
   // Handle role switch in login tab
   const handleSelectRole = (role: UserRole) => {
@@ -117,91 +116,26 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     const rem = dataService.getRememberedUser(role);
     if (rem) {
       setLoginUsername(rem.identifier);
-      setLoginPassword(rem.savedPassword || '');
       setRememberMe(true);
     } else {
       setLoginUsername('');
-      setLoginPassword('');
       setRememberMe(false);
     }
+    setLoginPassword('');
   };
 
-  // --- QUICK LOGIN FOR REMEMBERED USER (Strictly Role-Checked) ---
+  // --- KAYITLI PROFİLLE DEVAM ---
+  // Güvenlik gereği oturum sekme kapanınca biter; kayıtlı profil yalnızca giriş adını hatırlar.
   const handleQuickRememberedLogin = () => {
     const targetUser = selectedRole === 'teacher' ? rememberedTeacher : rememberedStudent;
-    if (!targetUser) {
-      setError(
-        selectedRole === 'teacher'
-          ? 'Kayıtlı öğretmen profili bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.'
-          : 'Kayıtlı öğrenci profili bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.'
-      );
+    if (!targetUser || targetUser.role !== selectedRole) {
+      setError('Kayıtlı profil bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.');
       return;
     }
-
-    if (targetUser.role !== selectedRole) {
-      setError('Seçilen rol ile kayıtlı profil türü uyuşmuyor.');
-      return;
-    }
-
     setError(null);
-    setSuccessMsg(null);
-    setIsLoading(true);
-
-    setTimeout(async () => {
-      // Hızlı giriş YALNIZCA geçerli bir Supabase oturumu varken yapılabilir.
-      // Aksi halde uygulama "giriş yapılmış" görünür ama bulut istekleri yetkisiz gider.
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
-        setIsLoading(false);
-        setLoginUsername(targetUser.identifier);
-        setError('Oturum süreniz dolmuş. Lütfen şifrenizi girip "Giriş Yap" butonuna basınız.');
-        return;
-      }
-      setIsLoading(false);
-      if (selectedRole === 'teacher') {
-        const teacher = dataService.getAllTeachersInternal().find(
-          (t) =>
-            t.username.toLowerCase() === targetUser.identifier.toLowerCase() ||
-            (t.email && t.email.toLowerCase() === targetUser.identifier.toLowerCase())
-        );
-
-        if (!teacher) {
-          setError('Kayıtlı öğretmen profili bulunamadı.');
-          return;
-        }
-
-        if (teacher.status === 'pending') {
-          setError(
-            '⚠️ Öğretmen hesabınız henüz yönetici (admin) onayı beklemektedir. Onaylanmadan sisteme giriş yapamazsınız.'
-          );
-          return;
-        }
-
-        const session: AuthSession = { role: 'teacher', user: teacher };
-        dataService.setAuthSession(session);
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-        setSuccessMsg(`Tekrar hoş geldiniz Sn. ${teacher.name}! Öğretmen paneline aktarılıyorsunuz...`);
-        setTimeout(() => onAuthSuccess(session), 350);
-      } else {
-        const student = dataService.getStudents().find(
-          (s) =>
-            s.username.toLowerCase() === targetUser.identifier.toLowerCase() ||
-            (s.studentNumber && s.studentNumber.toLowerCase() === targetUser.identifier.toLowerCase()) ||
-            (s.email && s.email.toLowerCase() === targetUser.identifier.toLowerCase())
-        );
-
-        if (!student) {
-          setError('Kayıtlı öğrenci profili bulunamadı.');
-          return;
-        }
-
-        const session: AuthSession = { role: 'student', user: student };
-        dataService.setAuthSession(session);
-        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-        setSuccessMsg(`Tekrar hoş geldin ${student.name}! Öğrenci paneline aktarılıyorsunuz...`);
-        setTimeout(() => onAuthSuccess(session), 350);
-      }
-    }, 300);
+    setLoginUsername(targetUser.identifier);
+    setSuccessMsg(`Merhaba ${targetUser.name}! Güvenliğiniz için şifrenizi girip "Giriş Yap" düğmesine basınız.`);
+    setTimeout(() => passwordInputRef.current?.focus(), 50);
   };
 
   const handleForgetRememberedUser = () => {
@@ -279,7 +213,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               name: teacher.name,
               avatar: teacher.avatar,
               branch: teacher.branch,
-              savedPassword: cleanPass,
             });
             setRememberedTeacher(dataService.getRememberedUser('teacher'));
           } else {
@@ -293,7 +226,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           setSuccessMsg(`Hoş geldiniz Sn. ${teacher.name}! Panele yönlendiriliyorsunuz...`);
           setTimeout(() => onAuthSuccess(session), 400);
         } else {
-          setError('Öğretmen kullanıcı adı veya şifre hatalı! Lütfen kontrol edip tekrar deneyiniz.');
+          setError('Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.');
         }
       } else {
         const student = await dataService.authenticateStudent(cleanUser, cleanPass);
@@ -301,11 +234,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           if (rememberMe) {
             dataService.setRememberedUser({
               role: 'student',
-              identifier: student.username,
+              identifier: student.studentNumber || student.username,
               name: student.name,
               avatar: student.avatar,
               className: student.className,
-              savedPassword: cleanPass,
             });
             setRememberedStudent(dataService.getRememberedUser('student'));
           } else {
@@ -319,7 +251,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           setSuccessMsg(`Hoş geldin ${student.name}! Öğrenci paneline yönlendiriliyorsunuz...`);
           setTimeout(() => onAuthSuccess(session), 400);
         } else {
-          setError('Öğrenci bulunamadı veya şifre hatalı! Lütfen bilgilerinizi kontrol ediniz.');
+          setError('Öğrenci numarası veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurunuz.');
         }
       }
     } catch (err: any) {
@@ -329,163 +261,57 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     }
   };
 
-  // --- SUBMIT TEACHER REGISTER ---
-  const handleTeacherRegister = (e: React.FormEvent) => {
+  // --- ÖĞRENCİ KAYIT BAŞVURUSU GÖNDER ---
+  const handleStudentApplication = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
 
-    if (!tRegName.trim() || !tRegUsername.trim() || !tRegEmail.trim() || !tRegPassword.trim()) {
-      setError('Lütfen zorunlu alanları (Ad Soyad, Kullanıcı Adı, E-posta, Şifre) eksiksiz doldurunuz.');
+    const name = aName.trim().replace(/\s+/g, ' ');
+    const number = aNumber.trim();
+    if (name.length < 3) {
+      setError('Lütfen adınızı ve soyadınızı giriniz.');
       return;
     }
-
-    if (tRegPassword.length < 4) {
-      setError('Şifre en az 4 karakter olmalıdır.');
+    if (!/^[0-9A-Za-z_-]{1,20}$/.test(number)) {
+      setError('Öğrenci numaranızı boşluksuz yazınız (yalnızca rakam ve harf).');
       return;
     }
-
-    if (tRegPassword !== tRegConfirmPassword) {
+    if (aPassword.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    if (aPassword !== aConfirmPassword) {
       setError('Girdiğiniz şifreler birbiriyle uyuşmuyor.');
       return;
     }
 
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const newTeacher = dataService.registerTeacher({
-        name: tRegName.trim(),
-        username: tRegUsername.trim(),
-        email: tRegEmail.trim(),
-        branch: tRegBranch.trim() || 'Genel Branş',
-        password: tRegPassword,
+      await dataService.submitStudentApplication({
+        name,
+        studentNumber: number,
+        password: aPassword,
+        classId: aClassId || undefined,
+        requestedClass: aClassId ? undefined : aRequestedClass.trim() || undefined,
+        email: aEmail.trim() || undefined,
+        phone: aPhone.trim() || undefined,
+        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(selectedAvatarSeed || name)}`,
+        website: aWebsite,
       });
-
-      if (rememberMe) {
-        dataService.setRememberedUser({
-          role: 'teacher',
-          identifier: newTeacher.username,
-          name: newTeacher.name,
-          avatar: newTeacher.avatar,
-          branch: newTeacher.branch,
-        });
-        setRememberedTeacher(dataService.getRememberedUser('teacher'));
-      }
-
-      setIsLoading(false);
-      setSuccessMsg('Kayıt başvurunuz alındı. Yönetici onayından sonra giriş yapabilirsiniz.');
+      setAPassword('');
+      setAConfirmPassword('');
       setAuthMode('login');
-      setSelectedRole('teacher');
-      setLoginUsername(newTeacher.username);
+      setSelectedRole('student');
+      setLoginUsername(number);
       setLoginPassword('');
-    } catch (err: any) {
-      setIsLoading(false);
-      setError(err.message || 'Kayıt sırasında bir hata oluştu.');
-    }
-  };
-
-  // --- SUBMIT STUDENT REGISTER ---
-  const handleStudentRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    if (!sRegName.trim()) {
-      setError('Lütfen Adı Soyadı alanını doldurunuz.');
-      return;
-    }
-    if (!sRegUsername.trim()) {
-      setError('Lütfen Kullanıcı Adı alanını doldurunuz.');
-      return;
-    }
-    if (!sRegSchool) {
-      setError('Lütfen Okul kademesini seçiniz (Ortaokul veya Lise).');
-      return;
-    }
-    if (!sRegGrade) {
-      setError('Lütfen Sınıf seviyesini seçiniz.');
-      return;
-    }
-    if (!sRegPassword.trim()) {
-      setError('Lütfen Şifre alanını doldurunuz.');
-      return;
-    }
-    if (!sRegConfirmPassword.trim()) {
-      setError('Lütfen Şifre Tekrar alanını doldurunuz.');
-      return;
-    }
-
-    if (sRegPassword.length < 3) {
-      setError('Şifre en az 3 karakter olmalıdır.');
-      return;
-    }
-
-    if (sRegPassword !== sRegConfirmPassword) {
-      setError('Girdiğiniz şifreler birbiriyle uyuşmuyor.');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      const constructedClassName = sRegBranch ? `${sRegGrade} - ${sRegBranch}` : sRegGrade;
-      let matchedClass = classes.find(
-        (c) =>
-          c.gradeLevel === sRegGrade &&
-          (!sRegBranch || c.branch === sRegBranch) &&
-          (!c.schoolLevel || c.schoolLevel === sRegSchool)
+      setSuccessMsg(
+        `Başvurunuz alındı. Okul yöneticisi onayladıktan sonra "${number}" öğrenci numaranız ve belirlediğiniz şifreyle giriş yapabilirsiniz.`
       );
-
-      if (!matchedClass) {
-        matchedClass = classes.find((c) => c.name.toLowerCase().includes(sRegGrade.toLowerCase()));
-      }
-
-      let targetClassId = matchedClass?.id;
-      if (!targetClassId) {
-        const newCls = await dataService.addClass({
-          name: constructedClassName,
-          branch: sRegBranch || 'Genel',
-          schoolLevel: sRegSchool,
-          gradeLevel: sRegGrade,
-          academicYear: '2026-2027',
-          description: `${sRegSchool} ${sRegGrade} ${sRegBranch ? `(${sRegBranch})` : ''} öğrenci grubu`,
-        });
-        targetClassId = newCls.id;
-      }
-
-      const newStudent = await dataService.registerStudent({
-        name: sRegName.trim(),
-        username: sRegUsername.trim().toLowerCase(),
-        email: sRegEmail.trim() || '',
-        password: sRegPassword,
-        classId: targetClassId,
-        className: constructedClassName,
-        schoolLevel: sRegSchool,
-        gradeLevel: sRegGrade,
-        branch: sRegBranch.trim() || '',
-        phone: sRegPhone.trim() || '',
-        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-          selectedAvatarSeed || sRegName
-        )}`,
-      });
-
-      if (rememberMe) {
-        dataService.setRememberedUser({
-          role: 'student',
-          identifier: newStudent.username,
-          name: newStudent.name,
-          avatar: newStudent.avatar,
-          className: newStudent.className,
-        });
-        setRememberedStudent(dataService.getRememberedUser('student'));
-      }
-
-      const session: AuthSession = { role: 'student', user: newStudent };
-      dataService.setAuthSession(session);
-
-      onAuthSuccess(session);
     } catch (err: any) {
+      setError(err?.message || 'Başvuru gönderilemedi. Lütfen daha sonra tekrar deneyiniz.');
+    } finally {
       setIsLoading(false);
-      setError(err.message || 'Öğrenci kaydı sırasında bir hata oluştu.');
     }
   };
 
@@ -541,20 +367,22 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               size="md"
               onClick={() => {
                 setAuthMode('register');
+                setSelectedRole('student');
                 setError(null);
                 setSuccessMsg(null);
               }}
               leftIcon={<UserPlus className="w-4 h-4" />}
               className="flex-1"
             >
-              Kayıt Ol
+              Öğrenci Kaydı
             </Button>
           </div>
 
-          {/* Role Selector Pill */}
+          {/* Role Selector Pill (yalnızca girişte; kayıt yalnızca öğrenci başvurusudur) */}
+          {authMode === 'login' && (
           <div className="mb-6">
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
-              {authMode === 'login' ? 'Giriş Yapılacak Rol' : 'Kayıt Olunacak Rol'}
+              Giriş Yapılacak Rol
             </label>
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -592,6 +420,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               </button>
             </div>
           </div>
+          )}
 
           {/* Error & Success Feedback Alerts */}
           {error && (
@@ -656,7 +485,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                         size="sm"
                         leftIcon={<Zap className="w-4 h-4" />}
                       >
-                        Hızlı Giriş Yap
+                        Bu Hesapla Devam Et
                       </Button>
 
                       <Button
@@ -683,7 +512,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   label={
                     selectedRole === 'teacher'
                       ? 'Öğretmen Kullanıcı Adı veya E-posta *'
-                      : 'Öğrenci Kullanıcı Adı, E-posta veya Öğrenci No *'
+                      : 'Öğrenci Numarası *'
                   }
                   type="text"
                   required
@@ -695,15 +524,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   placeholder={
                     selectedRole === 'teacher'
                       ? 'Kullanıcı adı veya e-posta'
-                      : 'Kullanıcı adı, e-posta veya no'
+                      : 'Örn: 1042'
                   }
                   leftIcon={<User className="w-4 h-4" />}
                 />
 
                 <Input
+                  ref={passwordInputRef}
                   label="Şifre *"
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="current-password"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   autoCapitalize="none"
@@ -753,330 +584,172 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             </div>
           )}
 
-          {/* ================= MODE 2: REGISTER ================= */}
+          {/* ================= MODE 2: ÖĞRENCİ KAYIT BAŞVURUSU ================= */}
           {authMode === 'register' && (
-            <div>
-              {selectedRole === 'teacher' ? (
-                /* TEACHER REGISTRATION FORM */
-                <form onSubmit={handleTeacherRegister} className="space-y-3.5">
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs flex items-center space-x-2">
-                    <ShieldCheck className="w-4 h-4 shrink-0 text-amber-600" />
-                    <span>
-                      <strong>Güvenlik Notu:</strong> Yeni öğretmen kayıtları güvenlik amacıyla admin
-                      onayından sonra aktif olmaktadır.
-                    </span>
-                  </div>
+            <form onSubmit={handleStudentApplication} className="space-y-3">
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-xs leading-relaxed">
+                <strong>Öğrenci kayıt başvurusu:</strong> Bilgilerinizi gönderdikten sonra okul yöneticisi başvurunuzu
+                onaylar. Onaydan sonra <strong>öğrenci numaranız</strong> ve burada belirlediğiniz <strong>şifreyle</strong>{' '}
+                giriş yaparsınız. Öğretmen hesapları okul yöneticisi tarafından açılır.
+              </div>
 
-                  <Input
-                    label="Ad Soyad *"
+              {/* Bot tuzağı: ekranda görünmez, gerçek kullanıcılar doldurmaz */}
+              <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+                <label htmlFor="app-website">Web sitesi</label>
+                <input
+                  id="app-website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={aWebsite}
+                  onChange={(e) => setAWebsite(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Adı Soyadı *"
+                  type="text"
+                  required
+                  value={aName}
+                  onChange={(e) => setAName(e.target.value)}
+                  placeholder="Ad Soyad"
+                  leftIcon={<User className="w-4 h-4" />}
+                />
+                <Input
+                  label="Öğrenci Numarası * (giriş adınız)"
+                  type="text"
+                  required
+                  value={aNumber}
+                  onChange={(e) => setANumber(e.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="Örn: 1042"
+                  leftIcon={<Hash className="w-4 h-4" />}
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-[11px] font-bold text-slate-700 flex items-center space-x-1.5">
+                  <School className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Sınıfınız (isteğe bağlı)</span>
+                </label>
+                <select
+                  value={aClassId}
+                  onChange={(e) => setAClassId(e.target.value)}
+                  className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="">
+                    {applicationClassesState === 'loading' ? 'Sınıflar yükleniyor...' : 'Listede yok / emin değilim'}
+                  </option>
+                  {applicationClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                {!aClassId && (
+                  <input
                     type="text"
-                    required
-                    value={tRegName}
-                    onChange={(e) => setTRegName(e.target.value)}
-                    placeholder="Örn: Ayşe Demir"
-                    leftIcon={<User className="w-4 h-4" />}
+                    value={aRequestedClass}
+                    onChange={(e) => setARequestedClass(e.target.value)}
+                    maxLength={60}
+                    placeholder="Sınıfınızı yazabilirsiniz (örn: 8-B). Yönetici onaylarken sınıfa yerleştirir."
+                    className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
+                )}
+                {applicationClassesState === 'error' && (
+                  <p className="text-[11px] text-amber-700">Sınıf listesi alınamadı; sınıfınızı yazarak devam edebilirsiniz.</p>
+                )}
+              </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Kullanıcı Adı *"
-                      type="text"
-                      required
-                      value={tRegUsername}
-                      onChange={(e) => setTRegUsername(e.target.value)}
-                      placeholder="ademir"
-                      leftIcon={<Hash className="w-4 h-4" />}
-                    />
-                    <Input
-                      label="Branş"
-                      type="text"
-                      value={tRegBranch}
-                      onChange={(e) => setTRegBranch(e.target.value)}
-                      placeholder="Fizik, Biyoloji vb."
-                      leftIcon={<Briefcase className="w-4 h-4" />}
-                    />
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Şifre * (en az 6 karakter)"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={aPassword}
+                  onChange={(e) => setAPassword(e.target.value)}
+                  placeholder="En az 6 karakter"
+                  leftIcon={<Lock className="w-4 h-4" />}
+                  rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  onRightIconClick={() => setShowPassword(!showPassword)}
+                  rightIconLabel="Şifreyi göster/gizle"
+                />
+                <Input
+                  label="Şifre Tekrar *"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="new-password"
+                  value={aConfirmPassword}
+                  onChange={(e) => setAConfirmPassword(e.target.value)}
+                  placeholder="Şifreyi tekrar girin"
+                  leftIcon={<Lock className="w-4 h-4" />}
+                  rightIcon={showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  rightIconLabel="Şifreyi göster/gizle"
+                />
+              </div>
 
-                  <Input
-                    label="E-posta Adresi *"
-                    type="email"
-                    required
-                    value={tRegEmail}
-                    onChange={(e) => setTRegEmail(e.target.value)}
-                    placeholder="ornek@okul.k12.tr"
-                    leftIcon={<Mail className="w-4 h-4" />}
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Telefon (İsteğe Bağlı)"
+                  type="tel"
+                  value={aPhone}
+                  onChange={(e) => setAPhone(e.target.value)}
+                  placeholder="05XX XXX XX XX"
+                  leftIcon={<Phone className="w-4 h-4" />}
+                />
+                <Input
+                  label="E-posta (İsteğe Bağlı)"
+                  type="email"
+                  value={aEmail}
+                  onChange={(e) => setAEmail(e.target.value)}
+                  placeholder="ornek@mail.com"
+                  leftIcon={<Mail className="w-4 h-4" />}
+                />
+              </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Şifre *"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={tRegPassword}
-                      onChange={(e) => setTRegPassword(e.target.value)}
-                      placeholder="En az 4 karakter"
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      onRightIconClick={() => setShowPassword(!showPassword)}
-                      rightIconLabel="Şifreyi göster/gizle"
-                    />
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Profil Karakteri</label>
+                <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+                  {avatarSeeds.map((seed) => (
+                    <button
+                      type="button"
+                      key={seed}
+                      onClick={() => setSelectedAvatarSeed(seed)}
+                      className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 cursor-pointer ${
+                        selectedAvatarSeed === seed
+                          ? 'border-indigo-500 scale-105 shadow-sm'
+                          : 'border-slate-200 opacity-60 hover:opacity-100'
+                      }`}
+                      aria-label={`Karakter ${seed}`}
+                    >
+                      <img
+                        src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}`}
+                        alt={seed}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                    <Input
-                      label="Şifre Tekrar *"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={tRegConfirmPassword}
-                      onChange={(e) => setTRegConfirmPassword(e.target.value)}
-                      placeholder="Şifreyi tekrar girin"
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      rightIcon={
-                        showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />
-                      }
-                      onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      rightIconLabel="Şifreyi göster/gizle"
-                    />
-                  </div>
-
-                  {/* BENİ HATIRLA SEÇENEĞİ */}
-                  <div className="flex items-center space-x-2 pt-1">
-                    <input
-                      type="checkbox"
-                      id="t-remember"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
-                    />
-                    <label htmlFor="t-remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
-                      Beni Hatırla
-                    </label>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={isLoading}
-                    isLoading={isLoading}
-                    loadingText="Kayıt Yapılıyor..."
-                    leftIcon={<ShieldCheck className="w-4 h-4" />}
-                    className="w-full mt-2 py-2.5"
-                  >
-                    Kayıt Ol
-                  </Button>
-                </form>
-              ) : (
-                /* STUDENT REGISTRATION FORM */
-                <form onSubmit={handleStudentRegister} className="space-y-3">
-                  {/* 1. Adı Soyadı & Kullanıcı Adı (Zorunlu) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Adı Soyadı *"
-                      type="text"
-                      required
-                      value={sRegName}
-                      onChange={(e) => setSRegName(e.target.value)}
-                      placeholder="Ad Soyad"
-                      leftIcon={<User className="w-4 h-4" />}
-                    />
-                    <Input
-                      label="Kullanıcı Adı *"
-                      type="text"
-                      required
-                      value={sRegUsername}
-                      onChange={(e) => setSRegUsername(e.target.value)}
-                      placeholder="kullaniciadi"
-                      leftIcon={<Hash className="w-4 h-4" />}
-                    />
-                  </div>
-
-                  {/* 2. Okul (Mecburi), Sınıf (Mecburi) & Şube (İsteğe Bağlı) */}
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-700 flex items-center space-x-1.5">
-                        <School className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Okul, Sınıf ve Şube Bilgileri</span>
-                      </span>
-                      <span className="text-[11px] text-amber-600 font-semibold">Okul & Sınıf Zorunlu</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      {/* Okul Açılır Buton (Mecburi) */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Okul *
-                        </label>
-                        <select
-                          required
-                          value={sRegSchool}
-                          onChange={(e) => {
-                            const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
-                            setSRegSchool(newSchool);
-                            if (newSchool === 'Ortaokul') {
-                              setSRegGrade('5. Sınıf');
-                            } else if (newSchool === 'Lise') {
-                              setSRegGrade('9. Sınıf');
-                            }
-                          }}
-                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          <option value="">Okul Seçiniz *</option>
-                          <option value="Ortaokul">Ortaokul</option>
-                          <option value="Lise">Lise</option>
-                        </select>
-                      </div>
-
-                      {/* Sınıf Açılır Penceresi (Mecburi) */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Sınıf *
-                        </label>
-                        <select
-                          required
-                          value={sRegGrade}
-                          onChange={(e) => setSRegGrade(e.target.value)}
-                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          {!sRegSchool ? (
-                            <option value="">Önce Okul Seçiniz *</option>
-                          ) : (
-                            getGradesForSchoolLevel(sRegSchool).map((g) => (
-                              <option key={g} value={g}>
-                                {g}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-
-                      {/* Şube Açılır Buton (İsteğe Bağlı) */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                          Şube (İsteğe Bağlı)
-                        </label>
-                        <select
-                          value={sRegBranch}
-                          onChange={(e) => setSRegBranch(e.target.value)}
-                          className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                        >
-                          <option value="">Şube Seçiniz (İsteğe Bağlı)</option>
-                          {BRANCH_OPTIONS.map((b) => (
-                            <option key={b.id} value={b.label}>
-                              {b.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3. Şifre * & Şifre Tekrar * (Zorunlu) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Şifre *"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={sRegPassword}
-                      onChange={(e) => setSRegPassword(e.target.value)}
-                      placeholder="En az 3 karakter"
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      onRightIconClick={() => setShowPassword(!showPassword)}
-                      rightIconLabel="Şifreyi göster/gizle"
-                    />
-
-                    <Input
-                      label="Şifre Tekrar *"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={sRegConfirmPassword}
-                      onChange={(e) => setSRegConfirmPassword(e.target.value)}
-                      placeholder="Şifreyi tekrar girin"
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      rightIcon={
-                        showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />
-                      }
-                      onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      rightIconLabel="Şifreyi göster/gizle"
-                    />
-                  </div>
-
-                  {/* 4. Telefon (İsteğe Bağlı) & Mail (İsteğe Bağlı) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Telefon (İsteğe Bağlı)"
-                      type="tel"
-                      value={sRegPhone}
-                      onChange={(e) => setSRegPhone(e.target.value)}
-                      placeholder="05XX XXX XX XX"
-                      leftIcon={<Phone className="w-4 h-4" />}
-                    />
-
-                    <Input
-                      label="Mail (İsteğe Bağlı)"
-                      type="email"
-                      value={sRegEmail}
-                      onChange={(e) => setSRegEmail(e.target.value)}
-                      placeholder="ornek@mail.com"
-                      leftIcon={<Mail className="w-4 h-4" />}
-                    />
-                  </div>
-
-                  {/* Avatar Seçimi */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Profil Karakteri / Avatarı
-                    </label>
-                    <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-                      {avatarSeeds.map((seed) => (
-                        <button
-                          type="button"
-                          key={seed}
-                          onClick={() => setSelectedAvatarSeed(seed)}
-                          className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 cursor-pointer ${
-                            selectedAvatarSeed === seed
-                              ? 'border-indigo-500 scale-105 shadow-sm'
-                              : 'border-slate-200 opacity-60 hover:opacity-100'
-                          }`}
-                        >
-                          <img
-                            src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                              seed
-                            )}`}
-                            alt={seed}
-                            className="w-full h-full object-cover"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* BENİ HATIRLA SEÇENEĞİ */}
-                  <div className="flex items-center space-x-2 pt-1">
-                    <input
-                      type="checkbox"
-                      id="s-remember"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
-                    />
-                    <label htmlFor="s-remember" className="text-xs font-semibold text-slate-600 cursor-pointer">
-                      Beni Hatırla
-                    </label>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={isLoading}
-                    isLoading={isLoading}
-                    loadingText="Kayıt Yapılıyor..."
-                    leftIcon={<BookOpen className="w-4 h-4" />}
-                    className="w-full mt-2 py-2.5"
-                  >
-                    Kayıt Ol
-                  </Button>
-                </form>
-              )}
-            </div>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={isLoading}
+                isLoading={isLoading}
+                loadingText="Başvuru Gönderiliyor..."
+                leftIcon={<BookOpen className="w-4 h-4" />}
+                className="w-full mt-2 py-2.5"
+              >
+                Başvuruyu Gönder
+              </Button>
+            </form>
           )}
         </div>
       </main>

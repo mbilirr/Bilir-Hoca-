@@ -40,15 +40,17 @@ interface ExcelDocxOutcomeImporterModalProps {
   }) => void;
 }
 
-export const ExcelDocxOutcomeImporterModal: React.FC<ExcelDocxOutcomeImporterModalProps> = ({
-  isOpen,
+// Pencere kapalıyken içerik hiç oluşturulmaz (React kancaları her çizimde aynı sırada çağrılmalı)
+export const ExcelDocxOutcomeImporterModal: React.FC<ExcelDocxOutcomeImporterModalProps> = (props) =>
+  props.isOpen ? <ExcelDocxOutcomeImporterContent {...props} /> : null;
+
+const ExcelDocxOutcomeImporterContent: React.FC<ExcelDocxOutcomeImporterModalProps> = ({
   onClose,
   classes,
   students,
   onImportToNewHomework,
   onBulkCreateHomework,
 }) => {
-  if (!isOpen) return null;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
