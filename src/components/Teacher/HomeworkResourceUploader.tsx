@@ -1,480 +1,717 @@
-import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Video,
   FileText,
   Link as LinkIcon,
+  Plus,
+  Trash2,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
   ExternalLink,
-  Download,
-  Play,
-  Eye,
-  X,
-  Copy,
-  Check,
   Film,
-  FileSpreadsheet,
+  Globe,
+  Sparkles,
+  FileUp,
 } from 'lucide-react';
-import { HomeworkResource } from '../../types';
+import { HomeworkResource, HomeworkResourceType } from '../../types';
 
-interface HomeworkResourceViewerProps {
-  resources?: HomeworkResource[];
-  legacyAttachmentUrl?: string;
-  isCompact?: boolean;
+interface HomeworkResourceUploaderProps {
+  resources: HomeworkResource[];
+  onChange: (resources: HomeworkResource[]) => void;
+  // Yazılmış ama "Ekle"ye basılmamış bağlantıyı üst bileşene bildirir; kaydederken kaybolmasın diye eklenir.
+  onPendingChange?: (pending: HomeworkResource | null) => void;
 }
 
-// Utility to parse YouTube Embed URL
-function getYouTubeEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  const ytMatch = url.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/
-  );
-  if (ytMatch && ytMatch[1]) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0`;
-  }
-  return null;
-}
+// Dosyalar şimdilik kayıt satırının içinde saklanıyor; bu yüzden en fazla 1 MB.
+// (Aşama 5'te dosya deposuna geçilince bu sınır büyütülecek.)
+export const MAX_RESOURCE_FILE_BYTES = 1024 * 1024;
+const FILE_LIMIT_MESSAGE =
+  'Dosya 1 MB sınırını aşıyor. Büyük videoları YouTube, büyük PDF\'leri Google Drive bağlantısı olarak ekleyebilirsiniz.';
 
-// Utility to parse Vimeo Embed URL
-function getVimeoEmbedUrl(url: string): string | null {
-  if (!url) return null;
-  const vimeoMatch = url.match(/(?:vimeo\.com\/)(\d+)/);
-  if (vimeoMatch && vimeoMatch[1]) {
-    return `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`;
-  }
-  return null;
-}
+const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : 'https://' + url);
 
-// Google Drive "görüntüle" bağlantısını sayfa içinde açılabilen önizleme bağlantısına çevirir
-function getDrivePreviewUrl(url: string): string | null {
-  const m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]{10,})/);
-  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : null;
-}
+export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> = ({
+  resources,
+  onChange,
+  onPendingChange,
+}) => {
+  const [activeTab, setActiveTab] = useState<HomeworkResourceType>('video');
 
-// Kayıt içinde saklanan dosyalar (data:...) tarayıcıda doğrudan açılamaz; geçici dosya adresine (blob) çevrilir.
-function dataUrlToBlobUrl(url: string): string | null {
-  try {
-    const comma = url.indexOf(',');
-    if (!url.startsWith('data:') || comma < 0) return null;
-    const header = url.slice(5, comma);
-    const mime = header.split(';')[0] || 'application/octet-stream';
-    const payload = url.slice(comma + 1);
-    let bytes: Uint8Array;
-    if (header.includes(';base64')) {
-      const bin = atob(payload);
-      bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    } else {
-      bytes = new TextEncoder().encode(decodeURIComponent(payload));
-    }
-    return URL.createObjectURL(new Blob([bytes], { type: mime }));
-  } catch {
-    return null;
-  }
-}
+  // Video Form
+  const [videoSourceType, setVideoSourceType] = useState<'url' | 'file'>('url');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
 
-const isInlineFile = (url?: string) => !!url && url.startsWith('data:');
+  // Link Form
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkDescription, setLinkDescription] = useState('');
 
-// Gösterilecek adres: kayıt içi dosyalar için geçici blob adresi, diğerleri için kendisi
-function useViewableUrl(url?: string): string {
-  const [viewUrl, setViewUrl] = useState<string>(() => (url && !isInlineFile(url) ? url : ''));
-  useEffect(() => {
-    if (!url) {
-      setViewUrl('');
+  // PDF Form
+  const [pdfSourceType, setPdfSourceType] = useState<'file' | 'url'>('file');
+  const [pdfFileUrl, setPdfFileUrl] = useState('');
+  const [pdfFileName, setPdfFileName] = useState('');
+  const [pdfFileSize, setPdfFileSize] = useState('');
+  const [pdfTitle, setPdfTitle] = useState('');
+  const [pdfDescription, setPdfDescription] = useState('');
+  const [pdfOnlineUrl, setPdfOnlineUrl] = useState('');
+  const pdfFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Format file size
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Video File Upload Handler
+  const handleVideoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('video/')) {
+      setErrorMessage('Lütfen geçerli bir video dosyası (MP4, WebM vb.) seçin.');
       return;
     }
-    if (!isInlineFile(url)) {
-      setViewUrl(url);
+
+    if (file.size > MAX_RESOURCE_FILE_BYTES) {
+      setErrorMessage(FILE_LIMIT_MESSAGE);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
       return;
     }
-    const blobUrl = dataUrlToBlobUrl(url);
-    setViewUrl(blobUrl || url);
-    return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const sizeStr = formatBytes(file.size);
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+
+      const newResource: HomeworkResource = {
+        id: `res-${Date.now()}`,
+        type: 'video',
+        title: videoTitle.trim() || cleanTitle,
+        url: dataUrl,
+        fileSize: sizeStr,
+        fileName: file.name,
+        description: videoDescription.trim() || `${file.name} (${sizeStr})`,
+      };
+
+      onChange([...resources, newResource]);
+      setVideoTitle('');
+      setVideoDescription('');
+      setVideoUrl('');
+      setErrorMessage(null);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
     };
-  }, [url]);
-  return viewUrl;
-}
+    reader.readAsDataURL(file);
+  };
 
-// Dosyayı indirir (kayıt içi dosyalar dahil). Başarısız olursa yeni sekmede açmayı dener.
-function downloadResource(res: HomeworkResource) {
-  const fileName = res.fileName || `${res.title || 'dosya'}${res.type === 'pdf' ? '.pdf' : ''}`;
-  if (!isInlineFile(res.url)) {
-    window.open(res.url, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  const blobUrl = dataUrlToBlobUrl(res.url);
-  const a = document.createElement('a');
-  a.href = blobUrl || res.url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-}
+  // Add Video from URL
+  const handleAddVideoUrl = () => {
+    if (!videoUrl.trim()) {
+      setErrorMessage('Lütfen bir video linki (YouTube, Vimeo veya doğrudan video URL) girin.');
+      return;
+    }
 
-// Bağlantıyı yeni sekmede açar (kayıt içi dosyalar blob adresiyle açılır)
-function openResourceInNewTab(res: HomeworkResource) {
-  if (!isInlineFile(res.url)) {
-    window.open(res.url, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  const blobUrl = dataUrlToBlobUrl(res.url);
-  if (blobUrl) {
-    window.open(blobUrl, '_blank', 'noopener,noreferrer');
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60_000);
-  } else {
-    downloadResource(res);
-  }
-}
+    let defaultTitle = 'Ders Anlatım Videosu';
+    if (videoUrl.includes('youtube') || videoUrl.includes('youtu.be')) {
+      defaultTitle = 'YouTube Konu Anlatımı';
+    } else if (videoUrl.includes('vimeo')) {
+      defaultTitle = 'Vimeo Video Dersi';
+    }
 
-// PDF önizleme penceresi (sayfanın en üstünde açılır)
-const PdfViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> = ({ res, onClose }) => {
-  const viewUrl = useViewableUrl(res.url);
-  const drivePreview = !isInlineFile(res.url) ? getDrivePreviewUrl(res.url) : null;
-  const frameSrc = drivePreview || (viewUrl ? (isInlineFile(res.url) ? viewUrl : `${viewUrl}#toolbar=1`) : '');
+    const newResource: HomeworkResource = {
+      id: `res-${Date.now()}`,
+      type: 'video',
+      title: videoTitle.trim() || defaultTitle,
+      url: videoUrl.trim(),
+      description: videoDescription.trim() || undefined,
+    };
+
+    onChange([...resources, newResource]);
+    setVideoUrl('');
+    setVideoTitle('');
+    setVideoDescription('');
+    setErrorMessage(null);
+  };
+
+  // Add Internet Link
+  const handleAddLink = () => {
+    if (!linkUrl.trim()) {
+      setErrorMessage('Lütfen geçerli bir internet bağlantı URL adresi girin.');
+      return;
+    }
+
+    let formattedUrl = linkUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = 'https://' + formattedUrl;
+    }
+
+    let cleanTitle = linkTitle.trim();
+    if (!cleanTitle) {
+      try {
+        const domain = new URL(formattedUrl).hostname.replace('www.', '');
+        cleanTitle = `${domain} Kaynağı`;
+      } catch (e) {
+        cleanTitle = 'İnternet Bağlantısı';
+      }
+    }
+
+    const newResource: HomeworkResource = {
+      id: `res-${Date.now()}`,
+      type: 'link',
+      title: cleanTitle,
+      url: formattedUrl,
+      description: linkDescription.trim() || undefined,
+    };
+
+    onChange([...resources, newResource]);
+    setLinkUrl('');
+    setLinkTitle('');
+    setLinkDescription('');
+    setErrorMessage(null);
+  };
+
+  // PDF File Upload Handler
+  const handlePdfFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      setErrorMessage('Lütfen sadece PDF formatında (.pdf) bir belge seçin.');
+      return;
+    }
+
+    if (file.size > MAX_RESOURCE_FILE_BYTES) {
+      setErrorMessage(FILE_LIMIT_MESSAGE);
+      if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const sizeStr = formatBytes(file.size);
+      const cleanTitle = file.name.replace(/\.pdf$/i, '');
+
+      const newResource: HomeworkResource = {
+        id: `res-${Date.now()}`,
+        type: 'pdf',
+        title: pdfTitle.trim() || cleanTitle,
+        url: dataUrl,
+        fileSize: sizeStr,
+        fileName: file.name,
+        description: pdfDescription.trim() || `${file.name} (${sizeStr})`,
+      };
+
+      onChange([...resources, newResource]);
+      setPdfTitle('');
+      setPdfDescription('');
+      setErrorMessage(null);
+      if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Add Online PDF from URL
+  const handleAddPdfUrl = () => {
+    if (!pdfOnlineUrl.trim()) {
+      setErrorMessage('Lütfen geçerli bir online PDF bağlantısı girin.');
+      return;
+    }
+
+    let formattedUrl = pdfOnlineUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = 'https://' + formattedUrl;
+    }
+
+    const newResource: HomeworkResource = {
+      id: `res-${Date.now()}`,
+      type: 'pdf',
+      title: pdfTitle.trim() || 'Online PDF Çalışma Fasikülü',
+      url: formattedUrl,
+      description: pdfDescription.trim() || undefined,
+    };
+
+    onChange([...resources, newResource]);
+    setPdfOnlineUrl('');
+    setPdfTitle('');
+    setPdfDescription('');
+    setErrorMessage(null);
+  };
+
+  const handleRemoveResource = (id: string) => {
+    onChange(resources.filter((r) => r.id !== id));
+  };
+
+  // Kutuya yazılmış ama henüz eklenmemiş bağlantı (kaydet'e basılınca otomatik eklenir)
+  useEffect(() => {
+    if (!onPendingChange) return;
+    let pending: HomeworkResource | null = null;
+    if (activeTab === 'video' && videoSourceType === 'url' && videoUrl.trim()) {
+      pending = {
+        id: `res-pending-video`,
+        type: 'video',
+        title: videoTitle.trim() || 'Ders Anlatım Videosu',
+        url: videoUrl.trim(),
+        description: videoDescription.trim() || undefined,
+      };
+    } else if (activeTab === 'link' && linkUrl.trim()) {
+      const url = withProtocol(linkUrl.trim());
+      let title = linkTitle.trim();
+      if (!title) {
+        try {
+          title = `${new URL(url).hostname.replace('www.', '')} Kaynağı`;
+        } catch {
+          title = 'İnternet Bağlantısı';
+        }
+      }
+      pending = { id: `res-pending-link`, type: 'link', title, url, description: linkDescription.trim() || undefined };
+    } else if (activeTab === 'pdf' && pdfSourceType === 'url' && pdfOnlineUrl.trim()) {
+      pending = {
+        id: `res-pending-pdf`,
+        type: 'pdf',
+        title: pdfTitle.trim() || 'Online PDF Çalışma Fasikülü',
+        url: withProtocol(pdfOnlineUrl.trim()),
+        description: pdfDescription.trim() || undefined,
+      };
+    }
+    onPendingChange(pending);
+  }, [
+    onPendingChange, activeTab, videoSourceType, videoUrl, videoTitle, videoDescription,
+    linkUrl, linkTitle, linkDescription, pdfSourceType, pdfOnlineUrl, pdfTitle, pdfDescription,
+  ]);
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md" onClick={onClose}>
-      <div
-        className="relative w-full max-w-4xl h-[88vh] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-2 p-3 sm:p-4 border-b border-slate-800 bg-slate-900/90 flex-shrink-0">
-          <div className="flex items-center space-x-2 text-amber-400 min-w-0">
-            <FileText className="w-5 h-5 shrink-0" />
-            <h4 className="font-bold text-white text-sm sm:text-base truncate">{res.title}</h4>
-            {res.fileSize && <span className="text-xs text-slate-400 font-mono shrink-0">({res.fileSize})</span>}
-          </div>
-
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => openResourceInNewTab(res)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Yeni Sekmede Aç</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => downloadResource(res)}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>PDF İndir</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Kapat"
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+    <div className="space-y-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center space-x-2">
+            <Film className="w-4 h-4 text-indigo-400" />
+            <span>Ödev Materyalleri (Video, İnternet Linki, PDF)</span>
+          </span>
         </div>
 
-        <div className="flex-1 bg-slate-950 p-2 relative">
-          {frameSrc ? (
-            <iframe src={frameSrc} title={res.title} className="w-full h-full rounded-xl border border-slate-800 bg-white" />
+        {resources.length > 0 && (
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            {resources.length} Materyal Eklendi
+          </span>
+        )}
+      </div>
+
+      {/* Error notification if any */}
+      {errorMessage && (
+        <div className="p-2.5 bg-rose-950/40 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-xs font-bold text-rose-400 hover:text-rose-200"
+          >
+            Tamam
+          </button>
+        </div>
+      )}
+
+      {/* Type Tabs */}
+      <div className="flex space-x-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('video');
+            setErrorMessage(null);
+          }}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+            activeTab === 'video'
+              ? 'bg-rose-600/20 text-rose-300 border border-rose-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Video className="w-3.5 h-3.5" />
+          <span>Video Ekle</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('link');
+            setErrorMessage(null);
+          }}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+            activeTab === 'link'
+              ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>İnternet Linki Ekle</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('pdf');
+            setErrorMessage(null);
+          }}
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+            activeTab === 'pdf'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <FileText className="w-3.5 h-3.5" />
+          <span>PDF Ekle</span>
+        </button>
+      </div>
+
+      {/* TAB CONTENT 1: VIDEO */}
+      {activeTab === 'video' && (
+        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+          <div className="flex items-center space-x-2 text-xs">
+            <span className="text-slate-400">Video Kaynağı:</span>
+            <button
+              type="button"
+              onClick={() => setVideoSourceType('url')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                videoSourceType === 'url'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              YouTube / Web Video Linki
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoSourceType('file')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                videoSourceType === 'file'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              Bilgisayardan Video Yükle
+            </button>
+          </div>
+
+          {videoSourceType === 'url' ? (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Video Başlığı (örn: Türev Kuralları Konu Anlatımı)"
+                  value={videoTitle}
+                  onChange={(e) => setVideoTitle(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Açıklama / Not (opsiyonel)"
+                  value={videoDescription}
+                  onChange={(e) => setVideoDescription(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  inputMode="url"
+                  placeholder="YouTube, Vimeo veya Video Linki (https://www.youtube.com/watch?v=...)"
+                  value={videoUrl}
+                  onChange={(e) => setVideoUrl(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddVideoUrl}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold transition-all flex items-center space-x-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Videoyu Ekle</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">Yükleniyor…</div>
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Video Başlığı (opsiyonel)"
+                  value={videoTitle}
+                  onChange={(e) => setVideoTitle(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Açıklama (opsiyonel)"
+                  value={videoDescription}
+                  onChange={(e) => setVideoDescription(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <div
+                onClick={() => videoFileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-700 hover:border-rose-500/50 bg-slate-800/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
+              >
+                <input
+                  type="file"
+                  ref={videoFileInputRef}
+                  onChange={handleVideoFileUpload}
+                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                  className="hidden"
+                />
+                <UploadCloud className="w-6 h-6 text-rose-400 mx-auto mb-1.5" />
+                <span className="text-xs font-semibold text-white block">
+                  Video Seçmek veya Sürüklemek İçin Tıklayın
+                </span>
+                <span className="text-[11px] text-slate-400 block mt-0.5">
+                  Desteklenen Formatlar: MP4, WebM (Maksimum 1 MB — büyük videolar için YouTube linki)
+                </span>
+              </div>
+            </div>
           )}
         </div>
-        <div className="px-4 py-2 border-t border-slate-800 text-[11px] text-slate-400 flex-shrink-0">
-          PDF burada görünmüyorsa (özellikle telefonda) "PDF İndir" ya da "Yeni Sekmede Aç" ile açabilirsiniz.
-        </div>
-      </div>
-    </div>
-  );
-};
+      )}
 
-export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
-  resources = [],
-  legacyAttachmentUrl,
-  isCompact = false,
-}) => {
-  const [activeVideoModal, setActiveVideoModal] = useState<HomeworkResource | null>(null);
-  const [activePdfModal, setActivePdfModal] = useState<HomeworkResource | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+      {/* TAB CONTENT 2: WEB LINK */}
+      {activeTab === 'link' && (
+        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="text"
+              placeholder="Bağlantı Başlığı (örn: GeoGebra Türev Simülatörü)"
+              value={linkTitle}
+              onChange={(e) => setLinkTitle(e.target.value)}
+              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Açıklama / Talimat (opsiyonel)"
+              value={linkDescription}
+              onChange={(e) => setLinkDescription(e.target.value)}
+              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
 
-  // Normalize list with legacy attachment if present
-  const allResources: HomeworkResource[] = [...resources];
-  if (legacyAttachmentUrl && !allResources.some((r) => r.url === legacyAttachmentUrl)) {
-    const isPdf = legacyAttachmentUrl.toLowerCase().includes('.pdf');
-    allResources.unshift({
-      id: 'legacy-att',
-      type: isPdf ? 'pdf' : 'link',
-      title: isPdf ? 'Ek PDF Dokümanı' : 'Ödev Bağlantısı',
-      url: legacyAttachmentUrl,
-    });
-  }
-
-  if (allResources.length === 0) {
-    return null;
-  }
-
-  const handleCopy = (res: HomeworkResource, e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(res.url);
-    setCopiedId(res.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const getResourceIcon = (type: HomeworkResource['type']) => {
-    switch (type) {
-      case 'video':
-        return <Video className="w-4 h-4 text-rose-400" />;
-      case 'pdf':
-        return <FileText className="w-4 h-4 text-amber-400" />;
-      case 'link':
-      default:
-        return <LinkIcon className="w-4 h-4 text-blue-400" />;
-    }
-  };
-
-  const getResourceBadge = (type: HomeworkResource['type']) => {
-    switch (type) {
-      case 'video':
-        return {
-          bg: 'bg-rose-500/10 border-rose-500/20 text-rose-300',
-          label: 'Video Ders / Kayıt',
-        };
-      case 'pdf':
-        return {
-          bg: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
-          label: 'PDF Dokümanı',
-        };
-      case 'link':
-      default:
-        return {
-          bg: 'bg-blue-500/10 border-blue-500/20 text-blue-300',
-          label: 'Web Linki',
-        };
-    }
-  };
-
-  // Video / PDF pencereleri sayfanın en üstünde (body altında) açılır; başka bir pencerenin içinde de doğru görünür.
-  const viewerModals =
-    typeof document !== 'undefined'
-      ? createPortal(
-          <>
-            {activeVideoModal && (
-              <div
-                className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md"
-                onClick={() => setActiveVideoModal(null)}
-              >
-                <div
-                  className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/90">
-                    <div className="flex items-center space-x-2 text-rose-400 min-w-0">
-                      <Video className="w-5 h-5 shrink-0" />
-                      <h4 className="font-bold text-white text-sm sm:text-base truncate">{activeVideoModal.title}</h4>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveVideoModal(null)}
-                      aria-label="Kapat"
-                      className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-black flex items-center justify-center min-h-[300px] max-h-[70vh]">
-                    {getYouTubeEmbedUrl(activeVideoModal.url) ? (
-                      <iframe
-                        src={getYouTubeEmbedUrl(activeVideoModal.url)!}
-                        title={activeVideoModal.title}
-                        className="w-full aspect-video rounded-xl shadow-lg border border-slate-800"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    ) : getVimeoEmbedUrl(activeVideoModal.url) ? (
-                      <iframe
-                        src={getVimeoEmbedUrl(activeVideoModal.url)!}
-                        title={activeVideoModal.title}
-                        className="w-full aspect-video rounded-xl shadow-lg border border-slate-800"
-                        allow="autoplay; fullscreen; picture-in-picture"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <video
-                        controls
-                        autoPlay
-                        className="w-full max-h-[60vh] rounded-xl shadow-lg border border-slate-800"
-                        src={activeVideoModal.url}
-                      >
-                        Tarayıcınız video oynatmayı desteklemiyor.
-                      </video>
-                    )}
-                  </div>
-
-                  <div className="p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-400">{activeVideoModal.description || 'Ödev video anlatımı'}</span>
-                    <button
-                      type="button"
-                      onClick={() => openResourceInNewTab(activeVideoModal)}
-                      className="flex items-center space-x-1 text-xs text-indigo-400 hover:underline font-medium shrink-0"
-                    >
-                      <span>Harici Sekmede Aç</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            {activePdfModal && <PdfViewerModal res={activePdfModal} onClose={() => setActivePdfModal(null)} />}
-          </>,
-          document.body
-        )
-      : null;
-
-  if (isCompact) {
-    return (
-      <div className="flex flex-wrap items-center gap-1.5">
-        {allResources.map((res) => {
-          const badge = getResourceBadge(res.type);
-          return (
+          <div className="flex items-center space-x-2">
+            <input
+              type="text"
+              inputMode="url"
+              placeholder="Web Sitesi veya İnternet Linki (https://...)"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+            />
             <button
-              key={res.id}
               type="button"
-              onClick={() => {
-                if (res.type === 'video') setActiveVideoModal(res);
-                else if (res.type === 'pdf') setActivePdfModal(res);
-                else openResourceInNewTab(res);
-              }}
-              className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all hover:scale-[1.02] ${badge.bg}`}
-              title={res.description || res.title}
+              onClick={handleAddLink}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-all flex items-center space-x-1"
             >
-              {getResourceIcon(res.type)}
-              <span className="max-w-[140px] truncate">{res.title}</span>
-              {res.type === 'video' ? (
-                <Play className="w-3 h-3 ml-0.5 opacity-80" />
-              ) : res.type === 'pdf' ? (
-                <Eye className="w-3 h-3 ml-0.5 opacity-80" />
-              ) : (
-                <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
-              )}
+              <Plus className="w-3.5 h-3.5" />
+              <span>Linki Ekle</span>
             </button>
-          );
-        })}
-        {viewerModals}
-      </div>
-    );
-  }
+          </div>
+        </div>
+      )}
 
-  return (
-    <div className="space-y-2.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center space-x-1.5">
-          <Film className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Ödev Materyalleri & Ek Kaynaklar ({allResources.length})</span>
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {allResources.map((res) => {
-          const badge = getResourceBadge(res.type);
-          return (
-            <div
-              key={res.id}
-              className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl hover:border-slate-700 transition-all flex flex-col justify-between group"
+      {/* TAB CONTENT 3: PDF */}
+      {activeTab === 'pdf' && (
+        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+          <div className="flex items-center space-x-2 text-xs">
+            <span className="text-slate-400">PDF Ekleme Yöntemi:</span>
+            <button
+              type="button"
+              onClick={() => setPdfSourceType('file')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                pdfSourceType === 'file'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
             >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className={`p-2 rounded-lg border ${badge.bg}`}>
-                    {getResourceIcon(res.type)}
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
-                      {res.title}
-                    </h5>
-                    <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="text-[10px] text-slate-400 font-medium">{badge.label}</span>
-                      {res.fileSize && (
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          • {res.fileSize}
+              Bilgisayardan PDF Yükle
+            </button>
+            <button
+              type="button"
+              onClick={() => setPdfSourceType('url')}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                pdfSourceType === 'url'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
+                  : 'bg-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              Online PDF / Drive Bağlantısı
+            </button>
+          </div>
+
+          {pdfSourceType === 'file' ? (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="PDF Başlığı (opsiyonel - boş bırakılırsa dosya adı alınır)"
+                  value={pdfTitle}
+                  onChange={(e) => setPdfTitle(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Açıklama (opsiyonel)"
+                  value={pdfDescription}
+                  onChange={(e) => setPdfDescription(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div
+                onClick={() => pdfFileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 bg-slate-800/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
+              >
+                <input
+                  type="file"
+                  ref={pdfFileInputRef}
+                  onChange={handlePdfFileUpload}
+                  accept="application/pdf,.pdf"
+                  className="hidden"
+                />
+                <FileUp className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
+                <span className="text-xs font-semibold text-white block">
+                  PDF Dosyası Seçmek veya Sürüklemek İçin Tıklayın
+                </span>
+                <span className="text-[11px] text-slate-400 block mt-0.5">
+                  Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum 1 MB — büyük dosyalar için Google Drive linki)
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="PDF Başlığı (örn: YKS Türev Çıkmış Sorular Fasikülü)"
+                  value={pdfTitle}
+                  onChange={(e) => setPdfTitle(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Açıklama (opsiyonel)"
+                  value={pdfDescription}
+                  onChange={(e) => setPdfDescription(e.target.value)}
+                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  inputMode="url"
+                  placeholder="Online PDF veya Google Drive PDF Linki (https://...)"
+                  value={pdfOnlineUrl}
+                  onChange={(e) => setPdfOnlineUrl(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddPdfUrl}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition-all flex items-center space-x-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>PDF Linki Ekle</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* LIST OF CURRENTLY ATTACHED RESOURCES */}
+      {resources.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-slate-800">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            Ödeve Eklenen Materyaller:
+          </span>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {resources.map((res, index) => {
+              const isVideo = res.type === 'video';
+              const isPdf = res.type === 'pdf';
+              return (
+                <div
+                  key={res.id || index}
+                  className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors"
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+                    <span
+                      className={`p-1.5 rounded-lg text-xs ${
+                        isVideo
+                          ? 'bg-rose-500/20 text-rose-300'
+                          : isPdf
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-blue-500/20 text-blue-300'
+                      }`}
+                    >
+                      {isVideo ? (
+                        <Video className="w-4 h-4" />
+                      ) : isPdf ? (
+                        <FileText className="w-4 h-4" />
+                      ) : (
+                        <Globe className="w-4 h-4" />
+                      )}
+                    </span>
+                    <div className="truncate">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold text-white truncate">
+                          {res.title}
+                        </span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                            isVideo
+                              ? 'bg-rose-500/10 text-rose-300'
+                              : isPdf
+                              ? 'bg-amber-500/10 text-amber-300'
+                              : 'bg-blue-500/10 text-blue-300'
+                          }`}
+                        >
+                          {isVideo ? 'VIDEO' : isPdf ? 'PDF' : 'LINK'}
+                        </span>
+                        {res.fileSize && (
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {res.fileSize}
+                          </span>
+                        )}
+                      </div>
+                      {res.description && (
+                        <span className="text-[10px] text-slate-400 truncate block">
+                          {res.description}
                         </span>
                       )}
                     </div>
                   </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => handleCopy(res, e)}
-                  className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
-                  title="Bağlantıyı Kopyala"
-                >
-                  {copiedId === res.id ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </div>
-
-              {res.description && (
-                <p className="text-[11px] text-slate-400 line-clamp-2 mb-2.5 italic">
-                  {res.description}
-                </p>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-2 pt-2 border-t border-slate-800/80">
-                {res.type === 'video' && (
                   <button
                     type="button"
-                    onClick={() => setActiveVideoModal(res)}
-                    className="flex-1 py-1.5 px-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+                    onClick={() => handleRemoveResource(res.id)}
+                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Bu materyali kaldır"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Videoyu İzle</span>
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
-                )}
-
-                {res.type === 'pdf' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setActivePdfModal(res)}
-                      className="flex-1 py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>PDF İncele</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => downloadResource(res)}
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
-                      title="PDF Dosyasını İndir"
-                      aria-label="PDF Dosyasını İndir"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  </>
-                )}
-
-                {res.type === 'link' && (
-                  <a
-                    href={res.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-1.5 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Bağlantıyı Aç</span>
-                  </a>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {viewerModals}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
