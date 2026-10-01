@@ -761,13 +761,6 @@ export class DataService {
   public deletedEtutIds: Set<string> = new Set();
   public deletedQuestionLogIds: Set<string> = new Set();
 
-  private studentRealtimeChannel: any = null;
-  private classRealtimeChannel: any = null;
-  private etutRealtimeChannel: any = null;
-  private homeworkRealtimeChannel: any = null;
-  private attendanceRealtimeChannel: any = null;
-  private gradeRealtimeChannel: any = null;
-  private messageRealtimeChannel: any = null;
   private syncPollInterval: number | null = null;
   private classSyncInterval: number | null = null;
 
@@ -1049,227 +1042,173 @@ export class DataService {
         }
       });
       window.addEventListener('online', () => {
-        this.revalidateAndSyncAll(true);
+        // İnternet geri geldi: kanallar onarılır ve veriler hemen yenilenir
+        this.ensureRealtime();
+        this.revalidateAndSyncAll(false);
       });
+      window.addEventListener('offline', () => this.updateRealtimeHealth());
       window.addEventListener('focus', () => {
         this.revalidateAndSyncAll(true);
       });
     }
   }
 
+  // =========================================================================
+  // EŞİTLEME YÖNETİCİSİ (Aşama 6)
+  // - Anlık güncelleme kanalları oturum başına BİR KEZ kurulur; kopan kanal kendiliğinden onarılır.
+  // - Kanallar sağlıklıyken tam eşitleme 5 dakikada bir (güvence), değilken 30 saniyede bir yapılır.
+  // - Sekmeye dönüş / odak gibi olaylarda en fazla 15 saniyede bir tam eşitleme yapılır.
+  // - Aynı anda birden fazla tam eşitleme çalışmaz.
+  // =========================================================================
+  private realtimeChannels: Record<
+    string,
+    { channel: any; healthy: boolean; everSubscribed: boolean; checkTimer?: ReturnType<typeof setTimeout> }
+  > = {};
+  private realtimeClosing = false;
+  private realtimeEnsureRunning = false;
+  private lastRealtimeHealth: 'live' | 'fallback' | 'offline' = 'fallback';
+  private static readonly LIVE_SAFETY_SYNC_MS = 5 * 60 * 1000;
+  private static readonly FALLBACK_SYNC_MS = 30 * 1000;
+  private static readonly MIN_BACKGROUND_SYNC_GAP_MS = 15 * 1000;
+
+  // Hangi tablo değişince ne yapılacağı
+  private realtimeTableConfig(): Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> {
+    const role = this.getAuthSession()?.role;
+    const list: Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> = [
+      { table: 'students', onEvent: (p) => this.handleRemoteStudentRealtimeEvent(p), resync: () => this.syncStudentsFromSupabase(true) },
+      { table: 'classes', onEvent: (p) => this.handleRemoteClassRealtimeEvent(p), resync: () => this.syncClassesFromSupabase(true) },
+      { table: 'etuts', onEvent: (p) => this.handleRemoteEtutRealtimeEvent(p), resync: () => this.syncEtutsFromSupabase(true) },
+      { table: 'homeworks', onEvent: (p) => this.handleRemoteHomeworkRealtimeEvent(p), resync: () => this.syncHomeworksFromSupabase(true) },
+      { table: 'attendance', onEvent: (p) => this.handleRemoteAttendanceRealtimeEvent(p), resync: () => this.syncAttendanceFromSupabase(true) },
+      { table: 'grades', onEvent: (p) => this.handleRemoteGradeRealtimeEvent(p), resync: () => this.syncGradesFromSupabase(true) },
+      { table: 'messages', onEvent: (p) => this.handleRemoteMessageRealtimeEvent(p), resync: () => this.syncMessagesFromSupabase(true) },
+      { table: 'homework_submissions', onEvent: () => this.scheduleTableRefetch('homework_submissions'), resync: () => this.syncSubmissionsFromSupabase(true) },
+      { table: 'question_logs', onEvent: () => this.scheduleTableRefetch('question_logs'), resync: () => this.syncQuestionLogsFromSupabase(true) },
+      { table: 'question_targets', onEvent: () => this.scheduleTableRefetch('question_targets'), resync: () => this.syncQuestionTargetsFromSupabase(true) },
+    ];
+    if (role === 'teacher') {
+      list.push(
+        { table: 'teacher_documents', onEvent: () => this.scheduleTableRefetch('teacher_documents'), resync: () => this.syncTeacherDocumentsFromSupabase(true) },
+        { table: 'teachers', onEvent: () => this.scheduleTableRefetch('teachers'), resync: () => this.syncTeachersFromSupabase(true) }
+      );
+    }
+    return list;
+  }
+
+  // Eksik ya da kopmuş kanalları kurar; çalışan kanallara dokunmaz (tekrar tekrar çağrılması güvenlidir)
+  public async ensureRealtime(): Promise<void> {
+    if (this.realtimeEnsureRunning) return;
+    if (!this.getAuthSession()) return;
+    this.realtimeEnsureRunning = true;
+    try {
+      if (!(await this.hasCloudSession())) return; // giriş yapılmadan kanal açılmaz (RLS zaten boş döndürür)
+      this.realtimeClosing = false;
+      for (const cfg of this.realtimeTableConfig()) {
+        const entry = this.realtimeChannels[cfg.table];
+        const state = entry?.channel?.state;
+        if (entry && (state === 'joined' || state === 'joining')) continue;
+        if (entry) {
+          if (entry.checkTimer) clearTimeout(entry.checkTimer);
+          try { supabase.removeChannel(entry.channel); } catch {}
+        }
+        const record = { channel: null as any, healthy: false, everSubscribed: entry?.everSubscribed || false } as {
+          channel: any; healthy: boolean; everSubscribed: boolean; checkTimer?: ReturnType<typeof setTimeout>;
+        };
+        this.realtimeChannels[cfg.table] = record;
+        try {
+          record.channel = supabase
+            .channel(`rt-${cfg.table}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: cfg.table }, (payload: any) => {
+              try { cfg.onEvent(payload); } catch (e) { console.warn(`[Realtime] ${cfg.table} olayı işlenemedi:`, e); }
+            })
+            .subscribe((status: string) => this.handleChannelStatus(cfg.table, status, cfg.resync));
+        } catch (e) {
+          console.warn(`[Realtime] ${cfg.table} kanalı kurulamadı:`, e);
+        }
+      }
+    } finally {
+      this.realtimeEnsureRunning = false;
+      this.updateRealtimeHealth();
+    }
+  }
+
+  private handleChannelStatus(table: string, status: string, resync: () => unknown): void {
+    const entry = this.realtimeChannels[table];
+    if (!entry) return;
+    if (status === 'SUBSCRIBED') {
+      const isReconnect = entry.everSubscribed && !entry.healthy;
+      entry.healthy = true;
+      entry.everSubscribed = true;
+      if (entry.checkTimer) { clearTimeout(entry.checkTimer); entry.checkTimer = undefined; }
+      // Bağlantı koptuysa arada kaçan değişiklikler için yalnız bu tablo yeniden okunur
+      if (isReconnect) {
+        try { resync(); } catch {}
+      }
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      entry.healthy = false;
+      if (!this.realtimeClosing && !entry.checkTimer) {
+        // Kütüphane kendisi yeniden bağlanmayı dener; 20 sn içinde olmazsa kanal yeniden kurulur
+        entry.checkTimer = setTimeout(() => {
+          entry.checkTimer = undefined;
+          const st = entry.channel?.state;
+          if (!this.realtimeClosing && st !== 'joined' && st !== 'joining') this.ensureRealtime();
+        }, 20000);
+      }
+    }
+    this.updateRealtimeHealth();
+  }
+
+  // Eşitleme durumu: 'live' (anlık), 'fallback' (aralıklı yedek kontrol), 'offline' (internet yok)
+  public getRealtimeHealth(): 'live' | 'fallback' | 'offline' {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
+    const entries = Object.values(this.realtimeChannels);
+    if (entries.length > 0 && entries.every((e) => e.healthy)) return 'live';
+    return 'fallback';
+  }
+
+  private updateRealtimeHealth(): void {
+    const h = this.getRealtimeHealth();
+    if (h !== this.lastRealtimeHealth) {
+      this.lastRealtimeHealth = h;
+      this.notify();
+    }
+  }
+
   public setupAllRealtimeSync(): void {
-    this.setupStudentsRealtimeSync();
-    this.setupClassesRealtimeSync();
-    this.setupEtutsRealtimeSync();
-    this.setupHomeworksRealtimeSync();
-    this.setupAttendanceRealtimeSync();
-    this.setupGradesRealtimeSync();
-    this.setupMessagesRealtimeSync();
-    this.setupPhase4RealtimeSync();
+    this.ensureRealtime();
     this.startPeriodicSync();
   }
 
   public unsubscribeAllRealtime(): void {
-    const channels = [
-      this.studentRealtimeChannel,
-      this.classRealtimeChannel,
-      this.etutRealtimeChannel,
-      this.homeworkRealtimeChannel,
-      this.attendanceRealtimeChannel,
-      this.gradeRealtimeChannel,
-      this.messageRealtimeChannel,
-    ];
-    channels.forEach((ch) => {
-      if (ch) {
-        try { supabase.removeChannel(ch); } catch {}
-      }
+    this.realtimeClosing = true;
+    Object.values(this.realtimeChannels).forEach((entry) => {
+      if (entry.checkTimer) clearTimeout(entry.checkTimer);
+      try { if (entry.channel) supabase.removeChannel(entry.channel); } catch {}
     });
-    this.studentRealtimeChannel = null;
-    this.classRealtimeChannel = null;
-    this.etutRealtimeChannel = null;
-    this.homeworkRealtimeChannel = null;
-    this.attendanceRealtimeChannel = null;
-    this.gradeRealtimeChannel = null;
-    this.messageRealtimeChannel = null;
-    Object.values(this.phase4RealtimeChannels).forEach((ch) => {
-      try { supabase.removeChannel(ch); } catch {}
-    });
-    this.phase4RealtimeChannels = {};
-
-    if (this.syncPollInterval) {
-      clearInterval(this.syncPollInterval);
-      this.syncPollInterval = null;
-    }
+    this.realtimeChannels = {};
+    this.updateRealtimeHealth();
   }
 
+  // Yedek kontrol: kanallar sağlıklıysa 5 dakikada bir, değilse 30 saniyede bir tam eşitleme.
+  // Sekme arka plandayken hiç istek atılmaz (geri gelince hemen eşitlenir).
   public startPeriodicSync(): void {
     if (this.syncPollInterval) return;
-    if (typeof window !== 'undefined') {
-      // Arka plan otomatik tazeleme: 30 saniyede bir hafif kontrol
-      this.syncPollInterval = window.setInterval(() => {
-        this.revalidateAndSyncAll(true);
-      }, 30000);
-    }
+    if (typeof window === 'undefined') return;
+    this.syncPollInterval = window.setInterval(() => {
+      if (!this.getAuthSession()) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const health = this.getRealtimeHealth();
+      if (health === 'offline') return;
+      const age = Date.now() - this.lastFullSyncAt;
+      const due = health === 'live' ? DataService.LIVE_SAFETY_SYNC_MS : DataService.FALLBACK_SYNC_MS;
+      if (age >= due) this.revalidateAndSyncAll(true);
+      else if (health !== 'live') this.ensureRealtime();
+    }, 10000);
   }
 
-  // --- 1. STUDENT REALTIME LISTENER ---
-  public setupStudentsRealtimeSync(): void {
-    try {
-      if (this.studentRealtimeChannel) {
-        try { supabase.removeChannel(this.studentRealtimeChannel); } catch {}
-        this.studentRealtimeChannel = null;
-      }
-      this.studentRealtimeChannel = supabase
-        .channel(`students-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'students' },
-          (payload) => {
-            this.handleRemoteStudentRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncStudentsFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for students:', e);
-    }
-  }
-
-  // --- 2. ETUT REALTIME LISTENER ---
-  public setupEtutsRealtimeSync(): void {
-    try {
-      if (this.etutRealtimeChannel) {
-        try { supabase.removeChannel(this.etutRealtimeChannel); } catch {}
-        this.etutRealtimeChannel = null;
-      }
-      this.etutRealtimeChannel = supabase
-        .channel(`etuts-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'etuts' },
-          (payload) => {
-            this.handleRemoteEtutRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncEtutsFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for etuts:', e);
-    }
-  }
-
-  // --- 3. HOMEWORK & SYSTEM PAYLOADS REALTIME LISTENER ---
-  public setupHomeworksRealtimeSync(): void {
-    try {
-      if (this.homeworkRealtimeChannel) {
-        try { supabase.removeChannel(this.homeworkRealtimeChannel); } catch {}
-        this.homeworkRealtimeChannel = null;
-      }
-      this.homeworkRealtimeChannel = supabase
-        .channel(`homeworks-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'homeworks' },
-          (payload) => {
-            this.handleRemoteHomeworkRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncHomeworksFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for homeworks:', e);
-    }
-  }
-
-  // --- 4. ATTENDANCE REALTIME LISTENER ---
-  public setupAttendanceRealtimeSync(): void {
-    try {
-      if (this.attendanceRealtimeChannel) {
-        try { supabase.removeChannel(this.attendanceRealtimeChannel); } catch {}
-        this.attendanceRealtimeChannel = null;
-      }
-      this.attendanceRealtimeChannel = supabase
-        .channel(`attendance-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'attendance' },
-          (payload) => {
-            this.handleRemoteAttendanceRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncAttendanceFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for attendance:', e);
-    }
-  }
-
-  // --- 5. GRADES REALTIME LISTENER ---
-  public setupGradesRealtimeSync(): void {
-    try {
-      if (this.gradeRealtimeChannel) {
-        try { supabase.removeChannel(this.gradeRealtimeChannel); } catch {}
-        this.gradeRealtimeChannel = null;
-      }
-      this.gradeRealtimeChannel = supabase
-        .channel(`grades-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'grades' },
-          (payload) => {
-            this.handleRemoteGradeRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncGradesFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for grades:', e);
-    }
-  }
-
-  // --- 6. MESSAGES REALTIME LISTENER ---
-  public setupMessagesRealtimeSync(): void {
-    try {
-      if (this.messageRealtimeChannel) {
-        try { supabase.removeChannel(this.messageRealtimeChannel); } catch {}
-        this.messageRealtimeChannel = null;
-      }
-      this.messageRealtimeChannel = supabase
-        .channel(`messages-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'messages' },
-          (payload) => {
-            this.handleRemoteMessageRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncMessagesFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for messages:', e);
-    }
-  }
-
+  // Eski adlar (başka dosyalardan çağrılabilir diye korunur)
   public setupTeachersRealtimeSync() {
-    this.setupHomeworksRealtimeSync();
+    this.ensureRealtime();
   }
   public startPeriodicTeachersSync() {}
   public startPeriodicEtutsSync() {}
@@ -1344,41 +1283,6 @@ export class DataService {
       this.notify();
     } catch (err) {
       console.warn('Error handling student realtime event:', err);
-    }
-  }
-
-  // --- REAL-TIME CLASS SYNC (MULTI-DEVICE INSTANT SYNC) ---
-  public setupClassesRealtimeSync() {
-    try {
-      if (this.classRealtimeChannel) {
-        try { supabase.removeChannel(this.classRealtimeChannel); } catch {}
-        this.classRealtimeChannel = null;
-      }
-      this.classRealtimeChannel = supabase
-        .channel(`classes-sync-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'classes' },
-          (payload) => {
-            this.handleRemoteClassRealtimeEvent(payload);
-          }
-        )
-        .subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            this.syncClassesFromSupabase(true);
-          }
-        });
-    } catch (e) {
-      console.warn('Realtime channel subscribe error for classes:', e);
-    }
-  }
-
-  public startPeriodicClassesSync() {
-    if (this.classSyncInterval) return;
-    if (typeof window !== 'undefined') {
-      this.classSyncInterval = window.setInterval(() => {
-        this.syncClassesFromSupabase(true);
-      }, 4000);
     }
   }
 
@@ -1534,9 +1438,10 @@ export class DataService {
     }
   }
 
+  // Sekmeye dönüş / odak / internet geri gelince: kopuk kanallar onarılır, gerekirse eşitlenir.
+  // (Eskiden tüm kanallar her seferinde kapatılıp yeniden açılıyordu; değişiklikler bu arada kaçabiliyordu.)
   public reconnectAllRealtime() {
-    this.unsubscribeAllRealtime();
-    this.setupAllRealtimeSync();
+    this.ensureRealtime();
     this.revalidateAndSyncAll(true);
   }
 
@@ -1641,7 +1546,7 @@ export class DataService {
   private refetchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
   private scheduleTableRefetch(
-    table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets' | 'teacher_documents'
+    table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets' | 'teacher_documents' | 'teachers'
   ): void {
     if (this.refetchTimers[table]) clearTimeout(this.refetchTimers[table]);
     this.refetchTimers[table] = setTimeout(() => {
@@ -1650,30 +1555,9 @@ export class DataService {
       else if (table === 'homework_submissions') this.syncSubmissionsFromSupabase(true);
       else if (table === 'question_logs') this.syncQuestionLogsFromSupabase(true);
       else if (table === 'teacher_documents') this.syncTeacherDocumentsFromSupabase(true);
+      else if (table === 'teachers') this.syncTeachersFromSupabase(true);
       else this.syncQuestionTargetsFromSupabase(true);
     }, 400);
-  }
-
-  // Aşama 4 tabloları için anlık güncelleme kanalları (zaten bağlıysa yeniden kurulmaz)
-  private phase4RealtimeChannels: Record<string, any> = {};
-
-  public setupPhase4RealtimeSync(): void {
-    (['homework_submissions', 'question_logs', 'question_targets', 'teacher_documents'] as const).forEach((table) => {
-      if (table === 'teacher_documents' && this.getAuthSession()?.role === 'student') return;
-      try {
-        const existing = this.phase4RealtimeChannels[table];
-        if (existing && (existing.state === 'joined' || existing.state === 'joining')) return;
-        if (existing) {
-          try { supabase.removeChannel(existing); } catch {}
-        }
-        this.phase4RealtimeChannels[table] = supabase
-          .channel(`${table}-sync-${Date.now()}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table }, () => this.scheduleTableRefetch(table))
-          .subscribe();
-      } catch (e) {
-        console.warn(`Realtime channel subscribe error for ${table}:`, e);
-      }
-    });
   }
 
   // --- ATTENDANCE REALTIME EVENT HANDLER ---
@@ -2896,9 +2780,28 @@ export class DataService {
     }
   }
 
+  private fullSyncInFlight: Promise<void> | null = null;
+  private lastFullSyncAt = 0;
+
+  // Tüm verileri buluttan yeniler. Arka plan istekleri (odak, sekmeye dönüş, yedek kontrol) en fazla
+  // 15 saniyede bir çalışır; aynı anda ikinci bir tam eşitleme başlatılmaz (çalışan beklenir).
   public async revalidateAndSyncAll(isBackground = false): Promise<void> {
+    if (this.fullSyncInFlight) return this.fullSyncInFlight;
+    if (isBackground && Date.now() - this.lastFullSyncAt < DataService.MIN_BACKGROUND_SYNC_GAP_MS) {
+      this.ensureRealtime();
+      return;
+    }
+    this.lastFullSyncAt = Date.now();
+    this.fullSyncInFlight = this.runFullSync(isBackground).finally(() => {
+      this.fullSyncInFlight = null;
+    });
+    return this.fullSyncInFlight;
+  }
+
+  private async runFullSync(isBackground: boolean): Promise<void> {
     try {
-      this.setupAllRealtimeSync();
+      this.ensureRealtime();
+      this.startPeriodicSync();
       await Promise.allSettled([
         this.syncTombstonesFromCloud(),
         this.syncClassesFromSupabase(isBackground),
@@ -2915,6 +2818,7 @@ export class DataService {
         this.refreshPendingApplicationCount(),
         this.syncMyTeacherAccess(),
       ]);
+      this.lastFullSyncAt = Date.now();
       this.notify();
     } catch (e) {
       if (!isBackground) console.warn('[RevalidateAndSyncAll] Error:', e);
@@ -3754,7 +3658,8 @@ export class DataService {
       }
     }
 
-    this.teachers.unshift(teacher);
+    // Anlık güncelleme aynı öğretmeni daha önce eklemiş olabilir: aynı kimlik iki kez listelenmez
+    this.teachers = [teacher, ...this.teachers.filter((t) => t.id !== teacher.id)];
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
       localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
@@ -4557,7 +4462,7 @@ export class DataService {
       }
       // Oturum açıldığında anlık dinleyicileri bağla ve bulut veritabanından en güncel verileri çek
       this.setupAllRealtimeSync();
-      this.revalidateAndSyncAll(true);
+      this.revalidateAndSyncAll(false);
     } else {
       try {
         sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -5382,7 +5287,9 @@ export class DataService {
     }
 
     if (created.length > 0) {
-      this.students = [...created.map((c) => c.student), ...this.students];
+      // Anlık güncelleme aynı öğrenciyi daha önce eklemiş olabilir: aynı kimlik iki kez listelenmez
+      const createdIds = new Set(created.map((c) => c.student.id));
+      this.students = [...created.map((c) => c.student), ...this.students.filter((s) => !createdIds.has(s.id))];
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
         localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));

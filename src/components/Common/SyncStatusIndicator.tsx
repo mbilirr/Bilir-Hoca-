@@ -10,10 +10,12 @@ export const SyncStatusIndicator: React.FC<{
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [justUpdated, setJustUpdated] = useState<boolean>(false);
+  const [health, setHealth] = useState<'live' | 'fallback' | 'offline'>(() => dataService.getRealtimeHealth());
 
   useEffect(() => {
     const unsub = dataService.subscribe(() => {
       setLastSync(dataService.getLastSyncTime());
+      setHealth(dataService.getRealtimeHealth());
       setJustUpdated(true);
       const timer = setTimeout(() => setJustUpdated(false), 1200);
       return () => clearTimeout(timer);
@@ -49,15 +51,25 @@ export const SyncStatusIndicator: React.FC<{
       className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs text-slate-300 shadow-sm transition-all ${
         justUpdated ? 'ring-1 ring-emerald-500/50 bg-slate-900' : ''
       } ${className}`}
-      title="Verileriniz otomatik olarak canlı (Realtime) ve arka planda eşitlenmektedir. 'Şimdi Yenile' butonu isteğe bağlı anlık manuel güvence kontrolüdür."
+      title={
+        health === 'live'
+          ? 'Canlı bağlantı açık: diğer cihazlardaki değişiklikler anında gelir.'
+          : health === 'offline'
+          ? 'İnternet bağlantısı yok. Bağlantı gelince veriler otomatik yenilenecek.'
+          : 'Canlı bağlantı kurulamadı: veriler 30 saniyede bir otomatik kontrol ediliyor.'
+      }
+      data-sync-health={health}
     >
-      {/* Canlı otomatik bağlantı nabzı */}
-      <span
-        className="relative flex h-2 w-2 shrink-0"
-        title="Canlı otomatik senkronizasyon devrede (WebSocket & Arka Plan)"
-      >
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 duration-1000" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+      {/* Bağlantı durumu: yeşil = canlı, sarı = aralıklı kontrol, kırmızı = internet yok */}
+      <span className="relative flex h-2 w-2 shrink-0" aria-label={health === 'live' ? 'Canlı' : health === 'offline' ? 'Çevrimdışı' : 'Aralıklı kontrol'}>
+        {health === 'live' && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 duration-1000" />
+        )}
+        <span
+          className={`relative inline-flex rounded-full h-2 w-2 ${
+            health === 'live' ? 'bg-emerald-500' : health === 'offline' ? 'bg-rose-500' : 'bg-amber-400'
+          }`}
+        />
       </span>
 
       {/* Senkronizasyon zamanı */}

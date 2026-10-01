@@ -19,6 +19,19 @@ import {
 import { TeacherDocument } from '../../../types';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
 
+// Word'den gelen önizlemenin okunaklı görünmesi için temel biçimler (başlıklar, listeler, tablolar)
+const DOC_PREVIEW_CLASSES = [
+  '[&_h1]:text-2xl [&_h1]:font-bold [&_h1]:my-4',
+  '[&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-3',
+  '[&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-2',
+  '[&_p]:my-2',
+  '[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2',
+  '[&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-sm',
+  '[&_td]:border [&_td]:border-slate-300 [&_td]:px-2 [&_td]:py-1 [&_td]:align-top',
+  '[&_th]:border [&_th]:border-slate-300 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-slate-100',
+  '[&_img]:max-w-full [&_img]:h-auto',
+].join(' ');
+
 interface DocumentViewerModalProps {
   document: TeacherDocument | null;
   isOpen: boolean;
@@ -179,7 +192,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
               title="Orijinal Dosyayı İndir"
             >
               <Download className="w-4 h-4" />
-              <span>İndir ({document.fileSize})</span>
+              <span>{document.fileSize ? `İndir (${document.fileSize})` : 'İndir'}</span>
             </button>
 
             {/* FullScreen Toggle */}
@@ -283,7 +296,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
         )}
 
         {/* DOCUMENT VIEWPORT CONTENT */}
-        <div className="flex-1 overflow-auto bg-slate-950 p-3 sm:p-6 flex justify-center">
+        <div className="flex-1 min-h-0 overflow-auto bg-slate-950 p-3 sm:p-6 flex items-start justify-center">
           {/* 1. EXCEL TABLE VIEWER */}
           {document.fileFormat === 'xlsx' && (
             <div className="w-full h-full bg-slate-900 rounded-xl border border-slate-800 overflow-auto flex flex-col shadow-inner">
@@ -367,13 +380,14 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
           {/* 2. WORD (DOCX) DOCUMENT VIEWER (High fidelity paper page layout) */}
           {document.fileFormat === 'docx' && (
             <div
-              className="transition-transform origin-top w-full flex justify-center"
+              className="transition-transform origin-top w-full flex items-start justify-center"
               style={{ transform: `scale(${zoomLevel / 100})` }}
             >
-              <div className="w-full max-w-4xl bg-white text-slate-900 rounded-lg shadow-2xl p-8 sm:p-14 border border-slate-200 min-h-[800px] leading-relaxed">
+              {/* Sayfa yüksekliği içeriğe göre uzar (uzun belgelerde yazılar koyu zeminde kalmaz) */}
+              <div className="w-full max-w-4xl h-auto self-start bg-white text-slate-900 rounded-lg shadow-2xl p-5 sm:p-14 border border-slate-200 min-h-[800px] leading-relaxed">
                 {document.htmlPreview ? (
                   <div
-                    className="prose prose-slate max-w-none text-slate-800"
+                    className={`max-w-none text-slate-800 break-words ${DOC_PREVIEW_CLASSES}`}
                     dangerouslySetInnerHTML={{ __html: safePreviewHtml }}
                   />
                 ) : (
@@ -409,6 +423,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
                 >
                   <div className="w-full max-w-4xl bg-white text-slate-900 rounded-lg shadow-2xl p-8 sm:p-12 border border-slate-300 min-h-[850px] relative">
                     <div
+                      className={`text-slate-800 break-words ${DOC_PREVIEW_CLASSES}`}
                       dangerouslySetInnerHTML={{ __html: safePreviewHtml }}
                     />
                     <div className="mt-8 pt-4 border-t border-slate-200 flex justify-between text-xs text-slate-400">
