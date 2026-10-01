@@ -49,6 +49,11 @@ import { HomeworkResourceUploader } from './HomeworkResourceUploader';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { EditHomeworkModal } from './EditHomeworkModal';
 import { HomeworkDetailModal } from './HomeworkDetailModal';
+import {
+  SubmissionViewModal,
+  submissionHasContent,
+  getSubmissionAttachmentCount,
+} from './SubmissionViewModal';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -97,6 +102,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
   const [expandedHwId, setExpandedHwId] = useState<string | null>(homeworks[0]?.id || null);
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
+  // Öğretmenin incelediği öğrenci teslimi (ödev + öğrenci). Teslim her zaman güncel listeden okunur.
+  const [viewingSubmissionKey, setViewingSubmissionKey] = useState<{ homeworkId: string; studentId: string } | null>(null);
   const [editingHomework, setEditingHomework] = useState<Homework | null>(null);
   const [editingResourcesHw, setEditingResourcesHw] = useState<Homework | null>(null);
   const [editingResourcesList, setEditingResourcesList] = useState<HomeworkResource[]>([]);
@@ -1153,6 +1160,26 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             />
                             <div className="min-w-0">
                               <h4 className="text-sm font-bold text-slate-900 truncate">{std.name}</h4>
+                              {(() => {
+                                const stdSub = currentHw
+                                  ? submissions.find((s) => s.homeworkId === currentHw.id && s.studentId === std.id)
+                                  : undefined;
+                                if (!currentHw || !stdSub || !submissionHasContent(stdSub)) return null;
+                                const attachCount = getSubmissionAttachmentCount(stdSub);
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewingSubmissionKey({ homeworkId: currentHw.id, studentId: std.id })}
+                                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                  >
+                                    <Paperclip className="w-3 h-3" />
+                                    <span>
+                                      Teslimi Gör{attachCount > 0 ? ` (${attachCount} ek)` : ' (not)'}
+                                      {stdSub.status === 'late' ? ' · Geç' : ''}
+                                    </span>
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
 
@@ -1389,12 +1416,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
                   const isExpanded = expandedHwId === hw.id;
 
-                  const assignedCount =
-                    hw.assignedTo === 'all'
-                      ? students.length
-                      : Array.isArray(hw.assignedTo)
-                      ? hw.assignedTo.length
-                      : 0;
+                  const hwStudents = students.filter((std) => dataService.isHomeworkForStudent(hw, std));
+                  const assignedCount = hwStudents.length;
 
                   const isOverdue = new Date() > new Date(hw.dueDate);
                   const submissionRate = assignedCount > 0 ? Math.round((hwSubmissions.length / assignedCount) * 100) : 0;
@@ -1584,11 +1607,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
                             <h4 className="text-[11px] font-bold text-slate-700">Öğrenci Teslim Listesi</h4>
                             <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                              {students
-                                .filter((std) => {
-                                  if (hw.assignedTo === 'all') return true;
-                                  return Array.isArray(hw.assignedTo) && hw.assignedTo.includes(std.id);
-                                })
+                              {hwStudents
                                 .map((student) => {
                                   const sub = hwSubmissions.find((s) => s.studentId === student.id);
                                   return (
@@ -1603,8 +1622,25 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       <span className="font-semibold truncate max-w-[150px]">
                                         {student.name}
                                       </span>
-                                      <span className="text-[11px] font-bold">
-                                        {sub ? (sub.status === 'on_time' ? '✓ Teslim Edildi' : '⚠️ Geç Teslim') : 'Teslim Edilmedi'}
+                                      <span className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[11px] font-bold">
+                                          {sub
+                                            ? sub.status === 'late'
+                                              ? '⚠️ Geç Teslim'
+                                              : sub.status === 'not_submitted'
+                                              ? 'Teslim Edilmedi'
+                                              : '✓ Teslim Edildi'
+                                            : 'Teslim Edilmedi'}
+                                        </span>
+                                        {sub && submissionHasContent(sub) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
+                                            className="px-2 py-0.5 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold cursor-pointer"
+                                          >
+                                            Gör
+                                          </button>
+                                        )}
                                       </span>
                                     </div>
                                   );
@@ -2006,6 +2042,20 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         description={`"${homeworkToDelete?.title}" başlıklı ödevi silmek istediğinize emin misiniz? Bu ödeve ait tüm öğrenci teslimleri ve değerlendirmeler de silinecektir.`}
         confirmButtonText="Ödevi Sil"
       />
+      {/* ÖĞRENCİ TESLİMİNİ GÖRÜNTÜLEME */}
+      <SubmissionViewModal
+        homework={viewingSubmissionKey ? homeworks.find((h) => h.id === viewingSubmissionKey.homeworkId) || null : null}
+        student={viewingSubmissionKey ? students.find((st) => st.id === viewingSubmissionKey.studentId) || null : null}
+        submission={
+          viewingSubmissionKey
+            ? submissions.find(
+                (sb) => sb.homeworkId === viewingSubmissionKey.homeworkId && sb.studentId === viewingSubmissionKey.studentId
+              ) || null
+            : null
+        }
+        onClose={() => setViewingSubmissionKey(null)}
+      />
+
       {/* HOMEWORK DETAIL MODAL (Sayfanın hepsi açılır, sayfa altında indir butonu vardır) */}
       <HomeworkDetailModal
         isOpen={!!activeViewingHomework}

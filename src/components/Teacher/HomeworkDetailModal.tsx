@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Homework, Student, ClassGroup, HomeworkSubmission } from '../../types';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
+import { dataService } from '../../services/dataService';
 
 interface HomeworkDetailModalProps {
   isOpen: boolean;
@@ -47,12 +48,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
     .filter(Boolean);
 
   // Assigned students count
-  const assignedCount =
-    homework.assignedTo === 'all'
-      ? students.length
-      : Array.isArray(homework.assignedTo)
-      ? homework.assignedTo.length
-      : 0;
+  const assignedCount = students.filter((s) => dataService.isHomeworkForStudent(homework, s)).length;
 
   // Submissions for this homework
   const hwSubmissions = submissions.filter((s) => s.homeworkId === homework.id);
