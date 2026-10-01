@@ -57,59 +57,28 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     onBusyChange?.(!!uploadingName);
   }, [uploadingName, onBusyChange]);
 
-  // Dosyayı depoya yükleyip listeye ekler (Depo çalışmazsa veya bağlantı yoksa otomatik yerel dosya olarak kaydeder)
+  // Dosyayı depoya yükleyip listeye ekler
   const uploadToStorage = async (file: File, type: 'video' | 'pdf' | 'image', title: string, description: string) => {
+    if (!storageFolder) return;
     setUploadingName(file.name);
     setErrorMessage(null);
-    const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
-    const finalTitle = title.trim() || cleanTitle;
-    const sizeStr = formatBytes(file.size);
-
-    if (storageFolder) {
-      try {
-        const up = await uploadFile(storageFolder, file);
-        sessionUploadsRef.current.add(up.path);
-        const newResource: HomeworkResource = {
-          id: `res-${Date.now()}`,
-          type,
-          title: finalTitle,
-          url: up.url,
-          fileSize: up.fileSize,
-          fileName: file.name,
-          description: description || `${file.name} (${up.fileSize})`,
-        };
-        onChange([...resourcesRef.current, newResource]);
-        setUploadingName(null);
-        return;
-      } catch (cloudErr: any) {
-        console.warn('Bulut depolamaya yüklenemedi, yerel dosya (dataUrl) olarak kaydediliyor:', cloudErr);
-      }
-    }
-
-    // Yedek / Çevrimdışı / Yerel Yöntem: Dosyayı Data URL (Base64) olarak kaydeder, böylece dosya ASLA kaybolmaz
     try {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        const newResource: HomeworkResource = {
-          id: `res-${Date.now()}`,
-          type,
-          title: finalTitle,
-          url: dataUrl,
-          fileSize: sizeStr,
-          fileName: file.name,
-          description: description || `${file.name} (${sizeStr})`,
-        };
-        onChange([...resourcesRef.current, newResource]);
-        setUploadingName(null);
+      const up = await uploadFile(storageFolder, file);
+      sessionUploadsRef.current.add(up.path);
+      const newResource: HomeworkResource = {
+        id: `res-${Date.now()}`,
+        type,
+        title,
+        url: up.url,
+        fileSize: up.fileSize,
+        fileName: file.name,
+        description: description || `${file.name} (${up.fileSize})`,
       };
-      reader.onerror = () => {
-        setErrorMessage('Dosya okunamadı. Lütfen tekrar deneyin.');
-        setUploadingName(null);
-      };
-      reader.readAsDataURL(file);
+      // Yükleme sürerken liste değişmiş olabilir: en güncel listeye eklenir
+      onChange([...resourcesRef.current, newResource]);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Dosya okunamadı.');
+      setErrorMessage(err?.message || 'Dosya yüklenemedi.');
+    } finally {
       setUploadingName(null);
     }
   };

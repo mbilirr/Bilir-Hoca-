@@ -30,8 +30,7 @@ import {
   StudentApplication,
 } from '../types';
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
-import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
-import { uploadFile, removeStoredFiles, storedPathsOf } from '../lib/fileStorage';
+import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
 import {
   generateHomeworkEmail,
   generateEtutEmail,
@@ -59,21 +58,8 @@ export const INITIAL_GRADES: GradeRecord[] = [];
 
 export const INITIAL_MESSAGES: StudentMessage[] = [];
 
-export const INITIAL_TEACHERS: Teacher[] = [
-  {
-    id: 'teacher-1',
-    name: 'Mustafa Bilir',
-    username: 'Mustafa Bilir',
-    email: 'm.bilirr@gmail.com',
-    branch: 'Fen Bilgisi Öğretmeni',
-    avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
-    createdAt: '2025-09-01T08:00:00.000Z',
-    role: 'teacher',
-    status: 'approved',
-    isAdmin: true,
-    assignedClassIds: [],
-  },
-];
+// Öğretmenler yalnızca buluttan (Supabase) gelir; uygulama içine gömülü hayali öğretmen kaydı yoktur.
+export const INITIAL_TEACHERS: Teacher[] = [];
 
 // Helper to detect and clean auto-generated / fake / random placeholder emails
 export function isAutoOrFakeEmail(email?: string | null): boolean {
@@ -115,6 +101,9 @@ export function cleanStudentEmail(email?: string | null): string {
 }
 
 // DATA STORE LOCAL STORAGE KEYS
+// Kurum yöneticisinin e-postası (veritabanındaki is_admin() kuralıyla aynı)
+const ADMIN_EMAIL = 'm.bilirr@gmail.com';
+
 const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
   IS_SEEDED: 'edu_sys_seeded_v6',
@@ -143,6 +132,99 @@ const STORAGE_KEYS = {
   DELETED_QUESTION_LOGS: 'edu_sys_deleted_question_logs_v6',
   WEEKLY_QUESTION_TARGETS: 'edu_sys_weekly_question_targets_v6',
 };
+
+// =========================================================================
+// GİZLİLİK (Aşama 7): Kişisel veriler tarayıcıda kalıcı tutulmaz.
+// Öğrenci, not, ödev, mesaj vb. önbellekler yalnızca açık sekmede (sessionStorage) tutulur;
+// sekme kapanınca ya da çıkış yapılınca silinir. Ortak kullanılan okul bilgisayarlarında
+// bir sonraki kişi önceki kullanıcının verilerini göremez. Asıl veriler her zaman buluttadır.
+// Kalıcı (localStorage) yalnızca kişisel veri içermeyen birkaç ayar tutulur.
+// Bu dosyadaki tüm "localStorage" kullanımları aşağıdaki yönlendiriciden geçer.
+// =========================================================================
+const BROWSER_PERSISTENT_KEYS = new Set<string>([
+  STORAGE_KEYS.DEVICE_ID,
+  STORAGE_KEYS.IS_SEEDED,
+  STORAGE_KEYS.REMEMBER_ME,
+  STORAGE_KEYS.REMEMBER_ME_TEACHER,
+  STORAGE_KEYS.REMEMBER_ME_STUDENT,
+  STORAGE_KEYS.AUTH_SESSION, // oturumun kendisi sessionStorage'dadır; buradaki yalnızca eski kalıntıyı silmek içindir
+]);
+const isAppDataKey = (key: string) => key.startsWith('edu_sys_') && !BROWSER_PERSISTENT_KEYS.has(key);
+// Eski sürümün "kalıcı yedek" kopyaları artık yazılmaz (veriler zaten buluttadır)
+const isObsoleteMasterKey = (key: string) => key.startsWith('edu_sys_master_');
+
+const browserLocalStorage: Storage | null = (() => {
+  try { return typeof window !== 'undefined' ? window.localStorage : null; } catch { return null; }
+})();
+const browserSessionStorage: Storage | null = (() => {
+  try { return typeof window !== 'undefined' ? window.sessionStorage : null; } catch { return null; }
+})();
+
+const appStorage = {
+  getItem(key: string): string | null {
+    if (isObsoleteMasterKey(key)) return null;
+    const store = isAppDataKey(key) ? browserSessionStorage : browserLocalStorage;
+    try { return store ? store.getItem(key) : null; } catch { return null; }
+  },
+  setItem(key: string, value: string): void {
+    if (isObsoleteMasterKey(key)) return;
+    const store = isAppDataKey(key) ? browserSessionStorage : browserLocalStorage;
+    store?.setItem(key, value);
+  },
+  removeItem(key: string): void {
+    try {
+      if (isAppDataKey(key)) {
+        // veri anahtarı: sekmeden ve (eski sürüm kalıntısı olarak) kalıcı alandan silinir
+        browserSessionStorage?.removeItem(key);
+        browserLocalStorage?.removeItem(key);
+      } else {
+        // kalıcı ayar anahtarı (ör. eski oturum kalıntısı): yalnız kalıcı alandan silinir
+        browserLocalStorage?.removeItem(key);
+      }
+    } catch {}
+  },
+  // Anahtar listesi: sekme önbelleği (eski sürüm temizliği için)
+  get length(): number {
+    try { return browserSessionStorage ? browserSessionStorage.length : 0; } catch { return 0; }
+  },
+  key(index: number): string | null {
+    try { return browserSessionStorage ? browserSessionStorage.key(index) : null; } catch { return null; }
+  },
+};
+// Bu modülde "localStorage" adı yukarıdaki yönlendiriciyi ifade eder
+const localStorage = appStorage;
+
+// Eski sürümlerden tarayıcıda kalıcı olarak kalmış kişisel veri önbelleklerini siler
+function purgePersistentPersonalData(): number {
+  if (!browserLocalStorage) return 0;
+  let removed = 0;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < browserLocalStorage.length; i++) {
+      const k = browserLocalStorage.key(i);
+      if (k && k.startsWith('edu_sys_') && !BROWSER_PERSISTENT_KEYS.has(k)) keys.push(k);
+    }
+    keys.forEach((k) => {
+      try { browserLocalStorage.removeItem(k); removed++; } catch {}
+    });
+  } catch {}
+  return removed;
+}
+
+// Çıkışta sekmedeki tüm uygulama verilerini siler
+function clearSessionAppData(): void {
+  if (!browserSessionStorage) return;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < browserSessionStorage.length; i++) {
+      const k = browserSessionStorage.key(i);
+      if (k && k.startsWith('edu_sys_')) keys.push(k);
+    }
+    keys.forEach((k) => {
+      try { browserSessionStorage.removeItem(k); } catch {}
+    });
+  } catch {}
+}
 
 // Cihaz kimliği (Hardware / Browser Fingerprint ID)
 // Başka bilgisayar veya telefondan açıldığında kullanıcıların otomatik çıkmasını önler
@@ -807,6 +889,9 @@ export class DataService {
   }
 
   private initData() {
+    // Eski sürümlerin tarayıcıda kalıcı bıraktığı kişisel veri önbelleklerini temizle (Aşama 7)
+    purgePersistentPersonalData();
+
     this.deletedTeacherIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_TEACHERS, []));
     this.deletedStudentIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_STUDENTS, []));
     this.deletedClassIds = new Set(loadDataWithLegacyFallback<string[]>(STORAGE_KEYS.DELETED_CLASSES, []));
@@ -882,73 +967,19 @@ export class DataService {
             const parsed = JSON.parse(specific);
             return { ...t, ...parsed };
           }
-          if (t.isAdmin || t.id === 'teacher-1' || t.username?.toLowerCase() === 'mustafa bilir') {
-            const adminData = localStorage.getItem('edu_sys_teacher_custom_profile_admin');
-            if (adminData) {
-              const parsed = JSON.parse(adminData);
-              return { ...t, ...parsed };
-            }
-          }
         } catch {
           // ignore
         }
         return t;
       });
 
-      // Migration: Ensure the designated administrator 'Mustafa Bilir' is configured as admin without overriding custom profile changes
-      let adminFound = false;
-      this.teachers = this.teachers.map((t) => {
-        const isTargetAdmin =
-          t.username.toLowerCase() === 'mustafa bilir' ||
-          t.username.toLowerCase() === 'mustafabilir' ||
-          t.username.toLowerCase() === 'mbilir' ||
-          t.name.toLowerCase() === 'mustafa bilir' ||
-          t.id === 'teacher-1' ||
-          (t.email && t.email.toLowerCase() === 'm.bilirr@gmail.com');
-
-        if (isTargetAdmin) {
-          adminFound = true;
-          // If branch is still the old default "Matematik & Fen Bilimleri" or "Genel Branş", migrate it to "Fen Bilgisi Öğretmeni"
-          let branchToUse = t.branch;
-          if (!branchToUse || branchToUse === 'Matematik & Fen Bilimleri' || branchToUse === 'Genel Branş') {
-            branchToUse = 'Fen Bilgisi Öğretmeni';
-          }
-          return {
-            ...t,
-            name: t.name || 'Mustafa Bilir',
-            username: t.username || 'Mustafa Bilir',
-            email: t.email || 'm.bilirr@gmail.com',
-            branch: branchToUse,
-            isAdmin: true,
-            status: 'approved' as const,
-            assignedClassIds: t.assignedClassIds?.length ? t.assignedClassIds : this.classes.map((c) => c.id),
-          };
-        }
-
-        // Other teachers must NOT automatically be administrators unless explicitly granted admin rights
-        return {
-          ...t,
-          isAdmin: t.isAdmin === true && t.status === 'approved' ? true : false,
-          assignedClassIds: t.assignedClassIds || [],
-        };
-      });
-
-      if (!adminFound) {
-        const primaryAdmin: Teacher = {
-          id: 'teacher-1',
-          name: 'Mustafa Bilir',
-          username: 'Mustafa Bilir',
-          email: 'm.bilirr@gmail.com',
-          branch: 'Fen Bilgisi Öğretmeni',
-          avatar: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=150&auto=format&fit=crop&q=80',
-          createdAt: '2025-09-01T08:00:00.000Z',
-          role: 'teacher',
-          status: 'approved',
-          isAdmin: true,
-          assignedClassIds: this.classes.map((c) => c.id),
-        };
-        this.teachers.unshift(primaryAdmin);
-      }
+      // Yönetici yetkisi yalnızca kayıttaki işaretten (is_admin / oturum rolü) ya da yönetici e-postasından gelir.
+      // (Eskiden isme bakılıyordu; aynı isimde biri yönetici ekranlarını görebiliyordu.)
+      this.teachers = this.teachers.map((t) => ({
+        ...t,
+        isAdmin: this.isTeacherAdmin(t),
+        assignedClassIds: t.assignedClassIds || [],
+      }));
 
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
 
@@ -990,8 +1021,9 @@ export class DataService {
         updated.email = cleanedMail;
         changed = true;
       }
-      if (updated.password === '54321' && updated.mustChangePassword === undefined) {
-        updated.mustChangePassword = true;
+      // Şifreler tarayıcıda tutulmaz (eski sürüm kalıntısı temizlenir)
+      if (updated.password) {
+        delete updated.password;
         changed = true;
       }
       if (changed) {
@@ -1260,8 +1292,7 @@ export class DataService {
             cleanRemoteEmail?.split('@')[0] ||
             row.name.toLowerCase().replace(/\s+/g, '_'),
           email: cleanRemoteEmail,
-          password: row.password || '54321',
-          mustChangePassword: true,
+          mustChangePassword: false,
           className: row.class_name || 'Genel',
           classId: row.class_id || 'class-default',
           studentNumber: row.student_number || '',
@@ -2519,16 +2550,16 @@ export class DataService {
   // =========================================================================
   // ÖDEV / TESLİM / SORU KAYDI / HEDEF SATIR DÖNÜŞÜMLERİ (Aşama 4)
   // =========================================================================
-  // Veritabanı veya yerel depolamaya kaydedilebilecek dosya sınırı (≈10 MB)
-  public static readonly MAX_INLINE_FILE_CHARS = 15_000_000;
+  // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
+  public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
 
   private assertInlineResourcesFit(resources?: HomeworkResource[]): void {
     const tooBig = (resources || []).find(
       (r) => typeof r?.url === 'string' && r.url.startsWith('data:') && r.url.length > DataService.MAX_INLINE_FILE_CHARS
     );
     if (tooBig) {
-      console.warn(
-        `"${tooBig.fileName || tooBig.title || 'Dosya'}" 10 MB sınırına yaklaştı. Performans için büyük dosyaları Google Drive veya YouTube bağlantısı olarak ekleyebilirsiniz.`
+      throw new Error(
+        `"${tooBig.fileName || tooBig.title || 'Dosya'}" 1 MB sınırını aşıyor. Büyük dosyaları (video, uzun PDF) Google Drive veya YouTube bağlantısı olarak ekleyin.`
       );
     }
   }
@@ -2847,15 +2878,11 @@ export class DataService {
     return null;
   }
 
+  // Yönetici: kayıtta yönetici işareti olan (giriş rolü 'admin' veya teachers.is_admin) ya da kurum yöneticisi
+  // e-postasıyla giriş yapan öğretmen. Veritabanındaki is_admin() kuralıyla aynıdır.
   public isTeacherAdmin(teacher?: Teacher | null): boolean {
     if (!teacher) return false;
-    return Boolean(
-      teacher.isAdmin ||
-      teacher.id === 'teacher-1' ||
-      teacher.username?.toLowerCase() === 'mustafa bilir' ||
-      teacher.name?.toLowerCase() === 'mustafa bilir' ||
-      teacher.email?.toLowerCase() === 'm.bilirr@gmail.com'
-    );
+    return Boolean(teacher.isAdmin || (teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL);
   }
 
   public isCurrentUserAdmin(): boolean {
@@ -3018,11 +3045,7 @@ export class DataService {
     // 1. Öğretmenler ve Yöneticiler
     this.teachers.forEach((t) => {
       if (this.deletedTeacherIds.has(t.id)) return;
-      const isAdmin =
-        !!t.isAdmin ||
-        t.id === 'teacher-1' ||
-        t.username?.toLowerCase() === 'mustafa bilir' ||
-        t.name?.toLowerCase() === 'mustafa bilir';
+      const isAdmin = this.isTeacherAdmin(t);
       const isSuspended = !!t.isSuspended || t.status === 'suspended';
 
       list.push({
@@ -3725,9 +3748,6 @@ export class DataService {
     } catch {}
     try {
       localStorage.setItem(`edu_sys_teacher_custom_profile_${teacherId}`, JSON.stringify(updated));
-      if (updated.isAdmin || updated.username?.toLowerCase() === 'mustafa bilir') {
-        localStorage.setItem('edu_sys_teacher_custom_profile_admin', JSON.stringify(updated));
-      }
     } catch (e) {
       console.warn('Could not write custom teacher profile override:', e);
     }
@@ -4419,20 +4439,11 @@ export class DataService {
           const specific = localStorage.getItem(`edu_sys_teacher_custom_profile_${saved.user.id}`);
           if (specific) {
             saved.user = { ...saved.user, ...JSON.parse(specific) };
-          } else if ((saved.user as Teacher).isAdmin || saved.user.id === 'teacher-1' || (saved.user as Teacher).username?.toLowerCase() === 'mustafa bilir') {
-            const adminData = localStorage.getItem('edu_sys_teacher_custom_profile_admin');
-            if (adminData) {
-              saved.user = { ...saved.user, ...JSON.parse(adminData) };
-            }
           }
         } catch {
           // ignore
         }
 
-        // Ensure legacy default branch is migrated to Fen Bilgisi Öğretmeni
-        if ((saved.user as Teacher).branch === 'Matematik & Fen Bilimleri' || !(saved.user as Teacher).branch) {
-          (saved.user as Teacher).branch = 'Fen Bilgisi Öğretmeni';
-        }
       } else if (saved.role === 'student') {
         const freshStudent = this.students.find(
           (s) =>
@@ -4487,7 +4498,39 @@ export class DataService {
       sessionStorage.removeItem('edu_sys_last_activity_ts');
       localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
     } catch {}
+    this.clearUserDataAfterLogout();
     this.notify();
+  }
+
+  // Gizlilik: çıkışta bu sekmedeki tüm kişisel veriler bellekten ve tarayıcıdan silinir.
+  // Aynı bilgisayarda sonra giriş yapan kişi önceki kullanıcının verilerini göremez.
+  private clearUserDataAfterLogout(): void {
+    clearSessionAppData();
+    purgePersistentPersonalData();
+    clearSignedUrlCache();
+    this.students = [];
+    this.classes = [];
+    this.teachers = [];
+    this.homeworks = [];
+    this.submissions = [];
+    this.etuts = [];
+    this.attendance = [];
+    this.grades = [];
+    this.messages = [];
+    this.documents = [];
+    this.studentNotifications = [];
+    this.sentEmails = [];
+    this.questionLogs = [];
+    this.weeklyQuestionTargets = [];
+    this.deletedTeacherIds = new Set();
+    this.deletedStudentIds = new Set();
+    this.deletedClassIds = new Set();
+    this.deletedHomeworkIds = new Set();
+    this.deletedEtutIds = new Set();
+    this.deletedQuestionLogIds = new Set();
+    this.documentDetailCache.clear();
+    this.currentAuthUid = null;
+    this.lastFullSyncAt = 0;
   }
 
   // --- BENİ HATIRLA / KOLAY GİRİŞ ---
