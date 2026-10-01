@@ -123,7 +123,11 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
   const handleDeleteClassTarget = async (classId?: string, weekStartDate?: string) => {
     if (!classId) return;
     if (confirm('Bu sınıf için belirlenmiş toplu soru hedefini silmek istediğinize emin misiniz?')) {
-      await dataService.deleteClassQuestionTarget(classId, weekStartDate);
+      try {
+        await dataService.deleteClassQuestionTarget(classId, weekStartDate);
+      } catch {
+        // hata uyarısı gösterildi, hedef geri getirildi
+      }
     }
   };
 

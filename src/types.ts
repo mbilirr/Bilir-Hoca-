@@ -131,8 +131,10 @@ export interface Homework {
   createdByName?: string;
   teacherId?: string; // Ödevi oluşturan öğretmen ID'si
   teacherName?: string;
+  teacherAuthId?: string; // Ödevin sahibi olan giriş hesabı (veritabanında yetki kontrolü bununla yapılır)
   classId?: string;
   submissions?: HomeworkSubmission[];
+  updatedAt?: string;
 }
 
 export type HomeworkCheckStatus = 'yapti' | 'yapmadi' | 'eksik' | 'izinli' | 'gelmedi';

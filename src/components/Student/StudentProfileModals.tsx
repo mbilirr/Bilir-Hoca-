@@ -48,7 +48,8 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
       setErrorMsg(null);
       setSuccessMsg(null);
     }
-  }, [isOpen, student]);
+    // Yalnızca pencere açılınca doldurulur; arka plan eşitlemesi yazılanları silmez.
+  }, [isOpen, student.id]);
 
   if (!isOpen) return null;
 

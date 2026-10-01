@@ -2618,7 +2618,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                 type="button"
                                 onClick={async () => {
                                   if (window.confirm('Bu soru kaydını silmek istediğinize emin misiniz? Ana sayfa özetleri ve grafikler anında güncellenecektir.')) {
-                                    await dataService.deleteQuestionLog(log.id);
+                                    try {
+                                      await dataService.deleteQuestionLog(log.id);
+                                    } catch {
+                                      // hata uyarısı gösterildi, kayıt geri getirildi
+                                    }
                                   }
                                 }}
                                 className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"

@@ -196,7 +196,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     setSingleEntries((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveQuestionLog = () => {
+  const handleSaveQuestionLog = async () => {
     let finalEntries: QuestionLogSubjectEntry[] = [];
 
     if (inputMode === 'list') {
@@ -225,15 +225,20 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
     const currentClass = classes.find((c) => c.id === activeStudent.classId);
 
-    dataService.saveQuestionLog({
-      studentId: activeStudent.id,
-      studentName: activeStudent.name,
-      classId: activeStudent.classId || selectedClassId,
-      className: activeStudent.className || currentClass?.name || 'Belirtilmedi',
-      date: entryDate,
-      entries: finalEntries,
-      notes: entryNotes.trim(),
-    });
+    try {
+      await dataService.saveQuestionLog({
+        studentId: activeStudent.id,
+        studentName: activeStudent.name,
+        classId: activeStudent.classId || selectedClassId,
+        className: activeStudent.className || currentClass?.name || 'Belirtilmedi',
+        date: entryDate,
+        entries: finalEntries,
+        notes: entryNotes.trim(),
+      });
+    } catch {
+      // Hata uyarısı gösterildi; girilen sayılar kaybolmasın diye form temizlenmez
+      return;
+    }
 
     setSaveSuccessMsg(`${formatTurkishDate(entryDate)} tarihli soru sayısı kaydınız başarıyla kaydedildi!`);
     setTimeout(() => {
@@ -1692,9 +1697,13 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             if (window.confirm('Bu soru kaydını silmek istediğinize emin misiniz?')) {
-                              dataService.deleteQuestionLog(log.id);
+                              try {
+                                await dataService.deleteQuestionLog(log.id);
+                              } catch {
+                                // hata uyarısı gösterildi, kayıt geri getirildi
+                              }
                             }
                           }}
                           className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"

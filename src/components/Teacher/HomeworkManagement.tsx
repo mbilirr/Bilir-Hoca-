@@ -70,10 +70,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   classes,
   onNavigateToEtut,
 }) => {
-  const [localSubmissions, setLocalSubmissions] = useState<HomeworkSubmission[]>(() =>
-    propSubmissions || dataService.getSubmissions() || []
-  );
-  const submissions = localSubmissions;
+  // Teslimler her zaman güncel veriden okunur (öğrenci teslim edince öğretmen ekranı kendiliğinden yenilenir)
+  const submissions: HomeworkSubmission[] = propSubmissions || dataService.getSubmissions() || [];
 
   // View Mode: 'tracker' (Ödev Kontrol Çizelgesi) | 'all' (Tüm Oluşturulan Ödevler)
   const [activeTab, setActiveTab] = useState<'tracker' | 'all'>('tracker');
@@ -84,6 +82,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [selectedStudentIdForCheck, setSelectedStudentIdForCheck] = useState<string>('');
   const [studentSearchInput, setStudentSearchInput] = useState<string>('');
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSavingChecks, setIsSavingChecks] = useState(false);
+  const showSaveError = (err: any, fallback: string) => {
+    setSaveFeedback(null);
+    setSaveError(err?.message || fallback);
+    setTimeout(() => setSaveError(null), 6000);
+  };
 
   // Taslak / Henüz Kaydedilmemiş Ödev Kontrol Durumları (studentId -> status)
   const [draftCheckStatuses, setDraftCheckStatuses] = useState<Record<string, HomeworkCheckStatus>>({});
@@ -272,6 +277,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [targetClassIds, setTargetClassIds] = useState<string[]>(classes.map((c) => c.id));
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(() => students.map((s) => s.id));
   const [resources, setResources] = useState<HomeworkResource[]>([]);
+  const [pendingResource, setPendingResource] = useState<HomeworkResource | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editingPendingResource, setEditingPendingResource] = useState<HomeworkResource | null>(null);
+  const [isSavingResources, setIsSavingResources] = useState(false);
 
   const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
     setSchoolLevel(level);
@@ -291,43 +301,75 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
   const handleCreateHomework = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !dueDate) return;
+    if (isCreating) return;
+    setCreateError(null);
+    if (!title.trim() || !dueDate) {
+      setCreateError('Başlık ve son teslim tarihi zorunludur.');
+      return;
+    }
 
     const currentTeacher = dataService.getCurrentTeacher();
     const finalTargetClasses =
-      selectedCreateClassId === 'all'
-        ? classes.map((c) => c.id)
-        : [selectedCreateClassId];
+      selectedCreateClassId === 'all' ? classes.map((c) => c.id) : [selectedCreateClassId];
+    if (finalTargetClasses.length === 0) {
+      setCreateError('Ödev verebilmek için size tanımlı en az bir sınıf olmalı.');
+      return;
+    }
 
-    const isAllSelected =
-      selectedStudentIds.length === 0 ||
-      (selectedCreateClassId === 'all' && selectedStudentIds.length === students.length);
-
-    const newHw = await dataService.createHomework({
-      title: title.trim(),
-      subject,
-      schoolLevel,
-      description: description.trim(),
-      dueDate,
-      outcomes: [],
-      assignedTo: isAllSelected ? 'all' : selectedStudentIds,
-      targetClassIds: finalTargetClasses.length > 0 ? finalTargetClasses : undefined,
-      resources,
-      isGlobalForNewStudents: true,
-      createdByName: currentTeacher?.name || 'Öğretmen',
-      teacherId: currentTeacher?.id,
+    // Listede görünen öğrenciler: seçilen sınıf(lar)ın öğrencileri
+    const listedStudents =
+      selectedCreateClassId === 'all' ? students : students.filter((s) => s.classId === selectedCreateClassId);
+    const listedIds = listedStudents.map((s) => s.id);
+    const chosenIds = selectedStudentIds.filter((id) => listedIds.includes(id));
+    if (listedIds.length > 0 && chosenIds.length === 0) {
+      setCreateError('En az bir öğrenci seçmelisiniz.');
+      return;
+    }
+    // Listedeki herkes seçiliyse ödev sınıfa verilir (sınıfa sonradan katılanlar da görür);
+    // değilse yalnızca seçilen öğrencilere verilir.
+    const everyoneChosen = chosenIds.length === listedIds.length;
+    const allInTargetClasses = chosenIds.every((id) => {
+      const st = students.find((s) => s.id === id);
+      return !!st && finalTargetClasses.includes(st.classId);
     });
+    const assignedTo: 'all' | string[] = everyoneChosen && allInTargetClasses ? 'all' : chosenIds;
 
-    confetti({
-      particleCount: 50,
-      spread: 60,
-      origin: { y: 0.8 },
-    });
+    const finalResources = pendingResource
+      ? [...resources, { ...pendingResource, id: `res-${Date.now()}` }]
+      : resources;
 
-    setIsCreateModalOpen(false);
-    resetForm();
-    setActiveTab('all');
-    setExpandedHwId(newHw.id);
+    setIsCreating(true);
+    try {
+      const newHw = await dataService.createHomework({
+        title: title.trim(),
+        subject,
+        schoolLevel,
+        description: description.trim(),
+        dueDate,
+        outcomes: [],
+        assignedTo,
+        targetClassIds: finalTargetClasses,
+        resources: finalResources,
+        createdByName: currentTeacher?.name || 'Öğretmen',
+        teacherId: currentTeacher?.id,
+      });
+
+      confetti({
+        particleCount: 50,
+        spread: 60,
+        origin: { y: 0.8 },
+      });
+
+      setIsCreateModalOpen(false);
+      resetForm();
+      setActiveTab('all');
+      setExpandedHwId(newHw.id);
+      setSelectedHomeworkId(newHw.id);
+    } catch (err: any) {
+      setCreateError(err?.message || 'Ödev kaydedilemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const resetForm = () => {
@@ -340,6 +382,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setTargetClassIds(classes.map((c) => c.id));
     setSelectedStudentIds(students.map((s) => s.id));
     setResources([]);
+    setPendingResource(null);
+    setCreateError(null);
   };
 
   const handleOpenEditResources = (hw: Homework) => {
@@ -347,12 +391,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setEditingResourcesList(hw.resources || []);
   };
 
-  const handleSaveEditedResources = () => {
-    if (editingResourcesHw) {
-      dataService.updateHomework(editingResourcesHw.id, {
-        resources: editingResourcesList,
-      });
+  const handleSaveEditedResources = async () => {
+    if (!editingResourcesHw || isSavingResources) return;
+    const finalResources = editingPendingResource
+      ? [...editingResourcesList, { ...editingPendingResource, id: `res-${Date.now()}` }]
+      : editingResourcesList;
+    setIsSavingResources(true);
+    try {
+      await dataService.updateHomework(editingResourcesHw.id, { resources: finalResources });
       setEditingResourcesHw(null);
+      setEditingPendingResource(null);
+      setSaveError(null);
+      setSaveFeedback('Ödev materyalleri kaydedildi.');
+      setTimeout(() => setSaveFeedback(null), 3000);
+    } catch (err: any) {
+      showSaveError(err, 'Materyaller kaydedilemedi.');
+    } finally {
+      setIsSavingResources(false);
     }
   };
 
@@ -458,7 +513,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setSaveFeedback(`Listedeki tüm öğrenciler "${labels[status]}" olarak seçildi.`);
   };
 
-  const handleSaveAllChecks = () => {
+  const handleSaveAllChecks = async () => {
     if (!selectedHomework) return;
     const modifiedStudentIds = Object.keys(draftCheckStatuses);
     if (modifiedStudentIds.length === 0) {
@@ -467,16 +522,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       return;
     }
 
-    modifiedStudentIds.forEach((studentId) => {
-      const status = draftCheckStatuses[studentId];
-      dataService.updateHomeworkCheckStatus(selectedHomework.id, studentId, status);
-    });
-
-    setLocalSubmissions(dataService.getSubmissions());
-    const count = modifiedStudentIds.length;
-    setDraftCheckStatuses({});
-    setSaveFeedback(`✓ ${count} öğrencinin ödev kontrol durumu başarıyla sisteme kaydedildi!`);
-    setTimeout(() => setSaveFeedback(null), 3500);
+    if (isSavingChecks) return;
+    setIsSavingChecks(true);
+    try {
+      await dataService.saveHomeworkCheckStatuses(
+        selectedHomework.id,
+        modifiedStudentIds.map((studentId) => ({ studentId, checkStatus: draftCheckStatuses[studentId] }))
+      );
+      const count = modifiedStudentIds.length;
+      setDraftCheckStatuses({});
+      setSaveError(null);
+      setSaveFeedback(`✓ ${count} öğrencinin ödev kontrol durumu başarıyla sisteme kaydedildi!`);
+      setTimeout(() => setSaveFeedback(null), 3500);
+    } catch (err: any) {
+      showSaveError(err, 'Ödev kontrol durumları kaydedilemedi.');
+    } finally {
+      setIsSavingChecks(false);
+    }
   };
 
   const handleResetDraftChecks = () => {
@@ -548,6 +610,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           <span>{saveFeedback}</span>
         </div>
       )}
+      {saveError && (
+        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-rose-500/10 text-rose-500 border border-rose-500/30 rounded-xl text-xs font-semibold animate-in fade-in">
+          <AlertCircle className="w-3.5 h-3.5" />
+          <span>{saveError}</span>
+        </div>
+      )}
 
             {/* TAB 1: TRACKER / CHECK VIEW */}
       {activeTab === 'tracker' && (() => {
@@ -607,25 +675,38 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         });
 
         // Durum butonuna tıklandığında anında kaydet
-        const handleStatusClick = (studentId: string, status: HomeworkCheckStatus) => {
+        const handleStatusClick = async (studentId: string, status: HomeworkCheckStatus) => {
           if (!currentHw) return;
-          dataService.updateHomeworkCheckStatus(currentHw.id, studentId, status);
-          setLocalSubmissions(dataService.getSubmissions());
           setDraftCheckStatuses((prev) => {
             const next = { ...prev };
             delete next[studentId];
             return next;
           });
+          try {
+            await dataService.saveHomeworkCheckStatuses(currentHw.id, [{ studentId, checkStatus: status }]);
+            setSaveError(null);
+          } catch (err: any) {
+            showSaveError(err, 'Kontrol durumu kaydedilemedi.');
+          }
         };
 
         // Toplu durum belirleme
-        const handleBulkStatusChange = (status: HomeworkCheckStatus) => {
-          if (!currentHw || classStudents.length === 0) return;
-          classStudents.forEach((std) => {
-            dataService.updateHomeworkCheckStatus(currentHw.id, std.id, status);
-          });
-          setLocalSubmissions(dataService.getSubmissions());
+        const handleBulkStatusChange = async (status: HomeworkCheckStatus) => {
+          if (!currentHw || classStudents.length === 0 || isSavingChecks) return;
+          setIsSavingChecks(true);
+          try {
+            await dataService.saveHomeworkCheckStatuses(
+              currentHw.id,
+              classStudents.map((std) => ({ studentId: std.id, checkStatus: status }))
+            );
+          } catch (err: any) {
+            showSaveError(err, 'Toplu kontrol durumu kaydedilemedi.');
+            return;
+          } finally {
+            setIsSavingChecks(false);
+          }
           setDraftCheckStatuses({});
+          setSaveError(null);
           const labels: Record<HomeworkCheckStatus, string> = {
             yapti: 'Yaptı',
             yapmadi: 'Yapmadı',
@@ -649,7 +730,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </p>
               <button
                 type="button"
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => { resetForm(); setIsCreateModalOpen(true); }}
                 className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
@@ -1788,7 +1869,20 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <HomeworkResourceUploader
                     resources={resources}
                     onChange={setResources}
+                    onPendingChange={setPendingResource}
                   />
+                  {pendingResource && (
+                    <p className="text-[11px] text-indigo-700 -mt-2">
+                      Yazdığınız bağlantı ("{pendingResource.title}") ödevi kaydederken otomatik olarak eklenecek.
+                    </p>
+                  )}
+
+                  {createError && (
+                    <div role="alert" className="flex items-start space-x-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{createError}</span>
+                    </div>
+                  )}
 
                   <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                     <button
@@ -1800,10 +1894,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all"
+                      disabled={isCreating}
+                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
                     >
                       <Save className="w-4 h-4" />
-                      <span>Ödevi Kaydet</span>
+                      <span>{isCreating ? 'Kaydediliyor…' : 'Ödevi Kaydet'}</span>
                     </button>
                   </div>
                 </form>
@@ -1844,6 +1939,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 <HomeworkResourceUploader
                   resources={editingResourcesList}
                   onChange={setEditingResourcesList}
+                  onPendingChange={setEditingPendingResource}
                 />
 
                 <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
@@ -1857,10 +1953,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveEditedResources}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer"
+                    disabled={isSavingResources}
+                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Materyalleri Kaydet</span>
+                    <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>
                   </button>
                 </div>
               </div>
@@ -1886,17 +1983,22 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       <ConfirmDeleteModal
         isOpen={!!homeworkToDelete}
         onClose={() => setHomeworkToDelete(null)}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (homeworkToDelete) {
             const deletedId = homeworkToDelete.id;
-            dataService.deleteHomework(deletedId);
-            if (selectedHomeworkId === deletedId) {
-              const remaining = homeworks.filter((h) => h.id !== deletedId);
-              setSelectedHomeworkId(remaining[0]?.id || '');
-            }
-            setSaveFeedback('Ödev başarıyla silindi.');
-            setTimeout(() => setSaveFeedback(null), 4000);
             setHomeworkToDelete(null);
+            try {
+              await dataService.deleteHomework(deletedId);
+              if (selectedHomeworkId === deletedId) {
+                const remaining = homeworks.filter((h) => h.id !== deletedId);
+                setSelectedHomeworkId(remaining[0]?.id || '');
+              }
+              setSaveError(null);
+              setSaveFeedback('Ödev başarıyla silindi.');
+              setTimeout(() => setSaveFeedback(null), 4000);
+            } catch (err: any) {
+              showSaveError(err, 'Ödev silinemedi.');
+            }
           }
         }}
         title="Ödevi Sil"

@@ -79,6 +79,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [submissionLink, setSubmissionLink] = useState('');
   const [submissionNotes, setSubmissionNotes] = useState('');
   const [submissionResources, setSubmissionResources] = useState<HomeworkResource[]>([]);
+  const [pendingSubmissionResource, setPendingSubmissionResource] = useState<HomeworkResource | null>(null);
+  const [isSubmittingHw, setIsSubmittingHw] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Send message form state
   const [messageSubject, setMessageSubject] = useState('');
@@ -137,11 +140,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   };
 
   // Filter homeworks assigned to this student (or assigned to 'all' or class)
-  const myHomeworks = homeworks.filter((h) => {
-    if (h.assignedTo === 'all') return true;
-    if (Array.isArray(h.assignedTo)) return h.assignedTo.includes(currentStudent.id);
-    return false;
-  });
+  const myHomeworks = homeworks.filter((h) => dataService.isHomeworkForStudent(h, currentStudent));
 
   // Filter etuts assigned to this student (or assigned to 'all', or in attendance list, or grade match)
   const myEtuts = etuts.filter((e) => {
@@ -193,17 +192,31 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   });
 
   // Handle Homework Submission
-  const handleSubmitHomework = (e: React.FormEvent) => {
+  const handleSubmitHomework = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!submittingHw) return;
+    if (!submittingHw || isSubmittingHw) return;
+    setSubmitError(null);
 
-    dataService.submitHomework(
-      submittingHw.id,
-      currentStudent.id,
-      submissionNotes.trim(),
-      submissionLink.trim() || undefined,
-      submissionResources.length > 0 ? submissionResources : undefined
-    );
+    const finalResources = pendingSubmissionResource
+      ? [...submissionResources, { ...pendingSubmissionResource, id: `res-${Date.now()}` }]
+      : submissionResources;
+
+    setIsSubmittingHw(true);
+    try {
+      await dataService.submitHomework(
+        submittingHw.id,
+        currentStudent.id,
+        submissionNotes.trim(),
+        submissionLink.trim() || undefined,
+        finalResources.length > 0 ? finalResources : undefined
+      );
+    } catch (err: any) {
+      // Yazılanlar kaybolmasın: pencere açık kalır, hata gösterilir
+      setSubmitError(err?.message || 'Ödev teslim edilemedi. Lütfen tekrar deneyin.');
+      return;
+    } finally {
+      setIsSubmittingHw(false);
+    }
 
     confetti({
       particleCount: 60,
@@ -215,6 +228,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setSubmissionLink('');
     setSubmissionNotes('');
     setSubmissionResources([]);
+    setPendingSubmissionResource(null);
   };
 
   // Handle Send Message to Teacher
@@ -1053,7 +1067,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <HomeworkResourceUploader
                 resources={submissionResources}
                 onChange={setSubmissionResources}
+                onPendingChange={setPendingSubmissionResource}
               />
+              {pendingSubmissionResource && (
+                <p className="text-[11px] text-indigo-300 -mt-2">
+                  Yazdığınız bağlantı ("{pendingSubmissionResource.title}") teslim ederken otomatik olarak eklenecek.
+                </p>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -1068,12 +1088,20 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 />
               </div>
 
+              {submitError && (
+                <div role="alert" className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl text-xs text-rose-300">
+                  {submitError}
+                </div>
+              )}
+
               <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => {
                     setSubmittingHw(null);
                     setSubmissionResources([]);
+                    setPendingSubmissionResource(null);
+                    setSubmitError(null);
                   }}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium"
                 >
@@ -1081,9 +1109,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md"
+                  disabled={isSubmittingHw}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60"
                 >
-                  Teslim Et
+                  {isSubmittingHw ? 'Gönderiliyor…' : 'Teslim Et'}
                 </button>
               </div>
             </form>

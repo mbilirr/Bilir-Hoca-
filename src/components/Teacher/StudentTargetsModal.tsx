@@ -124,7 +124,11 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
 
   const handleDeleteTarget = async (studentId: string, weekStartDate?: string) => {
     if (confirm('Bu öğrenci için belirlenmiş soru hedefini silmek istediğinize emin misiniz?')) {
-      await dataService.deleteWeeklyQuestionTarget(studentId, weekStartDate);
+      try {
+        await dataService.deleteWeeklyQuestionTarget(studentId, weekStartDate);
+      } catch {
+        // hata uyarısı gösterildi, hedef geri getirildi
+      }
     }
   };
 

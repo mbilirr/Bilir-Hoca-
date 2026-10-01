@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Video,
   FileText,
@@ -19,11 +19,22 @@ import { HomeworkResource, HomeworkResourceType } from '../../types';
 interface HomeworkResourceUploaderProps {
   resources: HomeworkResource[];
   onChange: (resources: HomeworkResource[]) => void;
+  // Yazılmış ama "Ekle"ye basılmamış bağlantıyı üst bileşene bildirir; kaydederken kaybolmasın diye eklenir.
+  onPendingChange?: (pending: HomeworkResource | null) => void;
 }
+
+// Dosyalar şimdilik kayıt satırının içinde saklanıyor; bu yüzden en fazla 1 MB.
+// (Aşama 5'te dosya deposuna geçilince bu sınır büyütülecek.)
+export const MAX_RESOURCE_FILE_BYTES = 1024 * 1024;
+const FILE_LIMIT_MESSAGE =
+  'Dosya 1 MB sınırını aşıyor. Büyük videoları YouTube, büyük PDF\'leri Google Drive bağlantısı olarak ekleyebilirsiniz.';
+
+const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : 'https://' + url);
 
 export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> = ({
   resources,
   onChange,
+  onPendingChange,
 }) => {
   const [activeTab, setActiveTab] = useState<HomeworkResourceType>('video');
 
@@ -70,8 +81,9 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       return;
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      setErrorMessage('Video dosya boyutu 50MB sınırını aşamaz. Büyük videolar için YouTube bağlantısı ekleyebilirsiniz.');
+    if (file.size > MAX_RESOURCE_FILE_BYTES) {
+      setErrorMessage(FILE_LIMIT_MESSAGE);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
       return;
     }
 
@@ -177,8 +189,9 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       return;
     }
 
-    if (file.size > 25 * 1024 * 1024) {
-      setErrorMessage('PDF dosya boyutu 25MB sınırını aşamaz.');
+    if (file.size > MAX_RESOURCE_FILE_BYTES) {
+      setErrorMessage(FILE_LIMIT_MESSAGE);
+      if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
       return;
     }
 
@@ -237,6 +250,44 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
   const handleRemoveResource = (id: string) => {
     onChange(resources.filter((r) => r.id !== id));
   };
+
+  // Kutuya yazılmış ama henüz eklenmemiş bağlantı (kaydet'e basılınca otomatik eklenir)
+  useEffect(() => {
+    if (!onPendingChange) return;
+    let pending: HomeworkResource | null = null;
+    if (activeTab === 'video' && videoSourceType === 'url' && videoUrl.trim()) {
+      pending = {
+        id: `res-pending-video`,
+        type: 'video',
+        title: videoTitle.trim() || 'Ders Anlatım Videosu',
+        url: videoUrl.trim(),
+        description: videoDescription.trim() || undefined,
+      };
+    } else if (activeTab === 'link' && linkUrl.trim()) {
+      const url = withProtocol(linkUrl.trim());
+      let title = linkTitle.trim();
+      if (!title) {
+        try {
+          title = `${new URL(url).hostname.replace('www.', '')} Kaynağı`;
+        } catch {
+          title = 'İnternet Bağlantısı';
+        }
+      }
+      pending = { id: `res-pending-link`, type: 'link', title, url, description: linkDescription.trim() || undefined };
+    } else if (activeTab === 'pdf' && pdfSourceType === 'url' && pdfOnlineUrl.trim()) {
+      pending = {
+        id: `res-pending-pdf`,
+        type: 'pdf',
+        title: pdfTitle.trim() || 'Online PDF Çalışma Fasikülü',
+        url: withProtocol(pdfOnlineUrl.trim()),
+        description: pdfDescription.trim() || undefined,
+      };
+    }
+    onPendingChange(pending);
+  }, [
+    onPendingChange, activeTab, videoSourceType, videoUrl, videoTitle, videoDescription,
+    linkUrl, linkTitle, linkDescription, pdfSourceType, pdfOnlineUrl, pdfTitle, pdfDescription,
+  ]);
 
   return (
     <div className="space-y-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
@@ -373,7 +424,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
               <div className="flex items-center space-x-2">
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   placeholder="YouTube, Vimeo veya Video Linki (https://www.youtube.com/watch?v=...)"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
@@ -424,7 +476,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   Video Seçmek veya Sürüklemek İçin Tıklayın
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  Desteklenen Formatlar: MP4, WebM (Maksimum 50MB)
+                  Desteklenen Formatlar: MP4, WebM (Maksimum 1 MB — büyük videolar için YouTube linki)
                 </span>
               </div>
             </div>
@@ -454,7 +506,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
           <div className="flex items-center space-x-2">
             <input
-              type="url"
+              type="text"
+              inputMode="url"
               placeholder="Web Sitesi veya İnternet Linki (https://...)"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
@@ -536,7 +589,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   PDF Dosyası Seçmek veya Sürüklemek İçin Tıklayın
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum 25MB)
+                  Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum 1 MB — büyük dosyalar için Google Drive linki)
                 </span>
               </div>
             </div>
@@ -561,7 +614,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
               <div className="flex items-center space-x-2">
                 <input
-                  type="url"
+                  type="text"
+                  inputMode="url"
                   placeholder="Online PDF veya Google Drive PDF Linki (https://...)"
                   value={pdfOnlineUrl}
                   onChange={(e) => setPdfOnlineUrl(e.target.value)}

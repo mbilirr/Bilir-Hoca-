@@ -1049,6 +1049,7 @@ export class DataService {
     this.setupAttendanceRealtimeSync();
     this.setupGradesRealtimeSync();
     this.setupMessagesRealtimeSync();
+    this.setupPhase4RealtimeSync();
     this.startPeriodicSync();
   }
 
@@ -1074,6 +1075,10 @@ export class DataService {
     this.attendanceRealtimeChannel = null;
     this.gradeRealtimeChannel = null;
     this.messageRealtimeChannel = null;
+    Object.values(this.phase4RealtimeChannels).forEach((ch) => {
+      try { supabase.removeChannel(ch); } catch {}
+    });
+    this.phase4RealtimeChannels = {};
 
     if (this.syncPollInterval) {
       clearInterval(this.syncPollInterval);
@@ -1600,36 +1605,11 @@ export class DataService {
   }
 
   // --- HOMEWORK & SYSTEM REALTIME EVENT HANDLER ---
+  // Değişiklik bildirimi gelince ilgili tablo kısa bir gecikmeyle yeniden okunur (RLS süzgeciyle, eksiksiz).
   public handleRemoteHomeworkRealtimeEvent(payload: any) {
     try {
-      const eventType = payload.eventType; // 'INSERT' | 'UPDATE' | 'DELETE'
-      if (eventType === 'DELETE') {
-        const oldRow = payload.old;
-        if (oldRow?.id) {
-          this.deletedHomeworkIds.add(oldRow.id);
-          saveData(STORAGE_KEYS.DELETED_HOMEWORK, Array.from(this.deletedHomeworkIds));
-          this.homeworks = this.homeworks.filter((h) => h.id !== oldRow.id);
-          this.submissions = this.submissions.filter((s) => s.homeworkId !== oldRow.id);
-          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-          this.notify();
-        }
-        return;
-      }
-
-      const row = payload.new;
-      if (!row || !row.id) return;
-
-      // Check system payloads
-      if (row.id === '__system_sync_question_logs__') {
-        this.handleRemoteQuestionLogsPayload(row.description);
-        return;
-      }
-      if (row.id === '__system_sync_question_targets__') {
-        this.handleRemoteQuestionTargetsPayload(row.description);
-        return;
-      }
-      if (row.id === '__system_sync_documents__') {
+      const row = payload?.new && payload.new.id ? payload.new : null;
+      if (row?.id === '__system_sync_documents__') {
         try {
           const parsed = JSON.parse(row.description);
           if (Array.isArray(parsed)) {
@@ -1640,82 +1620,49 @@ export class DataService {
         } catch {}
         return;
       }
-      if (row.id === '__system_sync_tombstones__') {
+      if (row?.id === '__system_sync_tombstones__') {
         this.handleRemoteTombstonesPayload(row.description);
         return;
       }
-      if (typeof row.id === 'string' && row.id.startsWith('__system_sync_')) {
-        return;
-      }
-
-      if (this.deletedHomeworkIds.has(row.id)) return;
-
-      let assignedTo: 'all' | string[] = 'all';
-      if (row.assigned_to) {
-        if (row.assigned_to === 'all') {
-          assignedTo = 'all';
-        } else if (typeof row.assigned_to === 'string' && row.assigned_to.startsWith('[')) {
-          try {
-            assignedTo = JSON.parse(row.assigned_to);
-          } catch {
-            assignedTo = [row.assigned_to];
-          }
-        } else {
-          assignedTo = [row.assigned_to];
-        }
-      }
-
-      const mappedHw: Homework = {
-        id: row.id,
-        title: row.title || 'Ödev',
-        description: row.description || '',
-        subject: row.subject || 'Genel',
-        learningOutcomes: Array.isArray(row.learning_outcomes) ? row.learning_outcomes : [],
-        dueDate: row.due_date || new Date().toISOString(),
-        createdAt: row.created_at || new Date().toISOString(),
-        assignedDate: row.created_at || new Date().toISOString(),
-        classId: row.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
-        assignedTo,
-        teacherId: this.homeworks.find((h) => h.id === row.id)?.teacherId || 'teacher-1',
-        teacherName: this.homeworks.find((h) => h.id === row.id)?.teacherName || 'Öğretmen',
-        submissions: Array.isArray(row.submissions) ? row.submissions : [],
-      };
-      const mappedWithExtras = this.applyHomeworkRowExtras(row, {
-        ...(this.homeworks.find((h) => h.id === row.id) || {}),
-        ...mappedHw,
-      } as Homework);
-
-      if (Array.isArray(row.submissions) && row.submissions.length > 0) {
-        row.submissions.forEach((sub: HomeworkSubmission) => {
-          if (sub && sub.id) {
-            const sIdx = this.submissions.findIndex((s) => s.id === sub.id);
-            if (sIdx !== -1) {
-              this.submissions[sIdx] = sub;
-            } else {
-              this.submissions.unshift(sub);
-            }
-          }
-        });
-        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-      }
-
-      const exIdx = this.homeworks.findIndex((h) => h.id === row.id);
-      if (exIdx !== -1) {
-        this.homeworks = this.homeworks.map((h, i) => (i === exIdx ? mappedWithExtras : h));
-      } else {
-        this.homeworks = [mappedWithExtras, ...this.homeworks];
-      }
-
-      this.homeworks.sort(
-        (a, b) =>
-          new Date(b.createdAt || b.dueDate || 0).getTime() -
-          new Date(a.createdAt || a.dueDate || 0).getTime()
-      );
-      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-      this.notify();
+      if (typeof row?.id === 'string' && row.id.startsWith('__')) return;
+      this.scheduleTableRefetch('homeworks');
     } catch (e) {
       console.warn('[HomeworkRealtime] Error:', e);
     }
+  }
+
+  private refetchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  private scheduleTableRefetch(table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets'): void {
+    if (this.refetchTimers[table]) clearTimeout(this.refetchTimers[table]);
+    this.refetchTimers[table] = setTimeout(() => {
+      delete this.refetchTimers[table];
+      if (table === 'homeworks') this.syncHomeworksFromSupabase(true);
+      else if (table === 'homework_submissions') this.syncSubmissionsFromSupabase(true);
+      else if (table === 'question_logs') this.syncQuestionLogsFromSupabase(true);
+      else this.syncQuestionTargetsFromSupabase(true);
+    }, 400);
+  }
+
+  // Aşama 4 tabloları için anlık güncelleme kanalları (zaten bağlıysa yeniden kurulmaz)
+  private phase4RealtimeChannels: Record<string, any> = {};
+
+  public setupPhase4RealtimeSync(): void {
+    (['homework_submissions', 'question_logs', 'question_targets'] as const).forEach((table) => {
+      try {
+        const existing = this.phase4RealtimeChannels[table];
+        if (existing && (existing.state === 'joined' || existing.state === 'joining')) return;
+        if (existing) {
+          try { supabase.removeChannel(existing); } catch {}
+        }
+        this.phase4RealtimeChannels[table] = supabase
+          .channel(`${table}-sync-${Date.now()}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table }, () => this.scheduleTableRefetch(table))
+          .subscribe();
+      } catch (e) {
+        console.warn(`Realtime channel subscribe error for ${table}:`, e);
+      }
+    });
   }
 
   // --- ATTENDANCE REALTIME EVENT HANDLER ---
@@ -1833,76 +1780,6 @@ export class DataService {
     } catch (e) {
       console.warn('[MessageRealtime] Error:', e);
     }
-  }
-
-  // --- QUESTION LOGS & TARGETS REALTIME DESERIALIZERS ---
-  public handleRemoteQuestionLogsPayload(raw: string) {
-    if (raw === undefined || raw === null) return;
-    try {
-      const remoteLogs: StudentQuestionLog[] = JSON.parse(raw);
-      if (Array.isArray(remoteLogs)) {
-        const remoteMap = new Map<string, StudentQuestionLog>();
-        remoteLogs.forEach((rl) => {
-          if (!this.deletedQuestionLogIds?.has(rl.id)) {
-            remoteMap.set(rl.id, rl);
-          }
-        });
-
-        // Retain only very recent unsaved local entries (< 15s old) that haven't been deleted
-        const now = Date.now();
-        const pendingLocal = this.questionLogs.filter((l) => {
-          if (this.deletedQuestionLogIds?.has(l.id)) return false;
-          if (remoteMap.has(l.id)) return false;
-          const created = new Date(l.createdAt || l.date || 0).getTime();
-          return now - created < 15000;
-        });
-
-        const merged = [...Array.from(remoteMap.values()), ...pendingLocal];
-        merged.sort(
-          (a, b) =>
-            new Date(b.date || b.createdAt || 0).getTime() -
-            new Date(a.date || a.createdAt || 0).getTime()
-        );
-
-        this.questionLogs = merged;
-        saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-        try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
-        } catch {}
-        this.notify();
-      }
-    } catch (e) {
-      console.warn('[QuestionLogsRealtime] Error:', e);
-    }
-  }
-
-  public handleRemoteQuestionTargetsPayload(raw: string) {
-    if (!raw) return;
-    try {
-      const remoteTargets: WeeklyQuestionTarget[] = JSON.parse(raw);
-      if (Array.isArray(remoteTargets) && remoteTargets.length > 0) {
-        let changed = false;
-        remoteTargets.forEach((rt) => {
-          const exIdx = this.weeklyQuestionTargets.findIndex(
-            (t) => t.id === rt.id || t.studentId === rt.studentId
-          );
-          if (exIdx === -1) {
-            this.weeklyQuestionTargets.push(rt);
-            changed = true;
-          } else if (
-            new Date(rt.assignedDate || 0).getTime() >=
-            new Date(this.weeklyQuestionTargets[exIdx].assignedDate || 0).getTime()
-          ) {
-            this.weeklyQuestionTargets[exIdx] = rt;
-            changed = true;
-          }
-        });
-        if (changed) {
-          saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-          this.notify();
-        }
-      }
-    } catch {}
   }
 
   public handleRemoteTombstonesPayload(raw: string) {
@@ -2362,75 +2239,15 @@ export class DataService {
 
       if (remoteHws && Array.isArray(remoteHws)) {
         const validHws: Homework[] = [];
-        const subMap = new Map<string, HomeworkSubmission>();
-        this.submissions.forEach((s) => subMap.set(s.id, s));
-
         remoteHws.forEach((rh: any) => {
-          // Check for system sync payloads
-          if (rh.id === '__system_sync_question_targets__') {
-            this.handleRemoteQuestionTargetsPayload(rh.description);
-            return;
-          }
-          if (rh.id === '__system_sync_question_logs__') {
-            this.handleRemoteQuestionLogsPayload(rh.description);
-            return;
-          }
+          if (!rh || typeof rh.id !== 'string') return;
           if (rh.id === '__system_sync_tombstones__') {
             this.handleRemoteTombstonesPayload(rh.description);
             return;
           }
-          if (
-            rh.id === '__system_sync_teachers__' ||
-            (typeof rh.id === 'string' && rh.id.startsWith('__teacher_sync_')) ||
-            (typeof rh.id === 'string' && rh.id.startsWith('__system_sync_')) ||
-            rh.subject === 'TeacherSync' ||
-            rh.subject === 'SystemSync'
-          ) {
-            return;
-          }
-
-          if (this.deletedHomeworkIds.has(rh.id)) return;
-
-          // Process embedded submissions
-          if (Array.isArray(rh.submissions)) {
-            rh.submissions.forEach((sub: HomeworkSubmission) => {
-              if (sub && sub.id) subMap.set(sub.id, sub);
-            });
-          }
-
-          let assignedTo: 'all' | string[] = 'all';
-          if (rh.assigned_to) {
-            if (rh.assigned_to === 'all') {
-              assignedTo = 'all';
-            } else if (typeof rh.assigned_to === 'string' && rh.assigned_to.startsWith('[')) {
-              try {
-                assignedTo = JSON.parse(rh.assigned_to);
-              } catch {
-                assignedTo = [rh.assigned_to];
-              }
-            } else {
-              assignedTo = [rh.assigned_to];
-            }
-          }
-
-          const localHw = this.homeworks.find((h) => h.id === rh.id);
-          const baseHw: Homework = {
-            ...(localHw || {}),
-            id: rh.id,
-            title: rh.title || 'Ödev',
-            description: rh.description || '',
-            subject: rh.subject || 'Genel',
-            learningOutcomes: Array.isArray(rh.learning_outcomes) ? rh.learning_outcomes : [],
-            dueDate: rh.due_date || new Date().toISOString(),
-            createdAt: rh.created_at || new Date().toISOString(),
-            assignedDate: localHw?.assignedDate || rh.created_at || new Date().toISOString(),
-            classId: rh.class_id || (typeof assignedTo === 'string' && assignedTo !== 'all' ? assignedTo : 'class-default'),
-            assignedTo,
-            teacherId: localHw?.teacherId || 'teacher-1',
-            teacherName: localHw?.teacherName || 'Öğretmen',
-            submissions: Array.isArray(rh.submissions) ? rh.submissions : [],
-          };
-          validHws.push(this.applyHomeworkRowExtras(rh, baseHw));
+          // Diğer sistem satırları (dokümanlar, eski eşitleme satırları) ödev değildir
+          if (rh.id.startsWith('__') || rh.subject === 'TeacherSync' || rh.subject === 'SystemSync') return;
+          validHws.push(this.homeworkFromRow(rh));
         });
 
         validHws.sort(
@@ -2440,7 +2257,8 @@ export class DataService {
         );
 
         this.homeworks = validHws;
-        this.submissions = Array.from(subMap.values());
+        const ids = new Set(validHws.map((h) => h.id));
+        this.submissions = this.submissions.filter((s) => ids.has(s.homeworkId));
         saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
         saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
         this.notify();
@@ -2450,6 +2268,42 @@ export class DataService {
     } catch (e) {
       if (!isBackground) console.warn('[HomeworkSync] Exception:', e);
       return this.homeworks;
+    }
+  }
+
+  // Ödev teslimleri ayrı tablodan okunur (her öğrenci-ödev için tek satır)
+  public async syncSubmissionsFromSupabase(isBackground = false): Promise<HomeworkSubmission[]> {
+    if (!(await this.hasCloudSession())) return this.submissions;
+    try {
+      const { data, error } = await supabase.from('homework_submissions').select('*');
+      if (error) {
+        if (!isBackground) console.warn('[SubmissionSync] Error:', error);
+        return this.submissions;
+      }
+      if (Array.isArray(data)) {
+        this.submissions = data.map((r: any) => this.submissionFromRow(r));
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+        this.notify();
+      }
+      return this.submissions;
+    } catch (e) {
+      if (!isBackground) console.warn('[SubmissionSync] Exception:', e);
+      return this.submissions;
+    }
+  }
+
+  private async refreshSubmissionsForHomework(homeworkId: string): Promise<void> {
+    try {
+      const { data, error } = await supabase.from('homework_submissions').select('*').eq('homework_id', homeworkId);
+      if (error || !Array.isArray(data)) return;
+      this.submissions = [
+        ...data.map((r: any) => this.submissionFromRow(r)),
+        ...this.submissions.filter((s) => s.homeworkId !== homeworkId),
+      ];
+      saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      this.notify();
+    } catch {
+      // bir sonraki eşitlemede düzelir
     }
   }
 
@@ -2565,31 +2419,56 @@ export class DataService {
   }
 
   public async syncQuestionLogsAndTargetsFromSupabase(isBackground = false): Promise<void> {
-    // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
-    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
-    if (!(await this.hasCloudSession())) return;
-    try {
-      const { data: rows, error } = await supabase
-        .from('homeworks')
-        .select('id, description, subject')
-        .in('id', ['__system_sync_question_logs__', '__system_sync_question_targets__']);
+    await Promise.allSettled([
+      this.syncQuestionLogsFromSupabase(isBackground),
+      this.syncQuestionTargetsFromSupabase(isBackground),
+    ]);
+  }
 
+  public async syncQuestionLogsFromSupabase(isBackground = false): Promise<StudentQuestionLog[]> {
+    if (!(await this.hasCloudSession())) return this.questionLogs;
+    try {
+      const { data, error } = await supabase.from('question_logs').select('*');
       if (error) {
         if (!isBackground) console.warn('[QuestionLogsSync] Error:', error);
-        return;
+        return this.questionLogs;
       }
-
-      if (rows && Array.isArray(rows)) {
-        rows.forEach((r) => {
-          if (r.id === '__system_sync_question_logs__') {
-            this.handleRemoteQuestionLogsPayload(r.description);
-          } else if (r.id === '__system_sync_question_targets__') {
-            this.handleRemoteQuestionTargetsPayload(r.description);
-          }
-        });
+      if (Array.isArray(data)) {
+        const logs = data
+          .map((r: any) => this.questionLogFromRow(r))
+          .filter((l) => !this.deletedQuestionLogIds?.has(l.id));
+        logs.sort(
+          (a, b) =>
+            new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+        );
+        this.questionLogs = logs;
+        this.persistQuestionLogsLocal();
+        this.notify();
       }
+      return this.questionLogs;
     } catch (e) {
       if (!isBackground) console.warn('[QuestionLogsSync] Exception:', e);
+      return this.questionLogs;
+    }
+  }
+
+  public async syncQuestionTargetsFromSupabase(isBackground = false): Promise<WeeklyQuestionTarget[]> {
+    if (!(await this.hasCloudSession())) return this.weeklyQuestionTargets;
+    try {
+      const { data, error } = await supabase.from('question_targets').select('*');
+      if (error) {
+        if (!isBackground) console.warn('[QuestionTargetsSync] Error:', error);
+        return this.weeklyQuestionTargets;
+      }
+      if (Array.isArray(data)) {
+        this.weeklyQuestionTargets = data.map((r: any) => this.questionTargetFromRow(r));
+        saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+        this.notify();
+      }
+      return this.weeklyQuestionTargets;
+    } catch (e) {
+      if (!isBackground) console.warn('[QuestionTargetsSync] Exception:', e);
+      return this.weeklyQuestionTargets;
     }
   }
 
@@ -2673,19 +2552,11 @@ export class DataService {
     return { error: null };
   }
 
-  // Ödevin tabloda ayrı sütunu olmayan bilgileri (hedef sınıflar, kaynak linkleri vb.) 'meta' sütununda saklanır.
+  // Ödevin tabloda ayrı sütunu olmayan bilgileri (kaynak linkleri vb.) 'meta' sütununda saklanır.
+  // 1 MB üzerindeki gömülü dosya kabul edilmez (sessizce kaybolmasın diye hata verilir).
   private homeworkRowExtras(hw: Homework): { teacher_id: string | null; teacher_name: string | null; meta: Record<string, any> } {
-    const resources = Array.isArray(hw.resources) ? hw.resources : [];
-    // Çok büyük gömülü dosyalar (≈1 MB üzeri) veritabanı satırına yazılmaz; Aşama 4'te dosya deposuna taşınacak.
-    const MAX_INLINE_FILE_CHARS = 1_400_000;
-    const keptResources = resources.filter(
-      (r) => !(typeof r?.url === 'string' && r.url.startsWith('data:') && r.url.length > MAX_INLINE_FILE_CHARS)
-    );
-    if (keptResources.length < resources.length) {
-      this.showFloatingErrorToast(
-        'Uyarı: 1 MB üzerindeki dosya kaynakları şimdilik yalnızca bu cihazda saklanıyor. Bağlantı (link) olarak eklemeniz önerilir.'
-      );
-    }
+    const keptResources = Array.isArray(hw.resources) ? hw.resources : [];
+    this.assertInlineResourcesFit(keptResources);
     return {
       teacher_id: hw.teacherId || null,
       teacher_name: hw.teacherName || hw.createdByName || null,
@@ -2720,6 +2591,174 @@ export class DataService {
       assignedDate: meta.assignedDate || base.assignedDate,
       resources: hasMeta && Array.isArray(meta.resources) ? meta.resources : base.resources,
     };
+  }
+
+  // =========================================================================
+  // ÖDEV / TESLİM / SORU KAYDI / HEDEF SATIR DÖNÜŞÜMLERİ (Aşama 4)
+  // =========================================================================
+  // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
+  public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
+
+  private assertInlineResourcesFit(resources?: HomeworkResource[]): void {
+    const tooBig = (resources || []).find(
+      (r) => typeof r?.url === 'string' && r.url.startsWith('data:') && r.url.length > DataService.MAX_INLINE_FILE_CHARS
+    );
+    if (tooBig) {
+      throw new Error(
+        `"${tooBig.fileName || tooBig.title || 'Dosya'}" 1 MB sınırını aşıyor. Büyük dosyaları (video, uzun PDF) Google Drive veya YouTube bağlantısı olarak ekleyin.`
+      );
+    }
+  }
+
+  // Ödevin hedefi: sınıflar + (isteğe bağlı) yalnızca seçilen öğrenciler.
+  // Öğrenci listesi boşsa hedef sınıfların TÜM öğrencileri (sonradan katılanlar dahil) ödevi görür.
+  private homeworkTargets(hw: Homework): { classIds: string[]; studentIds: string[] } {
+    const studentIds = Array.isArray(hw.assignedTo) ? Array.from(new Set(hw.assignedTo.filter(Boolean))) : [];
+    let classIds = Array.from(new Set((hw.targetClassIds || []).filter(Boolean)));
+    if (classIds.length === 0 && hw.classId && hw.classId !== 'class-default') classIds = [hw.classId];
+    return { classIds, studentIds };
+  }
+
+  public isHomeworkForStudent(hw: Homework, student: { id: string; classId?: string }): boolean {
+    if (Array.isArray(hw.assignedTo) && hw.assignedTo.length > 0) return hw.assignedTo.includes(student.id);
+    const { classIds } = this.homeworkTargets(hw);
+    return !!student.classId && classIds.includes(student.classId);
+  }
+
+  private homeworkToRow(hw: Homework) {
+    const { classIds, studentIds } = this.homeworkTargets(hw);
+    return {
+      title: hw.title,
+      description: hw.description || '',
+      subject: hw.subject,
+      due_date: hw.dueDate,
+      learning_outcomes: hw.learningOutcomes || [],
+      assigned_to: studentIds.length > 0 ? studentIds : 'all',
+      class_id: classIds[0] || hw.classId || 'class-default',
+      target_class_ids: classIds,
+      target_student_ids: studentIds,
+      ...this.homeworkRowExtras(hw),
+    };
+  }
+
+  private homeworkFromRow(rh: any): Homework {
+    const localHw = this.homeworks.find((h) => h.id === rh.id);
+    const targetClassIds: string[] = Array.isArray(rh.target_class_ids) ? rh.target_class_ids.filter(Boolean) : [];
+    const targetStudentIds: string[] = Array.isArray(rh.target_student_ids) ? rh.target_student_ids.filter(Boolean) : [];
+    const base: Homework = {
+      ...(localHw || {}),
+      id: rh.id,
+      title: rh.title || 'Ödev',
+      description: rh.description || '',
+      subject: rh.subject || 'Genel',
+      learningOutcomes: Array.isArray(rh.learning_outcomes) ? rh.learning_outcomes : [],
+      dueDate: rh.due_date || new Date().toISOString(),
+      createdAt: rh.created_at || localHw?.createdAt || new Date().toISOString(),
+      assignedDate: localHw?.assignedDate || rh.created_at || new Date().toISOString(),
+      classId: targetClassIds[0] || rh.class_id || 'class-default',
+      assignedTo: targetStudentIds.length > 0 ? targetStudentIds : 'all',
+      teacherId: rh.teacher_id || localHw?.teacherId,
+      teacherName: rh.teacher_name || localHw?.teacherName,
+      teacherAuthId: rh.teacher_auth_id || undefined,
+      updatedAt: rh.updated_at || undefined,
+      submissions: undefined,
+    };
+    const withExtras = this.applyHomeworkRowExtras(rh, base);
+    return {
+      ...withExtras,
+      targetClassIds: targetClassIds.length > 0 ? targetClassIds : withExtras.targetClassIds || [],
+      assignedTo: base.assignedTo,
+      isGlobalForNewStudents: false,
+    };
+  }
+
+  private submissionFromRow(r: any): HomeworkSubmission {
+    return {
+      id: r.id,
+      homeworkId: r.homework_id,
+      studentId: r.student_id,
+      studentName: r.student_name || this.students.find((s) => s.id === r.student_id)?.name || 'Öğrenci',
+      submittedAt: r.submitted_at || r.updated_at || new Date().toISOString(),
+      status: r.status === 'late' || r.status === 'not_submitted' ? r.status : 'on_time',
+      checkStatus: r.check_status || undefined,
+      notes: r.notes || '',
+      attachmentLink: r.attachment_link || undefined,
+      resources: Array.isArray(r.resources) ? r.resources : [],
+      score: r.score === null || r.score === undefined ? null : Number(r.score),
+      feedback: r.feedback || undefined,
+    };
+  }
+
+  private questionLogToRow(q: StudentQuestionLog) {
+    return {
+      id: q.id,
+      student_id: q.studentId,
+      student_name: q.studentName || '',
+      class_id: q.classId || '',
+      class_name: q.className || '',
+      date: q.date,
+      entries: q.entries || [],
+      total_questions: Math.round(Number(q.totalQuestions) || 0),
+      total_correct: Math.round(Number(q.totalCorrect) || 0),
+      total_wrong: Math.round(Number(q.totalWrong) || 0),
+      total_empty: Math.round(Number(q.totalEmpty) || 0),
+      notes: q.notes || '',
+      created_at: q.createdAt || new Date().toISOString(),
+    };
+  }
+
+  private questionLogFromRow(r: any): StudentQuestionLog {
+    return {
+      id: r.id,
+      studentId: r.student_id,
+      studentName: r.student_name || '',
+      classId: r.class_id || '',
+      className: r.class_name || '',
+      date: r.date,
+      entries: Array.isArray(r.entries) ? r.entries : [],
+      totalQuestions: Number(r.total_questions) || 0,
+      totalCorrect: Number(r.total_correct) || 0,
+      totalWrong: Number(r.total_wrong) || 0,
+      totalEmpty: Number(r.total_empty) || 0,
+      notes: r.notes || '',
+      createdAt: r.created_at || new Date().toISOString(),
+    };
+  }
+
+  private isClassQuestionTarget(t: WeeklyQuestionTarget): boolean {
+    return t.targetType === 'class' || (!!t.classId && !t.studentId);
+  }
+
+  private questionTargetToRow(t: WeeklyQuestionTarget) {
+    const isClass = this.isClassQuestionTarget(t);
+    return {
+      id: t.id,
+      target_type: isClass ? 'class' : 'student',
+      student_id: isClass ? null : t.studentId || null,
+      class_id: t.classId || null,
+      week_start_date: t.weekStartDate || null,
+      data: JSON.parse(JSON.stringify(t)),
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  private questionTargetFromRow(r: any): WeeklyQuestionTarget {
+    const data = r.data && typeof r.data === 'object' ? r.data : {};
+    return {
+      ...data,
+      id: r.id,
+      targetType: r.target_type === 'class' ? 'class' : 'student',
+      studentId: r.target_type === 'class' ? undefined : r.student_id || data.studentId,
+      classId: r.class_id || data.classId,
+      weekStartDate: r.week_start_date || data.weekStartDate,
+    };
+  }
+
+  private persistQuestionLogsLocal(): void {
+    saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    try {
+      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+    } catch {}
   }
 
   private gradeFromRow(rg: any): GradeRecord {
@@ -2827,6 +2866,7 @@ export class DataService {
         this.syncStudentsFromSupabase(isBackground),
         this.syncEtutsFromSupabase(isBackground),
         this.syncHomeworksFromSupabase(isBackground),
+        this.syncSubmissionsFromSupabase(isBackground),
         this.syncAttendanceFromSupabase(isBackground),
         this.syncGradesFromSupabase(isBackground),
         this.syncMessagesFromSupabase(isBackground),
@@ -5717,117 +5757,100 @@ export class DataService {
     const nowIso = new Date().toISOString();
     const newHw: Homework = {
       ...homeworkData,
-      id: `hw-${Date.now()}`,
+      id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: nowIso,
+      assignedDate: homeworkData.assignedDate || nowIso,
       teacherId: homeworkData.teacherId || currentTeacher?.id,
       teacherName: homeworkData.teacherName || currentTeacher?.name,
       createdByName: homeworkData.createdByName || currentTeacher?.name || 'Öğretmen',
-      submissions: [],
+      isGlobalForNewStudents: false,
+      submissions: undefined,
     };
+    const { classIds, studentIds } = this.homeworkTargets(newHw);
+    newHw.targetClassIds = classIds;
+    newHw.assignedTo = studentIds.length > 0 ? studentIds : 'all';
+    newHw.classId = classIds[0] || newHw.classId;
 
-    // Rollback için önceki durumların yedeğini al
-    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
-    const prevNotifications = JSON.parse(JSON.stringify(this.studentNotifications));
-    const prevSentEmails = JSON.parse(JSON.stringify(this.sentEmails));
-
-    this.homeworks.unshift(newHw);
-    saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-
-    // Otomatik Öğrenci Bildirimi ve E-Posta Gönderimi
-    this.dispatchHomeworkNotificationsAndEmails(newHw);
-    this.notify();
-
-    // Cross-device Supabase push with await confirmation
+    let row: ReturnType<DataService['homeworkToRow']>;
     try {
-      const assignedVal = Array.isArray(newHw.assignedTo)
-        ? JSON.stringify(newHw.assignedTo)
-        : (newHw.assignedTo || newHw.classId || 'class-default');
-
-      const { error } = await supabase.from('homeworks').upsert({
-        id: newHw.id,
-        title: newHw.title,
-        description: newHw.description || '',
-        subject: newHw.subject,
-        assigned_to: assignedVal,
-        class_id: newHw.classId || 'class-default',
-        due_date: newHw.dueDate,
-        learning_outcomes: newHw.learningOutcomes || [],
-        submissions: [],
-        ...this.homeworkRowExtras(newHw),
-      });
-
-      if (error) {
-        throw error;
+      if (classIds.length === 0 && studentIds.length === 0) {
+        throw new Error('Ödev için en az bir sınıf veya öğrenci seçmelisiniz.');
       }
-    } catch (err: any) {
-      // ROLLBACK: Buluta yazılamadıysa yerel state ve depolamayı eski haline döndür
-      this.homeworks = prevHomeworks;
-      this.studentNotifications = prevNotifications;
-      this.sentEmails = prevSentEmails;
-      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
-      saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
-      this.notify();
-
-      const errMsg =
-        err?.message ||
-        (err?.code === '42501'
-          ? 'Ödev oluşturma yetkiniz bulunmamaktadır (RLS kuralı).'
-          : 'Ödev bulut veritabanına kaydedilemedi.');
-
-      this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
-      throw new Error(`[createHomework] Ödev buluta kaydedilemedi: ${errMsg}`);
+      row = this.homeworkToRow(newHw);
+    } catch (e: any) {
+      this.showFloatingErrorToast(`Hata: ${e?.message || e}`);
+      throw e;
     }
 
+    try {
+      const { data: authData } = await supabase.auth.getSession();
+      newHw.teacherAuthId = authData?.session?.user?.id;
+    } catch {}
+
+    const prevHomeworks = [...this.homeworks];
+    this.homeworks = [newHw, ...this.homeworks];
+    saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+    this.notify();
+
+    await this.runCloudWrite(
+      () => supabase.from('homeworks').insert({ id: newHw.id, ...row }),
+      () => {
+        this.homeworks = prevHomeworks;
+        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
+      },
+      'Ödev kaydedilemedi'
+    );
+
+    // Bildirimler yalnızca ödev gerçekten kaydedildikten sonra hazırlanır
+    this.dispatchHomeworkNotificationsAndEmails(newHw);
+    this.notify();
     return newHw;
   }
 
   public async updateHomework(id: string, updates: Partial<Homework>): Promise<void> {
-    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+    const existing = this.homeworks.find((h) => h.id === id);
+    if (!existing) {
+      const msg = 'Ödev bulunamadı (silinmiş olabilir). Sayfayı yenileyip tekrar deneyin.';
+      this.showFloatingErrorToast(`Hata: ${msg}`);
+      throw new Error(msg);
+    }
+    const merged: Homework = { ...existing, ...updates };
+    const { classIds, studentIds } = this.homeworkTargets(merged);
+    merged.targetClassIds = classIds;
+    merged.assignedTo = studentIds.length > 0 ? studentIds : 'all';
+    merged.classId = classIds[0] || merged.classId;
 
-    this.homeworks = this.homeworks.map((h) => (h.id === id ? { ...h, ...updates } : h));
+    let row: ReturnType<DataService['homeworkToRow']>;
+    try {
+      if (classIds.length === 0 && studentIds.length === 0) {
+        throw new Error('Ödev için en az bir sınıf veya öğrenci seçmelisiniz.');
+      }
+      row = this.homeworkToRow(merged);
+    } catch (e: any) {
+      this.showFloatingErrorToast(`Hata: ${e?.message || e}`);
+      throw e;
+    }
+
+    const prevHomeworks = [...this.homeworks];
+    this.homeworks = this.homeworks.map((h) => (h.id === id ? merged : h));
     saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
     this.notify();
 
-    const updated = this.homeworks.find((h) => h.id === id);
-    if (updated) {
-      try {
-        const assignedVal = Array.isArray(updated.assignedTo)
-          ? JSON.stringify(updated.assignedTo)
-          : (updated.assignedTo || updated.classId || 'class-default');
-
-        const { error } = await supabase.from('homeworks').upsert({
-          id: updated.id,
-          title: updated.title,
-          description: updated.description || '',
-          subject: updated.subject,
-          assigned_to: assignedVal,
-          class_id: updated.classId || 'class-default',
-          due_date: updated.dueDate,
-          learning_outcomes: updated.learningOutcomes || [],
-          submissions: updated.submissions || this.submissions.filter((s) => s.homeworkId === id) || [],
-          ...this.homeworkRowExtras(updated),
-        });
-
-        if (error) {
-          throw error;
+    await this.runCloudWrite(
+      async () => {
+        const { data, error } = await supabase.from('homeworks').update(row).eq('id', id).select('id');
+        if (error) return { error };
+        if (!data || data.length === 0) {
+          return { error: { code: '42501', message: 'Ödevi yalnızca oluşturan öğretmen veya yönetici değiştirebilir' } };
         }
-      } catch (err: any) {
-        // ROLLBACK: Buluta yazılamadıysa eski haline döndür
+        return { error: null };
+      },
+      () => {
         this.homeworks = prevHomeworks;
         saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-        this.notify();
-
-        const errMsg =
-          err?.message ||
-          (err?.code === '42501'
-            ? 'Ödev güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
-            : 'Ödev güncellemeleri bulut veritabanına kaydedilemedi.');
-
-        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
-        throw new Error(`[updateHomework] Ödev güncellenemedi: ${errMsg}`);
-      }
-    }
+      },
+      'Ödev güncellenemedi'
+    );
   }
 
   public async deleteHomework(id: string): Promise<void> {
@@ -5871,6 +5894,8 @@ export class DataService {
   }
 
   // --- SUBMISSIONS ---
+  // Öğrenci teslimi: varsa kendi satırını günceller, yoksa yeni satır açar.
+  // Puan, geri bildirim ve öğretmen kontrol durumu öğrenci tarafından değiştirilemez (veritabanı kuralı).
   public async submitHomework(
     homeworkId: string,
     studentId: string,
@@ -5880,222 +5905,244 @@ export class DataService {
   ): Promise<HomeworkSubmission> {
     const student = this.students.find((s) => s.id === studentId);
     const homework = this.homeworks.find((h) => h.id === homeworkId);
+    try {
+      this.assertInlineResourcesFit(resources);
+    } catch (e: any) {
+      this.showFloatingErrorToast(`Hata: ${e?.message || e}`);
+      throw e;
+    }
 
-    const isLate = homework ? new Date() > new Date(homework.dueDate) : false;
+    const nowIso = new Date().toISOString();
+    const isLate = homework ? Date.now() > new Date(homework.dueDate).getTime() : false;
     const status: 'on_time' | 'late' = isLate ? 'late' : 'on_time';
+    const studentName = student?.name || 'Öğrenci';
 
-    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
-    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
+    const payload: Record<string, any> = {
+      student_name: studentName,
+      status,
+      notes: notes || '',
+      attachment_link: attachmentLink || null,
+      submitted_at: nowIso,
+    };
+    if (resources !== undefined) payload.resources = resources;
 
-    const existingIndex = this.submissions.findIndex(
-      (s) => s.homeworkId === homeworkId && s.studentId === studentId
-    );
-
-    const submission: HomeworkSubmission = {
-      id: existingIndex >= 0 ? this.submissions[existingIndex].id : `sub-${Date.now()}`,
+    const existing = this.submissions.find((s) => s.homeworkId === homeworkId && s.studentId === studentId);
+    const optimistic: HomeworkSubmission = {
+      ...(existing || {}),
+      id: existing?.id || `sub-local-${Date.now()}`,
       homeworkId,
       studentId,
-      studentName: student ? student.name : 'Öğrenci',
-      submittedAt: new Date().toISOString(),
+      studentName,
+      submittedAt: nowIso,
       status,
-      notes,
-      attachmentLink,
-      resources: resources || (existingIndex >= 0 ? this.submissions[existingIndex].resources : undefined),
-      score: existingIndex >= 0 ? this.submissions[existingIndex].score : null,
-      feedback: existingIndex >= 0 ? this.submissions[existingIndex].feedback : undefined,
+      notes: notes || '',
+      attachmentLink: attachmentLink || undefined,
+      resources: resources !== undefined ? resources : existing?.resources || [],
+      score: existing?.score ?? null,
+      feedback: existing?.feedback,
+      checkStatus: existing?.checkStatus,
     };
 
-    if (existingIndex >= 0) {
-      this.submissions[existingIndex] = submission;
-    } else {
-      this.submissions.unshift(submission);
-    }
-
+    const prevSubmissions = [...this.submissions];
+    this.submissions = [
+      optimistic,
+      ...this.submissions.filter((s) => !(s.homeworkId === homeworkId && s.studentId === studentId)),
+    ];
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-
-    // Update homework embedded submissions and sync to Supabase
-    const hw = this.homeworks.find((h) => h.id === homeworkId);
-    if (hw) {
-      hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
-      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-
-      try {
-        const { error } = await supabase.from('homeworks').upsert({
-          id: hw.id,
-          title: hw.title,
-          description: hw.description || '',
-          subject: hw.subject,
-          assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
-          class_id: hw.classId || 'class-default',
-          due_date: hw.dueDate,
-          submissions: hw.submissions,
-          ...this.homeworkRowExtras(hw),
-        });
-
-        if (error) {
-          throw error;
-        }
-      } catch (err: any) {
-        // ROLLBACK: Buluta yazılamadıysa yerel teslimatları ve ödevi geri al
-        this.submissions = prevSubmissions;
-        this.homeworks = prevHomeworks;
-        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-        this.notify();
-
-        const errMsg =
-          err?.message ||
-          (err?.code === '42501'
-            ? 'Ödev teslim yetkiniz bulunmamaktadır (RLS kuralı).'
-            : 'Ödev teslimi bulut veritabanına kaydedilemedi.');
-
-        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
-        throw new Error(`[submitHomework] Ödev teslimi kaydedilemedi: ${errMsg}`);
-      }
-    }
-
     this.notify();
-    return submission;
+
+    let savedRow: any = null;
+    const updateOwn = () =>
+      supabase
+        .from('homework_submissions')
+        .update(payload)
+        .eq('homework_id', homeworkId)
+        .eq('student_id', studentId)
+        .select('*');
+
+    await this.runCloudWrite(
+      async () => {
+        const upd = await updateOwn();
+        if (upd.error) return { error: upd.error };
+        if (upd.data && upd.data.length > 0) {
+          savedRow = upd.data[0];
+          return { error: null };
+        }
+        const ins = await supabase
+          .from('homework_submissions')
+          .insert({ homework_id: homeworkId, student_id: studentId, resources: [], ...payload })
+          .select('*');
+        if (ins.error?.code === '23505') {
+          // Aynı anda başka cihazdan açılmış satır: güncelle
+          const retry = await updateOwn();
+          if (retry.error) return { error: retry.error };
+          savedRow = retry.data?.[0] || null;
+          return { error: null };
+        }
+        if (ins.error) return { error: ins.error };
+        savedRow = ins.data?.[0] || null;
+        return { error: null };
+      },
+      () => {
+        this.submissions = prevSubmissions;
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      },
+      'Ödev teslimi kaydedilemedi'
+    );
+
+    const saved = savedRow ? this.submissionFromRow(savedRow) : optimistic;
+    this.submissions = [
+      saved,
+      ...this.submissions.filter((s) => !(s.homeworkId === homeworkId && s.studentId === studentId)),
+    ];
+    saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+    this.notify();
+    return saved;
   }
 
   public async gradeSubmission(submissionId: string, score: number, feedback: string): Promise<void> {
-    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
-    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
-
-    this.submissions = this.submissions.map((s) =>
-      s.id === submissionId ? { ...s, score, feedback } : s
-    );
+    const prevSubmissions = [...this.submissions];
+    this.submissions = this.submissions.map((s) => (s.id === submissionId ? { ...s, score, feedback } : s));
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-
-    const sub = this.submissions.find((s) => s.id === submissionId);
-    if (sub) {
-      const hw = this.homeworks.find((h) => h.id === sub.homeworkId);
-      if (hw) {
-        hw.submissions = this.submissions.filter((s) => s.homeworkId === hw.id);
-        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-
-        try {
-          const { error } = await supabase.from('homeworks').upsert({
-            id: hw.id,
-            title: hw.title,
-            description: hw.description || '',
-            subject: hw.subject,
-            assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
-            class_id: hw.classId || 'class-default',
-            due_date: hw.dueDate,
-            submissions: hw.submissions,
-            ...this.homeworkRowExtras(hw),
-          });
-
-          if (error) {
-            throw error;
-          }
-        } catch (err: any) {
-          // ROLLBACK: Buluta yazılamadıysa yerel puanlamayı ve ödevi geri al
-          this.submissions = prevSubmissions;
-          this.homeworks = prevHomeworks;
-          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-          saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-          this.notify();
-
-          const errMsg =
-            err?.message ||
-            (err?.code === '42501'
-              ? 'Ödev puanlama yetkiniz bulunmamaktadır (RLS kuralı).'
-              : 'Ödev puanı bulut veritabanına kaydedilemedi.');
-
-          this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
-          throw new Error(`[gradeSubmission] Puanlama kaydedilemedi: ${errMsg}`);
-        }
-      }
-    }
-
     this.notify();
+
+    await this.runCloudWrite(
+      async () => {
+        const { data, error } = await supabase
+          .from('homework_submissions')
+          .update({ score, feedback })
+          .eq('id', submissionId)
+          .select('id');
+        if (error) return { error };
+        if (!data || data.length === 0) {
+          return { error: { code: '42501', message: 'Teslim bulunamadı veya puanlama yetkiniz yok' } };
+        }
+        return { error: null };
+      },
+      () => {
+        this.submissions = prevSubmissions;
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      },
+      'Puan kaydedilemedi'
+    );
+  }
+
+  private defaultCheckNote(status: HomeworkCheckStatus): string {
+    switch (status) {
+      case 'yapti': return 'Ödev tamamlandı';
+      case 'eksik': return 'Eksik ödev';
+      case 'yapmadi': return 'Ödev yapılmadı';
+      case 'izinli': return 'İzinli';
+      default: return 'Derse gelmedi';
+    }
+  }
+
+  // Öğretmenin "Yaptı / Yapmadı / Eksik / İzinli / Gelmedi" işaretleri — tek seferde, birden çok öğrenci için.
+  // Öğrencinin kendi teslim notu ve dosyaları korunur; yalnızca kontrol durumu yazılır.
+  public async saveHomeworkCheckStatuses(
+    homeworkId: string,
+    entries: { studentId: string; checkStatus: HomeworkCheckStatus }[]
+  ): Promise<void> {
+    const byStudent = new Map<string, HomeworkCheckStatus>();
+    entries.forEach((e) => {
+      if (e?.studentId && e.checkStatus) byStudent.set(e.studentId, e.checkStatus);
+    });
+    if (byStudent.size === 0) return;
+
+    const prevSubmissions = [...this.submissions];
+    const nowIso = new Date().toISOString();
+    const updatedLocal = new Map<string, HomeworkSubmission>();
+    this.submissions.forEach((s) => {
+      if (s.homeworkId === homeworkId && byStudent.has(s.studentId)) {
+        const checkStatus = byStudent.get(s.studentId)!;
+        updatedLocal.set(s.studentId, {
+          ...s,
+          checkStatus,
+          status: checkStatus === 'yapti' && s.status === 'not_submitted' ? 'on_time' : s.status,
+        });
+      }
+    });
+    byStudent.forEach((checkStatus, studentId) => {
+      if (updatedLocal.has(studentId)) return;
+      updatedLocal.set(studentId, {
+        id: `sub-local-${Date.now()}-${studentId}`,
+        homeworkId,
+        studentId,
+        studentName: this.students.find((st) => st.id === studentId)?.name || 'Öğrenci',
+        submittedAt: nowIso,
+        status: checkStatus === 'yapti' ? 'on_time' : 'not_submitted',
+        checkStatus,
+        notes: this.defaultCheckNote(checkStatus),
+      });
+    });
+    this.submissions = [
+      ...Array.from(updatedLocal.values()),
+      ...this.submissions.filter((s) => !(s.homeworkId === homeworkId && byStudent.has(s.studentId))),
+    ];
+    saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+    this.notify();
+
+    await this.runCloudWrite(
+      async () => {
+        // 1) Satırı olmayan öğrenciler için kayıt aç (var olan teslimlere dokunmaz)
+        const baseRows = Array.from(byStudent.entries()).map(([studentId, checkStatus]) => ({
+          homework_id: homeworkId,
+          student_id: studentId,
+          student_name: this.students.find((st) => st.id === studentId)?.name || 'Öğrenci',
+          status: checkStatus === 'yapti' ? 'on_time' : 'not_submitted',
+          notes: this.defaultCheckNote(checkStatus),
+          check_status: checkStatus,
+        }));
+        const ins = await supabase
+          .from('homework_submissions')
+          .upsert(baseRows, { onConflict: 'homework_id,student_id', ignoreDuplicates: true });
+        if (ins.error) return { error: ins.error };
+
+        // 2) Kontrol durumlarını durum grubuna göre yaz
+        const groups = new Map<HomeworkCheckStatus, string[]>();
+        byStudent.forEach((checkStatus, studentId) => {
+          groups.set(checkStatus, [...(groups.get(checkStatus) || []), studentId]);
+        });
+        for (const [checkStatus, ids] of groups) {
+          const upd = await supabase
+            .from('homework_submissions')
+            .update({ check_status: checkStatus })
+            .eq('homework_id', homeworkId)
+            .in('student_id', ids)
+            .select('student_id');
+          if (upd.error) return { error: upd.error };
+          if ((upd.data?.length || 0) < ids.length) {
+            return { error: { code: '42501', message: 'Bazı öğrencilerin kontrol durumu kaydedilemedi' } };
+          }
+          if (checkStatus === 'yapti') {
+            const st = await supabase
+              .from('homework_submissions')
+              .update({ status: 'on_time' })
+              .eq('homework_id', homeworkId)
+              .in('student_id', ids)
+              .eq('status', 'not_submitted');
+            if (st.error) return { error: st.error };
+          }
+        }
+        return { error: null };
+      },
+      () => {
+        this.submissions = prevSubmissions;
+        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+      },
+      'Ödev kontrol durumu kaydedilemedi'
+    );
+
+    await this.refreshSubmissionsForHomework(homeworkId);
   }
 
   public async updateHomeworkCheckStatus(
     homeworkId: string,
     studentId: string,
-    checkStatus: HomeworkCheckStatus,
-    note?: string
-  ): Promise<HomeworkSubmission> {
-    const student = this.students.find((s) => s.id === studentId);
-    const existingIndex = this.submissions.findIndex(
-      (s) => s.homeworkId === homeworkId && s.studentId === studentId
-    );
-
-    const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
-    const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
-
-    const submissionStatus = checkStatus === 'yapti' ? 'on_time' : 'not_submitted';
-    let targetSub: HomeworkSubmission;
-
-    if (existingIndex >= 0) {
-      targetSub = {
-        ...this.submissions[existingIndex],
-        checkStatus,
-        status: checkStatus === 'yapti' ? 'on_time' : this.submissions[existingIndex].status,
-        notes: note !== undefined ? note : this.submissions[existingIndex].notes,
-      };
-      this.submissions[existingIndex] = targetSub;
-    } else {
-      targetSub = {
-        id: `sub-${Date.now()}-${studentId}`,
-        homeworkId,
-        studentId,
-        studentName: student ? student.name : 'Öğrenci',
-        submittedAt: new Date().toISOString(),
-        status: submissionStatus,
-        checkStatus,
-        notes: note || (checkStatus === 'yapti' ? 'Ödev tamamlandı' : checkStatus === 'eksik' ? 'Eksik ödev' : checkStatus === 'yapmadi' ? 'Ödev yapılmadı' : checkStatus === 'izinli' ? 'İzinli' : 'Derse gelmedi'),
-      };
-      this.submissions.unshift(targetSub);
-    }
-
-    saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-
-    const hw = this.homeworks.find((h) => h.id === homeworkId);
-    if (hw) {
-      hw.submissions = this.submissions.filter((s) => s.homeworkId === homeworkId);
-      saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-
-      try {
-        const { error } = await supabase.from('homeworks').upsert({
-          id: hw.id,
-          title: hw.title,
-          description: hw.description || '',
-          subject: hw.subject,
-          assigned_to: Array.isArray(hw.assignedTo) ? JSON.stringify(hw.assignedTo) : (hw.assignedTo || hw.classId || 'class-default'),
-          class_id: hw.classId || 'class-default',
-          due_date: hw.dueDate,
-          submissions: hw.submissions,
-          ...this.homeworkRowExtras(hw),
-        });
-
-        if (error) {
-          throw error;
-        }
-      } catch (err: any) {
-        // ROLLBACK: Buluta yazılamadıysa yerel kontrol durumunu ve ödevi geri al
-        this.submissions = prevSubmissions;
-        this.homeworks = prevHomeworks;
-        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-        this.notify();
-
-        const errMsg =
-          err?.message ||
-          (err?.code === '42501'
-            ? 'Ödev kontrol durumunu güncelleme yetkiniz bulunmamaktadır (RLS kuralı).'
-            : 'Ödev kontrol durumu bulut veritabanına kaydedilemedi.');
-
-        this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
-        throw new Error(`[updateHomeworkCheckStatus] Durum kaydedilemedi: ${errMsg}`);
-      }
-    }
-
-    this.notify();
-    return targetSub;
+    checkStatus: HomeworkCheckStatus
+  ): Promise<HomeworkSubmission | undefined> {
+    await this.saveHomeworkCheckStatuses(homeworkId, [{ studentId, checkStatus }]);
+    return this.submissions.find((s) => s.homeworkId === homeworkId && s.studentId === studentId);
   }
 
   // --- ETUTS ---
@@ -6562,13 +6609,9 @@ export class DataService {
     // 2) assignedTo array includes studentId
     // 3) isGlobalForNewStudents is true (any student who registers later can see all prior homework)
     // 4) targetClassIds matches student class
-    const eligibleHomeworks = this.homeworks.filter((hw) => {
-      if (hw.isGlobalForNewStudents) return true;
-      if (hw.assignedTo === 'all') return true;
-      if (Array.isArray(hw.assignedTo) && hw.assignedTo.includes(studentId)) return true;
-      if (student && hw.targetClassIds && hw.targetClassIds.includes(student.classId)) return true;
-      return false;
-    });
+    const eligibleHomeworks = this.homeworks.filter((hw) =>
+      this.isHomeworkForStudent(hw, { id: studentId, classId: student?.classId })
+    );
 
     return eligibleHomeworks.map((hw) => {
       const submission = this.submissions.find(
@@ -6886,19 +6929,18 @@ export class DataService {
 
       // Normal öğretmen daha önce veya başka öğretmenlerin verdiği ödevleri GÖREMEZ. YALNIZCA KENDİ verdiği ödevleri görebilir.
       return this.homeworks.filter((hw) => {
-        return hw.teacherId === teacherId || (teacher?.name && hw.createdByName === teacher.name);
+        return (
+          (!!teacher?.auth_user_id && hw.teacherAuthId === teacher.auth_user_id) ||
+          hw.teacherId === teacherId ||
+          (!!teacher?.name && hw.createdByName === teacher.name)
+        );
       });
     }
 
     if (session?.role === 'student') {
-      const student = session.user as Student;
-      return this.homeworks.filter((hw) => {
-        if (hw.isGlobalForNewStudents) return true;
-        if (hw.targetClassIds && hw.targetClassIds.includes(student.classId)) return true;
-        if (Array.isArray(hw.assignedTo) && hw.assignedTo.includes(student.id)) return true;
-        if (hw.assignedTo === 'all') return true;
-        return false;
-      });
+      const sessionStudent = session.user as Student;
+      const student = this.students.find((s) => s.id === sessionStudent.id) || sessionStudent;
+      return this.homeworks.filter((hw) => this.isHomeworkForStudent(hw, student));
     }
 
     return [...this.homeworks];
@@ -7516,8 +7558,10 @@ export class DataService {
           (q) => q.studentId === logData.studentId && q.date === logData.date
         );
 
+    const prevLogs = [...this.questionLogs];
+    let saved: StudentQuestionLog;
     if (existingIdx !== -1) {
-      const updated: StudentQuestionLog = {
+      saved = {
         ...this.questionLogs[existingIdx],
         ...logData,
         entries: cleanEntries,
@@ -7526,28 +7570,11 @@ export class DataService {
         totalWrong: finalWrong,
         totalEmpty: finalEmpty,
         notes: logData.notes || '',
-      };
-      this.questionLogs[existingIdx] = updated;
-      saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-      this.notify();
-
-      // Cross-device Supabase push with await confirmation
-      try {
-        await supabase.from('homeworks').upsert({
-          id: '__system_sync_question_logs__',
-          title: 'Question Logs Sync',
-          description: JSON.stringify(this.questionLogs.slice(0, 250)),
-          subject: 'SystemSync',
-          assigned_to: '__SYSTEM__',
-          due_date: '2099-12-31',
-        });
-      } catch (err) {
-        console.warn('[QuestionLogsSync] Exception syncing question logs:', err);
-      }
-
-      return updated;
+      } as StudentQuestionLog;
+      const target = saved;
+      this.questionLogs = this.questionLogs.map((q, i) => (i === existingIdx ? target : q));
     } else {
-      const newLog: StudentQuestionLog = {
+      saved = {
         id: logData.id || `qlog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         studentId: logData.studentId,
         studentName: logData.studentName,
@@ -7562,45 +7589,55 @@ export class DataService {
         notes: logData.notes || '',
         createdAt: new Date().toISOString(),
       };
-      this.questionLogs.unshift(newLog);
-      saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-      this.notify();
-
-      // Cross-device Supabase push with await confirmation
-      try {
-        await supabase.from('homeworks').upsert({
-          id: '__system_sync_question_logs__',
-          title: 'Question Logs Sync',
-          description: JSON.stringify(this.questionLogs.slice(0, 250)),
-          subject: 'SystemSync',
-          assigned_to: '__SYSTEM__',
-          due_date: '2099-12-31',
-        });
-      } catch (err) {
-        console.warn('[QuestionLogsSync] Exception syncing question logs:', err);
-      }
-
-      return newLog;
+      this.questionLogs = [saved, ...this.questionLogs];
     }
+    this.persistQuestionLogsLocal();
+    this.notify();
+
+    await this.runCloudWrite(
+      async () => {
+        let res = await supabase.from('question_logs').upsert(this.questionLogToRow(saved), { onConflict: 'id' });
+        if (res.error?.code === '23505') {
+          // Aynı gün için başka bir cihazdan açılmış kayıt var: o kayıt güncellenir
+          const { data: other } = await supabase
+            .from('question_logs')
+            .select('id')
+            .eq('student_id', saved.studentId)
+            .eq('date', saved.date)
+            .maybeSingle();
+          if (other?.id) {
+            const oldId = saved.id;
+            saved = { ...saved, id: other.id };
+            const merged = saved;
+            this.questionLogs = this.questionLogs
+              .filter((q) => q.id !== other.id)
+              .map((q) => (q.id === oldId ? merged : q));
+            res = await supabase.from('question_logs').upsert(this.questionLogToRow(saved), { onConflict: 'id' });
+          }
+        }
+        return { error: res.error };
+      },
+      () => {
+        this.questionLogs = prevLogs;
+        this.persistQuestionLogsLocal();
+      },
+      'Soru kaydı kaydedilemedi'
+    );
+
+    this.persistQuestionLogsLocal();
+    this.notify();
+    return saved;
   }
 
   public async deleteQuestionLog(id: string): Promise<void> {
-    if (!this.deletedQuestionLogIds) {
-      this.deletedQuestionLogIds = new Set<string>();
-    }
+    const prevLogs = [...this.questionLogs];
+    const wasTombstoned = this.deletedQuestionLogIds.has(id);
     this.deletedQuestionLogIds.add(id);
     saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
-    try {
-      localStorage.setItem(PERMANENT_KEYS.DELETED_QUESTION_LOGS, JSON.stringify(Array.from(this.deletedQuestionLogIds)));
-    } catch {}
-
     this.questionLogs = this.questionLogs.filter((q) => q.id !== id);
-    saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-    try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
-    } catch {}
+    this.persistQuestionLogsLocal();
 
-    // Clean legacy versioned keys so deleted question logs never resurrect
+    // Eski sürüm yerel yedeklerde kalan kopyalar da temizlenir (geri dirilmesin)
     [
       'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4', 'edu_sys_question_logs_v3',
       'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1', 'edu_sys_question_logs', 'edu_sys_question_logs_backup',
@@ -7610,29 +7647,23 @@ export class DataService {
         if (val) {
           const parsed = JSON.parse(val);
           if (Array.isArray(parsed)) {
-            const filtered = parsed.filter((q: any) => q.id !== id);
-            localStorage.setItem(legacyKey, JSON.stringify(filtered));
+            localStorage.setItem(legacyKey, JSON.stringify(parsed.filter((q: any) => q.id !== id)));
           }
         }
       } catch {}
     });
-
     this.notify();
 
-    // Cross-device Supabase push with await confirmation
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_question_logs__',
-        title: 'Question Logs Sync',
-        description: JSON.stringify(this.questionLogs.slice(0, 250)),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-      await this.syncTombstonesToCloud();
-    } catch (err) {
-      console.warn('[QuestionLogsSync] Exception deleting question log:', err);
-    }
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('question_logs', [id]),
+      () => {
+        this.questionLogs = prevLogs;
+        if (!wasTombstoned) this.deletedQuestionLogIds.delete(id);
+        saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
+        this.persistQuestionLogsLocal();
+      },
+      'Soru kaydı silinemedi'
+    );
   }
 
   public clearAutoSeededQuestionLogs(): void {
@@ -7652,45 +7683,25 @@ export class DataService {
   }
 
   public async clearAllQuestionLogs(): Promise<void> {
-    if (!this.deletedQuestionLogIds) {
-      this.deletedQuestionLogIds = new Set<string>();
-    }
-    this.questionLogs.forEach((q) => this.deletedQuestionLogIds.add(q.id));
-    saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
-    try {
-      localStorage.setItem(PERMANENT_KEYS.DELETED_QUESTION_LOGS, JSON.stringify(Array.from(this.deletedQuestionLogIds)));
-    } catch {}
-
+    const prevLogs = [...this.questionLogs];
+    const ids = this.questionLogs.map((q) => q.id);
     this.questionLogs = [];
-    saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-    try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify([]));
-    } catch {}
-
-    [
-      'edu_sys_question_logs_v5', 'edu_sys_question_logs_v4', 'edu_sys_question_logs_v3',
-      'edu_sys_question_logs_v2', 'edu_sys_question_logs_v1', 'edu_sys_question_logs', 'edu_sys_question_logs_backup',
-    ].forEach((legacyKey) => {
-      try {
-        localStorage.removeItem(legacyKey);
-      } catch {}
-    });
-
+    this.persistQuestionLogsLocal();
     this.notify();
-
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_question_logs__',
-        title: 'Question Logs Sync',
-        description: JSON.stringify([]),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-      await this.syncTombstonesToCloud();
-    } catch (err) {
-      console.warn('[QuestionLogsSync] Exception clearing question logs:', err);
-    }
+    await this.runCloudWrite(
+      async () => {
+        for (let i = 0; i < ids.length; i += 100) {
+          const res = await this.deleteRowsVerified('question_logs', ids.slice(i, i + 100));
+          if (res.error) return res;
+        }
+        return { error: null };
+      },
+      () => {
+        this.questionLogs = prevLogs;
+        this.persistQuestionLogsLocal();
+      },
+      'Soru kayıtları silinemedi'
+    );
   }
 
   public seedInitialQuestionLogs(): void {
@@ -7749,24 +7760,24 @@ export class DataService {
     return this.weeklyQuestionTargets.find((t) => t.studentId === studentId) || null;
   }
 
-  public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
-    const isClassTarget = target.targetType === 'class' || (!!target.classId && !target.studentId);
-    
+  // Hedefi yerel listeye işler (aynı öğrenci/sınıf + aynı hafta varsa onu günceller) ve kaydedilecek hâlini döndürür.
+  private applyQuestionTargetLocally(target: WeeklyQuestionTarget): WeeklyQuestionTarget {
+    const isClassTarget = this.isClassQuestionTarget(target);
+
     const existingIdx = this.weeklyQuestionTargets.findIndex((t) => {
       if (isClassTarget) {
-        if (t.classId !== target.classId || t.targetType !== 'class') return false;
+        if (t.classId !== target.classId || !this.isClassQuestionTarget(t)) return false;
         if (target.weekStartDate && t.weekStartDate) {
           return t.weekStartDate === target.weekStartDate;
         }
         return true;
       }
-      if (t.studentId !== target.studentId) return false;
+      if (this.isClassQuestionTarget(t) || t.studentId !== target.studentId) return false;
       if (target.weekStartDate && t.weekStartDate) {
         return t.weekStartDate === target.weekStartDate;
       }
       return true;
     });
-    let savedTarget: WeeklyQuestionTarget;
 
     const days = target.targetDays && target.targetDays > 0 ? target.targetDays : 7;
     const targetQ = target.targetQuestions || target.weeklyTarget || 350;
@@ -7784,13 +7795,15 @@ export class DataService {
       dailyTarget: dailyQ,
     };
 
+    let savedTarget: WeeklyQuestionTarget;
     if (existingIdx !== -1) {
       savedTarget = {
         ...this.weeklyQuestionTargets[existingIdx],
         ...normalizedTarget,
+        id: this.weeklyQuestionTargets[existingIdx].id || normalizedTarget.id,
         assignedDate: target.assignedDate || new Date().toISOString(),
       };
-      this.weeklyQuestionTargets[existingIdx] = savedTarget;
+      this.weeklyQuestionTargets = this.weeklyQuestionTargets.map((t, i) => (i === existingIdx ? savedTarget : t));
     } else {
       const generatedId = isClassTarget
         ? `class_target_${target.classId}_${target.weekStartDate || Date.now()}`
@@ -7800,26 +7813,38 @@ export class DataService {
         id: generatedId,
         assignedDate: target.assignedDate || new Date().toISOString(),
       };
-      this.weeklyQuestionTargets.unshift(savedTarget);
+      this.weeklyQuestionTargets = [savedTarget, ...this.weeklyQuestionTargets];
     }
+    if (!savedTarget.id) {
+      savedTarget.id = `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    }
+    return savedTarget;
+  }
 
+  private async persistQuestionTargets(
+    targets: WeeklyQuestionTarget[],
+    prevTargets: WeeklyQuestionTarget[],
+    userMessage: string
+  ): Promise<void> {
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
+    await this.runCloudWrite(
+      () =>
+        supabase
+          .from('question_targets')
+          .upsert(targets.map((t) => this.questionTargetToRow(t)), { onConflict: 'id' }),
+      () => {
+        this.weeklyQuestionTargets = prevTargets;
+        saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+      },
+      userMessage
+    );
+  }
 
-    // Cross-device Supabase push with await confirmation
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_question_targets__',
-        title: 'Question Targets Sync',
-        description: JSON.stringify(this.weeklyQuestionTargets),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (err) {
-      console.warn('[QuestionTargetsSync] Exception syncing question targets:', err);
-    }
-
+  public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
+    const prevTargets = [...this.weeklyQuestionTargets];
+    const savedTarget = this.applyQuestionTargetLocally(target);
+    await this.persistQuestionTargets([savedTarget], prevTargets, 'Soru hedefi kaydedilemedi');
     return savedTarget;
   }
 
@@ -7832,109 +7857,96 @@ export class DataService {
     const days = targetData.targetDays && targetData.targetDays > 0 ? targetData.targetDays : 7;
     const targetQ = targetData.targetQuestions || targetData.weeklyTarget || 350;
     const dailyQ = targetData.dailyTarget || Math.max(1, Math.round(targetQ / days));
+    const periodLabel =
+      targetData.targetPeriodLabel ||
+      (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`);
+    const nowIso = new Date().toISOString();
 
-    // 1. Set Class Target
-    const classTarget: WeeklyQuestionTarget = {
+    const prevTargets = [...this.weeklyQuestionTargets];
+
+    // 1. Sınıf hedefi
+    const savedClassTarget = this.applyQuestionTargetLocally({
       ...targetData,
       id: `class_target_${classId}_${targetData.weekStartDate || Date.now()}`,
       targetType: 'class',
+      studentId: undefined,
       classId,
       className,
       targetDays: days,
-      targetPeriodLabel:
-        targetData.targetPeriodLabel ||
-        (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`),
+      targetPeriodLabel: periodLabel,
       targetQuestions: targetQ,
       weeklyTarget: targetQ,
       dailyTarget: dailyQ,
-      assignedDate: new Date().toISOString(),
-    };
+      assignedDate: nowIso,
+    });
+    const toSave: WeeklyQuestionTarget[] = [savedClassTarget];
 
-    const savedClassTarget = await this.setWeeklyQuestionTarget(classTarget);
-
-    // 2. Propagate target to all enrolled students in the class
+    // 2. Sınıftaki öğrencilere de aynı hedef (tek seferde kaydedilir)
     if (applyToStudents) {
-      const classStudents = this.students.filter((s) => s.classId === classId);
-      for (const std of classStudents) {
-        await this.setWeeklyQuestionTarget({
-          ...targetData,
-          id: `target_${std.id}_${targetData.weekStartDate || Date.now()}`,
-          targetType: 'student',
-          studentId: std.id,
-          studentName: std.name,
-          classId: classId,
-          className: className,
-          targetDays: days,
-          targetPeriodLabel: classTarget.targetPeriodLabel,
-          targetQuestions: targetQ,
-          weeklyTarget: targetQ,
-          dailyTarget: dailyQ,
-          assignedDate: new Date().toISOString(),
+      this.students
+        .filter((s) => s.classId === classId)
+        .forEach((std) => {
+          toSave.push(
+            this.applyQuestionTargetLocally({
+              ...targetData,
+              id: `target_${std.id}_${targetData.weekStartDate || Date.now()}`,
+              targetType: 'student',
+              studentId: std.id,
+              studentName: std.name,
+              classId,
+              className,
+              targetDays: days,
+              targetPeriodLabel: periodLabel,
+              targetQuestions: targetQ,
+              weeklyTarget: targetQ,
+              dailyTarget: dailyQ,
+              assignedDate: nowIso,
+            })
+          );
         });
-      }
     }
 
+    await this.persistQuestionTargets(toSave, prevTargets, 'Sınıf soru hedefi kaydedilemedi');
     return savedClassTarget;
   }
 
-  public async deleteClassQuestionTarget(classId: string, weekStartDate?: string): Promise<void> {
-    const targetToDelete = this.getClassQuestionTarget(classId, weekStartDate);
-    this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
-      if (t.targetType === 'class' && t.classId === classId) {
-        if (weekStartDate && t.weekStartDate) {
-          return t.weekStartDate !== weekStartDate;
-        }
-        return false;
-      }
-      return true;
-    });
+  private async removeQuestionTargets(
+    shouldRemove: (t: WeeklyQuestionTarget) => boolean,
+    userMessage: string
+  ): Promise<void> {
+    const prevTargets = [...this.weeklyQuestionTargets];
+    const removed = this.weeklyQuestionTargets.filter(shouldRemove);
+    if (removed.length === 0) return;
+    this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => !shouldRemove(t));
     saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
     this.notify();
-
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_question_targets__',
-        title: 'Question Targets Sync',
-        description: JSON.stringify(this.weeklyQuestionTargets),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (err) {
-      console.warn('[QuestionTargetsSync] Exception deleting class question target:', err);
-    }
+    const ids = removed.map((t) => t.id).filter((id): id is string => !!id);
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('question_targets', ids),
+      () => {
+        this.weeklyQuestionTargets = prevTargets;
+        saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+      },
+      userMessage
+    );
   }
 
+  public async deleteClassQuestionTarget(classId: string, weekStartDate?: string): Promise<void> {
+    await this.removeQuestionTargets((t) => {
+      if (!this.isClassQuestionTarget(t) || t.classId !== classId) return false;
+      if (weekStartDate && t.weekStartDate) return t.weekStartDate === weekStartDate;
+      return true;
+    }, 'Sınıf soru hedefi silinemedi');
+  }
+
+  // Öğrenci hedefini siler. Hafta verilirse yalnızca o haftanın hedefi silinir.
   public async deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): Promise<void> {
-    const targetToDelete = this.weeklyQuestionTargets.find((t) => {
-      if (weekStartDate) {
-        return (t.studentId === studentIdOrId || t.id === studentIdOrId) && t.weekStartDate === weekStartDate;
-      }
-      return t.id === studentIdOrId || t.studentId === studentIdOrId;
-    });
-
-    this.weeklyQuestionTargets = this.weeklyQuestionTargets.filter((t) => {
-      if (weekStartDate) {
-        if (t.studentId === studentIdOrId && t.weekStartDate === weekStartDate) return false;
-      }
-      return t.id !== studentIdOrId && t.studentId !== studentIdOrId;
-    });
-    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-    this.notify();
-
-    // Cross-device Supabase push with await confirmation
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_question_targets__',
-        title: 'Question Targets Sync',
-        description: JSON.stringify(this.weeklyQuestionTargets),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (err) {
-      console.warn('[QuestionTargetsSync] Exception deleting question target:', err);
-    }
+    await this.removeQuestionTargets((t) => {
+      if (t.id === studentIdOrId) return true;
+      if (this.isClassQuestionTarget(t) || t.studentId !== studentIdOrId) return false;
+      if (weekStartDate && t.weekStartDate) return t.weekStartDate === weekStartDate;
+      return true;
+    }, 'Soru hedefi silinemedi');
   }
 
   // =========================================================================

@@ -191,7 +191,9 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
       setNotes('');
       setSubjectTargets({});
     }
-  }, [existingTarget, student, targetClass, initialTargetType, isOpen, defaultStartDate, defaultEndDate]);
+    // Yalnızca pencere açıldığında veya gerçekten başka bir öğrenci/sınıf seçildiğinde doldurulur.
+    // (Arka plan eşitlemesi kayıtları yeniden getirdiğinde öğretmenin yazdıkları silinmez.)
+  }, [student?.id, targetClass?.id, initialTargetType, isOpen]);
 
   // Tarihler değiştiğinde gün sayısını ve hedefi otomatik hesapla
   const handleStartDateChange = (newStart: string) => {
@@ -355,10 +357,41 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
           currentSelectedClass?.gradeLevel
         );
 
-      await dataService.setClassQuestionTarget(
-        selectedClassId,
-        clsName,
-        {
+      try {
+        await dataService.setClassQuestionTarget(
+          selectedClassId,
+          clsName,
+          {
+            targetDays,
+            targetPeriodLabel: periodLabel,
+            targetQuestions: targetCount,
+            weeklyTarget: targetCount,
+            dailyTarget: dailyTargetCount,
+            weekStartDate: startDate,
+            weekEndDate: endDate,
+            subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
+            notes: notes.trim() || undefined,
+            assignedBy: 'Öğretmen',
+          },
+          true // Sınıftaki tüm öğrencilere de hedefi ata
+        );
+      } catch {
+        return; // hata uyarısı gösterildi; form açık kalır
+      }
+    } else {
+      if (!selectedStudentId && !currentSelectedStudent) {
+        alert('Lütfen hedef atanacak öğrenciyi seçiniz.');
+        return;
+      }
+      const st = currentSelectedStudent || students.find((s) => s.id === selectedStudentId);
+
+      try {
+        await dataService.setWeeklyQuestionTarget({
+          targetType: 'student',
+          studentId: selectedStudentId || st?.id || '',
+          studentName: st?.name,
+          classId: st?.classId || selectedClassId,
+          className: st?.className || currentSelectedClass?.name,
           targetDays,
           targetPeriodLabel: periodLabel,
           targetQuestions: targetCount,
@@ -369,34 +402,11 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
           subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
           notes: notes.trim() || undefined,
           assignedBy: 'Öğretmen',
-        },
-        true // Sınıftaki tüm öğrencilere de hedefi ata
-      );
-    } else {
-      if (!selectedStudentId && !currentSelectedStudent) {
-        alert('Lütfen hedef atanacak öğrenciyi seçiniz.');
-        return;
+          assignedDate: new Date().toISOString(),
+        });
+      } catch {
+        return; // hata uyarısı gösterildi; form açık kalır
       }
-      const st = currentSelectedStudent || students.find((s) => s.id === selectedStudentId);
-
-      await dataService.setWeeklyQuestionTarget({
-        targetType: 'student',
-        studentId: selectedStudentId || st?.id || '',
-        studentName: st?.name,
-        classId: st?.classId || selectedClassId,
-        className: st?.className || currentSelectedClass?.name,
-        targetDays,
-        targetPeriodLabel: periodLabel,
-        targetQuestions: targetCount,
-        weeklyTarget: targetCount,
-        dailyTarget: dailyTargetCount,
-        weekStartDate: startDate,
-        weekEndDate: endDate,
-        subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
-        notes: notes.trim() || undefined,
-        assignedBy: 'Öğretmen',
-        assignedDate: new Date().toISOString(),
-      });
     }
 
     try {
@@ -417,10 +427,14 @@ export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
   };
 
   const handleDelete = async () => {
-    if (targetType === 'class' && selectedClassId) {
-      await dataService.deleteClassQuestionTarget(selectedClassId, startDate);
-    } else if (selectedStudentId) {
-      await dataService.deleteWeeklyQuestionTarget(selectedStudentId, startDate);
+    try {
+      if (targetType === 'class' && selectedClassId) {
+        await dataService.deleteClassQuestionTarget(selectedClassId, startDate);
+      } else if (selectedStudentId) {
+        await dataService.deleteWeeklyQuestionTarget(selectedStudentId, startDate);
+      }
+    } catch {
+      return; // hata uyarısı gösterildi
     }
     if (onSaved) onSaved();
     onClose();

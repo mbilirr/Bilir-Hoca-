@@ -156,7 +156,8 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
       setCustomEmoji('');
       setSearchTerm('');
     }
-  }, [isOpen, student]);
+    // Yalnızca pencere açılınca doldurulur; arka plan eşitlemesi yazılanları silmez.
+  }, [isOpen, student.id]);
 
   if (!isOpen) return null;
 
