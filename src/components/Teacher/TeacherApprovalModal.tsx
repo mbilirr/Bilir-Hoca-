@@ -81,8 +81,9 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   };
 
   const handleDelete = async (teacherId: string, name: string) => {
-    if (name === 'Mustafa Bilir') {
-      alert('Baş yönetici Mustafa Bilir hesabı silinemez.');
+    const target = allTeachers.find((t) => t.id === teacherId);
+    if (target && (target.email || '').trim().toLowerCase() === 'm.bilirr@gmail.com') {
+      alert('Kurum yöneticisinin hesabı silinemez.');
       return;
     }
     if (window.confirm(`${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?`)) {
@@ -142,8 +143,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const handleToggleAdmin = async (teacher: Teacher) => {
     const newStatus = !teacher.isAdmin;
     if (!newStatus) {
-      if (teacher.username === 'Mustafa Bilir' || teacher.name === 'Mustafa Bilir') {
-        alert('Baş yönetici Mustafa Bilir yetkisi kaldırılamaz.');
+      if ((teacher.email || '').trim().toLowerCase() === 'm.bilirr@gmail.com') {
+        alert('Kurum yöneticisinin yönetici yetkisi kaldırılamaz.');
         return;
       }
       const adminCount = allTeachers.filter((t) => t.isAdmin).length;

@@ -279,9 +279,6 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                     alt={student.name}
                     className="w-7 h-7 rounded-full object-cover bg-slate-900"
                   />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-indigo-600 rounded-full flex items-center justify-center border border-slate-900">
-                    <Camera className="w-1.5 h-1.5 text-white" />
-                  </span>
                 </button>
               </div>
             </div>

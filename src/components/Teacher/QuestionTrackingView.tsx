@@ -742,14 +742,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <BarChart3 className="w-5 h-5 text-orange-400" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-orange-100 text-orange-700">
-                  Google Looker Studio
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium">Eğitim Analitik Modülü</span>
-              </div>
               <h2 className="text-lg font-bold text-[#0f172a] tracking-tight">
-                Öğrenci Soru Sayısı ve Başarı Takip Dashboard'u
+                Öğrenci Soru Sayısı ve Başarı Takip
               </h2>
             </div>
           </div>

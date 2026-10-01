@@ -193,12 +193,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const currentTeacher = isTeacherSession ? (authSession.user as Teacher) : null;
   const activeStudent = isStudentSession ? (authSession.user as Student) : currentStudent;
 
-  const isTeacherAdmin = isTeacherSession && (
-    !!currentTeacher?.isAdmin ||
-    currentTeacher?.id === 'teacher-1' ||
-    currentTeacher?.username?.toLowerCase() === 'mustafa bilir' ||
-    currentTeacher?.name?.toLowerCase() === 'mustafa bilir'
-  );
+  // Yönetici kontrolü tek yerden yapılır (isim değil, kayıttaki yönetici yetkisi esas alınır)
+  const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
   const currentNavItems = isTeacherAdmin ? ALL_NAV_ITEMS : NAV_ITEMS;
 
   const activeModuleId = selectedTeacherTab || (activeTeacherTab !== 'home' ? activeTeacherTab : null);

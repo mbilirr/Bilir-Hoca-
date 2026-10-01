@@ -191,12 +191,6 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
               <BarChart3 className="w-4 h-4 text-orange-400" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-orange-100 text-orange-700">
-                  Looker Studio
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium">Genel Eğitim Paneli</span>
-              </div>
               <h3 className="text-base font-bold text-[#0f172a] tracking-tight">
                 Öğretmen İstatistik ve Durum Özetleri
               </h3>
@@ -451,7 +445,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
           </div>
 
           <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-[#0f172a] group-hover:text-[#1e3a8a] transition-colors">
-            <span>Looker Studio Analitiğini Aç</span>
+            <span>Soru ve Başarı Analitiğini Aç</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform text-[#1e3a8a]" />
           </div>
         </div>

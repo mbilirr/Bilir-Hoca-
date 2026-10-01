@@ -129,7 +129,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
         <div class="signature-area">
           <div class="sig-box">
             <strong>Ders Öğretmeni</strong><br>
-            Mustafa BİLİR<br>
+            ${String(homework.teacherName || homework.createdByName || '').replace(/[<>&]/g, '') || '&nbsp;'}<br>
             İmza
           </div>
           <div class="sig-box">
@@ -341,7 +341,8 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             {/* Teacher Signature Line */}
             <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-3">
               <div>
-                <span className="font-semibold text-white">Öğretmen:</span> Mustafa BİLİR (Fen Bilgisi & Matematik)
+                <span className="font-semibold text-white">Öğretmen:</span>{' '}
+                {homework.teacherName || homework.createdByName || 'Öğretmen'} ({homework.subject})
               </div>
               <div>
                 <span className="font-semibold text-white">Hazırlanma Tarihi:</span> {new Date().toLocaleDateString('tr-TR')}

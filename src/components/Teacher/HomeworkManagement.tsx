@@ -175,12 +175,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       .map((cid) => classes.find((c) => c.id === cid)?.name)
       .filter(Boolean);
 
-    const assignedCount =
-      hw.assignedTo === 'all'
-        ? students.length
-        : Array.isArray(hw.assignedTo)
-        ? hw.assignedTo.length
-        : 0;
+    const assignedCount = students.filter((std) => dataService.isHomeworkForStudent(hw, std)).length;
 
     const dueDateFormatted = new Date(hw.dueDate).toLocaleDateString('tr-TR', {
       day: 'numeric',
@@ -247,7 +242,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         <div class="signature-area">
           <div class="sig-box">
             <strong>Ders Öğretmeni</strong><br>
-            Mustafa BİLİR<br>
+            ${String(hw.teacherName || hw.createdByName || '').replace(/[<>&]/g, '') || '&nbsp;'}<br>
             İmza
           </div>
           <div class="sig-box">

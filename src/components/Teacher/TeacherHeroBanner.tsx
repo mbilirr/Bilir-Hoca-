@@ -275,7 +275,7 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
               </div>
 
               {/* Hızlı Kısayol Butonları */}
-              <div className={`grid ${currentTeacher?.isAdmin ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mt-3 pt-3 border-t border-slate-800/80 text-xs font-semibold`}>
+              <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-xs font-semibold">
                 <button
                   type="button"
                   onClick={() => onNavigateTab('etuts')}
@@ -292,16 +292,6 @@ export const TeacherHeroBanner: React.FC<TeacherHeroBannerProps> = ({
                   <BookOpen className="w-3.5 h-3.5 shrink-0" />
                   <span className="truncate">Ödevler ({homeworks.length})</span>
                 </button>
-                {currentTeacher?.isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigateTab('user_management')}
-                    className="flex items-center justify-center space-x-1.5 py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 transition-colors cursor-pointer"
-                  >
-                    <Crown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="truncate font-bold">Kullanıcı & RBAC</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>

@@ -623,12 +623,6 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <BarChart3 className="w-5 h-5 text-orange-400" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded bg-orange-100 text-orange-700">
-                  Google Looker Studio
-                </span>
-                <span className="text-[11px] text-slate-500 font-medium">Öğrenci Soru Analitik Paneli</span>
-              </div>
               <h2 className="text-lg font-bold text-[#0f172a] tracking-tight">
                 Günlük Soru Çözümü ve Başarı İlerleme Modülü
               </h2>

@@ -2519,16 +2519,16 @@ export class DataService {
   // =========================================================================
   // ÖDEV / TESLİM / SORU KAYDI / HEDEF SATIR DÖNÜŞÜMLERİ (Aşama 4)
   // =========================================================================
-  // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
-  public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
+  // Veritabanı veya yerel depolamaya kaydedilebilecek dosya sınırı (≈10 MB)
+  public static readonly MAX_INLINE_FILE_CHARS = 15_000_000;
 
   private assertInlineResourcesFit(resources?: HomeworkResource[]): void {
     const tooBig = (resources || []).find(
       (r) => typeof r?.url === 'string' && r.url.startsWith('data:') && r.url.length > DataService.MAX_INLINE_FILE_CHARS
     );
     if (tooBig) {
-      throw new Error(
-        `"${tooBig.fileName || tooBig.title || 'Dosya'}" 1 MB sınırını aşıyor. Büyük dosyaları (video, uzun PDF) Google Drive veya YouTube bağlantısı olarak ekleyin.`
+      console.warn(
+        `"${tooBig.fileName || tooBig.title || 'Dosya'}" 10 MB sınırına yaklaştı. Performans için büyük dosyaları Google Drive veya YouTube bağlantısı olarak ekleyebilirsiniz.`
       );
     }
   }

@@ -32,6 +32,8 @@ import { TeacherEtutBell } from './components/Teacher/TeacherEtutBell';
 import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherDocumentsArchive';
 import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
+import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
+import { AdminMaintenancePanel } from './components/Admin/AdminMaintenancePanel';
 import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
 import { AdminUserManagement } from './components/Admin/AdminUserManagement';
 import { StudentPortal } from './components/Student/StudentPortal';
@@ -410,6 +412,11 @@ export default function App() {
               />
             )}
 
+            {/* Yönetici: veri yedeği hatırlatması (son yedek 7 günden eskiyse) */}
+            {activeTeacher?.isAdmin && teacherTab !== 'user_management' && (
+              <AdminBackupReminder onOpenBackup={() => setTeacherTab('user_management')} />
+            )}
+
             {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
             {activeTeacher?.isAdmin && pendingApplications > 0 && teacherTab !== 'user_management' && (
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-100">
@@ -551,6 +558,12 @@ export default function App() {
                       classes={classes}
                       students={students}
                     />
+                  )}
+
+                  {teacherTab === 'user_management' && activeTeacher?.isAdmin && (
+                    <div className="mb-6">
+                      <AdminMaintenancePanel />
+                    </div>
                   )}
 
                   {teacherTab === 'user_management' && (
