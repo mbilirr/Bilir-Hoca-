@@ -100,13 +100,13 @@ export interface ClassGroup {
   authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
 }
 
-export type HomeworkResourceType = 'video' | 'link' | 'pdf';
+export type HomeworkResourceType = 'video' | 'link' | 'pdf' | 'image';
 
 export interface HomeworkResource {
   id: string;
   type: HomeworkResourceType;
   title: string;
-  url: string; // Direct link, YouTube URL, Vimeo URL, or Data URL for uploaded files
+  url: string; // Bağlantı, YouTube/Vimeo adresi, depo dosyası (storage://...) veya eski kayıt içi dosya (data:...)
   fileSize?: string;
   description?: string;
   fileName?: string;
@@ -328,6 +328,8 @@ export interface TeacherDocument {
     name: string;
     rows: Array<Array<string | number>>;
   }>; // Formatted table rows for Excel preview
+  storagePath?: string; // Dosya deposundaki yolu (Aşama 5). Yoksa eski (gömülü) belgedir.
+  ownerAuthId?: string; // Belgeyi yükleyen öğretmenin hesap kimliği (silme/düzenleme yetkisi için)
 }
 
 export interface ExtractedOutcomeItem {

@@ -24,6 +24,8 @@ interface DocumentViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDownload: (doc: TeacherDocument) => void;
+  // PDF'in açılacağı adres (depodaki dosya için imzalı bağlantı ya da eski belge için geçici adres)
+  pdfUrl?: string;
 }
 
 // Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
@@ -37,7 +39,10 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
   isOpen,
   onClose,
   onDownload,
+  pdfUrl,
 }) => {
+  const pdfSrc =
+    pdfUrl || (document.fileData && document.fileData.startsWith('data:application/pdf') ? document.fileData : '');
   // GÜVENLİK: belge önizlemesi ekrana basılmadan önce zararlı koddan temizlenir
   const safePreviewHtml = sanitizeHtml(document.htmlPreview);
 
@@ -390,9 +395,9 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
           {/* 3. PDF DOCUMENT VIEWER */}
           {document.fileFormat === 'pdf' && (
             <div className="w-full h-full flex flex-col items-center">
-              {document.fileData && document.fileData.startsWith('data:application/pdf') ? (
+              {pdfSrc ? (
                 <iframe
-                  src={document.fileData}
+                  src={pdfSrc}
                   className="w-full h-full rounded-xl border border-slate-800 bg-white"
                   title={document.title}
                 />

@@ -14,6 +14,7 @@ import {
   GradeRecord,
   StudentMessage,
   TeacherDocument,
+  DocumentCategory,
   StudentNotification,
   SentEmailLog,
   StudentQuestionLog,
@@ -30,6 +31,7 @@ import {
 } from '../types';
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
 import { INITIAL_TEACHER_DOCUMENTS } from '../data/initialDocuments';
+import { uploadFile, removeStoredFiles, storedPathsOf } from '../lib/fileStorage';
 import {
   generateHomeworkEmail,
   generateEtutEmail,
@@ -776,6 +778,13 @@ export class DataService {
   private constructor() {
     this.purgeSavedPasswords();
     this.initData();
+    // Dosya açma/indirme hataları (görüntüleyici bileşenlerden) kullanıcıya gösterilir
+    if (typeof window !== 'undefined') {
+      window.addEventListener('app-file-error', (e: Event) => {
+        const msg = (e as CustomEvent).detail;
+        this.showFloatingErrorToast(`Hata: ${msg || 'Dosya açılamadı.'}`);
+      });
+    }
   }
 
   // GÜVENLİK: "Beni Hatırla" için daha önce tarayıcıya açık metin kaydedilmiş şifreleri sil.
@@ -836,7 +845,14 @@ export class DataService {
       this.attendance = resilientAttendance.length > 0 ? resilientAttendance : loadDataWithLegacyFallback(STORAGE_KEYS.ATTENDANCE, []);
       this.grades = resilientGrades.length > 0 ? resilientGrades : loadDataWithLegacyFallback(STORAGE_KEYS.GRADES, []);
       this.messages = loadDataWithLegacyFallback(STORAGE_KEYS.MESSAGES, []);
-      this.documents = loadDataWithLegacyFallback(STORAGE_KEYS.DOCUMENTS, []);
+      // Eski sürümler belgeleri dosya içerikleriyle birlikte tarayıcıda saklıyordu; yalnız bilgiler tutulur
+      const cachedDocs: TeacherDocument[] = loadDataWithLegacyFallback(STORAGE_KEYS.DOCUMENTS, []);
+      this.documents = (Array.isArray(cachedDocs) ? cachedDocs : []).map(
+        ({ fileData, htmlPreview, tableSheets, ...rest }) => rest as TeacherDocument
+      );
+      if (Array.isArray(cachedDocs) && cachedDocs.some((d) => d && (d.fileData || d.htmlPreview || d.tableSheets))) {
+        try { saveData(STORAGE_KEYS.DOCUMENTS, this.documents); } catch {}
+      }
       this.studentNotifications = loadDataWithLegacyFallback(STORAGE_KEYS.STUDENT_NOTIFICATIONS, []);
       this.sentEmails = loadDataWithLegacyFallback(STORAGE_KEYS.SENT_EMAILS, []);
       this.questionLogs = resilientQuestionLogs.length > 0 ? resilientQuestionLogs : loadDataWithLegacyFallback(STORAGE_KEYS.QUESTION_LOGS, []);
@@ -1609,17 +1625,8 @@ export class DataService {
   public handleRemoteHomeworkRealtimeEvent(payload: any) {
     try {
       const row = payload?.new && payload.new.id ? payload.new : null;
-      if (row?.id === '__system_sync_documents__') {
-        try {
-          const parsed = JSON.parse(row.description);
-          if (Array.isArray(parsed)) {
-            this.documents = parsed;
-            saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
-            this.notify();
-          }
-        } catch {}
-        return;
-      }
+      // Eski belge satırı artık kullanılmıyor (belgeler teacher_documents tablosunda)
+      if (row?.id === '__system_sync_documents__') return;
       if (row?.id === '__system_sync_tombstones__') {
         this.handleRemoteTombstonesPayload(row.description);
         return;
@@ -1633,13 +1640,16 @@ export class DataService {
 
   private refetchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
-  private scheduleTableRefetch(table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets'): void {
+  private scheduleTableRefetch(
+    table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets' | 'teacher_documents'
+  ): void {
     if (this.refetchTimers[table]) clearTimeout(this.refetchTimers[table]);
     this.refetchTimers[table] = setTimeout(() => {
       delete this.refetchTimers[table];
       if (table === 'homeworks') this.syncHomeworksFromSupabase(true);
       else if (table === 'homework_submissions') this.syncSubmissionsFromSupabase(true);
       else if (table === 'question_logs') this.syncQuestionLogsFromSupabase(true);
+      else if (table === 'teacher_documents') this.syncTeacherDocumentsFromSupabase(true);
       else this.syncQuestionTargetsFromSupabase(true);
     }, 400);
   }
@@ -1648,7 +1658,8 @@ export class DataService {
   private phase4RealtimeChannels: Record<string, any> = {};
 
   public setupPhase4RealtimeSync(): void {
-    (['homework_submissions', 'question_logs', 'question_targets'] as const).forEach((table) => {
+    (['homework_submissions', 'question_logs', 'question_targets', 'teacher_documents'] as const).forEach((table) => {
+      if (table === 'teacher_documents' && this.getAuthSession()?.role === 'student') return;
       try {
         const existing = this.phase4RealtimeChannels[table];
         if (existing && (existing.state === 'joined' || existing.state === 'joining')) return;
@@ -2472,31 +2483,59 @@ export class DataService {
     }
   }
 
+  // Belge listesi: yalnız hafif sütunlar okunur (önizleme ve eski gömülü dosyalar açılınca ayrıca yüklenir)
+  private static readonly DOCUMENT_LIST_COLUMNS =
+    'id,title,description,category,file_format,file_name,file_size,storage_path,subject,school_type,grade_level,academic_year,tags,author_name,uploaded_by,owner_auth_id,created_at';
+
+  private documentFromRow(r: any): TeacherDocument {
+    return {
+      id: r.id,
+      title: r.title || 'Belge',
+      description: r.description || undefined,
+      category: (r.category || 'other') as DocumentCategory,
+      fileFormat: r.file_format === 'docx' || r.file_format === 'xlsx' ? r.file_format : 'pdf',
+      fileName: r.file_name || '',
+      fileSize: r.file_size || '',
+      storagePath: r.storage_path || undefined,
+      uploadedAt: r.created_at || new Date().toISOString(),
+      uploadedBy: r.uploaded_by || 'Öğretmen',
+      authorName: r.author_name || undefined,
+      academicYear: r.academic_year || undefined,
+      schoolType: r.school_type || undefined,
+      subject: r.subject || 'Genel',
+      gradeLevel: r.grade_level || undefined,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+      ownerAuthId: r.owner_auth_id || undefined,
+    };
+  }
+
+  // Tarayıcıya yalnızca belge bilgileri yazılır (dosya içerikleri değil)
+  private persistDocumentsLocal(): void {
+    const light = this.documents.map(({ fileData, htmlPreview, tableSheets, ...rest }) => rest);
+    saveData(STORAGE_KEYS.DOCUMENTS, light);
+  }
+
+  private currentAuthUid: string | null = null;
+
   public async syncTeacherDocumentsFromSupabase(isBackground = false): Promise<TeacherDocument[]> {
     // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
-    if (!(await this.hasCloudSession())) return this.documents;
+    if (this.getAuthSession()?.role === 'student') return this.documents;
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) return this.documents;
+      this.currentAuthUid = sessionData.session.user?.id || null;
       const { data: rows, error } = await supabase
-        .from('homeworks')
-        .select('description')
-        .eq('id', '__system_sync_documents__');
-
+        .from('teacher_documents')
+        .select(DataService.DOCUMENT_LIST_COLUMNS)
+        .order('created_at', { ascending: false });
       if (error) {
         if (!isBackground) console.warn('[DocumentsSync] Error:', error);
         return this.documents;
       }
-
-      if (rows && rows.length > 0 && rows[0]?.description) {
-        try {
-          const parsed = JSON.parse(rows[0].description);
-          if (Array.isArray(parsed)) {
-            this.documents = parsed;
-            saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
-            this.notify();
-          }
-        } catch {}
-      }
+      this.documents = (rows || []).map((r: any) => this.documentFromRow(r));
+      this.persistDocumentsLocal();
+      this.notify();
       return this.documents;
     } catch (e) {
       if (!isBackground) console.warn('[DocumentsSync] Exception:', e);
@@ -5751,13 +5790,20 @@ export class DataService {
   }
 
   // --- HOMEWORK ---
-  public async createHomework(homeworkData: Omit<Homework, 'id' | 'createdAt'>): Promise<Homework> {
+  // Ödev kimliği yeni ödev penceresi açılırken üretilir; böylece dosyalar kaydetmeden önce
+  // doğru klasöre ("odev/<kimlik>") yüklenebilir.
+  public newHomeworkId(): string {
+    return `hw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  public async createHomework(homeworkData: Omit<Homework, 'id' | 'createdAt'> & { id?: string }): Promise<Homework> {
     const session = this.getAuthSession();
     const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
     const nowIso = new Date().toISOString();
+    const requestedId = typeof homeworkData.id === 'string' && /^hw-[\w-]{4,80}$/.test(homeworkData.id) ? homeworkData.id : null;
     const newHw: Homework = {
       ...homeworkData,
-      id: `hw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: requestedId && !this.homeworks.some((h) => h.id === requestedId) ? requestedId : this.newHomeworkId(),
       createdAt: nowIso,
       assignedDate: homeworkData.assignedDate || nowIso,
       teacherId: homeworkData.teacherId || currentTeacher?.id,
@@ -5851,6 +5897,13 @@ export class DataService {
       },
       'Ödev güncellenemedi'
     );
+
+    // Ödevden çıkarılan depo dosyaları silinir (kayıt başarılı olduktan sonra)
+    if (updates.resources !== undefined) {
+      const kept = new Set(storedPathsOf(merged.resources));
+      const dropped = storedPathsOf(existing.resources).filter((p) => !kept.has(p));
+      if (dropped.length > 0) removeStoredFiles(dropped);
+    }
   }
 
   public async deleteHomework(id: string): Promise<void> {
@@ -5867,11 +5920,25 @@ export class DataService {
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
     this.notify();
 
+    // Teslim dosyaları ödev kaydı silinmeden ÖNCE silinir (öğretmenin yetkisi ödev kaydı varken geçerlidir).
+    // En güncel liste veritabanından okunur (başka cihazdan yapılmış güncellemeler dahil).
+    const submissionFiles = new Set(
+      (prevSubmissions as HomeworkSubmission[]).filter((sb) => sb.homeworkId === id).flatMap((sb) => storedPathsOf(sb.resources))
+    );
+    try {
+      const { data: subRows } = await supabase.from('homework_submissions').select('resources').eq('homework_id', id);
+      (subRows || []).forEach((r: any) => storedPathsOf(Array.isArray(r.resources) ? r.resources : []).forEach((p) => submissionFiles.add(p)));
+    } catch {}
+    if (submissionFiles.size > 0) await removeStoredFiles(Array.from(submissionFiles));
+
     try {
       const { error } = await this.deleteRowsVerified('homeworks', [id]);
       if (error) {
         throw error;
       }
+      // Ödevin kendi dosyaları kayıt silindikten sonra temizlenir (en iyi çaba)
+      const hwFiles = storedPathsOf(prevHomeworks.find((h: Homework) => h.id === id)?.resources);
+      if (hwFiles.length > 0) removeStoredFiles(hwFiles);
     } catch (err: any) {
       // ROLLBACK: Buluttan silinemezse yerel state'i eski haline döndür
       this.homeworks = prevHomeworks;
@@ -5997,6 +6064,13 @@ export class DataService {
     ];
     saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
     this.notify();
+
+    // Öğrencinin yeni teslimde çıkardığı eski dosyalar depodan silinir
+    if (resources !== undefined && existing) {
+      const kept = new Set(storedPathsOf(resources));
+      const dropped = storedPathsOf(existing.resources).filter((p) => !kept.has(p));
+      if (dropped.length > 0) removeStoredFiles(dropped);
+    }
     return saved;
   }
 
@@ -7156,49 +7230,123 @@ export class DataService {
     return [...this.documents];
   }
 
-  public async addTeacherDocument(doc: Omit<TeacherDocument, 'id' | 'uploadedAt'>): Promise<TeacherDocument> {
+  // Giriş yapan öğretmen bu belgeyi silebilir/düzenleyebilir mi? (yükleyen veya yönetici)
+  public canManageDocument(doc: TeacherDocument): boolean {
+    if (this.isCurrentUserAdmin()) return true;
+    return !!doc.ownerAuthId && !!this.currentAuthUid && doc.ownerAuthId === this.currentAuthUid;
+  }
+
+  // Belgenin ağır içeriği (Word önizlemesi, Excel tabloları, eski gömülü dosya) yalnız açılınca yüklenir
+  private documentDetailCache = new Map<string, Pick<TeacherDocument, 'htmlPreview' | 'tableSheets' | 'fileData'>>();
+
+  public async getTeacherDocumentDetail(doc: TeacherDocument): Promise<TeacherDocument> {
+    if (doc.htmlPreview || doc.tableSheets || doc.fileData) return doc;
+    const cached = this.documentDetailCache.get(doc.id);
+    if (cached) return { ...doc, ...cached };
+    const { data, error } = await supabase
+      .from('teacher_documents')
+      .select('html_preview,table_sheets,legacy_file_data')
+      .eq('id', doc.id)
+      .maybeSingle();
+    if (error) throw new Error('Belge içeriği yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+    const detail = {
+      htmlPreview: data?.html_preview || undefined,
+      tableSheets: Array.isArray(data?.table_sheets) ? data!.table_sheets : undefined,
+      fileData: data?.legacy_file_data || undefined,
+    };
+    this.documentDetailCache.set(doc.id, detail);
+    return { ...doc, ...detail };
+  }
+
+  // Yeni belge: dosya önce depoya yüklenir, sonra belge kaydı eklenir. Hata olursa yüklenen dosya silinir.
+  public async addTeacherDocument(
+    doc: Omit<TeacherDocument, 'id' | 'uploadedAt'>,
+    file: File
+  ): Promise<TeacherDocument> {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const uid = sessionData?.session?.user?.id;
+    if (!uid) {
+      const msg = 'Oturumunuz bulunamadı. Lütfen çıkış yapıp tekrar giriş yapın.';
+      this.showFloatingErrorToast(`Hata: ${msg}`);
+      throw new Error(msg);
+    }
+    this.currentAuthUid = uid;
+    const currentTeacher = this.getCurrentTeacher();
+
+    const uploaded = await uploadFile(`belge/${uid}`, file); // hata mesajı Türkçe olarak fırlatılır
     const newDoc: TeacherDocument = {
       ...doc,
-      id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      fileData: undefined,
+      id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       uploadedAt: new Date().toISOString(),
+      uploadedBy: currentTeacher?.id || doc.uploadedBy || 'Öğretmen',
+      authorName: doc.authorName || currentTeacher?.name || undefined,
+      fileName: file.name,
+      fileSize: uploaded.fileSize,
+      storagePath: uploaded.path,
+      ownerAuthId: uid,
     };
-    this.documents = [newDoc, ...this.documents];
-    saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
+    const row = {
+      id: newDoc.id,
+      title: newDoc.title,
+      description: newDoc.description || null,
+      category: newDoc.category,
+      file_format: newDoc.fileFormat,
+      file_name: newDoc.fileName,
+      file_size: newDoc.fileSize,
+      storage_path: newDoc.storagePath,
+      subject: newDoc.subject || 'Genel',
+      school_type: newDoc.schoolType || null,
+      grade_level: newDoc.gradeLevel || null,
+      academic_year: newDoc.academicYear || null,
+      tags: newDoc.tags || [],
+      author_name: newDoc.authorName || null,
+      uploaded_by: newDoc.uploadedBy || null,
+      owner_auth_id: uid,
+      html_preview: newDoc.htmlPreview || null,
+      table_sheets: newDoc.tableSheets || null,
+    };
+
+    const prevDocs = [...this.documents];
+    const { htmlPreview, tableSheets, ...lightDoc } = newDoc;
+    this.documents = [lightDoc, ...this.documents];
+    if (htmlPreview || tableSheets) this.documentDetailCache.set(newDoc.id, { htmlPreview, tableSheets });
+    this.persistDocumentsLocal();
     this.notify();
 
     try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_documents__',
-        title: 'Teacher Documents Sync',
-        description: JSON.stringify(this.documents.slice(0, 100)),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (err) {
-      console.warn('[DocumentsSync] Exception syncing documents:', err);
+      await this.runCloudWrite(
+        () => supabase.from('teacher_documents').insert(row),
+        () => {
+          this.documents = prevDocs;
+          this.persistDocumentsLocal();
+        },
+        'Belge arşive kaydedilemedi'
+      );
+    } catch (e) {
+      removeStoredFiles([uploaded.path]);
+      throw e;
     }
-
-    return newDoc;
+    return lightDoc;
   }
 
   public async deleteTeacherDocument(id: string): Promise<void> {
+    const doc = this.documents.find((d) => d.id === id);
+    const prevDocs = [...this.documents];
     this.documents = this.documents.filter((d) => d.id !== id);
-    saveData(STORAGE_KEYS.DOCUMENTS, this.documents);
+    this.persistDocumentsLocal();
     this.notify();
 
-    try {
-      await supabase.from('homeworks').upsert({
-        id: '__system_sync_documents__',
-        title: 'Teacher Documents Sync',
-        description: JSON.stringify(this.documents.slice(0, 100)),
-        subject: 'SystemSync',
-        assigned_to: '__SYSTEM__',
-        due_date: '2099-12-31',
-      });
-    } catch (err) {
-      console.warn('[DocumentsSync] Exception deleting document:', err);
-    }
+    await this.runCloudWrite(
+      () => this.deleteRowsVerified('teacher_documents', [id]),
+      () => {
+        this.documents = prevDocs;
+        this.persistDocumentsLocal();
+      },
+      'Belge silinemedi (yalnızca yükleyen öğretmen veya yönetici silebilir)'
+    );
+    this.documentDetailCache.delete(id);
+    if (doc?.storagePath) removeStoredFiles([doc.storagePath]);
   }
 
   // ==================== NOTIFICATIONS & EMAILS ====================

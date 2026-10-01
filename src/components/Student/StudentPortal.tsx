@@ -37,6 +37,8 @@ import { dataService } from '../../services/dataService';
 import { createGoogleCalendarUrlForHomework, createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
+import { getStudentNote } from '../Teacher/SubmissionViewModal';
+import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
 import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
 import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
@@ -81,6 +83,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [submissionResources, setSubmissionResources] = useState<HomeworkResource[]>([]);
   const [pendingSubmissionResource, setPendingSubmissionResource] = useState<HomeworkResource | null>(null);
   const [isSubmittingHw, setIsSubmittingHw] = useState(false);
+  const [isSubmissionUploadBusy, setIsSubmissionUploadBusy] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Send message form state
@@ -208,7 +211,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         currentStudent.id,
         submissionNotes.trim(),
         submissionLink.trim() || undefined,
-        finalResources.length > 0 ? finalResources : undefined
+        finalResources
       );
     } catch (err: any) {
       // Yazılanlar kaybolmasın: pencere açık kalır, hata gösterilir
@@ -650,7 +653,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   {/* Action Buttons */}
                   <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
                     <button
-                      onClick={() => setSubmittingHw(hw)}
+                      onClick={() => {
+                        // Önceki teslim varsa dosyaları ve notu pencerede görünür; öğrenci ekleyip çıkarabilir
+                        setSubmissionResources(mySubmission?.resources || []);
+                        setSubmissionNotes(getStudentNote(mySubmission));
+                        setSubmissionLink('');
+                        setPendingSubmissionResource(null);
+                        setSubmitError(null);
+                        setSubmittingHw(hw);
+                      }}
                       className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
                         mySubmission
                           ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
@@ -1068,6 +1079,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 resources={submissionResources}
                 onChange={setSubmissionResources}
                 onPendingChange={setPendingSubmissionResource}
+                storageFolder={`teslim/${submittingHw.id}/${currentStudent.id}`}
+                onBusyChange={setIsSubmissionUploadBusy}
               />
               {pendingSubmissionResource && (
                 <p className="text-[11px] text-indigo-300 -mt-2">
@@ -1098,8 +1111,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    if (isSubmittingHw) return;
+                    // Bu pencerede yüklenip teslim edilmeyen dosyalar depodan silinir
+                    const prev = getStudentSubmission(submittingHw);
+                    const saved = new Set(storedPathsOf(prev?.resources));
+                    const unsaved = storedPathsOf(submissionResources).filter((p) => !saved.has(p));
+                    if (unsaved.length > 0) removeStoredFiles(unsaved);
                     setSubmittingHw(null);
                     setSubmissionResources([]);
+                    setSubmissionNotes('');
                     setPendingSubmissionResource(null);
                     setSubmitError(null);
                   }}
@@ -1109,10 +1129,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmittingHw}
+                  disabled={isSubmittingHw || isSubmissionUploadBusy}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60"
                 >
-                  {isSubmittingHw ? 'Gönderiliyor…' : 'Teslim Et'}
+                  {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
                 </button>
               </div>
             </form>

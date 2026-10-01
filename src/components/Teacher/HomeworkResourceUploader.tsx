@@ -15,18 +15,23 @@ import {
   FileUp,
 } from 'lucide-react';
 import { HomeworkResource, HomeworkResourceType } from '../../types';
+import { uploadFile, removeStoredFiles, storagePathFromUrl, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, UPLOAD_LIMIT_MESSAGE } from '../../lib/fileStorage';
 
 interface HomeworkResourceUploaderProps {
   resources: HomeworkResource[];
   onChange: (resources: HomeworkResource[]) => void;
   // Yazılmış ama "Ekle"ye basılmamış bağlantıyı üst bileşene bildirir; kaydederken kaybolmasın diye eklenir.
   onPendingChange?: (pending: HomeworkResource | null) => void;
+  // Verilirse dosyalar bu depo klasörüne yüklenir (ör. "odev/<ödev id>" veya "teslim/<ödev id>/<öğrenci id>").
+  // Verilmezse eski yöntemle (kayıt içine, en fazla 1 MB) eklenir.
+  storageFolder?: string;
+  // Dosya yüklenirken true olur; üst bileşen "Kaydet"i bu sürede kapatır.
+  onBusyChange?: (busy: boolean) => void;
 }
 
-// Dosyalar şimdilik kayıt satırının içinde saklanıyor; bu yüzden en fazla 1 MB.
-// (Aşama 5'te dosya deposuna geçilince bu sınır büyütülecek.)
+// Depo klasörü verilmezse (eski yöntem) dosyalar kayıt satırının içinde saklanır; bu durumda en fazla 1 MB.
 export const MAX_RESOURCE_FILE_BYTES = 1024 * 1024;
-const FILE_LIMIT_MESSAGE =
+const INLINE_FILE_LIMIT_MESSAGE =
   'Dosya 1 MB sınırını aşıyor. Büyük videoları YouTube, büyük PDF\'leri Google Drive bağlantısı olarak ekleyebilirsiniz.';
 
 const withProtocol = (url: string) => (/^https?:\/\//i.test(url) ? url : 'https://' + url);
@@ -35,8 +40,48 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
   resources,
   onChange,
   onPendingChange,
+  storageFolder,
+  onBusyChange,
 }) => {
   const [activeTab, setActiveTab] = useState<HomeworkResourceType>('video');
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
+  // Bu pencere açıkken depoya yüklenen dosyalar (kaydetmeden kaldırılırsa depodan da silinir)
+  const sessionUploadsRef = useRef<Set<string>>(new Set());
+  const resourcesRef = useRef(resources);
+  resourcesRef.current = resources;
+  const maxFileBytes = storageFolder ? MAX_UPLOAD_BYTES : MAX_RESOURCE_FILE_BYTES;
+  const maxFileLabel = storageFolder ? MAX_UPLOAD_LABEL : '1 MB';
+  const fileLimitMessage = storageFolder ? UPLOAD_LIMIT_MESSAGE : INLINE_FILE_LIMIT_MESSAGE;
+
+  useEffect(() => {
+    onBusyChange?.(!!uploadingName);
+  }, [uploadingName, onBusyChange]);
+
+  // Dosyayı depoya yükleyip listeye ekler
+  const uploadToStorage = async (file: File, type: 'video' | 'pdf' | 'image', title: string, description: string) => {
+    if (!storageFolder) return;
+    setUploadingName(file.name);
+    setErrorMessage(null);
+    try {
+      const up = await uploadFile(storageFolder, file);
+      sessionUploadsRef.current.add(up.path);
+      const newResource: HomeworkResource = {
+        id: `res-${Date.now()}`,
+        type,
+        title,
+        url: up.url,
+        fileSize: up.fileSize,
+        fileName: file.name,
+        description: description || `${file.name} (${up.fileSize})`,
+      };
+      // Yükleme sürerken liste değişmiş olabilir: en güncel listeye eklenir
+      onChange([...resourcesRef.current, newResource]);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Dosya yüklenemedi.');
+    } finally {
+      setUploadingName(null);
+    }
+  };
 
   // Video Form
   const [videoSourceType, setVideoSourceType] = useState<'url' | 'file'>('url');
@@ -81,9 +126,22 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       return;
     }
 
-    if (file.size > MAX_RESOURCE_FILE_BYTES) {
-      setErrorMessage(FILE_LIMIT_MESSAGE);
+    if (file.size > maxFileBytes) {
+      setErrorMessage(fileLimitMessage);
       if (videoFileInputRef.current) videoFileInputRef.current.value = '';
+      return;
+    }
+
+    if (storageFolder) {
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+      const title = videoTitle.trim() || cleanTitle;
+      const description = videoDescription.trim();
+      if (videoFileInputRef.current) videoFileInputRef.current.value = '';
+      uploadToStorage(file, 'video', title, description).then(() => {
+        setVideoTitle('');
+        setVideoDescription('');
+        setVideoUrl('');
+      });
       return;
     }
 
@@ -184,14 +242,32 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
-      setErrorMessage('Lütfen sadece PDF formatında (.pdf) bir belge seçin.');
+    const isImage = !!storageFolder && (file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name));
+    if (!isImage && !file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      setErrorMessage(
+        storageFolder
+          ? 'Lütfen PDF (.pdf) ya da fotoğraf (JPG, PNG) seçin.'
+          : 'Lütfen sadece PDF formatında (.pdf) bir belge seçin.'
+      );
+      if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
       return;
     }
 
-    if (file.size > MAX_RESOURCE_FILE_BYTES) {
-      setErrorMessage(FILE_LIMIT_MESSAGE);
+    if (file.size > maxFileBytes) {
+      setErrorMessage(fileLimitMessage);
       if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
+      return;
+    }
+
+    if (storageFolder) {
+      const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+      const title = pdfTitle.trim() || cleanTitle;
+      const description = pdfDescription.trim();
+      if (pdfFileInputRef.current) pdfFileInputRef.current.value = '';
+      uploadToStorage(file, isImage ? 'image' : 'pdf', title, description).then(() => {
+        setPdfTitle('');
+        setPdfDescription('');
+      });
       return;
     }
 
@@ -248,7 +324,14 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
   };
 
   const handleRemoveResource = (id: string) => {
+    const removed = resources.find((r) => r.id === id);
     onChange(resources.filter((r) => r.id !== id));
+    // Bu pencerede yüklenip henüz kaydedilmemiş dosya kaldırılırsa depodan da silinir
+    const path = storagePathFromUrl(removed?.url);
+    if (path && sessionUploadsRef.current.has(path)) {
+      sessionUploadsRef.current.delete(path);
+      removeStoredFiles([path]);
+    }
   };
 
   // Kutuya yazılmış ama henüz eklenmemiş bağlantı (kaydet'e basılınca otomatik eklenir)
@@ -323,6 +406,13 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
         </div>
       )}
 
+      {uploadingName && (
+        <div role="status" className="p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 flex items-center space-x-2">
+          <span className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0" />
+          <span className="truncate">"{uploadingName}" yükleniyor… Lütfen bekleyin.</span>
+        </div>
+      )}
+
       {/* Type Tabs */}
       <div className="flex space-x-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
         <button
@@ -370,7 +460,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>PDF Ekle</span>
+          <span>{storageFolder ? 'PDF / Fotoğraf Ekle' : 'PDF Ekle'}</span>
         </button>
       </div>
 
@@ -476,7 +566,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   Video Seçmek veya Sürüklemek İçin Tıklayın
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  Desteklenen Formatlar: MP4, WebM (Maksimum 1 MB — büyük videolar için YouTube linki)
+                  Desteklenen Formatlar: MP4, WebM (Maksimum {maxFileLabel} — büyük videolar için YouTube linki)
                 </span>
               </div>
             </div>
@@ -539,7 +629,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   : 'bg-slate-800 text-slate-400 hover:text-white'
               }`}
             >
-              Bilgisayardan PDF Yükle
+              {storageFolder ? 'Cihazdan PDF / Fotoğraf Yükle' : 'Bilgisayardan PDF Yükle'}
             </button>
             <button
               type="button"
@@ -581,15 +671,15 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   type="file"
                   ref={pdfFileInputRef}
                   onChange={handlePdfFileUpload}
-                  accept="application/pdf,.pdf"
+                  accept={storageFolder ? 'application/pdf,.pdf,image/*' : 'application/pdf,.pdf'}
                   className="hidden"
                 />
                 <FileUp className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
                 <span className="text-xs font-semibold text-white block">
-                  PDF Dosyası Seçmek veya Sürüklemek İçin Tıklayın
+                  {storageFolder ? 'PDF veya Fotoğraf Seçmek İçin Tıklayın' : 'PDF Dosyası Seçmek veya Sürüklemek İçin Tıklayın'}
                 </span>
                 <span className="text-[11px] text-slate-400 block mt-0.5">
-                  Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum 1 MB — büyük dosyalar için Google Drive linki)
+                  Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum {maxFileLabel} — büyük dosyalar için Google Drive linki)
                 </span>
               </div>
             </div>
@@ -644,7 +734,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {resources.map((res, index) => {
               const isVideo = res.type === 'video';
-              const isPdf = res.type === 'pdf';
+              const isPdf = res.type === 'pdf' || res.type === 'image';
               return (
                 <div
                   key={res.id || index}
@@ -682,7 +772,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                               : 'bg-blue-500/10 text-blue-300'
                           }`}
                         >
-                          {isVideo ? 'VIDEO' : isPdf ? 'PDF' : 'LINK'}
+                          {isVideo ? 'VIDEO' : res.type === 'image' ? 'FOTO' : isPdf ? 'PDF' : 'LINK'}
                         </span>
                         {res.fileSize && (
                           <span className="text-[10px] text-slate-500 font-mono">

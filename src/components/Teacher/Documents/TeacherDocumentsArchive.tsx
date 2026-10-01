@@ -31,6 +31,8 @@ import { dataService } from '../../../services/dataService';
 import { DocumentViewerModal } from './DocumentViewerModal';
 import { UploadDocumentModal } from './UploadDocumentModal';
 import { ConfirmDeleteModal } from '../../Common/ConfirmDeleteModal';
+import { normalizeBranch } from '../../../lib/subjects';
+import { getSignedFileUrl, dataUrlToBlobUrl } from '../../../lib/fileStorage';
 
 interface TeacherDocumentsArchiveProps {
   documents: TeacherDocument[];
@@ -105,11 +107,30 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
   documents: initialDocs,
   onDocumentsChange,
 }) => {
-  const [documents, setDocuments] = useState<TeacherDocument[]>(() =>
-    initialDocs && initialDocs.length > 0
-      ? initialDocs
-      : dataService.getTeacherDocuments()
-  );
+  // Belgeler her zaman güncel listeden okunur (başka öğretmen belge ekleyince ekran kendiliğinden yenilenir)
+  const documents: TeacherDocument[] = initialDocs || dataService.getTeacherDocuments();
+
+  // Branş klasörleri: varsayılan olarak öğretmenin kendi branşı açılır
+  const teacherBranch = useMemo(() => normalizeBranch(dataService.getCurrentTeacher()?.branch), []);
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => teacherBranch || 'all');
+  const branchCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    documents.forEach((d) => {
+      const key = d.subject || 'Genel';
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    if (teacherBranch && !counts.has(teacherBranch)) counts.set(teacherBranch, 0);
+    if (selectedBranch !== 'all' && !counts.has(selectedBranch)) counts.set(selectedBranch, 0);
+    return Array.from(counts.entries()).sort((a, b) => {
+      if (a[0] === teacherBranch) return -1;
+      if (b[0] === teacherBranch) return 1;
+      return b[1] - a[1] || a[0].localeCompare(b[0], 'tr');
+    });
+  }, [documents, teacherBranch, selectedBranch]);
+
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null);
+  const [activePdfUrl, setActivePdfUrl] = useState<string | undefined>(undefined);
 
   const [availableClasses] = useState<ClassGroup[]>(() => dataService.getClasses());
 
@@ -182,6 +203,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
   // Filtered documents
   const filteredDocuments = documents.filter((doc) => {
+    if (selectedBranch !== 'all' && (doc.subject || 'Genel') !== selectedBranch) return false;
     const docCat = getDocCategoryKey(doc);
     if (selectedArchiveCategory && selectedArchiveCategory !== 'all' && docCat !== selectedArchiveCategory) return false;
     if (selectedFormat !== 'all' && doc.fileFormat !== selectedFormat) return false;
@@ -208,48 +230,86 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     return true;
   });
 
-  // Handle download
-  const handleDownload = (doc: TeacherDocument) => {
-    if (doc.fileData && doc.fileData.startsWith('data:')) {
-      const a = document.createElement('a');
-      a.href = doc.fileData;
-      a.download = doc.fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return;
-    }
-
-    if (doc.fileFormat === 'xlsx' && doc.tableSheets && doc.tableSheets.length > 0) {
-      const wb = XLSX.utils.book_new();
-      doc.tableSheets.forEach((sheet) => {
-        const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
-        XLSX.utils.book_append_sheet(wb, ws, sheet.name.substring(0, 31));
-      });
-      XLSX.writeFile(wb, doc.fileName);
-      return;
-    }
-
-    const content =
-      doc.htmlPreview ||
-      `${doc.title}\n${doc.subject} - ${doc.academicYear}\n\n${doc.description || ''}`;
-    const blob = new Blob([content], {
-      type: doc.fileFormat === 'pdf' ? 'application/pdf' : 'text/plain;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
+  const clickDownload = (href: string, fileName: string) => {
     const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.fileName;
+    a.href = href;
+    a.download = fileName;
+    a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
-  const handleCreateDocument = (newDocData: Omit<TeacherDocument, 'id' | 'uploadedAt'>) => {
-    dataService.addTeacherDocument(newDocData);
-    setDocuments(dataService.getTeacherDocuments());
-    // Auto switch to that category and expand it
+  // Belgeyi indir: depodaki dosya imzalı bağlantıyla, eski belgeler kayıttaki içerikle indirilir
+  const handleDownload = async (doc: TeacherDocument) => {
+    setActionError(null);
+    try {
+      if (doc.storagePath) {
+        clickDownload(await getSignedFileUrl(doc.storagePath, doc.fileName || doc.title), doc.fileName || doc.title);
+        return;
+      }
+      const full = await dataService.getTeacherDocumentDetail(doc);
+      if (full.fileData && full.fileData.startsWith('data:')) {
+        const blobUrl = dataUrlToBlobUrl(full.fileData);
+        clickDownload(blobUrl || full.fileData, full.fileName);
+        if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+        return;
+      }
+
+      if (full.fileFormat === 'xlsx' && full.tableSheets && full.tableSheets.length > 0) {
+        const wb = XLSX.utils.book_new();
+        full.tableSheets.forEach((sheet) => {
+          const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
+          XLSX.utils.book_append_sheet(wb, ws, sheet.name.substring(0, 31));
+        });
+        XLSX.writeFile(wb, full.fileName);
+        return;
+      }
+
+      const content =
+        full.htmlPreview ||
+        `${full.title}\n${full.subject} - ${full.academicYear}\n\n${full.description || ''}`;
+      const blob = new Blob([content], {
+        type: full.htmlPreview ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8',
+      });
+      const url = URL.createObjectURL(blob);
+      clickDownload(url, full.htmlPreview ? `${full.title}.html` : `${full.title}.txt`);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge indirilemedi.');
+    }
+  };
+
+  // Belgeyi aç: önizleme içeriği ve PDF adresi gerektiğinde yüklenir
+  const handleOpenDocument = async (doc: TeacherDocument) => {
+    setActionError(null);
+    setOpeningDocId(doc.id);
+    try {
+      const full = await dataService.getTeacherDocumentDetail(doc);
+      let pdfUrl: string | undefined;
+      if (full.fileFormat === 'pdf') {
+        if (full.storagePath) pdfUrl = await getSignedFileUrl(full.storagePath);
+        else if (full.fileData && full.fileData.startsWith('data:')) pdfUrl = dataUrlToBlobUrl(full.fileData) || undefined;
+      }
+      setActivePdfUrl(pdfUrl);
+      setActiveViewingDoc(full);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge açılamadı.');
+    } finally {
+      setOpeningDocId(null);
+    }
+  };
+
+  const handleCloseViewer = () => {
+    if (activePdfUrl && activePdfUrl.startsWith('blob:')) URL.revokeObjectURL(activePdfUrl);
+    setActivePdfUrl(undefined);
+    setActiveViewingDoc(null);
+  };
+
+  const handleCreateDocument = async (newDocData: Omit<TeacherDocument, 'id' | 'uploadedAt'>, file: File) => {
+    await dataService.addTeacherDocument(newDocData, file); // hata olursa yükleme penceresi mesajı gösterir
+    // Yüklenen belgenin branşı ve kategorisi açılır
+    setSelectedBranch(newDocData.subject || 'all');
     const cat = getDocCategoryKey(newDocData as TeacherDocument);
     setSelectedArchiveCategory(cat);
     setExpandedCategories((prev) => ({ ...prev, [cat]: true }));
@@ -259,10 +319,14 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     if (onDocumentsChange) onDocumentsChange();
   };
 
-  const handleDeleteDocument = (id: string) => {
-    dataService.deleteTeacherDocument(id);
-    setDocuments(dataService.getTeacherDocuments());
+  const handleDeleteDocument = async (id: string) => {
+    setActionError(null);
     setDocToDelete(null);
+    try {
+      await dataService.deleteTeacherDocument(id);
+    } catch (e: any) {
+      setActionError(e?.message || 'Belge silinemedi.');
+    }
     if (onDocumentsChange) onDocumentsChange();
   };
 
@@ -332,6 +396,55 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
           <span>Yeni Belge Yükle (.docx, .pdf, .xlsx)</span>
         </button>
       </div>
+
+      {/* BRANŞ KLASÖRLERİ */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-bold text-white flex items-center space-x-1.5">
+            <GraduationCap className="w-4 h-4 text-indigo-400" />
+            <span>Branş Klasörleri</span>
+          </span>
+          <span className="text-[11px] text-slate-400 hidden sm:inline">Belgeler yüklendikleri branşın klasöründe durur</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Branş seçimi">
+          <button
+            type="button"
+            onClick={() => setSelectedBranch('all')}
+            aria-pressed={selectedBranch === 'all'}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+              selectedBranch === 'all'
+                ? 'bg-indigo-600 text-white border-indigo-400'
+                : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-indigo-500'
+            }`}
+          >
+            Tüm Branşlar ({documents.length})
+          </button>
+          {branchCounts.map(([branch, count]) => (
+            <button
+              key={branch}
+              type="button"
+              onClick={() => setSelectedBranch(branch)}
+              aria-pressed={selectedBranch === branch}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                selectedBranch === branch
+                  ? 'bg-indigo-600 text-white border-indigo-400'
+                  : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-indigo-500'
+              }`}
+            >
+              {branch} ({count}){branch === teacherBranch ? ' · Branşım' : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {actionError && (
+        <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center justify-between gap-2">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="font-bold text-rose-200 hover:text-white cursor-pointer">
+            Tamam
+          </button>
+        </div>
+      )}
 
       {/* SEARCH & FILTERS BAR */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -712,12 +825,13 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                 <div className="pt-3 border-t border-slate-100 flex items-center space-x-2">
                                   <button
                                     type="button"
-                                    onClick={() => setActiveViewingDoc(doc)}
+                                    onClick={() => handleOpenDocument(doc)}
+                                    disabled={openingDocId === doc.id}
                                     className="flex-1 py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 shadow-md shadow-indigo-600/20 transition-all cursor-pointer hover:scale-[1.02] active:scale-95"
                                     title="Tam Sayfa Olarak Aç ve İncele"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
-                                    <span>Görüntüle</span>
+                                    <span>{openingDocId === doc.id ? 'Açılıyor…' : 'Görüntüle'}</span>
                                   </button>
 
                                   <button
@@ -729,14 +843,17 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     <Download className="w-3.5 h-3.5" />
                                   </button>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => setDocToDelete(doc)}
-                                    className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-xl text-xs border border-rose-200 transition-colors cursor-pointer"
-                                    title="Belgeyi Sil"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {dataService.canManageDocument(doc) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDocToDelete(doc)}
+                                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-xl text-xs border border-rose-200 transition-colors cursor-pointer"
+                                      title="Belgeyi Sil"
+                                      aria-label="Belgeyi Sil"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -761,8 +878,9 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
         <DocumentViewerModal
           document={activeViewingDoc}
           isOpen={!!activeViewingDoc}
-          onClose={() => setActiveViewingDoc(null)}
+          onClose={handleCloseViewer}
           onDownload={handleDownload}
+          pdfUrl={activePdfUrl}
         />
       )}
 
@@ -772,6 +890,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleCreateDocument}
+          defaultSubject={selectedBranch !== 'all' ? selectedBranch : teacherBranch || undefined}
         />
       )}
 

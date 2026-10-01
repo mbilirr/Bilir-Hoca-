@@ -3,6 +3,7 @@ import { X, Edit3, Save, Calendar, FileText, Users, School, AlertCircle, Loader2
 import { Homework, Student, ClassGroup, HomeworkResource } from '../../types';
 import { dataService } from '../../services/dataService';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
+import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
 
 interface EditHomeworkModalProps {
   isOpen: boolean;
@@ -68,6 +69,16 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
   const [resources, setResources] = useState<HomeworkResource[]>(homework.resources || []);
   const [pendingResource, setPendingResource] = useState<HomeworkResource | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadBusy, setIsUploadBusy] = useState(false);
+
+  // Kaydetmeden kapatılırsa bu pencerede yüklenen (ödevde kayıtlı olmayan) dosyalar depodan silinir
+  const handleCancel = () => {
+    if (isSaving) return;
+    const saved = new Set(storedPathsOf(homework.resources));
+    const unsaved = storedPathsOf(resources).filter((p) => !saved.has(p));
+    if (unsaved.length > 0) removeStoredFiles(unsaved);
+    onClose();
+  };
   const [errorText, setErrorText] = useState<string | null>(null);
 
   // Öğretmenin göremediği (yetkisi olmayan) eski hedef sınıflar da listede görünsün ki kaybolmasın
@@ -158,7 +169,7 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5 animate-in fade-in duration-150"
-      onClick={() => !isSaving && onClose()}
+      onClick={handleCancel}
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
@@ -178,7 +189,7 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCancel}
               disabled={isSaving}
               className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             >
@@ -371,7 +382,13 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
             </div>
 
             {/* Materyaller: oluştururken kullanılan bölümün aynısı */}
-            <HomeworkResourceUploader resources={resources} onChange={setResources} onPendingChange={setPendingResource} />
+            <HomeworkResourceUploader
+              resources={resources}
+              onChange={setResources}
+              onPendingChange={setPendingResource}
+              storageFolder={`odev/${homework.id}`}
+              onBusyChange={setIsUploadBusy}
+            />
             {pendingResource && (
               <p className="text-[11px] text-indigo-700 -mt-2">
                 Yazdığınız bağlantı ("{pendingResource.title}") kaydederken otomatik olarak eklenecek.
@@ -388,7 +405,7 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
             <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-2.5">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCancel}
                 disabled={isSaving}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
@@ -396,7 +413,7 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
               </button>
               <button
                 type="submit"
-                disabled={isSaving}
+                disabled={isSaving || isUploadBusy}
                 className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

@@ -46,6 +46,7 @@ import { dataService } from '../../services/dataService';
 import { createGoogleCalendarUrlForHomework, downloadIcsFile } from '../../lib/calendar';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
+import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { EditHomeworkModal } from './EditHomeworkModal';
 import { HomeworkDetailModal } from './HomeworkDetailModal';
@@ -289,6 +290,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [createError, setCreateError] = useState<string | null>(null);
   const [editingPendingResource, setEditingPendingResource] = useState<HomeworkResource | null>(null);
   const [isSavingResources, setIsSavingResources] = useState(false);
+  // Yeni ödevin kimliği pencere açılırken üretilir: dosyalar kaydetmeden önce "odev/<kimlik>" klasörüne yüklenir
+  const [draftHomeworkId, setDraftHomeworkId] = useState<string>(() => dataService.newHomeworkId());
+  const [isCreateUploadBusy, setIsCreateUploadBusy] = useState(false);
+  const [isEditUploadBusy, setIsEditUploadBusy] = useState(false);
 
   const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
     setSchoolLevel(level);
@@ -348,6 +353,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setIsCreating(true);
     try {
       const newHw = await dataService.createHomework({
+        id: draftHomeworkId,
         title: title.trim(),
         subject,
         schoolLevel,
@@ -391,6 +397,27 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setResources([]);
     setPendingResource(null);
     setCreateError(null);
+    setDraftHomeworkId(dataService.newHomeworkId());
+  };
+
+  // Kaydetmeden kapatılırsa bu pencerede yüklenen dosyalar depodan silinir
+  const closeCreateModal = () => {
+    if (isCreating) return;
+    const uploaded = storedPathsOf(resources);
+    if (uploaded.length > 0) removeStoredFiles(uploaded);
+    setResources([]);
+    setIsCreateModalOpen(false);
+  };
+
+  const closeEditResourcesModal = () => {
+    if (isSavingResources) return;
+    if (editingResourcesHw) {
+      const saved = new Set(storedPathsOf(editingResourcesHw.resources));
+      const unsaved = storedPathsOf(editingResourcesList).filter((p) => !saved.has(p));
+      if (unsaved.length > 0) removeStoredFiles(unsaved);
+    }
+    setEditingResourcesHw(null);
+    setEditingPendingResource(null);
   };
 
   const handleOpenEditResources = (hw: Homework) => {
@@ -1692,7 +1719,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         return (
           <div
             className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
-            onClick={() => setIsCreateModalOpen(false)}
+            onClick={closeCreateModal}
           >
             <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
               <div
@@ -1708,7 +1735,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <h3 className="text-xl font-bold text-slate-900 tracking-tight">ÖDEV</h3>
                   </div>
                   <button
-                    onClick={() => setIsCreateModalOpen(false)}
+                    onClick={closeCreateModal}
                     className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
@@ -1906,6 +1933,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     resources={resources}
                     onChange={setResources}
                     onPendingChange={setPendingResource}
+                    storageFolder={`odev/${draftHomeworkId}`}
+                    onBusyChange={setIsCreateUploadBusy}
                   />
                   {pendingResource && (
                     <p className="text-[11px] text-indigo-700 -mt-2">
@@ -1923,18 +1952,18 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
                     <button
                       type="button"
-                      onClick={() => setIsCreateModalOpen(false)}
+                      onClick={closeCreateModal}
                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                     >
                       İptal
                     </button>
                     <button
                       type="submit"
-                      disabled={isCreating}
+                      disabled={isCreating || isCreateUploadBusy}
                       className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
                     >
                       <Save className="w-4 h-4" />
-                      <span>{isCreating ? 'Kaydediliyor…' : 'Ödevi Kaydet'}</span>
+                      <span>{isCreating ? 'Kaydediliyor…' : isCreateUploadBusy ? 'Dosya yükleniyor…' : 'Ödevi Kaydet'}</span>
                     </button>
                   </div>
                 </form>
@@ -1948,7 +1977,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {editingResourcesHw && (
         <div
           className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
-          onClick={() => setEditingResourcesHw(null)}
+          onClick={closeEditResourcesModal}
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
@@ -1964,7 +1993,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   </div>
                 </div>
                 <button
-                  onClick={() => setEditingResourcesHw(null)}
+                  onClick={closeEditResourcesModal}
                   className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -1976,12 +2005,14 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   resources={editingResourcesList}
                   onChange={setEditingResourcesList}
                   onPendingChange={setEditingPendingResource}
+                  storageFolder={`odev/${editingResourcesHw.id}`}
+                  onBusyChange={setIsEditUploadBusy}
                 />
 
                 <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
                   <button
                     type="button"
-                    onClick={() => setEditingResourcesHw(null)}
+                    onClick={closeEditResourcesModal}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
                   >
                     İptal
@@ -1989,7 +2020,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveEditedResources}
-                    disabled={isSavingResources}
+                    disabled={isSavingResources || isEditUploadBusy}
                     className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />

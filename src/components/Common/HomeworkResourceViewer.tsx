@@ -13,8 +13,10 @@ import {
   Check,
   Film,
   FileSpreadsheet,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { HomeworkResource } from '../../types';
+import { getSignedFileUrl, isStoredFileUrl, storagePathFromUrl } from '../../lib/fileStorage';
 
 interface HomeworkResourceViewerProps {
   resources?: HomeworkResource[];
@@ -73,47 +75,101 @@ function dataUrlToBlobUrl(url: string): string | null {
 }
 
 const isInlineFile = (url?: string) => !!url && url.startsWith('data:');
+const isFileResource = (res: HomeworkResource) => isInlineFile(res.url) || isStoredFileUrl(res.url);
+const resourceFileName = (res: HomeworkResource) =>
+  res.fileName || `${res.title || 'dosya'}${res.type === 'pdf' ? '.pdf' : ''}`;
 
-// Gösterilecek adres: kayıt içi dosyalar için geçici blob adresi, diğerleri için kendisi
-function useViewableUrl(url?: string): string {
-  const [viewUrl, setViewUrl] = useState<string>(() => (url && !isInlineFile(url) ? url : ''));
+// Gösterilecek adres: depo dosyası için imzalı bağlantı, kayıt içi dosya için geçici blob adresi, diğerleri için kendisi
+function useViewableUrl(url?: string): { url: string; error: string | null } {
+  const [state, setState] = useState<{ url: string; error: string | null }>(() => ({
+    url: url && !isInlineFile(url) && !isStoredFileUrl(url) ? url : '',
+    error: null,
+  }));
   useEffect(() => {
+    let cancelled = false;
     if (!url) {
-      setViewUrl('');
+      setState({ url: '', error: null });
       return;
     }
+    const storedPath = storagePathFromUrl(url);
+    if (storedPath) {
+      setState({ url: '', error: null });
+      getSignedFileUrl(storedPath)
+        .then((signed) => {
+          if (!cancelled) setState({ url: signed, error: null });
+        })
+        .catch((e) => {
+          if (!cancelled) setState({ url: '', error: e?.message || 'Dosya açılamadı.' });
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     if (!isInlineFile(url)) {
-      setViewUrl(url);
+      setState({ url, error: null });
       return;
     }
     const blobUrl = dataUrlToBlobUrl(url);
-    setViewUrl(blobUrl || url);
+    setState({ url: blobUrl || url, error: null });
     return () => {
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [url]);
-  return viewUrl;
+  return state;
 }
 
-// Dosyayı indirir (kayıt içi dosyalar dahil). Başarısız olursa yeni sekmede açmayı dener.
-function downloadResource(res: HomeworkResource) {
-  const fileName = res.fileName || `${res.title || 'dosya'}${res.type === 'pdf' ? '.pdf' : ''}`;
+const clickDownloadLink = (href: string, fileName: string) => {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = fileName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
+// Dosyayı indirir (depo ve kayıt içi dosyalar dahil). Bağlantılar yeni sekmede açılır.
+async function downloadResource(res: HomeworkResource) {
+  const fileName = resourceFileName(res);
+  const storedPath = storagePathFromUrl(res.url);
+  if (storedPath) {
+    try {
+      clickDownloadLink(await getSignedFileUrl(storedPath, fileName), fileName);
+    } catch (e: any) {
+      window.dispatchEvent(new CustomEvent('app-file-error', { detail: e?.message || 'Dosya indirilemedi.' }));
+    }
+    return;
+  }
   if (!isInlineFile(res.url)) {
     window.open(res.url, '_blank', 'noopener,noreferrer');
     return;
   }
   const blobUrl = dataUrlToBlobUrl(res.url);
-  const a = document.createElement('a');
-  a.href = blobUrl || res.url;
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  clickDownloadLink(blobUrl || res.url, fileName);
   if (blobUrl) setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
-// Bağlantıyı yeni sekmede açar (kayıt içi dosyalar blob adresiyle açılır)
+// Kaynağı yeni sekmede açar (depo dosyaları imzalı bağlantıyla, kayıt içi dosyalar blob adresiyle)
 function openResourceInNewTab(res: HomeworkResource) {
+  const storedPath = storagePathFromUrl(res.url);
+  if (storedPath) {
+    // Açılır pencere engellenmesin diye sekme hemen açılır, adres hazır olunca yönlendirilir
+    const win = window.open('', '_blank');
+    getSignedFileUrl(storedPath)
+      .then((signed) => {
+        if (win) {
+          win.opener = null;
+          win.location.href = signed;
+        } else {
+          window.location.assign(signed);
+        }
+      })
+      .catch((e) => {
+        win?.close();
+        window.dispatchEvent(new CustomEvent('app-file-error', { detail: e?.message || 'Dosya açılamadı.' }));
+      });
+    return;
+  }
   if (!isInlineFile(res.url)) {
     window.open(res.url, '_blank', 'noopener,noreferrer');
     return;
@@ -127,20 +183,25 @@ function openResourceInNewTab(res: HomeworkResource) {
   }
 }
 
-// PDF önizleme penceresi (sayfanın en üstünde açılır)
-const PdfViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> = ({ res, onClose }) => {
-  const viewUrl = useViewableUrl(res.url);
-  const drivePreview = !isInlineFile(res.url) ? getDrivePreviewUrl(res.url) : null;
-  const frameSrc = drivePreview || (viewUrl ? (isInlineFile(res.url) ? viewUrl : `${viewUrl}#toolbar=1`) : '');
+// PDF / fotoğraf önizleme penceresi (sayfanın en üstünde açılır)
+const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> = ({ res, onClose }) => {
+  const { url: viewUrl, error } = useViewableUrl(res.url);
+  const isImage = res.type === 'image';
+  const isExternal = !isFileResource(res);
+  const drivePreview = isExternal ? getDrivePreviewUrl(res.url) : null;
+  const frameSrc = drivePreview || (viewUrl ? (isExternal ? `${viewUrl}#toolbar=1` : viewUrl) : '');
+  const kindLabel = isImage ? 'Fotoğraf' : 'PDF';
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md" onClick={onClose}>
       <div
+        role="dialog"
+        aria-label={`${res.title} önizleme`}
         className="relative w-full max-w-4xl h-[88vh] bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2 p-3 sm:p-4 border-b border-slate-800 bg-slate-900/90 flex-shrink-0">
           <div className="flex items-center space-x-2 text-amber-400 min-w-0">
-            <FileText className="w-5 h-5 shrink-0" />
+            {isImage ? <ImageIcon className="w-5 h-5 shrink-0" /> : <FileText className="w-5 h-5 shrink-0" />}
             <h4 className="font-bold text-white text-sm sm:text-base truncate">{res.title}</h4>
             {res.fileSize && <span className="text-xs text-slate-400 font-mono shrink-0">({res.fileSize})</span>}
           </div>
@@ -160,7 +221,7 @@ const PdfViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> =
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>PDF İndir</span>
+              <span>{kindLabel} İndir</span>
             </button>
             <button
               type="button"
@@ -173,18 +234,40 @@ const PdfViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> =
           </div>
         </div>
 
-        <div className="flex-1 bg-slate-950 p-2 relative">
-          {frameSrc ? (
-            <iframe src={frameSrc} title={res.title} className="w-full h-full rounded-xl border border-slate-800 bg-white" />
-          ) : (
+        <div className="flex-1 bg-slate-950 p-2 relative min-h-0">
+          {error ? (
+            <div role="alert" className="w-full h-full flex items-center justify-center text-sm text-rose-300 text-center p-6">
+              {error}
+            </div>
+          ) : !frameSrc ? (
             <div className="w-full h-full flex items-center justify-center text-xs text-slate-400">Yükleniyor…</div>
+          ) : isImage ? (
+            <div className="w-full h-full flex items-center justify-center overflow-auto">
+              <img src={frameSrc} alt={res.title} className="max-w-full max-h-full object-contain rounded-xl" />
+            </div>
+          ) : (
+            <iframe src={frameSrc} title={res.title} className="w-full h-full rounded-xl border border-slate-800 bg-white" />
           )}
         </div>
-        <div className="px-4 py-2 border-t border-slate-800 text-[11px] text-slate-400 flex-shrink-0">
-          PDF burada görünmüyorsa (özellikle telefonda) "PDF İndir" ya da "Yeni Sekmede Aç" ile açabilirsiniz.
-        </div>
+        {!isImage && (
+          <div className="px-4 py-2 border-t border-slate-800 text-[11px] text-slate-400 flex-shrink-0">
+            PDF burada görünmüyorsa (özellikle telefonda) "PDF İndir" ya da "Yeni Sekmede Aç" ile açabilirsiniz.
+          </div>
+        )}
       </div>
     </div>
+  );
+};
+
+// Video oynatıcı kaynağı (depo dosyası ise imzalı bağlantı alınır)
+const StoredVideo: React.FC<{ res: HomeworkResource }> = ({ res }) => {
+  const { url, error } = useViewableUrl(res.url);
+  if (error) return <div className="text-sm text-rose-300 p-6 text-center">{error}</div>;
+  if (!url) return <div className="text-xs text-slate-400 p-6">Yükleniyor…</div>;
+  return (
+    <video controls autoPlay className="w-full max-h-[60vh] rounded-xl shadow-lg border border-slate-800" src={url}>
+      Tarayıcınız video oynatmayı desteklemiyor.
+    </video>
   );
 };
 
@@ -226,6 +309,8 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
         return <Video className="w-4 h-4 text-rose-400" />;
       case 'pdf':
         return <FileText className="w-4 h-4 text-amber-400" />;
+      case 'image':
+        return <ImageIcon className="w-4 h-4 text-emerald-400" />;
       case 'link':
       default:
         return <LinkIcon className="w-4 h-4 text-blue-400" />;
@@ -243,6 +328,11 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
         return {
           bg: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
           label: 'PDF Dokümanı',
+        };
+      case 'image':
+        return {
+          bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300',
+          label: 'Fotoğraf',
         };
       case 'link':
       default:
@@ -300,14 +390,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                         allowFullScreen
                       />
                     ) : (
-                      <video
-                        controls
-                        autoPlay
-                        className="w-full max-h-[60vh] rounded-xl shadow-lg border border-slate-800"
-                        src={activeVideoModal.url}
-                      >
-                        Tarayıcınız video oynatmayı desteklemiyor.
-                      </video>
+                      <StoredVideo res={activeVideoModal} />
                     )}
                   </div>
 
@@ -325,7 +408,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                 </div>
               </div>
             )}
-            {activePdfModal && <PdfViewerModal res={activePdfModal} onClose={() => setActivePdfModal(null)} />}
+            {activePdfModal && <FileViewerModal res={activePdfModal} onClose={() => setActivePdfModal(null)} />}
           </>,
           document.body
         )
@@ -342,7 +425,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
               type="button"
               onClick={() => {
                 if (res.type === 'video') setActiveVideoModal(res);
-                else if (res.type === 'pdf') setActivePdfModal(res);
+                else if (res.type === 'pdf' || res.type === 'image') setActivePdfModal(res);
                 else openResourceInNewTab(res);
               }}
               className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all hover:scale-[1.02] ${badge.bg}`}
@@ -352,7 +435,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
               <span className="max-w-[140px] truncate">{res.title}</span>
               {res.type === 'video' ? (
                 <Play className="w-3 h-3 ml-0.5 opacity-80" />
-              ) : res.type === 'pdf' ? (
+              ) : res.type === 'pdf' || res.type === 'image' ? (
                 <Eye className="w-3 h-3 ml-0.5 opacity-80" />
               ) : (
                 <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
@@ -402,18 +485,20 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={(e) => handleCopy(res, e)}
-                  className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
-                  title="Bağlantıyı Kopyala"
-                >
-                  {copiedId === res.id ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
+                {!isFileResource(res) && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleCopy(res, e)}
+                    className="p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800 rounded transition-colors"
+                    title="Bağlantıyı Kopyala"
+                  >
+                    {copiedId === res.id ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
               </div>
 
               {res.description && (
@@ -435,7 +520,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                   </button>
                 )}
 
-                {res.type === 'pdf' && (
+                {(res.type === 'pdf' || res.type === 'image') && (
                   <>
                     <button
                       type="button"
@@ -443,14 +528,14 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                       className="flex-1 py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>PDF İncele</span>
+                      <span>{res.type === 'image' ? 'Fotoğrafı Gör' : 'PDF İncele'}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => downloadResource(res)}
                       className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition-colors"
-                      title="PDF Dosyasını İndir"
-                      aria-label="PDF Dosyasını İndir"
+                      title="Dosyayı İndir"
+                      aria-label="Dosyayı İndir"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </button>
