@@ -23,44 +23,17 @@ import confetti from 'canvas-confetti';
 import { TeacherDocument, DocumentCategory } from '../../../types';
 import { dataService } from '../../../services/dataService';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
+import { ORTAOKUL_SUBJECTS, LISE_SUBJECTS, ALL_SUBJECTS } from '../../../lib/subjects';
+import { MAX_UPLOAD_BYTES, UPLOAD_LIMIT_MESSAGE, formatBytes } from '../../../lib/fileStorage';
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadSuccess: (newDoc: Omit<TeacherDocument, 'id' | 'uploadedAt'>) => void;
+  // Belge bilgileri ve dosyanın kendisi; kayıt bitene kadar beklenir, hata olursa pencere açık kalır
+  onUploadSuccess: (newDoc: Omit<TeacherDocument, 'id' | 'uploadedAt'>, file: File) => Promise<void>;
+  // Varsayılan branş (öğretmenin kendi branşı veya arşivde seçili branş)
+  defaultSubject?: string;
 }
-
-const ORTAOKUL_SUBJECTS = [
-  'Matematik',
-  'Türkçe',
-  'Fen Bilgisi',
-  'Sosyal Bilgiler',
-  'İngilizce',
-];
-
-const LISE_SUBJECTS = [
-  'Matematik',
-  'Fizik',
-  'Kimya',
-  'Biyoloji',
-  'Coğrafya',
-  'Tarih',
-  'Edebiyat',
-];
-
-const ALL_SUBJECTS = [
-  'Matematik',
-  'Türkçe',
-  'Fen Bilgisi',
-  'Sosyal Bilgiler',
-  'İngilizce',
-  'Fizik',
-  'Kimya',
-  'Biyoloji',
-  'Coğrafya',
-  'Tarih',
-  'Edebiyat',
-];
 
 // Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
 export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = (props) => {
@@ -72,13 +45,17 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
   isOpen,
   onClose,
   onUploadSuccess,
+  defaultSubject,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const initialSubject = defaultSubject && defaultSubject !== 'all' ? defaultSubject : 'Fen Bilgisi';
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<DocumentCategory>('yearly_plan');
-  const [schoolType, setSchoolType] = useState<'Ortaokul' | 'Lise' | 'Diğer'>('Ortaokul');
-  const [subject, setSubject] = useState('Fen Bilgisi');
+  const [schoolType, setSchoolType] = useState<'Ortaokul' | 'Lise' | 'Diğer'>(() =>
+    ORTAOKUL_SUBJECTS.includes(initialSubject) ? 'Ortaokul' : LISE_SUBJECTS.includes(initialSubject) ? 'Lise' : 'Diğer'
+  );
+  const [subject, setSubject] = useState(initialSubject);
   const [gradeLevel, setGradeLevel] = useState('5. Sınıf');
   const [academicYear, setAcademicYear] = useState('2026-2027');
   const [description, setDescription] = useState('');
@@ -99,14 +76,14 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
     setSchoolType(newSchool);
     if (newSchool === 'Ortaokul') {
       if (!ORTAOKUL_SUBJECTS.includes(subject)) {
-        setSubject('Fen Bilgisi');
+        setSubject(ORTAOKUL_SUBJECTS.includes(initialSubject) ? initialSubject : 'Fen Bilgisi');
       }
       if (['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'].includes(gradeLevel)) {
         setGradeLevel('5. Sınıf');
       }
     } else if (newSchool === 'Lise') {
       if (!LISE_SUBJECTS.includes(subject)) {
-        setSubject('Matematik');
+        setSubject(LISE_SUBJECTS.includes(initialSubject) ? initialSubject : 'Matematik');
       }
       if (['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'].includes(gradeLevel)) {
         setGradeLevel('9. Sınıf');
@@ -114,12 +91,14 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
     }
   };
 
-  const availableSubjects =
+  const baseSubjects =
     schoolType === 'Ortaokul'
       ? ORTAOKUL_SUBJECTS
       : schoolType === 'Lise'
       ? LISE_SUBJECTS
       : ALL_SUBJECTS;
+  // Öğretmenin listede olmayan branşı da seçilebilsin
+  const availableSubjects = baseSubjects.includes(subject) ? baseSubjects : [subject, ...baseSubjects];
 
   // Auto file processor
   const handleProcessFile = async (file: File) => {
@@ -131,17 +110,19 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
       return;
     }
 
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setErrorMsg(UPLOAD_LIMIT_MESSAGE);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const detectedFormat: 'pdf' | 'docx' | 'xlsx' =
       ext === 'pdf' ? 'pdf' : ['xlsx', 'xls'].includes(ext) ? 'xlsx' : 'docx';
 
     setFileFormat(detectedFormat);
     setSelectedFile(file);
 
-    // Format size
-    const sizeKB = file.size / 1024;
-    const formattedSize =
-      sizeKB > 1024 ? `${(sizeKB / 1024).toFixed(1)} MB` : `${sizeKB.toFixed(1)} KB`;
-    setFileSizeStr(formattedSize);
+    setFileSizeStr(formatBytes(file.size));
 
     // Auto title if empty
     if (!title) {
@@ -185,7 +166,6 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
       let htmlPreview: string | undefined;
       let tableSheets: Array<{ name: string; rows: Array<Array<string | number>> }> | undefined;
-      let fileData: string | undefined;
 
       // 1. If Excel: extract sheets & rows
       if (fileFormat === 'xlsx') {
@@ -218,28 +198,19 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
         }
       }
 
-      // 3. Convert file to Base64 Data URL for universal in-app preview & download
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve('');
-        reader.readAsDataURL(selectedFile);
-      });
-      fileData = await base64Promise;
-
+      // 3. Dosyanın kendisi depoya yüklenir (kayıt içine gömülmez)
       const tags = tagsInput
         .split(',')
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
-      onUploadSuccess({
+      await onUploadSuccess({
         title: title.trim(),
         description: description.trim() || undefined,
         category,
         fileFormat,
         fileName: selectedFile.name,
         fileSize: fileSizeStr,
-        fileData,
         uploadedBy: 'Öğretmen',
         academicYear,
         schoolType,
@@ -248,7 +219,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
         tags: tags.length > 0 ? tags : [subject, category, schoolType, gradeLevel],
         htmlPreview,
         tableSheets,
-      });
+      }, selectedFile);
 
       confetti({
         particleCount: 50,
@@ -258,7 +229,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
       onClose();
     } catch (err: any) {
-      setErrorMsg('Dosya işlenirken bir hata oluştu: ' + (err?.message || 'Bilinmeyen hata'));
+      setErrorMsg(err?.message || 'Belge kaydedilemedi. Lütfen tekrar deneyin.');
     } finally {
       setIsProcessing(false);
     }
@@ -349,7 +320,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                     Dosyayı buraya sürükleyin veya seçmek için tıklayın
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Desteklenenler: Microsoft Word (.docx), PDF (.pdf), Excel (.xlsx, .xls)
+                    Desteklenenler: Word (.docx), PDF (.pdf), Excel (.xlsx, .xls) — en fazla 10 MB
                   </p>
                 </div>
               )}
@@ -426,6 +397,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                 Kategori *
               </label>
               <select
+                aria-label="Kategori"
                 value={category}
                 onChange={(e) => setCategory(e.target.value as DocumentCategory)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
@@ -441,12 +413,13 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                <span>Dersler *</span>
+                <span>Branş / Ders *</span>
                 <span className="text-[10px] text-indigo-300 font-normal">
-                  ({schoolType})
+                  Belge bu branşın klasörüne kaydedilir
                 </span>
               </label>
               <select
+                aria-label="Branş / Ders"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
@@ -545,7 +518,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
               {isProcessing ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>İşleniyor...</span>
+                  <span>Yükleniyor...</span>
                 </>
               ) : (
                 <>
