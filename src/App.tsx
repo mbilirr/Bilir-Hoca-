@@ -1,34 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  Users,
-  BookOpen,
-  CalendarDays,
-  FileSpreadsheet,
-  MessageSquare,
-  Sparkles,
-  ShieldCheck,
-  Database,
-  Calendar,
-  LogOut,
-  UserCheck,
-  GraduationCap,
-  Bell,
-  Menu,
-  X,
-  ArrowLeft,
-  FolderArchive,
-  Home,
-} from 'lucide-react';
+import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
+import { PageHeader } from './components/ui/kit';
 import { Navbar } from './components/Navbar';
+import { CommandPalette } from './components/Layout/CommandPalette';
+import { TeacherBottomNav } from './components/Layout/BottomNav';
+import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { StudentManagement } from './components/Teacher/StudentManagement';
 import { HomeworkManagement } from './components/Teacher/HomeworkManagement';
 import { EtutManagement } from './components/Teacher/EtutManagement';
 import { TeacherMessages } from './components/Teacher/TeacherMessages';
-import { TeacherStatsOverview } from './components/Teacher/TeacherStatsOverview';
-import { TeacherHeroBanner } from './components/Teacher/TeacherHeroBanner';
-import { TeacherEtutBell } from './components/Teacher/TeacherEtutBell';
+import { TeacherHome } from './components/Teacher/TeacherHome';
 import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherDocumentsArchive';
 import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
@@ -101,9 +84,6 @@ export default function App() {
 
   // Teacher active navigation tab — sayfa yenilenirse URL hash'inden geri yüklenir, yoksa 'home'
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>(() => parseRouteHash().tab);
-
-  // Mobile drawer state
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Data states from dataService
   const [students, setStudents] = useState<Student[]>(dataService.getStudents());
@@ -350,9 +330,23 @@ export default function App() {
   // Determine active teacher info if logged in as teacher
   const activeTeacher =
     authSession.role === 'teacher' ? (authSession.user as Teacher) : null;
+  const isAdminTeacher = !!activeTeacher && dataService.isTeacherAdmin(activeTeacher);
+  const showTeacherChrome = !!activeTeacher && role === 'teacher';
+
+  // Üst menü, alt menü ve hızlı aramadan bölüm değiştirme
+  const selectTeacherTab = (tab: TeacherTabType) => {
+    setRole('teacher');
+    setTeacherTab(tab);
+    setStudents(dataService.getStudents());
+    setClasses(dataService.getClasses());
+    setHomeworks(dataService.getHomeworks());
+    setEtuts(dataService.getEtuts());
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white overflow-x-hidden w-full max-w-full">
+    <div
+      className={`min-h-screen text-fg flex flex-col overflow-x-hidden w-full max-w-full ${showTeacherChrome || (role === 'student' && currentStudent) ? 'has-bottom-nav' : ''}`}
+    >
       <NetworkSyncStatusBanner />
       {/* Top Main Navbar */}
       <Navbar
@@ -363,27 +357,20 @@ export default function App() {
         currentStudent={currentStudent}
         onLogout={handleLogout}
         onStudentLogout={handleLogout}
-        activeTeacherTab={teacherTab}
-        onSelectTeacherTab={(tab) => {
-          setTeacherTab(tab);
-          setStudents(dataService.getStudents());
-          setClasses(dataService.getClasses());
-          setHomeworks(dataService.getHomeworks());
-          setEtuts(dataService.getEtuts());
-        }}
+        activeTeacherTab={role === 'teacher' ? teacherTab : undefined}
+        onSelectTeacherTab={selectTeacherTab}
         unreadMessagesCount={unreadMessagesCount}
         documentsCount={documents.length}
       />
 
       {/* Teacher Viewing Student Portal Notice Banner */}
       {authSession.role === 'teacher' && role === 'student' && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+        <div className="bg-warning-soft border-b border-line px-3 sm:px-6 lg:px-8 py-2.5 text-xs text-warning-fg">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4 shrink-0" />
               <span>
-                <strong>Öğretmen Görünümü:</strong> Şu anda öğrenci portalı arayüzünü inceliyorsunuz.
-                (Öğrenciler giriş yaptığında yalnızca bu paneli görebilir.)
+                <strong>Öğrenci görünümü:</strong> Öğrencilerin gördüğü ekranı inceliyorsunuz.
               </span>
             </div>
             <button
@@ -391,7 +378,7 @@ export default function App() {
                 setRole('teacher');
                 setTeacherTab('home');
               }}
-              className="flex items-center space-x-1 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition-colors text-xs"
+              className="ui-btn ui-btn-warning ui-btn-sm"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Öğretmen Paneline Dön</span>
@@ -401,7 +388,7 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
         {role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
@@ -419,9 +406,9 @@ export default function App() {
 
             {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
             {activeTeacher?.isAdmin && pendingApplications > 0 && teacherTab !== 'user_management' && (
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/40 text-amber-100">
-                <div className="flex items-center space-x-2.5 text-sm">
-                  <Bell className="w-4 h-4 text-amber-300" />
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-warning-soft border border-line text-fg">
+                <div className="flex items-center gap-2.5 text-sm">
+                  <Bell className="w-4 h-4 text-warning-fg shrink-0" />
                   <span>
                     <strong>{pendingApplications}</strong> öğrenci kayıt başvurusu onayınızı bekliyor.
                   </span>
@@ -429,89 +416,35 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setTeacherTab('user_management')}
-                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold"
+                  className="ui-btn ui-btn-warning ui-btn-sm"
                 >
                   Başvuruları İncele
                 </button>
               </div>
             )}
 
-            {/* ANA SAYFA: Sadece Ajanda Duvarı ve Durum Özetleri Duvarı */}
+            {/* ANA SAYFA: selamlama, "Bugün" özeti, özet kartları ve ajanda */}
             {teacherTab === 'home' && (
-              <>
-                {/* Duvar 1: Solunda Öğretmen Görseli, Sağında Güncel Ayı Gösteren Ajanda */}
-                <TeacherHeroBanner
-                  currentTeacher={currentTeacher}
-                  etuts={etuts}
-                  homeworks={homeworks}
-                  onNavigateTab={(tab) => setTeacherTab(tab)}
-                />
-
-                {/* Duvar 2: Öğretmen Yönetim & İstatistik Özet Kartları (Durum Özetleri) */}
-                <TeacherStatsOverview
-                  students={students}
-                  classes={classes}
-                  homeworks={homeworks}
-                  submissions={submissions}
-                  etuts={etuts}
-                  onNavigateTab={(tab) => setTeacherTab(tab)}
-                  currentRole={role}
-                  onRoleChange={handleRoleChange}
-                  headerRightSlot={
-                    <div className="flex items-center space-x-2">
-                      <span className="hidden sm:inline text-xs text-slate-400 font-medium">
-                        Etüt Uyarı Zili:
-                      </span>
-                      <TeacherEtutBell
-                        etuts={etuts}
-                        students={students}
-                        onOpenEtutsTab={() => setTeacherTab('etuts')}
-                      />
-                    </div>
-                  }
-                />
-              </>
+              <TeacherHome
+                currentTeacher={currentTeacher}
+                students={students}
+                classes={classes}
+                homeworks={homeworks}
+                submissions={submissions}
+                etuts={etuts}
+                messages={messages}
+                onNavigateTab={selectTeacherTab}
+                onOpenStudentView={() => handleRoleChange('student')}
+              />
             )}
 
             {/* SEÇİLİ ÇALIŞMA MODÜLÜ: Çalışma modülü butonundan hangi bölüm seçildiyse sayfada SADECE o bölüm gözükür */}
             {teacherTab !== 'home' && (
               <div className="space-y-4">
-                {/* Navigasyon Başlığı & Ana Sayfaya Dönüş */}
-                <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-3 shadow-md">
-                  <div className="flex items-center space-x-2 text-xs sm:text-sm">
-                    <span className="text-white font-black tracking-wide">
-                      {teacherTab === 'students' && 'Öğrenci & Sınıf Yönetimi'}
-                      {teacherTab === 'homework' && 'Kazanım & Ödev Takibi'}
-                      {teacherTab === 'etuts' && 'Etüt & Birebir Takip'}
-                      {teacherTab === 'messages' && 'Öğrenci Soruları & Mesajlaşma'}
-                      {teacherTab === 'archive' && 'Plan & Zümre Arşivi'}
-                      {teacherTab === 'question_tracking' && 'Soru Sayısı Takip & Analiz'}
-                      {teacherTab === 'user_management' && 'Kullanıcı & Yetki Yönetimi (RBAC)'}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setTeacherTab('home')}
-                    className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white text-xs font-bold transition-all border border-slate-700 hover:border-slate-600 cursor-pointer shadow-sm"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Ana Sayfaya Dön</span>
-                  </button>
-                </div>
-
                 {/* Active Teacher View Tab with Isolated Safe Boundary */}
                 <ModuleErrorBoundary
                   key={teacherTab}
-                  moduleName={
-                    teacherTab === 'students' ? 'Öğrenci & Sınıf Yönetimi' :
-                    teacherTab === 'homework' ? 'Kazanım & Ödev Takibi' :
-                    teacherTab === 'etuts' ? 'Etüt & Birebir Takip' :
-                    teacherTab === 'messages' ? 'Öğrenci Soruları & Mesajlaşma' :
-                    teacherTab === 'archive' ? 'Plan & Zümre Arşivi' :
-                    teacherTab === 'question_tracking' ? 'Soru Sayısı Takip & Analiz' :
-                    teacherTab === 'user_management' ? 'Kullanıcı & Yetki Yönetimi (RBAC)' : 'Modül'
-                  }
+                  moduleName={findTeacherNav(teacherTab)?.title || 'Modül'}
                   onResetToHome={() => setTeacherTab('home')}
                 >
                   {teacherTab === 'students' && (
@@ -561,7 +494,13 @@ export default function App() {
                   )}
 
                   {teacherTab === 'user_management' && activeTeacher?.isAdmin && (
-                    <div className="mb-6">
+                    <div className="space-y-6 mb-6">
+                      <PageHeader
+                        icon={ShieldCheck}
+                        tone="warning"
+                        title="Yönetim"
+                        description="Veri yedeği, kullanıcılar ve yetkiler"
+                      />
                       <AdminMaintenancePanel />
                     </div>
                   )}
@@ -590,16 +529,16 @@ export default function App() {
               messages={messages}
             />
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-md mx-auto shadow-2xl space-y-4">
-              <GraduationCap className="w-12 h-12 text-indigo-400 mx-auto" />
-              <h2 className="text-xl font-bold text-white">Öğrenci Girişi Yapılmadı</h2>
-              <p className="text-xs text-slate-400">
+            <div className="ui-card p-10 text-center max-w-md mx-auto space-y-3">
+              <GraduationCap className="w-12 h-12 text-brand-fg mx-auto" />
+              <h2 className="text-xl font-bold text-fg">Öğrenci Girişi Yapılmadı</h2>
+              <p className="text-sm text-muted">
                 Öğrenci görünümünü incelemek için sistemde en az bir öğrenci bulunmalıdır.
               </p>
-              <div className="flex items-center justify-center space-x-3 pt-2">
+              <div className="flex items-center justify-center pt-2">
                 <button
                   onClick={() => handleRoleChange('teacher')}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="ui-btn ui-btn-primary"
                 >
                   Öğretmen Paneline Dön
                 </button>
@@ -609,30 +548,34 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="mt-12 border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center space-x-2 text-slate-500">
-            <GraduationCap className="w-4 h-4 text-indigo-400" />
-            <span>© {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            {activeTeacher?.isAdmin && (
-            <button
-              onClick={() => setIsSupabaseModalOpen(true)}
-              id="footer-supabase-btn"
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-emerald-400 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 transition-all cursor-pointer shadow-sm"
-              title="Supabase Veritabanı ve Tablo Şeması Bilgisi"
-            >
-              <Database className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Supabase</span>
-            </button>
-            )}
-            <span className="text-slate-700">•</span>
-            <span className="text-slate-400">Google Calendar & .ics Desteği Aktif</span>
-          </div>
+      {/* Alt bilgi */}
+      <footer className="mt-10 border-t border-line py-5 text-center text-xs text-subtle">
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center gap-2">
+          <GraduationCap className="w-4 h-4" />
+          <span>Eğitim Takip · {new Date().getFullYear()}</span>
         </div>
       </footer>
+
+      {/* Öğretmen: hızlı arama (Ctrl+K) ve telefon alt menüsü */}
+      {activeTeacher && (
+        <CommandPalette
+          isAdmin={isAdminTeacher}
+          students={students}
+          classes={classes}
+          homeworks={homeworks}
+          etuts={etuts}
+          onNavigate={selectTeacherTab}
+        />
+      )}
+      {showTeacherChrome && (
+        <TeacherBottomNav
+          activeTab={teacherTab}
+          isAdmin={isAdminTeacher}
+          unreadMessages={unreadMessagesCount}
+          onSelect={selectTeacherTab}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* MODALS */}
       <SupabaseGuideModal

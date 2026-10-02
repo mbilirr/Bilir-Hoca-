@@ -122,8 +122,8 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
           isOpen
             ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/30 ring-2 ring-indigo-500/30'
             : hasTodayEtut
-            ? 'bg-slate-800/90 text-amber-300 border-amber-500/40 hover:bg-slate-800 hover:text-amber-200'
-            : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+            ? 'bg-surface-2/90 text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-surface-2 hover:text-amber-700 dark:hover:text-amber-200'
+            : 'bg-surface-2/80 text-fg-2 border-line hover:bg-surface-2 hover:text-fg'
         }`}
         title={
           hasTodayEtut
@@ -147,7 +147,7 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
         {totalCount > 0 && (
           <span
             className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white shadow-md ${
-              hasTodayEtut ? 'bg-rose-500 ring-2 ring-slate-900' : 'bg-indigo-600 ring-2 ring-slate-900'
+              hasTodayEtut ? 'bg-rose-500 ring-2 ring-surface' : 'bg-indigo-600 ring-2 ring-surface'
             }`}
           >
             {totalCount}
@@ -157,18 +157,18 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
 
       {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-80 sm:w-96 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden text-slate-100 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute right-0 mt-2.5 w-80 sm:w-96 bg-surface border border-line rounded-2xl shadow-2xl z-50 overflow-hidden text-fg animate-in fade-in slide-in-from-top-2 duration-150">
           {/* Header */}
-          <div className="px-4 py-3.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+          <div className="px-4 py-3.5 bg-canvas/80 border-b border-line flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
                 <CalendarDays className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white tracking-wide">
+                <h4 className="text-xs font-bold text-fg tracking-wide">
                   Etüt & Birebir Takvimi
                 </h4>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-muted">
                   {hasTodayEtut
                     ? `Bugün ${todayEtuts.length} etüt, toplam ${totalCount} yaklaşan oturum`
                     : `${totalCount} yaklaşan etüt oturumu`}
@@ -177,7 +177,7 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
             </div>
 
             {hasTodayEtut && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-1 animate-pulse">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 flex items-center space-x-1 animate-pulse">
                 <AlertCircle className="w-3 h-3" />
                 <span>Bugün Etüt Var!</span>
               </span>
@@ -185,11 +185,11 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
           </div>
 
           {/* List Content */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/80 p-1.5">
+          <div className="max-h-80 overflow-y-auto divide-y divide-line p-1.5">
             {upcomingEtuts.length === 0 ? (
               <div className="py-8 px-4 text-center">
-                <Calendar className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                <p className="text-xs font-medium text-slate-300">
+                <Calendar className="w-8 h-8 text-subtle mx-auto mb-2" />
+                <p className="text-xs font-medium text-fg-2">
                   Önümüzdeki 7 gün içinde planlanmış etüt bulunmuyor.
                 </p>
               </div>
@@ -200,10 +200,10 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
                   <div
                     key={etut.id}
                     onClick={() => handleSelectEtut(etut.id)}
-                    className={`p-3 rounded-xl transition-all cursor-pointer hover:bg-slate-800/70 group ${
+                    className={`p-3 rounded-xl transition-all cursor-pointer hover:bg-surface-2/70 group ${
                       isToday
                         ? 'bg-amber-500/10 border border-amber-500/20 my-1'
-                        : 'hover:bg-slate-800/50'
+                        : 'hover:bg-surface-2/50'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -214,30 +214,30 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                               isToday
                                 ? 'bg-amber-500 text-slate-950 font-extrabold'
-                                : 'bg-slate-800 text-indigo-300 border border-slate-700'
+                                : 'bg-surface-2 text-indigo-600 dark:text-indigo-300 border border-line'
                             }`}
                           >
                             {formatEtutDate(etut.date)} • {etut.time}
                           </span>
 
-                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                             {etut.subject}
                           </span>
 
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-muted">
                             ({etut.duration} dk)
                           </span>
                         </div>
 
                         {/* Topic */}
-                        <h5 className="text-xs font-semibold text-slate-100 group-hover:text-indigo-300 transition-colors truncate">
+                        <h5 className="text-xs font-semibold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors truncate">
                           {etut.topic}
                         </h5>
 
                         {/* Location and Students Info */}
-                        <div className="flex items-center space-x-3 mt-1.5 text-[11px] text-slate-400">
+                        <div className="flex items-center space-x-3 mt-1.5 text-[11px] text-muted">
                           <span className="flex items-center space-x-1 truncate">
-                            <Users className="w-3 h-3 text-slate-500 flex-shrink-0" />
+                            <Users className="w-3 h-3 text-muted flex-shrink-0" />
                             <span className="truncate">
                               {getAssignedStudentsLabel(etut.assignedStudentIds)}
                             </span>
@@ -245,14 +245,14 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
 
                           {etut.location && (
                             <span className="flex items-center space-x-1 truncate">
-                              <MapPin className="w-3 h-3 text-slate-500 flex-shrink-0" />
+                              <MapPin className="w-3 h-3 text-muted flex-shrink-0" />
                               <span className="truncate">{etut.location}</span>
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-2" />
+                      <ChevronRight className="w-4 h-4 text-muted group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all flex-shrink-0 mt-2" />
                     </div>
                   </div>
                 );
@@ -261,14 +261,14 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
           </div>
 
           {/* Footer Action */}
-          <div className="p-2.5 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between">
+          <div className="p-2.5 bg-canvas/90 border-t border-line flex items-center justify-between">
             <button
               type="button"
               onClick={() => {
                 setIsOpen(false);
                 onOpenEtutsTab();
               }}
-              className="w-full py-2 px-3 text-xs font-bold text-indigo-400 hover:text-indigo-300 hover:bg-indigo-950/40 rounded-xl transition-all flex items-center justify-center space-x-1.5 border border-indigo-500/20"
+              className="w-full py-2 px-3 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-all flex items-center justify-center space-x-1.5 border border-indigo-500/20"
             >
               <CalendarDays className="w-3.5 h-3.5" />
               <span>Tüm Etüt & Birebir Yönetimini Aç</span>

@@ -168,28 +168,28 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative bg-slate-900 border border-slate-750 w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          className="relative bg-surface border border-line w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* MODAL HEADER */}
-        <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-canvas border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
               <FileText className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 {homework.schoolLevel && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950/80 text-indigo-300 border border-indigo-500/30">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                     {homework.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
                   </span>
                 )}
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/30">
                   {homework.subject}
                 </span>
-                <span className="text-xs text-slate-400">2026-2027 Akademik Yılı</span>
+                <span className="text-xs text-muted">2026-2027 Akademik Yılı</span>
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-white truncate max-w-lg mt-0.5">
+              <h2 className="text-base sm:text-lg font-bold text-fg truncate max-w-lg mt-0.5">
                 {homework.title}
               </h2>
             </div>
@@ -199,7 +199,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <button
               type="button"
               onClick={handlePrint}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors text-xs flex items-center space-x-1.5"
+              className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl border border-line transition-colors text-xs flex items-center space-x-1.5"
               title="Yazdır"
             >
               <Printer className="w-4 h-4" />
@@ -208,7 +208,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 transition-colors"
+              className="p-2 bg-surface-2 hover:bg-surface-3 text-muted hover:text-fg rounded-xl border border-line transition-colors"
               title="Kapat"
             >
               <X className="w-4 h-4" />
@@ -217,83 +217,83 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
         </div>
 
         {/* MODAL BODY (AUTHENTIC A4 HOMEWORK DOCUMENT SHEET) */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 bg-slate-900/60">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 bg-surface/60">
           {/* Printable Page Canvas Container */}
-          <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-inner">
+          <div className="bg-canvas/90 border border-line rounded-2xl p-6 sm:p-8 space-y-6 shadow-inner">
             {/* Ministry Header Simulation */}
-            <div className="text-center border-b border-slate-800 pb-5 space-y-1">
-              <p className="text-[11px] font-bold tracking-widest text-indigo-400 uppercase">
+            <div className="text-center border-b border-line pb-5 space-y-1">
+              <p className="text-[11px] font-bold tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">
                 T.C. MİLLÎ EĞİTİM BAKANLIĞI
               </p>
-              <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
+              <h3 className="text-base sm:text-lg font-extrabold text-fg tracking-tight">
                 2026-2027 EĞİTİM-ÖĞRETİM YILI ÖDEV VE KAZANIM FORMU
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 {homework.subject} Dersi • {homework.schoolLevel || 'Ortaokul/Lise'} Kademesi
               </p>
             </div>
 
             {/* Quick Summary Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-slate-400 flex items-center space-x-1 mb-1">
-                  <Calendar className="w-3 h-3 text-indigo-400" />
+              <div className="bg-surface/80 border border-line p-3 rounded-xl">
+                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                  <Calendar className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                   <span>Son Teslim Tarihi</span>
                 </span>
-                <p className="text-xs font-bold text-white">{dueDateFormatted}</p>
-                <p className="text-[10px] text-slate-400">{dueTimeFormatted}</p>
+                <p className="text-xs font-bold text-fg">{dueDateFormatted}</p>
+                <p className="text-[10px] text-muted">{dueTimeFormatted}</p>
               </div>
 
-              <div className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-slate-400 flex items-center space-x-1 mb-1">
-                  <Users className="w-3 h-3 text-emerald-400" />
+              <div className="bg-surface/80 border border-line p-3 rounded-xl">
+                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                  <Users className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
                   <span>Hedef Sınıflar</span>
                 </span>
-                <p className="text-xs font-bold text-white truncate">
+                <p className="text-xs font-bold text-fg truncate">
                   {targetClassNames.length > 0 ? targetClassNames.join(', ') : 'Tüm Şubeler'}
                 </p>
-                <p className="text-[10px] text-slate-400">{assignedCount} Öğrenci</p>
+                <p className="text-[10px] text-muted">{assignedCount} Öğrenci</p>
               </div>
 
-              <div className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-slate-400 flex items-center space-x-1 mb-1">
-                  <Clock className="w-3 h-3 text-amber-400" />
+              <div className="bg-surface/80 border border-line p-3 rounded-xl">
+                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                  <Clock className="w-3 h-3 text-amber-700 dark:text-amber-400" />
                   <span>Teslim Durumu</span>
                 </span>
                 <p
                   className={`text-xs font-bold ${
-                    isOverdue ? 'text-rose-400' : 'text-amber-400'
+                    isOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'
                   }`}
                 >
                   {isOverdue ? 'Süre Doldu' : 'Aktif Ödev'}
                 </p>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-muted">
                   {hwSubmissions.length} Öğrenci İşlendi
                 </p>
               </div>
 
-              <div className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl">
-                <span className="text-[11px] font-medium text-slate-400 flex items-center space-x-1 mb-1">
-                  <Award className="w-3 h-3 text-indigo-400" />
+              <div className="bg-surface/80 border border-line p-3 rounded-xl">
+                <span className="text-[11px] font-medium text-muted flex items-center space-x-1 mb-1">
+                  <Award className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                   <span>Ödev Kontrol Sonucu</span>
                 </span>
                 <div className="flex items-center space-x-2 text-[11px] font-semibold mt-0.5">
-                  <span className="text-emerald-400 font-bold">✅ {yaptiCount}</span>
-                  <span className="text-rose-400 font-bold">❌ {yapmadiCount}</span>
-                  <span className="text-amber-400 font-bold">⚠️ {eksikCount}</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-bold">✅ {yaptiCount}</span>
+                  <span className="text-rose-600 dark:text-rose-400 font-bold">❌ {yapmadiCount}</span>
+                  <span className="text-amber-700 dark:text-amber-400 font-bold">⚠️ {eksikCount}</span>
                 </div>
               </div>
             </div>
 
             {/* Title & Detailed Description */}
             <div className="space-y-3 pt-2">
-              <div className="flex items-center space-x-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
+              <div className="flex items-center space-x-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
                 <BookOpen className="w-4 h-4" />
                 <span>Ödev Başlığı & Yönergesi</span>
               </div>
-              <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-2">
-                <h4 className="text-base font-bold text-white tracking-tight">{homework.title}</h4>
-                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+              <div className="bg-surface/90 border border-line rounded-xl p-4 sm:p-5 space-y-2">
+                <h4 className="text-base font-bold text-fg tracking-tight">{homework.title}</h4>
+                <p className="text-sm text-fg-2 leading-relaxed whitespace-pre-line">
                   {homework.description || 'Ödev için özel bir yönerge girilmemiştir.'}
                 </p>
               </div>
@@ -302,7 +302,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             {/* Kazanımlar / Öğrenme Alanları */}
             {homework.outcomes && homework.outcomes.length > 0 && (
               <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                <div className="flex items-center space-x-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
                   <Target className="w-4 h-4" />
                   <span>Hedeflenen Kazanımlar ({homework.outcomes.length})</span>
                 </div>
@@ -310,9 +310,9 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
                   {homework.outcomes.map((outcome, idx) => (
                     <div
                       key={idx}
-                      className="p-2.5 bg-slate-900/60 border border-slate-800/80 rounded-xl text-xs text-slate-200 flex items-start space-x-2"
+                      className="p-2.5 bg-surface/60 border border-line rounded-xl text-xs text-fg flex items-start space-x-2"
                     >
-                      <span className="w-5 h-5 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                      <span className="w-5 h-5 rounded-full bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
                         {idx + 1}
                       </span>
                       <span className="leading-snug">{outcome}</span>
@@ -325,11 +325,11 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             {/* Attached Resources / Videos / Links */}
             {((homework.resources && homework.resources.length > 0) || homework.attachmentUrl) && (
               <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2 text-xs font-bold text-indigo-400 uppercase tracking-wider">
+                <div className="flex items-center space-x-2 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
                   <Paperclip className="w-4 h-4" />
                   <span>Çalışma Materyalleri & Ek Kaynaklar</span>
                 </div>
-                <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-800">
+                <div className="bg-surface/50 rounded-xl p-3 border border-line">
                   <HomeworkResourceViewer
                     resources={homework.resources}
                     legacyAttachmentUrl={homework.attachmentUrl}
@@ -339,28 +339,28 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             )}
 
             {/* Teacher Signature Line */}
-            <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-3">
+            <div className="pt-6 border-t border-line flex flex-col sm:flex-row items-center justify-between text-xs text-muted gap-3">
               <div>
-                <span className="font-semibold text-white">Öğretmen:</span>{' '}
+                <span className="font-semibold text-fg">Öğretmen:</span>{' '}
                 {homework.teacherName || homework.createdByName || 'Öğretmen'} ({homework.subject})
               </div>
               <div>
-                <span className="font-semibold text-white">Hazırlanma Tarihi:</span> {new Date().toLocaleDateString('tr-TR')}
+                <span className="font-semibold text-fg">Hazırlanma Tarihi:</span> {new Date().toLocaleDateString('tr-TR')}
               </div>
             </div>
           </div>
         </div>
 
         {/* MODAL FOOTER - SAYFA ALTINDA İNDİR BUTONU (CRUCIAL USER REQUIREMENT) */}
-        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-4 bg-canvas border-t border-line flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2 text-xs">
             {downloadSuccess ? (
-              <span className="inline-flex items-center space-x-1.5 text-emerald-400 font-semibold animate-in fade-in">
+              <span className="inline-flex items-center space-x-1.5 text-emerald-700 dark:text-emerald-400 font-semibold animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Ödev Belgesi (.DOC) başarıyla indirildi!</span>
               </span>
             ) : (
-              <span className="text-slate-400 flex items-center space-x-1.5">
+              <span className="text-muted flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
                 <span>Tüm ödev sayfası ve detayları görüntülendi</span>
               </span>
@@ -383,7 +383,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-colors cursor-pointer"
+              className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
               Pencereyi Kapat
             </button>

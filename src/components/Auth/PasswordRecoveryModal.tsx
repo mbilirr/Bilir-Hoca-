@@ -68,15 +68,15 @@ export const PasswordRecoveryModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5">
       <div className="min-h-full flex items-center justify-center py-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-5 space-y-4 text-slate-100">
+        <div className="w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 space-y-4 text-fg">
           <div className="flex items-center space-x-2">
-            <Lock className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-base font-bold text-white">Yeni Şifre Belirle</h3>
+            <Lock className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-base font-bold text-fg">Yeni Şifre Belirle</h3>
           </div>
 
           {done ? (
             <div className="space-y-4">
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex items-start space-x-2">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-sm flex items-start space-x-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>Şifreniz güncellendi. Artık yeni şifrenizle giriş yapabilirsiniz.</span>
               </div>
@@ -90,12 +90,12 @@ export const PasswordRecoveryModal: React.FC = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 Hesabınız için yeni bir şifre belirleyiniz (en az 6 karakter).
               </p>
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-2">
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start space-x-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{errorMsg}</span>
                 </div>
@@ -111,13 +111,13 @@ export const PasswordRecoveryModal: React.FC = () => {
                   autoCorrect="off"
                   spellCheck={false}
                   autoComplete="new-password"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-canvas border border-line rounded-xl px-3.5 pr-10 py-2.5 text-sm text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-200"
+                  className="absolute right-3 top-3 text-muted hover:text-fg"
                   aria-label="Şifreyi göster/gizle"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -133,7 +133,7 @@ export const PasswordRecoveryModal: React.FC = () => {
                 autoCorrect="off"
                 spellCheck={false}
                 autoComplete="new-password"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2.5 text-sm text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                 required
               />
 
@@ -141,7 +141,7 @@ export const PasswordRecoveryModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 rounded-xl text-sm text-slate-300 hover:text-white cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-sm text-fg-2 hover:text-fg cursor-pointer"
                 >
                   Vazgeç
                 </button>

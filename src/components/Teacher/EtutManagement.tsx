@@ -29,7 +29,6 @@ import {
   Info,
   HelpCircle,
   MessageSquareQuote,
-  RefreshCw,
   ChevronDown,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -53,6 +52,8 @@ import {
   getGradesForSchoolLevel,
   getSubjectsForSchoolLevel,
 } from '../../constants/schoolConstants';
+import { useQuickFocus } from '../../lib/quickFocus';
+import { PageHeader, Segmented } from '../ui/kit';
 
 interface EtutManagementProps {
   etuts: Etut[];
@@ -71,12 +72,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
   const [editingEtut, setEditingEtut] = useState<Etut | null>(null);
+
+  // Ana sayfa kısayolu: yeni etüt penceresini aç
+  useQuickFocus(['action'], (f) => {
+    if (f.id === 'etut-create') {
+      resetForm();
+      setEditingEtut(null);
+      setIsCreateModalOpen(true);
+    }
+  });
   const [etutToDelete, setEtutToDelete] = useState<Etut | null>(null);
   const [selectedEtutForDispatch, setSelectedEtutForDispatch] = useState<Etut | null>(null);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [selectedEtutForAttendance, setSelectedEtutForAttendance] = useState<Etut | null>(null);
   const [isSubjectTeacherModalOpen, setIsSubjectTeacherModalOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
 
   // Mobil veya bilgisayardan açıldığında en son etütleri anında buluttan senkronize et
   useEffect(() => {
@@ -87,7 +96,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
 
   const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>('all');
-  const [lastSyncSuccessTime, setLastSyncSuccessTime] = useState<string>('');
 
   const myEtuts = useMemo(() => {
     if (!currentTeacher) return etuts;
@@ -105,14 +113,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   }, [etuts, currentTeacher]);
 
   const activeEtuts = scopeFilter === 'mine' ? myEtuts : etuts;
-
-  const handleManualSync = async () => {
-    setIsSyncing(true);
-    await dataService.syncEtutsFromSupabase(false);
-    await dataService.forceSyncTeachers();
-    setLastSyncSuccessTime(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    setTimeout(() => setIsSyncing(false), 500);
-  };
 
   // Form states - Okul, Sınıf ve Dersler (Dinamik)
   const [schoolLevel, setSchoolLevel] = useState<SchoolLevelType>('Ortaokul');
@@ -628,136 +628,69 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-        <div>
-          <div className="flex items-center space-x-2">
-            <CalendarDays className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-white">Etüt & Birebir Takip Planlama</h2>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Scope Filter: Tüm Okul Programı / Benim Etütlerim */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={CalendarDays}
+        tone="info"
+        title="Etütler"
+        description="Etüt ve birebir çalışma planı, yoklama ve analiz"
+        actions={
+          <>
             <button
               type="button"
-              onClick={() => setScopeFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                scopeFilter === 'all'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => {
+                setReportSelectedStudentId(undefined);
+                setIsReportModalOpen(true);
+              }}
+              id="btn-etut-analysis"
+              className="ui-btn ui-btn-secondary"
+              title="Sınıf ve öğrenci bazlı etüt analizi ve raporu"
             >
-              Tüm Okul ({etuts.length})
+              <BarChart3 className="w-4 h-4" />
+              <span>Etüt Analizi</span>
             </button>
             <button
               type="button"
-              onClick={() => setScopeFilter('mine')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                scopeFilter === 'mine'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => setIsSentCommunicationsOpen(true)}
+              className="ui-btn ui-btn-secondary ui-btn-icon"
+              title="Giden e-posta ve bildirimler"
+              aria-label="Giden e-posta ve bildirimler"
             >
-              Benim Etütlerim ({myEtuts.length})
-            </button>
-          </div>
-
-          {/* View Mode Switcher */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
-            <button
-              type="button"
-              onClick={() => setViewMode('calendar')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'calendar'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <CalendarDays className="w-3.5 h-3.5" />
-              <span>Haftalık Takvim</span>
+              <Mail className="w-4 h-4" />
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('cards')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'cards'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
+              onClick={() => {
+                resetForm();
+                setEditingEtut(null);
+                setIsCreateModalOpen(true);
+              }}
+              className="ui-btn ui-btn-primary"
             >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Kart Listesi ({activeEtuts.length})</span>
+              <Plus className="w-4 h-4" />
+              <span>Yeni Etüt Planla</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('attendance')}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                viewMode === 'attendance'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <CalendarCheck className="w-3.5 h-3.5" />
-              <span>Yoklama & Devamsızlık</span>
-            </button>
-          </div>
-
-          {/* Bulut Yenile / Eşitle Butonu */}
-          <button
-            type="button"
-            onClick={handleManualSync}
-            disabled={isSyncing}
-            className="flex items-center space-x-1.5 bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm cursor-pointer disabled:opacity-50"
-            title="Bilgisayar, tablet ve telefondaki tüm etütleri anında buluttan senkronize et"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-cyan-400' : 'text-slate-400'}`} />
-            <span>{isSyncing ? 'Eşitleniyor...' : 'Bulut Yenile'}</span>
-            {lastSyncSuccessTime && !isSyncing && (
-              <span className="text-[10px] text-emerald-400 font-mono hidden md:inline ml-1">
-                ✓ {lastSyncSuccessTime}
-              </span>
-            )}
-          </button>
-
-          {/* Etüt Analizi Butonu */}
-          <button
-            type="button"
-            onClick={() => {
-              setReportSelectedStudentId(undefined);
-              setIsReportModalOpen(true);
-            }}
-            id="btn-etut-analysis"
-            className="flex items-center space-x-2 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            title="Sınıf ve öğrenci bazlı profesyonel etüt analizi ve raporu"
-          >
-            <BarChart3 className="w-4 h-4 text-emerald-400" />
-            <span>Etüt Analizi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsSentCommunicationsOpen(true)}
-            className="flex items-center space-x-2 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            title="Öğrencilere gönderilen tüm otomatik e-posta ve bildirim kayıtları"
-          >
-            <Mail className="w-4 h-4 text-indigo-400" />
-            <span>Giden E-Posta & Bildirimler</span>
-          </button>
-
-          <button
-            onClick={() => {
-              resetForm();
-              setEditingEtut(null);
-              setIsCreateModalOpen(true);
-            }}
-            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/20"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Yeni Etüt Planla</span>
-          </button>
-        </div>
+          </>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <Segmented
+          value={scopeFilter}
+          onChange={(v) => setScopeFilter(v)}
+          items={[
+            { value: 'all', label: `Tüm Okul (${etuts.length})` },
+            { value: 'mine', label: `Benim Etütlerim (${myEtuts.length})` },
+          ]}
+        />
+        <Segmented
+          value={viewMode}
+          onChange={(v) => setViewMode(v)}
+          items={[
+            { value: 'calendar', label: 'Haftalık Takvim', icon: CalendarDays },
+            { value: 'cards', label: `Liste (${activeEtuts.length})`, icon: LayoutGrid },
+            { value: 'attendance', label: 'Yoklama', icon: CalendarCheck },
+          ]}
+        />
       </div>
 
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
@@ -792,27 +725,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             return (
               <div
                 key={etut.id}
-                className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-slate-300 hover:shadow-xl transition-all flex flex-col justify-between shadow-md relative group text-slate-800"
+                className="bg-surface border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xl transition-all flex flex-col justify-between shadow-md relative group text-fg"
               >
                 <div>
                   {/* Header */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                         {etut.subject}
                       </span>
                       {etut.schoolLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface-2 text-fg-2 border border-line">
                           {etut.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
                         </span>
                       )}
                       {etut.gradeLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30">
                           {etut.gradeLevel}
                         </span>
                       )}
                       {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30">
                           {etut.lessonPeriod}
                         </span>
                       )}
@@ -820,14 +753,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <div className="flex items-center space-x-1">
                       <button
                         onClick={() => openEdit(etut)}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                         title="Düzenle"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => setEtutToDelete(etut)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                         title="Etütü Sil"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -835,38 +768,38 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     </div>
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 mb-2 line-clamp-2">{etut.topic}</h3>
+                  <h3 className="text-base font-bold text-fg mb-2 line-clamp-2">{etut.topic}</h3>
 
                   {/* Details */}
-                  <div className="space-y-1.5 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="space-y-1.5 text-xs text-muted mb-4 bg-surface-2 p-3 rounded-xl border border-line">
                     <div className="flex items-center space-x-2">
-                      <Clock className="w-3.5 h-3.5 text-amber-600" />
-                      <span className="text-slate-800 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
+                      <span className="text-fg font-medium">
                         {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time} ({etut.duration} dk)
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                      <span className="text-slate-700 font-medium">{etut.location}</span>
+                      <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <span className="text-fg-2 font-medium">{etut.location}</span>
                     </div>
                     {etut.teacherName && (
-                      <div className="flex items-center space-x-2 text-indigo-900 font-semibold">
-                        <Users className="w-3.5 h-3.5 text-indigo-600" />
+                      <div className="flex items-center space-x-2 text-indigo-900 dark:text-indigo-200 font-semibold">
+                        <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                         <span>Öğretmen: <strong>{etut.teacherName}</strong> {etut.teacherBranch ? `(${etut.teacherBranch})` : ''}</span>
                       </div>
                     )}
                     {etut.notes && (
-                      <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200 mt-1">
-                        <span className="font-semibold text-slate-700 not-italic">Açıklama:</span> {etut.notes}
+                      <p className="text-[11px] text-muted italic pt-1 border-t border-line mt-1">
+                        <span className="font-semibold text-fg-2 not-italic">Açıklama:</span> {etut.notes}
                       </p>
                     )}
                     {etut.teacherFeedback && (
-                      <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1">
-                        <div className="flex items-center space-x-1.5 font-bold text-amber-800 text-[11px]">
-                          <MessageSquareQuote className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <div className="mt-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs space-y-1">
+                        <div className="flex items-center space-x-1.5 font-bold text-amber-800 dark:text-amber-200 text-[11px]">
+                          <MessageSquareQuote className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300 shrink-0" />
                           <span>Öğretmen Görüş ve Düşünceleri:</span>
                         </div>
-                        <p className="italic text-slate-700 leading-relaxed font-normal">
+                        <p className="italic text-fg-2 leading-relaxed font-normal">
                           "{etut.teacherFeedback}"
                         </p>
                       </div>
@@ -874,32 +807,32 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
 
                   {/* Attendance Summary & Button */}
-                  <div className="mb-4 p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div className="mb-4 p-2.5 bg-surface-2 rounded-xl border border-line flex items-center justify-between">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
                         Yoklama / Devamsızlık
                       </div>
                       <div className="text-xs font-bold mt-0.5">
                         {etut.studentAttendance && Object.keys(etut.studentAttendance).length > 0 ? (
                           <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-700 font-bold">
+                            <span className="text-emerald-700 dark:text-emerald-300 font-bold">
                               {Object.values(etut.studentAttendance).filter((a) => a.status === 'present').length} Geldi
                             </span>
-                            <span className="text-slate-400">•</span>
-                            <span className="text-rose-600 font-bold">
+                            <span className="text-subtle">•</span>
+                            <span className="text-rose-600 dark:text-rose-300 font-bold">
                               {Object.values(etut.studentAttendance).filter((a) => a.status === 'absent').length} Gelmedi
                             </span>
                             {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length > 0 && (
                               <>
-                                <span className="text-slate-400">•</span>
-                                <span className="text-amber-700 font-bold">
+                                <span className="text-subtle">•</span>
+                                <span className="text-amber-700 dark:text-amber-300 font-bold">
                                   {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length} Geç
                                 </span>
                               </>
                             )}
                           </div>
                         ) : (
-                          <span className="text-amber-700 text-[11px] font-normal">
+                          <span className="text-amber-700 dark:text-amber-300 text-[11px] font-normal">
                             Yoklama henüz alınmadı
                           </span>
                         )}
@@ -909,20 +842,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => setSelectedEtutForAttendance(etut)}
-                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
+                      className="px-2.5 py-1 bg-surface hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
                       title="Etüte gelen ve gelmeyen öğrencileri işaretle"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
                       <span>Yoklama Al</span>
                     </button>
                   </div>
 
                   {/* Assigned Students */}
                   <div className="mb-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center justify-between">
                       <span>Katılacak Öğrenciler ({assignedStudents.length})</span>
                       {etut.assignedStudentIds === 'all' && (
-                        <span className="text-[10px] text-indigo-600 font-bold">Tümü Dahil</span>
+                        <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold">Tümü Dahil</span>
                       )}
                     </p>
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
@@ -934,7 +867,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             setReportSelectedStudentId(std.id);
                             setIsReportModalOpen(true);
                           }}
-                          className="inline-flex items-center space-x-1 text-[11px] bg-slate-50 hover:bg-indigo-50 hover:text-indigo-800 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                          className="inline-flex items-center space-x-1 text-[11px] bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-800 dark:hover:text-indigo-200 text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
                           title={`${std.name} için etüt analizini ve PDF/DOCX raporunu görüntüle`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
@@ -946,17 +879,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 </div>
 
                 {/* Action Buttons */}
-                <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                <div className="pt-3 border-t border-line flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setSelectedEtutForDispatch(etut);
                       setIsDispatchModalOpen(true);
                     }}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                     title="WhatsApp ve Mail ile İlet"
                   >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
                     <span>WhatsApp / Mail</span>
                   </button>
 
@@ -964,10 +897,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     href={createGoogleCalendarUrlForEtut(etut)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-medium transition-all"
+                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 rounded-xl text-xs font-medium transition-all"
                     title="Google Takvime Ekle"
                   >
-                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600" />
+                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
                   </a>
 
                   <button
@@ -981,8 +914,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         etut.location
                       )
                     }
-                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs cursor-pointer transition-colors"
-                    title=".ics Takvim İndir"
+                    className="p-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line rounded-xl text-xs cursor-pointer transition-colors"
+                    title="Takvim dosyası indir"
                   >
                     <CalendarDays className="w-3.5 h-3.5" />
                   </button>
@@ -1085,12 +1018,12 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
         if (etuts.length === 0) {
           return (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+            <div className="bg-surface border border-line rounded-2xl p-12 text-center shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
                 <CalendarCheck className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Etüt Bulunmuyor</h3>
-              <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+              <h3 className="text-lg font-bold text-fg mb-2">Henüz Kayıtlı Etüt Bulunmuyor</h3>
+              <p className="text-sm text-muted max-w-md mx-auto mb-6">
                 Yoklama alabilmek için lütfen önce bir etüt oluşturunuz.
               </p>
               <button
@@ -1113,27 +1046,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           <div className="space-y-5">
             {/* Bildirim Çubuğu */}
             {attendanceFeedback && (
-              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-semibold flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
                 <span>{attendanceFeedback}</span>
               </div>
             )}
 
             {/* 1. ETÜT SEÇİMİ AÇILIR MENÜSÜ */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg">
+            <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-lg">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <CalendarCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-bold text-white">Yoklaması Alınacak Etütü Seçiniz</h3>
-                    <p className="text-xs text-slate-400">
+                    <h3 className="text-sm sm:text-base font-bold text-fg">Yoklaması Alınacak Etütü Seçiniz</h3>
+                    <p className="text-xs text-muted">
                       Öğrencilerin devamsızlığını girmek için listeden ilgili etüt çalışmasını seçin.
                     </p>
                   </div>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
                   {etuts.length} Planlı Etüt
                 </span>
               </div>
@@ -1143,7 +1076,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <select
                   value={currentAttendanceEtut?.id || ''}
                   onChange={(e) => setSelectedAttendanceEtutId(e.target.value)}
-                  className="w-full bg-slate-950 border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
+                  className="w-full bg-canvas border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
                 >
                   {etuts.map((e) => {
                     let formattedDate = e.date;
@@ -1153,7 +1086,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       else formattedDate = new Date(e.date).toLocaleDateString('tr-TR');
                     } catch {}
                     return (
-                      <option key={e.id} value={e.id} className="bg-slate-900 text-white py-2">
+                      <option key={e.id} value={e.id} className="bg-surface text-fg py-2">
                         [{formattedDate} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
                       </option>
                     );
@@ -1163,36 +1096,36 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
               {/* Seçili Etüt Detay Paneli */}
               {currentAttendanceEtut && (
-                <div className="mt-3.5 p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="mt-3.5 p-3.5 rounded-xl bg-canvas/70 border border-line flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center space-x-2.5">
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                       {currentAttendanceEtut.subject}
                     </span>
-                    <span className="text-sm font-bold text-white">{currentAttendanceEtut.topic}</span>
+                    <span className="text-sm font-bold text-fg">{currentAttendanceEtut.topic}</span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                     <span className="flex items-center space-x-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                       <span>{new Date(currentAttendanceEtut.date).toLocaleDateString('tr-TR')} • {currentAttendanceEtut.time} ({currentAttendanceEtut.duration} dk)</span>
                     </span>
                     <span className="flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                      <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                       <span>{currentAttendanceEtut.location}</span>
                     </span>
                     {currentAttendanceEtut.teacherName && (
-                      <span className="flex items-center space-x-1.5 text-indigo-300 font-medium">
+                      <span className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-300 font-medium">
                         <Users className="w-3.5 h-3.5" />
                         <span>{currentAttendanceEtut.teacherName}</span>
                       </span>
                     )}
                   </div>
                   {currentAttendanceEtut.teacherFeedback && (
-                    <div className="w-full mt-2 pt-2 border-t border-slate-800/80 flex items-start space-x-2 text-xs text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
-                      <MessageSquareQuote className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="w-full mt-2 pt-2 border-t border-line flex items-start space-x-2 text-xs text-amber-700/90 dark:text-amber-200/90 bg-amber-500/5 p-2.5 rounded-lg border border-amber-500/15">
+                      <MessageSquareQuote className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-amber-300 font-semibold block text-[11px]">Öğretmen Görüş ve Düşünceleri:</strong>
-                        <span className="italic text-slate-300 font-normal">"{currentAttendanceEtut.teacherFeedback}"</span>
+                        <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">Öğretmen Görüş ve Düşünceleri:</strong>
+                        <span className="italic text-fg-2 font-normal">"{currentAttendanceEtut.teacherFeedback}"</span>
                       </div>
                     </div>
                   )}
@@ -1202,69 +1135,69 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
             {/* 2. ETÜTTEKİ ÖĞRENCİLER VE DEVAMSIZLIK LİSTESİ */}
             {currentAttendanceEtut && (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
+              <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-lg space-y-4">
                 {/* Header & Arama */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
                   <div>
                     <div className="flex items-center space-x-2">
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-fg">
                         Etüt Öğrenci Yoklama Listesi
                       </h3>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
                         {assignedStudents.length} Kayıtlı Öğrenci
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       Öğrencinin devamsızlık durumunu tek tıkla işaretleyin.
                     </p>
                   </div>
 
                   <div className="relative w-full sm:w-64">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={attendanceSearchQuery}
                       onChange={(e) => setAttendanceSearchQuery(e.target.value)}
                       placeholder="Öğrenci ara..."
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-canvas border border-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 {/* Sayaçlar */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Toplam</span>
-                    <span className="text-base font-bold text-white">{assignedStudents.length}</span>
+                  <div className="p-2.5 rounded-xl bg-canvas/70 border border-line text-center">
+                    <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
+                    <span className="text-base font-bold text-fg">{assignedStudents.length}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">Geldi</span>
-                    <span className="text-base font-bold text-emerald-300">{countPresent}</span>
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 block">Geldi</span>
+                    <span className="text-base font-bold text-emerald-700 dark:text-emerald-300">{countPresent}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-rose-400 block">Gelmedi</span>
-                    <span className="text-base font-bold text-rose-300">{countAbsent}</span>
+                    <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 block">Gelmedi</span>
+                    <span className="text-base font-bold text-rose-600 dark:text-rose-300">{countAbsent}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-400 block">Geç Kaldı</span>
-                    <span className="text-base font-bold text-amber-300">{countLate}</span>
+                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 block">Geç Kaldı</span>
+                    <span className="text-base font-bold text-amber-700 dark:text-amber-300">{countLate}</span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-center">
-                    <span className="text-[10px] uppercase font-bold text-sky-400 block">İzinli</span>
-                    <span className="text-base font-bold text-sky-300">{countExcused}</span>
+                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-400 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-700 dark:text-sky-300">{countExcused}</span>
                   </div>
                 </div>
 
                 {/* Toplu İşlem Butonları */}
-                <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-300">
+                <div className="p-3 rounded-xl bg-canvas/60 border border-line flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-fg-2">
                     Hızlı Toplu Yoklama:
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('present')}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>✓ Tümü Geldi</span>
@@ -1272,7 +1205,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('absent')}
-                      className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       <span>✕ Tümü Gelmedi</span>
@@ -1280,7 +1213,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <button
                       type="button"
                       onClick={() => handleBulkEtutAttendance('excused')}
-                      className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                      className="px-3 py-1.5 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 text-sky-700 dark:text-sky-300 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
                     >
                       <Info className="w-3.5 h-3.5" />
                       <span>ℹ Tümü İzinli</span>
@@ -1290,36 +1223,36 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                 {/* ALT ALTA SIRALI ÖĞRENCİ LİSTESİ */}
                 {assignedStudents.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/40 rounded-xl border border-slate-800">
+                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
                     Bu etüte henüz öğrenci atanmamış. Etütü düzenleyerek öğrenci ekleyebilirsiniz.
                   </div>
                 ) : displayedStudents.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-xs bg-slate-950/40 rounded-xl border border-slate-800">
+                  <div className="p-8 text-center text-muted text-xs bg-canvas/40 rounded-xl border border-line">
                     "{attendanceSearchQuery}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-800/80 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/50">
+                  <div className="divide-y divide-line border border-line rounded-xl overflow-hidden bg-canvas/50">
                     {displayedStudents.map((std, idx) => {
                       const att = currentAttendanceEtut.studentAttendance?.[std.id];
                       const currentStatus = att?.status || 'present';
                       return (
                         <div
                           key={std.id}
-                          className="p-3 sm:p-3.5 hover:bg-slate-800/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                          className="p-3 sm:p-3.5 hover:bg-surface-2/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
                         >
                           {/* Öğrenci Bilgisi */}
                           <div className="flex items-center space-x-3 min-w-0">
-                            <span className="w-6 text-center text-xs font-mono text-slate-500 shrink-0">
+                            <span className="w-6 text-center text-xs font-mono text-muted shrink-0">
                               {idx + 1}
                             </span>
                             <img
                               src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                               alt={std.name}
-                              className="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 shrink-0"
+                              className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
                               referrerPolicy="no-referrer"
                             />
                             <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-white truncate">{std.name}</h4>
+                              <h4 className="text-sm font-bold text-fg truncate">{std.name}</h4>
                             </div>
                           </div>
 
@@ -1332,7 +1265,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'present'
                                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-2 ring-emerald-400'
-                                  : 'bg-slate-900 hover:bg-emerald-600/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/40'
+                                  : 'bg-surface hover:bg-emerald-600/20 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-500/40'
                               }`}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1346,7 +1279,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'absent'
                                   ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-2 ring-rose-400'
-                                  : 'bg-slate-900 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40'
+                                  : 'bg-surface hover:bg-rose-600/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border border-line hover:border-rose-500/40'
                               }`}
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -1360,7 +1293,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'late'
                                   ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 ring-2 ring-amber-400'
-                                  : 'bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-700 hover:border-amber-500/40'
+                                  : 'bg-surface hover:bg-amber-600/20 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-500/40'
                               }`}
                             >
                               <AlertCircle className="w-3.5 h-3.5" />
@@ -1374,7 +1307,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'excused'
                                   ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 ring-2 ring-sky-400'
-                                  : 'bg-slate-900 hover:bg-sky-600/20 text-slate-300 hover:text-sky-300 border border-slate-700 hover:border-sky-500/40'
+                                  : 'bg-surface hover:bg-sky-600/20 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-500/40'
                               }`}
                             >
                               <Info className="w-3.5 h-3.5" />
@@ -1400,21 +1333,21 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
+              className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
                     <CalendarDays className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-fg">
                     {editingEtut ? 'Etüt Bilgilerini Düzenle' : 'Yeni Etüt Oluştur'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1423,7 +1356,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             <form onSubmit={handleSaveEtut} className="space-y-4">
               {/* ETÜT KONUSU & KAZANIM (EN ÜSTTE) */}
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-fg mb-1">
                   Etüt Konusu & Kazanım *
                 </label>
                 <input
@@ -1432,15 +1365,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   placeholder="Örn: Paragrafta Anlam ve Soru Çözümü / İkinci Dereceden Denklemler"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
+                  className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle shadow-2xs"
                 />
               </div>
 
               {/* 1. BLOK: Okul, Ders ve Etüt Öğretmeni Seçimi */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                    <School className="w-4 h-4 text-indigo-600" />
+              <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-line">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                     <span>Okul, Ders ve Öğretmen Bilgileri</span>
                   </span>
                 </div>
@@ -1448,13 +1381,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Okul Açılır Penceresi */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-fg-2 mb-1">
                       Okul *
                     </label>
                     <select
                       value={schoolLevel}
                       onChange={(e) => handleSchoolChange(e.target.value as SchoolLevelType)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Ortaokul">🏫 Ortaokul</option>
                       <option value="Lise">🎓 Lise</option>
@@ -1463,13 +1396,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Ders Açılır Penceresi */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-fg-2 mb-1">
                       Ders *
                     </label>
                     <select
                       value={subject}
                       onChange={(e) => handleSubjectChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {currentAvailableSubjects.map((s) => (
                         <option key={s} value={s}>
@@ -1481,14 +1414,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Ders Saati / Periyodu Açılır Penceresi (İsteğe Bağlı) */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <label className="block text-xs font-bold text-fg-2 mb-1 flex items-center justify-between">
                       <span>Ders Saati</span>
-                      <span className="text-[10px] text-slate-500 font-normal">İsteğe Bağlı</span>
+                      <span className="text-[10px] text-muted font-normal">İsteğe Bağlı</span>
                     </label>
                     <select
                       value={lessonPeriod}
                       onChange={(e) => setLessonPeriod(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {LESSON_PERIOD_OPTIONS.map((opt) => (
                         <option key={opt} value={opt}>
@@ -1500,26 +1433,26 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 </div>
 
                 {/* Etüt Öğretmeni Açılır Penceresi */}
-                <div className="pt-2 border-t border-slate-200/80">
+                <div className="pt-2 border-t border-line">
                   <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
                     <div className="flex items-center space-x-2">
-                      <Users className="w-4 h-4 text-amber-600" />
-                      <span className="text-xs font-bold text-slate-800">Etüt Öğretmeni</span>
+                      <Users className="w-4 h-4 text-amber-600 dark:text-amber-300" />
+                      <span className="text-xs font-bold text-fg">Etüt Öğretmeni</span>
                     </div>
 
                     <div className="flex items-center space-x-2 text-xs">
                       <button
                         type="button"
                         onClick={() => setIsQuickTeacherOpen((p) => !p)}
-                        className="text-xs text-emerald-700 hover:text-emerald-900 font-bold underline underline-offset-2 cursor-pointer"
+                        className="text-xs text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200 font-bold underline underline-offset-2 cursor-pointer"
                       >
                         {isQuickTeacherOpen ? '✕ Kapat' : '+ Hızlı Öğretmen Ata'}
                       </button>
-                      <span className="text-slate-400">•</span>
+                      <span className="text-subtle">•</span>
                       <button
                         type="button"
                         onClick={() => setIsSubjectTeacherModalOpen(true)}
-                        className="text-xs text-indigo-700 hover:text-indigo-900 font-bold underline underline-offset-2 cursor-pointer"
+                        className="text-xs text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold underline underline-offset-2 cursor-pointer"
                         title="Bu dersin açılır menüsüne öğretmen ata veya sil"
                       >
                         Öğretmen Listesini Yönet
@@ -1529,7 +1462,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Hızlı Öğretmen Ekleme Girişi */}
                   {isQuickTeacherOpen && (
-                    <div className="p-3 mb-2 rounded-xl bg-white border border-emerald-300 shadow-2xs flex items-center gap-2">
+                    <div className="p-3 mb-2 rounded-xl bg-surface border border-emerald-300 dark:border-emerald-500/30 shadow-2xs flex items-center gap-2">
                       <input
                         type="text"
                         autoFocus
@@ -1542,7 +1475,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             handleQuickAddTeacher();
                           }
                         }}
-                        className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 text-xs placeholder-slate-400 focus:bg-white focus:outline-none focus:border-emerald-500"
+                        className="flex-1 px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-fg text-xs placeholder-subtle focus:bg-surface focus:outline-none focus:border-emerald-500"
                       />
                       <button
                         type="button"
@@ -1555,7 +1488,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   )}
 
                   {quickTeacherSuccess && (
-                    <div className="p-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold animate-in fade-in">
+                    <div className="p-2 mb-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs font-semibold animate-in fade-in">
                       ✓ {quickTeacherSuccess}
                     </div>
                   )}
@@ -1577,7 +1510,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           }
                         }
                       }}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3.5 py-2.5 bg-surface border border-line rounded-xl text-fg font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Öğretmen Seçiniz</option>
                       {dataService.getTeachersForSubject(subject).map((tName) => (
@@ -1590,9 +1523,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
 
                   {selectedTeacherName ? (
-                    <div className="flex items-center justify-between p-2.5 mt-2 rounded-lg bg-indigo-50 border border-indigo-100 text-xs text-indigo-950">
+                    <div className="flex items-center justify-between p-2.5 mt-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-xs text-indigo-950 dark:text-indigo-200">
                       <span className="font-semibold">
-                        Görevlendirilen Öğretmen: <strong className="text-indigo-900">{selectedTeacherName}</strong> ({subject})
+                        Görevlendirilen Öğretmen: <strong className="text-indigo-900 dark:text-indigo-200">{selectedTeacherName}</strong> ({subject})
                       </span>
                       <button
                         type="button"
@@ -1600,7 +1533,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                           setSelectedTeacherName('');
                           setSelectedTeacherBranch('');
                         }}
-                        className="text-rose-600 hover:text-rose-800 font-bold text-xs cursor-pointer ml-2"
+                        className="text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 font-bold text-xs cursor-pointer ml-2"
                       >
                         Seçimi Temizle ✕
                       </button>
@@ -1610,10 +1543,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </div>
 
               {/* 2. BLOK: Sınıf, Şube ve Öğrenci Seçimi */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 flex-wrap gap-2">
-                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                    <GraduationCap className="w-4 h-4 text-indigo-600" />
+              <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-line flex-wrap gap-2">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
+                    <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                     <span>Sınıf, Şube ve Öğrenci Seçimi</span>
                   </span>
                 </div>
@@ -1621,13 +1554,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Sınıf Açılır Butonu (Yalnızca Sınıf İsimleri) */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-fg-2 mb-1">
                       Sınıf *
                     </label>
                     <select
                       value={gradeLevel}
                       onChange={(e) => setGradeLevel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Tüm Sınıflar">Sınıf Seçiniz (Tüm Sınıflar)</option>
                       {currentAvailableGrades.map((g) => (
@@ -1640,14 +1573,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
                   {/* Şube Açılır Butonu */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-fg-2 mb-1">
                       Şube
                     </label>
                     <select
                       id="etut-branch-filter"
                       value={selectedBranchFilter}
                       onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="Şube">Şube Seçiniz (Tümü)</option>
                       <option value="A">A Şubesi</option>
@@ -1661,14 +1594,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 </div>
 
                 {/* ÖĞRENCİ LİSTESİ VE SEÇİM KUTULARI (AŞAĞIDA TEK LİSTE, ŞUBENİN ÖĞRENCİLERİ) */}
-                <div className="p-3 bg-white border border-slate-200 rounded-xl space-y-2.5 shadow-2xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+                <div className="p-3 bg-surface border border-line rounded-xl space-y-2.5 shadow-2xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-line flex-wrap gap-2">
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs text-slate-700 font-bold">Öğrenci Listesi:</span>
-                      <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 font-bold">
+                      <span className="text-xs text-fg-2 font-bold">Öğrenci Listesi:</span>
+                      <span className="text-[11px] bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md border border-indigo-100 dark:border-indigo-500/30 font-bold">
                         {gradeLevel} {selectedBranchFilter !== 'Şube' && selectedBranchFilter !== 'Tüm Şubeler' ? `• ${selectedBranchFilter} Şubesi` : ''}
                       </span>
-                      <span className="text-[11px] text-slate-500">
+                      <span className="text-[11px] text-muted">
                         ({filteredStudents.length} öğrenci, {selectedStudentIds.length} seçildi)
                       </span>
                     </div>
@@ -1677,7 +1610,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       type="button"
                       onClick={handleToggleAllFiltered}
                       disabled={filteredStudents.length === 0}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer disabled:opacity-40 disabled:no-underline"
+                      className="text-xs text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 hover:underline font-bold cursor-pointer disabled:opacity-40 disabled:no-underline"
                     >
                       {filteredStudents.length > 0 &&
                       filteredStudents.every((s) => selectedStudentIds.includes(s.id))
@@ -1699,32 +1632,32 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               key={std.id}
                               className={`flex items-center space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer text-xs ${
                                 isChecked
-                                  ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-semibold shadow-2xs'
-                                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700'
+                                  ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/30 text-indigo-950 dark:text-indigo-200 font-semibold shadow-2xs'
+                                  : 'bg-surface-2 border-line hover:bg-surface-2 text-fg-2'
                               }`}
                             >
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleToggleStudent(std.id)}
-                                className="rounded text-indigo-600 focus:ring-indigo-500"
+                                className="rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500"
                               />
                               <div className="flex-1 min-w-0 flex items-center space-x-1.5 truncate">
                                 {hasValidNo && (
-                                  <span className="shrink-0 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-amber-800 font-mono text-[10px] font-bold">
+                                  <span className="shrink-0 px-1.5 py-0.5 rounded bg-surface border border-line text-amber-800 dark:text-amber-200 font-mono text-[10px] font-bold">
                                     No: {rawNo}
                                   </span>
                                 )}
-                                <span className="font-semibold text-slate-900 truncate">{std.name}</span>
+                                <span className="font-semibold text-fg truncate">{std.name}</span>
                               </div>
                             </label>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="p-3 text-center rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
-                        <Users className="w-5 h-5 mx-auto mb-1 text-slate-400 opacity-60" />
-                        <p className="font-bold text-slate-700">Bu Sınıf/Şubede Kayıtlı Öğrenci Bulunamadı</p>
+                      <div className="p-3 text-center rounded-xl bg-surface-2 border border-line text-xs text-muted">
+                        <Users className="w-5 h-5 mx-auto mb-1 text-subtle opacity-60" />
+                        <p className="font-bold text-fg-2">Bu Sınıf/Şubede Kayıtlı Öğrenci Bulunamadı</p>
                       </div>
                     )}
                   </div>
@@ -1734,67 +1667,67 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               {/* TARİH, SAAT VE SÜRE */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Tarih *</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Tarih *</label>
                   <input
                     type="date"
                     required
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Başlangıç Saati *</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Başlangıç Saati *</label>
                   <input
                     type="time"
                     required
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Süre (Dk)</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Süre (Dk)</label>
                   <input
                     type="number"
                     min={15}
                     step={5}
                     value={duration}
                     onChange={(e) => setDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Derslik / Yer</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Derslik / Yer</label>
                   <input
                     type="text"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     placeholder="Örn: 204 No'lu Fen Laboratuvarı"
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Açıklama / Kısa Not</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Açıklama / Kısa Not</label>
                   <input
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Örn: Yanlarında soru bankasını getirsinler..."
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
               </div>
 
               {/* ETÜT VEREN ÖĞRETMENİN DÜŞÜNCE VE GÖRÜŞLERİ (SADECE KUTUCUK) */}
               <div className="space-y-1.5">
-                <label htmlFor="etut-teacher-feedback-input" className="block text-xs font-bold text-slate-800">
+                <label htmlFor="etut-teacher-feedback-input" className="block text-xs font-bold text-fg">
                   Etüt Veren Öğretmenin Düşünce ve Görüşleri
                 </label>
                 <textarea
@@ -1803,28 +1736,28 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   value={teacherFeedback}
                   onChange={(e) => setTeacherFeedback(e.target.value)}
                   placeholder="Öğretmen düşünce ve görüşlerinizi buraya yazabilirsiniz..."
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-y leading-relaxed shadow-2xs"
+                  className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-y leading-relaxed shadow-2xs"
                 />
               </div>
 
               {/* Otomatik Bildirim & E-Posta Bilgilendirme Notu */}
-              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-start space-x-2.5 text-xs text-indigo-950">
-                <Mail className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <div className="p-3 bg-indigo-50/70 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 rounded-xl flex items-start space-x-2.5 text-xs text-indigo-950 dark:text-indigo-200">
+                <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-300 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold block">
                     🔔 Otomatik Sistem Bildirimi ve E-Posta İletimi
                   </span>
-                  <span className="text-slate-600 text-[11px]">
+                  <span className="text-muted text-[11px]">
                     Etüt kaydedildiğinde atanan öğrencilere anında sistem bildirimi düşer ve detaylı e-posta otomatik iletilir.
                   </span>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
+              <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1908,19 +1841,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         >
           <div className="min-h-full flex items-center justify-center py-4">
             <div
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl p-5 max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
                 <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
                     👨‍🏫
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Etüt Öğretmeni Seç</h3>
-                    <p className="text-xs text-slate-400">
-                      Branş: <span className="text-amber-400 font-semibold">{subject} Öğretmenleri</span>
+                    <h3 className="text-base font-bold text-fg">Etüt Öğretmeni Seç</h3>
+                    <p className="text-xs text-muted">
+                      Branş: <span className="text-amber-700 dark:text-amber-400 font-semibold">{subject} Öğretmenleri</span>
                     </p>
                   </div>
                 </div>
@@ -1930,7 +1863,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     setIsTeacherModalOpen(false);
                     setIsNewTeacherFormOpen(false);
                   }}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1 text-muted hover:text-fg rounded-lg cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1939,24 +1872,24 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               {/* Yeni Öğretmen Ekleme Formu */}
               {isNewTeacherFormOpen ? (
                 <form onSubmit={handleAddNewTeacher} className="space-y-3.5">
-                  <div className="p-3 bg-indigo-950/30 border border-indigo-500/30 rounded-xl">
-                    <h4 className="text-xs font-bold text-indigo-200 flex items-center space-x-1.5 mb-1">
-                      <UserPlus className="w-4 h-4 text-emerald-400" />
+                  <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-500/30 rounded-xl">
+                    <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-200 flex items-center space-x-1.5 mb-1">
+                      <UserPlus className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                       <span>Yeni {subject} Öğretmeni Ekle</span>
                     </h4>
-                    <p className="text-[11px] text-indigo-300/80">
+                    <p className="text-[11px] text-indigo-600/80 dark:text-indigo-300/80">
                       Öğretmen eklendiğinde sisteme kaydedilir ve otomatik olarak bu etüte atanır.
                     </p>
                   </div>
 
                   {newTeacherError && (
-                    <div className="p-2.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-xs text-rose-300">
+                    <div className="p-2.5 rounded-lg bg-rose-500/20 border border-rose-500/40 text-xs text-rose-600 dark:text-rose-300">
                       {newTeacherError}
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-fg-2 mb-1">
                       Öğretmen Adı Soyadı *
                     </label>
                     <input
@@ -1965,12 +1898,12 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       placeholder="Örn: Mehmet Öztürk"
                       value={newTeacherName}
                       onChange={(e) => setNewTeacherName(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-sm focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-fg-2 mb-1">
                       Öğretmen Branşı *
                     </label>
                     <input
@@ -1979,16 +1912,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       value={newTeacherBranch || subject}
                       onChange={(e) => setNewTeacherBranch(e.target.value)}
                       placeholder={`Örn: ${subject}`}
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-sm focus:ring-2 focus:ring-indigo-500"
                     />
-                    <span className="text-[10px] text-slate-400 mt-1 block">
+                    <span className="text-[10px] text-muted mt-1 block">
                       Seçilen ders ({subject}) gereği varsayılan branş otomatik ayarlandı.
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label className="block text-xs font-semibold text-fg-2 mb-1">
                         E-Posta (İsteğe Bağlı)
                       </label>
                       <input
@@ -1996,11 +1929,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         placeholder="ogretmen@okul.k12.tr"
                         value={newTeacherEmail}
                         onChange={(e) => setNewTeacherEmail(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-sm focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      <label className="block text-xs font-semibold text-fg-2 mb-1">
                         Telefon (İsteğe Bağlı)
                       </label>
                       <input
@@ -2008,16 +1941,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         placeholder="05XX XXX XX XX"
                         value={newTeacherPhone}
                         onChange={(e) => setNewTeacherPhone(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                        className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-sm focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+                  <div className="pt-3 border-t border-line flex justify-end space-x-2">
                     <button
                       type="button"
                       onClick={() => setIsNewTeacherFormOpen(false)}
-                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
+                      className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold cursor-pointer"
                     >
                       Geri
                     </button>
@@ -2036,13 +1969,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   {/* Üst Arama & Öğretmen Ekle Butonu */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="relative flex-1">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder={`${subject} öğretmeni ara...`}
                         value={teacherSearchQuery}
                         onChange={(e) => setTeacherSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="w-full pl-8 pr-3 py-1.5 bg-surface-2/80 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500 outline-none"
                       />
                     </div>
 
@@ -2074,27 +2007,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             key={t.id}
                             className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
                               isSelected
-                                ? 'bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500/50'
-                                : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600'
+                                ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500/50'
+                                : 'bg-surface-2/60 border-line hover:bg-surface-2 hover:border-line-strong'
                             }`}
                           >
                             <div className="flex items-center space-x-3 min-w-0">
                               <img
                                 src={t.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(t.name)}`}
                                 alt={t.name}
-                                className="w-9 h-9 rounded-full object-cover bg-slate-900 border border-slate-700 shrink-0"
+                                className="w-9 h-9 rounded-full object-cover bg-surface border border-line shrink-0"
                               />
                               <div className="min-w-0">
-                                <div className="text-xs font-bold text-white flex items-center space-x-2 truncate">
+                                <div className="text-xs font-bold text-fg flex items-center space-x-2 truncate">
                                   <span className="truncate">{t.name}</span>
                                   {isSelected && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-bold border border-indigo-500/40">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-600 dark:text-indigo-300 font-bold border border-indigo-500/40">
                                       Seçili
                                     </span>
                                   )}
                                 </div>
-                                <div className="flex items-center space-x-2 text-[11px] text-slate-400 mt-0.5">
-                                  <span className="text-amber-400 font-medium">{t.branch}</span>
+                                <div className="flex items-center space-x-2 text-[11px] text-muted mt-0.5">
+                                  <span className="text-amber-700 dark:text-amber-400 font-medium">{t.branch}</span>
                                   {t.email && (
                                     <>
                                       <span>•</span>
@@ -2116,7 +2049,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                                 isSelected
                                   ? 'bg-indigo-600 text-white shadow-md'
-                                  : 'bg-slate-700 hover:bg-indigo-600 text-slate-200 hover:text-white'
+                                  : 'bg-surface-3 hover:bg-indigo-600 text-fg hover:text-fg'
                               }`}
                             >
                               {isSelected ? 'Seçildi ✓' : 'Ata'}
@@ -2125,12 +2058,12 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         );
                       })
                     ) : (
-                      <div className="p-6 text-center rounded-xl bg-slate-800/40 border border-dashed border-slate-700 space-y-2">
-                        <Users className="w-8 h-8 text-slate-500 mx-auto" />
-                        <p className="text-xs font-bold text-slate-300">
+                      <div className="p-6 text-center rounded-xl bg-surface-2/40 border border-dashed border-line space-y-2">
+                        <Users className="w-8 h-8 text-muted mx-auto" />
+                        <p className="text-xs font-bold text-fg-2">
                           {subject} Branşında Öğretmen Bulunamadı
                         </p>
-                        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+                        <p className="text-[11px] text-muted max-w-xs mx-auto">
                           Sistemde {subject} dersi ile eşleşen kayıtlı öğretmen bulunmuyor. Yeni bir öğretmen ekleyerek hemen atayabilirsiniz.
                         </p>
                         <button

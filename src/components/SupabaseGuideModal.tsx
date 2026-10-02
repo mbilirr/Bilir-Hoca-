@@ -130,40 +130,40 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+      <div className="relative w-full max-w-3xl bg-surface border border-line rounded-3xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+            <div className="p-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-xl border border-emerald-500/20">
               <Database className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Supabase Veritabanı & Entegrasyon</h3>
-              <p className="text-xs text-slate-400">Bulut veritabanı şeması ve canlı senkronizasyon</p>
+              <h3 className="text-lg font-bold text-fg">Supabase Veritabanı & Entegrasyon</h3>
+              <p className="text-xs text-muted">Bulut veritabanı şeması ve canlı senkronizasyon</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white rounded-lg">
+          <button onClick={onClose} className="p-1 text-muted hover:text-fg rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           {/* Current Config Info */}
-          <div className="p-4 bg-slate-950/60 rounded-2xl border border-slate-800 text-xs space-y-2">
+          <div className="p-4 bg-canvas/60 rounded-2xl border border-line text-xs space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">Aktif Supabase URL:</span>
-              <span className="font-mono text-emerald-400 font-bold">{SUPABASE_CONFIG.url}</span>
+              <span className="text-muted">Aktif Supabase URL:</span>
+              <span className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">{SUPABASE_CONFIG.url}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">Aktif Anon Key:</span>
-              <span className="font-mono text-slate-300 text-[11px] truncate max-w-md">
+              <span className="text-muted">Aktif Anon Key:</span>
+              <span className="font-mono text-fg-2 text-[11px] truncate max-w-md">
                 {SUPABASE_CONFIG.anonKey
                   ? `${SUPABASE_CONFIG.anonKey.slice(0, 24)}...`
                   : '(VITE_SUPABASE_ANON_KEY ile tanımlanır)'}
               </span>
             </div>
-            <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-              <span className="text-slate-400">Durum:</span>
-              <span className="inline-flex items-center space-x-1 text-emerald-400 font-semibold">
+            <div className="flex items-center justify-between pt-1 border-t border-line">
+              <span className="text-muted">Durum:</span>
+              <span className="inline-flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Çift Yönlü Senkronizasyon + Yerel Yedekleme Aktif</span>
               </span>
@@ -172,8 +172,8 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-                <Terminal className="w-4 h-4 text-indigo-400" />
+              <label className="text-xs font-bold uppercase tracking-wider text-fg-2 flex items-center space-x-2">
+                <Terminal className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Supabase SQL Kurulum Komutları</span>
               </label>
 
@@ -186,13 +186,13 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
               </button>
             </div>
 
-            <pre className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-[11px] font-mono text-slate-300 overflow-x-auto max-h-72 leading-relaxed">
+            <pre className="p-4 bg-canvas rounded-2xl border border-line text-[11px] font-mono text-fg-2 overflow-x-auto max-h-72 leading-relaxed">
               {sqlSchema}
             </pre>
           </div>
 
-          <div className="p-4 bg-indigo-950/20 border border-indigo-500/30 rounded-2xl text-xs text-indigo-200 space-y-1">
-            <p className="font-bold text-indigo-300">💡 Nasıl Uygulanır?</p>
+          <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-500/30 rounded-2xl text-xs text-indigo-600 dark:text-indigo-200 space-y-1">
+            <p className="font-bold text-indigo-600 dark:text-indigo-300">💡 Nasıl Uygulanır?</p>
             <p>
               1. <strong>app.supabase.com</strong> adresinde projenizi açın.<br />
               2. Sol menüden <strong>SQL Editor</strong> &apos;e tıklayın.<br />
@@ -204,7 +204,7 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
           <div className="flex justify-end pt-2">
             <button
               onClick={onClose}
-              className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+              className="px-5 py-2 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold"
             >
               Kapat
             </button>

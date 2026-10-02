@@ -46,6 +46,7 @@ import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
 import { StudentStatsOverview } from './StudentStatsOverview';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { StudentQuestionModule } from './StudentQuestionModule';
+import { StudentBottomNav } from '../Layout/BottomNav';
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -264,9 +265,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
-      <div id="student-top-navigation-wall" className="static lg:sticky lg:top-[4.25rem] z-30 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
-        <div id="student-action-cards-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div id="student-action-cards-grid" className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
           {/* 1. Ödevlerim */}
           <button
             id="student-nav-homework-card-btn"
@@ -389,7 +390,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         </div>
 
         {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
-        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-2 border-t border-slate-100">
+        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-2 border-t border-line">
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             {/* Küçültülmüş Ana Sayfa Butonu */}
             <button
@@ -398,11 +399,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               onClick={() => setActiveTab('home')}
               className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'home'
-                  ? 'bg-[#0f172a] text-white shadow-xs'
-                  : 'bg-[#f1f5f9] text-[#334155] hover:text-[#0f172a] hover:bg-slate-200 border border-slate-200'
+                  ? 'bg-fg text-surface shadow-xs'
+                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
               }`}
             >
-              <Home className="w-3.5 h-3.5 text-orange-400" />
+              <Home className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
               <span>Ana Sayfa</span>
             </button>
 
@@ -411,11 +412,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-notifications-btn"
               type="button"
               onClick={() => setIsNotificationModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#f1f5f9] hover:bg-slate-200 text-[#334155] hover:text-[#0f172a] border border-slate-200 transition-all cursor-pointer relative"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line transition-all cursor-pointer relative"
               title="Gelen Bildirimler ve E-Postalar"
             >
               <div className="relative">
-                <Bell className="w-3.5 h-3.5 text-orange-500" />
+                <Bell className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
                 {unreadNotifsCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-orange-600 text-white rounded-full text-[8px] font-black flex items-center justify-center ring-1 ring-white animate-bounce">
                     {unreadNotifsCount}
@@ -432,22 +433,22 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               onClick={() => setActiveTab('messages')}
               className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 activeTab === 'messages'
-                  ? 'bg-[#0f172a] text-white shadow-xs'
-                  : 'bg-[#f1f5f9] text-[#334155] hover:text-[#0f172a] hover:bg-slate-200 border border-slate-200'
+                  ? 'bg-fg text-surface shadow-xs'
+                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
               }`}
             >
-              <MessageSquare className="w-3.5 h-3.5 text-orange-400" />
+              <MessageSquare className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
               <span>Öğretmene Soru Sor ({myMessages.length})</span>
             </button>
           </div>
 
           {/* Sınıf ve Öğrenci Bilgisi */}
-          <div id="student-class-info-badge" className="flex items-center space-x-1.5 sm:space-x-2 text-xs text-slate-500 font-medium">
-            <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-[#f1f5f9] border border-slate-200 text-[#0f172a] font-bold text-[11px] sm:text-xs">
+          <div id="student-class-info-badge" className="flex items-center space-x-1.5 sm:space-x-2 text-xs text-muted font-medium">
+            <span className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg bg-surface-2 border border-line text-fg font-bold text-[11px] sm:text-xs whitespace-nowrap">
               {currentStudent.className || 'Sınıf'}
             </span>
             {currentStudent.studentNumber && (
-              <span className="font-semibold text-slate-500 text-[11px] sm:text-xs">
+              <span className="font-semibold text-muted text-[11px] sm:text-xs">
                 #{currentStudent.studentNumber}
               </span>
             )}
@@ -476,7 +477,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white text-amber-900 uppercase tracking-wider shadow-xs">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-surface text-amber-900 dark:text-amber-200 uppercase tracking-wider shadow-xs">
                         🎉 TEBRİKLER & AFERİN!
                       </span>
                       <span className="text-xs text-amber-100 font-bold">
@@ -506,7 +507,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       dataService.markNotificationAsRead(unreadPraiseNotifs[0].id);
                       setNotificationTrigger((prev) => prev + 1);
                     }}
-                    className="px-4 py-2.5 rounded-xl bg-white hover:bg-amber-50 text-amber-950 font-black text-xs shadow-md transition-all hover:scale-105 active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                    className="px-4 py-2.5 rounded-xl bg-surface hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-950 dark:text-amber-200 font-black text-xs shadow-md transition-all hover:scale-105 active:scale-95 flex items-center space-x-1.5 cursor-pointer"
                   >
                     <span>Teşekkürler! (Okundu Yap) 👏</span>
                   </button>
@@ -551,12 +552,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               return (
                 <div
                   key={hw.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg relative"
+                  className="bg-surface border border-line rounded-2xl p-5 hover:border-line transition-all flex flex-col justify-between shadow-lg relative"
                 >
                   <div>
                     {/* Header */}
                     <div className="flex items-center justify-between mb-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                         {hw.subject}
                       </span>
 
@@ -569,15 +570,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       </span>
                     </div>
 
-                    <h3 className="text-base font-bold text-white mb-2">{hw.title}</h3>
-                    <p className="text-xs text-slate-400 line-clamp-3 mb-4 leading-relaxed">
+                    <h3 className="text-base font-bold text-fg mb-2">{hw.title}</h3>
+                    <p className="text-xs text-muted line-clamp-3 mb-4 leading-relaxed">
                       {hw.description}
                     </p>
 
                     {/* Resources (Video, Link, PDF) from Teacher */}
                     {((hw.resources && hw.resources.length > 0) || hw.attachmentUrl) && (
-                      <div className="mb-4 p-3 bg-slate-950/60 rounded-xl border border-slate-800">
-                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1.5">
+                      <div className="mb-4 p-3 bg-canvas/60 rounded-xl border border-line">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-1.5">
                           📎 Ödev Materyalleri & Kaynaklar
                         </span>
                         <HomeworkResourceViewer
@@ -589,15 +590,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Learning Outcomes (Kazanımlar) */}
                     {outcomes.length > 0 && (
-                      <div className="mb-4 bg-slate-950/40 p-3 rounded-xl border border-slate-800">
-                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1.5">
+                      <div className="mb-4 bg-canvas/40 p-3 rounded-xl border border-line">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-1.5">
                           🎯 İlgili Kazanımlar
                         </span>
                         <ul className="space-y-1">
                           {outcomes.map((outcome, idx) => (
                             <li
                               key={idx}
-                              className="text-xs text-slate-300 flex items-center space-x-1.5"
+                              className="text-xs text-fg-2 flex items-center space-x-1.5"
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0"></span>
                               <span className="truncate">{outcome}</span>
@@ -608,19 +609,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     )}
 
                     {/* Due Date & Submission Info */}
-                    <div className="flex items-center justify-between text-xs text-slate-400 mb-4">
+                    <div className="flex items-center justify-between text-xs text-muted mb-4">
                       <div className="flex items-center space-x-1.5">
-                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                         <span>
                           Son Teslim:{' '}
-                          <strong className="text-slate-200 font-medium">
+                          <strong className="text-fg font-medium">
                             {new Date(hw.dueDate).toLocaleDateString('tr-TR')}
                           </strong>
                         </span>
                       </div>
 
                       {mySubmission?.submittedAt && (
-                        <div className="text-right text-[11px] text-slate-500">
+                        <div className="text-right text-[11px] text-muted">
                           Teslim: {new Date(mySubmission.submittedAt).toLocaleDateString('tr-TR')}
                         </div>
                       )}
@@ -628,8 +629,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Student's own submitted resources */}
                     {mySubmission?.resources && mySubmission.resources.length > 0 && (
-                      <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-xl mb-4 text-xs">
-                        <span className="text-[10px] font-bold text-indigo-300 uppercase block mb-1">
+                      <div className="p-3 bg-canvas/50 border border-line rounded-xl mb-4 text-xs">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-300 uppercase block mb-1">
                           📤 Gönderdiğiniz Çözüm Materyalleri:
                         </span>
                         <HomeworkResourceViewer resources={mySubmission.resources} isCompact />
@@ -638,20 +639,20 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Teacher Feedback / Grade if available */}
                     {mySubmission?.score !== undefined && mySubmission.score !== null && (
-                      <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl mb-4 text-xs">
-                        <div className="flex items-center justify-between font-bold text-emerald-300 mb-1">
+                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-xl mb-4 text-xs">
+                        <div className="flex items-center justify-between font-bold text-emerald-700 dark:text-emerald-300 mb-1">
                           <span>Öğretmen Değerlendirmesi:</span>
                           <span className="text-sm font-extrabold">{mySubmission.score} / 100</span>
                         </div>
                         {mySubmission.feedback && (
-                          <p className="text-slate-300 italic">{mySubmission.feedback}</p>
+                          <p className="text-fg-2 italic">{mySubmission.feedback}</p>
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="pt-3 border-t border-slate-800 flex items-center gap-2">
+                  <div className="pt-3 border-t border-line flex items-center gap-2">
                     <button
                       onClick={() => {
                         // Önceki teslim varsa dosyaları ve notu pencerede görünür; öğrenci ekleyip çıkarabilir
@@ -664,7 +665,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       }}
                       className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
                         mySubmission
-                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                          ? 'bg-surface-2 hover:bg-surface-3 text-fg'
                           : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
                       }`}
                     >
@@ -676,7 +677,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       href={createGoogleCalendarUrlForHomework(hw)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs transition-all"
+                      className="p-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-300 border border-blue-500/30 rounded-xl text-xs transition-all"
                       title="Google Takvime Ekle"
                     >
                       <CalendarCheck className="w-3.5 h-3.5" />
@@ -692,8 +693,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                           60
                         )
                       }
-                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs"
-                      title=".ics Takvim İndir"
+                      className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs"
+                      title="Takvim dosyası indir"
                     >
                       <Calendar className="w-3.5 h-3.5" />
                     </button>
@@ -709,25 +710,25 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {activeTab === 'etuts' && (
         <div className="space-y-4">
           {/* Header & View Mode Switcher */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface border border-line p-4 rounded-2xl">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
+                <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                 <span>Etütlerim & Çalışma Programım</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Size tanımlanmış haftalık etütleri inceleyebilir, takviminize ekleyebilirsiniz.
               </p>
             </div>
 
-            <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
+            <div className="flex items-center bg-canvas p-1 rounded-xl border border-line text-xs font-medium">
               <button
                 type="button"
                 onClick={() => setEtutViewMode('calendar')}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   etutViewMode === 'calendar'
                     ? 'bg-indigo-600 text-white font-bold shadow'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-muted hover:text-fg'
                 }`}
               >
                 Haftalık Takvim
@@ -738,7 +739,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
                   etutViewMode === 'cards'
                     ? 'bg-indigo-600 text-white font-bold shadow'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-muted hover:text-fg'
                 }`}
               >
                 Kart Görünümü ({myEtuts.length})
@@ -756,60 +757,60 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {myEtuts.length === 0 ? (
-                <div className="col-span-full p-12 bg-white border border-slate-200 rounded-2xl text-center text-slate-500 shadow-sm">
+                <div className="col-span-full p-12 bg-surface border border-line rounded-2xl text-center text-muted shadow-sm">
                   Şu anda adınıza atanmış bir etüt bulunmuyor.
                 </div>
               ) : (
                 myEtuts.map((etut) => (
                   <div
                     key={etut.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-slate-300 hover:shadow-xl transition-all flex flex-col justify-between shadow-md text-slate-800"
+                    className="bg-surface border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xl transition-all flex flex-col justify-between shadow-md text-fg"
                   >
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                           {etut.subject}
                         </span>
-                        <span className="text-xs text-slate-500 font-medium">
+                        <span className="text-xs text-muted font-medium">
                           {etut.duration} Dakika
                         </span>
                       </div>
 
-                      <h3 className="text-base font-bold text-slate-900 mb-2">{etut.topic}</h3>
+                      <h3 className="text-base font-bold text-fg mb-2">{etut.topic}</h3>
 
-                      <div className="space-y-2 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      <div className="space-y-2 text-xs text-muted mb-4 bg-surface-2 p-3 rounded-xl border border-line">
                         <div className="flex items-center space-x-2">
-                          <Clock className="w-3.5 h-3.5 text-amber-600" />
-                          <span className="text-slate-800 font-medium">
+                          <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
+                          <span className="text-fg font-medium">
                             {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <MapPin className="w-3.5 h-3.5 text-rose-500" />
-                          <span className="text-slate-700 font-medium">{etut.location}</span>
+                          <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                          <span className="text-fg-2 font-medium">{etut.location}</span>
                         </div>
                         {etut.notes && (
-                          <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200">
+                          <p className="text-[11px] text-muted italic pt-1 border-t border-line">
                             {etut.notes}
                           </p>
                         )}
                         {etut.teacherFeedback && (
-                          <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
-                            <strong className="text-amber-800 font-semibold block text-[11px]">💬 Öğretmen Görüş ve Değerlendirmesi:</strong>
-                            <p className="italic text-slate-700 mt-0.5">"{etut.teacherFeedback}"</p>
+                          <div className="mt-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-900 dark:text-amber-200">
+                            <strong className="text-amber-800 dark:text-amber-200 font-semibold block text-[11px]">💬 Öğretmen Görüş ve Değerlendirmesi:</strong>
+                            <p className="italic text-fg-2 mt-0.5">"{etut.teacherFeedback}"</p>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-200 flex items-center gap-2">
+                    <div className="pt-3 border-t border-line flex items-center gap-2">
                       <a
                         href={createGoogleCalendarUrlForEtut(etut)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-semibold transition-all"
+                        className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-xs font-semibold transition-all"
                       >
-                        <CalendarCheck className="w-3.5 h-3.5 text-indigo-600" />
+                        <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                         <span>Google Takvime Ekle</span>
                       </a>
 
@@ -824,8 +825,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                             etut.location
                           )
                         }
-                        className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs cursor-pointer transition-colors"
-                        title=".ics Takvim İndir"
+                        className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line rounded-xl text-xs cursor-pointer transition-colors"
+                        title="Takvim dosyası indir"
                       >
                         <Calendar className="w-3.5 h-3.5" />
                       </button>
@@ -843,32 +844,32 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         <div className="space-y-6">
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">Katılım Durumu</span>
-              <div className="text-2xl font-bold text-emerald-400 mt-1">{presentDays} Gün Var</div>
+            <div className="p-4 bg-surface border border-line rounded-2xl">
+              <span className="text-xs text-muted">Katılım Durumu</span>
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1">{presentDays} Gün Var</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">Devamsızlık (Yok)</span>
-              <div className="text-2xl font-bold text-rose-400 mt-1">{absentDays} Gün</div>
+            <div className="p-4 bg-surface border border-line rounded-2xl">
+              <span className="text-xs text-muted">Devamsızlık (Yok)</span>
+              <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{absentDays} Gün</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">Geç Kalma</span>
-              <div className="text-2xl font-bold text-amber-400 mt-1">{lateDays} Gün</div>
+            <div className="p-4 bg-surface border border-line rounded-2xl">
+              <span className="text-xs text-muted">Geç Kalma</span>
+              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400 mt-1">{lateDays} Gün</div>
             </div>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-              <span className="text-xs text-slate-400">İzinli / Raporlu</span>
-              <div className="text-2xl font-bold text-blue-400 mt-1">{excusedDays} Gün</div>
+            <div className="p-4 bg-surface border border-line rounded-2xl">
+              <span className="text-xs text-muted">İzinli / Raporlu</span>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{excusedDays} Gün</div>
             </div>
           </div>
 
           {/* Grades Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-            <div className="p-4 border-b border-slate-800 font-bold text-white flex items-center space-x-2">
-              <Award className="w-4 h-4 text-indigo-400" />
+          <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-xl">
+            <div className="p-4 border-b border-line font-bold text-fg flex items-center space-x-2">
+              <Award className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>Ders Notlarım & Sınav Sonuçları</span>
             </div>
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-800/60 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
+            <table className="w-full text-left text-sm text-fg-2">
+              <thead className="bg-surface-2/60 text-xs uppercase tracking-wider text-muted border-b border-line">
                 <tr>
                   <th className="px-6 py-3.5 font-semibold">Ders</th>
                   <th className="px-6 py-3.5 font-semibold">Sınav / Değerlendirme</th>
@@ -877,19 +878,19 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   <th className="px-6 py-3.5 font-semibold">Öğretmen Notu</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-line">
                 {myGrades.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={5} className="px-6 py-12 text-center text-muted">
                       Henüz girilmiş bir sınav veya performans notunuz bulunmamaktadır.
                     </td>
                   </tr>
                 ) : (
                   myGrades.map((g) => (
-                    <tr key={g.id} className="hover:bg-slate-800/30">
-                      <td className="px-6 py-4 font-semibold text-white">{g.subject}</td>
+                    <tr key={g.id} className="hover:bg-surface-2/30">
+                      <td className="px-6 py-4 font-semibold text-fg">{g.subject}</td>
                       <td className="px-6 py-4">
-                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                        <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
                           {g.examType}
                         </span>
                       </td>
@@ -897,18 +898,18 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         <span
                           className={
                             g.score >= 85
-                              ? 'text-emerald-400'
+                              ? 'text-emerald-700 dark:text-emerald-400'
                               : g.score >= 70
-                              ? 'text-blue-400'
-                              : 'text-amber-400'
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-amber-700 dark:text-amber-400'
                           }
                         >
                           {g.score}
                         </span>
-                        <span className="text-slate-500 text-xs font-normal"> / {g.maxScore}</span>
+                        <span className="text-muted text-xs font-normal"> / {g.maxScore}</span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-400">{g.date}</td>
-                      <td className="px-6 py-4 text-xs text-slate-300 italic">{g.remarks || '-'}</td>
+                      <td className="px-6 py-4 text-xs text-muted">{g.date}</td>
+                      <td className="px-6 py-4 text-xs text-fg-2 italic">{g.remarks || '-'}</td>
                     </tr>
                   ))
                 )}
@@ -922,24 +923,24 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {activeTab === 'messages' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Send Form */}
-          <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+          <div className="lg:col-span-5 bg-surface border border-line rounded-2xl p-6 shadow-xl space-y-4">
             <div>
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
-                <HelpCircle className="w-4 h-4 text-indigo-400" />
+              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
+                <HelpCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Öğretmene Soru / Mesaj İlet</span>
               </h3>
             </div>
 
             {messageSentFeedback && (
-              <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span>Mesajınız başarıyla öğretmene iletildi!</span>
               </div>
             )}
 
             <form onSubmit={handleSendMessage} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-fg-2 mb-1">
                   Konu / Ders Başlığı *
                 </label>
                 <input
@@ -948,12 +949,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Örn: Limit ve Süreklilik Soru 4 Çözümü"
                   value={messageSubject}
                   onChange={(e) => setMessageSubject(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-fg-2 mb-1">
                   Soru / Mesaj Açıklaması *
                 </label>
                 <textarea
@@ -962,22 +963,22 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Hocam, türevin geometrik yorumunda bu adımda takıldım..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-fg-2 mb-1">
                   Soru Linki / Görsel Bağlantısı (İsteğe bağlı)
                 </label>
                 <div className="relative">
-                  <LinkIcon className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-2.5" />
+                  <LinkIcon className="w-3.5 h-3.5 text-muted absolute left-3 top-2.5" />
                   <input
                     type="url"
                     placeholder="https://drive.google.com/... veya resim linki"
                     value={messageLink}
                     onChange={(e) => setMessageLink(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-9 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -993,35 +994,35 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </div>
 
           {/* Past Messages List */}
-          <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-white">Geçmiş Sorularım & Yanıtlar</h3>
+          <div className="lg:col-span-7 bg-surface border border-line rounded-2xl p-6 shadow-xl space-y-4">
+            <h3 className="text-base font-bold text-fg">Geçmiş Sorularım & Yanıtlar</h3>
 
             <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {myMessages.length === 0 ? (
-                <p className="text-xs text-slate-500 py-8 text-center">
+                <p className="text-xs text-muted py-8 text-center">
                   Henüz öğretmene ilettiğiniz bir soru veya mesaj bulunmuyor.
                 </p>
               ) : (
                 myMessages.map((msg) => (
                   <div
                     key={msg.id}
-                    className="p-4 bg-slate-800/60 border border-slate-700/80 rounded-2xl space-y-3"
+                    className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-white">{msg.subject}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">
+                      <span className="font-bold text-xs text-fg">{msg.subject}</span>
+                      <span className="text-[10px] text-muted font-mono">
                         {new Date(msg.createdAt).toLocaleDateString('tr-TR')}
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-300 leading-relaxed">{msg.text}</p>
+                    <p className="text-xs text-fg-2 leading-relaxed">{msg.text}</p>
 
                     {msg.linkUrl && (
                       <a
                         href={msg.linkUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 text-xs text-indigo-400 hover:underline"
+                        className="inline-flex items-center space-x-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                       >
                         <ExternalLink className="w-3 h-3" />
                         <span>Eklenen Bağlantı</span>
@@ -1030,14 +1031,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     {/* Teacher Reply */}
                     {msg.teacherReply ? (
-                      <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1">
-                        <span className="text-[10px] font-bold text-emerald-400 block">
+                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1">
+                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">
                           ✓ Öğretmeninizin Yanıtı:
                         </span>
-                        <p className="text-xs text-slate-200">{msg.teacherReply}</p>
+                        <p className="text-xs text-fg">{msg.teacherReply}</p>
                       </div>
                     ) : (
-                      <div className="text-[11px] text-amber-400/80 flex items-center space-x-1">
+                      <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 flex items-center space-x-1">
                         <Clock className="w-3 h-3" />
                         <span>Öğretmenin yanıtı bekleniyor...</span>
                       </div>
@@ -1066,9 +1067,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* SUBMISSION MODAL */}
       {submittingHw && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-white mb-2">Ödevi Teslim Et</h3>
-            <p className="text-xs text-slate-400 mb-4">
+          <div className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-fg mb-2">Ödevi Teslim Et</h3>
+            <p className="text-xs text-muted mb-4">
               &quot;<strong>{submittingHw.title}</strong>&quot; adlı ödevinizi çözüm PDF'i, çözüm videosu, bağlantı veya açıklama ile
               öğretmeninize iletin.
             </p>
@@ -1083,13 +1084,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 onBusyChange={setIsSubmissionUploadBusy}
               />
               {pendingSubmissionResource && (
-                <p className="text-[11px] text-indigo-300 -mt-2">
+                <p className="text-[11px] text-indigo-600 dark:text-indigo-300 -mt-2">
                   Yazdığınız bağlantı ("{pendingSubmissionResource.title}") teslim ederken otomatik olarak eklenecek.
                 </p>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-fg-2 mb-1">
                   Öğrenci Açıklaması / Çözüm Notu
                 </label>
                 <textarea
@@ -1097,17 +1098,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Tüm sorular çözüldü, çözümler ekteki PDF dosyasındadır..."
                   value={submissionNotes}
                   onChange={(e) => setSubmissionNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
 
               {submitError && (
-                <div role="alert" className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl text-xs text-rose-300">
+                <div role="alert" className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-500/40 rounded-xl text-xs text-rose-600 dark:text-rose-300">
                   {submitError}
                 </div>
               )}
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+              <div className="pt-4 border-t border-line flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -1123,7 +1124,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     setPendingSubmissionResource(null);
                     setSubmitError(null);
                   }}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium"
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium"
                 >
                   Vazgeç
                 </button>
@@ -1162,6 +1163,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         onClose={() => setIsProfileModalOpen(false)}
         student={currentStudent}
       />
+
+      {/* Telefon alt menüsü */}
+      <StudentBottomNav activeTab={activeTab} onSelect={(t) => setActiveTab(t)} />
 
       {/* Student Password Change Modal */}
       <StudentPasswordModal

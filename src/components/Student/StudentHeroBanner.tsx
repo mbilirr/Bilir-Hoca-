@@ -229,7 +229,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
     `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
 
   return (
-    <div id="student-agenda-wall" className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+    <div id="student-agenda-wall" className="w-full bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
       {/* Background Ambience Glow */}
       <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -238,16 +238,16 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         {/* =========================================================================
             LEFT COLUMN: YAKLAŞAN ÖDEVLER VE GÖREVLER DUVARI
            ========================================================================= */}
-        <div className="lg:col-span-6 bg-slate-950/70 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+        <div className="lg:col-span-6 bg-canvas/70 border border-line rounded-2xl p-4 flex flex-col justify-between shadow-lg">
           <div>
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+            <div className="flex items-center justify-between pb-3 border-b border-line mb-3">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                <div className="w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-700 dark:text-orange-400">
                   <Target className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-black text-fg flex items-center gap-2">
                     <span>Yaklaşan Ödevler ve Görevler</span>
                     {urgentHomeworks.length > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-500 text-slate-950">
@@ -262,7 +262,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateTab('homework')}
-                  className="text-xs font-bold text-orange-400 hover:text-orange-300 transition-colors cursor-pointer"
+                  className="text-xs font-bold text-orange-700 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors cursor-pointer"
                 >
                   Tümü ({homeworks.length}) →
                 </button>
@@ -277,7 +277,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <img
                     src={studentAvatarUrl}
                     alt={student.name}
-                    className="w-7 h-7 rounded-full object-cover bg-slate-900"
+                    className="w-7 h-7 rounded-full object-cover bg-surface"
                   />
                 </button>
               </div>
@@ -292,26 +292,26 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                     <div
                       key={hw.id}
                       onClick={() => onNavigateTab('homework')}
-                      className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-orange-500/50 hover:bg-slate-900 transition-all flex items-center justify-between gap-2.5 cursor-pointer group"
+                      className="p-3 rounded-xl bg-surface/80 border border-line hover:border-orange-500/50 hover:bg-surface transition-all flex items-center justify-between gap-2.5 cursor-pointer group"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                          isDueToday ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-slate-800 text-indigo-400'
+                          isDueToday ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-500/30' : 'bg-surface-2 text-indigo-600 dark:text-indigo-400'
                         }`}>
                           <BookOpen className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs sm:text-sm font-bold text-white group-hover:text-orange-300 transition-colors truncate">
+                          <h4 className="text-xs sm:text-sm font-bold text-fg group-hover:text-orange-700 dark:group-hover:text-orange-300 transition-colors truncate">
                             {hw.title}
                           </h4>
                           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-fg-2 font-medium">
                               {hw.subject}
                             </span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                               isDueToday
-                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                                : 'bg-slate-800/80 text-slate-400'
+                                ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30'
+                                : 'bg-surface-2/80 text-muted'
                             }`}>
                               {formatDueDateLabel(hw.dueDate)}
                             </span>
@@ -330,10 +330,10 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                 })}
               </div>
             ) : (
-              <div className="py-8 text-center bg-slate-900/50 rounded-xl border border-slate-800/80 space-y-1.5">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
-                <p className="text-xs sm:text-sm font-bold text-white">Harika! Bekleyen acil ödeviniz bulunmuyor.</p>
-                <p className="text-[11px] text-slate-400">Tüm görevlerinizi zamanında tamamladınız.</p>
+              <div className="py-8 text-center bg-surface/50 rounded-xl border border-line space-y-1.5">
+                <CheckCircle2 className="w-8 h-8 text-emerald-700 dark:text-emerald-400 mx-auto" />
+                <p className="text-xs sm:text-sm font-bold text-fg">Harika! Bekleyen acil ödeviniz bulunmuyor.</p>
+                <p className="text-[11px] text-muted">Tüm görevlerinizi zamanında tamamladınız.</p>
               </div>
             )}
           </div>
@@ -342,21 +342,19 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           {todayEtuts.length > 0 ? (
             <div
               onClick={() => onNavigateTab('etuts')}
-              className="mt-3 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-200 cursor-pointer hover:bg-cyan-950/60 transition-colors"
+              className="mt-3 p-2.5 rounded-xl bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-700 dark:text-cyan-200 cursor-pointer hover:bg-cyan-50 dark:hover:bg-cyan-950/60 transition-colors"
             >
               <div className="flex items-center space-x-2 truncate">
-                <Clock className="w-4 h-4 text-cyan-400 shrink-0" />
+                <Clock className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" />
                 <span className="font-bold">Bugün {todayEtuts.length} Etüdünüz Var:</span>
                 <span className="truncate">{todayEtuts[0].subject} ({todayEtuts[0].time})</span>
               </div>
-              <span className="text-[11px] font-bold text-cyan-300 shrink-0 ml-2">Etüte Git →</span>
+              <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 shrink-0 ml-2">Etüte Git →</span>
             </div>
           ) : (
-            <div className="mt-3 bg-slate-900/60 border border-slate-800/70 rounded-xl p-2.5 flex items-center space-x-2.5 text-slate-300 text-xs">
-              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="italic text-[11px] text-slate-300 truncate">
-                &ldquo;Başarı, her gün bıkmadan usanmadan tekrarlanan küçük adımların toplamıdır.&rdquo;
-              </span>
+            <div className="mt-3 bg-surface/60 border border-line rounded-xl p-2.5 flex items-center space-x-2.5 text-fg-2 text-xs">
+              <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+              <span className="text-[11px] text-fg-2 truncate">Bugün etüdün yok. Yaklaşan ödevlerine göz atabilirsin.</span>
             </div>
           )}
         </div>
@@ -364,12 +362,12 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         {/* =========================================================================
             RIGHT COLUMN: KOMPAKT AYLIK TAKVİM / AJANDA DUVARI
            ========================================================================= */}
-        <div className="lg:col-span-6 bg-slate-950/70 border border-slate-800/90 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+        <div className="lg:col-span-6 bg-canvas/70 border border-line rounded-2xl p-4 flex flex-col justify-between shadow-lg">
           {/* Calendar Header */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-800/80">
+          <div className="flex items-center justify-between pb-2.5 border-b border-line">
             <div className="flex items-center space-x-2">
-              <CalendarDays className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-sm sm:text-base font-black text-white">
+              <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-sm sm:text-base font-black text-fg">
                 {TURKISH_MONTHS[viewMonth]} {viewYear}
               </h3>
             </div>
@@ -378,14 +376,14 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleGoToToday}
-                className="px-2 py-0.5 text-[11px] font-bold text-indigo-300 hover:text-white bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-lg transition-colors cursor-pointer"
+                className="px-2 py-0.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-300 hover:text-fg bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/40 rounded-lg transition-colors cursor-pointer"
               >
                 Bugün
               </button>
               <button
                 type="button"
                 onClick={handlePrevMonth}
-                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                className="p-1 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 title="Önceki Ay"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -393,7 +391,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <button
                 type="button"
                 onClick={handleNextMonth}
-                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                className="p-1 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 title="Sonraki Ay"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -402,12 +400,12 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           {/* Weekday Labels */}
-          <div className="grid grid-cols-7 gap-1 text-center py-1.5 border-b border-slate-800/50">
+          <div className="grid grid-cols-7 gap-1 text-center py-1.5 border-b border-line">
             {WEEKDAY_NAMES.map((w, idx) => (
               <span
                 key={w}
                 className={`text-[10px] font-bold ${
-                  idx >= 5 ? 'text-amber-400/80' : 'text-slate-400'
+                  idx >= 5 ? 'text-amber-700/80 dark:text-amber-400/80' : 'text-muted'
                 }`}
               >
                 {w}
@@ -429,10 +427,10 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   onClick={() => setSelectedDateStr(cell.dateStr)}
                   className={`relative flex flex-col items-center justify-center py-1 px-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     !cell.isCurrentMonth
-                      ? 'text-slate-600 opacity-40 hover:opacity-80'
+                      ? 'text-subtle opacity-40 hover:opacity-80'
                       : cell.isToday
-                      ? 'bg-indigo-600/25 text-white ring-1 ring-indigo-500 font-black'
-                      : 'text-slate-200 hover:bg-slate-800/80'
+                      ? 'bg-indigo-600/25 text-fg ring-1 ring-indigo-500 font-black'
+                      : 'text-fg hover:bg-surface-2/80'
                   } ${
                     isSelected
                       ? 'bg-indigo-600 text-white ring-1.5 ring-indigo-400 shadow-md scale-105 z-10'
@@ -464,7 +462,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-between pt-2 text-[10px] text-slate-400 border-t border-slate-800/70 mt-1.5">
+          <div className="flex items-center justify-between pt-2 text-[10px] text-muted border-t border-line mt-1.5">
             <div className="flex items-center space-x-3">
               <span className="flex items-center space-x-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
@@ -475,17 +473,17 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                 <span>Etüt</span>
               </span>
             </div>
-            <span className="text-[10px] text-slate-500">Güne tıkla</span>
+            <span className="text-[10px] text-muted">Güne tıkla</span>
           </div>
 
           {/* Selected Date Program Drawer */}
-          <div className="mt-2 pt-2 border-t border-slate-800 bg-slate-900/60 rounded-xl p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-bold text-white">
+          <div className="mt-2 pt-2 border-t border-line bg-surface/60 rounded-xl p-2.5 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-fg">
               <span className="flex items-center space-x-1.5">
-                <Bookmark className="w-3 h-3 text-indigo-400" />
+                <Bookmark className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                 <span>{formatSelectedDateTurkish(selectedDateStr)}</span>
               </span>
-              <span className="text-[10px] text-slate-400 font-normal">
+              <span className="text-[10px] text-muted font-normal">
                 {selectedDetails.homeworks.length} Ödev • {selectedDetails.etuts.length} Etüt
               </span>
             </div>
@@ -496,16 +494,16 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={hw.id}
                     onClick={() => onNavigateTab('homework')}
-                    className="p-1.5 rounded-lg bg-amber-950/30 border border-amber-500/30 flex items-center justify-between text-[11px] text-amber-200 cursor-pointer hover:bg-amber-950/50 transition-colors"
+                    className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-500/30 flex items-center justify-between text-[11px] text-amber-700 dark:text-amber-200 cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors"
                   >
                     <div className="flex items-center space-x-1.5 truncate">
-                      <BookOpen className="w-3 h-3 text-amber-400 shrink-0" />
+                      <BookOpen className="w-3 h-3 text-amber-700 dark:text-amber-400 shrink-0" />
                       <span className="truncate font-medium">{hw.title}</span>
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 shrink-0">
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
                         {hw.subject}
                       </span>
                     </div>
-                    <span className="text-[9px] text-amber-300 font-bold shrink-0 ml-1.5">Ödevi Aç →</span>
+                    <span className="text-[9px] text-amber-700 dark:text-amber-300 font-bold shrink-0 ml-1.5">Ödevi Aç →</span>
                   </div>
                 ))}
 
@@ -513,21 +511,21 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
                   <div
                     key={et.id}
                     onClick={() => onNavigateTab('etuts')}
-                    className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-[11px] text-cyan-200 cursor-pointer hover:bg-cyan-950/50 transition-colors"
+                    className="p-1.5 rounded-lg bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-500/30 flex items-center justify-between text-[11px] text-cyan-700 dark:text-cyan-200 cursor-pointer hover:bg-cyan-50 dark:hover:bg-cyan-950/50 transition-colors"
                   >
                     <div className="flex items-center space-x-1.5 truncate">
-                      <Clock className="w-3 h-3 text-cyan-400 shrink-0" />
+                      <Clock className="w-3 h-3 text-cyan-700 dark:text-cyan-400 shrink-0" />
                       <span className="truncate font-medium">{et.subject}</span>
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 shrink-0">
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 shrink-0">
                         {et.time}
                       </span>
                     </div>
-                    <span className="text-[9px] text-cyan-300 font-bold shrink-0 ml-1.5">Etüte Git →</span>
+                    <span className="text-[9px] text-cyan-700 dark:text-cyan-300 font-bold shrink-0 ml-1.5">Etüte Git →</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] text-slate-500 italic py-0.5 text-center">
+              <p className="text-[10px] text-muted italic py-0.5 text-center">
                 Bu tarihte planlanmış ödev veya etüt bulunmuyor.
               </p>
             )}

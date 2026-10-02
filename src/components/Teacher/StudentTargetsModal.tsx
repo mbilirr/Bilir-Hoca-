@@ -138,23 +138,23 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
                 <span>Öğrenci Soru Hedefleri</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-extrabold dark:bg-orange-950/60 dark:text-orange-300">
                   {targets.length} Öğrenci
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Öğrencilere tanımlanmış soru sayısı hedefleri ve anlık çözüm ilerleme durumu
               </p>
             </div>
@@ -162,30 +162,30 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-subtle hover:text-muted rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+        <div className="p-4 border-b border-line bg-surface flex flex-col sm:flex-row gap-2.5 items-center justify-between">
           <div className="flex-1 flex items-center gap-2 w-full">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <Search className="w-4 h-4 text-subtle absolute left-3 top-2.5" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Öğrenci adı veya sınıf ara..."
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full pl-9 pr-3 py-1.5 bg-surface-2 border border-line rounded-xl text-xs text-fg focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
 
             <select
               value={selectedClassFilter}
               onChange={(e) => setSelectedClassFilter(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+              className="px-3 py-1.5 bg-surface-2 border border-line rounded-xl text-xs font-semibold text-fg focus:outline-none cursor-pointer"
             >
               <option value="all">Tüm Sınıflar</option>
               {classes.map((c) => (
@@ -213,13 +213,13 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-3">
           {filteredList.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-50 dark:bg-orange-950/30 text-orange-400 flex items-center justify-center mb-3">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 flex items-center justify-center mb-3">
                 <Target className="w-7 h-7" />
               </div>
-              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <h4 className="text-sm font-bold text-fg-2">
                 Kayıtlı Öğrenci Hedefi Bulunamadı
               </h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-subtle mt-1 max-w-sm mx-auto">
                 Henüz öğrenci bazlı bir soru hedefi tanımlanmamış veya arama kriterlerine uygun kayıt bulunmuyor.
               </p>
             </div>
@@ -227,7 +227,7 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
             filteredList.map((item) => (
               <div
                 key={item.target.id || item.target.studentId}
-                className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-orange-300 dark:hover:border-orange-500/50 transition-all"
+                className="p-4 bg-surface-2 border border-line rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-orange-300 dark:hover:border-orange-500/50 transition-all"
               >
                 {/* Student Info */}
                 <div className="flex items-center space-x-3 min-w-0">
@@ -239,11 +239,11 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
                       )}`
                     }
                     alt={item.studentName}
-                    className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0 ring-2 ring-orange-200 dark:ring-orange-500/30"
+                    className="w-11 h-11 rounded-full bg-surface-3 shrink-0 ring-2 ring-orange-200 dark:ring-orange-500/30"
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      <span className="text-sm font-bold text-fg truncate">
                         {item.studentName}
                       </span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
@@ -253,7 +253,7 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
                         {item.targetPeriodLabel}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                    <div className="text-xs text-muted mt-0.5 flex items-center gap-2">
                       <span>
                         Hedef: <strong className="text-orange-600 dark:text-orange-400 font-bold">{item.targetTotal} Soru</strong>
                       </span>
@@ -268,12 +268,12 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
                   {/* Progress Bar & Stat */}
                   <div className="w-36 text-right">
                     <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-slate-500 font-medium">Çözülen:</span>
-                      <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                      <span className="text-muted font-medium">Çözülen:</span>
+                      <span className="font-extrabold text-fg">
                         {item.solvedQuestions} / {item.targetTotal}
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div className="w-full h-2 rounded-full bg-surface-3 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
                           item.progressPercent >= 100
@@ -309,7 +309,7 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
                         onClose();
                         onOpenTargetModalForStudent(item.student || ({} as Student), item.target);
                       }}
-                      className="p-2 text-slate-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+                      className="p-2 text-muted hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
                       title="Hedefi Düzenle"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -317,7 +317,7 @@ export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDeleteTarget(item.target.studentId || '', item.target.weekStartDate)}
-                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                      className="p-2 text-subtle hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                       title="Hedefi Sil"
                     >
                       <Trash2 className="w-4 h-4" />

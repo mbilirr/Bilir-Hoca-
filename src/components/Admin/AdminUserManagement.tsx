@@ -188,19 +188,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   if (!isSuperAdmin) {
     return (
-      <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
-        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+      <div className="bg-surface border border-rose-500/30 rounded-3xl p-8 sm:p-12 text-center max-w-xl mx-auto shadow-2xl space-y-4 my-8 animate-in fade-in duration-200">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
           <ShieldAlert className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-bold text-white">Yetkisiz Erişim (403 Forbidden)</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          Bu alan <strong>Rol Tabanlı Yetkilendirme (RBAC)</strong> kuralları gereği yalnızca Kurum Yöneticisi (Admin) erişimine açıktır.
+        <h2 className="text-xl font-bold text-fg">Yetkisiz Erişim (403 Forbidden)</h2>
+        <p className="text-sm text-muted leading-relaxed">
+          Bu alan <strong>yetki kuralları</strong> gereği yalnızca Kurum Yöneticisi (Admin) erişimine açıktır.
         </p>
         <div className="pt-2">
           <button
             type="button"
             onClick={onNavigateHome}
-            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold transition-all border border-line cursor-pointer"
           >
             Öğretmen Paneline Dön
           </button>
@@ -390,67 +390,51 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <div
             className={`px-4 py-3 rounded-2xl shadow-2xl border text-xs sm:text-sm font-bold flex items-center space-x-2.5 backdrop-blur-xl ${
               toastMsg.type === 'success'
-                ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
+                ? 'bg-emerald-50 dark:bg-emerald-950/95 border-emerald-500/40 text-emerald-700 dark:text-emerald-200'
                 : toastMsg.type === 'error'
-                ? 'bg-rose-950/95 border-rose-500/40 text-rose-200'
-                : 'bg-indigo-950/95 border-indigo-500/40 text-indigo-200'
+                ? 'bg-rose-50 dark:bg-rose-950/95 border-rose-500/40 text-rose-600 dark:text-rose-200'
+                : 'bg-indigo-50 dark:bg-indigo-950/95 border-indigo-500/40 text-indigo-600 dark:text-indigo-200'
             }`}
           >
-            {toastMsg.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-            {toastMsg.type === 'error' && <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />}
-            {toastMsg.type === 'info' && <Sparkles className="w-5 h-5 text-indigo-400 shrink-0" />}
+            {toastMsg.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-700 dark:text-emerald-400 shrink-0" />}
+            {toastMsg.type === 'error' && <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />}
+            {toastMsg.type === 'info' && <Sparkles className="w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0" />}
             <span>{toastMsg.text}</span>
           </div>
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-900 border border-slate-700/80 p-5 sm:p-7 shadow-xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start space-x-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 p-0.5 shadow-lg shadow-indigo-950 shrink-0">
-              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-amber-400">
-                <Crown className="w-6 h-6" />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  Kullanıcı Yönetimi & Yetkilendirme (RBAC)
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                  Admin Yetkili Alan
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
-                Kurumdaki tüm yönetici, öğretmen ve öğrenci hesaplarını tek merkezden yönetin. Yetkileri değiştirin,
-                şifreleri doğrudan güncelleyin veya hesapları askıya alıp silin.
-              </p>
-            </div>
+      {/* Bölüm başlığı */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-warning-soft text-warning-fg flex items-center justify-center shrink-0">
+            <Crown className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center space-x-2 self-start md:self-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsCreateTeacherOpen(true)}
-              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
-              title="Yeni öğretmen için giriş hesabı aç"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Yeni Öğretmen Hesabı</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-750 text-slate-200 hover:text-white text-xs font-bold border border-slate-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-              title="Bulut Veritabanından Güncel Verileri Çek"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>{isRefreshing ? 'Eşitleniyor...' : 'Buluttan Yenile'}</span>
-            </button>
+          <div>
+            <h2 className="text-lg font-bold text-fg tracking-tight">Kullanıcılar ve Yetkiler</h2>
+            <p className="text-xs sm:text-sm text-muted">Öğretmen ve öğrenci hesapları, roller, şifreler ve hesap durumu</p>
           </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="ui-btn ui-btn-secondary ui-btn-icon"
+            title="Verileri yeniden yükle"
+            aria-label="Verileri yeniden yükle"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsCreateTeacherOpen(true)}
+            className="ui-btn ui-btn-primary"
+            title="Yeni öğretmen için giriş hesabı aç"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Yeni Öğretmen Hesabı</span>
+          </button>
         </div>
       </div>
 
@@ -466,18 +450,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter('all');
             setStatusFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
             roleFilter === 'all' && statusFilter === 'all'
-              ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-950/20'
-              : 'border-slate-800 hover:border-slate-700 hover:bg-slate-850/50'
+              ? 'border-indigo-500 ring-2 ring-indigo-500/50 bg-indigo-50 dark:bg-indigo-950/20'
+              : 'border-line hover:border-line hover:bg-surface-2/50'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-400 mb-2">
+          <div className="flex items-center justify-between text-muted mb-2">
             <span className="text-xs font-bold">Toplam Kullanıcı</span>
-            <Users className="w-4 h-4 text-indigo-400" />
+            <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <p className="text-2xl font-black text-white">{stats.total}</p>
-          <span className="text-[10px] text-slate-500 mt-1 block">Tüm kayıtları listele</span>
+          <p className="text-2xl font-black text-fg">{stats.total}</p>
+          <span className="text-[10px] text-muted mt-1 block">Tüm kayıtları listele</span>
         </button>
 
         {/* Yöneticiler */}
@@ -487,18 +471,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'admin' && statusFilter === 'all' ? 'all' : 'admin');
             setStatusFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-amber-500/5 to-transparent ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-amber-500/5 to-transparent ${
             roleFilter === 'admin' && statusFilter === 'all'
-              ? 'border-amber-400 ring-2 ring-amber-400/50 bg-amber-950/30'
-              : 'border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-950/10'
+              ? 'border-amber-400 ring-2 ring-amber-400/50 bg-amber-50 dark:bg-amber-950/30'
+              : 'border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-50 dark:hover:bg-amber-950/10'
           }`}
         >
-          <div className="flex items-center justify-between text-amber-300 mb-2">
+          <div className="flex items-center justify-between text-amber-700 dark:text-amber-300 mb-2">
             <span className="text-xs font-bold">Yöneticiler</span>
-            <Crown className="w-4 h-4 text-amber-400" />
+            <Crown className="w-4 h-4 text-amber-700 dark:text-amber-400" />
           </div>
-          <p className="text-2xl font-black text-white">{stats.admins}</p>
-          <span className="text-[10px] text-amber-400/70 mt-1 block">Tam Yetkili (Admin)</span>
+          <p className="text-2xl font-black text-fg">{stats.admins}</p>
+          <span className="text-[10px] text-amber-700/70 dark:text-amber-400/70 mt-1 block">Tam Yetkili (Admin)</span>
         </button>
 
         {/* Öğretmenler */}
@@ -508,18 +492,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'teacher' && statusFilter === 'all' ? 'all' : 'teacher');
             setStatusFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
             roleFilter === 'teacher' && statusFilter === 'all'
-              ? 'border-indigo-400 ring-2 ring-indigo-400/50 bg-indigo-950/30'
-              : 'border-indigo-500/20 hover:border-indigo-500/40 hover:bg-indigo-950/10'
+              ? 'border-indigo-400 ring-2 ring-indigo-400/50 bg-indigo-50 dark:bg-indigo-950/30'
+              : 'border-indigo-500/20 hover:border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/10'
           }`}
         >
-          <div className="flex items-center justify-between text-indigo-300 mb-2">
+          <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-300 mb-2">
             <span className="text-xs font-bold">Öğretmenler</span>
-            <GraduationCap className="w-4 h-4 text-indigo-400" />
+            <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <p className="text-2xl font-black text-white">{stats.teachers}</p>
-          <span className="text-[10px] text-indigo-400/70 mt-1 block">Aktif Branş Eğitmenleri</span>
+          <p className="text-2xl font-black text-fg">{stats.teachers}</p>
+          <span className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70 mt-1 block">Aktif Branş Eğitmenleri</span>
         </button>
 
         {/* Öğrenciler */}
@@ -529,18 +513,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setRoleFilter(roleFilter === 'student' && statusFilter === 'all' ? 'all' : 'student');
             setStatusFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
             roleFilter === 'student' && statusFilter === 'all'
-              ? 'border-emerald-400 ring-2 ring-emerald-400/50 bg-emerald-950/30'
-              : 'border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-950/10'
+              ? 'border-emerald-400 ring-2 ring-emerald-400/50 bg-emerald-50 dark:bg-emerald-950/30'
+              : 'border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/10'
           }`}
         >
-          <div className="flex items-center justify-between text-emerald-300 mb-2">
+          <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-300 mb-2">
             <span className="text-xs font-bold">Öğrenciler</span>
-            <School className="w-4 h-4 text-emerald-400" />
+            <School className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
           </div>
-          <p className="text-2xl font-black text-white">{stats.students}</p>
-          <span className="text-[10px] text-emerald-400/70 mt-1 block">Kayıtlı Öğrenci Sayısı</span>
+          <p className="text-2xl font-black text-fg">{stats.students}</p>
+          <span className="text-[10px] text-emerald-700/70 dark:text-emerald-400/70 mt-1 block">Kayıtlı Öğrenci Sayısı</span>
         </button>
 
         {/* Askıya Alınanlar */}
@@ -550,18 +534,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended');
             setRoleFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-rose-500/5 to-transparent ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer bg-gradient-to-b from-rose-500/5 to-transparent ${
             statusFilter === 'suspended'
-              ? 'border-rose-400 ring-2 ring-rose-400/50 bg-rose-950/30'
-              : 'border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-950/10'
+              ? 'border-rose-400 ring-2 ring-rose-400/50 bg-rose-50 dark:bg-rose-950/30'
+              : 'border-rose-500/20 hover:border-rose-500/40 hover:bg-rose-50 dark:hover:bg-rose-950/10'
           }`}
         >
-          <div className="flex items-center justify-between text-rose-300 mb-2">
+          <div className="flex items-center justify-between text-rose-600 dark:text-rose-300 mb-2">
             <span className="text-xs font-bold">Askıda / Dondurulan</span>
-            <Ban className="w-4 h-4 text-rose-400" />
+            <Ban className="w-4 h-4 text-rose-600 dark:text-rose-400" />
           </div>
-          <p className="text-2xl font-black text-rose-200">{stats.suspended}</p>
-          <span className="text-[10px] text-rose-400/70 mt-1 block">Girişleri Kapatılmış</span>
+          <p className="text-2xl font-black text-rose-600 dark:text-rose-200">{stats.suspended}</p>
+          <span className="text-[10px] text-rose-600/70 dark:text-rose-400/70 mt-1 block">Girişleri Kapatılmış</span>
         </button>
 
         {/* Onay Bekleyenler */}
@@ -571,38 +555,38 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending');
             setRoleFilter('all');
           }}
-          className={`text-left bg-slate-900/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
+          className={`text-left bg-surface/90 border rounded-2xl p-4 shadow-sm transition-all cursor-pointer ${
             statusFilter === 'pending'
-              ? 'border-orange-400 ring-2 ring-orange-400/50 bg-orange-950/30'
-              : 'border-orange-500/20 hover:border-orange-500/40 hover:bg-orange-950/10'
+              ? 'border-orange-400 ring-2 ring-orange-400/50 bg-orange-50 dark:bg-orange-950/30'
+              : 'border-orange-500/20 hover:border-orange-500/40 hover:bg-orange-50 dark:hover:bg-orange-950/10'
           }`}
         >
-          <div className="flex items-center justify-between text-orange-300 mb-2">
+          <div className="flex items-center justify-between text-orange-700 dark:text-orange-300 mb-2">
             <span className="text-xs font-bold">Onay Bekleyen</span>
-            <AlertTriangle className="w-4 h-4 text-orange-400" />
+            <AlertTriangle className="w-4 h-4 text-orange-700 dark:text-orange-400" />
           </div>
-          <p className="text-2xl font-black text-orange-200">{stats.pending}</p>
-          <span className="text-[10px] text-orange-400/70 mt-1 block">Öğretmen Başvurusu</span>
+          <p className="text-2xl font-black text-orange-700 dark:text-orange-200">{stats.pending}</p>
+          <span className="text-[10px] text-orange-700/70 dark:text-orange-400/70 mt-1 block">Öğretmen Başvurusu</span>
         </button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-col gap-3">
+      <div className="bg-surface/95 border border-line rounded-2xl p-4 shadow-md flex flex-col gap-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               placeholder="İsim, kullanıcı adı, e-posta, telefon, branş veya sınıf ile ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="w-full pl-10 pr-4 py-2 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -611,32 +595,32 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
           <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
             {/* Role Filter */}
-            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
-              <Filter className="w-3.5 h-3.5 text-indigo-400" />
+            <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5">
+              <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value as any)}
-                className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs text-fg font-bold focus:outline-none cursor-pointer"
               >
-                <option value="all" className="bg-slate-900 text-white">Tüm Roller</option>
-                <option value="admin" className="bg-slate-900 text-white">👑 Yöneticiler (Admin)</option>
-                <option value="teacher" className="bg-slate-900 text-white">🎓 Öğretmenler</option>
-                <option value="student" className="bg-slate-900 text-white">🎒 Öğrenciler</option>
+                <option value="all" className="bg-surface text-fg">Tüm Roller</option>
+                <option value="admin" className="bg-surface text-fg">👑 Yöneticiler (Admin)</option>
+                <option value="teacher" className="bg-surface text-fg">🎓 Öğretmenler</option>
+                <option value="student" className="bg-surface text-fg">🎒 Öğrenciler</option>
               </select>
             </div>
 
             {/* Status Filter */}
-            <div className="flex items-center space-x-1.5 bg-slate-950 border border-slate-700/80 rounded-xl px-2.5 py-1.5">
+            <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="bg-transparent text-xs text-slate-200 font-bold focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs text-fg font-bold focus:outline-none cursor-pointer"
               >
-                <option value="all" className="bg-slate-900 text-white">Tüm Durumlar</option>
-                <option value="active" className="bg-slate-900 text-white">🟢 Aktif</option>
-                <option value="suspended" className="bg-slate-900 text-white">⛔ Askıda (Dondurulmuş)</option>
-                <option value="pending" className="bg-slate-900 text-white">🟠 Onay Bekleyen</option>
-                <option value="rejected" className="bg-slate-900 text-white">🔴 Reddedilen</option>
+                <option value="all" className="bg-surface text-fg">Tüm Durumlar</option>
+                <option value="active" className="bg-surface text-fg">🟢 Aktif</option>
+                <option value="suspended" className="bg-surface text-fg">⛔ Askıda (Dondurulmuş)</option>
+                <option value="pending" className="bg-surface text-fg">🟠 Onay Bekleyen</option>
+                <option value="rejected" className="bg-surface text-fg">🔴 Reddedilen</option>
               </select>
             </div>
 
@@ -648,7 +632,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   setRoleFilter('all');
                   setStatusFilter('all');
                 }}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-bold transition-colors cursor-pointer"
               >
                 Temizle
               </button>
@@ -657,8 +641,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         </div>
 
         {/* Quick Role & Status Filter Pill Buttons */}
-        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400">Hızlı Filtre:</span>
+        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-line">
+          <span className="text-[11px] font-bold text-muted">Hızlı Filtre:</span>
           <button
             type="button"
             onClick={() => {
@@ -668,7 +652,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               roleFilter === 'all' && statusFilter === 'all'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-slate-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-fg-2'
             }`}
           >
             Tümü ({stats.total})
@@ -682,7 +666,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
               roleFilter === 'admin' && statusFilter === 'all'
                 ? 'bg-amber-500 text-slate-950 shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-amber-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-amber-700 dark:text-amber-300'
             }`}
           >
             <Crown className="w-3.5 h-3.5" />
@@ -697,7 +681,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
               roleFilter === 'teacher' && statusFilter === 'all'
                 ? 'bg-indigo-500 text-white shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-indigo-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300'
             }`}
           >
             <GraduationCap className="w-3.5 h-3.5" />
@@ -712,7 +696,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
               roleFilter === 'student' && statusFilter === 'all'
                 ? 'bg-emerald-500 text-white shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-emerald-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-emerald-700 dark:text-emerald-300'
             }`}
           >
             <School className="w-3.5 h-3.5" />
@@ -727,7 +711,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
               statusFilter === 'suspended'
                 ? 'bg-rose-500 text-white shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-rose-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-rose-600 dark:text-rose-300'
             }`}
           >
             <Ban className="w-3.5 h-3.5" />
@@ -742,7 +726,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1 ${
               statusFilter === 'pending'
                 ? 'bg-orange-500 text-white shadow-xs'
-                : 'bg-slate-800 hover:bg-slate-750 text-orange-300'
+                : 'bg-surface-2 hover:bg-surface-3 text-orange-700 dark:text-orange-300'
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -752,11 +736,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       </div>
 
       {/* Users Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+      <div className="bg-surface border border-line rounded-3xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-black uppercase tracking-wider text-slate-400">
+              <tr className="border-b border-line bg-canvas/60 text-[11px] font-black uppercase tracking-wider text-muted">
                 <th className="py-3.5 px-4 sm:px-6">Kullanıcı (Ad Soyad & Profil)</th>
                 <th className="py-3.5 px-4">İletişim & Kullanıcı Adı</th>
                 <th className="py-3.5 px-4">Mevcut Rolü</th>
@@ -765,13 +749,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 <th className="py-3.5 px-4 text-right sm:pr-6">Yönetici İşlemleri</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 text-xs">
+            <tbody className="divide-y divide-line text-xs">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    <Users className="w-10 h-10 text-slate-600 mx-auto mb-2 opacity-50" />
-                    <p className="font-bold text-white">Kullanıcı Bulunamadı</p>
-                    <p className="text-xs text-slate-500 mt-1">Arama veya filtre kriterlerinize uyan kayıt yok.</p>
+                  <td colSpan={6} className="py-12 text-center text-muted">
+                    <Users className="w-10 h-10 text-subtle mx-auto mb-2 opacity-50" />
+                    <p className="font-bold text-fg">Kullanıcı Bulunamadı</p>
+                    <p className="text-xs text-muted mt-1">Arama veya filtre kriterlerinize uyan kayıt yok.</p>
                   </td>
                 </tr>
               ) : (
@@ -783,19 +767,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   return (
                     <tr
                       key={u.id}
-                      className={`hover:bg-slate-850/50 transition-colors ${
-                        isSuspended ? 'bg-rose-950/15 text-slate-400' : ''
+                      className={`hover:bg-surface-2/50 transition-colors ${
+                        isSuspended ? 'bg-rose-50 dark:bg-rose-950/15 text-muted' : ''
                       }`}
                     >
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-4 sm:px-6">
                         <div className="flex items-center space-x-3">
                           <div className="relative shrink-0">
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-800 ring-2 ring-slate-700/80 overflow-hidden flex items-center justify-center">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-2 ring-2 ring-line overflow-hidden flex items-center justify-center">
                               {u.avatar ? (
                                 <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                               ) : (
-                                <span className="text-xs font-bold text-slate-300">
+                                <span className="text-xs font-bold text-fg-2">
                                   {u.name.slice(0, 2).toUpperCase()}
                                 </span>
                               )}
@@ -812,16 +796,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
                           <div className="min-w-0">
                             <div className="flex items-center space-x-1.5 flex-wrap">
-                              <span className="font-bold text-white text-xs sm:text-sm truncate">
+                              <span className="font-bold text-fg text-xs sm:text-sm truncate">
                                 {u.name}
                               </span>
                               {isCurrentAdminSelf && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                                   Siz
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-slate-400 font-mono block">
+                            <span className="text-[11px] text-muted font-mono block">
                               @{u.username}
                             </span>
                           </div>
@@ -834,19 +818,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           {u.email ? (
                             <a
                               href={`mailto:${u.email}`}
-                              className="flex items-center space-x-1 text-slate-300 hover:text-indigo-400 transition-colors truncate max-w-[200px]"
+                              className="flex items-center space-x-1 text-fg-2 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors truncate max-w-[200px]"
                               title={u.email}
                             >
-                              <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                              <Mail className="w-3 h-3 text-muted shrink-0" />
                               <span className="truncate">{u.email}</span>
                             </a>
                           ) : (
-                            <span className="text-slate-600 italic">E-posta yok</span>
+                            <span className="text-subtle italic">E-posta yok</span>
                           )}
 
                           {u.phone ? (
-                            <div className="flex items-center space-x-1 text-slate-400">
-                              <Phone className="w-3 h-3 text-slate-500 shrink-0" />
+                            <div className="flex items-center space-x-1 text-muted">
+                              <Phone className="w-3 h-3 text-muted shrink-0" />
                               <span>{u.phone}</span>
                             </div>
                           ) : null}
@@ -856,18 +840,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       {/* Role Badge */}
                       <td className="py-3.5 px-4">
                         {u.role === 'admin' ? (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                            <Crown className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            <Crown className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                             <span>Yönetici</span>
                           </span>
                         ) : u.role === 'teacher' ? (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
-                            <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
+                            <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                             <span>Öğretmen</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                            <School className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                            <School className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                             <span>Öğrenci</span>
                           </span>
                         )}
@@ -877,24 +861,24 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       <td className="py-3.5 px-4">
                         {u.role === 'student' ? (
                           <div>
-                            <span className="font-bold text-white block">
+                            <span className="font-bold text-fg block">
                               {u.className || 'Genel'}
                             </span>
                             {u.studentNumber && (
-                              <span className="text-[11px] text-slate-400">
+                              <span className="text-[11px] text-muted">
                                 No: {u.studentNumber}
                               </span>
                             )}
                           </div>
                         ) : (
                           <div>
-                            <span className="font-bold text-white block truncate max-w-[150px]">
+                            <span className="font-bold text-fg block truncate max-w-[150px]">
                               {u.branch || 'Genel Branş'}
                             </span>
                             {u.canViewAllStudentsAndClasses ? (
-                              <span className="text-[10px] text-emerald-400 font-medium">Tüm Sınıflar</span>
+                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">Tüm Sınıflar</span>
                             ) : u.assignedClassIds && u.assignedClassIds.length > 0 ? (
-                              <span className="text-[10px] text-indigo-400 font-medium">
+                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
                                 {u.assignedClassIds.length} Sınıf Yetkili
                               </span>
                             ) : null}
@@ -905,21 +889,21 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       {/* Status */}
                       <td className="py-3.5 px-4">
                         {isSuspended ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                            <Ban className="w-3 h-3 text-rose-400" />
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30">
+                            <Ban className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                             <span>Askıya Alındı</span>
                           </span>
                         ) : u.status === 'pending' ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                            <AlertTriangle className="w-3 h-3 text-orange-400" />
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30">
+                            <AlertTriangle className="w-3 h-3 text-orange-700 dark:text-orange-400" />
                             <span>Onay Bekliyor</span>
                           </span>
                         ) : u.status === 'rejected' ? (
-                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-700 text-slate-300">
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-surface-3 text-fg-2">
                             <span>Reddedildi</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                             <span>Aktif</span>
                           </span>
@@ -934,7 +918,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenAuthModal(u)}
-                              className="p-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 hover:text-white border border-indigo-500/40 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-50 dark:hover:bg-indigo-900/80 text-indigo-600 dark:text-indigo-300 hover:text-fg border border-indigo-500/40 transition-colors cursor-pointer"
                               title="Sınıf ve Öğrenci Erişim Yetkilerini Yönet (Erişim Matrisi)"
                             >
                               <ShieldCheck className="w-3.5 h-3.5" />
@@ -946,7 +930,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenRoleModal(u)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-amber-300 border border-slate-700/80 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line transition-colors cursor-pointer"
                               title="Öğretmen / Yönetici yetkisi"
                             >
                               <Shield className="w-3.5 h-3.5" />
@@ -957,7 +941,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(u)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-indigo-300 border border-slate-700/80 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-indigo-600 dark:hover:text-indigo-300 border border-line transition-colors cursor-pointer"
                             title="Bilgileri ve Şifreyi Güncelle (Admin Override)"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -970,8 +954,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             disabled={isProtectedAdmin}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                               isSuspended
-                                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border-emerald-500/30'
-                                : 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border-slate-700/80'
+                                ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                                : 'bg-surface-2 hover:bg-rose-500/20 text-fg-2 hover:text-rose-600 dark:hover:text-rose-300 border-line'
                             }`}
                             title={isSuspended ? 'Hesabı Yeniden Aktifleştir' : 'Hesabı Geçici Olarak Dondur (Askıya Al)'}
                           >
@@ -983,7 +967,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             type="button"
                             onClick={() => setDeleteModalUser(u)}
                             disabled={isProtectedAdmin}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 border border-slate-700/80 transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-rose-600/30 text-muted hover:text-rose-600 dark:hover:text-rose-300 border border-line transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
                             title="Kullanıcıyı Kalıcı Olarak Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1005,23 +989,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {editModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <div
-            className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
+            className="relative w-full max-w-2xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-b border-line bg-gradient-to-r from-surface via-indigo-50 dark:via-indigo-950/40 to-surface flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                   <Edit className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                  <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                     <span>Kullanıcı Bilgilerini Güncelle</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-2 text-fg-2 font-mono">
                       {editModalUser.role.toUpperCase()}
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted">
                     Sistem yöneticisi yetkisiyle profil alanlarını ve şifreyi doğrudan güncelleyin.
                   </p>
                 </div>
@@ -1029,7 +1013,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setEditModalUser(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1040,61 +1024,61 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Ad Soyad */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Ad Soyad</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad</label>
                   <input
                     type="text"
                     required
                     value={editFormData.name}
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Kullanıcı Adı */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Kullanıcı Adı</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Kullanıcı Adı</label>
                   <input
                     type="text"
                     required
                     value={editFormData.username}
                     onChange={(e) => setEditFormData({ ...editFormData, username: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* E-posta */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">E-posta Adresi</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">E-posta Adresi</label>
                   <input
                     type="email"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Telefon */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Telefon Numarası</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Telefon Numarası</label>
                   <input
                     type="tel"
                     placeholder="05XX XXX XX XX"
                     value={editFormData.phone}
                     onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Öğretmen / Admin Branşı */}
                 {editModalUser.role !== 'student' && (
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-300 mb-1">Branş / Görev</label>
+                    <label className="block text-xs font-bold text-fg-2 mb-1">Branş / Görev</label>
                     <input
                       type="text"
                       placeholder="Örn: Fen Bilgisi Öğretmeni, Matematik, Kurum Müdürü"
                       value={editFormData.branch}
                       onChange={(e) => setEditFormData({ ...editFormData, branch: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                     />
                   </div>
                 )}
@@ -1103,7 +1087,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {editModalUser.role === 'student' && (
                   <>
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Kayıtlı Sınıf</label>
+                      <label className="block text-xs font-bold text-fg-2 mb-1">Kayıtlı Sınıf</label>
                       <select
                         value={editFormData.classId}
                         onChange={(e) => {
@@ -1114,10 +1098,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             className: cls ? cls.name : editFormData.className,
                           });
                         }}
-                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                        className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500 cursor-pointer"
                       >
                         {classes.map((c) => (
-                          <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                          <option key={c.id} value={c.id} className="bg-surface text-fg">
                             {c.name} ({c.gradeLevel || c.branch || 'Genel'})
                           </option>
                         ))}
@@ -1125,13 +1109,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">Okul Numarası</label>
+                      <label className="block text-xs font-bold text-fg-2 mb-1">Okul Numarası</label>
                       <input
                         type="text"
                         placeholder="Örn: 482"
                         value={editFormData.studentNumber}
                         onChange={(e) => setEditFormData({ ...editFormData, studentNumber: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </>
@@ -1139,20 +1123,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
 
               {/* Şifre Güncelleme Bölümü (Admin Password Override) */}
-              <div className="pt-3 border-t border-slate-800">
-                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="pt-3 border-t border-line">
+                <div className="bg-canvas/80 border border-line rounded-2xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <Key className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold text-white">Şifre Değiştir (Admin Override)</span>
+                      <Key className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                      <span className="text-xs font-bold text-fg">Şifre Değiştir (Admin Override)</span>
                     </div>
 
                     <button
                       type="button"
                       onClick={handleGeneratePassword}
-                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer"
+                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer"
                     >
-                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <Sparkles className="w-3 h-3 text-amber-700 dark:text-amber-400" />
                       <span>Rastgele Şifre Üret</span>
                     </button>
                   </div>
@@ -1163,7 +1147,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       placeholder="Değiştirmek istemiyorsanız boş bırakın"
                       value={editFormData.newPassword}
                       onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
-                      className="w-full pl-3.5 pr-20 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white font-mono placeholder:font-sans focus:outline-none focus:border-amber-500"
+                      className="w-full pl-3.5 pr-20 py-2.5 bg-surface border border-line rounded-xl text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-amber-500"
                     />
 
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
@@ -1171,11 +1155,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         <button
                           type="button"
                           onClick={handleCopyPassword}
-                          className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+                          className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
                           title="Şifreyi Kopyala"
                         >
                           {copiedPassword ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                           ) : (
                             <Copy className="w-3.5 h-3.5" />
                           )}
@@ -1185,7 +1169,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
+                        className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
                       >
                         {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
@@ -1193,18 +1177,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   </div>
 
                   {editFormData.newPassword && (
-                    <div className="flex items-center justify-between text-[11px] text-amber-300/80 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+                    <div className="flex items-center justify-between text-[11px] text-amber-700/80 dark:text-amber-300/80 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
                       <span>Belirlenen Yeni Şifre: <strong>{editFormData.newPassword}</strong></span>
-                      {copiedPassword && <span className="text-emerald-400 font-bold">✓ Panoya Kopyalandı</span>}
+                      {copiedPassword && <span className="text-emerald-700 dark:text-emerald-400 font-bold">✓ Panoya Kopyalandı</span>}
                     </div>
                   )}
 
-                  <label className="flex items-center space-x-2 text-xs text-slate-400 cursor-pointer pt-1">
+                  <label className="flex items-center space-x-2 text-xs text-muted cursor-pointer pt-1">
                     <input
                       type="checkbox"
                       checked={editFormData.mustChangePassword}
                       onChange={(e) => setEditFormData({ ...editFormData, mustChangePassword: e.target.checked })}
-                      className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0"
+                      className="rounded bg-surface border-line text-indigo-600 dark:text-indigo-300 focus:ring-0"
                     />
                     <span>İlk girişte kullanıcının şifresini değiştirmesini zorunlu kıl</span>
                   </label>
@@ -1212,11 +1196,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
 
               {/* Footer Buttons */}
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-2.5">
+              <div className="pt-3 border-t border-line flex items-center justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setEditModalUser(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1238,17 +1222,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {roleModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <div
-            className="relative w-full max-w-lg bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
+            className="relative w-full max-w-lg bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">Rol & Yetki Ata (RBAC)</h3>
-                  <p className="text-xs text-slate-400">
+                  <h3 className="text-base font-bold text-fg">Rol ve Yetki Ata</h3>
+                  <p className="text-xs text-muted">
                     <strong>{roleModalUser.name}</strong> (@{roleModalUser.username}) için sistem rolünü belirleyin.
                   </p>
                 </div>
@@ -1256,7 +1240,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setRoleModalUser(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-muted hover:text-fg"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1269,19 +1253,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={() => setSelectedTargetRole('admin')}
                 className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start space-x-3 ${
                   selectedTargetRole === 'admin'
-                    ? 'bg-amber-500/15 border-amber-500/60 ring-2 ring-amber-500/20 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-amber-500/15 border-amber-500/60 ring-2 ring-amber-500/20 text-fg'
+                    : 'bg-canvas border-line text-fg-2 hover:border-line'
                 }`}
               >
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
                   <Crown className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white">Sistem Yöneticisi (Admin)</span>
-                    {selectedTargetRole === 'admin' && <Check className="w-4 h-4 text-amber-400" />}
+                    <span className="text-xs font-black text-fg">Sistem Yöneticisi (Admin)</span>
+                    {selectedTargetRole === 'admin' && <Check className="w-4 h-4 text-amber-700 dark:text-amber-400" />}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-muted mt-0.5">
                     Tüm sınıfları, öğrencileri, öğretmenleri ve ayarları görme ve düzenleme tam yetkisine sahiptir.
                   </p>
                 </div>
@@ -1292,19 +1276,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={() => setSelectedTargetRole('teacher')}
                 className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start space-x-3 ${
                   selectedTargetRole === 'teacher'
-                    ? 'bg-indigo-500/15 border-indigo-500/60 ring-2 ring-indigo-500/20 text-white'
-                    : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                    ? 'bg-indigo-500/15 border-indigo-500/60 ring-2 ring-indigo-500/20 text-fg'
+                    : 'bg-canvas border-line text-fg-2 hover:border-line'
                 }`}
               >
-                <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
                   <GraduationCap className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-white">Öğretmen (Eğitmen)</span>
-                    {selectedTargetRole === 'teacher' && <Check className="w-4 h-4 text-indigo-400" />}
+                    <span className="text-xs font-black text-fg">Öğretmen (Eğitmen)</span>
+                    {selectedTargetRole === 'teacher' && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] text-muted mt-0.5">
                     Kendi sınıflarında ödev verme, etüt oluşturma ve soru yanıtlama yetkilerine sahiptir.
                   </p>
                 </div>
@@ -1313,8 +1297,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </div>
 
             {/* Notice */}
-            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-400 flex items-center space-x-2">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="p-3 bg-canvas rounded-xl border border-line text-[11px] text-muted flex items-center space-x-2">
+              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
               <span>Yetki, kullanıcının giriş hesabına işlenir. Kullanıcı açık oturumdaysa yeni yetkisi çıkış yapıp tekrar girdiğinde (en geç 1 saat içinde) tamamen geçerli olur.</span>
             </div>
 
@@ -1323,7 +1307,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setRoleModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
               >
                 Vazgeç
               </button>
@@ -1345,20 +1329,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {suspendModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <div
-            className="relative w-full max-w-md bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
+            className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
               <Ban className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-fg">
                 {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
                   ? 'Hesabı Yeniden Aktifleştir'
                   : 'Hesabı Dondur (Askıya Al)'}
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-muted leading-relaxed">
                 <strong>{suspendModalUser.name}</strong> (@{suspendModalUser.username}) isimli kullanıcının hesabı{' '}
                 {suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
                   ? 'tekrar aktif hale getirilecek ve sisteme giriş yapabilecektir.'
@@ -1370,7 +1354,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setSuspendModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
               >
                 Vazgeç
               </button>
@@ -1398,16 +1382,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {deleteModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <div
-            className="relative w-full max-w-md bg-slate-900 border border-rose-500/40 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
+            className="relative w-full max-w-md bg-surface border border-rose-500/40 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-bold text-white">Kullanıcıyı Kalıcı Olarak Sil</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <h3 className="text-base font-bold text-fg">Kullanıcıyı Kalıcı Olarak Sil</h3>
+              <p className="text-xs text-muted leading-relaxed">
                 <strong>{deleteModalUser.name}</strong> (@{deleteModalUser.username}) isimli kullanıcının hesabı,
                 veritabanı kayıtları ve yetkileri kalıcı olarak silinecektir. Bu işlem geri alınamaz.
               </p>
@@ -1417,7 +1401,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteModalUser(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
               >
                 Vazgeç
               </button>
@@ -1438,23 +1422,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {authModalTeacher && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
           <div
-            className="relative w-full max-w-2xl bg-slate-900 border border-indigo-500/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+            className="relative w-full max-w-2xl bg-surface border border-indigo-500/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-indigo-950/50 to-slate-900 flex items-center justify-between">
+            <div className="p-5 sm:p-6 border-b border-line bg-gradient-to-r from-surface via-indigo-50 dark:via-indigo-950/50 to-surface flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                  <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                     <span>Erişim Yetki Matrisi</span>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-mono border border-indigo-500/30">
                       {authModalTeacher.name}
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted">
                     Öğretmenin sisteme eriştiğinde görebileceği ve işlem yapabileceği sınıf ile öğrencileri belirleyin.
                   </p>
                 </div>
@@ -1462,7 +1446,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setAuthModalTeacher(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1471,8 +1455,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             {/* Content Body */}
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto max-h-[65vh]">
               {/* Info Alert */}
-              <div className="p-3.5 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-200 flex items-start space-x-2.5">
-                <Shield className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+              <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-600 dark:text-indigo-200 flex items-start space-x-2.5">
+                <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
                   <strong>Güvenlik Kuralı:</strong> Bir öğretmen yalnızca burada yönetici tarafından yetkilendirilen sınıfları ve öğrencileri görebilir. Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiçbir şekilde listelenmez.
                 </p>
@@ -1481,23 +1465,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               {/* 1. Sınıf Yetkilendirmeleri */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-                    <School className="w-4 h-4 text-indigo-400" />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-fg-2 flex items-center space-x-2">
+                    <School className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     <span>Sınıf Erişim Yetkileri ({selectedAuthClassIds.length}/{classes.length} Sınıf Seçili)</span>
                   </h4>
                   <div className="flex items-center space-x-2 text-[11px]">
                     <button
                       type="button"
                       onClick={() => setSelectedAuthClassIds(classes.map((c) => c.id))}
-                      className="px-2 py-0.5 rounded text-indigo-400 hover:bg-indigo-950/60 font-medium cursor-pointer"
+                      className="px-2 py-0.5 rounded text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 font-medium cursor-pointer"
                     >
                       Tümünü Seç
                     </button>
-                    <span className="text-slate-600">|</span>
+                    <span className="text-subtle">|</span>
                     <button
                       type="button"
                       onClick={() => setSelectedAuthClassIds([])}
-                      className="px-2 py-0.5 rounded text-rose-400 hover:bg-rose-950/60 font-medium cursor-pointer"
+                      className="px-2 py-0.5 rounded text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 font-medium cursor-pointer"
                     >
                       Temizle
                     </button>
@@ -1505,7 +1489,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </div>
 
                 {classes.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic">Sistemde henüz kayıtlı sınıf bulunmuyor.</p>
+                  <p className="text-xs text-muted italic">Sistemde henüz kayıtlı sınıf bulunmuyor.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {classes.map((cls) => {
@@ -1515,8 +1499,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           key={cls.id}
                           className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                             isChecked
-                              ? 'bg-indigo-600/15 border-indigo-500/50 text-white'
-                              : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-750'
+                              ? 'bg-indigo-600/15 border-indigo-500/50 text-fg'
+                              : 'bg-canvas/80 border-line text-muted hover:border-line'
                           }`}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
@@ -1530,18 +1514,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                                   setSelectedAuthClassIds(selectedAuthClassIds.filter((id) => id !== cls.id));
                                 }
                               }}
-                              className="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                              className="rounded bg-surface border-line text-indigo-600 dark:text-indigo-300 focus:ring-0 w-4 h-4 cursor-pointer"
                             />
                             <div className="min-w-0">
-                              <span className="text-xs font-bold block truncate text-slate-100">
+                              <span className="text-xs font-bold block truncate text-fg">
                                 {cls.name}
                               </span>
-                              <span className="text-[10px] text-slate-400 block truncate">
+                              <span className="text-[10px] text-muted block truncate">
                                 {cls.gradeLevel || cls.schoolLevel || cls.branch || 'Genel'}
                               </span>
                             </div>
                           </div>
-                          {isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-400 shrink-0 ml-2" />}
+                          {isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-2" />}
                         </label>
                       );
                     })}
@@ -1550,30 +1534,30 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
 
               {/* 2. Bireysel Öğrenci Yetkilendirmeleri */}
-              <div className="space-y-3 pt-4 border-t border-slate-800">
+              <div className="space-y-3 pt-4 border-t border-line">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center space-x-2">
-                    <GraduationCap className="w-4 h-4 text-emerald-400" />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-fg-2 flex items-center space-x-2">
+                    <GraduationCap className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                     <span>Bireysel / Etüt Öğrenci Yetkileri ({selectedAuthStudentIds.length} Bireysel Yetkili)</span>
                   </h4>
                 </div>
 
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-muted">
                   Sınıf haricinde bu öğretmene özel olarak atanmış bireysel öğrencileri seçebilirsiniz.
                 </p>
 
                 <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
                   <input
                     type="text"
                     placeholder="Öğrenci ara (Ad, Sınıf, Numara)..."
                     value={authStudentSearch}
                     onChange={(e) => setAuthStudentSearch(e.target.value)}
-                    className="w-full pl-9 pr-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full pl-9 pr-3.5 py-2 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-800/50">
+                <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-line">
                   {dataService
                     .getAllStudents()
                     .filter((s) => {
@@ -1596,12 +1580,12 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           className="pt-1.5 flex items-center justify-between text-xs py-1"
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <span className="font-bold text-slate-200 truncate">{std.name}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                            <span className="font-bold text-fg truncate">{std.name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted">
                               {std.className}
                             </span>
                             {isViaClass && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 font-mono">
                                 Sınıfından Yetkili
                               </span>
                             )}
@@ -1620,9 +1604,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                                   );
                                 }
                               }}
-                              className="rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-0 w-3.5 h-3.5"
+                              className="rounded bg-surface border-line text-emerald-600 dark:text-emerald-300 focus:ring-0 w-3.5 h-3.5"
                             />
-                            <span className="text-[11px] text-slate-400">Bireysel İzin</span>
+                            <span className="text-[11px] text-muted">Bireysel İzin</span>
                           </label>
                         </div>
                       );
@@ -1632,11 +1616,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </div>
 
             {/* Footer Buttons */}
-            <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950 flex items-center justify-end space-x-2.5">
+            <div className="p-4 sm:p-5 border-t border-line bg-canvas flex items-center justify-end space-x-2.5">
               <button
                 type="button"
                 onClick={() => setAuthModalTeacher(null)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
               >
                 Vazgeç
               </button>
@@ -1720,39 +1704,39 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
     : '';
 
   const inputCls =
-    'w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500';
+    'w-full px-3 py-2 bg-canvas border border-line rounded-xl text-fg text-xs focus:outline-none focus:border-indigo-500';
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700/90 rounded-3xl shadow-2xl p-6 space-y-4 my-auto">
+      <div className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 space-y-4 my-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
               <UserPlus className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Yeni Öğretmen Hesabı</h3>
-              <p className="text-xs text-slate-400">Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar.</p>
+              <h3 className="text-base font-bold text-fg">Yeni Öğretmen Hesabı</h3>
+              <p className="text-xs text-muted">Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar.</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Kapat">
+          <button type="button" onClick={onClose} className="text-muted hover:text-fg" aria-label="Kapat">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {created ? (
           <div className="space-y-3">
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
               Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="block text-[10px] text-slate-500">Kullanıcı adı</span>
-                <span className="font-mono font-bold text-indigo-300 select-all">{created.username}</span>
+              <div className="p-2.5 rounded-lg bg-canvas border border-line">
+                <span className="block text-[10px] text-muted">Kullanıcı adı</span>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-300 select-all">{created.username}</span>
               </div>
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
-                <span className="block text-[10px] text-slate-500">Şifre</span>
-                <span className="font-mono font-bold text-amber-300 select-all">{created.password}</span>
+              <div className="p-2.5 rounded-lg bg-canvas border border-line">
+                <span className="block text-[10px] text-muted">Şifre</span>
+                <span className="font-mono font-bold text-amber-700 dark:text-amber-300 select-all">{created.password}</span>
               </div>
             </div>
             <div className="flex justify-end space-x-2">
@@ -1766,9 +1750,9 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                     window.prompt('Kopyalamak için metni seçiniz:', credentialText);
                   }
                 }}
-                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold border border-slate-700"
+                className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold border border-line"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? <Check className="w-4 h-4 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 <span>Bilgileri Kopyala</span>
               </button>
               <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
@@ -1779,13 +1763,13 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3">
             {error && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs flex items-start space-x-2">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-200 text-xs flex items-start space-x-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
             <div>
-              <label className="block text-[11px] font-bold text-slate-300 mb-1">Ad Soyad *</label>
+              <label className="block text-[11px] font-bold text-fg-2 mb-1">Ad Soyad *</label>
               <input
                 required
                 value={name}
@@ -1798,7 +1782,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-300 mb-1">Kullanıcı adı * (giriş adı)</label>
+              <label className="block text-[11px] font-bold text-fg-2 mb-1">Kullanıcı adı * (giriş adı)</label>
               <input
                 required
                 value={username}
@@ -1812,20 +1796,20 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 placeholder="Örn: aysedemir"
                 className={`${inputCls} font-mono`}
               />
-              <p className="text-[10px] text-slate-500 mt-1">Küçük harf, rakam, - ve _ (Türkçe karakter ve boşluk olmadan).</p>
+              <p className="text-[10px] text-muted mt-1">Küçük harf, rakam, - ve _ (Türkçe karakter ve boşluk olmadan).</p>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">Branş</label>
+                <label className="block text-[11px] font-bold text-fg-2 mb-1">Branş</label>
                 <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 mb-1">E-posta (iletişim)</label>
+                <label className="block text-[11px] font-bold text-fg-2 mb-1">E-posta (iletişim)</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-300 mb-1">Giriş şifresi *</label>
+              <label className="block text-[11px] font-bold text-fg-2 mb-1">Giriş şifresi *</label>
               <div className="flex items-center space-x-2">
                 <input
                   required
@@ -1838,17 +1822,17 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setPassword(dataService.generatePassword())}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold border border-slate-700 shrink-0"
+                  className="px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-indigo-600 dark:text-indigo-300 text-xs font-bold border border-line shrink-0"
                 >
                   🎲 Üret
                 </button>
               </div>
             </div>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-muted">
               Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
             </p>
             <div className="flex justify-end space-x-2 pt-1">
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold">
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold">
                 Vazgeç
               </button>
               <button

@@ -113,7 +113,7 @@ export const UpdateAvailableBanner: React.FC = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-white text-indigo-700 hover:bg-indigo-50 shadow-sm cursor-pointer"
+          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-surface text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 shadow-sm cursor-pointer"
         >
           Şimdi Yenile
         </button>

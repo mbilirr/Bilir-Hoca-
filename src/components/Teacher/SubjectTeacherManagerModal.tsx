@@ -80,20 +80,20 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <h3 className="text-base font-bold text-fg">
                 Açılır Menü Öğretmen Listesi Yönetimi
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-muted">
                 Ders bazlı etüt açılır butonuna öğretmen atayın ve silin
               </p>
             </div>
@@ -101,7 +101,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-subtle hover:text-muted rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -111,14 +111,14 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
         <div className="p-6 overflow-y-auto space-y-5">
           {/* Ders Seçici */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5 text-indigo-500" />
+            <label className="block text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>Düzenlenecek Dersi Seçin:</span>
             </label>
             <select
               value={selectedSubject}
               onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-semibold text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              className="w-full px-3.5 py-2.5 bg-surface-2 border border-line-strong rounded-xl text-fg font-semibold text-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
             >
               {COMMON_SUBJECTS.map((subj) => (
                 <option key={subj} value={subj}>
@@ -130,7 +130,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
 
           {/* Yeni Öğretmen Ekleme Formu */}
           <form onSubmit={handleAddTeacher} className="space-y-2">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+            <label className="block text-xs font-bold text-fg-2">
               {selectedSubject} Dersi Açılır Butonuna Yeni Öğretmen Ata:
             </label>
             <div className="flex gap-2">
@@ -139,7 +139,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
                 value={newTeacherName}
                 onChange={(e) => setNewTeacherName(e.target.value)}
                 placeholder="Örn: Mustafa Bilir"
-                className="flex-1 px-3.5 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 px-3.5 py-2 bg-surface border border-line-strong rounded-xl text-fg text-sm focus:ring-2 focus:ring-indigo-500"
               />
               <button
                 type="submit"
@@ -151,7 +151,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
               </button>
             </div>
             {successMsg && (
-              <p className="text-xs font-bold text-emerald-600 flex items-center gap-1 pt-1">
+              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-300 flex items-center gap-1 pt-1">
                 <Check className="w-3.5 h-3.5" />
                 <span>{successMsg}</span>
               </p>
@@ -160,8 +160,8 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
 
           {/* Mevcut Öğretmen Listesi */}
           <div>
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-line">
+              <span className="text-xs font-bold text-muted uppercase tracking-wider">
                 {selectedSubject} Açılır Buton Seçenekleri:
               </span>
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400">
@@ -170,9 +170,9 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
             </div>
 
             {/* Sabit İlk Seçenek */}
-            <div className="mb-2 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/60 border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <div className="mb-2 p-2.5 rounded-xl bg-surface-2 border border-dashed border-line-strong flex items-center justify-between text-xs text-muted">
               <span className="font-semibold italic">1. Seçenek: &quot;Öğretmen&quot; (Varsayılan Açılır Seçenek)</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-bold">Sabit</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-3 font-bold">Sabit</span>
             </div>
 
             {currentTeachers.length > 0 ? (
@@ -180,13 +180,13 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
                 {currentTeachers.map((teacher, idx) => (
                   <div
                     key={`${teacher}-${idx}`}
-                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 flex items-center justify-between gap-2 group hover:border-indigo-300 dark:hover:border-indigo-600 transition-all"
+                    className="p-2.5 rounded-xl bg-surface-2 border border-line flex items-center justify-between gap-2 group hover:border-indigo-300 dark:hover:border-indigo-600 transition-all"
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <div className="w-7 h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
                         {idx + 1}
                       </div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                      <span className="text-xs font-bold text-fg truncate">
                         {teacher}
                       </span>
                     </div>
@@ -194,7 +194,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
                     <button
                       type="button"
                       onClick={() => handleRemoveTeacher(teacher)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer shrink-0"
+                      className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer shrink-0"
                       title="Bu öğretmeni listeden sil"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -211,11 +211,11 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 flex justify-end shrink-0">
+        <div className="px-6 py-3.5 border-t border-line bg-surface-2 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="px-4 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             Kapat ve Kaydet
           </button>

@@ -25,6 +25,7 @@ import {
   GraduationCap,
   Filter,
 } from 'lucide-react';
+import { PageHeader } from '../../ui/kit';
 import * as XLSX from 'xlsx';
 import { TeacherDocument, DocumentCategory, ClassGroup } from '../../../types';
 import { dataService } from '../../../services/dataService';
@@ -56,50 +57,50 @@ const CATEGORIES: CategoryConfig[] = [
     title: 'Yıllık Ders Planları',
     description: 'MEB onaylı yıllık çalışma ve ders planları',
     icon: Calendar,
-    color: 'text-emerald-400',
-    bgLight: 'bg-emerald-950/40',
+    color: 'text-emerald-700 dark:text-emerald-400',
+    bgLight: 'bg-emerald-50 dark:bg-emerald-950/40',
     borderLight: 'border-emerald-500/30',
-    badgeClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+    badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
   },
   {
     id: 'weekly_plan',
     title: 'Haftalık Ders Planları',
     description: 'Sınıf bazlı haftalık ünite ve konu işleniş çizelgeleri',
     icon: BookOpen,
-    color: 'text-cyan-400',
-    bgLight: 'bg-cyan-950/40',
+    color: 'text-cyan-700 dark:text-cyan-400',
+    bgLight: 'bg-cyan-50 dark:bg-cyan-950/40',
     borderLight: 'border-cyan-500/30',
-    badgeClass: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30',
+    badgeClass: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
   },
   {
     id: 'sample_exam',
     title: 'Örnek Yazılılar & Denemeler',
     description: '1. ve 2. dönem yazılı sınav örnekleri ve cevap anahtarları',
     icon: Award,
-    color: 'text-amber-400',
-    bgLight: 'bg-amber-950/40',
+    color: 'text-amber-700 dark:text-amber-400',
+    bgLight: 'bg-amber-50 dark:bg-amber-950/40',
     borderLight: 'border-amber-500/30',
-    badgeClass: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+    badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
   },
   {
     id: 'meeting_minutes',
     title: 'Zümre Tutanakları & Kararlar',
     description: 'Dönem başı/sonu zümre öğretmenler kurulu kararları',
     icon: Users,
-    color: 'text-purple-400',
-    bgLight: 'bg-purple-950/40',
+    color: 'text-purple-600 dark:text-purple-400',
+    bgLight: 'bg-purple-50 dark:bg-purple-950/40',
     borderLight: 'border-purple-500/30',
-    badgeClass: 'bg-purple-500/10 text-purple-300 border-purple-500/30',
+    badgeClass: 'bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-500/30',
   },
   {
     id: 'curriculum',
     title: 'Müfredat & Kazanım Çizelgesi',
     description: 'Öğrenme alanları ve ders kazanım tabloları',
     icon: Layers,
-    color: 'text-indigo-400',
-    bgLight: 'bg-indigo-950/40',
+    color: 'text-indigo-600 dark:text-indigo-400',
+    bgLight: 'bg-indigo-50 dark:bg-indigo-950/40',
     borderLight: 'border-indigo-500/30',
-    badgeClass: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30',
+    badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
   },
 ];
 
@@ -334,25 +335,25 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     switch (format) {
       case 'pdf':
         return {
-          bg: 'bg-rose-50 text-rose-700 border-rose-200',
+          bg: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30',
           label: 'PDF',
           icon: FileText,
         };
       case 'docx':
         return {
-          bg: 'bg-blue-50 text-blue-700 border-blue-200',
+          bg: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30',
           label: 'WORD',
           icon: FileCode,
         };
       case 'xlsx':
         return {
-          bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+          bg: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30',
           label: 'EXCEL',
           icon: FileSpreadsheet,
         };
       default:
         return {
-          bg: 'bg-slate-100 text-slate-700 border-slate-200',
+          bg: 'bg-surface-2 text-fg-2 border-line',
           label: 'DOSYA',
           icon: FileText,
         };
@@ -369,42 +370,28 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <FolderArchive className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-white tracking-tight flex items-center space-x-2">
-                <span>Plan & Zümre Arşivi</span>
-                <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-semibold">
-                  {documents.length} Doküman
-                </span>
-              </h2>
-            </div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setIsUploadModalOpen(true)}
-          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all shadow-md flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
-        >
-          <Upload className="w-4 h-4" />
-          <span>Yeni Belge Yükle (.docx, .pdf, .xlsx)</span>
-        </button>
-      </div>
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={FolderArchive}
+        tone="warning"
+        title="Arşiv"
+        description={`Plan ve zümre evrakları · ${documents.length} belge`}
+        actions={
+          <button type="button" onClick={() => setIsUploadModalOpen(true)} className="ui-btn ui-btn-primary">
+            <Upload className="w-4 h-4" />
+            <span>Yeni Belge Yükle</span>
+          </button>
+        }
+      />
 
       {/* BRANŞ KLASÖRLERİ */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md">
+      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-white flex items-center space-x-1.5">
-            <GraduationCap className="w-4 h-4 text-indigo-400" />
+          <span className="text-xs font-bold text-fg flex items-center space-x-1.5">
+            <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>Branş Klasörleri</span>
           </span>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">Belgeler yüklendikleri branşın klasöründe durur</span>
+          <span className="text-[11px] text-muted hidden sm:inline">Belgeler yüklendikleri branşın klasöründe durur</span>
         </div>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Branş seçimi">
           <button
@@ -414,7 +401,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
             className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
               selectedBranch === 'all'
                 ? 'bg-indigo-600 text-white border-indigo-400'
-                : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-indigo-500'
+                : 'bg-canvas text-fg-2 border-line hover:border-indigo-500'
             }`}
           >
             Tüm Branşlar ({documents.length})
@@ -428,7 +415,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
               className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
                 selectedBranch === branch
                   ? 'bg-indigo-600 text-white border-indigo-400'
-                  : 'bg-slate-950 text-slate-300 border-slate-700 hover:border-indigo-500'
+                  : 'bg-canvas text-fg-2 border-line hover:border-indigo-500'
               }`}
             >
               {branch} ({count}){branch === teacherBranch ? ' · Branşım' : ''}
@@ -438,33 +425,33 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
       </div>
 
       {actionError && (
-        <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center justify-between gap-2">
+        <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
           <span>{actionError}</span>
-          <button type="button" onClick={() => setActionError(null)} className="font-bold text-rose-200 hover:text-white cursor-pointer">
+          <button type="button" onClick={() => setActionError(null)} className="font-bold text-rose-600 dark:text-rose-200 hover:text-fg cursor-pointer">
             Tamam
           </button>
         </div>
       )}
 
       {/* SEARCH & FILTERS BAR */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Belge adı, zümre, konu veya etiket ara..."
-            className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Archive Category Filter ("Arşiv Seç" Açılır Menüsü) */}
-          <div className="flex items-center space-x-1.5 bg-slate-950 border border-indigo-500/40 rounded-xl px-2.5 py-1">
-            <FolderArchive className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <div className="flex items-center space-x-1.5 bg-canvas border border-indigo-500/40 rounded-xl px-2.5 py-1">
+            <FolderArchive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
             <select
               value={selectedArchiveCategory}
               onChange={(e) => {
@@ -482,14 +469,14 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   setExpandedCategories(nextState);
                 }
               }}
-              className="bg-transparent text-indigo-200 text-xs font-bold focus:outline-none cursor-pointer"
+              className="bg-transparent text-indigo-600 dark:text-indigo-200 text-xs font-bold focus:outline-none cursor-pointer"
             >
-              <option value="" className="bg-slate-900 text-slate-300">📂 Arşiv Seç</option>
-              <option value="yearly_plan" className="bg-slate-900 text-white">Yıllık Planlar</option>
-              <option value="weekly_plan" className="bg-slate-900 text-white">Haftalık Planlar</option>
-              <option value="sample_exam" className="bg-slate-900 text-white">Örnek Yazılılar</option>
-              <option value="meeting_minutes" className="bg-slate-900 text-white">Zümre Tutanakları</option>
-              <option value="curriculum" className="bg-slate-900 text-white">Müfredat & Kazanım</option>
+              <option value="" className="bg-surface text-fg-2">📂 Arşiv Seç</option>
+              <option value="yearly_plan" className="bg-surface text-fg">Yıllık Planlar</option>
+              <option value="weekly_plan" className="bg-surface text-fg">Haftalık Planlar</option>
+              <option value="sample_exam" className="bg-surface text-fg">Örnek Yazılılar</option>
+              <option value="meeting_minutes" className="bg-surface text-fg">Zümre Tutanakları</option>
+              <option value="curriculum" className="bg-surface text-fg">Müfredat & Kazanım</option>
             </select>
           </div>
 
@@ -497,7 +484,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
           <select
             value={selectedSchool}
             onChange={(e) => setSelectedSchool(e.target.value)}
-            className="bg-slate-950 border border-slate-700/80 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+            className="bg-canvas border border-line text-fg-2 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
           >
             <option value="all">Tüm Kademeler</option>
             <option value="Ortaokul">🏫 Ortaokul</option>
@@ -508,7 +495,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
           <select
             value={selectedFormat}
             onChange={(e) => setSelectedFormat(e.target.value)}
-            className="bg-slate-950 border border-slate-700/80 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+            className="bg-canvas border border-line text-fg-2 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
           >
             <option value="all">Tüm Formatlar</option>
             <option value="pdf">PDF</option>
@@ -533,7 +520,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   curriculum: false,
                 });
               }}
-              className="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1 underline font-medium cursor-pointer"
+              className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 px-2 py-1 underline font-medium cursor-pointer"
             >
               Sıfırla
             </button>
@@ -570,7 +557,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
             return (
               <div
                 key={category.id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all"
+                className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm transition-all"
               >
                 {/* Category Folder Accordion Header */}
                 <div
@@ -583,7 +570,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                       toggleCategory(category.id);
                     }
                   }}
-                  className="w-full text-left p-4 flex items-center justify-between hover:bg-slate-850/60 transition-colors cursor-pointer select-none"
+                  className="w-full text-left p-4 flex items-center justify-between hover:bg-surface-2/60 transition-colors cursor-pointer select-none"
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <div
@@ -597,12 +584,12 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                     </div>
                     <div className="min-w-0 text-left">
                       <div className="flex items-center space-x-2">
-                        <h3 className="text-sm font-bold text-white truncate">{category.title}</h3>
+                        <h3 className="text-sm font-bold text-fg truncate">{category.title}</h3>
                         <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${category.badgeClass}`}>
                           {categoryDocs.length} {categoryDocs.length !== allCatDocs.length ? `/ ${allCatDocs.length}` : ''} Belge
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5 hidden sm:block">
+                      <p className="text-[11px] text-muted truncate mt-0.5 hidden sm:block">
                         {category.description}
                       </p>
                     </div>
@@ -611,14 +598,14 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   <div className="flex items-center space-x-2 shrink-0 ml-3">
                     {/* Horizontal Scroll Controls */}
                     {isExpanded && categoryDocs.length > 1 && (
-                      <div className="flex items-center space-x-1 bg-slate-800/80 p-0.5 rounded-lg border border-slate-700/60">
+                      <div className="flex items-center space-x-1 bg-surface-2/80 p-0.5 rounded-lg border border-line">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             scrollCategoryTrack(category.id, -340);
                           }}
-                          className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors cursor-pointer"
+                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
                           title="Sola Kaydır"
                         >
                           <ChevronLeft className="w-3.5 h-3.5" />
@@ -629,7 +616,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             e.stopPropagation();
                             scrollCategoryTrack(category.id, 340);
                           }}
-                          className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors cursor-pointer"
+                          className="p-1 text-muted hover:text-fg rounded hover:bg-surface-3 transition-colors cursor-pointer"
                           title="Sağa Kaydır"
                         >
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -637,12 +624,12 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                       </div>
                     )}
 
-                    <span className="text-xs text-slate-500 hidden sm:inline">
+                    <span className="text-xs text-muted hidden sm:inline">
                       {isExpanded ? 'Kapat' : 'Aç'}
                     </span>
                     <div
-                      className={`w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 transition-transform duration-200 ${
-                        isExpanded ? 'rotate-180 text-white' : ''
+                      className={`w-7 h-7 rounded-lg bg-surface-2 flex items-center justify-center text-muted transition-transform duration-200 ${
+                        isExpanded ? 'rotate-180 text-fg' : ''
                       }`}
                     >
                       <ChevronDown className="w-4 h-4" />
@@ -652,15 +639,15 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
                 {/* Collapsible Documents Track */}
                 {isExpanded && (
-                  <div className="border-t border-slate-800/80 bg-slate-950/50 p-4 sm:p-5">
+                  <div className="border-t border-line bg-canvas/50 p-4 sm:p-5">
                     {/* HAFTALIK PLAN ÖZEL SINIF SEÇİM AÇILIR PENCERESİ (YALNIZCA SINIF İSİMLERİ: 5. Sınıf - 12. Sınıf) */}
                     {isWeeklyPlanCat && (
-                      <div className="mb-4 p-3.5 bg-slate-900 border border-cyan-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="mb-4 p-3.5 bg-surface border border-cyan-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center space-x-2.5">
-                          <GraduationCap className="w-4 h-4 text-cyan-400 shrink-0" />
+                          <GraduationCap className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" />
                           <div>
-                            <p className="text-xs font-bold text-white">Sınıf Seçimi</p>
-                            <p className="text-[11px] text-slate-400">
+                            <p className="text-xs font-bold text-fg">Sınıf Seçimi</p>
+                            <p className="text-[11px] text-muted">
                               Haftalık planları sınıf bazında incelemek için sınıf seçin
                             </p>
                           </div>
@@ -670,7 +657,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           <select
                             value={weeklyPlanSelectedClass}
                             onChange={(e) => setWeeklyPlanSelectedClass(e.target.value)}
-                            className="bg-slate-950 border border-cyan-500/50 text-cyan-200 text-xs rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-cyan-400 cursor-pointer min-w-[180px]"
+                            className="bg-canvas border border-cyan-500/50 text-cyan-700 dark:text-cyan-200 text-xs rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-cyan-400 cursor-pointer min-w-[180px]"
                           >
                             <option value="">📋 Sınıf Seç (Planları Gör)</option>
                             {distinctWeeklyPlanClasses.map((cls) => (
@@ -684,7 +671,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             <button
                               type="button"
                               onClick={() => setWeeklyPlanSelectedClass('')}
-                              className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium px-1 cursor-pointer"
+                              className="text-xs text-cyan-700 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 underline font-medium px-1 cursor-pointer"
                             >
                               Tüm Sınıflar
                             </button>
@@ -695,12 +682,12 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
                     {/* Haftalık plan seçimi yapılmadıysa ve kullanıcı sınıf seçmek istiyorsa */}
                     {isWeeklyPlanCat && !weeklyPlanSelectedClass && allCatDocs.length > 0 ? (
-                      <div className="p-6 text-center bg-slate-900/60 border border-slate-800 rounded-xl">
-                        <BookOpen className="w-8 h-8 text-cyan-400/80 mx-auto mb-2" />
-                        <p className="text-xs font-bold text-white mb-1">
+                      <div className="p-6 text-center bg-surface/60 border border-line rounded-xl">
+                        <BookOpen className="w-8 h-8 text-cyan-700/80 dark:text-cyan-400/80 mx-auto mb-2" />
+                        <p className="text-xs font-bold text-fg mb-1">
                           Haftalık Planlar Kapalı Durumda
                         </p>
-                        <p className="text-[11px] text-slate-400 max-w-md mx-auto mb-3">
+                        <p className="text-[11px] text-muted max-w-md mx-auto mb-3">
                           Planları görüntülemek için yukarıdaki <strong>"Sınıf Seç"</strong> açılır penceresinden ilgili sınıfı seçin veya aşağıdaki hızlı butonlara tıklayın.
                         </p>
                         <div className="flex flex-wrap justify-center gap-1.5 max-w-xl mx-auto">
@@ -709,7 +696,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                               key={cls}
                               type="button"
                               onClick={() => setWeeklyPlanSelectedClass(cls)}
-                              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/60 text-xs font-medium transition-colors cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/60 text-xs font-medium transition-colors cursor-pointer"
                             >
                               {cls}
                             </button>
@@ -719,7 +706,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                     ) : categoryDocs.length > 0 ? (
                       <div className="relative">
                         {/* Kaydırma İpucu */}
-                        <div className="pb-2.5 flex items-center justify-between text-[11px] text-slate-400">
+                        <div className="pb-2.5 flex items-center justify-between text-[11px] text-muted">
                           <span className="flex items-center space-x-1.5">
                             <span>👉</span>
                             <span>
@@ -728,7 +715,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                 : `Yan yana kayan özet sayfalar (${categoryDocs.length} belge)`}
                             </span>
                           </span>
-                          <span className="hidden sm:inline font-mono text-slate-500">Kaydır ⇄</span>
+                          <span className="hidden sm:inline font-mono text-muted">Kaydır ⇄</span>
                         </div>
 
                         {/* Yan Yana Kayan Özet Sayfalar Konteyneri */}
@@ -743,7 +730,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                             return (
                               <div
                                 key={doc.id}
-                                className="w-80 sm:w-88 shrink-0 snap-start bg-white hover:bg-white border border-slate-200 hover:border-indigo-400 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md transition-all group hover:shadow-xl hover:-translate-y-0.5 text-slate-800"
+                                className="w-80 sm:w-88 shrink-0 snap-start bg-surface hover:bg-surface border border-line hover:border-indigo-400 rounded-2xl p-4 sm:p-4.5 flex flex-col justify-between shadow-md transition-all group hover:shadow-xl hover:-translate-y-0.5 text-fg"
                               >
                                 {/* Üst Kısım */}
                                 <div>
@@ -757,7 +744,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                       </span>
 
                                       {doc.schoolType && (
-                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
                                           {doc.schoolType === 'Ortaokul'
                                             ? '🏫 Ortaokul'
                                             : doc.schoolType === 'Lise'
@@ -768,7 +755,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     </div>
 
                                     {doc.gradeLevel && (
-                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-2 text-fg-2 border border-line">
                                         {doc.gradeLevel}
                                       </span>
                                     )}
@@ -776,22 +763,22 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
                                   {/* Belge Başlığı */}
                                   <h4
-                                    className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
+                                    className="text-sm font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-2 min-h-[40px] mb-2 leading-snug"
                                     title={doc.title}
                                   >
                                     {doc.title}
                                   </h4>
 
                                   {/* Özet Sayfa Görsel Kartı */}
-                                  <div className="bg-slate-50/90 rounded-xl p-3 border border-slate-200 mb-3 space-y-1.5 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-200" />
+                                  <div className="bg-surface-2/90 rounded-xl p-3 border border-line mb-3 space-y-1.5 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-8 h-8 bg-indigo-500/10 rounded-bl-xl border-b border-l border-indigo-200 dark:border-indigo-500/30" />
 
-                                    <div className="flex items-center justify-between text-[11px] text-indigo-700 font-semibold border-b border-slate-200 pb-1 pr-6">
+                                    <div className="flex items-center justify-between text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold border-b border-line pb-1 pr-6">
                                       <span>{doc.subject}</span>
-                                      <span className="text-slate-500 font-mono">{doc.academicYear || '2026-2027'}</span>
+                                      <span className="text-muted font-mono">{doc.academicYear || '2026-2027'}</span>
                                     </div>
 
-                                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                                    <p className="text-xs text-muted line-clamp-3 leading-relaxed">
                                       {doc.description ||
                                         'MEB müfredat standartlarına uygun 2026-2027 yıllık/haftalık plan ve zümre kararları özeti.'}
                                     </p>
@@ -801,7 +788,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                         {doc.tags.slice(0, 3).map((tag, idx) => (
                                           <span
                                             key={idx}
-                                            className="text-[10px] px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 font-medium"
+                                            className="text-[10px] px-1.5 py-0.5 rounded bg-surface text-muted border border-line font-medium"
                                           >
                                             #{tag}
                                           </span>
@@ -811,18 +798,18 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                   </div>
 
                                   {/* Yazar & Dosya Boyutu */}
-                                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-3 px-0.5">
-                                    <span className="truncate max-w-[170px] text-slate-700 font-medium" title={doc.authorName}>
+                                  <div className="flex items-center justify-between text-[11px] text-muted mb-3 px-0.5">
+                                    <span className="truncate max-w-[170px] text-fg-2 font-medium" title={doc.authorName}>
                                       ✍️ {doc.authorName || 'Öğretmen'}
                                     </span>
-                                    <span className="font-mono text-[10px] text-slate-400">
+                                    <span className="font-mono text-[10px] text-subtle">
                                       {doc.fileSize || 'Belge'}
                                     </span>
                                   </div>
                                 </div>
 
                                 {/* Alt Aksiyon Butonları */}
-                                <div className="pt-3 border-t border-slate-100 flex items-center space-x-2">
+                                <div className="pt-3 border-t border-line flex items-center space-x-2">
                                   <button
                                     type="button"
                                     onClick={() => handleOpenDocument(doc)}
@@ -837,7 +824,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                   <button
                                     type="button"
                                     onClick={() => handleDownload(doc)}
-                                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl text-xs border border-slate-200 transition-colors cursor-pointer"
+                                    className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs border border-line transition-colors cursor-pointer"
                                     title="Belgeyi Bilgisayara İndir"
                                   >
                                     <Download className="w-3.5 h-3.5" />
@@ -847,7 +834,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                                     <button
                                       type="button"
                                       onClick={() => setDocToDelete(doc)}
-                                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 rounded-xl text-xs border border-rose-200 transition-colors cursor-pointer"
+                                      className="p-2 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 text-rose-600 dark:text-rose-300 hover:text-rose-700 dark:hover:text-rose-300 rounded-xl text-xs border border-rose-200 dark:border-rose-500/30 transition-colors cursor-pointer"
                                       title="Belgeyi Sil"
                                       aria-label="Belgeyi Sil"
                                     >
@@ -861,7 +848,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                         </div>
                       </div>
                     ) : (
-                      <div className="p-6 text-center text-slate-400 text-xs bg-slate-900/40 rounded-xl">
+                      <div className="p-6 text-center text-muted text-xs bg-surface/40 rounded-xl">
                         Bu kategoride seçilen filtrelere uygun kayıtlı belge bulunmuyor.
                       </div>
                     )}

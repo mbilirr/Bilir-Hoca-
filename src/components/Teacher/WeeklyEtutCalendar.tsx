@@ -60,70 +60,70 @@ const DAY_NAMES = [
 
 const SUBJECT_COLORS: Record<string, { bg: string; text: string; border: string; badge: string }> = {
   Matematik: {
-    bg: 'bg-indigo-950/40',
-    text: 'text-indigo-300',
+    bg: 'bg-indigo-50 dark:bg-indigo-950/40',
+    text: 'text-indigo-600 dark:text-indigo-300',
     border: 'border-indigo-500/30',
-    badge: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+    badge: 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
   },
   Fizik: {
-    bg: 'bg-cyan-950/40',
-    text: 'text-cyan-300',
+    bg: 'bg-cyan-50 dark:bg-cyan-950/40',
+    text: 'text-cyan-700 dark:text-cyan-300',
     border: 'border-cyan-500/30',
-    badge: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+    badge: 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
   },
   Kimya: {
-    bg: 'bg-amber-950/40',
-    text: 'text-amber-300',
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-700 dark:text-amber-300',
     border: 'border-amber-500/30',
-    badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    badge: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30',
   },
   Biyoloji: {
-    bg: 'bg-emerald-950/40',
-    text: 'text-emerald-300',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-700 dark:text-emerald-300',
     border: 'border-emerald-500/30',
-    badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    badge: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
   },
   Türkçe: {
-    bg: 'bg-rose-950/40',
-    text: 'text-rose-300',
+    bg: 'bg-rose-50 dark:bg-rose-950/40',
+    text: 'text-rose-600 dark:text-rose-300',
     border: 'border-rose-500/30',
-    badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    badge: 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/30',
   },
   Tarih: {
-    bg: 'bg-orange-950/40',
-    text: 'text-orange-300',
+    bg: 'bg-orange-50 dark:bg-orange-950/40',
+    text: 'text-orange-700 dark:text-orange-300',
     border: 'border-orange-500/30',
-    badge: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    badge: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
   },
   Coğrafya: {
-    bg: 'bg-teal-950/40',
-    text: 'text-teal-300',
+    bg: 'bg-teal-50 dark:bg-teal-950/40',
+    text: 'text-teal-700 dark:text-teal-300',
     border: 'border-teal-500/30',
-    badge: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+    badge: 'bg-teal-500/20 text-teal-700 dark:text-teal-300 border-teal-500/30',
   },
   'Fen Bilgisi': {
-    bg: 'bg-emerald-950/40',
-    text: 'text-emerald-300',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-700 dark:text-emerald-300',
     border: 'border-emerald-500/30',
-    badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    badge: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
   },
   'Sosyal Bilgiler': {
-    bg: 'bg-yellow-950/40',
-    text: 'text-yellow-300',
+    bg: 'bg-yellow-50 dark:bg-yellow-950/40',
+    text: 'text-yellow-700 dark:text-yellow-300',
     border: 'border-yellow-500/30',
-    badge: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+    badge: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/30',
   },
   İngilizce: {
-    bg: 'bg-sky-950/40',
-    text: 'text-sky-300',
+    bg: 'bg-sky-50 dark:bg-sky-950/40',
+    text: 'text-sky-700 dark:text-sky-300',
     border: 'border-sky-500/30',
-    badge: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+    badge: 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30',
   },
   Edebiyat: {
-    bg: 'bg-purple-950/40',
-    text: 'text-purple-300',
+    bg: 'bg-purple-50 dark:bg-purple-950/40',
+    text: 'text-purple-600 dark:text-purple-300',
     border: 'border-purple-500/30',
-    badge: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    badge: 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/30',
   },
 };
 
@@ -293,26 +293,26 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   return (
     <div className="space-y-4">
       {/* Calendar Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-lg">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-surface border border-line p-4 rounded-2xl shadow-lg">
         {/* Left: Navigation and Week Label */}
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <div className="flex items-center space-x-1 bg-canvas p-1 rounded-xl border border-line">
             <button
               onClick={goToPreviousWeek}
-              className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors"
+              className="p-1.5 hover:bg-surface-2 text-fg-2 hover:text-fg rounded-lg transition-colors"
               title="Önceki Hafta"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={goToCurrentWeek}
-              className="px-2.5 py-1 text-xs font-semibold hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 rounded-lg transition-colors"
+              className="px-2.5 py-1 text-xs font-semibold hover:bg-surface-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 rounded-lg transition-colors"
             >
               Bu Hafta
             </button>
             <button
               onClick={goToNextWeek}
-              className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg transition-colors"
+              className="p-1.5 hover:bg-surface-2 text-fg-2 hover:text-fg rounded-lg transition-colors"
               title="Sonraki Hafta"
             >
               <ChevronRight className="w-4 h-4" />
@@ -320,34 +320,34 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <CalendarDays className="w-4 h-4 text-indigo-400" />
-            <span className="text-sm font-bold text-white tracking-tight">{weekLabel}</span>
+            <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-sm font-bold text-fg tracking-tight">{weekLabel}</span>
           </div>
         </div>
 
         {/* Right: Quick Stats & Subject Filter */}
         <div className="flex flex-wrap items-center gap-2.5 text-xs">
           {/* Stats Badge */}
-          <div className="flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300">
+          <div className="flex items-center space-x-2 bg-canvas/80 px-3 py-1.5 rounded-xl border border-line text-fg-2">
             <span>Bu Hafta:</span>
-            <strong className="text-indigo-400">{totalEtutsThisWeek} Etüt</strong>
-            <span className="text-slate-600">•</span>
-            <strong className="text-amber-400">{totalHoursStr} Saat</strong>
+            <strong className="text-indigo-600 dark:text-indigo-400">{totalEtutsThisWeek} Etüt</strong>
+            <span className="text-subtle">•</span>
+            <strong className="text-amber-700 dark:text-amber-400">{totalHoursStr} Saat</strong>
           </div>
 
           {/* Subject Filter */}
-          <div className="flex items-center space-x-1 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 text-slate-300">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
+          <div className="flex items-center space-x-1 bg-canvas px-2.5 py-1.5 rounded-xl border border-line text-fg-2">
+            <Filter className="w-3.5 h-3.5 text-muted" />
             <select
               value={selectedSubjectFilter}
               onChange={(e) => setSelectedSubjectFilter(e.target.value)}
-              className="bg-transparent text-xs text-slate-200 outline-none cursor-pointer"
+              className="bg-transparent text-xs text-fg outline-none cursor-pointer"
             >
-              <option value="all" className="bg-slate-900 text-white">
+              <option value="all" className="bg-surface text-fg">
                 Tüm Dersler
               </option>
               {subjects.map((sub) => (
-                <option key={sub} value={sub} className="bg-slate-900 text-white">
+                <option key={sub} value={sub} className="bg-surface text-fg">
                   {sub}
                 </option>
               ))}
@@ -370,8 +370,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                 isSelected
                   ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.03]'
                   : day.isToday
-                  ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-500/40'
-                  : 'bg-slate-900/90 text-slate-400 border border-slate-800'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-500/40'
+                  : 'bg-surface/90 text-muted border border-line'
               }`}
             >
               <span className="text-[10px] uppercase font-semibold">
@@ -383,7 +383,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               {dayEtuts.length > 0 && (
                 <span
                   className={`text-[9px] px-1 rounded-full font-bold mt-0.5 ${
-                    isSelected ? 'bg-white/25 text-white' : 'bg-indigo-500/30 text-indigo-300'
+                    isSelected ? 'bg-surface-2 text-fg' : 'bg-indigo-500/30 text-indigo-600 dark:text-indigo-300'
                   }`}
                 >
                   {dayEtuts.length}
@@ -395,22 +395,22 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
       </div>
 
       {/* MOBİL: Yan Yana Sayfa Geçiş Kontrolleri (< Gün Seçici >) */}
-      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-slate-950/80 border border-slate-800/90 rounded-2xl text-xs">
+      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-canvas/80 border border-line rounded-2xl text-xs">
         <button
           type="button"
           onClick={() => scrollToDay(Math.max(0, mobileActiveIndex - 1))}
           disabled={mobileActiveIndex === 0}
-          className="flex items-center space-x-1 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 font-semibold cursor-pointer"
+          className="flex items-center space-x-1 text-fg-2 hover:text-fg disabled:opacity-30 disabled:hover:text-fg-2 px-2.5 py-1 rounded-lg bg-surface border border-line font-semibold cursor-pointer"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
           <span>Önceki Gün</span>
         </button>
 
         <div className="text-center">
-          <span className="text-white font-bold block text-xs">
+          <span className="text-fg font-bold block text-xs">
             {weekDays[mobileActiveIndex]?.dayName}
           </span>
-          <span className="text-[10px] text-indigo-300">
+          <span className="text-[10px] text-indigo-600 dark:text-indigo-300">
             {weekDays[mobileActiveIndex]?.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} (Gün {mobileActiveIndex + 1}/7)
           </span>
         </div>
@@ -419,7 +419,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           type="button"
           onClick={() => scrollToDay(Math.min(6, mobileActiveIndex + 1))}
           disabled={mobileActiveIndex === 6}
-          className="flex items-center space-x-1 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:text-slate-300 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 font-semibold cursor-pointer"
+          className="flex items-center space-x-1 text-fg-2 hover:text-fg disabled:opacity-30 disabled:hover:text-fg-2 px-2.5 py-1 rounded-lg bg-surface border border-line font-semibold cursor-pointer"
         >
           <span>Sonraki Gün</span>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -442,23 +442,23 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               key={day.dateKey}
               className={`w-[88vw] sm:w-[75vw] md:w-auto shrink-0 snap-center md:snap-align-none flex flex-col rounded-2xl border transition-all duration-200 min-h-[380px] md:min-h-[360px] ${
                 day.isToday
-                  ? 'bg-slate-900/90 border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-indigo-500/10 shadow-lg'
-                  : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700'
+                  ? 'bg-surface/90 border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-indigo-500/10 shadow-lg'
+                  : 'bg-surface/50 border-line hover:border-line'
               }`}
             >
               {/* Day Header */}
               <div
                 className={`p-3 border-b flex items-center justify-between ${
                   day.isToday
-                    ? 'bg-indigo-950/40 border-indigo-500/30'
-                    : 'bg-slate-950/50 border-slate-800'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500/30'
+                    : 'bg-canvas/50 border-line'
                 } rounded-t-2xl`}
               >
                 <div>
                   <div className="flex items-center space-x-1.5">
                     <span
                       className={`text-xs font-bold ${
-                        day.isToday ? 'text-indigo-300' : 'text-slate-300'
+                        day.isToday ? 'text-indigo-600 dark:text-indigo-300' : 'text-fg-2'
                       }`}
                     >
                       {day.dayName}
@@ -467,7 +467,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                       <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                     )}
                   </div>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-muted">
                     {day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
                   </span>
                 </div>
@@ -478,8 +478,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                       hasEtuts
                         ? day.isToday
                           ? 'bg-indigo-500 text-white'
-                          : 'bg-slate-800 text-slate-300'
-                        : 'bg-slate-900 text-slate-500'
+                          : 'bg-surface-2 text-fg-2'
+                        : 'bg-surface text-muted'
                     }`}
                   >
                     {dayEtuts.length}
@@ -488,7 +488,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                     <button
                       type="button"
                       onClick={() => onAddEtutForDate(day.dateKey)}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 rounded-md transition-colors cursor-pointer"
+                      className="p-1 hover:bg-surface-2 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 rounded-md transition-colors cursor-pointer"
                       title={`${day.dayName} gününe etüt ekle`}
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -501,18 +501,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               <div className="flex-1 p-2 space-y-2 overflow-y-auto">
                 {dayEtuts.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center py-8 text-center px-2">
-                    <CalendarIcon className="w-6 h-6 text-slate-700 mb-1.5" />
-                    <p className="text-[11px] text-slate-500 font-medium">Bu günde planlı etüt yok</p>
+                    <CalendarIcon className="w-6 h-6 text-subtle mb-1.5" />
+                    <p className="text-[11px] text-muted font-medium">Bu günde planlı etüt yok</p>
                     {totalEtutsThisWeek > 0 && (
-                      <div className="mt-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-300 max-w-[220px]">
-                        Bu hafta toplam <strong className="text-white">{totalEtutsThisWeek} etüt</strong> var. Yukarıdaki gün sekmelerinden etüt olan günleri seçebilirsiniz.
+                      <div className="mt-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-300 max-w-[220px]">
+                        Bu hafta toplam <strong className="text-fg">{totalEtutsThisWeek} etüt</strong> var. Yukarıdaki gün sekmelerinden etüt olan günleri seçebilirsiniz.
                       </div>
                     )}
                     {!readOnly && onAddEtutForDate && (
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="mt-2 text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold px-2.5 py-1 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
+                        className="mt-2 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold px-2.5 py-1 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Etüt Ekle</span>
@@ -525,51 +525,51 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                       <div
                         key={etut.id}
                         onClick={() => !readOnly && onEditEtut && onEditEtut(etut)}
-                        className="p-2.5 rounded-xl border bg-white border-slate-200 hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 hover:shadow-md transition-all text-xs group relative shadow-xs text-slate-800 cursor-pointer overflow-hidden"
+                        className="p-2.5 rounded-xl border bg-surface border-line hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 dark:hover:ring-indigo-500/30 hover:shadow-md transition-all text-xs group relative shadow-xs text-fg cursor-pointer overflow-hidden"
                       >
                         {/* Subject & Time & Period */}
                         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
                           <div className="flex items-center space-x-1">
                             <span
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30"
                             >
                               {etut.subject}
                             </span>
                             {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30">
                                 {etut.lessonPeriod}
                               </span>
                             )}
                           </div>
-                          <span className="text-[10px] font-mono text-amber-700 font-semibold flex items-center space-x-1">
-                            <Clock className="w-3 h-3 text-amber-600" />
+                          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-semibold flex items-center space-x-1">
+                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-300" />
                             <span>{etut.time}</span>
                           </span>
                         </div>
 
                         {/* Topic */}
-                        <h5 className="font-bold text-slate-900 text-[11px] leading-tight mb-1 line-clamp-2">
+                        <h5 className="font-bold text-fg text-[11px] leading-tight mb-1 line-clamp-2">
                           {etut.topic}
                         </h5>
 
                         {/* Teacher */}
                         {etut.teacherName && (
-                          <div className="flex items-center space-x-1 text-[10px] text-indigo-800 mb-1 truncate font-semibold">
+                          <div className="flex items-center space-x-1 text-[10px] text-indigo-800 dark:text-indigo-200 mb-1 truncate font-semibold">
                             <span className="truncate">👨‍🏫 {etut.teacherName}</span>
                           </div>
                         )}
 
                         {/* Location */}
                         {etut.location && (
-                          <div className="flex items-center space-x-1 text-[10px] text-slate-500 mb-1 truncate">
-                            <MapPin className="w-2.5 h-2.5 text-rose-500 flex-shrink-0" />
+                          <div className="flex items-center space-x-1 text-[10px] text-muted mb-1 truncate">
+                            <MapPin className="w-2.5 h-2.5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
                             <span className="truncate">{etut.location}</span>
                           </div>
                         )}
 
                         {/* Students */}
-                        <div className="flex items-center space-x-1 text-[10px] text-slate-600 mb-1.5 truncate">
-                          <Users className="w-2.5 h-2.5 text-indigo-500 flex-shrink-0" />
+                        <div className="flex items-center space-x-1 text-[10px] text-muted mb-1.5 truncate">
+                          <Users className="w-2.5 h-2.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                           <span className="truncate font-medium">
                             {getAssignedStudentsSummary(etut.assignedStudentIds)}
                           </span>
@@ -578,7 +578,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         {/* Teacher Feedback / Notes indicator */}
                         {etut.teacherFeedback && (
                           <div
-                            className="mb-1.5 p-1 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-900 flex items-center space-x-1"
+                            className="mb-1.5 p-1 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded text-[9px] text-amber-900 dark:text-amber-200 flex items-center space-x-1"
                             title={`Öğretmen Görüşü: ${etut.teacherFeedback}`}
                           >
                             <span className="shrink-0 font-bold">💬</span>
@@ -587,8 +587,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                         )}
 
                         {/* Quick Action Footer */}
-                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10px] gap-1 flex-wrap">
-                          <span className="text-slate-400 font-mono shrink-0">{etut.duration} dk</span>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-line text-[10px] gap-1 flex-wrap">
+                          <span className="text-subtle font-mono shrink-0">{etut.duration} dk</span>
 
                           <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
                             {/* Attendance / Yoklama */}
@@ -599,10 +599,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   e.stopPropagation();
                                   onAttendanceEtut(etut);
                                 }}
-                                className="p-1 text-slate-400 hover:text-emerald-600 rounded hover:bg-emerald-50 transition-colors cursor-pointer"
+                                className="p-1 text-subtle hover:text-emerald-600 dark:hover:text-emerald-300 rounded hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
                                 title="Etüt Yoklaması & Devamsızlık Al"
                               >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                               </button>
                             )}
 
@@ -614,10 +614,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   e.stopPropagation();
                                   onNotifyEtut(etut);
                                 }}
-                                className="p-1 text-slate-400 hover:text-emerald-600 rounded hover:bg-emerald-50 transition-colors cursor-pointer"
+                                className="p-1 text-subtle hover:text-emerald-600 dark:hover:text-emerald-300 rounded hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
                                 title="WhatsApp ve Mail ile İlet"
                               >
-                                <MessageCircle className="w-3 h-3 text-emerald-600" />
+                                <MessageCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
                               </button>
                             )}
 
@@ -627,10 +627,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                              className="p-1 text-subtle hover:text-blue-600 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
                               title="Google Takvime Ekle"
                             >
-                              <CalendarCheck className="w-3 h-3 text-blue-600" />
+                              <CalendarCheck className="w-3 h-3 text-blue-600 dark:text-blue-300" />
                             </a>
 
                             {/* .ics Download */}
@@ -647,10 +647,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   etut.location || 'Okul'
                                 );
                               }}
-                              className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-amber-50 transition-colors cursor-pointer"
+                              className="p-1 text-subtle hover:text-amber-600 dark:hover:text-amber-300 rounded hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
                               title="iCal / Outlook Takvim İndir (.ics)"
                             >
-                              <CalendarIcon className="w-3 h-3 text-amber-600" />
+                              <CalendarIcon className="w-3 h-3 text-amber-600 dark:text-amber-300" />
                             </button>
 
                             {/* Edit */}
@@ -661,10 +661,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   e.stopPropagation();
                                   onEditEtut(etut);
                                 }}
-                                className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                                className="p-1 text-subtle hover:text-fg rounded hover:bg-surface-2 transition-colors cursor-pointer"
                                 title="Düzenle"
                               >
-                                <Edit2 className="w-3 h-3 text-slate-600" />
+                                <Edit2 className="w-3 h-3 text-muted" />
                               </button>
                             )}
 
@@ -676,10 +676,10 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   e.stopPropagation();
                                   onDeleteEtut(etut);
                                 }}
-                                className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                className="p-1 text-subtle hover:text-rose-600 dark:hover:text-rose-300 rounded hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
                                 title="Sil"
                               >
-                                <Trash2 className="w-3 h-3 text-rose-500" />
+                                <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                               </button>
                             )}
                           </div>
@@ -706,12 +706,12 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
               className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 idx === mobileActiveIndex
                   ? 'w-6 bg-indigo-500'
-                  : 'w-1.5 bg-slate-700 hover:bg-slate-500'
+                  : 'w-1.5 bg-surface-3 hover:bg-slate-500'
               }`}
             />
           ))}
         </div>
-        <span className="text-[10px] text-slate-400 flex items-center space-x-1 font-medium">
+        <span className="text-[10px] text-muted flex items-center space-x-1 font-medium">
           <span>↔</span>
           <span>Günler arasında geçiş yapmak için sağa / sola kaydırın</span>
         </span>

@@ -480,17 +480,17 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-6 max-h-[92vh] flex flex-col">
+      <div className="relative w-full max-w-5xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface/90 flex-shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-lg font-bold text-white tracking-tight">Excel'den Toplu Öğrenci Yükleme</h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                <h2 className="text-lg font-bold text-fg tracking-tight">Excel'den Toplu Öğrenci Yükleme</h2>
+                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
                   .xlsx / .xls / .csv
                 </span>
               </div>
@@ -501,15 +501,15 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             <button
               type="button"
               onClick={downloadSampleExcel}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-colors"
+              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg border border-line rounded-xl text-xs font-semibold transition-colors"
               title="Örnek Excel Şablonu İndir"
             >
-              <Download className="w-3.5 h-3.5 text-emerald-400" />
+              <Download className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
               <span>Örnek Excel İndir</span>
             </button>
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -520,21 +520,21 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         <div className="p-6 overflow-y-auto space-y-6 flex-grow">
           {/* Notifications */}
           {errorMessage && (
-            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-3 text-rose-300 text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-3 text-rose-600 dark:text-rose-300 text-sm">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 dark:text-rose-400" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center space-x-3 text-emerald-300 text-sm">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center space-x-3 text-emerald-700 dark:text-emerald-300 text-sm">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-700 dark:text-emerald-400" />
               <span>{successMessage}</span>
             </div>
           )}
 
           {/* Upload Method Tabs */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-800/40 p-1.5 rounded-xl border border-slate-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-2/40 p-1.5 rounded-xl border border-line">
             <div className="flex space-x-1 w-full sm:w-auto">
               <button
                 type="button"
@@ -542,7 +542,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeInputMode === 'file'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <Upload className="w-3.5 h-3.5" />
@@ -554,7 +554,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
                   activeInputMode === 'paste'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <Clipboard className="w-3.5 h-3.5" />
@@ -564,19 +564,19 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
             {/* Template shortcuts for mobile/small screen */}
             <div className="flex items-center space-x-2 text-xs">
-              <span className="text-slate-500 hidden sm:inline">Şablonlar:</span>
+              <span className="text-muted hidden sm:inline">Şablonlar:</span>
               <button
                 type="button"
                 onClick={downloadSampleExcel}
-                className="text-emerald-400 hover:text-emerald-300 underline font-medium"
+                className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline font-medium"
               >
                 Excel (.xlsx)
               </button>
-              <span className="text-slate-600">•</span>
+              <span className="text-subtle">•</span>
               <button
                 type="button"
                 onClick={downloadSampleCsv}
-                className="text-slate-400 hover:text-slate-300 underline font-medium"
+                className="text-muted hover:text-fg-2 underline font-medium"
               >
                 CSV (.csv)
               </button>
@@ -597,7 +597,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
                 isDragOver
                   ? 'border-indigo-500 bg-indigo-500/10 scale-[0.99]'
-                  : 'border-slate-700 hover:border-indigo-500/60 bg-slate-800/30 hover:bg-slate-800/50'
+                  : 'border-line hover:border-indigo-500/60 bg-surface-2/30 hover:bg-surface-2/50'
               }`}
             >
               <input
@@ -611,13 +611,13 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                   }
                 }}
               />
-              <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600/20 to-indigo-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 shadow-inner">
+              <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600/20 to-indigo-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-700 dark:text-emerald-400 shadow-inner">
                 <FileSpreadsheet className="w-8 h-8" />
               </div>
-              <p className="text-base font-semibold text-white mb-3">
+              <p className="text-base font-semibold text-fg mb-3">
                 {fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
               </p>
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-indigo-300 border border-slate-700">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-2 text-indigo-600 dark:text-indigo-300 border border-line">
                 <Upload className="w-3.5 h-3.5" />
                 <span>Dosya Seç</span>
               </span>
@@ -625,16 +625,16 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           ) : (
             /* Copy-Paste Textarea */
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center justify-between text-xs text-muted">
                 <span>Excel veya Google E-Tablolar'dan kopyaladığınız satırları buraya yapıştırın:</span>
-                <span className="font-mono text-slate-500">Sütunlar: Ad [Tab] Soyad [Tab] Sınıf</span>
+                <span className="font-mono text-muted">Sütunlar: Ad [Tab] Soyad [Tab] Sınıf</span>
               </div>
               <textarea
                 rows={5}
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
                 placeholder={`Ad\tSoyad\tSınıf\tNo\nAhmet\tYılmaz\t12-A Sayısal\t1051\nZeynep\tKaya\t12-B Eşit Ağırlık\t1052\nMustafa\tÇelik\t11-A Fen\t1053`}
-                className="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-slate-600 leading-relaxed"
+                className="w-full p-4 bg-surface-2 border border-line rounded-xl text-fg font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-subtle leading-relaxed"
               />
               <div className="flex justify-end">
                 <button
@@ -651,22 +651,22 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
           {/* Quick Mapping & Global Settings */}
           {parsedRows.length > 0 && (
-            <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-4">
+            <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-sm font-bold text-white flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-indigo-400" />
+                  <h4 className="text-sm font-bold text-fg flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     <span>Önizleme ve Aktarım Ayarları ({parsedRows.length} Öğrenci)</span>
                   </h4>
                 </div>
 
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs text-slate-300 font-medium">Varsayılan Sınıf:</span>
+                    <span className="text-xs text-fg-2 font-medium">Varsayılan Sınıf:</span>
                     <select
                       value={defaultClassId}
                       onChange={(e) => setDefaultClassId(e.target.value)}
-                      className="bg-slate-900 border border-slate-700 text-white text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="bg-surface border border-line text-fg text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     >
                       {classes.map((cls) => (
                         <option key={cls.id} value={cls.id}>
@@ -679,14 +679,14 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               </div>
 
               {detectedNewClasses.length > 0 && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start space-x-3 text-xs text-amber-200">
-                  <School className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start space-x-3 text-xs text-amber-700 dark:text-amber-200">
+                  <School className="w-4 h-4 text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="font-semibold text-amber-300">
+                    <p className="font-semibold text-amber-700 dark:text-amber-300">
                       Excel'de yeni sınıflar tespit edildi: {detectedNewClasses.join(', ')}
                     </p>
                     {isAdmin ? (
-                      <label className="flex items-center space-x-2 cursor-pointer text-slate-300 hover:text-white">
+                      <label className="flex items-center space-x-2 cursor-pointer text-fg-2 hover:text-fg">
                         <input
                           type="checkbox"
                           checked={autoCreateClasses}
@@ -695,12 +695,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             setAutoCreateClasses(checked);
                             setParsedRows((prev) => validateRows(prev, checked));
                           }}
-                          className="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                          className="rounded border-line bg-surface text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500"
                         />
                         <span>Bu sınıfları sistemde otomatik olarak yeni sınıf grubu olarak oluştur</span>
                       </label>
                     ) : (
-                      <p className="text-slate-300">
+                      <p className="text-fg-2">
                         Bu sınıflar sistemde yok veya yetkiniz bulunmuyor. Satırlardaki sınıf adını yetkili olduğunuz bir
                         sınıfla değiştiriniz ya da yöneticinizden sınıf açmasını isteyiniz.
                       </p>
@@ -715,17 +715,17 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           {parsedRows.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-muted uppercase tracking-wider">
                   Yüklenecek Öğrenci Listesi ({parsedRows.filter((r) => r.isValid).length} Geçerli)
                 </span>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-muted">
                   Tablodaki alanları doğrudan tıklayarak düzenleyebilirsiniz.
                 </span>
               </div>
 
-              <div className="border border-slate-800 rounded-xl overflow-hidden shadow-inner max-h-72 overflow-y-auto">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-800 text-slate-400 sticky top-0 uppercase tracking-wider font-semibold z-10">
+              <div className="border border-line rounded-xl overflow-hidden shadow-inner max-h-72 overflow-y-auto">
+                <table className="w-full text-left text-xs text-fg-2">
+                  <thead className="bg-surface-2 text-muted sticky top-0 uppercase tracking-wider font-semibold z-10">
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">İsim</th>
@@ -737,21 +737,21 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                       <th className="px-4 py-3 text-right">İşlem</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 bg-slate-900/60">
+                  <tbody className="divide-y divide-line bg-surface/60">
                     {parsedRows.map((row, idx) => (
                       <tr
                         key={row.id}
-                        className={`hover:bg-slate-800/40 transition-colors ${
-                          !row.isValid ? 'bg-rose-950/20' : ''
+                        className={`hover:bg-surface-2/40 transition-colors ${
+                          !row.isValid ? 'bg-rose-50 dark:bg-rose-950/20' : ''
                         }`}
                       >
-                        <td className="px-4 py-2.5 font-mono text-slate-500">{idx + 1}</td>
+                        <td className="px-4 py-2.5 font-mono text-muted">{idx + 1}</td>
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
                             value={row.firstName}
                             onChange={(e) => handleUpdateRow(row.id, 'firstName', e.target.value)}
-                            className="bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-white text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-2.5">
@@ -759,7 +759,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             type="text"
                             value={row.lastName}
                             onChange={(e) => handleUpdateRow(row.id, 'lastName', e.target.value)}
-                            className="bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-white text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-2.5">
@@ -769,14 +769,14 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                               value={row.className}
                               onChange={(e) => handleUpdateRow(row.id, 'className', e.target.value)}
                               placeholder="Sınıf adı..."
-                              className={`bg-slate-800/90 border rounded px-2 py-1 text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none ${
+                              className={`bg-surface-2/90 border rounded px-2 py-1 text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none ${
                                 row.isNewClass
-                                  ? 'border-amber-500/50 text-amber-200'
-                                  : 'border-slate-700 text-white'
+                                  ? 'border-amber-500/50 text-amber-700 dark:text-amber-200'
+                                  : 'border-line text-fg'
                               }`}
                             />
                             {row.isNewClass && (
-                              <span className="text-[9px] text-amber-400 block mt-0.5">Yeni sınıf</span>
+                              <span className="text-[9px] text-amber-700 dark:text-amber-400 block mt-0.5">Yeni sınıf</span>
                             )}
                           </div>
                         </td>
@@ -785,7 +785,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             type="text"
                             value={row.studentNumber}
                             onChange={(e) => handleUpdateRow(row.id, 'studentNumber', e.target.value)}
-                            className="bg-slate-800/90 border border-slate-700 rounded px-2 py-1 text-white font-mono text-xs w-20 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg font-mono text-xs w-20 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-2.5 text-[11px] space-y-1">
@@ -794,24 +794,24 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             value={row.phone}
                             onChange={(e) => handleUpdateRow(row.id, 'phone', e.target.value)}
                             placeholder="Telefon"
-                            className="bg-slate-800/90 border border-slate-700 rounded px-2 py-0.5 text-slate-300 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none mb-1"
+                            className="bg-surface-2/90 border border-line rounded px-2 py-0.5 text-fg-2 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none mb-1"
                           />
                           <input
                             type="email"
                             value={row.email}
                             onChange={(e) => handleUpdateRow(row.id, 'email', e.target.value)}
                             placeholder="E-Posta"
-                            className="bg-slate-800/90 border border-slate-700 rounded px-2 py-0.5 text-slate-300 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            className="bg-surface-2/90 border border-line rounded px-2 py-0.5 text-fg-2 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                           />
                         </td>
                         <td className="px-4 py-2.5 text-center">
                           {row.isValid ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                               Hazır
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                               title={row.validationError}
                             >
                               {row.validationError || 'Hatalı'}
@@ -822,7 +822,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           <button
                             type="button"
                             onClick={() => handleRemoveRow(row.id)}
-                            className="p-1 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+                            className="p-1 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface-2 rounded transition-colors"
                             title="Listeden Çıkar"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -837,12 +837,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           )}
 
           {/* Guide / Instruction Box */}
-          <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800/80 text-xs text-slate-400 space-y-2">
-            <div className="flex items-center space-x-1.5 text-indigo-300 font-semibold">
-              <HelpCircle className="w-4 h-4 text-indigo-400" />
+          <div className="bg-canvas/40 p-4 rounded-xl border border-line text-xs text-muted space-y-2">
+            <div className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-300 font-semibold">
+              <HelpCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>Excel Dosyası Hazırlama Rehberi</span>
             </div>
-            <ul className="list-disc list-inside space-y-1 pl-1 text-slate-400">
+            <ul className="list-disc list-inside space-y-1 pl-1 text-muted">
               <li>
                 Excel dosyanızda sütun başlıkları olarak <strong>Ad</strong> (veya <strong>İsim</strong>),{' '}
                 <strong>Soyad</strong> (veya <strong>Soyisim</strong>), <strong>Sınıf</strong>,{' '}
@@ -867,8 +867,8 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-900 flex items-center justify-between flex-shrink-0">
-          <div className="text-xs text-slate-400">
+        <div className="px-6 py-4 border-t border-line bg-surface flex items-center justify-between flex-shrink-0">
+          <div className="text-xs text-muted">
             {parsedRows.length > 0 && (
               <span>
                 Toplam <strong>{parsedRows.length}</strong> öğrenci ({parsedRows.filter((r) => r.isValid).length} kaydedilebilir)
@@ -880,7 +880,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors"
             >
               İptal
             </button>

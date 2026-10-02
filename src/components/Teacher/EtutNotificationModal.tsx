@@ -132,20 +132,20 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
       onClick={onClose}
     >
       <div
-        className="bg-slate-900 border border-slate-700/90 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl text-slate-100 relative"
+        className="bg-surface border border-line rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl text-fg relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
-        <div className="bg-gradient-to-r from-teal-900/80 via-slate-900 to-indigo-950/80 px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-teal-50 dark:from-teal-900/80 via-surface to-indigo-50 dark:to-indigo-950/80 px-5 py-4 border-b border-line flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-300">
+            <div className="w-10 h-10 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-700 dark:text-teal-300">
               <CalendarDays className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+              <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                 <span>Etüt Bilgilendirme & İletişim</span>
               </h3>
-              <p className="text-xs text-slate-300">
+              <p className="text-xs text-fg-2">
                 Öğrenciye WhatsApp ve Otomatik E-Posta ile etüt randevu bildirimi iletin
               </p>
             </div>
@@ -153,7 +153,7 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
             title="Kapat"
           >
             <X className="w-5 h-5" />
@@ -163,66 +163,66 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
         {/* Modal Body */}
         <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Automatic System Delivery Banner */}
-          <div className="p-3.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-start space-x-3 text-xs text-emerald-200 shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-start space-x-3 text-xs text-emerald-700 dark:text-emerald-200 shadow-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <span className="font-bold text-emerald-300">E-Posta Sistemi Tarafından Otomatik Gönderildi:</span>
-              <p className="text-[11.5px] text-slate-300">
+              <span className="font-bold text-emerald-700 dark:text-emerald-300">E-Posta Sistemi Tarafından Otomatik Gönderildi:</span>
+              <p className="text-[11.5px] text-fg-2">
                 Bu etüt kaydı oluşturulduğunda sistem bilgilendirme e-postasını ve bildirim kartını otomatik olarak ilgili öğrencilerin e-posta adresine ve öğrenci portalına ulaştırdı.
               </p>
             </div>
           </div>
 
           {/* Etut Summary Card */}
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+          <div className="bg-canvas/60 border border-line rounded-xl p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400">Ders & Konu</span>
-                <h4 className="text-sm font-bold text-white flex items-center space-x-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 dark:text-teal-400">Ders & Konu</span>
+                <h4 className="text-sm font-bold text-fg flex items-center space-x-2">
                   <span>{etut.subject}:</span>
-                  <span className="text-teal-300">{etut.topic}</span>
+                  <span className="text-teal-700 dark:text-teal-300">{etut.topic}</span>
                 </h4>
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Danışman Öğretmen</span>
-                <p className="text-xs font-semibold text-slate-200">{effectiveTeacher}</p>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Danışman Öğretmen</span>
+                <p className="text-xs font-semibold text-fg">{effectiveTeacher}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-400 block font-medium">Tarih:</span>
-                <span className="font-semibold text-slate-200">{formattedDate}</span>
+              <div className="bg-surface/80 p-2 rounded-lg border border-line">
+                <span className="text-[10px] text-muted block font-medium">Tarih:</span>
+                <span className="font-semibold text-fg">{formattedDate}</span>
               </div>
-              <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800">
-                <span className="text-[10px] text-slate-400 block font-medium">Saat & Süre:</span>
-                <span className="font-semibold text-slate-200">{etut.time} ({etut.duration} dk)</span>
+              <div className="bg-surface/80 p-2 rounded-lg border border-line">
+                <span className="text-[10px] text-muted block font-medium">Saat & Süre:</span>
+                <span className="font-semibold text-fg">{etut.time} ({etut.duration} dk)</span>
               </div>
-              <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 col-span-2 sm:col-span-1">
-                <span className="text-[10px] text-slate-400 block font-medium">Derslik / Yer:</span>
-                <span className="font-semibold text-slate-200">{etut.location}</span>
+              <div className="bg-surface/80 p-2 rounded-lg border border-line col-span-2 sm:col-span-1">
+                <span className="text-[10px] text-muted block font-medium">Derslik / Yer:</span>
+                <span className="font-semibold text-fg">{etut.location}</span>
               </div>
             </div>
 
             {etut.notes && (
-              <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800 text-xs text-slate-300">
-                <span className="text-[10px] font-bold text-slate-400 block">Öğretmen Notu:</span>
+              <div className="bg-surface/60 p-2.5 rounded-lg border border-line text-xs text-fg-2">
+                <span className="text-[10px] font-bold text-muted block">Öğretmen Notu:</span>
                 <p className="mt-0.5">{etut.notes}</p>
               </div>
             )}
 
             {etut.teacherFeedback && (
-              <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/25 text-xs text-amber-200">
-                <span className="text-[10px] font-bold text-amber-300 block">💬 Öğretmen Düşünce ve Görüşleri:</span>
-                <p className="mt-0.5 italic text-slate-200">"{etut.teacherFeedback}"</p>
+              <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/25 text-xs text-amber-700 dark:text-amber-200">
+                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 block">💬 Öğretmen Düşünce ve Görüşleri:</span>
+                <p className="mt-0.5 italic text-fg">"{etut.teacherFeedback}"</p>
               </div>
             )}
           </div>
 
           {/* Feedback message */}
           {dispatchFeedback && (
-            <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl flex items-center space-x-2 text-xs text-emerald-300 animate-in fade-in">
-              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 rounded-xl flex items-center space-x-2 text-xs text-emerald-700 dark:text-emerald-300 animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
               <span className="font-semibold">{dispatchFeedback}</span>
             </div>
           )}
@@ -230,24 +230,24 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
           {/* Target Students WhatsApp / Communication List */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
-                <Users className="w-3.5 h-3.5 text-teal-400" />
+              <h4 className="text-xs font-bold text-fg flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
                 <span>Atanan Öğrenciler ({targetStudents.length}) - Hızlı WhatsApp İletimi:</span>
               </h4>
               <button
                 type="button"
                 onClick={handleCopyMessage}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
+                className="inline-flex items-center space-x-1 px-2.5 py-1 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs font-medium border border-line transition-colors cursor-pointer"
                 title="Tüm metni kopyala"
               >
                 {copiedKey === 'all' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Kopyalandı</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                    <span className="text-emerald-700 dark:text-emerald-400">Kopyalandı</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-slate-400" />
+                    <Copy className="w-3.5 h-3.5 text-muted" />
                     <span>Metni Kopyala</span>
                   </>
                 )}
@@ -255,7 +255,7 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
             </div>
 
             {targetStudents.length === 0 ? (
-              <div className="p-3 bg-slate-950/40 border border-slate-800 rounded-xl text-xs text-slate-400 text-center">
+              <div className="p-3 bg-canvas/40 border border-line rounded-xl text-xs text-muted text-center">
                 Bu etüte atanmış belirli bir öğrenci bulunmuyor (Tüm kademe veya serbest etüt).
               </div>
             ) : (
@@ -263,14 +263,14 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
                 {targetStudents.map((std) => (
                   <div
                     key={std.id}
-                    className="p-2.5 bg-slate-950/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-slate-700 transition-colors"
+                    className="p-2.5 bg-canvas/60 border border-line rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-line transition-colors"
                   >
                     <div className="flex items-center space-x-2.5">
-                      <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-300 font-bold text-xs shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-700 dark:text-teal-300 font-bold text-xs shrink-0">
                         {std.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <span className="text-xs font-bold text-white block">{std.name}</span>
+                        <span className="text-xs font-bold text-fg block">{std.name}</span>
                       </div>
                     </div>
 
@@ -291,10 +291,10 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
                         <button
                           type="button"
                           onClick={() => handleManualEmailClient(std)}
-                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700 transition-colors cursor-pointer"
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-lg text-xs font-medium border border-line transition-colors cursor-pointer"
                           title={`${std.name} için Gmail'de Aç`}
                         >
-                          <Mail className="w-3.5 h-3.5 text-red-400" />
+                          <Mail className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
                           <span className="hidden sm:inline">Gmail</span>
                         </button>
                       )}
@@ -306,26 +306,26 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
           </div>
 
           {/* Quick Copy / Preview Box */}
-          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1.5">
-            <span className="text-[11px] font-bold text-slate-400 block flex items-center space-x-1">
-              <FileText className="w-3.5 h-3.5 text-indigo-400" />
+          <div className="p-3 bg-canvas/80 border border-line rounded-xl space-y-1.5">
+            <span className="text-[11px] font-bold text-muted block flex items-center space-x-1">
+              <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>Hazır Bildirim Mesajı Önizlemesi:</span>
             </span>
-            <pre className="text-[11px] text-slate-300 font-sans whitespace-pre-wrap bg-slate-900/80 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed select-all">
+            <pre className="text-[11px] text-fg-2 font-sans whitespace-pre-wrap bg-surface/80 p-2.5 rounded-lg border border-line leading-relaxed select-all">
               {universalMessage}
             </pre>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-slate-950/80 px-5 py-3 border-t border-slate-800 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400">
+        <div className="bg-canvas/80 px-5 py-3 border-t border-line flex items-center justify-between">
+          <span className="text-[11px] text-muted">
             Eğitim Portalı • Otomatik İletişim Servisi
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold transition-colors cursor-pointer"
           >
             Kapat
           </button>

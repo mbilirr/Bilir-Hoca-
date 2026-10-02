@@ -137,23 +137,23 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
                 <span>Sınıf Soru Hedefleri</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-extrabold dark:bg-indigo-950/60 dark:text-indigo-300">
                   {classTargets.length} Sınıf
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 Sınıflara toplu olarak atanmış soru hedefleri ve sınıfların genel ortalama başarı durumu
               </p>
             </div>
@@ -161,22 +161,22 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-subtle hover:text-muted rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Filter & Add Bar */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+        <div className="p-4 border-b border-line bg-surface flex flex-col sm:flex-row gap-2.5 items-center justify-between">
           <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <Search className="w-4 h-4 text-subtle absolute left-3 top-2.5" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Sınıf adı ara (Örn: 8/A, 11/B)..."
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full pl-9 pr-3 py-1.5 bg-surface-2 border border-line rounded-xl text-xs text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -197,13 +197,13 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-3">
           {filteredList.length === 0 ? (
             <div className="text-center py-12 px-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-400 flex items-center justify-center mb-3">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
                 <Users className="w-7 h-7" />
               </div>
-              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <h4 className="text-sm font-bold text-fg-2">
                 Kayıtlı Sınıf Hedefi Bulunamadı
               </h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              <p className="text-xs text-subtle mt-1 max-w-sm mx-auto">
                 Henüz herhangi bir sınıfa toplu soru hedefi atanmamış. 'Sınıfa Toplu Hedef Ver' butonu ile hızlıca hedef belirleyebilirsiniz.
               </p>
             </div>
@@ -211,7 +211,7 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
             filteredList.map((item) => (
               <div
                 key={item.target.id || item.target.classId}
-                className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-all"
+                className="p-4 bg-surface-2 border border-line rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-all"
               >
                 {/* Class Info */}
                 <div className="flex items-center space-x-3 min-w-0">
@@ -220,17 +220,17 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      <span className="text-sm font-bold text-fg truncate">
                         {item.className} Sınıfı
                       </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-surface-3 text-fg-2">
                         {item.studentCount} Kayıtlı Öğrenci
                       </span>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                         {item.targetPeriodLabel}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
+                    <div className="text-xs text-muted mt-0.5 flex items-center gap-2">
                       <span>
                         Öğrenci Başı: <strong className="text-indigo-600 dark:text-indigo-400 font-bold">{item.perStudentTarget} Soru</strong>
                       </span>
@@ -247,12 +247,12 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
                   {/* Progress Bar & Stat */}
                   <div className="w-36 text-right">
                     <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-slate-500 font-medium">Sınıf Toplam:</span>
-                      <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                      <span className="text-muted font-medium">Sınıf Toplam:</span>
+                      <span className="font-extrabold text-fg">
                         {item.totalSolvedQuestions.toLocaleString('tr-TR')}
                       </span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div className="w-full h-2 rounded-full bg-surface-3 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
                           item.progressPercent >= 100
@@ -288,7 +288,7 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
                         onClose();
                         onOpenTargetModalForClass(item.cls || ({} as ClassGroup), item.target);
                       }}
-                      className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+                      className="p-2 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 rounded-xl transition-colors cursor-pointer"
                       title="Sınıf Hedefini Düzenle"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -296,7 +296,7 @@ export const ClassTargetsModal: React.FC<ClassTargetsModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDeleteClassTarget(item.target.classId, item.target.weekStartDate)}
-                      className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                      className="p-2 text-subtle hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                       title="Sınıf Hedefini Kaldır"
                     >
                       <Trash2 className="w-4 h-4" />

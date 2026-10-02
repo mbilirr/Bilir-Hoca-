@@ -50,6 +50,8 @@ import {
 } from '../../constants/schoolConstants';
 import * as XLSX from 'xlsx';
 import confetti from 'canvas-confetti';
+import { useQuickFocus } from '../../lib/quickFocus';
+import { PageHeader, Segmented } from '../ui/kit';
 
 interface StudentManagementProps {
   students: Student[];
@@ -68,6 +70,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'students' | 'classes'>('students');
+
+  // Hızlı arama / ana sayfa kısayolu ile gelindiyse ilgili öğrenciyi, sınıfı veya ekleme formunu aç
+  useQuickFocus(['student', 'class', 'action'], (f) => {
+    if (f.type === 'student') {
+      setActiveTab('students');
+      setSelectedClassFilter('all');
+      setSearchTerm(f.label);
+    } else if (f.type === 'class') {
+      setActiveTab('students');
+      setSearchTerm('');
+      setSelectedClassFilter(f.id);
+    } else if (f.id === 'student-create') {
+      setActiveTab('students');
+      resetStudentForm();
+      setEditingStudent(null);
+      setIsAddStudentOpen(true);
+    }
+  });
 
   // Kurum Yöneticisi kontrolü (Yalnızca yönetici sınıf açabilir)
   const isAdmin = dataService.isCurrentUserAdmin();
@@ -236,36 +256,36 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     const DUPLICATE_THEMES = [
       {
-        nameColor: 'text-amber-800 font-black',
-        badgeBg: 'bg-amber-100',
-        badgeText: 'text-amber-950 font-bold',
+        nameColor: 'text-amber-800 dark:text-amber-200 font-black',
+        badgeBg: 'bg-amber-100 dark:bg-amber-500/15',
+        badgeText: 'text-amber-950 dark:text-amber-200 font-bold',
         badgeBorder: 'border-amber-400',
-        rowBg: 'bg-amber-50/90',
-        rowHover: 'hover:bg-amber-100/80',
+        rowBg: 'bg-amber-50/90 dark:bg-amber-500/10',
+        rowHover: 'hover:bg-amber-100/80 dark:hover:bg-amber-500/15',
         borderLeft: 'border-l-4 border-l-amber-500',
         ringColor: 'ring-amber-500',
         pillBg: 'bg-amber-600',
         label: '1. Kayıt',
       },
       {
-        nameColor: 'text-rose-800 font-black',
-        badgeBg: 'bg-rose-100',
-        badgeText: 'text-rose-950 font-bold',
+        nameColor: 'text-rose-800 dark:text-rose-200 font-black',
+        badgeBg: 'bg-rose-100 dark:bg-rose-500/15',
+        badgeText: 'text-rose-950 dark:text-rose-200 font-bold',
         badgeBorder: 'border-rose-400',
-        rowBg: 'bg-rose-50/90',
-        rowHover: 'hover:bg-rose-100/80',
+        rowBg: 'bg-rose-50/90 dark:bg-rose-500/10',
+        rowHover: 'hover:bg-rose-100/80 dark:hover:bg-rose-500/15',
         borderLeft: 'border-l-4 border-l-rose-500',
         ringColor: 'ring-rose-500',
         pillBg: 'bg-rose-600',
         label: '2. Kayıt',
       },
       {
-        nameColor: 'text-purple-800 font-black',
-        badgeBg: 'bg-purple-100',
-        badgeText: 'text-purple-950 font-bold',
+        nameColor: 'text-purple-800 dark:text-purple-200 font-black',
+        badgeBg: 'bg-purple-100 dark:bg-purple-500/15',
+        badgeText: 'text-purple-950 dark:text-purple-200 font-bold',
         badgeBorder: 'border-purple-400',
-        rowBg: 'bg-purple-50/90',
-        rowHover: 'hover:bg-purple-100/80',
+        rowBg: 'bg-purple-50/90 dark:bg-purple-500/10',
+        rowHover: 'hover:bg-purple-100/80 dark:hover:bg-purple-500/15',
         borderLeft: 'border-l-4 border-l-purple-500',
         ringColor: 'ring-purple-500',
         pillBg: 'bg-purple-600',
@@ -915,148 +935,123 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     <div className="space-y-6">
       {/* Success Notification Alert */}
       {studentSuccessFeedback && (
-        <div className="p-4 bg-emerald-950/80 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-emerald-200 text-sm shadow-xl shadow-emerald-950/30 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="p-4 bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-emerald-700 dark:text-emerald-200 text-sm shadow-xl shadow-emerald-950/30 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-700 dark:text-emerald-400 shrink-0">
               <Check className="w-4 h-4" />
             </div>
             <span className="font-medium">{studentSuccessFeedback}</span>
           </div>
           <button
             onClick={() => setStudentSuccessFeedback(null)}
-            className="p-1 text-emerald-400 hover:text-white rounded-lg cursor-pointer"
+            className="p-1 text-emerald-700 dark:text-emerald-400 hover:text-fg rounded-lg cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Top Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center space-x-2">
-            <Users className="w-5 h-5 text-indigo-400" />
-            <span>Kullanıcı & Sınıf Yönetim Merkezi</span>
-          </h2>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
-            <button
-              onClick={() => setActiveTab('students')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'students'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Öğrenciler ({students.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('classes')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === 'classes'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Sınıflar ({classes.length})
-            </button>
-          </div>
-
-          {activeTab === 'students' ? (
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={Users}
+        tone="brand"
+        title="Öğrenciler"
+        description="Öğrenci hesapları ve sınıflar"
+        actions={
+          activeTab === 'students' ? (
             canAddStudents ? (
-              <div className="flex items-center space-x-2">
+              <>
                 <button
                   onClick={() => setIsExcelModalOpen(true)}
-                  className="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                  className="ui-btn ui-btn-secondary"
                   title="Excel (.xlsx, .xls) veya CSV dosyasından toplu öğrenci ekle"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
+                  <FileSpreadsheet className="w-4 h-4 text-success-fg" />
                   <span>Excel'den Toplu Yükle</span>
                 </button>
-
                 <button
                   onClick={() => {
                     resetStudentForm();
                     setEditingStudent(null);
                     setIsAddStudentOpen(true);
                   }}
-                  className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                  className="ui-btn ui-btn-primary"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Yeni Öğrenci Ekle</span>
                 </button>
-              </div>
+              </>
             ) : (
-              <div className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 border border-slate-700/80 text-amber-300 text-xs">
-                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="font-semibold">Öğrenci eklemek için yöneticinin size sınıf yetkisi vermesi gerekir</span>
-              </div>
+              <span className="ui-chip ui-chip-warning py-1.5 px-3 text-xs">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                Öğrenci eklemek için yöneticinin size sınıf yetkisi vermesi gerekir
+              </span>
             )
+          ) : isAdmin ? (
+            <button
+              onClick={() => {
+                setEditingClass(null);
+                setClassName('');
+                setClassSchoolLevel('Ortaokul');
+                setClassGradeLevel('5. Sınıf');
+                setClassBranch('A');
+                setClassDescription('');
+                setClassFormError(null);
+                setIsAddClassOpen(true);
+              }}
+              className="ui-btn ui-btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Yeni Sınıf Ekle</span>
+            </button>
           ) : (
-            isAdmin ? (
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => {
-                    setEditingClass(null);
-                    setClassName('');
-                    setClassSchoolLevel('Ortaokul');
-                    setClassGradeLevel('5. Sınıf');
-                    setClassBranch('A');
-                    setClassDescription('');
-                    setClassFormError(null);
-                    setIsAddClassOpen(true);
-                  }}
-                  className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Yeni Sınıf Ekle</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-slate-800/90 border border-slate-700/80 text-amber-300 text-xs">
-                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="font-semibold">Sınıf ekleme yetkisi yalnızca Kurum Yöneticisine aittir</span>
-              </div>
-            )
-          )}
-        </div>
-      </div>
+            <span className="ui-chip ui-chip-warning py-1.5 px-3 text-xs">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              Sınıf ekleme yetkisi yalnızca yöneticiye aittir
+            </span>
+          )
+        }
+      />
+      <Segmented
+        value={activeTab}
+        onChange={(v) => setActiveTab(v)}
+        items={[
+          { value: 'students', label: `Öğrenciler (${students.length})`, icon: Users },
+          { value: 'classes', label: `Sınıflar (${classes.length})`, icon: School },
+        ]}
+      />
 
       {activeTab === 'students' ? (
         /* STUDENTS VIEW */
         <div className="space-y-4">
           {!isAdmin && (
-            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-950 text-xs flex items-center gap-3 shadow-xs">
-              <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl shrink-0">
-                <ShieldCheck className="w-4 h-4 text-indigo-700" />
-              </div>
-              <div className="flex-1">
-                <strong className="font-bold text-indigo-900">Yetkili Sınıflarınız:</strong> Bu ekranda yalnızca yöneticinin size yetki verdiği sınıflar ({classes.length}) ve bu sınıfların öğrencileri listelenir. Bu sınıflara öğrenci ekleyebilir ve öğrencilerin giriş şifresini yenileyebilirsiniz. Yeni sınıf açma yetkisi yöneticiye aittir.
-              </div>
+            <div className="px-4 py-3 rounded-xl bg-brand-soft text-brand-fg text-xs flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span>
+                Size yetki verilen <strong>{classes.length} sınıf</strong> ve öğrencileri görünür. Bu sınıflara öğrenci ekleyebilir, giriş şifrelerini yenileyebilirsiniz.
+              </span>
             </div>
           )}
-          <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm">
           {/* Duplicate Students System Warning Banner */}
           {duplicateStudentGroups.totalDuplicates > 0 && (
-            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 flex items-start gap-3 shadow-xs">
-              <div className="p-2.5 bg-amber-500/20 text-amber-700 rounded-xl shrink-0 mt-0.5">
-                <AlertTriangle className="w-5 h-5 text-amber-700 animate-bounce" />
+            <div className="mx-4 sm:mx-5 mt-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-amber-500/15 border-2 border-amber-500/40 text-amber-950 dark:text-amber-200 flex items-start gap-3 shadow-xs">
+              <div className="p-2.5 bg-amber-500/20 text-amber-700 dark:text-amber-300 rounded-xl shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-300 animate-bounce" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-extrabold text-sm text-amber-950 flex items-center gap-1.5">
+                  <h4 className="font-extrabold text-sm text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
                     <span>⚠️ Sistem Uyarısı: Aynı İsim, Sınıf ve Numaraya Sahip Öğrenciler Tespit Edildi!</span>
                   </h4>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-950 font-black border border-amber-300">
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200 dark:bg-amber-500/20 text-amber-950 dark:text-amber-200 font-black border border-amber-300 dark:border-amber-500/30">
                     {duplicateStudentGroups.totalDuplicates} Kayıt İşaretlendi
                   </span>
-                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-200 text-rose-950 font-black border border-rose-300">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-500/20 text-rose-950 dark:text-rose-200 font-black border border-rose-300 dark:border-rose-500/30">
                     {Object.keys(duplicateStudentGroups.groups).filter(k => duplicateStudentGroups.groups[k].length > 1).length} Çakışan Grup
                   </span>
                 </div>
-                <p className="text-xs text-amber-950/90 mt-1.5 leading-relaxed">
+                <p className="text-xs text-amber-950/90 dark:text-amber-200/90 mt-1.5 leading-relaxed">
                   Sistemde <strong>aynı isim, sınıf ve okul numarasına</strong> sahip kayıtlı öğrenciler bulunmaktadır. Bu öğrenciler aşağıdaki listede <strong>otomatik olarak yan yana getirilmiş</strong> olup, isimleri ve satırları <strong>farklı renklerde (1. Kayıt: Turuncu, 2. Kayıt: Kırmızı)</strong> ve çakışma uyarı etiketiyle gösterilmektedir.
                 </p>
               </div>
@@ -1065,33 +1060,33 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Quick Class Change Feedback Banner */}
           {quickClassChangeFeedback && (
-            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-900 text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
-              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            <div className="mx-4 sm:mx-5 mt-3 p-3.5 rounded-2xl bg-emerald-500/15 border-2 border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs font-extrabold flex items-center space-x-2.5 shadow-sm animate-in fade-in">
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-300 shrink-0" />
               <span>{quickClassChangeFeedback}</span>
             </div>
           )}
 
           {/* Filter / Search Bar */}
-          <div className="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white">
+          <div className="p-4 sm:p-5 border-b border-line flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface">
             <div className="relative w-full md:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-subtle absolute left-3.5 top-3" />
               <input
                 type="text"
                 placeholder="Öğrenci adı, no veya e-posta ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-sm placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+            <div className="grid grid-cols-2 md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
               {/* Sınıf Filtresi (Tanımsız seçeneği dahil) */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-500 font-semibold whitespace-nowrap">Sınıf Filtresi:</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="hidden lg:inline text-xs text-muted font-semibold whitespace-nowrap">Sınıf:</span>
                 <select
                   value={selectedClassFilter}
                   onChange={(e) => setSelectedClassFilter(e.target.value)}
-                  className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
                 >
                   <option value="all">Tüm Sınıflar ({students.length})</option>
                   {duplicateStudentGroups.totalDuplicates > 0 && (
@@ -1107,15 +1102,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               {/* Sırala Açılır Butonu (A-Z / Z-A) */}
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-500 font-semibold whitespace-nowrap flex items-center gap-1">
-                  <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="hidden lg:flex text-xs text-muted font-semibold whitespace-nowrap items-center gap-1">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-subtle" />
                   <span>Sırala:</span>
                 </span>
                 <select
                   value={sortOrder}
                   onChange={(e) => setSortOrder(e.target.value as any)}
-                  className="bg-slate-50/80 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
                 >
                   <option value="default">Varsayılan Sıralama</option>
                   <option value="name-asc">Alfabetik (A → Z)</option>
@@ -1128,16 +1123,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Toplu İşlem & Çoklu Silme Barı */}
           {selectedStudentIds.length > 0 && (
-            <div className="px-4 sm:px-6 py-3 bg-rose-50 border-b border-rose-200 flex flex-wrap items-center justify-between gap-3 text-slate-800 transition-all animate-in fade-in duration-200">
+            <div className="px-4 sm:px-6 py-3 bg-rose-50 dark:bg-rose-500/10 border-b border-rose-200 dark:border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-fg transition-all animate-in fade-in duration-200">
               <div className="flex items-center space-x-2.5">
                 <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
                   {selectedStudentIds.length}
                 </div>
                 <div>
-                  <span className="text-xs font-bold text-rose-950">
+                  <span className="text-xs font-bold text-rose-950 dark:text-rose-200">
                     {selectedStudentIds.length} Öğrenci Seçildi
                   </span>
-                  <span className="text-[11px] text-rose-700 ml-1.5 hidden sm:inline">
+                  <span className="text-[11px] text-rose-700 dark:text-rose-300 ml-1.5 hidden sm:inline">
                     (Listelenen {filteredStudents.length} öğrenci arasından)
                   </span>
                 </div>
@@ -1147,15 +1142,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={handleToggleSelectAll}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-fg-2 bg-surface border border-line-strong hover:bg-surface-2 transition-colors shadow-2xs cursor-pointer flex items-center space-x-1.5"
                 >
-                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                   <span>{allFilteredSelected ? 'Tümünün Seçimini Kaldır' : `Tümünü Seç (${filteredStudents.length})`}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedStudentIds([])}
-                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-muted hover:text-fg bg-surface border border-line hover:bg-surface-2 transition-colors shadow-2xs cursor-pointer"
                 >
                   Temizle
                 </button>
@@ -1171,10 +1166,82 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
           )}
 
+          {/* Telefon: kart listesi */}
+          <ul className="md:hidden divide-y divide-line" id="students-mobile-list">
+            {filteredStudents.length === 0 ? (
+              <li className="px-4 py-10 text-center text-sm text-muted">Arama kriterlerine uygun öğrenci bulunamadı.</li>
+            ) : (
+              filteredStudents.map((std) => {
+                const dupInfo = duplicateStudentGroups.dupMap.get(std.id);
+                const isSelected = selectedStudentIds.includes(std.id);
+                const suspended = std.isSuspended || std.status === 'suspended';
+                return (
+                  <li key={std.id} className={`px-4 py-3 ${isSelected ? 'bg-brand-soft' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleStudent(std.id)}
+                        className="w-4 h-4 rounded border-line-strong cursor-pointer shrink-0"
+                        aria-label={`${std.name} seç`}
+                      />
+                      <img
+                        src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-line shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-fg truncate">{std.name}</p>
+                        <p className="text-xs text-muted truncate">
+                          #{std.studentNumber} · {std.className || 'Sınıfı yok'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openEditStudent(std)}
+                        className="ui-btn ui-btn-ghost ui-btn-icon"
+                        aria-label="Düzenle"
+                        title="Düzenle"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStudentToDelete(std)}
+                        className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg"
+                        aria-label="Öğrenciyi Sil"
+                        title="Öğrenciyi Sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2 pl-[4.25rem]">
+                      {dupInfo && <span className="ui-chip ui-chip-warning">Mükerrer ({dupInfo.colorTheme.label})</span>}
+                      <span className={`ui-chip ${suspended ? 'ui-chip-danger' : 'ui-chip-success'}`}>{suspended ? 'Askıda' : 'Aktif'}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasswordTarget(std);
+                          setPasswordTargetValue(dataService.generatePassword());
+                          setPasswordTargetError(null);
+                        }}
+                        className={`ui-chip cursor-pointer ${std.auth_user_id ? 'ui-chip-neutral' : 'ui-chip-warning'}`}
+                        title={std.auth_user_id ? 'Yeni şifre belirle' : 'Şifre belirleyip giriş hesabı aç'}
+                      >
+                        <Key className="w-3 h-3" />
+                        {std.auth_user_id ? 'Şifre yenile' : 'Hesap yok · aç'}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+
           {/* Students Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-700">
-              <thead className="bg-slate-50/90 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200 font-bold">
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left text-sm text-fg-2">
+              <thead className="bg-surface-2/90 text-[11px] uppercase tracking-wider text-muted border-b border-line font-bold">
                 <tr>
                   <th className="px-4 py-3.5 w-12 text-center">
                     <div className="flex items-center justify-center">
@@ -1186,7 +1253,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         }}
                         onChange={handleToggleSelectAll}
                         title={allFilteredSelected ? 'Tümünün Seçimini Kaldır' : 'Hepsini Seç'}
-                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-line-strong text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 cursor-pointer"
                       />
                     </div>
                   </th>
@@ -1198,13 +1265,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <th className="px-6 py-3.5 font-semibold text-right">İşlemler</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-line bg-surface">
                 {filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                      <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                      <p className="font-semibold text-sm text-slate-600">Arama kriterlerine uygun öğrenci bulunamadı.</p>
-                      <p className="text-xs text-slate-400 mt-1">Lütfen arama teriminizi veya sınıf filtresini değiştirip tekrar deneyin.</p>
+                    <td colSpan={7} className="px-6 py-12 text-center text-subtle">
+                      <Users className="w-8 h-8 mx-auto text-subtle mb-2" />
+                      <p className="font-semibold text-sm text-muted">Arama kriterlerine uygun öğrenci bulunamadı.</p>
+                      <p className="text-xs text-subtle mt-1">Lütfen arama teriminizi veya sınıf filtresini değiştirip tekrar deneyin.</p>
                     </td>
                   </tr>
                 ) : (
@@ -1217,10 +1284,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       key={std.id}
                       className={
                         isSelected
-                          ? 'bg-indigo-50/70 hover:bg-indigo-100/70 transition-colors border-l-4 border-l-indigo-600'
+                          ? 'bg-indigo-50/70 dark:bg-indigo-500/10 hover:bg-indigo-100/70 dark:hover:bg-indigo-500/15 transition-colors border-l-4 border-l-indigo-600'
                           : isDuplicate && dupInfo
                           ? `${dupInfo.colorTheme.rowBg} ${dupInfo.colorTheme.rowHover} transition-colors ${dupInfo.colorTheme.borderLeft}`
-                          : 'hover:bg-slate-50/80 transition-colors'
+                          : 'hover:bg-surface-2/80 transition-colors'
                       }
                     >
                       <td className="px-4 py-4 text-center">
@@ -1228,7 +1295,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleStudent(std.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          className="w-4 h-4 rounded border-line-strong text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 cursor-pointer"
                         />
                       </td>
 
@@ -1244,10 +1311,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             alt={std.name}
                             className={`w-10 h-10 rounded-full object-cover ring-2 ${
                               isSelected
-                                ? 'bg-indigo-100 ring-indigo-400 shadow-xs'
+                                ? 'bg-indigo-100 dark:bg-indigo-500/15 ring-indigo-400 shadow-xs'
                                 : isDuplicate && dupInfo
                                 ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.ringColor} shadow-xs`
-                                : 'bg-slate-100 ring-slate-200/80'
+                                : 'bg-surface-2 ring-line'
                             }`}
                           />
                           <div>
@@ -1263,10 +1330,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               <span
                                 className={`text-sm ${
                                   isSelected
-                                    ? 'text-indigo-950 font-bold'
+                                    ? 'text-indigo-950 dark:text-indigo-200 font-bold'
                                     : isDuplicate && dupInfo
                                     ? dupInfo.colorTheme.nameColor
-                                    : 'text-slate-900 font-bold'
+                                    : 'text-fg font-bold'
                                 }`}
                               >
                                 {std.name}
@@ -1290,10 +1357,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           onChange={(e) => handleQuickChangeStudentClass(std, e.target.value)}
                           className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
                             isStudentUnassigned(std)
-                              ? 'bg-slate-100 text-slate-700 border-slate-300 hover:border-slate-400'
+                              ? 'bg-surface-2 text-fg-2 border-line-strong hover:border-line-strong'
                               : isDuplicate && dupInfo
                               ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
-                              : 'bg-indigo-50 text-indigo-900 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-100'
+                              : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/15'
                           }`}
                           title="Öğrencinin sınıfını anında değiştirmek için seçiniz"
                         >
@@ -1311,7 +1378,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           className={`font-mono font-semibold text-xs px-2.5 py-1 rounded-md border ${
                             isDuplicate && dupInfo
                               ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder} ring-1 font-bold`
-                              : 'text-slate-700 bg-slate-100 border-slate-200'
+                              : 'text-fg-2 bg-surface-2 border-line'
                           }`}
                         >
                           #{std.studentNumber}
@@ -1322,7 +1389,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <div className="flex items-center space-x-2">
                           {std.auth_user_id ? (
                             <span
-                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30"
                               title="Öğrenci, öğrenci numarası ve şifresiyle giriş yapabilir"
                             >
                               <CheckCircle2 className="w-3 h-3" />
@@ -1330,7 +1397,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             </span>
                           ) : (
                             <span
-                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200"
+                              className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30"
                               title="Bu öğrencinin giriş hesabı yok. Şifre belirleyerek hesap açabilirsiniz."
                             >
                               <Lock className="w-3 h-3" />
@@ -1344,7 +1411,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               setPasswordTargetValue(dataService.generatePassword());
                               setPasswordTargetError(null);
                             }}
-                            className="p-1 text-slate-500 hover:text-indigo-700 rounded hover:bg-indigo-50 transition-colors cursor-pointer"
+                            className="p-1 text-muted hover:text-indigo-700 dark:hover:text-indigo-300 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors cursor-pointer"
                             title={std.auth_user_id ? 'Yeni şifre belirle' : 'Şifre belirleyip giriş hesabı aç'}
                           >
                             <Key className="w-3.5 h-3.5" />
@@ -1361,12 +1428,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <span>Mükerrer ({dupInfo.colorTheme.label})</span>
                           </span>
                         ) : std.isSuspended || std.status === 'suspended' ? (
-                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                             <span>Askıda</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             <span>Aktif Öğrenci</span>
                           </span>
@@ -1378,7 +1445,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => openEditStudent(std)}
-                            className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
+                            className="p-2 bg-surface-2 hover:bg-surface-2 text-muted hover:text-fg border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
                             title="Düzenle"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
@@ -1386,7 +1453,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setStudentToDelete(std)}
-                            className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-xs"
+                            className="p-2 bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 dark:hover:text-rose-300 border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
                             title="Öğrenciyi Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1406,12 +1473,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         /* CLASSES VIEW */
         <div className="space-y-4">
           {!isAdmin && (
-            <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 text-indigo-200 text-xs flex items-center gap-3 shadow-xs">
-              <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl shrink-0">
-                <ShieldCheck className="w-4 h-4 text-indigo-400" />
+            <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 text-indigo-600 dark:text-indigo-200 text-xs flex items-center gap-3 shadow-xs">
+              <div className="p-2 bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-xl shrink-0">
+                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               </div>
               <div className="flex-1">
-                <strong className="font-bold text-white">Yönetici İzinli Sınıf Görünümü:</strong> Yalnızca Kurum Yöneticisinin erişim yetkisi verdiği sınıflar ({classes.length}) görüntülenmektedir. Sınıf ekleme, düzenleme ve silme yetkileri yalnızca yöneticiye aittir.
+                <strong className="font-bold text-fg">Yönetici İzinli Sınıf Görünümü:</strong> Yalnızca Kurum Yöneticisinin erişim yetkisi verdiği sınıflar ({classes.length}) görüntülenmektedir. Sınıf ekleme, düzenleme ve silme yetkileri yalnızca yöneticiye aittir.
               </div>
             </div>
           )}
@@ -1421,25 +1488,25 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               return (
                 <div
                   key={cls.id}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-all flex flex-col justify-between shadow-lg"
+                  className="bg-surface border border-line rounded-2xl p-5 hover:border-line transition-all flex flex-col justify-between shadow-lg"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                         <School className="w-5 h-5" />
                       </div>
                       {isAdmin && (
                         <div className="flex items-center space-x-1">
                           <button
                             onClick={() => openEditClass(cls)}
-                            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                             title="Düzenle"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setClassToDelete(cls)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                             title="Sınıfı Sil"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1448,37 +1515,37 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       )}
                     </div>
 
-                    <h3 className="text-lg font-bold text-white mb-1">
+                    <h3 className="text-lg font-bold text-fg mb-1">
                       {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
                     </h3>
                     <div className="flex items-center space-x-2 mb-2">
                       {cls.schoolLevel && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
                           {cls.schoolLevel}
                         </span>
                       )}
-                      <span className="text-xs text-indigo-300 font-medium">
+                      <span className="text-xs text-indigo-600 dark:text-indigo-300 font-medium">
                         Şube {cls.branch?.replace(/şube\s*/i, '').trim() || 'A'}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mb-4 line-clamp-2">
+                    <p className="text-xs text-muted mb-4 line-clamp-2">
                       {cls.description || 'Akademik takip ve ders çizelgesi grubu.'}
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-xs text-slate-400">
-                      <Users className="w-3.5 h-3.5 text-indigo-400" />
+                  <div className="pt-4 border-t border-line flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-xs text-muted">
+                      <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span>
-                        <strong className="text-white">{classStudents.length}</strong> Kayıtlı Öğrenci
+                        <strong className="text-fg">{classStudents.length}</strong> Kayıtlı Öğrenci
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-500 bg-slate-800 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono text-muted bg-surface-2 px-2 py-0.5 rounded">
                       {cls.academicYear}
                     </span>
                   </div>
 
-                  <div className="mt-3 pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-2">
+                  <div className="mt-3 pt-3 border-t border-line grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1499,10 +1566,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setTransferSelectedStudentIds([]);
                         setTransferSearchTerm('');
                       }}
-                      className="py-2 px-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      className="py-2 px-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                       title="Sistemdeki öğrencileri tek tek veya toplu bu sınıfa aktar"
                     >
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+                      <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                       <span className="truncate">Öğrenci Aktar</span>
                     </button>
 
@@ -1514,10 +1581,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setStudentClassId(cls.id);
                         setIsAddStudentOpen(true);
                       }}
-                      className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      className="py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line text-fg-2 hover:text-fg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                       title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
                     >
-                      <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                      <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span className="truncate">Yeni Öğrenci</span>
                     </button>
 
@@ -1527,10 +1594,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setSelectedClassFilter(cls.id);
                         setActiveTab('students');
                       }}
-                      className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
+                      className="py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line text-fg-2 hover:text-fg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                       title="Öğrenci tablosunda bu sınıfı filtrele"
                     >
-                      <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      <Eye className="w-3.5 h-3.5 text-muted" />
                       <span className="truncate">Tabloda Gör</span>
                     </button>
                   </div>
@@ -1549,29 +1616,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
+              className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
                     <UserPlus className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-fg">
                     {editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsAddStudentOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
             {studentFormError && (
-              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <div className="mb-4 p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-300" />
                 <span>{studentFormError}</span>
               </div>
             )}
@@ -1579,18 +1646,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <form onSubmit={handleSaveStudent} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Ad Soyad *</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad *</label>
                   <input
                     type="text"
                     required
                     placeholder="Örn: Ahmet Yılmaz"
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Öğrenci No * <span className="font-medium text-slate-500">(giriş adı)</span></label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Öğrenci No * <span className="font-medium text-muted">(giriş adı)</span></label>
                   <input
                     type="text"
                     required
@@ -1600,22 +1667,22 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={studentNumber}
                     onChange={(e) => setStudentNumber(e.target.value)}
                     placeholder="Örn: 1042"
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
               </div>
 
               {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="block text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                  <School className="w-4 h-4 text-indigo-600" />
+              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-2">
+                <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
+                  <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                   <span>Sınıf *</span>
                 </label>
                 <select
                   required
                   value={studentClassId}
                   onChange={(e) => setStudentClassId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                  className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                 >
                   <option value="">Sınıf seçiniz *</option>
                   {classes.map((cls) => (
@@ -1624,7 +1691,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-muted">
                   {isAdmin
                     ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
                     : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
@@ -1633,32 +1700,32 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">E-Posta</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
                   <input
                     type="email"
                     value={studentEmail}
                     onChange={(e) => setStudentEmail(e.target.value)}
                     placeholder="ogrenci@okul.com"
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Telefon</label>
+                  <label className="block text-xs font-bold text-fg-2 mb-1">Telefon</label>
                   <input
                     type="tel"
                     value={studentPhone}
                     onChange={(e) => setStudentPhone(e.target.value)}
                     placeholder="0555 123 4567"
-                    className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                   />
                 </div>
               </div>
 
               {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
-              <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-100 space-y-2.5">
+              <div className="p-4 bg-indigo-50/70 dark:bg-indigo-500/10 rounded-xl border border-indigo-100 dark:border-indigo-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-indigo-950 flex items-center space-x-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-600" />
+                  <label className="block text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center space-x-1.5">
+                    <Key className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                     <span>{editingStudent ? 'Yeni Giriş Şifresi (isteğe bağlı)' : 'Giriş Şifresi *'}</span>
                   </label>
                   <button
@@ -1667,7 +1734,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setStudentPassword(dataService.generatePassword());
                       setShowStudentPassword(true);
                     }}
-                    className="text-[11px] text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer"
+                    className="text-[11px] text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold underline cursor-pointer"
                   >
                     🎲 Rastgele Şifre Oluştur
                   </button>
@@ -1681,18 +1748,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={studentPassword}
                     onChange={(e) => setStudentPassword(e.target.value)}
                     placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
-                    className="w-full pl-3 pr-10 py-2 bg-white border border-indigo-200 rounded-xl text-slate-900 text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                    className="w-full pl-3 pr-10 py-2 bg-surface border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-fg text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   />
                   <button
                     type="button"
                     onClick={() => setShowStudentPassword(!showStudentPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-subtle hover:text-muted cursor-pointer"
                     title={showStudentPassword ? 'Gizle' : 'Göster'}
                   >
                     {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
+                <p className="text-[11px] text-muted leading-relaxed">
                   Öğrenci, giriş ekranında <strong>Öğrenci Portalı</strong> sekmesinden <strong>öğrenci numarası</strong> ve bu
                   şifreyle giriş yapar; ilk girişte şifresini değiştirmesi istenir. Kaydettikten sonra giriş bilgilerini
                   WhatsApp/e-posta ile iletebileceğiniz bir pencere açılır. Şifreler sistemde saklanmaz.
@@ -1700,21 +1767,21 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+              <div className="p-3.5 bg-surface-2 rounded-xl border border-line space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700 flex items-center space-x-1.5">
-                    <Camera className="w-3.5 h-3.5 text-indigo-600" />
+                  <label className="block text-xs font-bold text-fg-2 flex items-center space-x-1.5">
+                    <Camera className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                     <span>Öğrenci Profil Fotoğrafı</span>
                   </label>
-                  <span className="text-[10px] text-slate-500 font-medium">İsteğe Bağlı</span>
+                  <span className="text-[10px] text-muted font-medium">İsteğe Bağlı</span>
                 </div>
 
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 shadow-2xs overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-surface border border-line shadow-2xs overflow-hidden shrink-0 flex items-center justify-center">
                     {studentAvatar ? (
                       <img src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
                     ) : (
-                      <Users className="w-6 h-6 text-slate-400" />
+                      <Users className="w-6 h-6 text-subtle" />
                     )}
                   </div>
 
@@ -1731,9 +1798,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         type="button"
                         onClick={() => studentFileInputRef.current?.click()}
                         disabled={isProcessingStudentPhoto}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-indigo-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-surface hover:bg-surface-2 text-indigo-700 dark:text-indigo-300 border border-line rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                       >
-                        <Upload className="w-3.5 h-3.5 text-indigo-600" />
+                        <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                         <span>{isProcessingStudentPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
                       </button>
 
@@ -1741,25 +1808,25 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => setStudentAvatar('')}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                           title="Fotoğrafı Kaldır"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">
+                    <p className="text-[10px] text-muted mt-1">
                       PNG, JPG veya WebP • Otomatik optimize edilir
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
+              <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddStudentOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
@@ -1785,48 +1852,48 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
+              className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
                 <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
                     <School className="w-5 h-5" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-lg font-bold text-fg">
                     {editingClass ? 'Sınıfı Düzenle' : 'Sınıf Ekle'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsAddClassOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
             {classFormError && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-300" />
                 <span>{classFormError}</span>
               </div>
             )}
 
             <form onSubmit={handleSaveClass} className="space-y-4">
               {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                  <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                    <School className="w-4 h-4 text-indigo-600" />
+              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-line">
+                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
+                    <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                     <span>Kademe & Şube Belirleme (Mecburi)</span>
                   </span>
-                  <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {/* Okul Açılır Buton */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
                       Okul *
                     </label>
                     <select
@@ -1839,7 +1906,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassGradeLevel(firstGrade);
                         setClassName(`${firstGrade} - ${classBranch}`);
                       }}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Okul Seçiniz *</option>
                       <option value="Ortaokul">🏫 Ortaokul</option>
@@ -1849,7 +1916,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                   {/* Sınıf Açılır Penceresi */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
                       Sınıf *
                     </label>
                     <select
@@ -1860,7 +1927,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassGradeLevel(newGrade);
                         setClassName(formatClassDisplayName('', classBranch, newGrade));
                       }}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       {!classSchoolLevel ? (
                         <option value="">Önce Okul Seçiniz *</option>
@@ -1876,7 +1943,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                   {/* Şube Açılır Buton */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
                       Şube *
                     </label>
                     <select
@@ -1887,7 +1954,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         setClassBranch(newBranch);
                         setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
                       }}
-                      className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                     >
                       <option value="">Şube Seçiniz *</option>
                       {BRANCH_OPTIONS.map((b) => (
@@ -1901,38 +1968,38 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Sınıf Adı *</label>
+                <label className="block text-xs font-bold text-fg-2 mb-1">Sınıf Adı *</label>
                 <input
                   type="text"
                   required
                   placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
                   value={className}
                   onChange={(e) => setClassName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                  className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Eğitim Yılı</label>
+                <label className="block text-xs font-bold text-fg-2 mb-1">Eğitim Yılı</label>
                 <input
                   type="text"
                   value={classAcademicYear}
                   onChange={(e) => setClassAcademicYear(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 hover:bg-slate-100/50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400"
+                  className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
                 />
               </div>
 
               {/* Toplu Öğrenci Yükleme Bölümü */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-900 flex items-center space-x-1.5">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center space-x-1.5">
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
                     <span>Toplu Öğrenci Yükle</span>
                   </span>
                   <button
                     type="button"
                     onClick={downloadSampleClassExcel}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline flex items-center space-x-1 font-bold cursor-pointer"
+                    className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 hover:underline flex items-center space-x-1 font-bold cursor-pointer"
                     title="Excel şablonunu bilgisayarınıza indirin"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -1941,8 +2008,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </div>
 
                 {classExcelError && (
-                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                  <div className="p-2.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-300" />
                     <span>{classExcelError}</span>
                   </div>
                 )}
@@ -1951,7 +2018,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <div>
                     <label
                       htmlFor="class-excel-upload"
-                      className="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/30 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group shadow-2xs"
+                      className="border-2 border-dashed border-line-strong hover:border-emerald-500 bg-surface hover:bg-emerald-50/30 dark:hover:bg-emerald-500/10 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group shadow-2xs"
                     >
                       <input
                         id="class-excel-upload"
@@ -1964,28 +2031,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           e.target.value = '';
                         }}
                       />
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                         <Upload className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-bold text-slate-700 group-hover:text-emerald-700">
+                      <span className="text-xs font-bold text-fg-2 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
                         {isReadingClassExcel
                           ? 'Excel Okunuyor...'
                           : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
                       </span>
-                      <span className="text-[11px] text-slate-500 mt-0.5">
+                      <span className="text-[11px] text-muted mt-0.5">
                         veya bilgisayarınızdan dosyayı buraya sürükleyip bırakın
                       </span>
                     </label>
                   </div>
                 ) : (
-                  <div className="space-y-2 bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                  <div className="space-y-2 bg-surface p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-xs font-bold text-emerald-900">
+                        <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
                           {classExcelStudents.length} Öğrenci Hazır
                         </span>
-                        <span className="text-[11px] text-slate-500 truncate max-w-[140px]">
+                        <span className="text-[11px] text-muted truncate max-w-[140px]">
                           ({classExcelFileName})
                         </span>
                       </div>
@@ -1993,7 +2060,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowExcelStudentList(!showExcelStudentList)}
-                          className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer"
+                          className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 font-bold cursor-pointer"
                         >
                           {showExcelStudentList ? 'Gizle' : 'Öğrencileri Gör'}
                         </button>
@@ -2004,7 +2071,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             setClassExcelFileName('');
                             setClassExcelError(null);
                           }}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                          className="p-1 text-subtle hover:text-rose-600 dark:hover:text-rose-300 rounded cursor-pointer"
                           title="Listeyi Temizle"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -2013,16 +2080,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </div>
 
                     {showExcelStudentList && (
-                      <div className="max-h-36 overflow-y-auto border border-slate-200 rounded-lg bg-slate-50 p-2 space-y-1">
+                      <div className="max-h-36 overflow-y-auto border border-line rounded-lg bg-surface-2 p-2 space-y-1">
                         {classExcelStudents.map((st, i) => (
                           <div
                             key={i}
-                            className="flex items-center justify-between text-[11px] py-1 px-2 hover:bg-slate-100 rounded text-slate-700"
+                            className="flex items-center justify-between text-[11px] py-1 px-2 hover:bg-surface-2 rounded text-fg-2"
                           >
-                            <span className="font-semibold text-slate-900 truncate max-w-[170px]">
+                            <span className="font-semibold text-fg truncate max-w-[170px]">
                               {i + 1}. {st.fullName}
                             </span>
-                            <span className="text-slate-500 font-mono">No: {st.studentNumber}</span>
+                            <span className="text-muted font-mono">No: {st.studentNumber}</span>
                           </div>
                         ))}
                       </div>
@@ -2031,11 +2098,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
+              <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
                 <button
                   type="button"
                   onClick={() => setIsAddClassOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                 >
                   İptal
                 </button>
@@ -2140,17 +2207,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {/* ŞİFRE BELİRLEME PENCERESİ */}
       {passwordTarget && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 flex items-center justify-center">
-          <div className="w-full max-w-md bg-white text-slate-900 rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4">
+          <div className="w-full max-w-md bg-surface text-fg rounded-2xl shadow-2xl border border-line p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold">
                     {passwordTarget.auth_user_id ? 'Yeni Şifre Belirle' : 'Giriş Hesabı Aç'}
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted">
                     {passwordTarget.name} • No: {passwordTarget.studentNumber || '-'}
                   </p>
                 </div>
@@ -2158,19 +2225,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setPasswordTarget(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg"
                 aria-label="Kapat"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-muted leading-relaxed">
               {passwordTarget.auth_user_id
                 ? 'Öğrencinin eski şifresi geçersiz olur. Öğrenci yeni şifreyle giriş yapınca şifresini değiştirmesi istenir.'
                 : 'Bu öğrencinin henüz giriş hesabı yok. Belirlediğiniz şifreyle hesap açılır; öğrenci, öğrenci numarası ve bu şifreyle giriş yapar.'}
             </p>
             {passwordTargetError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center space-x-2">
+              <div className="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{passwordTargetError}</span>
               </div>
@@ -2183,13 +2250,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
-                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 px-3 py-2 bg-surface-2 border border-line rounded-xl text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="En az 6 karakter"
               />
               <button
                 type="button"
                 onClick={() => setPasswordTargetValue(dataService.generatePassword())}
-                className="px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-xl"
+                className="px-3 py-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 border border-indigo-100 dark:border-indigo-500/30 rounded-xl"
               >
                 🎲 Üret
               </button>
@@ -2198,7 +2265,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setPasswordTarget(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold"
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold"
               >
                 Vazgeç
               </button>
@@ -2243,29 +2310,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             onClick={() => setViewingClassStudents(null)}
           >
             <div
-              className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/90 flex items-start justify-between">
+              <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <School className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <h3 className="text-base sm:text-lg font-bold text-white">
+                      <h3 className="text-base sm:text-lg font-bold text-fg">
                         {formatClassDisplayName(viewingClassStudents.name, viewingClassStudents.branch, viewingClassStudents.gradeLevel)} — Kayıtlı Öğrenci Listesi
                       </h3>
                       {viewingClassStudents.schoolLevel && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
                           {viewingClassStudents.schoolLevel}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       {viewingClassStudents.branch} • {viewingClassStudents.academicYear} • Toplam{' '}
-                      <strong className="text-indigo-300 font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
+                      <strong className="text-indigo-600 dark:text-indigo-300 font-bold">{classStudents.length}</strong> Öğrenci Kayıtlı
                     </p>
                   </div>
                 </div>
@@ -2273,22 +2340,22 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewingClassStudents(null)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Toolbar: Search & Action buttons */}
-              <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              <div className="p-4 border-b border-line bg-canvas/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={classStudentSearch}
                     onChange={(e) => setClassStudentSearch(e.target.value)}
                     placeholder="Sınıf içinde isim, no veya veli tel ara..."
-                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-surface border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
@@ -2326,7 +2393,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     type="button"
                     onClick={handleCopyList}
                     disabled={classStudents.length === 0}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 hover:text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
+                    className="px-3 py-2 bg-surface-2 hover:bg-surface-3 disabled:opacity-40 text-fg hover:text-fg rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-line"
                     title="Öğrenci listesini kopyala"
                   >
                     <span>📋 Kopyala</span>
@@ -2339,9 +2406,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       setViewingClassStudents(null);
                       setActiveTab('students');
                     }}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-slate-700"
+                    className="px-3 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer border border-line"
                   >
-                    <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                    <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>Tabloda Aç</span>
                   </button>
                 </div>
@@ -2351,11 +2418,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div className="flex-1 overflow-y-auto p-4 max-h-[55vh]">
                 {classStudents.length === 0 ? (
                   <div className="py-12 text-center">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center mx-auto mb-3">
+                    <div className="w-12 h-12 rounded-2xl bg-surface-2 text-muted flex items-center justify-center mx-auto mb-3">
                       <Users className="w-6 h-6" />
                     </div>
-                    <h4 className="text-sm font-bold text-white mb-1">Bu Sınıfa Kayıtlı Öğrenci Yok</h4>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto mb-4">
+                    <h4 className="text-sm font-bold text-fg mb-1">Bu Sınıfa Kayıtlı Öğrenci Yok</h4>
+                    <p className="text-xs text-muted max-w-sm mx-auto mb-4">
                       "{viewingClassStudents.name}" sınıfına henüz hiçbir öğrenci kaydedilmemiş. Hemen yeni bir öğrenci ekleyebilir veya sistemdeki öğrencileri bu sınıfa aktarabilirsiniz.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2.5">
@@ -2388,13 +2455,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </div>
                   </div>
                 ) : filteredStudents.length === 0 ? (
-                  <div className="py-8 text-center text-slate-400 text-xs">
+                  <div className="py-8 text-center text-muted text-xs">
                     "{classStudentSearch}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                    <table className="w-full text-left text-xs text-slate-700">
-                      <thead className="bg-slate-50 text-slate-500 text-[11px] font-bold border-b border-slate-200 uppercase tracking-wider">
+                  <div className="border border-line rounded-xl overflow-hidden bg-surface shadow-sm">
+                    <table className="w-full text-left text-xs text-fg-2">
+                      <thead className="bg-surface-2 text-muted text-[11px] font-bold border-b border-line uppercase tracking-wider">
                         <tr>
                           <th className="py-2.5 px-3 w-10 text-center">#</th>
                           <th className="py-2.5 px-3">Öğrenci Adı Soyadı</th>
@@ -2404,7 +2471,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <th className="py-2.5 px-3 text-right">İşlemler</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
+                      <tbody className="divide-y divide-line bg-surface">
                         {filteredStudents.map((std, idx) => {
                           const isDuplicate = duplicateStudentGroups.duplicateIds.has(std.id);
                           return (
@@ -2412,11 +2479,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             key={std.id}
                             className={
                               isDuplicate
-                                ? 'bg-amber-50/90 hover:bg-amber-100/90 transition-colors border-l-4 border-l-amber-500'
-                                : 'hover:bg-slate-50/80 transition-colors'
+                                ? 'bg-amber-50/90 dark:bg-amber-500/10 hover:bg-amber-100/90 dark:hover:bg-amber-500/15 transition-colors border-l-4 border-l-amber-500'
+                                : 'hover:bg-surface-2/80 transition-colors'
                             }
                           >
-                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono font-semibold">
+                            <td className="py-2.5 px-3 text-center text-subtle font-mono font-semibold">
                               {idx + 1}
                             </td>
                             <td className="py-2.5 px-3">
@@ -2426,18 +2493,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                   alt={std.name}
                                   className={`w-7 h-7 rounded-full object-cover border ${
                                     isDuplicate
-                                      ? 'bg-amber-100 ring-2 ring-amber-400'
-                                      : 'bg-slate-100 border-slate-200'
+                                      ? 'bg-amber-100 dark:bg-amber-500/15 ring-2 ring-amber-400'
+                                      : 'bg-surface-2 border-line'
                                   }`}
                                   referrerPolicy="no-referrer"
                                 />
                                 <div className="flex items-center space-x-2 flex-wrap">
-                                  <span className={`font-bold ${isDuplicate ? 'text-amber-950 font-extrabold' : 'text-slate-900'}`}>
+                                  <span className={`font-bold ${isDuplicate ? 'text-amber-950 dark:text-amber-200 font-extrabold' : 'text-fg'}`}>
                                     {std.name}
                                   </span>
                                   {isDuplicate && (
-                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 text-amber-900 border border-amber-300">
-                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                                    <span className="inline-flex items-center space-x-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-200 dark:bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30">
+                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-700 dark:text-amber-300" />
                                       <span>Mükerrer</span>
                                     </span>
                                   )}
@@ -2448,22 +2515,22 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               <span
                                 className={`font-mono px-2 py-0.5 rounded text-[11px] font-semibold border ${
                                   isDuplicate
-                                    ? 'bg-amber-200 text-amber-950 border-amber-400 font-bold'
-                                    : 'text-indigo-700 bg-indigo-50 border-indigo-150'
+                                    ? 'bg-amber-200 dark:bg-amber-500/20 text-amber-950 dark:text-amber-200 border-amber-400 font-bold'
+                                    : 'text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 border-indigo-150 dark:border-indigo-500/30'
                                 }`}
                               >
                                 #{std.studentNumber || '-'}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-slate-600 font-medium">
+                            <td className="py-2.5 px-3 text-muted font-medium">
                               {std.phone ? (
-                                <span className="font-mono text-slate-600">{std.phone}</span>
+                                <span className="font-mono text-muted">{std.phone}</span>
                               ) : (
-                                <span className="text-slate-400 italic">Belirtilmedi</span>
+                                <span className="text-subtle italic">Belirtilmedi</span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-500">
-                              {std.email || <span className="text-slate-400 italic">E-posta yok</span>}
+                            <td className="py-2.5 px-3 text-muted">
+                              {std.email || <span className="text-subtle italic">E-posta yok</span>}
                             </td>
                             <td className="py-2.5 px-3 text-right">
                               <div className="flex items-center justify-end space-x-1">
@@ -2473,7 +2540,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                     setViewingClassStudents(null);
                                     openEditStudent(std);
                                   }}
-                                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Düzenle"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -2490,7 +2557,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                       }
                                     }
                                   }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                                   title="Öğrenciyi Bu Sınıftan Çıkar"
                                 >
                                   <UserMinus className="w-3.5 h-3.5" />
@@ -2507,14 +2574,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               {/* Footer */}
-              <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-                <span className="text-xs text-slate-400">
-                  Gösterilen: <strong className="text-white">{filteredStudents.length}</strong> / {classStudents.length} Öğrenci
+              <div className="p-3 sm:p-4 border-t border-line bg-canvas/60 flex items-center justify-between">
+                <span className="text-xs text-muted">
+                  Gösterilen: <strong className="text-fg">{filteredStudents.length}</strong> / {classStudents.length} Öğrenci
                 </span>
                 <button
                   type="button"
                   onClick={() => setViewingClassStudents(null)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors"
+                  className="px-4 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-semibold transition-colors"
                 >
                   Kapat
                 </button>
@@ -2600,23 +2667,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             onClick={() => setTransferTargetClass(null)}
           >
             <div
-              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/90 flex items-start justify-between">
+              <div className="p-4 sm:p-5 border-b border-line bg-surface/90 flex items-start justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
                     <ArrowRightLeft className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+                    <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                       <span>Öğrenci Aktarımı</span>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
                         {transferTargetClass.name}
                       </span>
                     </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-muted mt-0.5">
                       Sistemdeki öğrencileri tek tek veya çoklu seçimle toplu olarak bu sınıfa aktarabilirsiniz.
                     </p>
                   </div>
@@ -2625,34 +2692,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setTransferTargetClass(null)}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Filter & Search Bar */}
-              <div className="p-4 border-b border-slate-800/80 bg-slate-950/40 space-y-3">
+              <div className="p-4 border-b border-line bg-canvas/40 space-y-3">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                   <div className="relative flex-1">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={transferSearchTerm}
                       onChange={(e) => setTransferSearchTerm(e.target.value)}
                       placeholder="Öğrenci adı, okul no veya mevcut sınıf ara..."
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                      className="w-full bg-surface border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
                     />
                   </div>
 
-                  <div className="flex items-center space-x-1 bg-slate-900 p-1 rounded-xl border border-slate-800 shrink-0">
+                  <div className="flex items-center space-x-1 bg-surface p-1 rounded-xl border border-line shrink-0">
                     <button
                       type="button"
                       onClick={() => setTransferOnlyUnassigned(false)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         !transferOnlyUnassigned
                           ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          : 'text-muted hover:text-fg'
                       }`}
                     >
                       Tüm Sistem ({availableStudents.length})
@@ -2663,7 +2730,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                         transferOnlyUnassigned
                           ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white'
+                          : 'text-muted hover:text-fg'
                       }`}
                     >
                       Sadece Sınıfsızlar
@@ -2673,18 +2740,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                 {/* Bulk Select Toolbar */}
                 <div className="flex items-center justify-between pt-1 text-xs">
-                  <label className="flex items-center space-x-2 text-slate-300 font-semibold cursor-pointer select-none">
+                  <label className="flex items-center space-x-2 text-fg-2 font-semibold cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={isAllSelected}
                       onChange={toggleSelectAll}
                       disabled={filteredTransferStudents.length === 0}
-                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
+                      className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 bg-surface-2 border-line cursor-pointer"
                     />
                     <span>
                       Tümünü Seç ({filteredTransferStudents.length})
                       {transferSelectedStudentIds.length > 0 && (
-                        <strong className="text-indigo-400 ml-1.5">
+                        <strong className="text-indigo-600 dark:text-indigo-400 ml-1.5">
                           ({transferSelectedStudentIds.length} seçildi)
                         </strong>
                       )}
@@ -2706,7 +2773,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               {/* Student Transfer List */}
               <div className="flex-1 overflow-y-auto p-4 max-h-[50vh] space-y-2">
                 {filteredTransferStudents.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 text-xs">
+                  <div className="py-12 text-center text-muted text-xs">
                     Aktarılabilecek öğrenci bulunamadı.
                   </div>
                 ) : (
@@ -2717,8 +2784,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         key={std.id}
                         className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
                           isSelected
-                            ? 'bg-indigo-950/40 border-indigo-500/50'
-                            : 'bg-slate-900/60 border-slate-800 hover:bg-slate-800/50'
+                            ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500/50'
+                            : 'bg-surface/60 border-line hover:bg-surface-2/50'
                         }`}
                       >
                         <div className="flex items-center space-x-3">
@@ -2726,7 +2793,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleSelectStudent(std.id)}
-                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700 cursor-pointer"
+                            className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 bg-surface-2 border-line cursor-pointer"
                           />
                           <img
                             src={
@@ -2736,23 +2803,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               )}`
                             }
                             alt={std.name}
-                            className="w-9 h-9 rounded-full bg-slate-800 object-cover border border-slate-700"
+                            className="w-9 h-9 rounded-full bg-surface-2 object-cover border border-line"
                             referrerPolicy="no-referrer"
                           />
                           <div>
-                            <div className="font-bold text-white text-xs flex items-center space-x-2">
+                            <div className="font-bold text-fg text-xs flex items-center space-x-2">
                               <span>{std.name}</span>
-                              <span className="font-mono text-slate-400 text-[10px]">
+                              <span className="font-mono text-muted text-[10px]">
                                 #{std.studentNumber}
                               </span>
                             </div>
-                            <div className="text-[11px] text-slate-400 flex items-center space-x-2 mt-0.5">
+                            <div className="text-[11px] text-muted flex items-center space-x-2 mt-0.5">
                               <span>Mevcut Sınıf:</span>
                               <span
                                 className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                                   !std.className || std.className === 'Atanmadı'
-                                    ? 'bg-slate-800 text-slate-400'
-                                    : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                                    ? 'bg-surface-2 text-muted'
+                                    : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20'
                                 }`}
                               >
                                 {std.className || 'Sınıfsız'}
@@ -2777,14 +2844,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
 
               {/* Footer */}
-              <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between">
-                <span className="text-xs text-slate-400">
+              <div className="p-3 sm:p-4 border-t border-line bg-canvas/60 flex items-center justify-between">
+                <span className="text-xs text-muted">
                   Toplam {filteredTransferStudents.length} aktarılabilir öğrenci listeleniyor
                 </span>
                 <button
                   type="button"
                   onClick={() => setTransferTargetClass(null)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Kapat
                 </button>
@@ -2799,55 +2866,55 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {/* ========================================================================= */}
       {duplicateWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border-2 border-amber-500/60 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl shadow-amber-950/40 relative">
+          <div className="bg-surface border-2 border-amber-500/60 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl shadow-amber-950/40 relative">
             <div className="flex items-start space-x-3.5 mb-4">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-400">
+              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-700 dark:text-amber-400">
                 <AlertCircle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                <h3 className="text-base sm:text-lg font-bold text-fg leading-tight">
                   Bu Numarayla Kayıtlı Öğrenci Var!
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-muted mt-1">
                   Sistemde bu öğrenciyle tamamen eşleşen kayıtlı bir profil tespit edildi.
                 </p>
               </div>
             </div>
 
             {/* Bilgi Karşılaştırma Kartı */}
-            <div className="bg-slate-950/80 rounded-xl p-3.5 border border-slate-800 space-y-3 mb-5 text-xs">
-              <div className="text-amber-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+            <div className="bg-canvas/80 rounded-xl p-3.5 border border-line space-y-3 mb-5 text-xs">
+              <div className="text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                 <span>📋 Çakışan Kayıt Bilgileri</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-slate-300">
+              <div className="grid grid-cols-2 gap-3 text-fg-2">
                 <div className="space-y-1">
-                  <span className="text-[11px] text-slate-500 block">Öğrenci Adı Soyadı</span>
-                  <span className="font-bold text-white text-sm">
+                  <span className="text-[11px] text-muted block">Öğrenci Adı Soyadı</span>
+                  <span className="font-bold text-fg text-sm">
                     {duplicateWarning.existingStudent.name}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[11px] text-slate-500 block">Okul Numarası</span>
-                  <span className="font-mono font-bold text-amber-300">
+                  <span className="text-[11px] text-muted block">Okul Numarası</span>
+                  <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
                     #{duplicateWarning.existingStudent.studentNumber || '-'}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[11px] text-slate-500 block">Sınıf & Şube</span>
-                  <span className="font-semibold text-slate-200">
+                  <span className="text-[11px] text-muted block">Sınıf & Şube</span>
+                  <span className="font-semibold text-fg">
                     {duplicateWarning.existingStudent.className || '-'}
                   </span>
                 </div>
                 <div className="space-y-1">
-                  <span className="text-[11px] text-slate-500 block">İletişim</span>
-                  <span className="text-slate-400 truncate block">
+                  <span className="text-[11px] text-muted block">İletişim</span>
+                  <span className="text-muted truncate block">
                     {duplicateWarning.existingStudent.email || duplicateWarning.existingStudent.phone || 'Girilmedi'}
                   </span>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 mb-5 leading-relaxed">
+            <p className="text-xs text-fg-2 mb-5 leading-relaxed">
               Öğrenci numarası giriş adı olarak kullanıldığı için aynı numarayla ikinci bir kayıt açılamaz. Kayıtlı öğrenciyi yeni bilgilerle güncelleyebilir veya geri dönüp numarayı düzeltebilirsiniz:
             </p>
 
@@ -2868,7 +2935,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setDuplicateWarning(null)}
-                className="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer py-1"
+                className="text-xs text-muted hover:text-fg underline cursor-pointer py-1"
               >
                 Vazgeç ve Düzenlemeye Dön
               </button>

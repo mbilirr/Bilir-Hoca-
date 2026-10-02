@@ -237,23 +237,23 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-750 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-surface border border-line rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* HEADER */}
-        <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
+        <div className="px-6 py-4 bg-canvas border-b border-line flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
               <Upload className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Yeni Plan / Zümre Belgesi Yükle</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-base font-bold text-fg">Yeni Plan / Zümre Belgesi Yükle</h2>
+              <p className="text-xs text-muted">
                 Word (.docx), PDF veya Excel (.xlsx) formatında evrak ekleyin
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -262,7 +262,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
         {/* BODY */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {errorMsg && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -270,7 +270,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
           {/* FILE DROPZONE */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
               Belge Dosyası (.docx, .pdf, .xlsx) *
             </label>
             <div
@@ -286,7 +286,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                   ? 'border-indigo-500 bg-indigo-500/10'
                   : selectedFile
                   ? 'border-emerald-500/50 bg-emerald-500/5'
-                  : 'border-slate-700 bg-slate-950/60 hover:border-slate-600'
+                  : 'border-line bg-canvas/60 hover:border-line-strong'
               }`}
             >
               <input
@@ -299,7 +299,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
               {selectedFile ? (
                 <div className="flex items-center justify-center space-x-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                     {fileFormat === 'xlsx' ? (
                       <FileSpreadsheet className="w-6 h-6" />
                     ) : (
@@ -307,19 +307,19 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                     )}
                   </div>
                   <div className="text-left">
-                    <p className="text-xs font-bold text-white">{selectedFile.name}</p>
-                    <p className="text-[11px] text-slate-400">
+                    <p className="text-xs font-bold text-fg">{selectedFile.name}</p>
+                    <p className="text-[11px] text-muted">
                       {fileSizeStr} • {fileFormat.toUpperCase()} • Dosyayı değiştirmek için tıklayın
                     </p>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-slate-200 mb-1">
+                  <Upload className="w-8 h-8 text-muted mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-fg mb-1">
                     Dosyayı buraya sürükleyin veya seçmek için tıklayın
                   </p>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-[11px] text-muted">
                     Desteklenenler: Word (.docx), PDF (.pdf), Excel (.xlsx, .xls) — en fazla 10 MB
                   </p>
                 </div>
@@ -329,7 +329,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
 
           {/* DOCUMENT TITLE */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-fg-2 mb-1">
               Belge Başlığı *
             </label>
             <input
@@ -338,18 +338,18 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Örn: 2026-2027 Fen Bilgisi 8. Sınıf Yıllık Planı"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
             />
           </div>
 
           {/* OKUL BUTONLARI (School Type Selector) */}
-          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-2xl">
+          <div className="p-3 bg-canvas/80 border border-line rounded-2xl">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-white flex items-center space-x-1.5">
-                <School className="w-3.5 h-3.5 text-indigo-400" />
+              <label className="text-xs font-bold text-fg flex items-center space-x-1.5">
+                <School className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                 <span>Okul / Kademe Seçimi *</span>
               </label>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-muted">
                 Seçime göre ders ve sınıf listesi otomatik güncellenir
               </span>
             </div>
@@ -360,7 +360,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                 className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   schoolType === 'Ortaokul'
                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
                 }`}
               >
                 <span>🏫 Ortaokul</span>
@@ -371,7 +371,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                 className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   schoolType === 'Lise'
                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
                 }`}
               >
                 <span>🎓 Lise</span>
@@ -382,7 +382,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                 className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
                   schoolType === 'Diğer'
                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-slate-900 text-slate-300 border-slate-750 hover:bg-slate-800'
+                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
                 }`}
               >
                 <span>🏛️ Diğer / Tümü</span>
@@ -393,14 +393,14 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
           {/* CATEGORY & DERSLER (SUBJECT) GRID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-fg-2 mb-1">
                 Kategori *
               </label>
               <select
                 aria-label="Kategori"
                 value={category}
                 onChange={(e) => setCategory(e.target.value as DocumentCategory)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
               >
                 <option value="yearly_plan">Yıllık Ders Planı</option>
                 <option value="weekly_plan">Haftalık Ders Planı</option>
@@ -412,9 +412,9 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+              <label className="block text-xs font-semibold text-fg-2 mb-1 flex items-center justify-between">
                 <span>Branş / Ders *</span>
-                <span className="text-[10px] text-indigo-300 font-normal">
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-normal">
                   Belge bu branşın klasörüne kaydedilir
                 </span>
               </label>
@@ -422,7 +422,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
                 aria-label="Branş / Ders"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
               >
                 {availableSubjects.map((subj) => (
                   <option key={subj} value={subj}>
@@ -436,13 +436,13 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
           {/* SINIF AÇILIR PENCERESİ & EĞİTİM ÖĞRETİM YILI */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-fg-2 mb-1">
                 Sınıf Açılır Penceresi *
               </label>
               <select
                 value={gradeLevel}
                 onChange={(e) => setGradeLevel(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
               >
                 {/* 5.Sınıf - 12.Sınıf tam listesi */}
                 <optgroup label="Ortaokul Sınıfları (5-8)">
@@ -462,21 +462,21 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-fg-2 mb-1">
                 Eğitim Öğretim Yılı
               </label>
               <input
                 type="text"
                 value={academicYear}
                 onChange={(e) => setAcademicYear(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
               />
             </div>
           </div>
 
           {/* DESCRIPTION & TAGS */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-fg-2 mb-1">
               Açıklama / Zümre Notu
             </label>
             <textarea
@@ -484,12 +484,12 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Örn: 1. Dönem yazılı tarihleri ve soru dağılım tablosunu içerir..."
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none"
+              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-fg-2 mb-1">
               Etiketler (Virgülle ayırın)
             </label>
             <input
@@ -497,16 +497,16 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
               placeholder="Örn: Yıllık Plan, Yazılı, Senaryo 1, Zümre Kararı"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
             />
           </div>
 
           {/* FOOTER BUTTONS */}
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-3">
+          <div className="pt-3 border-t border-line flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
               İptal
             </button>

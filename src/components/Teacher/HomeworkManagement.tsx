@@ -55,6 +55,8 @@ import {
   submissionHasContent,
   getSubmissionAttachmentCount,
 } from './SubmissionViewModal';
+import { useQuickFocus } from '../../lib/quickFocus';
+import { PageHeader, Segmented } from '../ui/kit';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -100,6 +102,17 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [draftCheckStatuses, setDraftCheckStatuses] = useState<Record<string, HomeworkCheckStatus>>({});
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Hızlı arama / ana sayfa kısayolu: seçilen ödevi kontrol ekranında aç veya yeni ödev penceresini aç
+  useQuickFocus(['homework', 'action'], (f) => {
+    if (f.type === 'homework') {
+      setActiveTab('tracker');
+      setSelectedHomeworkId(f.id);
+    } else if (f.id === 'homework-create') {
+      resetForm();
+      setIsCreateModalOpen(true);
+    }
+  });
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
   const [expandedHwId, setExpandedHwId] = useState<string | null>(homeworks[0]?.id || null);
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
@@ -581,15 +594,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner & 3 Action Buttons Side-by-Side */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-        <div className="flex items-center space-x-2.5">
-          <Target className="w-5 h-5 text-indigo-400" />
-          <h2 className="text-xl font-bold text-white">Ödev Yönetimi</h2>
-        </div>
-
-        {/* 3 Buttons Side by Side: Ödev Oluştur, Ödev Kontrol, Tüm Oluşturulan Ödevler */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={BookOpen}
+        tone="success"
+        title="Ödevler"
+        description="Ödev oluşturun, teslimleri kontrol edin"
+        actions={
           <button
             type="button"
             onClick={() => {
@@ -597,50 +608,30 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               setIsCreateModalOpen(true);
             }}
             id="btn-create-homework"
-            className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all shadow-md shadow-indigo-600/25 cursor-pointer"
+            className="ui-btn ui-btn-primary"
           >
             <Plus className="w-4 h-4" />
             <span>Ödev Oluştur</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('tracker')}
-            id="btn-tab-tracker"
-            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
-              activeTab === 'tracker'
-                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/20'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Ödev Kontrol</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            id="btn-tab-all"
-            className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
-              activeTab === 'all'
-                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/20'
-                : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>Tüm Oluşturulan Ödevler</span>
-          </button>
-        </div>
-      </div>
+        }
+      />
+      <Segmented
+        value={activeTab}
+        onChange={(v) => setActiveTab(v)}
+        items={[
+          { value: 'tracker', label: 'Ödev Kontrol', icon: CheckCircle2, id: 'btn-tab-tracker' },
+          { value: 'all', label: `Tüm Ödevler (${homeworks.length})`, icon: FileText, id: 'btn-tab-all' },
+        ]}
+      />
 
       {saveFeedback && (
-        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-semibold animate-in fade-in">
+        <div className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-semibold animate-in fade-in">
           <Check className="w-3.5 h-3.5" />
           <span>{saveFeedback}</span>
         </div>
       )}
       {saveError && (
-        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-rose-500/10 text-rose-500 border border-rose-500/30 rounded-xl text-xs font-semibold animate-in fade-in">
+        <div role="alert" className="flex items-center space-x-1.5 px-4 py-2.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold animate-in fade-in">
           <AlertCircle className="w-3.5 h-3.5" />
           <span>{saveError}</span>
         </div>
@@ -749,12 +740,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
         if (homeworks.length === 0) {
           return (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center shadow-lg">
-              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+            <div className="bg-surface border border-line rounded-2xl p-12 text-center shadow-lg">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="w-8 h-8" />
               </div>
-              <h3 className="text-lg font-bold text-white mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
-              <p className="text-sm text-slate-400 max-w-md mx-auto mb-6">
+              <h3 className="text-lg font-bold text-fg mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
+              <p className="text-sm text-muted max-w-md mx-auto mb-6">
                 Ödev kontrolü yapabilmek için lütfen önce sisteme bir ödev ekleyiniz.
               </p>
               <button
@@ -784,15 +775,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             {/* 1 & 2: ÖDEV SEÇİMİ (AÇILIR PENCERE BUTONU) & SINIF SEÇİMİ (SINIF ADINDA AÇILIR DÜĞME) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* ÖDEV SEÇİMİ - AÇILIR PENCERE BUTONU */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3">
+              <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold">
                       <BookOpen className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Ödev Seçiniz</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-fg">Ödev Seçiniz</h3>
                   </div>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                     {homeworks.length} Ödev
                   </span>
                 </div>
@@ -805,22 +796,22 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     setHwCheckSearchQuery('');
                     setIsHwCheckModalOpen(true);
                   }}
-                  className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200 text-left transition-all cursor-pointer group shadow-xs"
+                  className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-surface-2/80 hover:bg-surface-2 border border-line text-left transition-all cursor-pointer group shadow-xs"
                 >
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-500/30">
                       <BookOpen className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                           {currentHw?.subject || 'Ders'}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-muted">
                           Son: {currentHw ? formatDueDateTurkish(currentHw.dueDate) : '-'}
                         </span>
                       </div>
-                      <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 truncate mt-0.5">
+                      <div className="text-sm font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 truncate mt-0.5">
                         {currentHw ? currentHw.title : 'Kontrol Edilecek Ödevi Seçiniz'}
                       </div>
                     </div>
@@ -829,28 +820,28 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-indigo-600 text-white shadow-xs group-hover:bg-indigo-500 transition-colors">
                       Değiştir
                     </span>
-                    <ChevronDown className="w-4 h-4 text-slate-400 group-hover:translate-y-0.5 transition-transform" />
+                    <ChevronDown className="w-4 h-4 text-subtle group-hover:translate-y-0.5 transition-transform" />
                   </div>
                 </button>
               </div>
 
               {/* SINIF SEÇİMİ - SINIF ADINDA AÇILIR DÜĞME */}
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3 relative">
+              <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between space-y-3 relative">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 font-bold">
                       <School className="w-5 h-5" />
                     </div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Sınıf Seçiniz</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-fg">Sınıf Seçiniz</h3>
                   </div>
-                  <span className="text-xs font-semibold text-slate-500">
+                  <span className="text-xs font-semibold text-muted">
                     {hwClasses.length} Sınıf
                   </span>
                 </div>
 
                 {/* SINIF ADINDA AÇILIR DÜĞME */}
                 {hwClasses.length === 0 ? (
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
+                  <div className="p-3 rounded-xl bg-surface-2 border border-line text-xs text-muted text-center">
                     Bu ödev için tanımlı sınıf bulunamadı.
                   </div>
                 ) : (
@@ -859,31 +850,31 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       type="button"
                       id="btn-class-select-dropdown"
                       onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
-                      className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-slate-50/80 hover:bg-slate-100 border border-slate-200 text-left transition-all cursor-pointer group shadow-xs"
+                      className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-surface-2/80 hover:bg-surface-2 border border-line text-left transition-all cursor-pointer group shadow-xs"
                     >
                       <div className="flex items-center space-x-3 min-w-0 flex-1">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-500/30">
                           <School className="w-4 h-4" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 truncate">
+                          <div className="text-sm font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 truncate">
                             {currentClass ? currentClass.name : 'Sınıf Seçiniz'}
                             {currentClass?.branch ? ` (${currentClass.branch})` : ''}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2 shrink-0 ml-2">
-                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                           {classStudents.length} Öğrenci
                         </span>
-                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isClassDropdownOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 text-subtle transition-transform ${isClassDropdownOpen ? 'rotate-180' : ''}`} />
                       </div>
                     </button>
 
                     {/* SINIF SEÇİM AÇILIR LİSTESİ */}
                     {isClassDropdownOpen && (
-                      <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
-                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-100">
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-surface border border-line rounded-2xl shadow-xl z-50 p-2 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-muted border-b border-line">
                           Sınıf Seçiniz ({hwClasses.length})
                         </div>
                         <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
@@ -901,11 +892,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                 className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer ${
                                   isSelected
                                     ? 'bg-indigo-600 text-white font-bold shadow-xs'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900'
+                                    : 'bg-surface hover:bg-surface-2 text-fg-2 hover:text-fg'
                                 }`}
                               >
                                 <div className="flex items-center space-x-2">
-                                  <School className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-indigo-600'}`} />
+                                  <School className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-indigo-600 dark:text-indigo-300'}`} />
                                   <span className="text-sm">{cls.name}</span>
                                   {cls.branch && (
                                     <span className="text-xs opacity-75 font-normal">({cls.branch})</span>
@@ -933,48 +924,48 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 onClick={() => setIsHwCheckModalOpen(false)}
               >
                 <div
-                  className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto"
+                  className="relative w-full max-w-2xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] my-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Modal Header */}
-                  <div className="px-5 sm:px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+                  <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 shrink-0">
                         <BookOpen className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="text-base font-bold text-slate-900">Kontrol Edilecek Ödevi Seçiniz</h3>
-                        <span className="text-xs text-slate-500">Mevcut {homeworks.length} ödev listeleniyor</span>
+                        <h3 className="text-base font-bold text-fg">Kontrol Edilecek Ödevi Seçiniz</h3>
+                        <span className="text-xs text-muted">Mevcut {homeworks.length} ödev listeleniyor</span>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIsHwCheckModalOpen(false)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+                      className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
                   {/* Modal Search */}
-                  <div className="p-3.5 sm:p-4 border-b border-slate-200 bg-white">
+                  <div className="p-3.5 sm:p-4 border-b border-line bg-surface">
                     <div className="relative">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Search className="w-4 h-4 text-subtle absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         value={hwCheckSearchQuery}
                         onChange={(e) => setHwCheckSearchQuery(e.target.value)}
                         placeholder="Ödev başlığı, ders veya konu ara..."
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                        className="w-full bg-surface-2 border border-line rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                         autoFocus
                       />
                     </div>
                   </div>
 
                   {/* Modal Homework Cards */}
-                  <div className="p-3.5 sm:p-4 overflow-y-auto space-y-2.5 max-h-[50vh] bg-slate-50/50">
+                  <div className="p-3.5 sm:p-4 overflow-y-auto space-y-2.5 max-h-[50vh] bg-surface-2/50">
                     {filteredHwsForCheckModal.length === 0 ? (
-                      <div className="py-10 text-center text-xs text-slate-400">
+                      <div className="py-10 text-center text-xs text-subtle">
                         Aramanıza uygun ödev bulunamadı.
                       </div>
                     ) : (
@@ -997,38 +988,38 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             }}
                             className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
                               isSelected
-                                ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/30 shadow-sm'
-                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-300 dark:border-indigo-500/30 ring-2 ring-indigo-500/30 shadow-sm'
+                                : 'bg-surface border-line hover:border-line-strong hover:bg-surface-2'
                             }`}
                           >
                             <div className="flex-1 min-w-0 space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                                   {hw.subject}
                                 </span>
                                 {hw.schoolLevel && (
-                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface-2 text-muted border border-line">
                                     {hw.schoolLevel}
                                   </span>
                                 )}
-                                <span className="text-[11px] text-slate-500 flex items-center space-x-1">
-                                  <Clock className="w-3 h-3 text-amber-500" />
+                                <span className="text-[11px] text-muted flex items-center space-x-1">
+                                  <Clock className="w-3 h-3 text-amber-700 dark:text-amber-400" />
                                   <span>Son Teslim: {formatDueDateTurkish(hw.dueDate)}</span>
                                 </span>
                               </div>
-                              <h4 className="text-sm font-bold text-slate-900 truncate">{hw.title}</h4>
+                              <h4 className="text-sm font-bold text-fg truncate">{hw.title}</h4>
                               {hw.description && (
-                                <p className="text-xs text-slate-500 line-clamp-1">{hw.description}</p>
+                                <p className="text-xs text-muted line-clamp-1">{hw.description}</p>
                               )}
                             </div>
                             <div className="shrink-0 flex items-center space-x-2 ml-2">
                               {isSelected ? (
-                                <span className="flex items-center space-x-1 text-xs font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-xl">
-                                  <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                                <span className="flex items-center space-x-1 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-2.5 py-1 rounded-xl">
+                                  <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                                   <span>Seçili</span>
                                 </span>
                               ) : (
-                                <span className="text-xs font-semibold text-slate-700 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors">
+                                <span className="text-xs font-semibold text-fg-2 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 transition-colors">
                                   Seç
                                 </span>
                               )}
@@ -1040,11 +1031,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   </div>
 
                   {/* Modal Footer */}
-                  <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+                  <div className="p-3.5 sm:p-4 bg-surface-2 border-t border-line flex justify-end">
                     <button
                       type="button"
                       onClick={() => setIsHwCheckModalOpen(false)}
-                      className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 rounded-xl cursor-pointer"
+                      className="px-4 py-2 bg-surface hover:bg-surface-2 border border-line text-xs font-semibold text-fg-2 rounded-xl cursor-pointer"
                     >
                       Kapat
                     </button>
@@ -1055,96 +1046,96 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
             {/* 3. MODERN MİNİMALİST BEYAZ ÖĞRENCİ LİSTESİ VE DURUMLAR */}
             {currentClass && (
-              <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
                 {/* Header & Arama (Açıklamasız, sade ve net) */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
                   <div className="flex items-center space-x-2">
-                    <h3 className="text-base font-bold text-slate-900">
+                    <h3 className="text-base font-bold text-fg">
                       {currentClass.name} — Öğrenci Listesi
                     </h3>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                       {classStudents.length} Kayıtlı Öğrenci
                     </span>
                   </div>
 
                   <div className="relative w-full sm:w-64">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-subtle absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={studentSearchInput}
                       onChange={(e) => setStudentSearchInput(e.target.value)}
                       placeholder="Öğrenci adı veya numarası ara..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                     />
                   </div>
                 </div>
 
                 {/* Sayaçlar */}
                 <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">Toplam</span>
-                    <span className="text-base font-bold text-slate-900">{classStudents.length}</span>
+                  <div className="p-2.5 rounded-xl bg-surface-2 border border-line text-center">
+                    <span className="text-[10px] uppercase font-bold text-muted block">Toplam</span>
+                    <span className="text-base font-bold text-fg">{classStudents.length}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-emerald-700 block">Yaptı</span>
-                    <span className="text-base font-bold text-emerald-800">{countYapti}</span>
+                  <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300 block">Yaptı</span>
+                    <span className="text-base font-bold text-emerald-800 dark:text-emerald-200">{countYapti}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-rose-700 block">Yapmadı</span>
-                    <span className="text-base font-bold text-rose-800">{countYapmadi}</span>
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-center">
+                    <span className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-300 block">Yapmadı</span>
+                    <span className="text-base font-bold text-rose-800 dark:text-rose-200">{countYapmadi}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-amber-700 block">Eksik</span>
-                    <span className="text-base font-bold text-amber-800">{countEksik}</span>
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-center">
+                    <span className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300 block">Eksik</span>
+                    <span className="text-base font-bold text-amber-800 dark:text-amber-200">{countEksik}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-sky-700 block">İzinli</span>
-                    <span className="text-base font-bold text-sky-800">{countIzinli}</span>
+                  <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 text-center">
+                    <span className="text-[10px] uppercase font-bold text-sky-700 dark:text-sky-300 block">İzinli</span>
+                    <span className="text-base font-bold text-sky-800 dark:text-sky-200">{countIzinli}</span>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-center">
-                    <span className="text-[10px] uppercase font-bold text-purple-700 block">Gelmedi</span>
-                    <span className="text-base font-bold text-purple-800">{countGelmedi}</span>
+                  <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 text-center">
+                    <span className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-300 block">Gelmedi</span>
+                    <span className="text-base font-bold text-purple-800 dark:text-purple-200">{countGelmedi}</span>
                   </div>
                 </div>
 
                 {/* Toplu İşlem Butonları */}
-                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-700">
+                <div className="p-3 rounded-xl bg-surface-2/80 border border-line flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-fg-2">
                     Sınıf İçin Hızlı İşlem:
                   </span>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('yapti')}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all cursor-pointer"
                     >
                       ✓ Tümünü Yaptı
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('yapmadi')}
-                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs font-bold transition-all cursor-pointer"
                     >
                       ✕ Tümünü Yapmadı
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('eksik')}
-                      className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all cursor-pointer"
                     >
                       ⚠ Tümünü Eksik
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('izinli')}
-                      className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/15 border border-sky-200 dark:border-sky-500/30 text-sky-700 dark:text-sky-300 text-xs font-bold transition-all cursor-pointer"
                     >
                       ℹ Tümünü İzinli
                     </button>
                     <button
                       type="button"
                       onClick={() => handleBulkStatusChange('gelmedi')}
-                      className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 text-xs font-bold transition-all cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/15 border border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all cursor-pointer"
                     >
                       ○ Tümünü Gelmedi
                     </button>
@@ -1153,35 +1144,35 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                 {/* ALT ALTA SIRALANMIŞ BEYAZ MİNİMALİST ÖĞRENCİ LİSTESİ */}
                 {classStudents.length === 0 ? (
-                  <div className="py-8 text-center text-slate-400 text-xs">
+                  <div className="py-8 text-center text-subtle text-xs">
                     "{currentClass.name}" sınıfına henüz kayıtlı öğrenci bulunmuyor.
                   </div>
                 ) : displayedStudents.length === 0 ? (
-                  <div className="py-8 text-center text-slate-400 text-xs">
+                  <div className="py-8 text-center text-subtle text-xs">
                     "{studentSearchInput}" aramasına uygun öğrenci bulunamadı.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                  <div className="divide-y divide-line border border-line rounded-xl overflow-hidden bg-surface shadow-xs">
                     {displayedStudents.map((std, idx) => {
                       const currentStatus = getStudentCheckStatus(std.id);
                       return (
                         <div
                           key={std.id}
-                          className="p-3 sm:p-3.5 hover:bg-slate-50/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
+                          className="p-3 sm:p-3.5 hover:bg-surface-2/80 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3"
                         >
                           {/* Öğrenci Bilgisi */}
                           <div className="flex items-center space-x-3 min-w-0">
-                            <span className="w-6 text-center text-xs font-mono text-slate-400 font-semibold shrink-0">
+                            <span className="w-6 text-center text-xs font-mono text-subtle font-semibold shrink-0">
                               {idx + 1}
                             </span>
                             <img
                               src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                               alt={std.name}
-                              className="w-8 h-8 rounded-full bg-slate-100 object-cover border border-slate-200 shrink-0"
+                              className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
                               referrerPolicy="no-referrer"
                             />
                             <div className="min-w-0">
-                              <h4 className="text-sm font-bold text-slate-900 truncate">{std.name}</h4>
+                              <h4 className="text-sm font-bold text-fg truncate">{std.name}</h4>
                               {(() => {
                                 const stdSub = currentHw
                                   ? submissions.find((s) => s.homeworkId === currentHw.id && s.studentId === std.id)
@@ -1192,7 +1183,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => setViewingSubmissionKey({ homeworkId: currentHw.id, studentId: std.id })}
-                                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                                    className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 hover:underline cursor-pointer"
                                   >
                                     <Paperclip className="w-3 h-3" />
                                     <span>
@@ -1214,7 +1205,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'yapti'
                                   ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
-                                  : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-300'
+                                  : 'bg-surface-2 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-fg-2 hover:text-emerald-700 dark:hover:text-emerald-300 border border-line hover:border-emerald-300 dark:hover:border-emerald-500/30'
                               }`}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1228,7 +1219,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'yapmadi'
                                   ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-400'
-                                  : 'bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300'
+                                  : 'bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-fg-2 hover:text-rose-700 dark:hover:text-rose-300 border border-line hover:border-rose-300 dark:hover:border-rose-500/30'
                               }`}
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -1242,7 +1233,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'eksik'
                                   ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
-                                  : 'bg-slate-50 hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 hover:border-amber-300'
+                                  : 'bg-surface-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-fg-2 hover:text-amber-700 dark:hover:text-amber-300 border border-line hover:border-amber-300 dark:hover:border-amber-500/30'
                               }`}
                             >
                               <AlertCircle className="w-3.5 h-3.5" />
@@ -1256,7 +1247,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'izinli'
                                   ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400'
-                                  : 'bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-sky-300'
+                                  : 'bg-surface-2 hover:bg-sky-50 dark:hover:bg-sky-500/10 text-fg-2 hover:text-sky-700 dark:hover:text-sky-300 border border-line hover:border-sky-300 dark:hover:border-sky-500/30'
                               }`}
                             >
                               <Info className="w-3.5 h-3.5" />
@@ -1270,7 +1261,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
                                 currentStatus === 'gelmedi'
                                   ? 'bg-purple-600 text-white shadow-xs ring-2 ring-purple-400'
-                                  : 'bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-purple-700 border border-slate-200 hover:border-purple-300'
+                                  : 'bg-surface-2 hover:bg-purple-50 dark:hover:bg-purple-500/10 text-fg-2 hover:text-purple-700 dark:hover:text-purple-300 border border-line hover:border-purple-300 dark:hover:border-purple-500/30'
                               }`}
                             >
                               <HelpCircle className="w-3.5 h-3.5" />
@@ -1318,25 +1309,25 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         return (
           <div className="space-y-5">
             {/* Minimalist Beyaz Filtreleme ve Arama Çubuğu */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+            <div className="bg-surface border border-line rounded-2xl p-4 shadow-sm">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 {/* Sol: Arama Kutusu ve Dropdown Filtreler */}
                 <div className="flex flex-wrap items-center gap-2.5 flex-1">
                   {/* Hızlı Arama Kutusu */}
                   <div className="relative min-w-[220px] flex-1 max-w-sm">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
                     <input
                       type="text"
                       value={hwSearchQuery}
                       onChange={(e) => setHwSearchQuery(e.target.value)}
                       placeholder="Ödev başlığı, ders veya konu ara..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
+                      className="w-full bg-surface-2 border border-line rounded-xl pl-9 pr-8 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:bg-surface transition-colors"
                     />
                     {hwSearchQuery && (
                       <button
                         type="button"
                         onClick={() => setHwSearchQuery('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -1348,7 +1339,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <select
                       value={hwFilterClassId}
                       onChange={(e) => setHwFilterClassId(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                      className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer"
                     >
                       <option value="all">Tüm Sınıflar</option>
                       {classes.map((c) => (
@@ -1364,7 +1355,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <select
                       value={hwFilterSubject}
                       onChange={(e) => setHwFilterSubject(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 font-medium focus:outline-none focus:border-indigo-500 focus:bg-white cursor-pointer"
+                      className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer"
                     >
                       <option value="all">Tüm Dersler</option>
                       {availableSubjects.map((sub) => (
@@ -1384,7 +1375,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         setHwFilterSubject('all');
                         setHwFilterClassId('all');
                       }}
-                      className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold cursor-pointer transition-colors"
+                      className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-muted text-xs font-semibold cursor-pointer transition-colors"
                     >
                       <X className="w-3.5 h-3.5" />
                       <span>Filtreleri Temizle</span>
@@ -1394,7 +1385,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                 {/* Sağ: Sayaç & Yeni Ödev Butonu */}
                 <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0">
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-muted font-medium">
                     Toplam <strong>{filteredHomeworks.length}</strong> / {homeworks.length} ödev
                   </span>
                   <button
@@ -1414,10 +1405,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
             {/* Sade, Minimalist ve Beyaz Arka Yüzeyli Ödev Kartları Grid */}
             {filteredHomeworks.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 space-y-3 shadow-sm">
-                <Search className="w-10 h-10 mx-auto text-slate-400" />
-                <p className="text-sm font-bold text-slate-800">Arama kriterlerinize uygun ödev bulunamadı.</p>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <div className="bg-surface border border-line rounded-2xl p-12 text-center text-muted space-y-3 shadow-sm">
+                <Search className="w-10 h-10 mx-auto text-subtle" />
+                <p className="text-sm font-bold text-fg">Arama kriterlerinize uygun ödev bulunamadı.</p>
+                <p className="text-xs text-muted max-w-sm mx-auto">
                   Farklı bir ders, sınıf veya anahtar kelime seçebilir ya da filtreleri sıfırlayabilirsiniz.
                 </p>
                 <button
@@ -1452,17 +1443,17 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     <div
                       key={hw.id}
                       id={`hw-card-${hw.id}`}
-                      className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex flex-col justify-between group"
+                      className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all flex flex-col justify-between group"
                     >
                       <div className="space-y-3">
                         {/* Kart Üst Rozetleri */}
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                               {hw.subject}
                             </span>
                             {hw.schoolLevel && (
-                              <span className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-600">
+                              <span className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-surface-2 text-muted">
                                 {hw.schoolLevel}
                               </span>
                             )}
@@ -1472,8 +1463,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <span
                             className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold flex items-center space-x-1 ${
                               isOverdue
-                                ? 'bg-rose-50 text-rose-700 border border-rose-100'
-                                : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/30'
+                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/30'
                             }`}
                           >
                             <Clock className="w-3 h-3" />
@@ -1485,23 +1476,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                         {/* Ödev Başlığı */}
                         <div>
-                          <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                          <h3 className="text-base font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-1">
                             {hw.title}
                           </h3>
-                          <p className="text-xs text-slate-600 line-clamp-2 mt-1 leading-relaxed">
+                          <p className="text-xs text-muted line-clamp-2 mt-1 leading-relaxed">
                             {hw.description || 'Ödev açıklaması bulunmuyor.'}
                           </p>
                         </div>
 
                         {/* Hedef Sınıf / Öğrenci Bilgisi */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                        <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-line">
                           <div className="flex items-center space-x-1 truncate max-w-[190px]">
-                            <School className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate font-medium text-slate-700">
+                            <School className="w-3.5 h-3.5 text-subtle shrink-0" />
+                            <span className="truncate font-medium text-fg-2">
                               {targetClassNames.length > 0 ? targetClassNames.join(', ') : 'Tüm Sınıflar'}
                             </span>
                           </div>
-                          <span className="font-medium text-slate-600 shrink-0">
+                          <span className="font-medium text-muted shrink-0">
                             {hw.assignedTo === 'all' ? 'Tüm Öğrenciler' : `${assignedCount} Öğrenci`}
                           </span>
                         </div>
@@ -1509,12 +1500,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         {/* Teslim İlerleme Çubuğu */}
                         <div className="space-y-1.5 pt-0.5">
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-semibold text-slate-700">Teslim Durumu</span>
-                            <span className="font-bold text-indigo-600">
+                            <span className="font-semibold text-fg-2">Teslim Durumu</span>
+                            <span className="font-bold text-indigo-600 dark:text-indigo-300">
                               {hwSubmissions.length} / {assignedCount} ({submissionRate}%)
                             </span>
                           </div>
-                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="w-full h-2 bg-surface-2 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-indigo-600 rounded-full transition-all duration-300"
                               style={{ width: `${Math.min(100, submissionRate)}%` }}
@@ -1524,7 +1515,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                         {/* Ekli Materyaller ve Kazanımlar Rozeti */}
                         {((hw.resources && hw.resources.length > 0) || hw.attachmentUrl) && (
-                          <div className="pt-2 border-t border-slate-100">
+                          <div className="pt-2 border-t border-line">
                             <HomeworkResourceViewer
                               resources={hw.resources}
                               legacyAttachmentUrl={hw.attachmentUrl}
@@ -1535,7 +1526,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       </div>
 
                       {/* Kart Aksiyon Butonları (Açıklamasız, Sade ve Profesyonel) */}
-                      <div className="pt-4 mt-4 border-t border-slate-100 space-y-2">
+                      <div className="pt-4 mt-4 border-t border-line space-y-2">
                         {/* Üst Sıra Ana Butonlar: Görüntüle, Kontrol Et, İndir */}
                         <div className="grid grid-cols-3 gap-2">
                           <button
@@ -1559,7 +1550,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                               }
                               setActiveTab('tracker');
                             }}
-                            className="w-full py-2 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
+                            className="w-full py-2 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
                             title="Ödev kontrol çizelgesini aç"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1569,7 +1560,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => handleDownloadHomeworkDoc(hw)}
-                            className="w-full py-2 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
+                            className="w-full py-2 px-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
                             title="Ödev belgesini indir (.doc)"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -1583,7 +1574,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenEditResources(hw)}
-                              className="px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                               title="Materyalleri yönet"
                             >
                               <Paperclip className="w-3 h-3" />
@@ -1593,7 +1584,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setEditingHomework(hw)}
-                              className="px-2.5 py-1.5 rounded-lg bg-slate-50 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                               title="Ödevi düzenle"
                             >
                               <Edit3 className="w-3 h-3" />
@@ -1603,7 +1594,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                             <button
                               type="button"
                               onClick={() => setHomeworkToDelete(hw)}
-                              className="p-1.5 rounded-lg bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 transition-colors cursor-pointer"
+                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-subtle hover:text-rose-600 dark:hover:text-rose-300 border border-line transition-colors cursor-pointer"
                               title="Ödevi sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1613,7 +1604,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setExpandedHwId(isExpanded ? null : hw.id)}
-                            className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center space-x-1 cursor-pointer py-1 px-1.5 rounded hover:bg-indigo-50 transition-colors"
+                            className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 flex items-center space-x-1 cursor-pointer py-1 px-1.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                           >
                             <span>Teslimler ({hwSubmissions.length})</span>
                             {isExpanded ? (
@@ -1626,8 +1617,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                         {/* Açılır Teslim Listesi */}
                         {isExpanded && (
-                          <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
-                            <h4 className="text-[11px] font-bold text-slate-700">Öğrenci Teslim Listesi</h4>
+                          <div className="pt-3 border-t border-line space-y-2 mt-2">
+                            <h4 className="text-[11px] font-bold text-fg-2">Öğrenci Teslim Listesi</h4>
                             <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                               {hwStudents
                                 .map((student) => {
@@ -1637,8 +1628,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                       key={student.id}
                                       className={`flex items-center justify-between p-2 rounded-xl text-xs border ${
                                         sub
-                                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900'
-                                          : 'bg-slate-50 border-slate-200 text-slate-600'
+                                          ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                                          : 'bg-surface-2 border-line text-muted'
                                       }`}
                                     >
                                       <span className="font-semibold truncate max-w-[150px]">
@@ -1658,7 +1649,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                           <button
                                             type="button"
                                             onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
-                                            className="px-2 py-0.5 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 text-[11px] font-bold cursor-pointer"
+                                            className="px-2 py-0.5 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-[11px] font-bold cursor-pointer"
                                           >
                                             Gör
                                           </button>
@@ -1718,20 +1709,20 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           >
             <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
               <div
-                className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-slate-900"
+                className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
                       <Target className="w-5 h-5" />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">ÖDEV</h3>
+                    <h3 className="text-xl font-bold text-fg tracking-tight">ÖDEV</h3>
                   </div>
                   <button
                     onClick={closeCreateModal}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1740,7 +1731,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 <form onSubmit={handleCreateHomework} className="space-y-4">
                   {/* 1. Ödev Başlığı */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                    <label className="block text-xs font-bold text-fg mb-1">
                       Ödev Başlığı *
                     </label>
                     <input
@@ -1749,13 +1740,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       placeholder="Ödev başlığını giriniz..."
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs"
+                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle shadow-2xs"
                     />
                   </div>
 
                   {/* 2. Ödev Açıklaması */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                    <label className="block text-xs font-bold text-fg mb-1">
                       Ödev Açıklaması
                     </label>
                     <textarea
@@ -1763,22 +1754,22 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Ödev açıklaması, teslim şartları ve detayları..."
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-slate-400 shadow-2xs resize-y"
+                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle shadow-2xs resize-y"
                     />
                   </div>
 
                   {/* 3. Ders & Kademe Seçimi */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                      <span className="text-xs font-bold text-indigo-900 flex items-center space-x-1.5">
-                        <School className="w-4 h-4 text-indigo-600" />
+                  <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-line">
+                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
+                        <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                         <span>Ders & Kademe Seçimi</span>
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                        <label className="block text-xs font-bold text-fg-2 mb-1">
                           Okul *
                         </label>
                         <select
@@ -1786,7 +1777,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           onChange={(e) =>
                             handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')
                           }
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                          className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                         >
                           <option value="Ortaokul">🏫 Ortaokul</option>
                           <option value="Lise">🎓 Lise</option>
@@ -1794,13 +1785,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                        <label className="block text-xs font-bold text-fg-2 mb-1">
                           Dersler *
                         </label>
                         <select
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                          className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                         >
                           {SCHOOL_SUBJECTS[schoolLevel].map((subj) => (
                             <option key={subj} value={subj}>
@@ -1814,7 +1805,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                   {/* 4. Tarih (Son Teslim Tarihi ve Saati) * */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                    <label className="block text-xs font-bold text-fg mb-1">
                       Tarih (Son Teslim Tarihi ve Saati) *
                     </label>
                     <input
@@ -1822,20 +1813,20 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       required
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer shadow-2xs"
+                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer shadow-2xs"
                     />
                   </div>
 
                   {/* 5. Sınıf Seçimi * ve Öğrenci Listesi */}
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
+                  <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3.5">
                     {/* Sınıf Seçimi */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center justify-between">
+                      <label className="block text-xs font-bold text-fg mb-1.5 flex items-center justify-between">
                         <span className="flex items-center space-x-1.5">
-                          <School className="w-4 h-4 text-indigo-600" />
+                          <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
                           <span>Sınıf Seçimi *</span>
                         </span>
-                        <span className="text-[11px] text-slate-500 font-normal">
+                        <span className="text-[11px] text-muted font-normal">
                           Seçilen sınıfa ait öğrenciler aşağıda listelenir
                         </span>
                       </label>
@@ -1854,7 +1845,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                 );
                           setSelectedStudentIds(targetStudents.map((s) => s.id));
                         }}
-                        className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                        className="w-full px-3 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
                       >
                         <option value="all">
                           🏫 Tüm Sınıflar ({classes.length} Sınıf, {students.length} Öğrenci)
@@ -1868,11 +1859,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     </div>
 
                     {/* Öğrenci Listesi & Hepsi Seç Butonu */}
-                    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2 shadow-2xs">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="bg-surface border border-line rounded-xl p-3 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-line">
                         <div className="flex items-center space-x-2">
-                          <Users className="w-4 h-4 text-indigo-600" />
-                          <span className="text-xs font-bold text-slate-800">
+                          <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
+                          <span className="text-xs font-bold text-fg">
                             Öğrenci Seçimi ({selectedInCurrentCount} / {currentClassStudents.length} Seçili)
                           </span>
                         </div>
@@ -1881,7 +1872,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <button
                             type="button"
                             onClick={handleToggleAllCurrentClass}
-                            className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                            className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
                           >
                             <span>{allCurrentSelected ? 'Seçimi Kaldır' : 'Hepsi Seç'}</span>
                           </button>
@@ -1889,7 +1880,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                       </div>
 
                       {currentClassStudents.length === 0 ? (
-                        <div className="py-4 text-center text-xs text-slate-500 font-medium">
+                        <div className="py-4 text-center text-xs text-muted font-medium">
                           Bu sınıfa kayıtlı öğrenci bulunamadı.
                         </div>
                       ) : (
@@ -1901,18 +1892,18 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                 key={std.id}
                                 className={`flex items-center space-x-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-all ${
                                   isChecked
-                                    ? 'bg-indigo-50/80 border-indigo-200 text-indigo-950 font-semibold shadow-2xs'
-                                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    ? 'bg-indigo-50/80 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-950 dark:text-indigo-200 font-semibold shadow-2xs'
+                                    : 'bg-surface-2 border-line text-fg-2 hover:bg-surface-2'
                                 }`}
                               >
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
                                   onChange={() => handleToggleStudent(std.id)}
-                                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                                  className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 border-line-strong cursor-pointer"
                                 />
                                 <span className="truncate flex-1">{std.name}</span>
-                                <span className="text-[11px] text-slate-500 shrink-0 font-normal">
+                                <span className="text-[11px] text-muted shrink-0 font-normal">
                                   ({std.className || std.studentNumber || '-'})
                                 </span>
                               </label>
@@ -1932,23 +1923,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     onBusyChange={setIsCreateUploadBusy}
                   />
                   {pendingResource && (
-                    <p className="text-[11px] text-indigo-700 -mt-2">
+                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300 -mt-2">
                       Yazdığınız bağlantı ("{pendingResource.title}") ödevi kaydederken otomatik olarak eklenecek.
                     </p>
                   )}
 
                   {createError && (
-                    <div role="alert" className="flex items-start space-x-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+                    <div role="alert" className="flex items-start space-x-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-300">
                       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <span>{createError}</span>
                     </div>
                   )}
 
-                  <div className="pt-4 border-t border-slate-100 flex justify-end space-x-2.5">
+                  <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
                     <button
                       type="button"
                       onClick={closeCreateModal}
-                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
+                      className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
                     >
                       İptal
                     </button>
@@ -1976,20 +1967,20 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         >
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
-              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
+              className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+              <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
                 <div className="flex items-center space-x-2">
-                  <Paperclip className="w-5 h-5 text-indigo-400" />
+                  <Paperclip className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   <div>
-                    <h3 className="text-lg font-bold text-white">Ödev Materyallerini Düzenle</h3>
-                    <p className="text-xs text-slate-400 truncate max-w-md">{editingResourcesHw.title}</p>
+                    <h3 className="text-lg font-bold text-fg">Ödev Materyallerini Düzenle</h3>
+                    <p className="text-xs text-muted truncate max-w-md">{editingResourcesHw.title}</p>
                   </div>
                 </div>
                 <button
                   onClick={closeEditResourcesModal}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                  className="p-1 text-muted hover:text-fg rounded-lg cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -2004,11 +1995,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   onBusyChange={setIsEditUploadBusy}
                 />
 
-                <div className="pt-4 border-t border-slate-800 flex justify-end space-x-3">
+                <div className="pt-4 border-t border-line flex justify-end space-x-3">
                   <button
                     type="button"
                     onClick={closeEditResourcesModal}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium cursor-pointer"
+                    className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-medium cursor-pointer"
                   >
                     İptal
                   </button>

@@ -85,7 +85,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
   return (
     <div
       id="admin-teacher-approval-banner"
-      className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/30 border-2 border-amber-500/60 rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-950/40 relative overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-3"
+      className="bg-gradient-to-r from-amber-50 dark:from-amber-950/40 via-surface to-amber-50 dark:to-amber-950/30 border-2 border-amber-500/60 rounded-2xl p-4 sm:p-5 shadow-lg shadow-amber-950/40 relative overflow-hidden transition-all duration-300 animate-in fade-in slide-in-from-top-3"
     >
       {/* Background glow flare */}
       <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -93,19 +93,19 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
       {/* Banner Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-500/30">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-300 shrink-0 shadow-inner">
-            <Bell className="w-5 h-5 text-amber-400 animate-bounce" />
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 shadow-inner">
+            <Bell className="w-5 h-5 text-amber-700 dark:text-amber-400 animate-bounce" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-sm sm:text-base font-black text-amber-200 tracking-wide">
+              <h3 className="text-sm sm:text-base font-black text-amber-700 dark:text-amber-200 tracking-wide">
                 Yeni Öğretmen Kayıt Başvurusu Onayı Bekleniyor!
               </h3>
               <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black animate-pulse">
                 {pendingTeachers.length} Yeni Başvuru
               </span>
             </div>
-            <p className="text-xs text-amber-300/80 mt-0.5">
+            <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
               Sisteme yeni kayıt olan öğretmenlerin ders işlemlerine ve sınıflara erişebilmesi için yönetici onayınız gerekmektedir.
             </p>
           </div>
@@ -116,19 +116,19 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
             type="button"
             onClick={handleCloudSync}
             disabled={isSyncing}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800/80 hover:bg-slate-800 text-amber-300 border border-amber-500/30 hover:border-amber-400/50 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2/80 hover:bg-surface-2 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:border-amber-400/50 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
             title="Buluttaki yeni başvuruları anında tara ve senkronize et"
           >
-            <RotateCw className={`w-3.5 h-3.5 text-amber-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 text-amber-700 dark:text-amber-400 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>{isSyncing ? 'Kontrol Ediliyor...' : 'Buluttan Yenile'}</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenFullModal}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 hover:border-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:border-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
-            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             <span>Tüm Başvuru ve Yetkileri Yönet</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
@@ -137,8 +137,8 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
 
       {/* Action feedback toast */}
       {actionFeedback && (
-        <div className="mt-3 py-2 px-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs text-emerald-200 font-bold flex items-center space-x-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="mt-3 py-2 px-3 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-xs text-emerald-700 dark:text-emerald-200 font-bold flex items-center space-x-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           <span>{actionFeedback}</span>
         </div>
       )}
@@ -148,7 +148,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
         {pendingTeachers.map((teacher) => (
           <div
             key={teacher.id}
-            className="bg-white border border-amber-300/90 rounded-xl p-3.5 shadow-sm flex flex-col justify-between transition-all group text-slate-800"
+            className="bg-surface border border-amber-300/90 dark:border-amber-500/30 rounded-xl p-3.5 shadow-sm flex flex-col justify-between transition-all group text-fg"
           >
             <div>
               <div className="flex items-center space-x-3">
@@ -158,7 +158,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
                     `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(teacher.name)}`
                   }
                   alt={teacher.name}
-                  className="w-10 h-10 rounded-full border border-amber-400/80 bg-slate-100 object-cover shrink-0"
+                  className="w-10 h-10 rounded-full border border-amber-400/80 bg-surface-2 object-cover shrink-0"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src =
                       'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=100&auto=format&fit=crop&q=80';
@@ -166,41 +166,41 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center space-x-1.5">
-                    <span className="text-xs sm:text-sm font-black text-slate-900 truncate">
+                    <span className="text-xs sm:text-sm font-black text-fg truncate">
                       {teacher.name}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 shrink-0">
                       Yeni
                     </span>
                   </div>
-                  <div className="flex items-center space-x-1 text-[11px] text-amber-800 font-medium truncate mt-0.5">
-                    <BookOpen className="w-3 h-3 text-amber-600 shrink-0" />
+                  <div className="flex items-center space-x-1 text-[11px] text-amber-800 dark:text-amber-200 font-medium truncate mt-0.5">
+                    <BookOpen className="w-3 h-3 text-amber-600 dark:text-amber-300 shrink-0" />
                     <span className="truncate">{teacher.branch || 'Genel Branş'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-2.5 pt-2 border-t border-slate-200 space-y-1 text-[10px] text-slate-600">
+              <div className="mt-2.5 pt-2 border-t border-line space-y-1 text-[10px] text-muted">
                 <div className="flex items-center space-x-1 truncate">
-                  <Mail className="w-3 h-3 text-slate-500 shrink-0" />
+                  <Mail className="w-3 h-3 text-muted shrink-0" />
                   <span className="truncate font-medium">{teacher.email || teacher.username}</span>
                 </div>
-                <div className="flex items-center space-x-1 text-slate-500">
-                  <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                <div className="flex items-center space-x-1 text-muted">
+                  <Clock className="w-3 h-3 text-subtle shrink-0" />
                   <span>Kayıt: {formatDate(teacher.createdAt)}</span>
                 </div>
               </div>
             </div>
 
             {/* Quick action buttons */}
-            <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-end space-x-2">
+            <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-end space-x-2">
               <button
                 type="button"
                 onClick={() => handleQuickReject(teacher.id, teacher.name)}
-                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                className="px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 text-[11px] font-bold transition-colors cursor-pointer flex items-center space-x-1"
                 title="Başvuruyu Reddet"
               >
-                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-300" />
                 <span>Reddet</span>
               </button>
               <button

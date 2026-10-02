@@ -14,11 +14,11 @@ const TEACHER_CHECK_NOTES = new Set([
 ]);
 
 const CHECK_LABELS: Record<HomeworkCheckStatus, { label: string; cls: string }> = {
-  yapti: { label: 'Yaptı', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  yapmadi: { label: 'Yapmadı', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-  eksik: { label: 'Eksik', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  izinli: { label: 'İzinli', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
-  gelmedi: { label: 'Gelmedi', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  yapti: { label: 'Yaptı', cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30' },
+  yapmadi: { label: 'Yapmadı', cls: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30' },
+  eksik: { label: 'Eksik', cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' },
+  izinli: { label: 'İzinli', cls: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30' },
+  gelmedi: { label: 'Gelmedi', cls: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-500/30' },
 };
 
 // Öğrencinin kendi yazdığı not (öğretmenin otomatik notu sayılmaz)
@@ -86,15 +86,15 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
     >
       <div className="min-h-full flex items-center justify-center py-4">
         <div
-          className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-2xl p-5 sm:p-6 text-slate-900"
+          className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6 text-fg"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Başlık */}
-          <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100 mb-4">
+          <div className="flex items-start justify-between gap-3 pb-4 border-b border-line mb-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">Öğrenci Teslimi</p>
-              <h3 className="text-lg font-bold text-slate-900 truncate">{studentName}</h3>
-              <p className="text-xs text-slate-500 truncate">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300">Öğrenci Teslimi</p>
+              <h3 className="text-lg font-bold text-fg truncate">{studentName}</h3>
+              <p className="text-xs text-muted truncate">
                 {student?.studentNumber ? `No: ${student.studentNumber} · ` : ''}
                 {homework.title}
               </p>
@@ -103,7 +103,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
               type="button"
               onClick={onClose}
               aria-label="Kapat"
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
+              className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -112,13 +112,13 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
           {/* Durum rozetleri */}
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {isTeacherOnly ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border bg-slate-50 text-slate-600 border-slate-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border bg-surface-2 text-muted border-line">
                 Öğrenci sistemden teslim göndermemiş
               </span>
             ) : (
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                  isLate ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  isLate ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30' : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
                 }`}
               >
                 {isLate ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -126,7 +126,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
               </span>
             )}
             {!isTeacherOnly && formatDateTime(submission.submittedAt) && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-slate-50 text-slate-600 border-slate-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border bg-surface-2 text-muted border-line">
                 <Clock className="w-3.5 h-3.5" />
                 {formatDateTime(submission.submittedAt)}
               </span>
@@ -140,42 +140,42 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
 
           {/* Öğrenci notu */}
           <div className="mb-4">
-            <h4 className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <MessageSquareText className="w-4 h-4 text-indigo-500" />
+            <h4 className="text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
+              <MessageSquareText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               Öğrencinin Notu
             </h4>
             {note ? (
-              <p className="text-sm text-slate-800 whitespace-pre-wrap break-words bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <p className="text-sm text-fg whitespace-pre-wrap break-words bg-surface-2 border border-line rounded-xl p-3">
                 {note}
               </p>
             ) : (
-              <p className="text-xs text-slate-400 italic">Not yazılmamış.</p>
+              <p className="text-xs text-subtle italic">Not yazılmamış.</p>
             )}
           </div>
 
           {/* Ekler */}
           <div>
-            <h4 className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Paperclip className="w-4 h-4 text-indigo-500" />
+            <h4 className="text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
+              <Paperclip className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               Gönderilen Dosya ve Bağlantılar
             </h4>
             {hasAttachments ? (
-              <div className="bg-slate-900 rounded-xl p-3">
+              <div className="bg-fg rounded-xl p-3">
                 <HomeworkResourceViewer resources={resources} legacyAttachmentUrl={submission.attachmentLink} />
               </div>
             ) : (
-              <p className="text-xs text-slate-400 italic flex items-center gap-1.5">
+              <p className="text-xs text-subtle italic flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5" />
                 Dosya veya bağlantı eklenmemiş.
               </p>
             )}
           </div>
 
-          <div className="pt-4 mt-5 border-t border-slate-100 flex justify-end">
+          <div className="pt-4 mt-5 border-t border-line flex justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-bold cursor-pointer"
             >
               Kapat
             </button>

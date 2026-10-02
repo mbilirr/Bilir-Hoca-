@@ -791,23 +791,23 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-6xl bg-slate-50 border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
+        className="relative w-full max-w-6xl bg-surface-2 border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ÜST BAŞLIK BARI */}
-        <div className="px-5 sm:px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="px-5 sm:px-6 py-4 bg-surface border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-300 shrink-0 font-bold">
               <BarChart3 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">Etüt Analizi</h3>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                <h3 className="text-base sm:text-lg font-bold text-fg">Etüt Analizi</h3>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/30">
                   {detectedLevel}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Sınıf ve öğrenci bazlı profesyonel etüt katılım ve konu analizi raporu
               </p>
             </div>
@@ -839,7 +839,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <button
               type="button"
               onClick={handlePrint}
-              className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
               title="Yazdır"
             >
               <Printer className="w-4 h-4" />
@@ -848,7 +848,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="p-2 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
               title="Kapat"
             >
               <X className="w-5 h-5" />
@@ -858,12 +858,12 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
         {/* BİLDİRİM GERİ BİLDİRİMİ */}
         {exportFeedback && (
-          <div className="px-5 py-2 bg-emerald-50 border-b border-emerald-100 text-emerald-800 text-xs font-semibold flex items-center justify-between">
+          <div className="px-5 py-2 bg-emerald-50 dark:bg-emerald-500/10 border-b border-emerald-100 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center justify-between">
             <span>{exportFeedback}</span>
             <button
               type="button"
               onClick={() => setExportFeedback(null)}
-              className="text-emerald-600 hover:text-emerald-900"
+              className="text-emerald-600 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-200"
             >
               ✕
             </button>
@@ -871,21 +871,21 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         )}
 
         {/* 4 AŞAMALI FİLTRELEME ALANI (KULLANICI TALEBİNE GÖRE DÜZENLENDİ) */}
-        <div className="p-4 sm:p-5 bg-white border-b border-slate-200/90 shadow-xs space-y-3 shrink-0">
+        <div className="p-4 sm:p-5 bg-surface border-b border-line shadow-xs space-y-3 shrink-0">
           {/* 1. ADIM: ANALİZ HEDEFİ SEÇİMİ (SINIF VEYA ÖĞRENCİ) */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-slate-700 whitespace-nowrap">
+              <span className="text-xs font-bold text-fg-2 whitespace-nowrap">
                 1. Analiz Kapsamı:
               </span>
-              <div className="inline-flex rounded-xl p-1 bg-slate-100 border border-slate-200">
+              <div className="inline-flex rounded-xl p-1 bg-surface-2 border border-line">
                 <button
                   type="button"
                   onClick={() => setAnalysisMode('class')}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     analysisMode === 'class'
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-surface text-indigo-700 dark:text-indigo-300 shadow-xs'
+                      : 'text-muted hover:text-fg'
                   }`}
                 >
                   <School className="w-3.5 h-3.5" />
@@ -896,8 +896,8 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                   onClick={() => setAnalysisMode('student')}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     analysisMode === 'student'
-                      ? 'bg-white text-indigo-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-surface text-indigo-700 dark:text-indigo-300 shadow-xs'
+                      : 'text-muted hover:text-fg'
                   }`}
                 >
                   <User className="w-3.5 h-3.5" />
@@ -910,14 +910,14 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <div className="flex-1 max-w-xl">
               {analysisMode === 'class' ? (
                 <div className="flex items-center space-x-2">
-                  <label htmlFor="select-class-analysis" className="text-xs text-slate-500 font-semibold whitespace-nowrap">
+                  <label htmlFor="select-class-analysis" className="text-xs text-muted font-semibold whitespace-nowrap">
                     Sınıf:
                   </label>
                   <select
                     id="select-class-analysis"
                     value={selectedClassId}
                     onChange={(e) => setSelectedClassId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
                   >
                     {classes.map((c) => {
                       const count = students.filter((s) => s.classId === c.id).length;
@@ -935,7 +935,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                   <select
                     value={studentClassFilter}
                     onChange={(e) => setStudentClassFilter(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer sm:w-40"
+                    className="bg-surface-2 border border-line rounded-xl px-2.5 py-2 text-xs font-semibold text-fg-2 focus:outline-none cursor-pointer sm:w-40"
                     title="Öğrenciyi hızlı bulmak için sınıf filtreleyin"
                   >
                     <option value="all">Tüm Sınıflar</option>
@@ -951,7 +951,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     id="select-student-analysis"
                     value={selectedStudentId}
                     onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                    className="flex-1 bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs sm:text-sm font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
                   >
                     {selectableStudents.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -965,12 +965,12 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           </div>
 
           {/* 2, 3 ve 4. ADIMLAR: DERS, ETÜT VE TARİH ARALIĞI AÇILIR PENCERELERİ */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-line">
             {/* 2. DERS SEÇİMİ (Kademeye göre Ortaokul veya Lise dersleri açılır) */}
             <div className="space-y-1">
-              <label htmlFor="select-subject-analysis" className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+              <label htmlFor="select-subject-analysis" className="text-[11px] font-bold text-muted flex items-center justify-between">
                 <span>2. Ders Seçiniz</span>
-                <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 px-1.5 py-0.2 rounded border border-indigo-100 dark:border-indigo-500/30">
                   {detectedLevel}
                 </span>
               </label>
@@ -978,7 +978,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 id="select-subject-analysis"
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
               >
                 <option value="all">Tüm Dersler</option>
                 {availableSubjectsForLevel.map((sub) => (
@@ -991,9 +991,9 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
             {/* 3. VERİLEN ETÜT SEÇİMİ (Verilen ders için etütlerin hepsi veya tek etüt) */}
             <div className="space-y-1">
-              <label htmlFor="select-etut-analysis" className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+              <label htmlFor="select-etut-analysis" className="text-[11px] font-bold text-muted flex items-center justify-between">
                 <span>3. Etüt Seçiniz</span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-subtle">
                   {poolEtutsForTargetAndSubject.length} Etüt Mevcut
                 </span>
               </label>
@@ -1001,7 +1001,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 id="select-etut-analysis"
                 value={selectedEtutId}
                 onChange={(e) => setSelectedEtutId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
               >
                 <option value="all">
                   Tüm Etütler (Hepsi — {poolEtutsForTargetAndSubject.length} Etüt)
@@ -1016,14 +1016,14 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
             {/* 4. TARİH ARALIĞI AÇILIR PENCERESİ */}
             <div className="space-y-1">
-              <label htmlFor="select-date-range-analysis" className="text-[11px] font-bold text-slate-600 block">
+              <label htmlFor="select-date-range-analysis" className="text-[11px] font-bold text-muted block">
                 4. Tarih Aralığı
               </label>
               <select
                 id="select-date-range-analysis"
                 value={dateRangeFilter}
                 onChange={(e) => setDateRangeFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="w-full bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs font-semibold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
               >
                 <option value="all">Tüm Tarihler (Tüm Zamanlar)</option>
                 <option value="thisWeek">Bu Hafta (Pzt - Paz)</option>
@@ -1038,20 +1038,20 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           {/* Özel Tarih Seçicileri (custom seçildiğinde açılır) */}
           {dateRangeFilter === 'custom' && (
             <div className="flex flex-wrap items-center gap-3 pt-2 text-xs">
-              <span className="text-slate-500 font-semibold">Tarih Aralığı:</span>
+              <span className="text-muted font-semibold">Tarih Aralığı:</span>
               <div className="flex items-center space-x-2">
                 <input
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800"
+                  className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs text-fg"
                 />
-                <span className="text-slate-400">—</span>
+                <span className="text-subtle">—</span>
                 <input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800"
+                  className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs text-fg"
                 />
               </div>
               {(customStartDate || customEndDate) && (
@@ -1061,7 +1061,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     setCustomStartDate('');
                     setCustomEndDate('');
                   }}
-                  className="text-[11px] text-indigo-600 hover:underline"
+                  className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline"
                 >
                   Tarihi Temizle
                 </button>
@@ -1071,82 +1071,82 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
         </div>
 
         {/* RAPOR İÇERİĞİ ALANI (SADE, ŞIK, BEYAZ VE ANLAŞILIR) */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-100/50">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-surface-2/50">
           {/* RAPOR BAŞLIĞI VE ÖZET BİLGİ KARTI */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-subtle">
                   Resmi Etüt Analiz Raporu
                 </span>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                <h2 className="text-lg sm:text-xl font-bold text-fg">
                   {analysisMode === 'class'
                     ? `${currentClass ? formatClassDisplayName(currentClass.name, currentClass.branch, currentClass.gradeLevel) : 'Sınıf'} — Etüt Katılım ve Başarı Analizi`
                     : `${currentStudent ? currentStudent.name : 'Öğrenci'} — Bireysel Etüt Katılım Raporu`}
                 </h2>
               </div>
-              <div className="flex items-center space-x-2 text-xs text-slate-500 font-medium">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <div className="flex items-center space-x-2 text-xs text-muted font-medium">
+                <Calendar className="w-3.5 h-3.5 text-subtle" />
                 <span>Rapor Tarihi: {new Date().toLocaleDateString('tr-TR')}</span>
               </div>
             </div>
 
             {/* AKTİF FİLTRELER ROZETLERİ */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-slate-400">Filtre Özeti:</span>
-              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 font-semibold">
+              <span className="font-semibold text-subtle">Filtre Özeti:</span>
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30 font-semibold">
                 {analysisMode === 'class'
                   ? `🏫 Sınıf: ${currentClass ? formatClassDisplayName(currentClass.name, currentClass.branch, currentClass.gradeLevel) : ''}`
                   : `👤 Öğrenci: ${currentStudent?.name}`}
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+              <span className="px-2.5 py-1 rounded-lg bg-surface-2 text-fg-2 border border-line font-semibold">
                 {detectedLevel}
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+              <span className="px-2.5 py-1 rounded-lg bg-surface-2 text-fg-2 border border-line font-semibold">
                 📚 {selectedSubject === 'all' ? 'Tüm Dersler' : selectedSubject}
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+              <span className="px-2.5 py-1 rounded-lg bg-surface-2 text-fg-2 border border-line font-semibold">
                 🎯 {selectedEtutId === 'all' ? `Tüm Etütler (${finalFilteredEtuts.length})` : 'Özel Etüt'}
               </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 font-semibold">
+              <span className="px-2.5 py-1 rounded-lg bg-surface-2 text-fg-2 border border-line font-semibold">
                 📅 {dateRangeFilter === 'all' ? 'Tüm Zamanlar' : `Filtreli Tarih`}
               </span>
             </div>
 
             {/* KPI İSTATİSTİK KARTLARI */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+              <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-wide block">
                   Toplam Etüt
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-slate-900 mt-1 block">
-                  {analysisStats.totalEtuts} <span className="text-xs font-normal text-slate-500">adet</span>
+                <span className="text-xl sm:text-2xl font-black text-fg mt-1 block">
+                  {analysisStats.totalEtuts} <span className="text-xs font-normal text-muted">adet</span>
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+              <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-wide block">
                   Toplam Süre
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-slate-900 mt-1 block">
-                  {analysisStats.totalHours} <span className="text-xs font-normal text-slate-500">saat</span>
+                <span className="text-xl sm:text-2xl font-black text-fg mt-1 block">
+                  {analysisStats.totalHours} <span className="text-xs font-normal text-muted">saat</span>
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide block">
+              <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30">
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide block">
                   Katılım Oranı
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-800 mt-1 block">
+                <span className="text-xl sm:text-2xl font-black text-emerald-800 dark:text-emerald-200 mt-1 block">
                   %{analysisStats.attendanceRate}
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+              <div className="p-3.5 rounded-xl bg-surface-2 border border-line">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-wide block">
                   {analysisMode === 'class' ? 'Kayıtlı Öğrenci' : 'Katılım Detayı'}
                 </span>
-                <span className="text-sm font-bold text-slate-800 mt-1 block">
+                <span className="text-sm font-bold text-fg mt-1 block">
                   {analysisMode === 'class'
                     ? `${classStudents.length} Öğrenci`
                     : `✓ ${analysisStats.present} Geldi • ✕ ${analysisStats.absent} Gelmedi`}
@@ -1158,9 +1158,9 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           {/* DETAYLI ANALİZ TABLOSU */}
           {analysisMode === 'class' ? (
             /* SINIF BAZLI ANALİZ */
-            <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-sm space-y-3 p-4 sm:p-5">
+            <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-sm space-y-3 p-4 sm:p-5">
               {/* Sekme Değiştirici: Öğrenci Katılım Çizelgesi vs Etüt Listesi */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
@@ -1168,7 +1168,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       classDetailView === 'students'
                         ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                        : 'bg-surface-2 text-muted hover:text-fg'
                     }`}
                   >
                     Öğrenci Katılım Çizelgesi ({classStudents.length})
@@ -1179,14 +1179,14 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       classDetailView === 'etuts'
                         ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                        : 'bg-surface-2 text-muted hover:text-fg'
                     }`}
                   >
                     Etüt Detay Listesi ({finalFilteredEtuts.length})
                   </button>
                 </div>
 
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-subtle">
                   {classDetailView === 'students'
                     ? 'Sınıftaki öğrencilerin bireysel etüt devam durumu'
                     : 'Seçili kriterlere göre işlenen etütler'}
@@ -1196,8 +1196,8 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
               {classDetailView === 'students' ? (
                 /* Öğrenci Katılım Tablosu */
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
+                  <table className="w-full text-left text-xs text-fg-2">
+                    <thead className="bg-surface-2 text-[11px] uppercase tracking-wider text-muted font-bold border-b border-line">
                       <tr>
                         <th className="px-4 py-3">Sıra</th>
                         <th className="px-4 py-3">No</th>
@@ -1209,45 +1209,45 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                         <th className="px-4 py-3 text-right">Durum</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-line">
                       {studentParticipationRows.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
+                          <td colSpan={8} className="px-4 py-8 text-center text-subtle">
                             Bu sınıfta kayıtlı öğrenci bulunamadı.
                           </td>
                         </tr>
                       ) : (
                         studentParticipationRows.map((row, idx) => (
-                          <tr key={row.student.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="px-4 py-3 font-mono text-slate-400">{idx + 1}</td>
-                            <td className="px-4 py-3 font-mono font-bold text-indigo-700">
+                          <tr key={row.student.id} className="hover:bg-surface-2/80 transition-colors">
+                            <td className="px-4 py-3 font-mono text-subtle">{idx + 1}</td>
+                            <td className="px-4 py-3 font-mono font-bold text-indigo-700 dark:text-indigo-300">
                               #{row.student.studentNumber || '-'}
                             </td>
-                            <td className="px-4 py-3 font-bold text-slate-900">
+                            <td className="px-4 py-3 font-bold text-fg">
                               {row.student.name}
                             </td>
-                            <td className="px-4 py-3 text-slate-600">{row.assignedCount}</td>
-                            <td className="px-4 py-3 font-bold text-emerald-700">{row.attendedCount}</td>
-                            <td className="px-4 py-3 font-bold text-rose-700">{row.absentCount}</td>
+                            <td className="px-4 py-3 text-muted">{row.assignedCount}</td>
+                            <td className="px-4 py-3 font-bold text-emerald-700 dark:text-emerald-300">{row.attendedCount}</td>
+                            <td className="px-4 py-3 font-bold text-rose-700 dark:text-rose-300">{row.absentCount}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center space-x-2">
-                                <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="w-16 h-2 bg-surface-2 rounded-full overflow-hidden">
                                   <div
                                     className="h-full bg-emerald-500 rounded-full"
                                     style={{ width: `${row.rate}%` }}
                                   />
                                 </div>
-                                <span className="font-bold text-slate-800">%{row.rate}</span>
+                                <span className="font-bold text-fg">%{row.rate}</span>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-right">
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                   row.rate >= 80
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
                                     : row.rate >= 50
-                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
+                                    : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30'
                                 }`}
                               >
                                 {row.rate >= 80 ? 'Düzenli' : row.rate >= 50 ? 'Orta' : 'Düşük'}
@@ -1261,47 +1261,47 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                 </div>
               ) : (
                 /* Etüt Detay Listesi */
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-line">
                   {finalFilteredEtuts.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 text-xs">
+                    <div className="py-12 text-center text-subtle text-xs">
                       Seçilen kriterlere uygun etüt kaydı bulunamadı.
                     </div>
                   ) : (
                     finalFilteredEtuts.map((e) => (
                       <div
                         key={e.id}
-                        className="py-3 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 rounded-xl transition-colors"
+                        className="py-3 px-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/80 rounded-xl transition-colors"
                       >
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
                               {e.subject}
                             </span>
-                            <span className="text-xs font-semibold text-slate-500 flex items-center space-x-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
+                            <span className="text-xs font-semibold text-muted flex items-center space-x-1">
+                              <Clock className="w-3 h-3 text-subtle" />
                               <span>
                                 {new Date(e.date).toLocaleDateString('tr-TR')} • {e.time} ({e.duration || 40} Dk)
                               </span>
                             </span>
                             {e.location && (
-                              <span className="text-xs text-slate-400 flex items-center space-x-1">
-                                <MapPin className="w-3 h-3 text-slate-400" />
+                              <span className="text-xs text-subtle flex items-center space-x-1">
+                                <MapPin className="w-3 h-3 text-subtle" />
                                 <span>{e.location}</span>
                               </span>
                             )}
                           </div>
-                          <h4 className="text-sm font-bold text-slate-900">
+                          <h4 className="text-sm font-bold text-fg">
                             {e.topic || 'Genel Tekrar / Soru Çözümü'}
                           </h4>
                           {e.teacherFeedback && (
-                            <p className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/60 p-1.5 rounded-md mt-1 italic">
+                            <p className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/30 p-1.5 rounded-md mt-1 italic">
                               <strong className="font-semibold not-italic">Öğretmen Görüş ve Değerlendirmesi:</strong> "{e.teacherFeedback}"
                             </p>
                           )}
                         </div>
 
                         <div className="shrink-0 flex items-center space-x-3">
-                          <span className="text-xs font-bold text-slate-700">
+                          <span className="text-xs font-bold text-fg-2">
                             {e.assignedStudentIds === 'all'
                               ? '👥 Tüm Sınıf'
                               : `🎯 ${Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.length : 0} Öğrenci`}
@@ -1315,8 +1315,8 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             </div>
           ) : (
             /* ÖĞRENCİ BAZLI ANALİZ */
-            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
                 <div className="flex items-center space-x-3">
                   <img
                     src={
@@ -1326,22 +1326,22 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                       )}`
                     }
                     alt=""
-                    className="w-10 h-10 rounded-full bg-slate-100 object-cover border border-slate-200"
+                    className="w-10 h-10 rounded-full bg-surface-2 object-cover border border-line"
                   />
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">{currentStudent?.name}</h3>
+                    <h3 className="text-base font-bold text-fg">{currentStudent?.name}</h3>
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-slate-500">Katılım Durumu:</span>
+                  <span className="text-xs font-bold text-muted">Katılım Durumu:</span>
                   <span
                     className={`px-3 py-1 rounded-xl text-xs font-bold ${
                       analysisStats.attendanceRate >= 80
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30'
                         : analysisStats.attendanceRate >= 50
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
+                        : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30'
                     }`}
                   >
                     %{analysisStats.attendanceRate} Katılım
@@ -1351,8 +1351,8 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
 
               {/* Öğrencinin Katıldığı Etütlerin Kronolojik Tablosu */}
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-700">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 font-bold border-b border-slate-200">
+                <table className="w-full text-left text-xs text-fg-2">
+                  <thead className="bg-surface-2 text-[11px] uppercase tracking-wider text-muted font-bold border-b border-line">
                     <tr>
                       <th className="px-4 py-3">Tarih</th>
                       <th className="px-4 py-3">Saat</th>
@@ -1363,53 +1363,53 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
                       <th className="px-4 py-3 text-right">Yoklama Durumu</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-line">
                     {finalFilteredEtuts.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                        <td colSpan={7} className="px-4 py-8 text-center text-subtle">
                           Seçilen kriterlere uygun etüt kaydı bulunamadı.
                         </td>
                       </tr>
                     ) : (
                       finalFilteredEtuts.map((e) => {
                         const att = e.studentAttendance?.[currentStudent?.id || ''];
-                        let badgeClass = 'bg-slate-50 text-slate-700 border-slate-200';
+                        let badgeClass = 'bg-surface-2 text-fg-2 border-line';
                         let label = 'Planlandı';
 
                         if (att?.status === 'present') {
-                          badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                          badgeClass = 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30';
                           label = '✓ Katıldı';
                         } else if (att?.status === 'absent') {
-                          badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+                          badgeClass = 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
                           label = '✕ Gelmedi';
                         } else if (att?.status === 'excused') {
-                          badgeClass = 'bg-sky-50 text-sky-700 border-sky-200';
+                          badgeClass = 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/30';
                           label = 'ℹ İzinli';
                         } else if (att?.status === 'late') {
-                          badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+                          badgeClass = 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/30';
                           label = '⚠ Geç Kaldı';
                         }
 
                         return (
-                          <tr key={e.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="px-4 py-3 font-semibold text-slate-900">
+                          <tr key={e.id} className="hover:bg-surface-2/80 transition-colors">
+                            <td className="px-4 py-3 font-semibold text-fg">
                               {new Date(e.date).toLocaleDateString('tr-TR')}
                             </td>
-                            <td className="px-4 py-3 text-slate-500">{e.time || '16:00'}</td>
-                            <td className="px-4 py-3 font-bold text-indigo-700">{e.subject}</td>
-                            <td className="px-4 py-3 text-slate-800 font-medium">
+                            <td className="px-4 py-3 text-muted">{e.time || '16:00'}</td>
+                            <td className="px-4 py-3 font-bold text-indigo-700 dark:text-indigo-300">{e.subject}</td>
+                            <td className="px-4 py-3 text-fg font-medium">
                               <div>{e.topic || 'Genel Tekrar / Soru Çözümü'}</div>
                               {e.teacherFeedback && (
                                 <div
-                                  className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded mt-1 italic font-normal inline-block max-w-xs truncate"
+                                  className="text-[10px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/30 px-1.5 py-0.5 rounded mt-1 italic font-normal inline-block max-w-xs truncate"
                                   title={`Öğretmen Görüşü: ${e.teacherFeedback}`}
                                 >
                                   💬 {e.teacherFeedback}
                                 </div>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-slate-500">{e.duration || 40} Dk</td>
-                            <td className="px-4 py-3 text-slate-500">{e.location || 'Derslik'}</td>
+                            <td className="px-4 py-3 text-muted">{e.duration || 40} Dk</td>
+                            <td className="px-4 py-3 text-muted">{e.location || 'Derslik'}</td>
                             <td className="px-4 py-3 text-right">
                               <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${badgeClass}`}>
                                 {label}
@@ -1426,29 +1426,29 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
           )}
 
           {/* DİPNOT & İMZA ÇERÇEVESİ */}
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted">
             <div className="space-y-1 text-center sm:text-left">
-              <p className="font-semibold text-slate-700">Rapor Doğrulama Bilgisi:</p>
-              <p className="text-[11px] text-slate-400">
+              <p className="font-semibold text-fg-2">Rapor Doğrulama Bilgisi:</p>
+              <p className="text-[11px] text-subtle">
                 Bu belge okul etüt takip sistemi üzerinden otomatik olarak oluşturulmuştur.
               </p>
             </div>
             <div className="flex items-center space-x-6">
               <div className="text-center">
-                <span className="block text-[11px] text-slate-400">Branş / Danışman Öğretmen</span>
-                <span className="font-semibold text-slate-700 mt-1 block">İmza: ____________</span>
+                <span className="block text-[11px] text-subtle">Branş / Danışman Öğretmen</span>
+                <span className="font-semibold text-fg-2 mt-1 block">İmza: ____________</span>
               </div>
               <div className="text-center">
-                <span className="block text-[11px] text-slate-400">Okul Yönetimi Onayı</span>
-                <span className="font-semibold text-slate-700 mt-1 block">Mühür / İmza</span>
+                <span className="block text-[11px] text-subtle">Okul Yönetimi Onayı</span>
+                <span className="font-semibold text-fg-2 mt-1 block">Mühür / İmza</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* MODAL ALT ÇUBUĞU */}
-        <div className="px-5 py-3.5 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
-          <span className="text-xs text-slate-400 hidden sm:inline">
+        <div className="px-5 py-3.5 bg-surface border-t border-line flex items-center justify-between shrink-0">
+          <span className="text-xs text-subtle hidden sm:inline">
             Filtrelenen {finalFilteredEtuts.length} etüt kaydı listeleniyor.
           </span>
           <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
@@ -1464,7 +1464,7 @@ export const EtutAnalysisReportModal: React.FC<EtutAnalysisReportModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
             >
               Kapat
             </button>

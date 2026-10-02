@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr" class="notranslate" translate="no">
+<html lang="tr" class="notranslate" translate="no" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
@@ -11,12 +11,30 @@
     <title>Eğitim & Öğrenci Takip Sistemi</title>
     <meta name="description" content="Öğretmen ve öğrenciler için sınıf yönetimi, kazanım odaklı ödev çizelgesi, günlük/haftalık/aylık soru sayısı takibi ve grafik analizi, devamsızlık ve not takibi, etüt planlama ve mesajlaşma platformu." />
     
+    <!-- Tema: sayfa açılmadan önce seçili tema uygulanır (beyaz/siyah yanıp sönme olmaz) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('edu_ui_theme');
+          if (t !== 'light' && t !== 'dark') t = 'light';
+          document.documentElement.setAttribute('data-theme', t);
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', t === 'dark' ? '#0b1020' : '#f5f6fa');
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Yazı tipi: Inter (Türkçe karakter desteği tam) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..900&display=swap" rel="stylesheet" />
+
     <!-- Favicon & Bookmarks Brand Icon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#f5f6fa" />
     <meta name="apple-mobile-web-app-title" content="Eğitim Takip" />
     <meta name="application-name" content="Eğitim Takip" />
 
@@ -27,8 +45,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="/logo.svg" />
   </head>
-  <body class="bg-slate-950 text-slate-100 min-h-screen">
-    <div id="root" class="min-h-screen bg-slate-950"></div>
+  <body class="bg-canvas text-fg min-h-screen">
+    <div id="root" class="min-h-screen"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -9,8 +9,8 @@ import {
   User,
   School,
   Sparkles,
-  Lock,
 } from 'lucide-react';
+import { PageHeader } from '../ui/kit';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 
@@ -57,43 +57,40 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
-        <div>
-          <div className="flex items-center space-x-2">
-            <MessageSquare className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-xl font-bold text-white">Öğrenci Soru & Mesaj Merkezi</h2>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 bg-indigo-950/40 border border-indigo-500/20 px-3 py-1.5 rounded-xl text-xs text-indigo-300">
-          <Lock className="w-3.5 h-3.5" />
-          <span>Gizli ve Uçtan Uca Öğretmen-Öğrenci Kanalı</span>
-        </div>
-      </div>
+      {/* Sayfa başlığı */}
+      <PageHeader
+        icon={MessageSquare}
+        tone="danger"
+        title="Mesajlar"
+        description={
+          messages.filter((m) => !m.read).length
+            ? `${messages.filter((m) => !m.read).length} okunmamış mesaj`
+            : 'Öğrencilerinizden gelen sorular ve mesajlar'
+        }
+      />
 
       {/* Main Split Inbox View */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl min-h-[550px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 bg-surface border border-line rounded-2xl overflow-hidden shadow-card min-h-[550px]">
         {/* Left List Column */}
-        <div className="lg:col-span-5 border-r border-slate-800 flex flex-col bg-slate-900/50">
+        <div className="lg:col-span-5 border-r border-line flex flex-col bg-surface/50">
           {/* Search bar */}
-          <div className="p-4 border-b border-slate-800">
+          <div className="p-4 border-b border-line">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+              <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
               <input
                 type="text"
                 placeholder="Öğrenci veya konu ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
 
           {/* List items */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 max-h-[500px]">
+          <div className="flex-1 overflow-y-auto divide-y divide-line max-h-[500px]">
             {filteredMessages.length === 0 ? (
-              <div className="p-8 text-center text-slate-500 text-xs">
+              <div className="p-8 text-center text-muted text-xs">
                 Aramanıza uygun mesaj bulunamadı.
               </div>
             ) : (
@@ -106,7 +103,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     className={`w-full p-4 text-left transition-all flex items-start space-x-3 ${
                       isSelected
                         ? 'bg-indigo-600/10 border-l-4 border-indigo-500'
-                        : 'hover:bg-slate-800/40'
+                        : 'hover:bg-surface-2/40'
                     }`}
                   >
                     <img
@@ -117,15 +114,15 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         )}`
                       }
                       alt={msg.studentName}
-                      className="w-10 h-10 rounded-full object-cover bg-slate-800 ring-2 ring-indigo-500/20 flex-shrink-0"
+                      className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-indigo-500/20 flex-shrink-0"
                     />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-xs text-white truncate">
+                        <span className="font-semibold text-xs text-fg truncate">
                           {msg.studentName}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-mono">
+                        <span className="text-[10px] text-muted font-mono">
                           {new Date(msg.createdAt).toLocaleDateString('tr-TR', {
                             day: 'numeric',
                             month: 'short',
@@ -133,19 +130,19 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         </span>
                       </div>
 
-                      <p className="text-xs font-medium text-slate-200 truncate mb-1">
+                      <p className="text-xs font-medium text-fg truncate mb-1">
                         {msg.subject}
                       </p>
 
-                      <p className="text-[11px] text-slate-400 line-clamp-1">{msg.text}</p>
+                      <p className="text-[11px] text-muted line-clamp-1">{msg.text}</p>
 
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">
+                        <span className="text-[10px] bg-surface-2 text-fg-2 px-2 py-0.5 rounded border border-line">
                           {msg.studentClass}
                         </span>
 
                         {msg.teacherReply ? (
-                          <span className="text-[10px] text-emerald-400 flex items-center space-x-1">
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center space-x-1">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>Cevaplandı</span>
                           </span>
@@ -162,12 +159,12 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         </div>
 
         {/* Right Message Detail Column */}
-        <div className="lg:col-span-7 flex flex-col justify-between p-6 bg-slate-900/30">
+        <div className="lg:col-span-7 flex flex-col justify-between p-6 bg-surface/30">
           {activeMessage ? (
             <div className="space-y-6 flex-1 flex flex-col justify-between">
               {/* Message Header */}
               <div>
-                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                <div className="flex items-center justify-between pb-4 border-b border-line">
                   <div className="flex items-center space-x-3">
                     <img
                       src={
@@ -177,16 +174,16 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         )}`
                       }
                       alt={activeMessage.studentName}
-                      className="w-12 h-12 rounded-full bg-slate-800 ring-2 ring-indigo-500/30"
+                      className="w-12 h-12 rounded-full bg-surface-2 ring-2 ring-indigo-500/30"
                     />
                     <div>
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-fg">
                         {activeMessage.studentName}
                       </h3>
                     </div>
                   </div>
 
-                  <span className="text-xs text-slate-500 flex items-center space-x-1">
+                  <span className="text-xs text-muted flex items-center space-x-1">
                     <Clock className="w-3.5 h-3.5" />
                     <span>
                       {new Date(activeMessage.createdAt).toLocaleString('tr-TR', {
@@ -199,24 +196,24 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                 {/* Subject & Text */}
                 <div className="mt-5 space-y-4">
-                  <h4 className="text-lg font-bold text-white tracking-tight">
+                  <h4 className="text-lg font-bold text-fg tracking-tight">
                     {activeMessage.subject}
                   </h4>
 
-                  <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/80 text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
+                  <div className="p-4 bg-surface-2/60 rounded-2xl border border-line text-sm text-fg leading-relaxed whitespace-pre-wrap">
                     {activeMessage.text}
                   </div>
 
                   {/* Attachment Link if provided */}
                   {activeMessage.linkUrl && (
-                    <div className="p-3.5 bg-indigo-950/30 border border-indigo-500/30 rounded-xl flex items-center justify-between">
+                    <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-500/30 rounded-xl flex items-center justify-between">
                       <div className="flex items-center space-x-2 truncate">
-                        <ExternalLink className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                        <ExternalLink className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                         <div className="truncate">
-                          <p className="text-xs font-semibold text-indigo-300">
+                          <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">
                             Öğrencinin Eklediği Bağlantı / Çözüm Görseli:
                           </p>
-                          <p className="text-xs text-slate-300 truncate underline">
+                          <p className="text-xs text-fg-2 truncate underline">
                             {activeMessage.linkUrl}
                           </p>
                         </div>
@@ -234,11 +231,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
                   {/* Existing Reply if already answered */}
                   {activeMessage.teacherReply && (
-                    <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between text-xs text-emerald-400 font-bold">
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
                         <span>✓ Sizin Gönderdiğiniz Yanıt:</span>
                         {activeMessage.repliedAt && (
-                          <span className="text-slate-500 font-normal">
+                          <span className="text-muted font-normal">
                             {new Date(activeMessage.repliedAt).toLocaleTimeString('tr-TR', {
                               hour: '2-digit',
                               minute: '2-digit',
@@ -246,7 +243,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-200 leading-relaxed">
+                      <p className="text-xs text-fg leading-relaxed">
                         {activeMessage.teacherReply}
                       </p>
                     </div>
@@ -255,8 +252,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
               </div>
 
               {/* Reply Form */}
-              <form onSubmit={handleSendReply} className="pt-4 border-t border-slate-800 space-y-3">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <form onSubmit={handleSendReply} className="pt-4 border-t border-line space-y-3">
+                <label className="block text-xs font-semibold text-fg-2 uppercase tracking-wider">
                   {activeMessage.teacherReply ? 'Yanıtı Güncelle / Yeni Mesaj Yaz:' : 'Öğrenciye Cevap Yaz:'}
                 </label>
                 <div className="flex items-center space-x-2">
@@ -266,7 +263,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     placeholder="Açıklamanızı ve yönlendirmenizi buraya yazın..."
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="flex-1 px-4 py-2.5 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <button
                     type="submit"
@@ -279,7 +276,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
               </form>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+            <div className="h-full flex items-center justify-center text-muted text-sm">
               İncelemek için sol listeden bir mesaj seçin.
             </div>
           )}

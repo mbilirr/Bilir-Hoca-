@@ -271,18 +271,18 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
+        className="relative w-full max-w-xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-5 sm:px-6 py-4 bg-slate-850 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div className="px-5 sm:px-6 py-4 bg-surface-2 border-b border-line flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0 shadow-inner">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-inner">
               <Camera className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white">Öğrenci Profil Resmi & Emojileri</h3>
-              <p className="text-[11px] sm:text-xs text-slate-400">
+              <h3 className="text-sm sm:text-base font-black text-fg">Öğrenci Profil Resmi & Emojileri</h3>
+              <p className="text-[11px] sm:text-xs text-muted">
                 Bilgisayarınızdan fotoğraf yükleyin veya kaliteli öğrenci emojilerinden seçin
               </p>
             </div>
@@ -290,7 +290,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
             title="Kapat"
           >
             <X className="w-5 h-5" />
@@ -298,7 +298,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
         </div>
 
         {/* Live Preview Bar */}
-        <div className="px-5 sm:px-6 py-3.5 bg-slate-950/70 border-b border-slate-800 shrink-0">
+        <div className="px-5 sm:px-6 py-3.5 bg-canvas/70 border-b border-line shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center space-x-3.5">
               <div className="relative group shrink-0">
@@ -312,19 +312,19 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                     }}
                   />
                 </div>
-                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-lg bg-indigo-600 border-2 border-slate-900 flex items-center justify-center text-white shadow-md">
+                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-lg bg-indigo-600 border-2 border-surface flex items-center justify-center text-white shadow-md">
                   <Check className="w-3 h-3 stroke-[3]" />
                 </span>
               </div>
 
               <div>
-                <p className="text-sm font-black text-white flex items-center space-x-1.5">
+                <p className="text-sm font-black text-fg flex items-center space-x-1.5">
                   <span>{student.name}</span>
                 </p>
-                <p className="text-xs text-indigo-300 font-medium">
+                <p className="text-xs text-indigo-600 dark:text-indigo-300 font-medium">
                   {student.className} • No: #{student.studentNumber || student.id}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-muted mt-0.5">
                   {avatarUrl.startsWith('data:image/svg')
                     ? '✨ Renkli Emoji Avatar'
                     : avatarUrl.startsWith('data:')
@@ -337,7 +337,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
             <button
               type="button"
               onClick={handleResetToDefault}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer shrink-0"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line rounded-xl text-xs font-semibold transition-colors cursor-pointer shrink-0"
               title="Varsayılan çizim avatara dön"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -347,11 +347,11 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
         </div>
 
         {/* Arka Plan Rengi / Gradyanı Değiştir (Tüm Sekmelerde Geçerli) */}
-        <div className="px-5 sm:px-6 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <div className="px-5 sm:px-6 py-2.5 bg-surface/90 border-b border-line flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs font-bold text-fg-2 flex items-center space-x-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
             <span>Arka Plan Rengi:</span>
-            <span className="text-[11px] text-indigo-400 font-semibold">({selectedBg.name})</span>
+            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">({selectedBg.name})</span>
           </span>
           <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
             {BG_COLORS.map((bg) => (
@@ -361,7 +361,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                 onClick={() => handleSelectBg(bg)}
                 className={`w-6 h-6 rounded-lg transition-transform cursor-pointer shadow-sm ${
                   selectedBg.id === bg.id
-                    ? 'ring-2 ring-white scale-110 shadow-indigo-500/50'
+                    ? 'ring-2 ring-surface scale-110 shadow-indigo-500/50'
                     : 'hover:scale-105 opacity-80 hover:opacity-100'
                 }`}
                 style={{
@@ -374,17 +374,17 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-5 sm:px-6 pt-2 bg-slate-900 border-b border-slate-800 flex items-center space-x-2 shrink-0 overflow-x-auto">
+        <div className="px-5 sm:px-6 pt-2 bg-surface border-b border-line flex items-center space-x-2 shrink-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('upload')}
             className={`flex items-center space-x-2 px-3.5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'upload'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-indigo-400 text-indigo-600 dark:text-indigo-300 bg-indigo-500/10'
+                : 'border-transparent text-muted hover:text-fg'
             }`}
           >
-            <Upload className="w-4 h-4 text-cyan-400" />
+            <Upload className="w-4 h-4 text-cyan-700 dark:text-cyan-400" />
             <span>💻 Bilgisayardan Fotoğraf Yükle</span>
           </button>
 
@@ -393,11 +393,11 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
             onClick={() => setActiveTab('emoji')}
             className={`flex items-center space-x-2 px-3.5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'emoji'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-indigo-400 text-indigo-600 dark:text-indigo-300 bg-indigo-500/10'
+                : 'border-transparent text-muted hover:text-fg'
             }`}
           >
-            <Smile className="w-4 h-4 text-amber-400" />
+            <Smile className="w-4 h-4 text-amber-700 dark:text-amber-400" />
             <span>😊 Kaliteli Emojiler ({STUDENT_EMOJI_PRESETS.length})</span>
           </button>
 
@@ -406,11 +406,11 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
             onClick={() => setActiveTab('preset')}
             className={`flex items-center space-x-2 px-3.5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black border-b-2 whitespace-nowrap transition-all cursor-pointer ${
               activeTab === 'preset'
-                ? 'border-indigo-400 text-indigo-300 bg-indigo-500/10'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-indigo-400 text-indigo-600 dark:text-indigo-300 bg-indigo-500/10'
+                : 'border-transparent text-muted hover:text-fg'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-purple-400" />
+            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             <span>🎨 Çizim Avatarlar</span>
           </button>
         </div>
@@ -418,14 +418,14 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
         {/* Tab Body */}
         <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 max-h-[55vh]">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -434,18 +434,18 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
           {/* TAB 1: BİLGİSAYARDAN YÜKLE */}
           {activeTab === 'upload' && (
             <div className="space-y-4">
-              <div className="p-5 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-4 text-center">
+              <div className="p-5 bg-canvas/60 border border-line rounded-2xl space-y-4 text-center">
                 <div className="flex items-center justify-between text-left">
                   <div>
-                    <h4 className="text-xs font-bold text-white flex items-center space-x-1.5">
-                      <Upload className="w-4 h-4 text-indigo-400" />
+                    <h4 className="text-xs font-bold text-fg flex items-center space-x-1.5">
+                      <Upload className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       <span>Bilgisayarınızdan Profil Resmi Seçin</span>
                     </h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-muted mt-0.5">
                       Öğrenci veya veli vesikalık / profil fotoğrafınızı yükleyin
                     </p>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20">
                     PNG, JPG, WebP
                   </span>
                 </div>
@@ -460,12 +460,12 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-8 px-4 bg-slate-900/80 hover:bg-slate-850 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 rounded-2xl text-xs font-bold text-slate-200 hover:text-white flex flex-col items-center justify-center space-y-2.5 transition-all cursor-pointer group shadow-inner"
+                  className="w-full py-8 px-4 bg-surface/80 hover:bg-surface-2 border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 rounded-2xl text-xs font-bold text-fg hover:text-fg flex flex-col items-center justify-center space-y-2.5 transition-all cursor-pointer group shadow-inner"
                 >
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform shadow-md">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform shadow-md">
                     <Upload className="w-7 h-7" />
                   </div>
-                  <span className="text-sm font-black text-white">
+                  <span className="text-sm font-black text-fg">
                     {isProcessing ? 'Fotoğraf Optimize Ediliyor...' : 'Bilgisayardan Dosya Seç'}
                   </span>
                 </div>
@@ -484,8 +484,8 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
               </div>
 
               {avatarUrl.startsWith('data:image/') && !avatarUrl.startsWith('data:image/svg') && (
-                <div className="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center space-x-2.5 text-xs text-emerald-200">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center space-x-2.5 text-xs text-emerald-700 dark:text-emerald-200">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
                   <span>Bilgisayarınızdan seçilen fotoğraf hazır!</span>
                 </div>
               )}
@@ -496,9 +496,9 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
           {activeTab === 'emoji' && (
             <div className="space-y-4">
               {/* Arka Plan Renk Seçimi */}
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <div className="p-3 bg-canvas/60 rounded-xl border border-line flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-bold text-fg-2 flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                   <span>Arka Plan Rengi:</span>
                 </span>
                 <div className="flex items-center space-x-1.5">
@@ -508,7 +508,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                       type="button"
                       onClick={() => handleSelectBg(bg)}
                       className={`w-6 h-6 rounded-full transition-transform cursor-pointer ring-2 ${
-                        selectedBg.id === bg.id ? 'ring-white scale-110 shadow-md' : 'ring-transparent opacity-80 hover:opacity-100'
+                        selectedBg.id === bg.id ? 'ring-surface scale-110 shadow-md' : 'ring-transparent opacity-80 hover:opacity-100'
                       }`}
                       style={{ background: `linear-gradient(135deg, ${bg.hex1}, ${bg.hex2})` }}
                       title={bg.name}
@@ -524,7 +524,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                   placeholder="İstediğiniz emojiyi yazın (Örn: 🚀, 🦁, 🎮)"
                   value={customEmoji}
                   onChange={(e) => setCustomEmoji(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
                   type="button"
@@ -548,7 +548,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                           className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
                             emojiCategory === cat
                               ? 'bg-indigo-600 text-white shadow-sm'
-                              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                              : 'bg-surface-2 text-fg-2 hover:bg-surface-3'
                           }`}
                         >
                           {cat}
@@ -559,13 +559,13 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                 </div>
 
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-muted absolute left-3 top-2.5" />
                   <input
                     type="text"
                     placeholder="Emoji ara... (Örn: Kitap, Aslan, Kupa, Müzik)"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-indigo-500"
+                    className="w-full pl-8 pr-3 py-1.5 bg-canvas/80 border border-line rounded-xl text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -577,7 +577,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                     key={idx}
                     type="button"
                     onClick={() => handleSelectEmoji(item)}
-                    className="group p-2 rounded-2xl bg-slate-800/80 hover:bg-slate-750 border border-slate-700/80 hover:border-indigo-500/60 transition-all flex flex-col items-center justify-center space-y-1 cursor-pointer hover:scale-105 active:scale-95 shadow-sm"
+                    className="group p-2 rounded-2xl bg-surface-2/80 hover:bg-surface-3 border border-line hover:border-indigo-500/60 transition-all flex flex-col items-center justify-center space-y-1 cursor-pointer hover:scale-105 active:scale-95 shadow-sm"
                     title={item.label}
                   >
                     <div
@@ -586,7 +586,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                     >
                       <span>{item.emoji}</span>
                     </div>
-                    <span className="text-[10px] text-slate-300 font-semibold truncate w-full text-center">
+                    <span className="text-[10px] text-fg-2 font-semibold truncate w-full text-center">
                       {item.label}
                     </span>
                   </button>
@@ -598,7 +598,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
           {/* TAB 3: ÇİZİM AVATARLAR */}
           {activeTab === 'preset' && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted">
                 Aşağıdaki karakterlerden birini seçerek anında profil resminiz yapabilirsiniz:
               </p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
@@ -615,13 +615,13 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
                       className={`p-2.5 rounded-2xl border flex flex-col items-center space-y-1.5 transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-indigo-600/20 border-indigo-400 ring-2 ring-indigo-500/50 scale-105'
-                          : 'bg-slate-800/60 border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                          : 'bg-surface-2/60 border-line hover:border-line-strong hover:bg-surface-2'
                       }`}
                     >
-                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-900 border border-slate-700/60">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-surface border border-line">
                         <img src={preset.url} alt={preset.label} className="w-full h-full object-cover" />
                       </div>
-                      <span className="text-[11px] font-bold text-slate-300">{preset.label}</span>
+                      <span className="text-[11px] font-bold text-fg-2">{preset.label}</span>
                     </button>
                   );
                 })}
@@ -631,11 +631,11 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-5 sm:px-6 py-3.5 bg-slate-850 border-t border-slate-800 flex items-center justify-end space-x-3 shrink-0">
+        <div className="px-5 sm:px-6 py-3.5 bg-surface-2 border-t border-line flex items-center justify-end space-x-3 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-xl transition-colors cursor-pointer"
           >
             Vazgeç
           </button>

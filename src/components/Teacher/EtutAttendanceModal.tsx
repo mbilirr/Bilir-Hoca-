@@ -130,55 +130,55 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/95 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface/95 shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center space-x-2">
+              <h3 className="text-base sm:text-lg font-bold text-fg flex items-center space-x-2">
                 <span>Etüt Yoklama ve Devamsızlık Takibi</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   {etut.subject}
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 flex items-center space-x-2 mt-0.5">
+              <p className="text-xs text-muted flex items-center space-x-2 mt-0.5">
                 <span>{etut.topic || 'Genel Konu'}</span>
                 <span>•</span>
-                <span className="text-amber-400">{new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}</span>
+                <span className="text-amber-700 dark:text-amber-400">{new Date(etut.date).toLocaleDateString('tr-TR')} {etut.time}</span>
               </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Quick Summary Pill & Mass Actions */}
-        <div className="px-6 py-3 bg-slate-950/70 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="px-6 py-3 bg-canvas/70 border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-400">Katılım Durumu:</span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/20">
+            <span className="text-muted">Katılım Durumu:</span>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold border border-emerald-500/20">
               {presentCount} Geldi
             </span>
-            <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 font-bold border border-rose-500/20">
+            <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold border border-rose-500/20">
               {absentCount} Gelmedi
             </span>
             {lateCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 font-bold border border-amber-500/20">
+              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold border border-amber-500/20">
                 {lateCount} Geç
               </span>
             )}
             {excusedCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/20">
+              <span className="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
                 {excusedCount} İzinli
               </span>
             )}
@@ -188,14 +188,14 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={() => setAllStatus('present')}
-              className="text-xs font-semibold px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+              className="text-xs font-semibold px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
             >
               ✓ Tümünü Geldi Yap
             </button>
             <button
               type="button"
               onClick={() => setAllStatus('absent')}
-              className="text-xs font-semibold px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
+              className="text-xs font-semibold px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
             >
               ✕ Tümünü Gelmedi Yap
             </button>
@@ -204,9 +204,9 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
         {/* Öğretmen Görüş ve Düşünceleri Banner */}
         {etut.teacherFeedback && (
-          <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-200 shrink-0">
-            <strong className="text-amber-300 font-semibold block text-[11px]">💬 Öğretmen Düşünce ve Görüşleri:</strong>
-            <p className="italic text-slate-200 mt-1 leading-relaxed">"{etut.teacherFeedback}"</p>
+          <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-700 dark:text-amber-200 shrink-0">
+            <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">💬 Öğretmen Düşünce ve Görüşleri:</strong>
+            <p className="italic text-fg mt-1 leading-relaxed">"{etut.teacherFeedback}"</p>
           </div>
         )}
 
@@ -218,7 +218,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               placeholder="Öğrenci adı veya numarası ile ara..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs placeholder-slate-500 focus:ring-2 focus:ring-emerald-500"
+              className="w-full px-3 py-1.5 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-emerald-500"
             />
           </div>
         )}
@@ -226,11 +226,11 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         {/* Student List */}
         <div className="p-6 overflow-y-auto space-y-3">
           {assignedStudents.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-xs">
+            <div className="text-center py-8 text-muted text-xs">
               Bu etüte atanmış herhangi bir öğrenci bulunmamaktadır.
             </div>
           ) : filteredStudents.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-xs">
+            <div className="text-center py-8 text-muted text-xs">
               Aramanıza uygun öğrenci bulunamadı.
             </div>
           ) : (
@@ -243,12 +243,12 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                   key={std.id}
                   className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                     currentStatus === 'present'
-                      ? 'bg-emerald-950/20 border-emerald-500/30'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500/30'
                       : currentStatus === 'absent'
-                      ? 'bg-rose-950/25 border-rose-500/30'
+                      ? 'bg-rose-50 dark:bg-rose-950/25 border-rose-500/30'
                       : currentStatus === 'late'
-                      ? 'bg-amber-950/20 border-amber-500/30'
-                      : 'bg-blue-950/20 border-blue-500/30'
+                      ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-500/30'
+                      : 'bg-blue-50 dark:bg-blue-950/20 border-blue-500/30'
                   }`}
                 >
                   {/* Student details */}
@@ -259,10 +259,10 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`
                       }
                       alt={std.name}
-                      className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 shrink-0"
+                      className="w-9 h-9 rounded-full bg-surface-2 border border-line shrink-0"
                     />
                     <div>
-                      <div className="text-sm font-bold text-white">
+                      <div className="text-sm font-bold text-fg">
                         {std.name}
                       </div>
                     </div>
@@ -271,14 +271,14 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                   {/* Attendance Controls */}
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Status Toggle Group */}
-                    <div className="flex items-center bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    <div className="flex items-center bg-surface p-1 rounded-xl border border-line">
                       <button
                         type="button"
                         onClick={() => handleStatusChange(std.id, std.name, 'present')}
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           currentStatus === 'present'
                             ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-emerald-400'
+                            : 'text-muted hover:text-emerald-700 dark:hover:text-emerald-400'
                         }`}
                       >
                         Geldi
@@ -289,7 +289,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           currentStatus === 'absent'
                             ? 'bg-rose-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-rose-400'
+                            : 'text-muted hover:text-rose-600 dark:hover:text-rose-400'
                         }`}
                       >
                         Gelmedi
@@ -300,7 +300,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           currentStatus === 'late'
                             ? 'bg-amber-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-amber-400'
+                            : 'text-muted hover:text-amber-700 dark:hover:text-amber-400'
                         }`}
                       >
                         Geç
@@ -311,7 +311,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                         className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           currentStatus === 'excused'
                             ? 'bg-blue-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:text-blue-400'
+                            : 'text-muted hover:text-blue-600 dark:hover:text-blue-400'
                         }`}
                       >
                         İzinli
@@ -324,7 +324,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       placeholder="Not ekle (Örn: 10 dk geç, izinli)..."
                       value={currentNote}
                       onChange={(e) => handleNoteChange(std.id, e.target.value)}
-                      className="px-2.5 py-1 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs placeholder-slate-500 w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
+                      className="px-2.5 py-1 bg-surface border border-line rounded-lg text-fg text-xs placeholder-subtle w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
@@ -334,10 +334,10 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-900/95 shrink-0">
-          <div className="text-xs text-slate-400">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-surface/95 shrink-0">
+          <div className="text-xs text-muted">
             {savedSuccess && (
-              <span className="text-emerald-400 font-bold flex items-center space-x-1.5 animate-in fade-in">
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center space-x-1.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Yoklama başarıyla kaydedildi ve tüm cihazlarla eşitlendi!</span>
               </span>
@@ -348,7 +348,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
             >
               Vazgeç
             </button>

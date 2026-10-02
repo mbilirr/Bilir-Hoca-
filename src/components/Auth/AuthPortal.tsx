@@ -24,6 +24,7 @@ import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types
 import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { ThemeToggle } from '../ui/kit';
 
 interface AuthPortalProps {
   onAuthSuccess: (session: AuthSession) => void;
@@ -316,36 +317,37 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 text-slate-900 flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white relative overflow-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-surface-2 via-surface to-indigo-50/60 dark:to-indigo-500/10 text-fg flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white relative overflow-hidden">
       {/* DEKORATİF STATİK RENK LEKELERİ (TAMAMEN ANİMASYONSUZ & YUMUŞAK) */}
-      <div className="absolute -top-24 -left-24 w-72 h-72 md:w-96 md:h-96 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/4 -right-20 w-64 h-64 md:w-80 md:h-80 bg-amber-100/50 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-emerald-100/40 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-72 h-72 md:w-96 md:h-96 bg-indigo-200/40 dark:bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -right-20 w-64 h-64 md:w-80 md:h-80 bg-amber-100/50 dark:bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-emerald-100/40 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Brand Bar */}
       <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
         <div className="flex items-center space-x-3.5">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-white to-indigo-50 border border-slate-200 p-1.5 flex items-center justify-center shadow-xs overflow-hidden">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-surface to-indigo-50 dark:to-indigo-500/10 border border-line p-1.5 flex items-center justify-center shadow-xs overflow-hidden">
             <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-slate-900">
+              <span className="font-extrabold text-xl sm:text-2xl tracking-tight text-fg">
                 Eğitim & Öğrenci Takip Sistemi
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-xs text-muted font-medium">
               Ödev Yönetimi, Etüt Takibi & Başarı Analizi
             </p>
           </div>
         </div>
+        <ThemeToggle />
       </header>
 
       {/* Main Center Authentication Card */}
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:px-6">
-        <div className="w-full max-w-xl bg-white/95 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-xl p-6 sm:p-8 relative">
+        <div className="w-full max-w-xl bg-surface/95 backdrop-blur-sm border border-line rounded-2xl shadow-xl p-6 sm:p-8 relative">
           {/* Main Auth Mode Tabs (Giriş Yap vs Kayıt Ol) */}
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-6">
+          <div className="flex bg-surface-2 p-1.5 rounded-2xl mb-6">
             <Button
               type="button"
               variant={authMode === 'login' ? 'primary' : 'ghost'}
@@ -381,7 +383,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           {/* Role Selector Pill (yalnızca girişte; kayıt yalnızca öğrenci başvurusudur) */}
           {authMode === 'login' && (
           <div className="mb-6">
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
+            <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2 text-center">
               Giriş Yapılacak Rol
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -390,13 +392,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 onClick={() => handleSelectRole('teacher')}
                 className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'teacher'
-                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
-                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-semibold shadow-xs ring-1 ring-indigo-500'
+                    : 'bg-surface border-line text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <ShieldCheck
                   className={`w-5 h-5 ${
-                    selectedRole === 'teacher' ? 'text-indigo-600' : 'text-slate-400'
+                    selectedRole === 'teacher' ? 'text-indigo-600 dark:text-indigo-300' : 'text-subtle'
                   }`}
                 />
                 <span className="text-xs sm:text-sm">Öğretmen (Yönetici)</span>
@@ -407,13 +409,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 onClick={() => handleSelectRole('student')}
                 className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'student'
-                    ? 'bg-indigo-50 border-indigo-500 text-indigo-900 font-semibold shadow-xs ring-1 ring-indigo-500'
-                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-semibold shadow-xs ring-1 ring-indigo-500'
+                    : 'bg-surface border-line text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <BookOpen
                   className={`w-5 h-5 ${
-                    selectedRole === 'student' ? 'text-indigo-600' : 'text-slate-400'
+                    selectedRole === 'student' ? 'text-indigo-600 dark:text-indigo-300' : 'text-subtle'
                   }`}
                 />
                 <span className="text-xs sm:text-sm">Öğrenci Portalı</span>
@@ -424,15 +426,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {/* Error & Success Feedback Alerts */}
           {error && (
-            <div className="mb-5 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-3 text-red-700 text-xs sm:text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-500 mt-0.5" />
+            <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl flex items-start space-x-3 text-red-700 dark:text-red-300 text-xs sm:text-sm">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
               <div className="flex-1">{error}</div>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start space-x-3 text-emerald-700 text-xs sm:text-sm">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-500 mt-0.5" />
+            <div className="mb-5 p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl flex items-start space-x-3 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-700 dark:text-emerald-400 mt-0.5" />
               <div className="flex-1 leading-relaxed">{successMsg}</div>
             </div>
           )}
@@ -442,7 +444,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             <div className="space-y-5">
               {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
               {activeRememberedUser && (
-                <div className="p-4 rounded-2xl border transition-all bg-indigo-50/50 border-indigo-200">
+                <div className="p-4 rounded-2xl border transition-all bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center space-x-3 min-w-0">
                       <img
@@ -453,22 +455,22 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           )}`
                         }
                         alt={activeRememberedUser.name}
-                        className="w-11 h-11 rounded-xl bg-white border border-slate-200 shadow-xs object-cover shrink-0"
+                        className="w-11 h-11 rounded-xl bg-surface border border-line shadow-xs object-cover shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center space-x-2">
-                          <span className="text-[11px] font-medium text-slate-500 flex items-center space-x-1">
-                            <Zap className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-[11px] font-medium text-muted flex items-center space-x-1">
+                            <Zap className="w-3.5 h-3.5 text-subtle" />
                             <span>Kayıtlı Profil:</span>
                           </span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-indigo-100 text-indigo-800 border-indigo-200">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-indigo-100 dark:bg-indigo-500/15 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30">
                             {selectedRole === 'teacher' ? 'Öğretmen Hesabı' : 'Öğrenci Hesabı'}
                           </span>
                         </div>
-                        <div className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate">
+                        <div className="text-sm sm:text-base font-bold text-fg tracking-tight truncate">
                           {activeRememberedUser.name}
                         </div>
-                        <div className="text-xs text-slate-500 truncate">
+                        <div className="text-xs text-muted truncate">
                           {activeRememberedUser.branch ||
                             activeRememberedUser.className ||
                             activeRememberedUser.identifier}
@@ -493,7 +495,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={handleForgetRememberedUser}
-                        className="text-slate-500 hover:text-red-600"
+                        className="text-muted hover:text-red-600 dark:hover:text-red-300"
                         title="Bu rol için kayıtlı profili kaldır"
                       >
                         Unut
@@ -501,7 +503,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
+                  <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-between text-[11px] text-muted">
                     <span>Farklı hesap bilgileriyle girmek için aşağıdaki formu kullanınız:</span>
                   </div>
                 </div>
@@ -549,12 +551,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
                 {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
                 <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-slate-600 select-none">
+                  <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-muted select-none">
                     <input
                       type="checkbox"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                      className="w-4 h-4 rounded border-line-strong text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
                     />
                     <span>Beni Hatırla</span>
                   </label>
@@ -562,7 +564,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     type="button"
                     onClick={handleForgotPassword}
                     disabled={isLoading}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 hover:underline cursor-pointer disabled:opacity-50"
+                    className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline cursor-pointer disabled:opacity-50"
                   >
                     Şifremi unuttum
                   </button>
@@ -587,7 +589,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           {/* ================= MODE 2: ÖĞRENCİ KAYIT BAŞVURUSU ================= */}
           {authMode === 'register' && (
             <form onSubmit={handleStudentApplication} className="space-y-3">
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-indigo-900 text-xs leading-relaxed">
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-indigo-900 dark:text-indigo-200 text-xs leading-relaxed">
                 <strong>Öğrenci kayıt başvurusu:</strong> Bilgilerinizi gönderdikten sonra okul yöneticisi başvurunuzu
                 onaylar. Onaydan sonra <strong>öğrenci numaranız</strong> ve burada belirlediğiniz <strong>şifreyle</strong>{' '}
                 giriş yaparsınız. Öğretmen hesapları okul yöneticisi tarafından açılır.
@@ -630,15 +632,15 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 />
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="block text-[11px] font-bold text-slate-700 flex items-center space-x-1.5">
-                  <School className="w-3.5 h-3.5 text-indigo-600" />
+              <div className="p-3 bg-surface-2 rounded-xl border border-line space-y-2">
+                <label className="block text-[11px] font-bold text-fg-2 flex items-center space-x-1.5">
+                  <School className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                   <span>Sınıfınız (isteğe bağlı)</span>
                 </label>
                 <select
                   value={aClassId}
                   onChange={(e) => setAClassId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="w-full px-2.5 py-2 bg-surface border border-line-strong rounded-lg text-fg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="">
                     {applicationClassesState === 'loading' ? 'Sınıflar yükleniyor...' : 'Listede yok / emin değilim'}
@@ -656,11 +658,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     onChange={(e) => setARequestedClass(e.target.value)}
                     maxLength={60}
                     placeholder="Sınıfınızı yazabilirsiniz (örn: 8-B). Yönetici onaylarken sınıfa yerleştirir."
-                    className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-2.5 py-2 bg-surface border border-line-strong rounded-lg text-fg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 )}
                 {applicationClassesState === 'error' && (
-                  <p className="text-[11px] text-amber-700">Sınıf listesi alınamadı; sınıfınızı yazarak devam edebilirsiniz.</p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-300">Sınıf listesi alınamadı; sınıfınızı yazarak devam edebilirsiniz.</p>
                 )}
               </div>
 
@@ -714,7 +716,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Profil Karakteri</label>
+                <label className="block text-xs font-semibold text-fg-2 mb-1.5">Profil Karakteri</label>
                 <div className="flex items-center space-x-2 overflow-x-auto pb-1">
                   {avatarSeeds.map((seed) => (
                     <button
@@ -724,7 +726,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 cursor-pointer ${
                         selectedAvatarSeed === seed
                           ? 'border-indigo-500 scale-105 shadow-sm'
-                          : 'border-slate-200 opacity-60 hover:opacity-100'
+                          : 'border-line opacity-60 hover:opacity-100'
                       }`}
                       aria-label={`Karakter ${seed}`}
                     >
@@ -755,7 +757,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 w-full text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white/80 backdrop-blur-xs">
+      <footer className="relative z-10 w-full text-center py-4 text-xs text-subtle border-t border-line bg-surface/80 backdrop-blur-xs">
         <p>© {new Date().getFullYear()} • Eğitim & Öğrenci Takip Sistemi • Tüm Hakları Saklıdır.</p>
       </footer>
     </div>

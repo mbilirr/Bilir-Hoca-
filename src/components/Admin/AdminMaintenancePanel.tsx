@@ -112,20 +112,20 @@ export const AdminMaintenancePanel: React.FC = () => {
   return (
     <div id="admin-maintenance-panel" className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* YEDEK */}
-      <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+      <section className="bg-surface border border-line rounded-2xl p-5 shadow-lg space-y-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
             <DatabaseBackup className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white">Tüm Verileri Yedekle</h2>
-            <p className="text-xs text-slate-400">Öğrenciler, sınıflar, ödevler, teslimler, notlar, yoklama, etütler, mesajlar…</p>
+            <h2 className="text-base font-bold text-fg">Tüm Verileri Yedekle</h2>
+            <p className="text-xs text-muted">Öğrenciler, sınıflar, ödevler, teslimler, notlar, yoklama, etütler, mesajlar…</p>
           </div>
         </div>
-        <p className={`text-xs ${backupOverdue ? 'text-amber-300' : 'text-slate-300'}`}>
+        <p className={`text-xs ${backupOverdue ? 'text-amber-700 dark:text-amber-300' : 'text-fg-2'}`}>
           Son yedek: <strong>{lastText}</strong>
         </p>
-        <p className="text-[11px] text-slate-400 flex gap-1.5">
+        <p className="text-[11px] text-muted flex gap-1.5">
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>
             İki dosya iner: <strong>Excel</strong> (okumak için) ve <strong>JSON</strong> (tam yedek; geri yükleme gerekirse bu kullanılır).
@@ -146,8 +146,8 @@ export const AdminMaintenancePanel: React.FC = () => {
             role={backupMsg.type === 'err' ? 'alert' : 'status'}
             className={`p-3 rounded-xl text-xs border flex gap-2 ${
               backupMsg.type === 'ok'
-                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
-                : 'bg-rose-950/40 border-rose-500/30 text-rose-200'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/30 text-emerald-700 dark:text-emerald-200'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-500/30 text-rose-600 dark:text-rose-200'
             }`}
           >
             {backupMsg.type === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
@@ -157,17 +157,17 @@ export const AdminMaintenancePanel: React.FC = () => {
       </section>
 
       {/* ESKİ DOSYALAR */}
-      <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg space-y-3">
+      <section className="bg-surface border border-line rounded-2xl p-5 shadow-lg space-y-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
             <FolderSync className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white">Eski Dosyaları Depoya Taşı</h2>
-            <p className="text-xs text-slate-400">Eski sürümde kayıtların içine gömülen dosyalar (ödev, teslim, arşiv)</p>
+            <h2 className="text-base font-bold text-fg">Eski Dosyaları Depoya Taşı</h2>
+            <p className="text-xs text-muted">Eski sürümde kayıtların içine gömülen dosyalar (ödev, teslim, arşiv)</p>
           </div>
         </div>
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-muted">
           Bu dosyalar her eşitlemede yeniden indirildiği için sistemi yavaşlatır. Taşındıktan sonra aynı şekilde açılırlar;
           öğretmen ve öğrenciler fark görmez. İşlem tekrar çalıştırılabilir, bir şeyi silmez.
         </p>
@@ -176,7 +176,7 @@ export const AdminMaintenancePanel: React.FC = () => {
             type="button"
             onClick={handleScan}
             disabled={scanBusy || moveBusy}
-            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-100 border border-slate-700 rounded-xl text-sm font-bold flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 disabled:opacity-60 text-fg border border-line rounded-xl text-sm font-bold flex items-center gap-2 cursor-pointer"
           >
             {scanBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Eski Dosyaları Tara
@@ -194,9 +194,9 @@ export const AdminMaintenancePanel: React.FC = () => {
           )}
         </div>
         {scan && (
-          <div role="status" className="text-xs text-slate-300 bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-1">
+          <div role="status" className="text-xs text-fg-2 bg-canvas/60 border border-line rounded-xl p-3 space-y-1">
             {scan.totalFiles === 0 ? (
-              <p className="text-emerald-300 flex items-center gap-1.5">
+              <p className="text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" /> Taşınacak eski dosya kalmadı.
               </p>
             ) : (
@@ -204,7 +204,7 @@ export const AdminMaintenancePanel: React.FC = () => {
                 <p>
                   Bulunan: <strong>{scan.totalFiles}</strong> dosya (yaklaşık {formatSize(scan.approxBytes)})
                 </p>
-                <p className="text-slate-400">
+                <p className="text-muted">
                   Ödevlerde {scan.homeworks.reduce((a, h) => a + h.files, 0)} · Teslimlerde{' '}
                   {scan.submissions.reduce((a, s) => a + s.files, 0)} · Arşivde {scan.documents.length}
                 </p>
@@ -217,8 +217,8 @@ export const AdminMaintenancePanel: React.FC = () => {
             role={moveResult.failed.length ? 'alert' : 'status'}
             className={`p-3 rounded-xl text-xs border ${
               moveResult.failed.length
-                ? 'bg-amber-950/40 border-amber-500/30 text-amber-200'
-                : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500/30 text-amber-700 dark:text-amber-200'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/30 text-emerald-700 dark:text-emerald-200'
             }`}
           >
             <p className="font-bold">{moveResult.moved} dosya depoya taşındı.</p>
@@ -237,7 +237,7 @@ export const AdminMaintenancePanel: React.FC = () => {
           </div>
         )}
         {legacyError && (
-          <div role="alert" className="p-3 rounded-xl text-xs border bg-rose-950/40 border-rose-500/30 text-rose-200">
+          <div role="alert" className="p-3 rounded-xl text-xs border bg-rose-50 dark:bg-rose-950/40 border-rose-500/30 text-rose-600 dark:text-rose-200">
             {legacyError}
           </div>
         )}

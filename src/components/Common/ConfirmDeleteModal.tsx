@@ -31,7 +31,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6"
+          className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden p-6"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -40,16 +40,16 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
             <div
               className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                 isDanger
-                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
-                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                  ? 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+                  : 'bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400'
               }`}
             >
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">{title}</h3>
+              <h3 className="text-base font-bold text-fg">{title}</h3>
               {itemBadge && (
-                <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-2 text-fg-2 border border-line">
                   {itemBadge}
                 </span>
               )}
@@ -59,14 +59,14 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <p className="text-xs text-slate-300 leading-relaxed mb-6 bg-slate-950/50 p-3.5 rounded-xl border border-slate-800/80">
+        <p className="text-xs text-fg-2 leading-relaxed mb-6 bg-canvas/50 p-3.5 rounded-xl border border-line">
           {description}
         </p>
 
@@ -75,7 +75,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+            className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors"
           >
             Vazgeç
           </button>

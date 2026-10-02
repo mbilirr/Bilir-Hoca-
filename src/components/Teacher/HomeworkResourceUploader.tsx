@@ -373,17 +373,17 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
   ]);
 
   return (
-    <div className="space-y-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+    <div className="space-y-4 bg-canvas/60 p-4 rounded-2xl border border-line">
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center space-x-2">
-            <Film className="w-4 h-4 text-indigo-400" />
+          <span className="text-xs font-bold uppercase tracking-wider text-fg flex items-center space-x-2">
+            <Film className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>Ödev Materyalleri (Video, İnternet Linki, PDF)</span>
           </span>
         </div>
 
         {resources.length > 0 && (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-500/30">
             {resources.length} Materyal Eklendi
           </span>
         )}
@@ -391,15 +391,15 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
       {/* Error notification if any */}
       {errorMessage && (
-        <div className="p-2.5 bg-rose-950/40 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center justify-between">
+        <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-500/30 rounded-xl text-xs text-rose-600 dark:text-rose-300 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 flex-shrink-0" />
             <span>{errorMessage}</span>
           </div>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="text-xs font-bold text-rose-400 hover:text-rose-200"
+            className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-200"
           >
             Tamam
           </button>
@@ -407,14 +407,14 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       )}
 
       {uploadingName && (
-        <div role="status" className="p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 flex items-center space-x-2">
-          <span className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin shrink-0" />
+        <div role="status" className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-600 dark:text-indigo-200 flex items-center space-x-2">
+          <span className="w-3.5 h-3.5 border-2 border-indigo-300 dark:border-indigo-500/30 border-t-transparent rounded-full animate-spin shrink-0" />
           <span className="truncate">"{uploadingName}" yükleniyor… Lütfen bekleyin.</span>
         </div>
       )}
 
       {/* Type Tabs */}
-      <div className="flex space-x-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+      <div className="flex space-x-1.5 p-1 bg-surface border border-line rounded-xl">
         <button
           type="button"
           onClick={() => {
@@ -423,8 +423,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
             activeTab === 'video'
-              ? 'bg-rose-600/20 text-rose-300 border border-rose-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-rose-600/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 shadow-sm'
+              : 'text-muted hover:text-fg'
           }`}
         >
           <Video className="w-3.5 h-3.5" />
@@ -439,8 +439,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
             activeTab === 'link'
-              ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-blue-600/20 text-blue-600 dark:text-blue-300 border border-blue-500/30 shadow-sm'
+              : 'text-muted hover:text-fg'
           }`}
         >
           <Globe className="w-3.5 h-3.5" />
@@ -455,8 +455,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
           }}
           className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
             activeTab === 'pdf'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-sm'
+              : 'text-muted hover:text-fg'
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
@@ -466,16 +466,16 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
       {/* TAB CONTENT 1: VIDEO */}
       {activeTab === 'video' && (
-        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+        <div className="space-y-3 p-3 bg-surface/90 rounded-xl border border-line">
           <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-400">Video Kaynağı:</span>
+            <span className="text-muted">Video Kaynağı:</span>
             <button
               type="button"
               onClick={() => setVideoSourceType('url')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 videoSourceType === 'url'
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-bold'
+                  : 'bg-surface-2 text-muted hover:text-fg'
               }`}
             >
               YouTube / Web Video Linki
@@ -485,8 +485,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
               onClick={() => setVideoSourceType('file')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 videoSourceType === 'file'
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-bold'
+                  : 'bg-surface-2 text-muted hover:text-fg'
               }`}
             >
               Bilgisayardan Video Yükle
@@ -501,14 +501,14 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="Video Başlığı (örn: Türev Kuralları Konu Anlatımı)"
                   value={videoTitle}
                   onChange={(e) => setVideoTitle(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-rose-500"
                 />
                 <input
                   type="text"
                   placeholder="Açıklama / Not (opsiyonel)"
                   value={videoDescription}
                   onChange={(e) => setVideoDescription(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-rose-500"
                 />
               </div>
 
@@ -519,7 +519,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="YouTube, Vimeo veya Video Linki (https://www.youtube.com/watch?v=...)"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                  className="flex-1 px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-rose-500"
                 />
                 <button
                   type="button"
@@ -539,20 +539,20 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="Video Başlığı (opsiyonel)"
                   value={videoTitle}
                   onChange={(e) => setVideoTitle(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-rose-500"
                 />
                 <input
                   type="text"
                   placeholder="Açıklama (opsiyonel)"
                   value={videoDescription}
                   onChange={(e) => setVideoDescription(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-rose-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-rose-500"
                 />
               </div>
 
               <div
                 onClick={() => videoFileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-rose-500/50 bg-slate-800/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
+                className="border-2 border-dashed border-line hover:border-rose-500/50 bg-surface-2/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
               >
                 <input
                   type="file"
@@ -561,11 +561,11 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   accept="video/mp4,video/webm,video/ogg,video/quicktime"
                   className="hidden"
                 />
-                <UploadCloud className="w-6 h-6 text-rose-400 mx-auto mb-1.5" />
-                <span className="text-xs font-semibold text-white block">
+                <UploadCloud className="w-6 h-6 text-rose-600 dark:text-rose-400 mx-auto mb-1.5" />
+                <span className="text-xs font-semibold text-fg block">
                   Video Seçmek veya Sürüklemek İçin Tıklayın
                 </span>
-                <span className="text-[11px] text-slate-400 block mt-0.5">
+                <span className="text-[11px] text-muted block mt-0.5">
                   Desteklenen Formatlar: MP4, WebM (Maksimum {maxFileLabel} — büyük videolar için YouTube linki)
                 </span>
               </div>
@@ -576,21 +576,21 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
       {/* TAB CONTENT 2: WEB LINK */}
       {activeTab === 'link' && (
-        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+        <div className="space-y-3 p-3 bg-surface/90 rounded-xl border border-line">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
               type="text"
               placeholder="Bağlantı Başlığı (örn: GeoGebra Türev Simülatörü)"
               value={linkTitle}
               onChange={(e) => setLinkTitle(e.target.value)}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+              className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-blue-500"
             />
             <input
               type="text"
               placeholder="Açıklama / Talimat (opsiyonel)"
               value={linkDescription}
               onChange={(e) => setLinkDescription(e.target.value)}
-              className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+              className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -601,7 +601,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
               placeholder="Web Sitesi veya İnternet Linki (https://...)"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
-              className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-blue-500"
+              className="flex-1 px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-blue-500"
             />
             <button
               type="button"
@@ -617,16 +617,16 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
       {/* TAB CONTENT 3: PDF */}
       {activeTab === 'pdf' && (
-        <div className="space-y-3 p-3 bg-slate-900/90 rounded-xl border border-slate-800">
+        <div className="space-y-3 p-3 bg-surface/90 rounded-xl border border-line">
           <div className="flex items-center space-x-2 text-xs">
-            <span className="text-slate-400">PDF Ekleme Yöntemi:</span>
+            <span className="text-muted">PDF Ekleme Yöntemi:</span>
             <button
               type="button"
               onClick={() => setPdfSourceType('file')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 pdfSourceType === 'file'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold'
+                  : 'bg-surface-2 text-muted hover:text-fg'
               }`}
             >
               {storageFolder ? 'Cihazdan PDF / Fotoğraf Yükle' : 'Bilgisayardan PDF Yükle'}
@@ -636,8 +636,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
               onClick={() => setPdfSourceType('url')}
               className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
                 pdfSourceType === 'url'
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold'
-                  : 'bg-slate-800 text-slate-400 hover:text-white'
+                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold'
+                  : 'bg-surface-2 text-muted hover:text-fg'
               }`}
             >
               Online PDF / Drive Bağlantısı
@@ -652,20 +652,20 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="PDF Başlığı (opsiyonel - boş bırakılırsa dosya adı alınır)"
                   value={pdfTitle}
                   onChange={(e) => setPdfTitle(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-amber-500"
                 />
                 <input
                   type="text"
                   placeholder="Açıklama (opsiyonel)"
                   value={pdfDescription}
                   onChange={(e) => setPdfDescription(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               <div
                 onClick={() => pdfFileInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-700 hover:border-amber-500/50 bg-slate-800/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
+                className="border-2 border-dashed border-line hover:border-amber-500/50 bg-surface-2/40 rounded-xl p-4 text-center cursor-pointer transition-colors"
               >
                 <input
                   type="file"
@@ -674,11 +674,11 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   accept={storageFolder ? 'application/pdf,.pdf,image/*' : 'application/pdf,.pdf'}
                   className="hidden"
                 />
-                <FileUp className="w-6 h-6 text-amber-400 mx-auto mb-1.5" />
-                <span className="text-xs font-semibold text-white block">
+                <FileUp className="w-6 h-6 text-amber-700 dark:text-amber-400 mx-auto mb-1.5" />
+                <span className="text-xs font-semibold text-fg block">
                   {storageFolder ? 'PDF veya Fotoğraf Seçmek İçin Tıklayın' : 'PDF Dosyası Seçmek veya Sürüklemek İçin Tıklayın'}
                 </span>
-                <span className="text-[11px] text-slate-400 block mt-0.5">
+                <span className="text-[11px] text-muted block mt-0.5">
                   Örn: Çalışma yaprağı, ÖSYM çıkmış sorular fasikülü, test PDF (Maksimum {maxFileLabel} — büyük dosyalar için Google Drive linki)
                 </span>
               </div>
@@ -691,14 +691,14 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="PDF Başlığı (örn: YKS Türev Çıkmış Sorular Fasikülü)"
                   value={pdfTitle}
                   onChange={(e) => setPdfTitle(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-amber-500"
                 />
                 <input
                   type="text"
                   placeholder="Açıklama (opsiyonel)"
                   value={pdfDescription}
                   onChange={(e) => setPdfDescription(e.target.value)}
-                  className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                  className="px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
@@ -709,7 +709,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   placeholder="Online PDF veya Google Drive PDF Linki (https://...)"
                   value={pdfOnlineUrl}
                   onChange={(e) => setPdfOnlineUrl(e.target.value)}
-                  className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                  className="flex-1 px-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:ring-1 focus:ring-amber-500"
                 />
                 <button
                   type="button"
@@ -727,8 +727,8 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
 
       {/* LIST OF CURRENTLY ATTACHED RESOURCES */}
       {resources.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-slate-800">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+        <div className="space-y-2 pt-2 border-t border-line">
+          <span className="text-[11px] font-bold text-muted uppercase tracking-wider block">
             Ödeve Eklenen Materyaller:
           </span>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -738,16 +738,16 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
               return (
                 <div
                   key={res.id || index}
-                  className="flex items-center justify-between p-2.5 bg-slate-900 border border-slate-800 rounded-xl hover:border-slate-700 transition-colors"
+                  className="flex items-center justify-between p-2.5 bg-surface border border-line rounded-xl hover:border-line transition-colors"
                 >
                   <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
                     <span
                       className={`p-1.5 rounded-lg text-xs ${
                         isVideo
-                          ? 'bg-rose-500/20 text-rose-300'
+                          ? 'bg-rose-500/20 text-rose-600 dark:text-rose-300'
                           : isPdf
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-blue-500/20 text-blue-300'
+                          ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-300'
                       }`}
                     >
                       {isVideo ? (
@@ -760,28 +760,28 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                     </span>
                     <div className="truncate">
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-semibold text-white truncate">
+                        <span className="text-xs font-semibold text-fg truncate">
                           {res.title}
                         </span>
                         <span
                           className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
                             isVideo
-                              ? 'bg-rose-500/10 text-rose-300'
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-300'
                               : isPdf
-                              ? 'bg-amber-500/10 text-amber-300'
-                              : 'bg-blue-500/10 text-blue-300'
+                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                              : 'bg-blue-500/10 text-blue-600 dark:text-blue-300'
                           }`}
                         >
                           {isVideo ? 'VIDEO' : res.type === 'image' ? 'FOTO' : isPdf ? 'PDF' : 'LINK'}
                         </span>
                         {res.fileSize && (
-                          <span className="text-[10px] text-slate-500 font-mono">
+                          <span className="text-[10px] text-muted font-mono">
                             {res.fileSize}
                           </span>
                         )}
                       </div>
                       {res.description && (
-                        <span className="text-[10px] text-slate-400 truncate block">
+                        <span className="text-[10px] text-muted truncate block">
                           {res.description}
                         </span>
                       )}
@@ -791,7 +791,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
                   <button
                     type="button"
                     onClick={() => handleRemoveResource(res.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-1.5 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface-2 rounded-lg transition-colors"
                     title="Bu materyali kaldır"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

@@ -170,23 +170,23 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+          className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between shrink-0">
+          <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                 <User className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Öğretmen Bilgilerimi Güncelle</h3>
+                <h3 className="text-sm font-bold text-fg">Öğretmen Bilgilerimi Güncelle</h3>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              className="p-1 text-muted hover:text-fg hover:bg-surface-3/60 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -195,21 +195,21 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             {/* Profil Fotoğrafı & Öğretmen Emojileri */}
-            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3">
+            <div className="p-4 bg-canvas/80 border border-line rounded-2xl space-y-3">
               <div className="flex items-center space-x-4">
                 <div className="relative group shrink-0">
                   <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 ring-2 ring-indigo-400/50 flex items-center justify-center overflow-hidden shadow-md">
@@ -226,7 +226,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full border border-slate-900 shadow-md cursor-pointer transition-transform hover:scale-110"
+                    className="absolute -bottom-1 -right-1 p-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full border border-surface shadow-md cursor-pointer transition-transform hover:scale-110"
                     title="Bilgisayardan Fotoğraf Seç"
                   >
                     <Camera className="w-3.5 h-3.5" />
@@ -234,8 +234,8 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white mb-0.5">Profil Fotoğrafı & Öğretmen Emojileri</p>
-                  <p className="text-[11px] text-slate-400 mb-2">
+                  <p className="text-xs font-bold text-fg mb-0.5">Profil Fotoğrafı & Öğretmen Emojileri</p>
+                  <p className="text-[11px] text-muted mb-2">
                     Bilgisayarınızdan fotoğraf yükleyin veya branşınıza uygun öğretmen emojisi seçin:
                   </p>
 
@@ -260,7 +260,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                       <button
                         type="button"
                         onClick={() => setAvatar('')}
-                        className="px-2.5 py-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
+                        className="px-2.5 py-1.5 text-rose-600 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Kaldır ({initials})</span>
@@ -271,9 +271,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
               </div>
 
             {/* Öğretmen Profiline Uygun Emojiler */}
-            <div className="pt-2.5 border-t border-slate-800/80 space-y-1.5">
+            <div className="pt-2.5 border-t border-line space-y-1.5">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-slate-300">Öğretmen Profiline Uygun Emojiler</span>
+                <span className="font-bold text-fg-2">Öğretmen Profiline Uygun Emojiler</span>
               </div>
               
               {/* Emojiler Gruplu / Yatay Liste */}
@@ -306,7 +306,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                     key={item.em}
                     type="button"
                     onClick={() => setAvatar(createEmojiSvgDataUrl(item.em))}
-                    className="p-1.5 rounded-xl bg-slate-900 hover:bg-indigo-900/40 border border-slate-750 hover:border-indigo-400 text-lg leading-none transition-all cursor-pointer hover:scale-115 shrink-0 flex items-center justify-center shadow-sm"
+                    className="p-1.5 rounded-xl bg-surface hover:bg-indigo-50 dark:hover:bg-indigo-900/40 border border-line hover:border-indigo-400 text-lg leading-none transition-all cursor-pointer hover:scale-115 shrink-0 flex items-center justify-center shadow-sm"
                     title={`${item.name} (${item.em})`}
                   >
                     <span>{item.em}</span>
@@ -318,17 +318,17 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
           {/* Adı Soyadı */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Ad Soyad <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
+              Ad Soyad <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <User className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Örn: Mehmet Bilir"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
             </div>
@@ -337,26 +337,26 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
           {/* Kullanıcı Adı */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-300">
-                Kullanıcı Adı <span className="text-rose-400">*</span>
+              <label className="block text-xs font-semibold text-fg-2">
+                Kullanıcı Adı <span className="text-rose-600 dark:text-rose-400">*</span>
               </label>
-              <span className="text-[10px] text-indigo-400 font-medium">Giriş yaparken kullanılır</span>
+              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">Giriş yaparken kullanılır</span>
             </div>
             <div className="relative">
-              <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">@</span>
+              <span className="absolute left-3 top-2.5 text-muted font-bold text-xs">@</span>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 readOnly={!canEditUsername}
                 placeholder="Örn: mbilir veya mehmetb"
-                className={`w-full bg-slate-950 border border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors ${
-                  canEditUsername ? 'text-white' : 'text-slate-400 cursor-not-allowed'
+                className={`w-full bg-canvas border border-line rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors ${
+                  canEditUsername ? 'text-fg' : 'text-muted cursor-not-allowed'
                 }`}
                 required
               />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
+            <p className="text-[11px] text-muted mt-1">
               {canEditUsername
                 ? 'Giriş ekranında bu kullanıcı adı kullanılır.'
                 : 'Giriş adınızdır; değiştirilmesi için yöneticinize başvurunuz.'}
@@ -365,70 +365,70 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
 
           {/* Branş */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Branş <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
+              Branş <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <BookOpen className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <BookOpen className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type="text"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
                 placeholder="Örn: Fen Bilgisi Öğretmeni, Matematik, Fizik..."
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Örnek gösterim: <span className="text-slate-400">{branch ? (branch.includes('Öğretmen') ? branch : `${branch} Öğretmeni`) : 'Fen Bilgisi Öğretmeni'}</span>
+            <p className="text-[11px] text-muted mt-1">
+              Örnek gösterim: <span className="text-muted">{branch ? (branch.includes('Öğretmen') ? branch : `${branch} Öğretmeni`) : 'Fen Bilgisi Öğretmeni'}</span>
             </p>
           </div>
 
           {/* E-Posta */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
               E-Posta Adresi
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Mail className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="m.bilirr@gmail.com"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           </div>
 
           {/* Telefon */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
               Telefon Numarası (İsteğe Bağlı)
             </label>
             <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Phone className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="05XX XXX XX XX"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
           </div>
 
           {/* Şifre bu ekrandan değiştirilmez: profil menüsündeki "Şifre Değiştir" ekranı kullanılır */}
-          <p className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-400">
-            Şifrenizi değiştirmek için profil menüsündeki <strong className="text-slate-200">"Şifre Değiştir"</strong> seçeneğini kullanınız.
+          <p className="pt-2 border-t border-line text-[11px] text-muted">
+            Şifrenizi değiştirmek için profil menüsündeki <strong className="text-fg">"Şifre Değiştir"</strong> seçeneğini kullanınız.
           </p>
 
           {/* Footer Save Button */}
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3">
+          <div className="pt-4 border-t border-line flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors"
             >
               İptal
             </button>
@@ -529,23 +529,23 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
-          className="relative w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
+          className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700/80 flex items-center justify-between shrink-0">
+          <div className="px-6 py-4 bg-surface-2/80 border-b border-line flex items-center justify-between shrink-0">
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-400">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Şifre Değiştir</h3>
+                <h3 className="text-sm font-bold text-fg">Şifre Değiştir</h3>
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer"
+              className="p-1 text-muted hover:text-fg hover:bg-surface-3/60 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -554,14 +554,14 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -569,23 +569,23 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
           {/* Mevcut Şifre */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Mevcut Şifre <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
+              Mevcut Şifre <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Lock className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type={showOld ? 'text' : 'password'}
                 value={oldPassword}
                 onChange={(e) => setOldPassword(e.target.value)}
                 placeholder="Mevcut şifreniz"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-10 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowOld(!showOld)}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
+                className="absolute right-3 top-2.5 text-muted hover:text-fg"
               >
                 {showOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -594,23 +594,23 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
           {/* Yeni Şifre */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Yeni Şifre <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
+              Yeni Şifre <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <KeyRound className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Yeni şifreniz (En az 6 karakter)"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-10 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
+                className="absolute right-3 top-2.5 text-muted hover:text-fg"
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -619,28 +619,28 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
           {/* Yeni Şifre Tekrar */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Yeni Şifre (Tekrar) <span className="text-rose-400">*</span>
+            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
+              Yeni Şifre (Tekrar) <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <Lock className="w-4 h-4 text-muted absolute left-3 top-3" />
               <input
                 type={showNew ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Yeni şifreyi doğrulayın"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
                 required
               />
             </div>
           </div>
 
           {/* Footer Save Button */}
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-end space-x-3">
+          <div className="pt-4 border-t border-line flex items-center justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
+              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors"
             >
               İptal
             </button>

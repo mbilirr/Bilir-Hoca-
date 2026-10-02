@@ -162,25 +162,25 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
       >
         <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
           <div
-            className="bg-slate-900 border border-slate-700/90 rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-slate-100"
+            className="bg-surface border border-line rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden text-fg"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-line bg-canvas/50">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 relative">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 relative">
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center ring-2 ring-slate-900">
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-black flex items-center justify-center ring-2 ring-surface">
                     {unreadCount}
                   </span>
                 )}
               </div>
               <div>
-                <h3 className="text-base font-bold text-white leading-tight">
+                <h3 className="text-base font-bold text-fg leading-tight">
                   Bildirimler & E-Posta Kutusu
                 </h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted">
                   {currentStudent.name} • Yeni ödev ve etüt bildirimleri
                 </p>
               </div>
@@ -188,7 +188,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -196,9 +196,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
           {/* Browser Notification Banner if not enabled */}
           {notificationPermission !== 'granted' && (
-            <div className="bg-indigo-950/40 border-b border-indigo-500/20 px-5 py-2.5 flex items-center justify-between text-xs gap-3">
-              <div className="flex items-center space-x-2 text-indigo-200">
-                <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
+            <div className="bg-indigo-50 dark:bg-indigo-950/40 border-b border-indigo-500/20 px-5 py-2.5 flex items-center justify-between text-xs gap-3">
+              <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-200">
+                <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span>Yeni ödev ve etütlerden anında haberdar olmak için tarayıcı bildirimlerini açın.</span>
               </div>
               <button
@@ -212,7 +212,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
           )}
 
           {/* Filter Bar & Quick Actions */}
-          <div className="px-5 py-3 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between flex-wrap gap-2">
+          <div className="px-5 py-3 border-b border-line bg-surface/60 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center space-x-1.5 overflow-x-auto text-xs">
               <button
                 type="button"
@@ -220,7 +220,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
                   filter === 'all'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 Tümü ({notifications.length})
@@ -232,7 +232,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'homework'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
@@ -245,7 +245,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'etuts'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5" />
@@ -258,7 +258,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
                   filter === 'emails'
                     ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'bg-surface-2/80 text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <Mail className="w-3.5 h-3.5" />
@@ -270,7 +270,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={handleMarkAllRead}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center space-x-1"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold flex items-center space-x-1"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Tümünü Okundu Say</span>
@@ -279,11 +279,11 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
           </div>
 
           {/* List Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-slate-950/30 min-h-[300px]">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 bg-canvas/30 min-h-[300px]">
             {filter === 'emails' ? (
               emails.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs space-y-2">
-                  <Mail className="w-8 h-8 text-slate-600 mx-auto" />
+                <div className="py-12 text-center text-muted text-xs space-y-2">
+                  <Mail className="w-8 h-8 text-subtle mx-auto" />
                   <p>Henüz gelen e-posta kaydı bulunmuyor.</p>
                 </div>
               ) : (
@@ -291,32 +291,32 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                   <div
                     key={email.id}
                     onClick={() => handleEmailClick(email)}
-                    className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-850 transition-all cursor-pointer shadow-sm group"
+                    className="p-3.5 rounded-xl bg-surface/90 border border-line hover:border-indigo-500/50 hover:bg-surface-2 transition-all cursor-pointer shadow-sm group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start space-x-3">
                         <div
                           className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                             email.type === 'homework_assigned'
-                              ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
-                              : 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
+                              ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                              : 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
                           }`}
                         >
                           <Mail className="w-4 h-4" />
                         </div>
                         <div>
                           <div className="flex items-center space-x-2">
-                            <span className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">
+                            <span className="text-xs font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
                               {email.subject}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                               İletildi ✓
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">
+                          <p className="text-xs text-muted mt-0.5 line-clamp-1">
                             Kimden: {email.teacherName} • Kime: {email.recipientEmail}
                           </p>
-                          <p className="text-[11px] text-slate-500 mt-1 flex items-center space-x-1">
+                          <p className="text-[11px] text-muted mt-1 flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>
                               {new Date(email.sentAt).toLocaleString('tr-TR', {
@@ -330,7 +330,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                         </div>
                       </div>
 
-                      <div className="flex items-center text-xs text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                      <div className="flex items-center text-xs text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
                         <span className="hidden sm:inline text-[11px] font-semibold mr-1">
                           E-Postayı Aç
                         </span>
@@ -341,8 +341,8 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 ))
               )
             ) : filteredNotifs.length === 0 ? (
-              <div className="py-12 text-center text-slate-400 text-xs space-y-2">
-                <Bell className="w-8 h-8 text-slate-600 mx-auto" />
+              <div className="py-12 text-center text-muted text-xs space-y-2">
+                <Bell className="w-8 h-8 text-subtle mx-auto" />
                 <p>Bu filtrede henüz bir bildiriminiz bulunmuyor.</p>
               </div>
             ) : (
@@ -352,8 +352,8 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                   onClick={() => handleItemClick(notif)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm group ${
                     notif.read
-                      ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-                      : 'bg-slate-850/90 border-indigo-500/40 hover:border-indigo-400 ring-1 ring-indigo-500/20'
+                      ? 'bg-surface/60 border-line hover:border-line'
+                      : 'bg-surface-2/90 border-indigo-500/40 hover:border-indigo-400 ring-1 ring-indigo-500/20'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -361,16 +361,16 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                       <div
                         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                           notif.type === 'praise'
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 ring-2 ring-amber-500/20'
+                            ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 ring-2 ring-amber-500/20'
                             : notif.type === 'new_homework'
-                            ? 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30'
+                            ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
                             : notif.type === 'new_etut'
-                            ? 'bg-teal-500/15 text-teal-400 border border-teal-500/30'
-                            : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                            ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
+                            : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
                         }`}
                       >
                         {notif.type === 'praise' ? (
-                          <Award className="w-4 h-4 text-amber-300" />
+                          <Award className="w-4 h-4 text-amber-700 dark:text-amber-300" />
                         ) : notif.type === 'new_homework' ? (
                           <BookOpen className="w-4 h-4" />
                         ) : notif.type === 'new_etut' ? (
@@ -385,8 +385,8 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                           <span
                             className={`text-xs font-bold transition-colors ${
                               notif.read
-                                ? 'text-slate-300 group-hover:text-white'
-                                : 'text-white group-hover:text-indigo-300 font-extrabold'
+                                ? 'text-fg-2 group-hover:text-fg'
+                                : 'text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 font-extrabold'
                             }`}
                           >
                             {notif.title}
@@ -399,18 +399,18 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                           )}
 
                           {notif.emailSent && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center space-x-1">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 flex items-center space-x-1">
                               <Mail className="w-2.5 h-2.5" />
                               <span>Mail Gönderildi</span>
                             </span>
                           )}
                         </div>
 
-                        <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                        <p className="text-xs text-fg-2 mt-1 leading-relaxed">
                           {notif.message}
                         </p>
 
-                        <div className="flex items-center space-x-3 text-[11px] text-slate-500 mt-1.5">
+                        <div className="flex items-center space-x-3 text-[11px] text-muted mt-1.5">
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
                             <span>
@@ -430,7 +430,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                       </div>
                     </div>
 
-                    <div className="flex items-center text-xs text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
+                    <div className="flex items-center text-xs text-indigo-600 dark:text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0">
                       <span className="hidden sm:inline text-[11px] font-semibold mr-1">
                         Detayı Gör
                       </span>
@@ -443,14 +443,14 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/70 flex items-center justify-between text-xs text-slate-400">
+          <div className="px-5 py-3 border-t border-line bg-canvas/70 flex items-center justify-between text-xs text-muted">
             <span className="text-[11px]">
               Tüm ödev atamaları ve etüt planlamaları anında bildirim ve e-posta olarak iletilir.
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-lg transition-colors border border-slate-700 cursor-pointer"
+              className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 font-semibold rounded-lg transition-colors border border-line cursor-pointer"
             >
               Kapat
             </button>
