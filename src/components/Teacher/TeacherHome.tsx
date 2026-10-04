@@ -20,6 +20,7 @@ import {
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { setQuickFocus } from '../../lib/quickFocus';
+import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { Panel, StatCard, EmptyState, IconBox, cx } from '../ui/kit';
 import { TeacherEtutBell } from './TeacherEtutBell';
 
@@ -43,13 +44,6 @@ const longDate = (s: string) => {
   const [y, m, d] = s.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
   return `${d} ${MONTHS[m - 1]} ${DAYS[dt.getDay()]}`;
-};
-const greeting = () => {
-  const h = new Date().getHours();
-  if (h < 6) return 'İyi geceler';
-  if (h < 12) return 'Günaydın';
-  if (h < 18) return 'İyi günler';
-  return 'İyi akşamlar';
 };
 
 interface TeacherHomeProps {
@@ -142,7 +136,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
   const weekQuestions = weekLogs.reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
   const weekActiveStudents = new Set(weekLogs.filter((l) => (l.totalQuestions || 0) > 0).map((l) => l.studentId)).size;
 
-  const firstName = (currentTeacher?.name || '').split(' ')[0] || 'Hocam';
+  const firstName = firstNameOf(currentTeacher?.name, '');
   const branch = currentTeacher?.branch
     ? currentTeacher.branch.includes('Öğretmen')
       ? currentTeacher.branch
@@ -162,7 +156,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         <div className="min-w-0">
           <p className="text-sm text-muted">{longDate(todayStr)} · {branch}</p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg mt-1">
-            {greeting()}, {firstName} Hoca
+            {timeGreeting()} {firstName ? `${firstName} öğretmenim` : 'öğretmenim'}
           </h1>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 [scrollbar-width:none]">

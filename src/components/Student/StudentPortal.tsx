@@ -47,6 +47,7 @@ import { StudentStatsOverview } from './StudentStatsOverview';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { StudentQuestionModule } from './StudentQuestionModule';
 import { StudentBottomNav } from '../Layout/BottomNav';
+import { timeGreeting, firstNameOf } from '../../lib/greeting';
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -515,6 +516,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Karşılama: saate göre Günaydın / İyi günler / İyi akşamlar + öğrencinin adı */}
+          <h1 id="student-home-greeting" className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+            {timeGreeting()} {firstNameOf(currentStudent.name, '')}
+          </h1>
 
           {/* Wall 1: Öğrenci Karşılama ve Güncel Ayı Gösteren İnteraktif Ajanda Duvarı */}
           <StudentHeroBanner

@@ -215,20 +215,25 @@ export const Modal: React.FC<{
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // onClose her çizimde yeni bir işlev olabilir; efekt onu yeniden başlatmasın (yoksa her harfte odak kutudan alınır)
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    panelRef.current?.focus();
+    // Odağı yalnızca pencere ilk açıldığında ve içinde henüz bir şey odaklı değilse pencereye ver
+    if (panelRef.current && !panelRef.current.contains(document.activeElement)) panelRef.current.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   const width =
