@@ -182,6 +182,9 @@ export interface Etut {
   teacherName?: string;
   teacherBranch?: string;
   studentAttendance?: Record<string, EtutStudentAttendance>; // Öğrenci ID -> Katılım Durumu
+  createdById?: string; // Etüdü kaydeden öğretmen (Aşama 9)
+  createdByName?: string;
+  recurrenceGroupId?: string; // Tekrarlayan etütlerde ortak kimlik
 }
 
 export interface WeeklyQuestionTarget {

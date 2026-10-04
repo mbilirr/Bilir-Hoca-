@@ -58,6 +58,10 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Etüt sonrası öğretmen görüşü (Aşama 9: oluşturma formundan buraya taşındı)
+  const [feedback, setFeedback] = useState(etut.teacherFeedback || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -104,13 +108,25 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
     });
   };
 
-  const handleSave = () => {
-    dataService.updateEtutAttendance(etut.id, attendanceMap);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1200);
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await dataService.updateEtutAttendance(etut.id, attendanceMap);
+      if (feedback.trim() !== (etut.teacherFeedback || '').trim()) {
+        await dataService.updateEtut(etut.id, { teacherFeedback: feedback.trim() });
+      }
+      setSavedSuccess(true);
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      setSaveError((err?.message || 'Yoklama kaydedilemedi.').replace(/^\[\w+\]\s*/, ''));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const filteredStudents = assignedStudents.filter((s) =>
@@ -202,13 +218,21 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
           </div>
         </div>
 
-        {/* Öğretmen Görüş ve Düşünceleri Banner */}
-        {etut.teacherFeedback && (
-          <div className="mx-6 mt-3 p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl text-xs text-amber-700 dark:text-amber-200 shrink-0">
-            <strong className="text-amber-700 dark:text-amber-300 font-semibold block text-[11px]">💬 Öğretmen Düşünce ve Görüşleri:</strong>
-            <p className="italic text-fg mt-1 leading-relaxed">"{etut.teacherFeedback}"</p>
-          </div>
-        )}
+        {/* Etüt sonrası öğretmen görüşü */}
+        <div className="mx-6 mt-3 shrink-0">
+          <label htmlFor="etut-feedback-input" className="block text-[11px] font-semibold text-fg-2 mb-1">
+            Etüt sonrası görüş ve değerlendirme <span className="font-normal text-subtle">(isteğe bağlı)</span>
+          </label>
+          <textarea
+            id="etut-feedback-input"
+            rows={2}
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            maxLength={1000}
+            placeholder="Etüt nasıl geçti, öğrencilerin eksikleri, sonraki adım…"
+            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand resize-y"
+          />
+        </div>
 
         {/* Search bar if many students */}
         {assignedStudents.length > 5 && (
@@ -336,6 +360,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-surface/95 shrink-0">
           <div className="text-xs text-muted">
+            {saveError && <span role="alert" className="text-danger-fg font-semibold">{saveError}</span>}
             {savedSuccess && (
               <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center space-x-1.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" />
@@ -355,10 +380,11 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="flex items-center space-x-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-600/25 cursor-pointer"
+              disabled={isSaving}
+              className="flex items-center space-x-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-60"
             >
               <Save className="w-4 h-4" />
-              <span>Yoklamayı Kaydet</span>
+              <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>
             </button>
           </div>
         </div>

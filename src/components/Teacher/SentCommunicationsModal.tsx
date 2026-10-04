@@ -1,292 +1,163 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import {
-  X,
-  Mail,
-  Search,
-  BookOpen,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
-  ChevronRight,
-  Filter,
-  User,
-} from 'lucide-react';
-import { SentEmailLog } from '../../types';
-import { dataService } from '../../services/dataService';
-import { EmailPreviewModal } from '../Student/EmailPreviewModal';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Mail, Search, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Modal, cx } from '../ui/kit';
+import { chipCls } from './FormParts';
+
+// ============================================================================
+// Giden e-postalar (Aşama 9): sunucunun gerçekten gönderdiği / gönderemediği e-postaların kaydı.
+// Öğretmen yalnızca kendi gönderdiklerini, yönetici tümünü görür (veritabanı kuralı).
+// ============================================================================
+
+interface MailLogRow {
+  id: number;
+  created_at: string;
+  sender_name: string | null;
+  via: string | null;
+  event: string;
+  ref_title: string | null;
+  recipient: string;
+  recipient_name: string | null;
+  recipient_role: string | null;
+  subject: string | null;
+  status: 'sent' | 'failed';
+  error: string | null;
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  'homework-created': 'Yeni ödev',
+  'homework-reminder': 'Ödev hatırlatma',
+  'etut-created': 'Yeni etüt',
+  'etut-assigned': 'Etüt atandı',
+  'etut-changed': 'Etüt değişti',
+  'etut-cancelled': 'Etüt iptal',
+  'etut-unassigned': 'Etüt başkasına verildi',
+  test: 'Deneme',
+};
+type Filter = 'all' | 'homework' | 'etut' | 'failed';
 
 interface SentCommunicationsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = ({
-  isOpen,
-  onClose,
-}) => {
-  const [emails, setEmails] = useState<SentEmailLog[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'homework' | 'etut' | 'welcome'>('all');
-  const [selectedEmail, setSelectedEmail] = useState<{
-    subject: string;
-    senderName: string;
-    senderEmail?: string;
-    recipientName: string;
-    recipientEmail: string;
-    sentAt: string;
-    htmlContent: string;
-    textContent: string;
-    type?: 'homework_assigned' | 'etut_assigned' | 'student_welcome';
-  } | null>(null);
+export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = ({ isOpen, onClose }) => {
+  const [rows, setRows] = useState<MailLogRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
-  useEffect(() => {
-    if (isOpen) {
-      setEmails(dataService.getSentEmails());
+  const load = async () => {
+    setError(null);
+    setRows(null);
+    const { data, error: err } = await supabase.from('mail_log').select('*').order('created_at', { ascending: false }).limit(300);
+    if (err) {
+      setRows([]);
+      setError(/mail_log/.test(err.message || '') ? 'E-posta kaydı tablosu bulunamadı (13 numaralı SQL çalıştırılmalı).' : err.message);
+      return;
     }
+    setRows((data || []) as MailLogRow[]);
+  };
+  useEffect(() => {
+    if (isOpen) load();
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  const list = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr-TR');
+    return (rows || []).filter((r) => {
+      if (filter === 'homework' && !r.event.startsWith('homework')) return false;
+      if (filter === 'etut' && !r.event.startsWith('etut')) return false;
+      if (filter === 'failed' && r.status !== 'failed') return false;
+      if (!q) return true;
+      return [r.recipient, r.recipient_name, r.subject, r.ref_title, r.sender_name].filter(Boolean).join(' ').toLocaleLowerCase('tr-TR').includes(q);
+    });
+  }, [rows, query, filter]);
+  const failedCount = (rows || []).filter((r) => r.status === 'failed').length;
 
-  const filteredEmails = emails.filter((item) => {
-    const matchesSearch =
-      item.recipientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.recipientEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.teacherName.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesType =
-      typeFilter === 'all'
-        ? true
-        : typeFilter === 'homework'
-        ? item.type === 'homework_assigned'
-        : typeFilter === 'etut'
-        ? item.type === 'etut_assigned'
-        : item.type === 'student_welcome';
-
-    return matchesSearch && matchesType;
-  });
-
-  const modalContent = (
-    <>
-      <div
-        className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
-        onClick={onClose}
-      >
-        <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-          <div
-            className="bg-surface border border-line rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-fg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-canvas/60">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                <Mail className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-fg leading-tight">
-                  Otomatik E-Posta & Bildirim İletim Günlüğü
-                </h3>
-                <p className="text-xs text-muted">
-                  Öğrencilere tanımlanan ödev ve etütler için gönderilen tüm bilgilendirme kayıtları
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      id="sent-mails-modal"
+      icon={Mail}
+      tone="brand"
+      size="lg"
+      title="Giden E-postalar"
+      description="Sistemin otomatik gönderdiği ödev ve etüt e-postaları (son 300)"
+      footer={
+        <>
+          <button type="button" className="ui-btn ui-btn-secondary" onClick={load}>
+            <RefreshCw className="w-4 h-4" />
+            Yenile
+          </button>
+          <button type="button" className="ui-btn ui-btn-primary" onClick={onClose}>
+            Kapat
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Alıcı, konu veya ödev/etüt adı ara"
+              className="w-full bg-surface-2 border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+            />
+          </div>
+          {(
+            [
+              ['all', 'Tümü'],
+              ['homework', 'Ödev'],
+              ['etut', 'Etüt'],
+              ['failed', `Gönderilemeyen${failedCount ? ` (${failedCount})` : ''}`],
+            ] as Array<[Filter, string]>
+          ).map(([k, label]) => (
+            <button key={k} type="button" className={chipCls(filter === k)} onClick={() => setFilter(k)}>
+              {label}
             </button>
-          </div>
-
-          {/* Controls Bar */}
-          <div className="px-6 py-3 border-b border-line bg-surface/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Öğrenci adı, e-posta veya konu ara..."
-                className="w-full pl-9 pr-3 py-1.5 bg-surface-2 border border-line rounded-lg text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center space-x-1.5 w-full sm:w-auto text-xs">
-              <button
-                type="button"
-                onClick={() => setTypeFilter('all')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${
-                  typeFilter === 'all'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-surface-2 text-muted hover:text-fg'
-                }`}
-              >
-                Tümü ({emails.length})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTypeFilter('homework')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  typeFilter === 'homework'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-surface-2 text-muted hover:text-fg'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Ödevler</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTypeFilter('etut')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  typeFilter === 'etut'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-surface-2 text-muted hover:text-fg'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Etütler</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTypeFilter('welcome')}
-                className={`px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 transition-colors ${
-                  typeFilter === 'welcome'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'bg-surface-2 text-muted hover:text-fg'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Giriş & Kayıt</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Records Table / List */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-canvas/40">
-            {filteredEmails.length === 0 ? (
-              <div className="py-16 text-center text-muted text-xs space-y-2">
-                <Mail className="w-10 h-10 text-subtle mx-auto" />
-                <p>Eşleşen e-posta iletim kaydı bulunamadı.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {filteredEmails.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() =>
-                      setSelectedEmail({
-                        subject: item.subject,
-                        senderName: item.teacherName,
-                        senderEmail: 'bilgilendirme@ornek.k12.tr',
-                        recipientName: item.recipientName,
-                        recipientEmail: item.recipientEmail,
-                        sentAt: item.sentAt,
-                        htmlContent: item.htmlContent,
-                        textContent: item.textContent,
-                        type: item.type,
-                      })
-                    }
-                    className="p-3.5 sm:p-4 rounded-xl bg-surface border border-line hover:border-indigo-500/50 hover:bg-surface-2/80 transition-all cursor-pointer shadow-sm group"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-start space-x-3">
-                        <div
-                          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                            item.type === 'homework_assigned'
-                              ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
-                              : item.type === 'etut_assigned'
-                              ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border border-teal-500/30'
-                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30'
-                          }`}
-                        >
-                          {item.type === 'homework_assigned' ? (
-                            <BookOpen className="w-4 h-4" />
-                          ) : item.type === 'etut_assigned' ? (
-                            <Calendar className="w-4 h-4" />
-                          ) : (
-                            <User className="w-4 h-4" />
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="flex items-center space-x-2 flex-wrap gap-1">
-                            <span className="text-xs font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors">
-                              {item.subject}
-                            </span>
-                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                              <CheckCircle2 className="w-2.5 h-2.5 mr-1" />
-                              İletildi
-                            </span>
-                          </div>
-
-                          <div className="flex items-center space-x-3 text-xs text-muted mt-1 flex-wrap gap-y-1">
-                            <span>
-                              Alıcı: <strong className="text-fg">{item.recipientName}</strong> ({item.recipientEmail})
-                            </span>
-                            <span>•</span>
-                            <span>Öğretmen: {item.teacherName}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-3 sm:self-center shrink-0 text-xs">
-                        <span className="text-[11px] text-muted flex items-center space-x-1">
-                          <Clock className="w-3 h-3" />
-                          <span>
-                            {new Date(item.sentAt).toLocaleString('tr-TR', {
-                              day: 'numeric',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </span>
-
-                        <div className="flex items-center text-indigo-600 dark:text-indigo-400 font-semibold group-hover:translate-x-0.5 transition-transform">
-                          <span className="hidden sm:inline text-[11px] mr-1">Önizle</span>
-                          <ChevronRight className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="px-6 py-3 border-t border-line bg-canvas/70 flex items-center justify-between text-xs text-muted">
-            <span>
-              Toplam {filteredEmails.length} adet e-posta gönderimi listelendi.
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg text-xs font-semibold rounded-lg transition-colors border border-line cursor-pointer"
-            >
-              Kapat
-            </button>
-          </div>
+          ))}
         </div>
+        {error && <div className="p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold">{error}</div>}
+        {rows === null ? (
+          <p className="text-xs text-muted py-6 text-center">Yükleniyor…</p>
+        ) : list.length === 0 ? (
+          <p className="text-xs text-muted py-8 text-center">Henüz gönderilmiş e-posta yok.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-xl border border-line" id="sent-mails-list">
+            {list.map((r) => (
+              <li key={r.id} className="px-3 py-2.5 flex items-start gap-3">
+                {r.status === 'sent' ? (
+                  <CheckCircle2 className="w-4 h-4 text-success-fg shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle className="w-4 h-4 text-danger-fg shrink-0 mt-0.5" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="text-sm font-semibold text-fg truncate">{r.recipient_name || r.recipient}</span>
+                    <span className="text-[11px] text-muted truncate">{r.recipient}</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-2 text-fg-2">{EVENT_LABEL[r.event] || r.event}</span>
+                    {r.recipient_role === 'ogretmen' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">öğretmen</span>}
+                  </div>
+                  <p className="text-xs text-fg-2 truncate">{r.subject}</p>
+                  {r.status === 'failed' && r.error && <p className="text-[11px] text-danger-fg mt-0.5">{r.error}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-[11px] text-muted">
+                    {new Date(r.created_at).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <div className={cx('text-[10px]', r.via === 'ogretmen' ? 'text-brand-fg' : 'text-subtle')}>
+                    {r.via === 'ogretmen' ? 'kendi Gmail' : r.via === 'okul' ? 'okul hesabı' : ''}
+                    {r.sender_name ? ` · ${r.sender_name}` : ''}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </div>
-
-      <EmailPreviewModal
-        isOpen={!!selectedEmail}
-        onClose={() => setSelectedEmail(null)}
-        email={selectedEmail}
-      />
-    </>
+    </Modal>
   );
-
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
 };

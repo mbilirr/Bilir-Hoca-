@@ -39,6 +39,7 @@ import {
   AlertCircle,
   Info,
   HelpCircle,
+  Copy,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Homework, HomeworkSubmission, Student, ClassGroup, HomeworkResource, HomeworkCheckStatus } from '../../types';
@@ -48,7 +49,9 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { HomeworkResourceUploader } from './HomeworkResourceUploader';
 import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
-import { EditHomeworkModal } from './EditHomeworkModal';
+import { HomeworkFormModal, type HomeworkFormMode, type HomeworkFormSaved } from './HomeworkFormModal';
+import { callMail, describeMailResult } from '../../lib/mailApi';
+import { MailNoticeBar } from './FormParts';
 import { HomeworkDetailModal } from './HomeworkDetailModal';
 import {
   SubmissionViewModal,
@@ -66,10 +69,6 @@ interface HomeworkManagementProps {
   onNavigateToEtut?: (subject: string, outcome: string) => void;
 }
 
-const SCHOOL_SUBJECTS: Record<'Ortaokul' | 'Lise', string[]> = {
-  Ortaokul: ['Matematik', 'Türkçe', 'Fen Bilgisi', 'Sosyal Bilgiler', 'İngilizce'],
-  Lise: ['Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Coğrafya', 'Tarih', 'Edebiyat'],
-};
 
 export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   homeworks,
@@ -101,7 +100,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   // Taslak / Henüz Kaydedilmemiş Ödev Kontrol Durumları (studentId -> status)
   const [draftCheckStatuses, setDraftCheckStatuses] = useState<Record<string, HomeworkCheckStatus>>({});
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Bir ödevi "Ödev Kontrol" ekranında açar: uygun sınıfı seçer, süzgeçleri temizler
   const focusHomeworkInTracker = (hw: Homework, switchTab = true) => {
@@ -136,8 +134,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         setSelectedHomeworkId(f.id);
       }
     } else if (f.id === 'homework-create') {
-      resetForm();
-      setIsCreateModalOpen(true);
+      openHomeworkForm('create');
     }
   });
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
@@ -145,7 +142,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
   // Öğretmenin incelediği öğrenci teslimi (ödev + öğrenci). Teslim her zaman güncel listeden okunur.
   const [viewingSubmissionKey, setViewingSubmissionKey] = useState<{ homeworkId: string; studentId: string } | null>(null);
-  const [editingHomework, setEditingHomework] = useState<Homework | null>(null);
   const [editingResourcesHw, setEditingResourcesHw] = useState<Homework | null>(null);
   const [editingResourcesList, setEditingResourcesList] = useState<HomeworkResource[]>([]);
 
@@ -297,139 +293,39 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setTimeout(() => setSaveFeedback(null), 3000);
   };
 
-  // Form State
-  const [schoolLevel, setSchoolLevel] = useState<'Ortaokul' | 'Lise'>('Ortaokul');
-  const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('Matematik');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [selectedCreateClassId, setSelectedCreateClassId] = useState<string>('all');
-  const [targetClassIds, setTargetClassIds] = useState<string[]>(classes.map((c) => c.id));
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(() => students.map((s) => s.id));
-  const [resources, setResources] = useState<HomeworkResource[]>([]);
-  const [pendingResource, setPendingResource] = useState<HomeworkResource | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  // Materyal düzenleme penceresi durumları
   const [editingPendingResource, setEditingPendingResource] = useState<HomeworkResource | null>(null);
   const [isSavingResources, setIsSavingResources] = useState(false);
-  // Yeni ödevin kimliği pencere açılırken üretilir: dosyalar kaydetmeden önce "odev/<kimlik>" klasörüne yüklenir
-  const [draftHomeworkId, setDraftHomeworkId] = useState<string>(() => dataService.newHomeworkId());
-  const [isCreateUploadBusy, setIsCreateUploadBusy] = useState(false);
   const [isEditUploadBusy, setIsEditUploadBusy] = useState(false);
 
-  const handleSchoolLevelChange = (level: 'Ortaokul' | 'Lise') => {
-    setSchoolLevel(level);
-    const subjects = SCHOOL_SUBJECTS[level];
-    if (!subjects.includes(subject)) {
-      setSubject(subjects[0]);
-    }
-  };
+  // Ödev oluştur / kopyala / düzenle penceresi (Aşama 9)
+  const [homeworkForm, setHomeworkForm] = useState<{ mode: HomeworkFormMode; source: Homework | null } | null>(null);
+  const openHomeworkForm = (mode: HomeworkFormMode, source: Homework | null = null) => setHomeworkForm({ mode, source });
+  // Otomatik e-posta sonucu (kapatılana kadar görünür)
+  const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
 
-  const handleToggleStudent = (studentId: string) => {
-    if (selectedStudentIds.includes(studentId)) {
-      setSelectedStudentIds(selectedStudentIds.filter((id) => id !== studentId));
+  const handleHomeworkSaved = ({ homework: hw, mode, sendMail }: HomeworkFormSaved) => {
+    setHomeworkForm(null);
+    setSaveError(null);
+    if (mode === 'edit') {
+      setSaveFeedback('Ödev güncellendi.');
+      setTimeout(() => setSaveFeedback(null), 3500);
+      return;
+    }
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
+    setActiveTab('all');
+    setExpandedHwId(hw.id);
+    focusHomeworkInTracker(hw, false);
+    setSaveFeedback(`"${hw.title}" ödevi kaydedildi.`);
+    setTimeout(() => setSaveFeedback(null), 3500);
+    if (sendMail) {
+      setMailNotice({ tone: 'info', text: 'Öğrencilere e-posta gönderiliyor…' });
+      callMail('homework-created', { homeworkId: hw.id }).then((r) => setMailNotice(describeMailResult(r)));
     } else {
-      setSelectedStudentIds([...selectedStudentIds, studentId]);
+      setMailNotice(null);
     }
   };
 
-  const handleCreateHomework = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isCreating) return;
-    setCreateError(null);
-    if (!title.trim() || !dueDate) {
-      setCreateError('Başlık ve son teslim tarihi zorunludur.');
-      return;
-    }
-
-    const currentTeacher = dataService.getCurrentTeacher();
-    const finalTargetClasses =
-      selectedCreateClassId === 'all' ? classes.map((c) => c.id) : [selectedCreateClassId];
-    if (finalTargetClasses.length === 0) {
-      setCreateError('Ödev verebilmek için size tanımlı en az bir sınıf olmalı.');
-      return;
-    }
-
-    // Listede görünen öğrenciler: seçilen sınıf(lar)ın öğrencileri
-    const listedStudents =
-      selectedCreateClassId === 'all' ? students : students.filter((s) => s.classId === selectedCreateClassId);
-    const listedIds = listedStudents.map((s) => s.id);
-    const chosenIds = selectedStudentIds.filter((id) => listedIds.includes(id));
-    if (listedIds.length > 0 && chosenIds.length === 0) {
-      setCreateError('En az bir öğrenci seçmelisiniz.');
-      return;
-    }
-    // Listedeki herkes seçiliyse ödev sınıfa verilir (sınıfa sonradan katılanlar da görür);
-    // değilse yalnızca seçilen öğrencilere verilir.
-    const everyoneChosen = chosenIds.length === listedIds.length;
-    const allInTargetClasses = chosenIds.every((id) => {
-      const st = students.find((s) => s.id === id);
-      return !!st && finalTargetClasses.includes(st.classId);
-    });
-    const assignedTo: 'all' | string[] = everyoneChosen && allInTargetClasses ? 'all' : chosenIds;
-
-    const finalResources = pendingResource
-      ? [...resources, { ...pendingResource, id: `res-${Date.now()}` }]
-      : resources;
-
-    setIsCreating(true);
-    try {
-      const newHw = await dataService.createHomework({
-        id: draftHomeworkId,
-        title: title.trim(),
-        subject,
-        schoolLevel,
-        description: description.trim(),
-        dueDate,
-        outcomes: [],
-        assignedTo,
-        targetClassIds: finalTargetClasses,
-        resources: finalResources,
-        createdByName: currentTeacher?.name || 'Öğretmen',
-        teacherId: currentTeacher?.id,
-      });
-
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.8 },
-      });
-
-      setIsCreateModalOpen(false);
-      resetForm();
-      setActiveTab('all');
-      setExpandedHwId(newHw.id);
-      focusHomeworkInTracker(newHw, false);
-    } catch (err: any) {
-      setCreateError(err?.message || 'Ödev kaydedilemedi. Lütfen tekrar deneyin.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const resetForm = () => {
-    setTitle('');
-    setSchoolLevel('Ortaokul');
-    setSubject('Matematik');
-    setDescription('');
-    setDueDate('');
-    setSelectedCreateClassId('all');
-    setTargetClassIds(classes.map((c) => c.id));
-    setSelectedStudentIds(students.map((s) => s.id));
-    setResources([]);
-    setPendingResource(null);
-    setCreateError(null);
-    setDraftHomeworkId(dataService.newHomeworkId());
-  };
-
-  // Kaydetmeden kapatılırsa bu pencerede yüklenen dosyalar depodan silinir
-  const closeCreateModal = () => {
-    if (isCreating) return;
-    const uploaded = storedPathsOf(resources);
-    if (uploaded.length > 0) removeStoredFiles(uploaded);
-    setResources([]);
-    setIsCreateModalOpen(false);
-  };
 
   const closeEditResourcesModal = () => {
     if (isSavingResources) return;
@@ -643,8 +539,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           <button
             type="button"
             onClick={() => {
-              resetForm();
-              setIsCreateModalOpen(true);
+              openHomeworkForm('create');
             }}
             id="btn-create-homework"
             className="ui-btn ui-btn-primary"
@@ -675,6 +570,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           <span>{saveError}</span>
         </div>
       )}
+      {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
 
       {/* TAB 1: ÖDEV KONTROL — üstte arama/sınıf/ders çubuğu, altta ödev şeritleri */}
       {activeTab === 'tracker' && (() => {
@@ -690,7 +586,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </p>
               <button
                 type="button"
-                onClick={() => { resetForm(); setIsCreateModalOpen(true); }}
+                onClick={() => openHomeworkForm('create')}
                 className="ui-btn ui-btn-primary"
               >
                 <Plus className="w-4 h-4" />
@@ -1428,8 +1324,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      resetForm();
-                      setIsCreateModalOpen(true);
+                      openHomeworkForm('create');
                     }}
                     className="flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
                   >
@@ -1612,7 +1507,19 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
                             <button
                               type="button"
-                              onClick={() => setEditingHomework(hw)}
+                              id={`btn-copy-hw-${hw.id}`}
+                              onClick={() => openHomeworkForm('copy', hw)}
+                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
+                              title="Bu ödevi kopyalayıp başka sınıfa da ver"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>Kopyala</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              id={`btn-edit-hw-${hw.id}`}
+                              onClick={() => openHomeworkForm('edit', hw)}
                               className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
                               title="Ödevi düzenle"
                             >
@@ -1701,293 +1608,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       })()}
 
       {/* CREATE HOMEWORK MODAL */}
-      {isCreateModalOpen && (() => {
-        const currentClassStudents =
-          selectedCreateClassId === 'all'
-            ? students
-            : students.filter(
-                (s) =>
-                  s.classId === selectedCreateClassId ||
-                  (s.className && s.className.includes(selectedCreateClassId))
-              );
-
-        const currentClassStudentIds = currentClassStudents.map((s) => s.id);
-        const allCurrentSelected =
-          currentClassStudentIds.length > 0 &&
-          currentClassStudentIds.every((id) => selectedStudentIds.includes(id));
-
-        const selectedInCurrentCount = selectedStudentIds.filter((id) =>
-          currentClassStudentIds.includes(id)
-        ).length;
-
-        const handleToggleAllCurrentClass = () => {
-          if (allCurrentSelected) {
-            setSelectedStudentIds(
-              selectedStudentIds.filter((id) => !currentClassStudentIds.includes(id))
-            );
-          } else {
-            const merged = Array.from(new Set([...selectedStudentIds, ...currentClassStudentIds]));
-            setSelectedStudentIds(merged);
-          }
-        };
-
-        return (
-          <div
-            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
-            onClick={closeCreateModal}
-          >
-            <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-              <div
-                className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
-                  <div className="flex items-center space-x-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-                      <Target className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-xl font-bold text-fg tracking-tight">ÖDEV</h3>
-                  </div>
-                  <button
-                    onClick={closeCreateModal}
-                    className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <form onSubmit={handleCreateHomework} className="space-y-4">
-                  {/* 1. Ödev Başlığı */}
-                  <div>
-                    <label className="block text-xs font-bold text-fg mb-1">
-                      Ödev Başlığı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ödev başlığını giriniz..."
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle shadow-2xs"
-                    />
-                  </div>
-
-                  {/* 2. Ödev Açıklaması */}
-                  <div>
-                    <label className="block text-xs font-bold text-fg mb-1">
-                      Ödev Açıklaması
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Ödev açıklaması, teslim şartları ve detayları..."
-                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle shadow-2xs resize-y"
-                    />
-                  </div>
-
-                  {/* 3. Ders & Kademe Seçimi */}
-                  <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-line">
-                      <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
-                        <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
-                        <span>Ders & Kademe Seçimi</span>
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-fg-2 mb-1">
-                          Okul *
-                        </label>
-                        <select
-                          value={schoolLevel}
-                          onChange={(e) =>
-                            handleSchoolLevelChange(e.target.value as 'Ortaokul' | 'Lise')
-                          }
-                          className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                        >
-                          <option value="Ortaokul">🏫 Ortaokul</option>
-                          <option value="Lise">🎓 Lise</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-fg-2 mb-1">
-                          Dersler *
-                        </label>
-                        <select
-                          value={subject}
-                          onChange={(e) => setSubject(e.target.value)}
-                          className="w-full px-3 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                        >
-                          {SCHOOL_SUBJECTS[schoolLevel].map((subj) => (
-                            <option key={subj} value={subj}>
-                              {subj}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4. Tarih (Son Teslim Tarihi ve Saati) * */}
-                  <div>
-                    <label className="block text-xs font-bold text-fg mb-1">
-                      Tarih (Son Teslim Tarihi ve Saati) *
-                    </label>
-                    <input
-                      type="datetime-local"
-                      required
-                      value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all cursor-pointer shadow-2xs"
-                    />
-                  </div>
-
-                  {/* 5. Sınıf Seçimi * ve Öğrenci Listesi */}
-                  <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3.5">
-                    {/* Sınıf Seçimi */}
-                    <div>
-                      <label className="block text-xs font-bold text-fg mb-1.5 flex items-center justify-between">
-                        <span className="flex items-center space-x-1.5">
-                          <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
-                          <span>Sınıf Seçimi *</span>
-                        </span>
-                        <span className="text-[11px] text-muted font-normal">
-                          Seçilen sınıfa ait öğrenciler aşağıda listelenir
-                        </span>
-                      </label>
-                      <select
-                        value={selectedCreateClassId}
-                        onChange={(e) => {
-                          const newClassId = e.target.value;
-                          setSelectedCreateClassId(newClassId);
-                          const targetStudents =
-                            newClassId === 'all'
-                              ? students
-                              : students.filter(
-                                  (s) =>
-                                    s.classId === newClassId ||
-                                    (s.className && s.className.includes(newClassId))
-                                );
-                          setSelectedStudentIds(targetStudents.map((s) => s.id));
-                        }}
-                        className="w-full px-3 py-2.5 bg-surface border border-line-strong rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                      >
-                        <option value="all">
-                          🏫 Tüm Sınıflar ({classes.length} Sınıf, {students.length} Öğrenci)
-                        </option>
-                        {classes.map((cls) => (
-                          <option key={cls.id} value={cls.id}>
-                            {cls.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Öğrenci Listesi & Hepsi Seç Butonu */}
-                    <div className="bg-surface border border-line rounded-xl p-3 space-y-2 shadow-2xs">
-                      <div className="flex items-center justify-between pb-2 border-b border-line">
-                        <div className="flex items-center space-x-2">
-                          <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
-                          <span className="text-xs font-bold text-fg">
-                            Öğrenci Seçimi ({selectedInCurrentCount} / {currentClassStudents.length} Seçili)
-                          </span>
-                        </div>
-
-                        {currentClassStudents.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={handleToggleAllCurrentClass}
-                            className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
-                          >
-                            <span>{allCurrentSelected ? 'Seçimi Kaldır' : 'Hepsi Seç'}</span>
-                          </button>
-                        )}
-                      </div>
-
-                      {currentClassStudents.length === 0 ? (
-                        <div className="py-4 text-center text-xs text-muted font-medium">
-                          Bu sınıfa kayıtlı öğrenci bulunamadı.
-                        </div>
-                      ) : (
-                        <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2 pr-1">
-                          {currentClassStudents.map((std) => {
-                            const isChecked = selectedStudentIds.includes(std.id);
-                            return (
-                              <label
-                                key={std.id}
-                                className={`flex items-center space-x-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-all ${
-                                  isChecked
-                                    ? 'bg-indigo-50/80 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30 text-indigo-950 dark:text-indigo-200 font-semibold shadow-2xs'
-                                    : 'bg-surface-2 border-line text-fg-2 hover:bg-surface-2'
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleToggleStudent(std.id)}
-                                  className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 border-line-strong cursor-pointer"
-                                />
-                                <span className="truncate flex-1">{std.name}</span>
-                                <span className="text-[11px] text-muted shrink-0 font-normal">
-                                  ({std.className || std.studentNumber || '-'})
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Ödev Materyalleri (Video, İnternet Linki, PDF) */}
-                  <HomeworkResourceUploader
-                    resources={resources}
-                    onChange={setResources}
-                    onPendingChange={setPendingResource}
-                    storageFolder={`odev/${draftHomeworkId}`}
-                    onBusyChange={setIsCreateUploadBusy}
-                  />
-                  {pendingResource && (
-                    <p className="text-[11px] text-indigo-700 dark:text-indigo-300 -mt-2">
-                      Yazdığınız bağlantı ("{pendingResource.title}") ödevi kaydederken otomatik olarak eklenecek.
-                    </p>
-                  )}
-
-                  {createError && (
-                    <div role="alert" className="flex items-start space-x-2 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs text-rose-700 dark:text-rose-300">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{createError}</span>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
-                    <button
-                      type="button"
-                      onClick={closeCreateModal}
-                      className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-                    >
-                      İptal
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isCreating || isCreateUploadBusy}
-                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>{isCreating ? 'Kaydediliyor…' : isCreateUploadBusy ? 'Dosya yükleniyor…' : 'Ödevi Kaydet'}</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
         <div
@@ -2048,17 +1668,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         </div>
       )}
 
-      {/* EDIT HOMEWORK MODAL */}
-      <EditHomeworkModal
-        isOpen={!!editingHomework}
-        onClose={() => setEditingHomework(null)}
-        homework={editingHomework}
+      {/* ÖDEV OLUŞTUR / KOPYALA / DÜZENLE */}
+      <HomeworkFormModal
+        open={!!homeworkForm}
+        mode={homeworkForm?.mode || 'create'}
+        source={homeworkForm?.source || null}
         students={students}
         classes={classes}
-        onSuccess={() => {
-          setSaveFeedback('Ödev başarıyla güncellendi.');
-          setTimeout(() => setSaveFeedback(null), 4000);
-        }}
+        onClose={() => setHomeworkForm(null)}
+        onSaved={handleHomeworkSaved}
       />
 
       {/* CONFIRM DELETE HOMEWORK MODAL */}

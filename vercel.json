@@ -1,5 +1,9 @@
 {
+  "functions": {
+    "api/mail.js": { "maxDuration": 60 }
+  },
   "crons": [
-    { "path": "/api/keepalive", "schedule": "17 5 * * *" }
+    { "path": "/api/keepalive", "schedule": "17 5 * * *" },
+    { "path": "/api/mail?task=reminders", "schedule": "7 12 * * *" }
   ]
 }

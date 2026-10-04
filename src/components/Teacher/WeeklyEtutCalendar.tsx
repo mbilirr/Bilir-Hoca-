@@ -15,6 +15,7 @@ import {
   Calendar as CalendarIcon,
   MessageCircle,
   CheckCircle2,
+  Copy,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
@@ -25,6 +26,7 @@ interface WeeklyEtutCalendarProps {
   classes: ClassGroup[];
   onAddEtutForDate?: (dateStr: string) => void;
   onEditEtut?: (etut: Etut) => void;
+  onCopyEtut?: (etut: Etut) => void;
   onDeleteEtut?: (etut: Etut) => void;
   onNotifyEtut?: (etut: Etut) => void;
   onAttendanceEtut?: (etut: Etut) => void;
@@ -133,6 +135,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   classes,
   onAddEtutForDate,
   onEditEtut,
+  onCopyEtut,
   onDeleteEtut,
   onNotifyEtut,
   onAttendanceEtut,
@@ -652,6 +655,22 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                             >
                               <CalendarIcon className="w-3 h-3 text-amber-600 dark:text-amber-300" />
                             </button>
+
+                            {/* Copy */}
+                            {!readOnly && onCopyEtut && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onCopyEtut(etut);
+                                }}
+                                className="p-1 text-subtle hover:text-fg rounded hover:bg-surface-2 transition-colors cursor-pointer"
+                                title="Kopyala (başka tarihe yeniden tanımla)"
+                                aria-label="Etüdü kopyala"
+                              >
+                                <Copy className="w-3 h-3 text-muted" />
+                              </button>
+                            )}
 
                             {/* Edit */}
                             {!readOnly && onEditEtut && (

@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Database, Settings2 } from 'lucide-react';
+import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Database, Settings2,
+  MailCheck,
+} from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
 import { TeacherProfileEditModal, TeacherPasswordModal } from './Teacher/TeacherProfileModals';
 import { TeacherApprovalModal } from './Teacher/TeacherApprovalModal';
 import { SentCommunicationsModal } from './Teacher/SentCommunicationsModal';
+import { MailSettingsModal } from './Teacher/MailSettingsModal';
 import { TeacherAvatarModal } from './Teacher/TeacherAvatarModal';
 import { StudentAvatarModal } from './Student/StudentAvatarModal';
 import { StudentProfileEditModal, StudentPasswordModal } from './Student/StudentProfileModals';
@@ -111,6 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
+  const [isMailSettingsOpen, setIsMailSettingsOpen] = useState(false);
   const [isStudentEditProfileOpen, setIsStudentEditProfileOpen] = useState(false);
   const [isStudentChangePasswordOpen, setIsStudentChangePasswordOpen] = useState(false);
   const [isStudentAvatarModalOpen, setIsStudentAvatarModalOpen] = useState(false);
@@ -320,8 +324,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <MenuItem icon={KeyRound} onClick={closeAnd(() => setIsChangePasswordOpen(true))}>
                           Şifre Değiştir
                         </MenuItem>
+                        <MenuItem icon={MailCheck} onClick={closeAnd(() => setIsMailSettingsOpen(true))}>
+                          E-posta Ayarları
+                        </MenuItem>
                         <MenuItem icon={Mail} onClick={closeAnd(() => setIsSentCommunicationsOpen(true))}>
-                          Giden E-Posta & Bildirimler
+                          Giden E-postalar
                         </MenuItem>
                         {currentTeacher?.isAdmin && (
                           <>
@@ -425,6 +432,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <TeacherPasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />
           <TeacherApprovalModal isOpen={isApprovalModalOpen} onClose={() => setIsApprovalModalOpen(false)} />
           <SentCommunicationsModal isOpen={isSentCommunicationsOpen} onClose={() => setIsSentCommunicationsOpen(false)} />
+          <MailSettingsModal open={isMailSettingsOpen} onClose={() => setIsMailSettingsOpen(false)} />
         </>
       )}
 

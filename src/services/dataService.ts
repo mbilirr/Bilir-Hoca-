@@ -40,6 +40,26 @@ import {
 } from '../lib/emailTemplates';
 import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
 import { detectSchoolLevelFromGrade } from '../constants/schoolConstants';
+import { subjectsForBranch, normalizeSubject } from '../lib/subjects';
+
+export interface EtutTeacherOption {
+  id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
+  name: string;
+  subjects: string[];
+  kind: 'system' | 'external';
+  hasEmail: boolean;
+  rowId: string | null;
+  isMe: boolean;
+}
+export interface EtutTeacherRow {
+  id: string;
+  name: string;
+  subjects: string[];
+  email: string;
+  phone: string;
+  teacherId: string | null;
+  active: boolean;
+}
 
 // INITIAL SEED DATA (Empty by default per user request, only designated admin initialized)
 export const INITIAL_CLASSES: ClassGroup[] = [];
@@ -1526,13 +1546,16 @@ export class DataService {
         notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : ''),
         teacherFeedback: parsedMeta.teacherFeedback || '',
         createdAt: row.created_at || new Date().toISOString(),
-        teacherId: parsedMeta.teacherId || 'teacher-1',
+        teacherId: row.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
         teacherName: parsedMeta.teacherName || 'Öğretmen',
         teacherBranch: parsedMeta.teacherBranch || '',
         lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
         gradeLevel: parsedMeta.gradeLevel,
         schoolLevel: parsedMeta.schoolLevel,
         studentAttendance: parsedMeta.studentAttendance || {},
+        createdById: parsedMeta.createdById || undefined,
+        createdByName: parsedMeta.createdByName || undefined,
+        recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
       };
 
       const existingIdx = this.etuts.findIndex((e) => e.id === incomingEtut.id);
@@ -1792,11 +1815,14 @@ export class DataService {
         gradeLevel: etut.gradeLevel,
         schoolLevel: etut.schoolLevel,
         assignedStudentIds: etut.assignedStudentIds,
+        createdById: etut.createdById || null,
+        createdByName: etut.createdByName || null,
+        recurrenceGroupId: etut.recurrenceGroupId || null,
       });
 
       const cleanDate = etut.date ? etut.date.trim().split('T')[0] : '';
 
-      const { error } = await supabase.from('etuts').upsert({
+      const row: Record<string, any> = {
         id: etut.id,
         subject: etut.subject,
         topic: etut.topic,
@@ -1806,7 +1832,15 @@ export class DataService {
         location: etut.location || 'Derslik',
         assigned_student_ids: finalAssigned,
         notes: meta,
-      });
+      };
+      // Aşama 9: etüde atanan öğretmen ayrı sütunda (13 numaralı SQL). SQL henüz çalıştırılmadıysa sütunsuz kaydet.
+      if (DataService.etutTeacherColumnAvailable) row.etut_teacher_id = etut.teacherId || null;
+      let { error } = await supabase.from('etuts').upsert(row);
+      if (error && row.etut_teacher_id !== undefined && /etut_teacher_id/.test(error.message || '')) {
+        DataService.etutTeacherColumnAvailable = false;
+        delete row.etut_teacher_id;
+        ({ error } = await supabase.from('etuts').upsert(row));
+      }
 
       if (error) {
         if (error.code === '42501' || error.message?.includes('violates row-level security policy')) {
@@ -1869,13 +1903,16 @@ export class DataService {
             notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
             teacherFeedback: parsedMeta.teacherFeedback || '',
             createdAt: re.created_at || new Date().toISOString(),
-            teacherId: parsedMeta.teacherId || 'teacher-1',
+            teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
             teacherName: parsedMeta.teacherName || 'Öğretmen',
             teacherBranch: parsedMeta.teacherBranch || '',
             lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
             gradeLevel: parsedMeta.gradeLevel,
             schoolLevel: parsedMeta.schoolLevel,
             studentAttendance: parsedMeta.studentAttendance || {},
+            createdById: parsedMeta.createdById || undefined,
+            createdByName: parsedMeta.createdByName || undefined,
+            recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
           };
 
           const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
@@ -2552,6 +2589,7 @@ export class DataService {
   // =========================================================================
   // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
   public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
+  public static etutTeacherColumnAvailable = true;
 
   private assertInlineResourcesFit(resources?: HomeworkResource[]): void {
     const tooBig = (resources || []).find(
@@ -2891,6 +2929,89 @@ export class DataService {
     if (session.role !== 'teacher') return false;
     const currentTeacher = this.getCurrentTeacher();
     return this.isTeacherAdmin(currentTeacher) || this.isTeacherAdmin(session.user as Teacher);
+  }
+
+  // ===========================================================================
+  // Aşama 9: Branşa göre ders sınırı ve etüt öğretmenleri
+  // ===========================================================================
+  // Yönetici için null (tüm dersler). Yönetici olmayan öğretmen için kendi branşının ders(ler)i.
+  public getMySubjects(): string[] | null {
+    if (this.isCurrentUserAdmin()) return null;
+    const t = this.getCurrentTeacher();
+    const list = subjectsForBranch(t?.branch);
+    return list.length > 0 ? list : null;
+  }
+
+  // Etüt formu için öğretmen listesi (veritabanı yönetici olmayana yalnızca kendi branşını döndürür)
+  public async getEtutTeacherOptions(): Promise<EtutTeacherOption[]> {
+    const me = this.getCurrentTeacher();
+    try {
+      const { data, error } = await supabase.rpc('etut_teacher_options');
+      if (!error && Array.isArray(data)) {
+        return data.map((r: any) => ({
+          id: String(r.option_id),
+          name: String(r.name || ''),
+          subjects: Array.isArray(r.subjects) ? r.subjects.map((x: any) => normalizeSubject(String(x))) : [],
+          kind: r.kind === 'external' ? 'external' : 'system',
+          hasEmail: !!r.has_email,
+          rowId: r.row_id || null,
+          isMe: !!r.is_me,
+        }));
+      }
+    } catch {}
+    // 13 numaralı SQL henüz çalıştırılmadıysa: yalnızca kendisi (ve yöneticiyse bildiği öğretmenler)
+    const list: EtutTeacherOption[] = [];
+    const seen = new Set<string>();
+    const pushTeacher = (t: Teacher, isMe: boolean) => {
+      if (!t?.id || seen.has(t.id) || t.status === 'pending' || t.status === 'rejected') return;
+      seen.add(t.id);
+      list.push({ id: t.id, name: t.name, subjects: subjectsForBranch(t.branch), kind: 'system', hasEmail: !!t.email, rowId: null, isMe });
+    };
+    if (me) pushTeacher(me, true);
+    if (this.isCurrentUserAdmin()) this.teachers.forEach((t) => pushTeacher(t, false));
+    return list;
+  }
+
+  // Yönetici: etüt öğretmenleri listesi (dış öğretmenler ve kayıtlı öğretmenlere ek dersler)
+  public async listEtutTeacherRows(): Promise<EtutTeacherRow[]> {
+    const { data, error } = await supabase.from('etut_teachers').select('*').order('name');
+    if (error) throw new Error(error.message?.includes('etut_teachers') ? 'Etüt öğretmenleri tablosu bulunamadı (13 numaralı SQL çalıştırılmalı).' : error.message);
+    return (data || []).map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      subjects: Array.isArray(r.subjects) ? r.subjects : [],
+      email: r.email || '',
+      phone: r.phone || '',
+      teacherId: r.teacher_id || null,
+      active: r.active !== false,
+    }));
+  }
+
+  public async saveEtutTeacherRow(row: Partial<EtutTeacherRow> & { name: string; subjects: string[] }): Promise<void> {
+    if (!this.isCurrentUserAdmin()) throw new Error('Etüt öğretmeni listesini yalnızca yönetici düzenleyebilir.');
+    const payload: Record<string, any> = {
+      name: row.name.trim(),
+      subjects: row.subjects,
+      email: (row.email || '').trim() || null,
+      phone: (row.phone || '').trim() || null,
+      teacher_id: row.teacherId || null,
+      active: row.active !== false,
+    };
+    const q = row.id
+      ? supabase.from('etut_teachers').update(payload).eq('id', row.id)
+      : supabase.from('etut_teachers').insert(payload);
+    const { error } = await q;
+    if (error) {
+      if (error.code === '23505') throw new Error('Bu öğretmen için zaten bir kayıt var.');
+      if (error.code === '23514') throw new Error('E-posta adresi geçersiz veya ad çok kısa.');
+      throw new Error(error.message);
+    }
+  }
+
+  public async deleteEtutTeacherRow(id: string): Promise<void> {
+    if (!this.isCurrentUserAdmin()) throw new Error('Etüt öğretmeni listesini yalnızca yönetici düzenleyebilir.');
+    const { error } = await supabase.from('etut_teachers').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   public getAllTeachersInternal(): Teacher[] {
@@ -6176,8 +6297,10 @@ export class DataService {
     const nowIso = new Date().toISOString();
     const newEtut: Etut = {
       ...etutData,
-      id: `etut-${Date.now()}`,
+      id: `etut-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: nowIso,
+      createdById: etutData.createdById || currentTeacher?.id,
+      createdByName: etutData.createdByName || currentTeacher?.name,
       lessonPeriod: etutData.lessonPeriod || 'Ders',
       teacherId: etutData.teacherId || currentTeacher?.id,
       teacherName: etutData.teacherName || currentTeacher?.name || 'Öğretmen',
@@ -7429,7 +7552,7 @@ export class DataService {
         sourceTitle: hw.title,
         teacherName: hw.createdByName || 'Öğretmen',
       };
-      this.sentEmails.unshift(emailLog);
+      void emailLog; // Aşama 9: gerçek e-postalar sunucudan gider (mail_log); burada sahte "gönderildi" kaydı tutulmaz
 
       const notif: StudentNotification = {
         id: `notif-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
@@ -7443,7 +7566,7 @@ export class DataService {
         createdAt: nowIso,
         read: false,
         linkTab: 'homework',
-        emailSent: true,
+        emailSent: false,
         emailRecipient: student.email,
         emailDetails: {
           subject: emailContent.subject,
@@ -7512,7 +7635,7 @@ export class DataService {
         sourceTitle: etut.topic,
         teacherName: etut.teacherName || 'Öğretmen',
       };
-      this.sentEmails.unshift(emailLog);
+      void emailLog; // Aşama 9: gerçek e-postalar sunucudan gider (mail_log); burada sahte "gönderildi" kaydı tutulmaz
 
       const notif: StudentNotification = {
         id: `notif-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
@@ -7526,7 +7649,7 @@ export class DataService {
         createdAt: nowIso,
         read: false,
         linkTab: 'etuts',
-        emailSent: true,
+        emailSent: false,
         emailRecipient: student.email,
         emailDetails: {
           subject: emailContent.subject,

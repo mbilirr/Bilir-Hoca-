@@ -1,0 +1,769 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, UserCheck, Users, Search, Repeat, MailWarning, Settings2 } from 'lucide-react';
+import type { ClassGroup, Etut, Student } from '../../types';
+import { dataService, type EtutTeacherOption } from '../../services/dataService';
+import { Modal, cx } from '../ui/kit';
+import { normalizeSubject, subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
+import {
+  FormSection,
+  FieldLabel,
+  inputCls,
+  chipCls,
+  classLevel,
+  localDateStr,
+  addDays,
+  shortTrDate,
+  DiscardBar,
+  MailOptIn,
+  StudentPicker,
+} from './FormParts';
+
+// ============================================================================
+// Etüt oluştur / düzenle penceresi (Aşama 9)
+// 1) Ders ve etüt öğretmeni  2) Konu  3) Öğrenciler  4) Zaman, yer, tekrar  5) E-posta
+// Yönetici olmayan öğretmen yalnızca kendi branşının dersini ve o branşın öğretmenlerini görür.
+// ============================================================================
+
+export interface EtutChange {
+  label: string;
+  from: string;
+  to: string;
+}
+export interface EtutFormSaved {
+  mode: 'create' | 'edit' | 'copy';
+  etuts: Etut[];
+  sendMail: boolean;
+  changes?: EtutChange[];
+  previousTeacherId?: string | null;
+  failedCount?: number;
+}
+
+interface Props {
+  open: boolean;
+  mode: 'create' | 'edit' | 'copy';
+  source?: Etut | null;
+  initialDate?: string | null;
+  students: Student[];
+  classes: ClassGroup[];
+  etuts: Etut[];
+  onClose: () => void;
+  onSaved: (r: EtutFormSaved) => void;
+  onManageTeachers?: () => void;
+  teacherListVersion?: number;
+}
+
+const LESSON_PERIODS = ['1. Ders', '2. Ders', '3. Ders', '4. Ders', '5. Ders', '6. Ders', '7. Ders', '8. Ders', '9. Ders', '10. Ders'];
+const DURATIONS = [30, 40, 45, 60, 80, 90];
+
+const toMin = (t: string) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
+  return m ? +m[1] * 60 + +m[2] : NaN;
+};
+const fromMin = (n: number) => `${String(Math.floor(n / 60) % 24).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+
+const prefsKey = () => `edu_etut_form_prefs_${dataService.getCurrentTeacher()?.id || 'x'}`;
+function readPrefs(): { subject?: string; location?: string; duration?: number; teacherBySubject?: Record<string, string> } {
+  try {
+    return JSON.parse(localStorage.getItem(prefsKey()) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+function writePrefs(p: ReturnType<typeof readPrefs>) {
+  try {
+    localStorage.setItem(prefsKey(), JSON.stringify({ ...readPrefs(), ...p }));
+  } catch {}
+}
+
+export const EtutFormModal: React.FC<Props> = (props) =>
+  props.open ? <EtutFormContent key={`${props.mode}-${props.source?.id || props.initialDate || 'new'}`} {...props} /> : null;
+
+const EtutFormContent: React.FC<Props> = ({
+  mode,
+  source,
+  initialDate,
+  students,
+  classes,
+  etuts,
+  onClose,
+  onSaved,
+  onManageTeachers,
+  teacherListVersion = 0,
+}) => {
+  const isEdit = mode === 'edit' && !!source;
+  const isCopy = mode === 'copy' && !!source;
+  const me = dataService.getCurrentTeacher();
+  const isAdmin = dataService.isCurrentUserAdmin();
+  const mySubjects = dataService.getMySubjects();
+  const prefs = useMemo(readPrefs, []);
+
+  // ---- öğretmen seçenekleri (veritabanından; yönetici olmayana yalnızca kendi branşı gelir)
+  const [teacherOptions, setTeacherOptions] = useState<EtutTeacherOption[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    dataService.getEtutTeacherOptions().then((list) => alive && setTeacherOptions(list));
+    return () => {
+      alive = false;
+    };
+  }, [teacherListVersion]);
+
+  // ---- başlangıç değerleri
+  const initial = useMemo(() => {
+    const allIds = students.map((s) => s.id);
+    const sel = source
+      ? source.assignedStudentIds === 'all'
+        ? allIds
+        : (source.assignedStudentIds || []).filter((id) => allIds.includes(id))
+      : [];
+    return {
+      subject: source ? normalizeSubject(source.subject) : '',
+      teacherId: source?.teacherId || '',
+      teacherName: source?.teacherName || '',
+      topic: source?.topic || '',
+      notes: source?.notes || '',
+      selected: sel,
+      date: isCopy ? initialDate || '' : source?.date || initialDate || localDateStr(new Date()),
+      time: source?.time || '',
+      lessonPeriod: source?.lessonPeriod && source.lessonPeriod !== 'Ders' ? source.lessonPeriod : '',
+      duration: Number(source?.duration) || prefs.duration || 40,
+      location: source ? source.location || '' : prefs.location || '',
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- ders seçenekleri
+  const subjectOptions = useMemo(() => {
+    let list: string[];
+    if (mySubjects) list = [...mySubjects];
+    else {
+      const levels = Array.from(new Set(classes.map((c) => classLevel(c))));
+      const base = levels.length === 1 ? subjectsForLevel(levels[0]) : subjectsForLevel(null);
+      const fromTeachers = (teacherOptions || []).flatMap((o) => o.subjects);
+      list = Array.from(new Set([...base, ...fromTeachers]));
+    }
+    if ((isEdit || isCopy) && initial.subject && !list.includes(initial.subject)) list.push(initial.subject);
+    return list;
+  }, [mySubjects, classes, teacherOptions, isEdit, isCopy, initial.subject]);
+  const [subject, setSubject] = useState<string>(() => {
+    const cands = [initial.subject, prefs.subject, ...subjectsForBranch(me?.branch)].filter(Boolean) as string[];
+    return cands[0] || '';
+  });
+  const effectiveSubject = subjectOptions.includes(subject) ? subject : subjectOptions[0] || '';
+
+  const [teacherId, setTeacherId] = useState<string>(initial.teacherId);
+  const [teacherQuery, setTeacherQuery] = useState('');
+  const [topic, setTopic] = useState(initial.topic);
+  const [notes, setNotes] = useState(initial.notes);
+  const [filterClassIds, setFilterClassIds] = useState<string[]>(() => {
+    const first = students.find((s) => initial.selected.includes(s.id));
+    return first && classes.some((c) => c.id === first.classId) ? [first.classId] : classes.length === 1 ? [classes[0].id] : [];
+  });
+  const [selectedIds, setSelectedIds] = useState<string[]>(initial.selected);
+  const [date, setDate] = useState(initial.date);
+  const [lessonPeriod, setLessonPeriod] = useState(initial.lessonPeriod);
+  const [time, setTime] = useState(initial.time);
+  const [duration, setDuration] = useState<number>(initial.duration);
+  const [location, setLocation] = useState(initial.location);
+  const [repeatWeeks, setRepeatWeeks] = useState(1);
+  const [sendMail, setSendMail] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [conflicts, setConflicts] = useState<string[] | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  useEffect(() => {
+    if (errorText || conflicts) document.getElementById('etut-form-alert')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [errorText, conflicts]);
+
+  // ---- bu dersin öğretmenleri
+  const subjectTeachers = useMemo(() => {
+    const list = (teacherOptions || []).filter((o) => o.isMe || o.subjects.includes(effectiveSubject));
+    // düzenlenen etüdün mevcut öğretmeni listede yoksa kaybolmasın
+    if ((isEdit || isCopy) && initial.teacherId && !list.some((o) => o.id === initial.teacherId)) {
+      list.push({ id: initial.teacherId, name: initial.teacherName || 'Mevcut öğretmen', subjects: [effectiveSubject], kind: initial.teacherId.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
+    }
+    if (me && !list.some((o) => o.isMe || o.id === me.id)) {
+      list.unshift({ id: me.id, name: me.name, subjects: subjectsForBranch(me.branch), kind: 'system', hasEmail: !!me.email, rowId: null, isMe: true });
+    }
+    return list.sort((a, b) => (a.isMe === b.isMe ? (a.kind === b.kind ? a.name.localeCompare(b.name, 'tr') : a.kind === 'system' ? -1 : 1) : a.isMe ? -1 : 1));
+  }, [teacherOptions, effectiveSubject, isEdit, isCopy, initial.teacherId, initial.teacherName, me]);
+
+  // Ders değişince: o ders için son seçilen öğretmen, yoksa (kendi dersiyse) öğretmenin kendisi
+  useEffect(() => {
+    if (!teacherOptions) return;
+    if (teacherId && subjectTeachers.some((o) => o.id === teacherId)) return;
+    const remembered = prefs.teacherBySubject?.[effectiveSubject];
+    const pick =
+      subjectTeachers.find((o) => o.id === remembered) ||
+      subjectTeachers.find((o) => o.isMe && o.subjects.includes(effectiveSubject)) ||
+      (subjectTeachers.filter((o) => !o.isMe).length === 1 ? subjectTeachers.find((o) => !o.isMe) : undefined) ||
+      subjectTeachers.find((o) => o.isMe);
+    setTeacherId(pick ? pick.id : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveSubject, teacherOptions]);
+
+  const selectedTeacher = subjectTeachers.find((o) => o.id === teacherId) || null;
+  const visibleTeachers = teacherQuery.trim()
+    ? subjectTeachers.filter((o) => o.name.toLocaleLowerCase('tr-TR').includes(teacherQuery.trim().toLocaleLowerCase('tr-TR')))
+    : subjectTeachers;
+
+  // ---- ders saati -> saat (daha önceki etütlerden öğrenilir)
+  const periodTimes = useMemo(() => {
+    const map: Record<string, string> = {};
+    [...etuts]
+      .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
+      .forEach((e) => {
+        if (e.lessonPeriod && e.lessonPeriod !== 'Ders' && e.time) map[e.lessonPeriod] = e.time;
+      });
+    return map;
+  }, [etuts]);
+  const locationSuggestions = useMemo(
+    () => Array.from(new Set(etuts.map((e) => (e.location || '').trim()).filter((l) => l && l !== 'Derslik'))).slice(0, 25),
+    [etuts]
+  );
+
+  // ---- tekrar eden tarihler
+  const occurrences = useMemo(() => {
+    if (!date) return [];
+    const [y, m, d] = date.split('-').map(Number);
+    const base = new Date(y, m - 1, d);
+    const n = isEdit ? 1 : Math.max(1, Math.min(12, repeatWeeks));
+    return Array.from({ length: n }, (_, i) => localDateStr(addDays(base, i * 7)));
+  }, [date, repeatWeeks, isEdit]);
+
+  const dirty =
+    topic !== initial.topic ||
+    notes !== initial.notes ||
+    selectedIds.length !== initial.selected.length ||
+    date !== initial.date ||
+    time !== initial.time ||
+    location !== initial.location ||
+    (isEdit && (teacherId !== initial.teacherId || effectiveSubject !== initial.subject));
+
+  const requestClose = () => {
+    if (isSaving) return;
+    if (dirty && !confirmDiscard) return setConfirmDiscard(true);
+    onClose();
+  };
+
+  // ---- çakışma kontrolü (aynı öğretmen veya aynı öğrenci, aynı gün, kesişen saat)
+  const findConflicts = (): string[] => {
+    const start = toMin(time);
+    const end = start + (Number(duration) || 40);
+    const sel = new Set(selectedIds);
+    const out: string[] = [];
+    for (const day of occurrences) {
+      for (const e of etuts) {
+        if (isEdit && source && e.id === source.id) continue;
+        if (e.date !== day) continue;
+        const s2 = toMin(e.time);
+        const e2 = s2 + (Number(e.duration) || 45);
+        if (!(start < e2 && s2 < end)) continue;
+        const sameTeacher = !!teacherId && e.teacherId === teacherId;
+        const shared = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.filter((id) => sel.has(id)) : [];
+        if (!sameTeacher && shared.length === 0) continue;
+        const who = [
+          sameTeacher ? `${selectedTeacher?.name || 'öğretmen'} aynı saatte` : '',
+          shared.length
+            ? `${shared
+                .slice(0, 3)
+                .map((id) => students.find((s) => s.id === id)?.name || 'öğrenci')
+                .join(', ')}${shared.length > 3 ? ` +${shared.length - 3}` : ''}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        out.push(`${shortTrDate(day)} ${e.time} – ${e.subject}: ${e.topic} (${who})`);
+      }
+    }
+    return out.slice(0, 6);
+  };
+
+  const handleSubmit = async (force = false) => {
+    if (isSaving) return;
+    setErrorText(null);
+    setConfirmDiscard(false);
+    if (!effectiveSubject) return setErrorText('Ders seçin.');
+    if (!teacherId || !selectedTeacher) return setErrorText('Etüt öğretmenini seçin.');
+    if (!topic.trim()) return setErrorText('Etüt konusunu yazın.');
+    if (selectedIds.length === 0) return setErrorText('En az bir öğrenci seçin.');
+    if (!date) return setErrorText('Tarih seçin.');
+    if (!/^\d{2}:\d{2}$/.test(time)) return setErrorText('Başlangıç saatini seçin.');
+    const dur = Number(duration);
+    if (!dur || dur < 10 || dur > 300) return setErrorText('Süre 10 ile 300 dakika arasında olmalı.');
+    if (!isEdit && new Date(`${date}T${time}:00`).getTime() < Date.now() - 5 * 60000) {
+      return setErrorText('Geçmiş bir saate etüt planlanamaz.');
+    }
+    if (!force) {
+      const found = findConflicts();
+      if (found.length) {
+        setConflicts(found);
+        return;
+      }
+    }
+    setConflicts(null);
+
+    const chosenStudents = students.filter((s) => selectedIds.includes(s.id));
+    const levels = Array.from(new Set(chosenStudents.map((s) => classLevel(classes.find((c) => c.id === s.classId)))));
+    const gradeLabel = Array.from(new Set(chosenStudents.map((s) => classes.find((c) => c.id === s.classId)?.name || s.className))).slice(0, 4).join(', ');
+    const payload: Partial<Etut> = {
+      subject: effectiveSubject,
+      topic: topic.trim(),
+      notes: notes.trim(),
+      time,
+      duration: dur,
+      location: location.trim() || 'Derslik',
+      lessonPeriod: lessonPeriod || 'Ders',
+      teacherId: selectedTeacher.id,
+      teacherName: selectedTeacher.name,
+      teacherBranch: effectiveSubject,
+      assignedStudentIds: selectedIds,
+      schoolLevel: levels.length === 1 ? levels[0] : undefined,
+      gradeLevel: gradeLabel || undefined,
+    };
+
+    setIsSaving(true);
+    writePrefs({
+      subject: effectiveSubject,
+      location: payload.location,
+      duration: dur,
+      teacherBySubject: { ...(prefs.teacherBySubject || {}), [effectiveSubject]: selectedTeacher.id },
+    });
+    try {
+      if (isEdit && source) {
+        const changes: EtutChange[] = [];
+        const cmp = (label: string, a: any, b: any) => {
+          if (String(a ?? '') !== String(b ?? '')) changes.push({ label, from: String(a ?? ''), to: String(b ?? '') });
+        };
+        cmp('Ders', normalizeSubject(source.subject), payload.subject);
+        cmp('Konu', source.topic, payload.topic);
+        cmp('Tarih', shortTrDate(source.date), shortTrDate(date));
+        cmp('Saat', source.time, payload.time);
+        cmp('Süre', `${source.duration} dk`, `${dur} dk`);
+        cmp('Yer', source.location, payload.location);
+        const prevCount = Array.isArray(source.assignedStudentIds) ? source.assignedStudentIds.length : students.length;
+        cmp('Öğrenci sayısı', prevCount, selectedIds.length);
+        const teacherChanged = (source.teacherId || '') !== selectedTeacher.id;
+        await dataService.updateEtut(source.id, { ...payload, date });
+        onSaved({
+          mode: 'edit',
+          etuts: [{ ...source, ...payload, date } as Etut],
+          sendMail: sendMail && (changes.length > 0 || teacherChanged),
+          changes,
+          previousTeacherId: teacherChanged ? source.teacherId || null : null,
+        });
+      } else {
+        const created: Etut[] = [];
+        const groupId = occurrences.length > 1 ? `tekrar-${Date.now().toString(36)}` : undefined;
+        let failed = 0;
+        for (const day of occurrences) {
+          try {
+            const e = await dataService.createEtut({ ...(payload as Etut), date: day, recurrenceGroupId: groupId });
+            created.push(e);
+          } catch {
+            failed++;
+            break;
+          }
+        }
+        if (created.length === 0) throw new Error('Etüt kaydedilemedi (yetki veya bağlantı sorunu). Lütfen tekrar deneyin.');
+        onSaved({ mode: isCopy ? 'copy' : 'create', etuts: created, sendMail, failedCount: occurrences.length - created.length });
+        void failed;
+      }
+    } catch (err: any) {
+      setErrorText(err?.message?.replace(/^\[\w+\]\s*/, '') || 'Etüt kaydedilemedi. Lütfen tekrar deneyin.');
+      setIsSaving(false);
+    }
+  };
+
+  const today = localDateStr(new Date());
+  const tomorrow = localDateStr(addDays(new Date(), 1));
+  // Kopyada: kaynağın tarihinden itibaren bugünden sonraki ilk aynı gün
+  const sourceNextWeek = (() => {
+    if (!isCopy || !source?.date) return '';
+    const [y, m, d] = source.date.split('-').map(Number);
+    if (!y) return '';
+    let dt = new Date(y, m - 1, d);
+    const t0 = new Date();
+    t0.setHours(0, 0, 0, 0);
+    do dt = addDays(dt, 7);
+    while (dt < t0);
+    return localDateStr(dt);
+  })();
+  const endLabel = /^\d{2}:\d{2}$/.test(time) ? fromMin(toMin(time) + (Number(duration) || 0)) : '';
+
+  return (
+    <Modal
+      open
+      id="etut-form-modal"
+      onClose={requestClose}
+      icon={isEdit ? Edit3 : isCopy ? Copy : CalendarDays}
+      tone="info"
+      size="lg"
+      title={isEdit ? 'Etüdü Düzenle' : isCopy ? 'Etüdü Kopyala' : 'Yeni Etüt'}
+      description={
+        isEdit
+          ? `${source?.subject} – ${source?.topic}`
+          : isCopy
+            ? `"${source?.topic}" (${shortTrDate(source?.date || '')} ${source?.time || ''}) etüdünden; yeni tarihi seçin, istediğinizi değiştirin`
+            : 'Ders ve öğretmeni seçin, öğrencileri ekleyin'
+      }
+      footer={
+        confirmDiscard ? (
+          <DiscardBar onKeep={() => setConfirmDiscard(false)} onDiscard={onClose} />
+        ) : (
+          <div className="w-full flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] text-muted truncate max-w-full sm:max-w-[55%]" id="etut-form-summary">
+              {selectedTeacher ? selectedTeacher.name : 'Öğretmen seçilmedi'} · {selectedIds.length} öğrenci
+              {date ? ` · ${shortTrDate(date)}${time ? ` ${time}` : ''}` : ''}
+              {occurrences.length > 1 ? ` · ${occurrences.length} hafta` : ''}
+            </span>
+            <span className="flex gap-2 ml-auto">
+              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary">
+                İptal
+              </button>
+              <button type="button" id="etut-form-save" onClick={() => handleSubmit(false)} disabled={isSaving} className="ui-btn ui-btn-primary">
+                <Save className="w-4 h-4" />
+                {isSaving
+                  ? 'Kaydediliyor…'
+                  : isEdit
+                    ? 'Değişiklikleri Kaydet'
+                    : occurrences.length > 1
+                      ? `${occurrences.length} Etüdü Kaydet`
+                      : 'Etüdü Kaydet'}
+              </button>
+            </span>
+          </div>
+        )
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit(false);
+        }}
+        className="space-y-6"
+        noValidate
+      >
+        {/* 1. DERS VE ÖĞRETMEN */}
+        <FormSection title="1. Ders ve etüt öğretmeni" hint={mySubjects ? 'Branşınıza göre sınırlı' : undefined}>
+          {subjectOptions.length <= 1 ? (
+            <div id="etut-subject-fixed" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
+              <CalendarDays className="w-4 h-4 text-info-fg" />
+              {effectiveSubject || 'Branş bilgisi yok'}
+            </div>
+          ) : (
+            <div>
+              <FieldLabel htmlFor="etut-subject">Ders</FieldLabel>
+              <select id="etut-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
+                {subjectOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-line bg-surface">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-line">
+              <span className="text-xs font-semibold text-fg-2 flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4 text-info-fg" />
+                {effectiveSubject ? `${effectiveSubject} öğretmenleri` : 'Öğretmenler'}
+              </span>
+              {subjectTeachers.length > 6 && (
+                <div className="relative flex-1 min-w-[140px]">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-subtle" />
+                  <input
+                    value={teacherQuery}
+                    onChange={(e) => setTeacherQuery(e.target.value)}
+                    placeholder="Öğretmen ara"
+                    className="w-full bg-surface-2 border border-line rounded-lg pl-8 pr-2 py-1 text-xs text-fg focus:outline-none focus:border-brand"
+                  />
+                </div>
+              )}
+              {isAdmin && onManageTeachers && (
+                <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ml-auto text-xs font-semibold text-brand-fg hover:underline flex items-center gap-1 cursor-pointer">
+                  <Settings2 className="w-3.5 h-3.5" />
+                  Öğretmen listesini yönet
+                </button>
+              )}
+            </div>
+            <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto" role="radiogroup" aria-label="Etüt öğretmeni" id="etut-teacher-list">
+              {teacherOptions === null ? (
+                <div className="col-span-full py-4 text-center text-xs text-muted">Öğretmenler yükleniyor…</div>
+              ) : visibleTeachers.length === 0 ? (
+                <div className="col-span-full py-4 text-center text-xs text-muted">Bu ders için öğretmen bulunamadı.</div>
+              ) : (
+                visibleTeachers.map((o) => {
+                  const on = o.id === teacherId;
+                  const otherSubject = o.isMe && !o.subjects.includes(effectiveSubject);
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      data-teacher-id={o.id}
+                      onClick={() => setTeacherId(o.id)}
+                      className={cx(
+                        'flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left cursor-pointer transition-colors',
+                        on ? 'border-brand bg-brand-soft ring-2 ring-brand/20' : 'border-line bg-surface-2/50 hover:bg-surface-2'
+                      )}
+                    >
+                      <span className={cx('w-4 h-4 rounded-full border-2 shrink-0', on ? 'border-brand bg-brand shadow-[inset_0_0_0_3px_var(--color-surface)]' : 'border-line-strong')} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-fg truncate">
+                          {o.name}
+                          {o.isMe && <span className="ml-1 text-[11px] font-medium text-muted">(ben)</span>}
+                        </span>
+                        <span className="flex flex-wrap gap-1 mt-0.5">
+                          {o.kind === 'external' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">Dış öğretmen</span>}
+                          {otherSubject && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">farklı branş</span>}
+                          {!o.hasEmail && !o.isMe && (
+                            <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg inline-flex items-center gap-0.5">
+                              <MailWarning className="w-3 h-3" />
+                              e-posta yok
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+          {selectedTeacher && !selectedTeacher.isMe && !selectedTeacher.hasEmail && (
+            <p className="text-[11px] text-warning-fg">
+              {selectedTeacher.name} için e-posta adresi kayıtlı değil; etüt kaydedilir ama öğretmene e-posta gitmez.
+              {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
+            </p>
+          )}
+        </FormSection>
+
+        {/* 2. KONU */}
+        <FormSection title="2. Konu">
+          <div>
+            <FieldLabel htmlFor="etut-topic">Etüt konusu / kazanım</FieldLabel>
+            <input
+              id="etut-topic"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              maxLength={160}
+              placeholder="Örn: Üslü ifadeler – soru çözümü"
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="etut-notes" optional>
+              Öğrencilere not
+            </FieldLabel>
+            <input
+              id="etut-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              maxLength={300}
+              placeholder="Örn: Soru bankanızı getirin"
+              className={inputCls}
+            />
+          </div>
+        </FormSection>
+
+        {/* 3. ÖĞRENCİLER */}
+        <FormSection title="3. Öğrenciler" hint="Sınıf yalnızca listeyi süzer; farklı sınıflardan öğrenci seçebilirsiniz">
+          <StudentPicker
+            variant="filter"
+            idPrefix="etut"
+            classes={classes}
+            students={students}
+            classIds={filterClassIds}
+            onClassIdsChange={setFilterClassIds}
+            selectedIds={selectedIds}
+            onSelectedChange={setSelectedIds}
+          />
+        </FormSection>
+
+        {/* 4. ZAMAN VE YER */}
+        <FormSection title="4. Zaman ve yer" hint={isCopy && !date ? 'Kopya için yeni tarihi seçin' : undefined}>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" className={chipCls(date === today)} onClick={() => setDate(today)}>
+              Bugün
+            </button>
+            <button type="button" className={chipCls(date === tomorrow)} onClick={() => setDate(tomorrow)}>
+              Yarın
+            </button>
+            {isCopy && sourceNextWeek && (
+              <button type="button" id="etut-copy-next-week" className={chipCls(date === sourceNextWeek)} onClick={() => setDate(sourceNextWeek)}>
+                Haftaya aynı gün ({shortTrDate(sourceNextWeek)})
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <FieldLabel htmlFor="etut-date">Tarih</FieldLabel>
+              <input
+                id="etut-date"
+                type="date"
+                min={isEdit ? undefined : today}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className={cx(inputCls, isCopy && !date && 'ring-2 ring-warning/40 border-warning')}
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="etut-period" optional>
+                Ders saati
+              </FieldLabel>
+              <select
+                id="etut-period"
+                value={lessonPeriod}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setLessonPeriod(v);
+                  if (v && periodTimes[v]) setTime(periodTimes[v]);
+                }}
+                className={inputCls}
+              >
+                <option value="">—</option>
+                {LESSON_PERIODS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                    {periodTimes[p] ? ` (${periodTimes[p]})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FieldLabel htmlFor="etut-time">Başlangıç</FieldLabel>
+              <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <FieldLabel htmlFor="etut-duration">Süre (dk)</FieldLabel>
+              <input
+                id="etut-duration"
+                type="number"
+                min={10}
+                max={300}
+                step={5}
+                value={duration || ''}
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {DURATIONS.map((d) => (
+              <button key={d} type="button" className={chipCls(Number(duration) === d)} onClick={() => setDuration(d)}>
+                {d} dk
+              </button>
+            ))}
+            {endLabel && <span className="self-center text-[11px] text-muted ml-1">Bitiş: {endLabel}</span>}
+          </div>
+          <div>
+            <FieldLabel htmlFor="etut-location">Yer</FieldLabel>
+            <input
+              id="etut-location"
+              list="etut-location-list"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              maxLength={80}
+              placeholder="Örn: Fen Laboratuvarı, 8-A sınıfı"
+              className={inputCls}
+            />
+            <datalist id="etut-location-list">
+              {locationSuggestions.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+          </div>
+          {!isEdit && (
+            <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Repeat className="w-4 h-4 text-info-fg" />
+                <span className="text-xs font-semibold text-fg">Tekrar</span>
+                <button type="button" id="etut-repeat-once" className={chipCls(repeatWeeks === 1)} onClick={() => setRepeatWeeks(1)}>
+                  Tek seferlik
+                </button>
+                <button type="button" id="etut-repeat-weekly" className={chipCls(repeatWeeks > 1)} onClick={() => setRepeatWeeks((w) => (w > 1 ? w : 4))}>
+                  Her hafta
+                </button>
+                {repeatWeeks > 1 && (
+                  <label className="flex items-center gap-1.5 text-xs text-fg-2">
+                    <select
+                      id="etut-repeat-count"
+                      value={repeatWeeks}
+                      onChange={(e) => setRepeatWeeks(Number(e.target.value))}
+                      className="bg-surface border border-line rounded-lg px-2 py-1 text-xs"
+                    >
+                      {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    hafta
+                  </label>
+                )}
+              </div>
+              {repeatWeeks > 1 && (
+                <p className="text-[11px] text-muted" id="etut-repeat-preview">
+                  {occurrences.map(shortTrDate).join(' · ')}
+                </p>
+              )}
+            </div>
+          )}
+        </FormSection>
+
+        <MailOptIn
+          id="etut-send-mail"
+          checked={sendMail}
+          onChange={setSendMail}
+          label={isEdit ? 'Değişiklikleri etüt öğretmenine e-postayla bildir' : 'Öğrencilere ve etüt öğretmenine e-posta gönder'}
+          hint={
+            isEdit
+              ? 'Tarih, saat, yer, konu veya öğretmen değişirse yalnızca öğretmene bilgi gider. Öğretmen değişirse eski öğretmene de bildirilir.'
+              : 'Öğrencilere etüt bilgisi, öğretmene etüt bilgisi ve öğrenci listesi gider.'
+          }
+        />
+
+        {(errorText || conflicts) && (
+          <div id="etut-form-alert">
+            {errorText && (
+              <div role="alert" className="flex items-start gap-2 p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorText}</span>
+              </div>
+            )}
+            {conflicts && (
+              <div role="alert" id="etut-conflicts" className="p-3 rounded-xl bg-warning-soft text-warning-fg text-xs space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <AlertTriangle className="w-4 h-4" />
+                  Aynı saatte başka etüt var
+                </div>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  {conflicts.map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={() => setConflicts(null)} className="ui-btn ui-btn-secondary ui-btn-sm">
+                    Saati değiştireyim
+                  </button>
+                  <button type="button" id="etut-save-anyway" onClick={() => handleSubmit(true)} className="ui-btn ui-btn-warning ui-btn-sm">
+                    Yine de kaydet
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {students.length === 0 && (
+          <p className="text-xs text-muted flex items-center gap-1.5">
+            <Users className="w-4 h-4" />
+            Size tanımlı öğrenci bulunmuyor.
+          </p>
+        )}
+        <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
+      </form>
+    </Modal>
+  );
+};
