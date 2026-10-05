@@ -30,6 +30,16 @@ const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
 const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'question-target']);
+// Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
+const TEACHER_EVENTS = {
+  created: 'teacher-created',
+  updated: 'teacher-updated',
+  access: 'teacher-access',
+  role: 'teacher-role',
+  suspended: 'teacher-status',
+  reactivated: 'teacher-status',
+};
+const TEACHER_REPEAT_LIMIT = 10;
 
 function env() {
   return {
@@ -652,10 +662,10 @@ async function deliver(sender, senderMeta, items, deadline) {
       }
     } else if (it.refId) {
       const prev = await rest(
-        `mail_log?select=id&status=eq.sent&event=eq.${encodeURIComponent(it.event)}&ref_id=eq.${encodeURIComponent(it.refId)}&recipient=eq.${encodeURIComponent(it.to)}&created_at=gte.${encodeURIComponent(since)}&limit=${REPEAT_LIMIT_PER_DAY}`,
+        `mail_log?select=id&status=eq.sent&event=eq.${encodeURIComponent(it.event)}&ref_id=eq.${encodeURIComponent(it.refId)}&recipient=eq.${encodeURIComponent(it.to)}&created_at=gte.${encodeURIComponent(since)}&limit=${it.repeatLimit || REPEAT_LIMIT_PER_DAY}`,
         { token: 'service' },
       );
-      if ((prev || []).length >= REPEAT_LIMIT_PER_DAY) {
+      if ((prev || []).length >= (it.repeatLimit || REPEAT_LIMIT_PER_DAY)) {
         summary.skipped++;
         summary.rateLimited = true;
         continue;
@@ -1235,6 +1245,203 @@ async function actionQuestionTarget(caller, body, req, deadline) {
   return { ok: true, total: students.length, ...summary };
 }
 
+// ----------------------------------------------------------------------------- Öğretmen hesap bildirimleri (Aşama 11)
+async function teacherAccessSummary(t) {
+  if (t.is_admin) return { classes: 'Yönetici olarak tüm sınıflar', students: '' };
+  if (!t.auth_user_id) return { classes: 'Henüz yetki verilmedi', students: '' };
+  const authId = encodeURIComponent(t.auth_user_id);
+  let classNames = [];
+  let studentCount = 0;
+  try {
+    const cls = await rest(`teacher_class_access?select=class_id&teacher_auth_id=eq.${authId}`, { token: 'service' });
+    const ids = (cls || []).map((r) => r.class_id).filter(Boolean);
+    if (ids.length) {
+      const rows = await rest(`classes?select=id,name&id=in.${inList(ids)}`, { token: 'service' });
+      classNames = (rows || []).map((r) => clean(r.name)).filter(Boolean).sort((a, b) => a.localeCompare(b, 'tr'));
+    }
+    const st = await rest(`teacher_student_access?select=student_id&teacher_auth_id=eq.${authId}`, { token: 'service' });
+    studentCount = (st || []).length;
+  } catch {}
+  return {
+    classes: classNames.length ? classNames.join(', ') : 'Sınıf yetkisi yok',
+    students: studentCount ? `${studentCount} öğrenci (sınıf dışında ayrıca)` : '',
+  };
+}
+
+function teacherMail(kind, t, ctx) {
+  const { url, adminName, password, changes, access } = ctx;
+  const loginRows = [
+    ['Giriş adresi', url],
+    ['Giriş', 'Giriş ekranında "Öğretmen" sekmesini seçin'],
+    ['Kullanıcı adı', t.username],
+    ['Şifre', password],
+  ];
+  const pwFooter = password
+    ? 'Güvenliğiniz için ilk girişten sonra profil menüsünden şifrenizi değiştirin. Bu e-postayı kimseyle paylaşmayın.'
+    : undefined;
+  const greeting = `Merhaba ${clean(t.name)},`;
+  if (kind === 'created') {
+    return {
+      subject: 'Öğretmen hesabınız açıldı',
+      ...layout({
+        heading: 'Öğretmen hesabınız açıldı',
+        greeting,
+        intro: `${adminName} sizin için Eğitim & Öğrenci Takip Sistemi'nde bir öğretmen hesabı açtı. Giriş bilgileriniz aşağıdadır.`,
+        rows: [...loginRows, ['Branş', t.branch]],
+        buttonLabel: 'Sisteme giriş yap',
+        url,
+        footer: pwFooter,
+      }),
+    };
+  }
+  if (kind === 'updated') {
+    const rows = (changes || []).map((c) => [c.label, c.value]);
+    if (password) rows.push(['Yeni şifre', password]);
+    if (password || (changes || []).some((c) => c.login)) rows.push(['Kullanıcı adı', t.username], ['Giriş adresi', url]);
+    return {
+      subject: password ? 'Hesap bilgileriniz ve şifreniz güncellendi' : 'Hesap bilgileriniz güncellendi',
+      ...layout({
+        heading: 'Hesap bilgileriniz güncellendi',
+        greeting,
+        intro: `${adminName} hesap bilgilerinizde değişiklik yaptı. Güncel bilgiler aşağıdadır. Bu değişikliği beklemiyorsanız yöneticinizle görüşün.`,
+        rows,
+        buttonLabel: 'Sisteme giriş yap',
+        url,
+        footer: pwFooter,
+      }),
+    };
+  }
+  if (kind === 'access') {
+    return {
+      subject: 'Sınıf ve öğrenci erişim yetkileriniz güncellendi',
+      ...layout({
+        heading: 'Erişim yetkileriniz güncellendi',
+        greeting,
+        intro: `${adminName} sistemde görebileceğiniz sınıfları ve öğrencileri güncelledi. Değişiklik bir sonraki girişinizde (en geç 1 saat içinde) tamamen geçerli olur.`,
+        rows: [
+          ['Yetkili sınıflar', access && access.classes],
+          ['Ek öğrenciler', access && access.students],
+        ],
+        buttonLabel: 'Sisteme giriş yap',
+        url,
+      }),
+    };
+  }
+  if (kind === 'role') {
+    const admin = !!t.is_admin;
+    return {
+      subject: admin ? 'Size yönetici yetkisi verildi' : 'Yönetici yetkiniz kaldırıldı',
+      ...layout({
+        heading: admin ? 'Yönetici yetkisi verildi' : 'Yönetici yetkiniz kaldırıldı',
+        greeting,
+        intro: admin
+          ? `${adminName} hesabınıza yönetici yetkisi verdi. Artık kullanıcı yönetimi ve tüm sınıflara erişim dahil yönetici işlemlerini yapabilirsiniz.`
+          : `${adminName} hesabınızdaki yönetici yetkisini kaldırdı. Öğretmen olarak, size verilen sınıf ve öğrencilerle çalışmaya devam edebilirsiniz.`,
+        rows: [['Yeni rol', admin ? 'Yönetici' : 'Öğretmen']],
+        buttonLabel: 'Sisteme giriş yap',
+        url,
+      }),
+    };
+  }
+  if (kind === 'suspended') {
+    return {
+      subject: 'Hesabınız geçici olarak askıya alındı',
+      ...layout({
+        heading: 'Hesabınız askıya alındı',
+        greeting,
+        intro: `${adminName} hesabınızı geçici olarak askıya aldı. Hesap yeniden açılana kadar sisteme giriş yapamazsınız. Bilgi için yöneticinizle görüşün.`,
+        rows: [['Durum', 'Askıda']],
+      }),
+    };
+  }
+  return {
+    subject: 'Hesabınız yeniden açıldı',
+    ...layout({
+      heading: 'Hesabınız yeniden açıldı',
+      greeting,
+      intro: `${adminName} hesabınızı yeniden etkinleştirdi. Kullanıcı adınız ve şifrenizle tekrar giriş yapabilirsiniz.`,
+      rows: [['Durum', 'Aktif'], ['Kullanıcı adı', t.username]],
+      buttonLabel: 'Sisteme giriş yap',
+      url,
+    }),
+  };
+}
+
+function oldEmailNoticeMail(t, newEmail, adminName) {
+  return {
+    subject: 'Hesabınızın e-posta adresi değiştirildi',
+    ...layout({
+      heading: 'E-posta adresiniz değiştirildi',
+      greeting: `Merhaba ${clean(t.name)},`,
+      intro: `${adminName}, okul sistemindeki öğretmen hesabınızın e-posta adresini değiştirdi. Bundan sonraki bildirimler yeni adrese gidecek. Bu değişikliği beklemiyorsanız yöneticinizle görüşün.`,
+      rows: [['Yeni adres', newEmail]],
+    }),
+  };
+}
+
+async function actionTeacherAccount(caller, body, req, deadline) {
+  if (!caller.isAdmin) throw new HttpError(403, 'Öğretmen hesap e-postalarını yalnızca yönetici gönderebilir.');
+  const kind = String(body.kind || '');
+  const event = TEACHER_EVENTS[kind];
+  if (!event) throw new HttpError(400, 'Geçersiz bildirim türü.');
+  const id = String(body.teacherId || '');
+  if (!id || id.length > 120 || id.startsWith('__')) throw new HttpError(400, 'Geçersiz öğretmen kimliği.');
+  const rows = await rest(`teachers?select=id,name,username,email,branch,is_admin,status,auth_user_id&id=eq.${encodeURIComponent(id)}`, {
+    token: 'service',
+  });
+  const t = rows && rows[0];
+  if (!t) throw new HttpError(404, 'Öğretmen bulunamadı.');
+  const empty = { ok: true, total: 0, sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [] };
+  // Yönetici kendi hesabını düzenliyorsa kendisine e-posta gönderilmez
+  if (t.auth_user_id && t.auth_user_id === caller.authId) return { ...empty, teacher: { status: 'self', name: t.name } };
+
+  const url = appUrl(req);
+  const password = (kind === 'created' || kind === 'updated') && typeof body.password === 'string' ? body.password.trim().slice(0, 100) : '';
+  const changes = (Array.isArray(body.changes) ? body.changes : [])
+    .slice(0, 12)
+    .map((c) => ({ label: clean(c && c.label).slice(0, 60), value: clean(c && c.value).slice(0, 200), login: !!(c && c.login) }))
+    .filter((c) => c.label);
+  if (kind === 'updated' && !changes.length && !password) return { ...empty, unchanged: true };
+  const access = kind === 'access' ? await teacherAccessSummary(t) : null;
+  const ctx = { url, adminName: caller.name, password, changes, access };
+
+  const items = [];
+  let teacherResult;
+  if (isEmail(t.email)) {
+    items.push({
+      event,
+      refId: t.id,
+      refTitle: `${t.name} – ${kind}`,
+      to: t.email,
+      toName: t.name,
+      role: 'ogretmen',
+      repeatLimit: TEACHER_REPEAT_LIMIT,
+      ...teacherMail(kind, t, ctx),
+    });
+    teacherResult = { status: 'queued', name: t.name };
+  } else {
+    teacherResult = { status: 'no-email', name: t.name };
+  }
+  // E-posta adresi değiştiyse eski adrese yalnızca kısa bir bilgi gider (şifre ve diğer bilgiler gitmez)
+  const prev = typeof body.previousEmail === 'string' ? body.previousEmail.trim() : '';
+  if (kind === 'updated' && isEmail(prev) && isEmail(t.email) && prev.toLowerCase() !== t.email.trim().toLowerCase()) {
+    items.push({
+      event: 'teacher-email-changed',
+      refId: t.id,
+      refTitle: `${t.name} – eski adres bilgisi`,
+      to: prev,
+      toName: t.name,
+      role: 'ogretmen',
+      repeatLimit: TEACHER_REPEAT_LIMIT,
+      ...oldEmailNoticeMail(t, t.email, caller.name),
+    });
+  }
+  if (!items.length) return { ...empty, total: 1, teacher: teacherResult };
+  const sender = await resolveSender(caller);
+  const summary = await deliver(sender, caller, items, deadline);
+  return { ok: true, total: items.length, teacher: teacherResult, ...summary };
+}
+
 function istanbulDate(offsetDays) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return new Intl.DateTimeFormat('en-CA', {
@@ -1419,6 +1626,9 @@ export default async function handler(req, res) {
         break;
       case 'question-target':
         result = await actionQuestionTarget(caller, body, req, deadline);
+        break;
+      case 'teacher-account':
+        result = await actionTeacherAccount(caller, body, req, deadline);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

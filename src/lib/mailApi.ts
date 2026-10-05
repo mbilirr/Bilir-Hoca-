@@ -15,6 +15,7 @@ export type MailAction =
   | 'etut-changed'
   | 'etut-cancelled'
   | 'question-target'
+  | 'teacher-account'
   | 'reminders';
 
 export interface MailResult {
@@ -33,6 +34,7 @@ export interface MailResult {
   authError?: boolean;
   total?: number;
   teacher?: { status: 'queued' | 'self' | 'no-email' | 'none'; name?: string };
+  unchanged?: boolean;
   teachers?: Array<{ status: 'queued' | 'self' | 'no-email'; name?: string }>;
   [key: string]: any;
 }
@@ -109,6 +111,8 @@ export function describeMailResult(r: MailResult | null | undefined): { tone: 's
       text: 'E-posta gönderilmedi: e-posta hesabı ayarlanmamış. Profil menüsünden "E-posta Ayarları"na bakın.',
     };
   if (r.authError) return { tone: 'danger', text: `E-posta gönderilemedi: ${(r.errors && r.errors[0]) || 'Gmail girişi reddedildi.'}` };
+  if (r.unchanged) return { tone: 'warning', text: 'Değişiklik olmadığı için e-posta gönderilmedi.' };
+  if (r.teacher && r.teacher.status === 'self' && !r.sent) return { tone: 'warning', text: 'Kendi hesabınız olduğu için e-posta gönderilmedi.' };
   if (r.expired) return { tone: 'warning', text: 'Hedefin bitiş tarihi geçtiği için e-posta gönderilmedi.' };
   const parts: string[] = [];
   if (r.sent) parts.push(`${r.sent} kişiye e-posta gönderildi`);

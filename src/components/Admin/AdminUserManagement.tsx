@@ -35,6 +35,21 @@ import {
 import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
+import { callMail, describeMailResult } from '../../lib/mailApi';
+import { MailOptIn } from '../Teacher/FormParts';
+
+// Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
+type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
+const isTeacherAccount = (u?: UnifiedUser | null) => !!u && u.role !== 'student';
+async function notifyTeacherByMail(
+  teacherId: string,
+  kind: TeacherMailKind,
+  extra: { changes?: Array<{ label: string; value: string; login?: boolean }>; password?: string; previousEmail?: string } = {}
+) {
+  const r = await callMail('teacher-account', { teacherId, kind, ...extra });
+  return describeMailResult(r);
+}
+const toastType = (tone: string): 'success' | 'error' | 'info' => (tone === 'success' ? 'success' : tone === 'danger' ? 'error' : 'info');
 
 interface AdminUserManagementProps {
   currentAdmin?: Teacher | null;
@@ -101,12 +116,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [selectedTargetRole, setSelectedTargetRole] = useState<SystemRole>('teacher');
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
+  const [notifyTeacher, setNotifyTeacher] = useState(true);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMsg({ text, type });
     setTimeout(() => {
       setToastMsg((prev) => (prev?.text === text ? null : prev));
     }, 3500);
+  };
+
+  const sendTeacherMail = async (teacherId: string, kind: TeacherMailKind, extra?: Parameters<typeof notifyTeacherByMail>[2]) => {
+    const res = await notifyTeacherByMail(teacherId, kind, extra);
+    showToast(`E-posta: ${res.text}`, toastType(res.tone));
   };
 
   const loadData = () => {
@@ -213,6 +234,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   // Open Edit Form
   const handleOpenEdit = (user: UnifiedUser) => {
     setEditModalUser(user);
+    setNotifyTeacher(true);
     setEditFormData({
       name: user.name || '',
       username: user.username || '',
@@ -237,6 +259,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     e.preventDefault();
     if (!editModalUser) return;
 
+    const before = editModalUser;
     try {
       await dataService.adminUpdateUserProfile(editModalUser.id, {
         name: editFormData.name,
@@ -257,6 +280,26 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       showToast(`✓ "${editFormData.name}" kullanıcı bilgileri başarıyla güncellendi.`, 'success');
       setEditModalUser(null);
       loadData();
+      // Öğretmene değişiklikleri e-postayla bildir
+      if (isTeacherAccount(before) && notifyTeacher) {
+        const norm = (v?: string) => (v || '').trim();
+        const changes: Array<{ label: string; value: string; login?: boolean }> = [];
+        if (norm(editFormData.name) && norm(editFormData.name) !== norm(before.name)) changes.push({ label: 'Ad Soyad', value: norm(editFormData.name) });
+        if (norm(editFormData.username) && norm(editFormData.username).toLowerCase() !== norm(before.username).toLowerCase())
+          changes.push({ label: 'Kullanıcı adı', value: norm(editFormData.username).toLowerCase(), login: true });
+        if (norm(editFormData.email) !== norm(before.email)) changes.push({ label: 'E-posta', value: norm(editFormData.email) || '(silindi)' });
+        if (norm(editFormData.phone) !== norm(before.phone)) changes.push({ label: 'Telefon', value: norm(editFormData.phone) || '(silindi)' });
+        if (norm(editFormData.branch) !== norm(before.branch)) changes.push({ label: 'Branş', value: norm(editFormData.branch) || '(silindi)' });
+        const pw = norm(editFormData.newPassword);
+        if (pw && editFormData.mustChangePassword) changes.push({ label: 'İlk girişte', value: 'Şifrenizi değiştirmeniz istenecek' });
+        if (changes.length || pw) {
+          sendTeacherMail(before.id, 'updated', {
+            changes,
+            password: pw || undefined,
+            previousEmail: norm(editFormData.email) !== norm(before.email) ? norm(before.email) : undefined,
+          });
+        }
+      }
     } catch (err: any) {
       showToast(err.message || 'Güncelleme sırasında hata oluştu.', 'error');
     }
@@ -281,6 +324,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   // Open Role Modal
   const handleOpenRoleModal = (user: UnifiedUser) => {
     setRoleModalUser(user);
+    setNotifyTeacher(true);
     setSelectedTargetRole(user.role);
   };
 
@@ -290,8 +334,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     try {
       await dataService.adminChangeUserRole(roleModalUser.id, selectedTargetRole);
       showToast(`✓ ${roleModalUser.name} kullanıcısının rolü "${selectedTargetRole.toUpperCase()}" olarak değiştirildi.`, 'success');
+      const changedRole = roleModalUser.role !== selectedTargetRole;
+      const roleUser = roleModalUser;
       setRoleModalUser(null);
       loadData();
+      if (isTeacherAccount(roleUser) && notifyTeacher && changedRole) sendTeacherMail(roleUser.id, 'role');
     } catch (err: any) {
       showToast(err.message || 'Rol değiştirilirken hata oluştu.', 'error');
     }
@@ -309,8 +356,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           : `✓ "${suspendModalUser.name}" hesabı yeniden aktif hale getirildi.`,
         'success'
       );
+      const suspendedUser = suspendModalUser;
       setSuspendModalUser(null);
       loadData();
+      if (isTeacherAccount(suspendedUser) && notifyTeacher) sendTeacherMail(suspendedUser.id, willSuspend ? 'suspended' : 'reactivated');
     } catch (err: any) {
       showToast(err.message || 'İşlem başarısız.', 'error');
     }
@@ -351,6 +400,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       setAuthStudentSearch('');
       // SADECE sorgu başarılı olursa modalı aç
       setAuthModalTeacher(teacher);
+      setNotifyTeacher(true);
     } catch (err: any) {
       showToast(
         `Erişim izinleri veritabanından çekilemedi: ${err.message || 'Bilinmeyen hata'}`,
@@ -374,8 +424,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         'success'
       );
       // SADECE başarılı olduğunda modalı kapat
+      const accessTeacher = authModalTeacher;
       setAuthModalTeacher(null);
       loadData();
+      if (notifyTeacher) sendTeacherMail(accessTeacher.id, 'access');
     } catch (err: any) {
       // Hata durumunda modal KAPANMAZ, admin hatayı görüp düzeltebilir
       showToast(err.message || 'Yetkilendirme veritabanına kaydedilemedi.', 'error');
@@ -950,7 +1002,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           {/* Askıya Al / Aktifleştir */}
                           <button
                             type="button"
-                            onClick={() => setSuspendModalUser(u)}
+                            onClick={() => {
+                              setSuspendModalUser(u);
+                              setNotifyTeacher(true);
+                            }}
                             disabled={isProtectedAdmin}
                             className={`p-1.5 rounded-lg border transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                               isSuspended
@@ -1195,6 +1250,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </div>
               </div>
 
+              {isTeacherAccount(editModalUser) && (
+                <MailOptIn
+                  id="teacher-edit-notify"
+                  checked={notifyTeacher}
+                  onChange={setNotifyTeacher}
+                  label="Öğretmene değişiklikleri e-postayla bildir"
+                  hint={
+                    editFormData.newPassword
+                      ? 'Değişen bilgiler ve yeni şifre öğretmenin e-posta adresine gider.'
+                      : 'Yalnızca değişen bilgiler gider; hiçbir şey değişmediyse e-posta gönderilmez.'
+                  }
+                />
+              )}
+
               {/* Footer Buttons */}
               <div className="pt-3 border-t border-line flex items-center justify-end space-x-2.5">
                 <button
@@ -1302,6 +1371,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <span>Yetki, kullanıcının giriş hesabına işlenir. Kullanıcı açık oturumdaysa yeni yetkisi çıkış yapıp tekrar girdiğinde (en geç 1 saat içinde) tamamen geçerli olur.</span>
             </div>
 
+            {isTeacherAccount(roleModalUser) && (
+              <MailOptIn
+                id="teacher-role-notify"
+                checked={notifyTeacher}
+                onChange={setNotifyTeacher}
+                label="Öğretmene yetki değişikliğini e-postayla bildir"
+              />
+            )}
+
             {/* Actions */}
             <div className="flex items-center justify-end space-x-2.5 pt-2">
               <button
@@ -1349,6 +1427,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   : 'geçici olarak dondurulacak; açık olan oturumları sonlandırılacak ve sisteme girişi engellenecektir.'}
               </p>
             </div>
+
+            {isTeacherAccount(suspendModalUser) && (
+              <div className="text-left">
+                <MailOptIn
+                  id="teacher-status-notify"
+                  checked={notifyTeacher}
+                  onChange={setNotifyTeacher}
+                  label="Öğretmene e-postayla bildir"
+                />
+              </div>
+            )}
 
             <div className="flex items-center justify-center space-x-3 pt-2">
               <button
@@ -1616,7 +1705,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </div>
 
             {/* Footer Buttons */}
-            <div className="p-4 sm:p-5 border-t border-line bg-canvas flex items-center justify-end space-x-2.5">
+            <div className="px-4 sm:px-5 pt-3 border-t border-line bg-canvas">
+              <MailOptIn
+                id="teacher-access-notify"
+                checked={notifyTeacher}
+                onChange={setNotifyTeacher}
+                label="Öğretmene yetkili sınıflarını e-postayla bildir"
+              />
+            </div>
+            <div className="p-4 sm:p-5 bg-canvas flex items-center justify-end space-x-2.5">
               <button
                 type="button"
                 onClick={() => setAuthModalTeacher(null)}
@@ -1683,6 +1780,8 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [created, setCreated] = useState<{ name: string; username: string; password: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sendMail, setSendMail] = useState(true);
+  const [mailNotice, setMailNotice] = useState<{ tone: string; text: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1692,6 +1791,13 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
       const res = await dataService.createTeacherAccount({ name, username, branch, email, password });
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
       onCreated(res.teacher.name);
+      // Hesap bilgileri öğretmenin e-posta adresine gönderilir (adres kayıttan okunur)
+      if (sendMail && email.trim()) {
+        setMailNotice({ tone: 'info', text: 'Giriş bilgileri öğretmene e-postayla gönderiliyor…' });
+        notifyTeacherByMail(res.teacher.id, 'created', { password: res.password }).then(setMailNotice);
+      } else if (sendMail) {
+        setMailNotice({ tone: 'warning', text: 'E-posta adresi yazılmadığı için e-posta gönderilmedi; bilgileri aşağıdan kopyalayıp iletin.' });
+      }
     } catch (err: any) {
       setError(err?.message || 'Öğretmen hesabı açılamadı.');
     } finally {
@@ -1729,6 +1835,22 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
               Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
             </div>
+            {mailNotice && (
+              <div
+                id="teacher-create-mail-notice"
+                className={`p-3 rounded-xl border text-xs font-semibold ${
+                  mailNotice.tone === 'success'
+                    ? 'bg-success-soft text-success-fg border-success/30'
+                    : mailNotice.tone === 'danger'
+                      ? 'bg-danger-soft text-danger-fg border-danger/30'
+                      : mailNotice.tone === 'warning'
+                        ? 'bg-warning-soft text-warning-fg border-warning/30'
+                        : 'bg-info-soft text-info-fg border-info/30'
+                }`}
+              >
+                E-posta: {mailNotice.text}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-2.5 rounded-lg bg-canvas border border-line">
                 <span className="block text-[10px] text-muted">Kullanıcı adı</span>
@@ -1831,6 +1953,13 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <p className="text-[11px] text-muted">
               Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
             </p>
+            <MailOptIn
+              id="teacher-create-notify"
+              checked={sendMail}
+              onChange={setSendMail}
+              label="Giriş bilgilerini öğretmene e-postayla gönder"
+              hint={email.trim() ? 'Kullanıcı adı, şifre ve giriş adresi öğretmenin e-posta adresine gider.' : 'Göndermek için yukarıya öğretmenin e-posta adresini yazın.'}
+            />
             <div className="flex justify-end space-x-2 pt-1">
               <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold">
                 Vazgeç
