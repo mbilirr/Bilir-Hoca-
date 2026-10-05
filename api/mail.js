@@ -29,7 +29,7 @@ const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta 
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'question-target']);
 
 function env() {
   return {
@@ -886,7 +886,11 @@ async function fetchVisible(table, id, token) {
   if (!rows || !rows[0])
     throw new HttpError(
       404,
-      table === 'homeworks' ? 'Ödev bulunamadı veya bu ödeve erişiminiz yok.' : 'Etüt bulunamadı veya bu etüde erişiminiz yok.',
+      table === 'homeworks'
+        ? 'Ödev bulunamadı veya bu ödeve erişiminiz yok.'
+        : table === 'question_targets'
+          ? 'Soru hedefi bulunamadı veya bu hedefe erişiminiz yok.'
+          : 'Etüt bulunamadı veya bu etüde erişiminiz yok.',
     );
   return rows[0];
 }
@@ -1129,6 +1133,108 @@ async function actionEtutTeacherOnly(kind, caller, body, req, deadline) {
   return { ok: true, total: items.length, teachers: notes, ...summary };
 }
 
+// ----------------------------------------------------------------------------- Soru hedefi (Aşama 10)
+function addDaysYmd(ymd, days) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + days));
+  return d.toISOString().slice(0, 10);
+}
+function questionTargetView(row) {
+  const d = row && row.data && typeof row.data === 'object' ? row.data : {};
+  const start = row.week_start_date || d.weekStartDate || '';
+  const days = Math.max(1, Math.min(366, Math.round(Number(d.targetDays) || 7)));
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(String(d.weekEndDate || '')) ? d.weekEndDate : addDaysYmd(start, days - 1);
+  const total = Math.max(0, Math.round(Number(d.targetQuestions || d.weeklyTarget) || 0));
+  const daily = Math.max(0, Math.round(Number(d.dailyTarget) || (total && days ? total / days : 0)));
+  let subjects = [];
+  if (Array.isArray(d.subjectTargets)) subjects = d.subjectTargets.map((x) => [clean(x && x.subject), Number(x && x.target) || 0]);
+  else if (d.subjectTargets && typeof d.subjectTargets === 'object') subjects = Object.entries(d.subjectTargets).map(([k, v]) => [clean(k), Number(v) || 0]);
+  subjects = subjects.filter(([k, v]) => k && v > 0).slice(0, 20);
+  return {
+    id: row.id,
+    isClass: row.target_type === 'class' || (!row.student_id && !!row.class_id),
+    studentId: row.student_id || null,
+    classId: row.class_id || null,
+    className: clean(d.className),
+    start,
+    end,
+    days,
+    total,
+    daily,
+    subject: clean(d.subject),
+    subjects,
+    notes: clean(d.notes).slice(0, 400),
+    ownerName: clean(d.assignedByTeacherName || (d.assignedBy && d.assignedBy !== 'Öğretmen' ? d.assignedBy : '')),
+    createdBy: row.created_by || null,
+  };
+}
+function questionTargetMail(t, student, teacherName, url, updated) {
+  const scope = t.subject ? `${t.subject} ` : '';
+  const subject = `${updated ? 'Soru hedefin güncellendi' : 'Yeni soru hedefin'}: ${t.total} ${scope}soru (${trDate(t.start).split(' ').slice(0, 2).join(' ')} – ${trDate(t.end).split(' ').slice(0, 2).join(' ')})`;
+  const body = layout({
+    heading: updated ? 'Soru hedefin güncellendi' : 'Yeni bir soru hedefin var',
+    greeting: `Merhaba ${clean(student.name)},`,
+    intro: `${teacherName} öğretmenin senin için ${t.days} günlük bir ${t.subject ? `${t.subject} ` : ''}soru çözme hedefi belirledi. Çözdüğün soruları her gün sisteme girmeyi unutma.`,
+    rows: [
+      ['Başlangıç', trDate(t.start)],
+      ['Bitiş', trDate(t.end)],
+      ['Toplam hedef', `${t.total} soru`],
+      ['Günlük hedef', t.daily ? `${t.daily} soru/gün` : ''],
+      ['Ders', t.subject || 'Tüm dersler'],
+      ['Ders hedefleri', t.subjects.map(([k, v]) => `${k}: ${v}`).join(', ')],
+      ['Sınıf', t.isClass ? t.className : ''],
+      ['Öğretmen notu', t.notes],
+      ['Hedefi veren', teacherName],
+    ],
+    buttonLabel: 'Soru takibini aç',
+    url,
+  });
+  return { subject, ...body };
+}
+
+async function actionQuestionTarget(caller, body, req, deadline) {
+  const row = await fetchVisible('question_targets', body.targetId, caller.token);
+  const t = questionTargetView(row);
+  // Hedefin e-postasını yalnızca hedefi veren öğretmen (veya yönetici) gönderebilir
+  if (t.createdBy && t.createdBy !== caller.authId && !caller.isAdmin) {
+    throw new HttpError(403, 'Bu hedefin e-postasını yalnızca hedefi veren öğretmen gönderebilir.');
+  }
+  if (!t.start || !t.total) throw new HttpError(400, 'Hedef bilgisi eksik.');
+  // Süresi bitmiş hedef duyurulmaz
+  if (t.end && t.end < istanbulDate(0)) {
+    return { ok: true, total: 0, expired: true, sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [] };
+  }
+  const students = t.isClass
+    ? t.classId
+      ? await studentsByClasses([t.classId], caller.token)
+      : []
+    : t.studentId
+      ? await studentsByIds([t.studentId], caller.token)
+      : [];
+  const url = appUrl(req);
+  const teacherName = t.ownerName || caller.name;
+  // Aynı içerik tekrar kaydedilirse e-posta yeniden gitmez; içerik değişirse yeni e-posta gider
+  const sig = crypto
+    .createHash('sha1')
+    .update(JSON.stringify([t.start, t.end, t.total, t.daily, t.subject, t.subjects, t.notes]))
+    .digest('hex')
+    .slice(0, 12);
+  const updated = body.mode === 'updated';
+  const items = students.map((s) => ({
+    event: 'question-target',
+    refId: `${t.id}#${sig}`,
+    refTitle: `Soru hedefi: ${t.total} soru${t.subject ? ` (${t.subject})` : ''}`,
+    to: s.email,
+    toName: s.name,
+    role: 'ogrenci',
+    ...questionTargetMail(t, s, teacherName, url, updated),
+  }));
+  const sender = await resolveSender(caller);
+  const summary = await deliver(sender, caller, items, deadline);
+  return { ok: true, total: students.length, ...summary };
+}
+
 function istanbulDate(offsetDays) {
   const d = new Date(Date.now() + offsetDays * 86400000);
   return new Intl.DateTimeFormat('en-CA', {
@@ -1310,6 +1416,9 @@ export default async function handler(req, res) {
         break;
       case 'etut-cancelled':
         result = await actionEtutTeacherOnly('etut-cancelled', caller, body, req, deadline);
+        break;
+      case 'question-target':
+        result = await actionQuestionTarget(caller, body, req, deadline);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');
