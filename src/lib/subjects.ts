@@ -128,3 +128,42 @@ export function subjectsForLevel(level?: 'Ortaokul' | 'Lise' | null): string[] {
   if (level === 'Ortaokul') return ORTAOKUL_SUBJECTS;
   return Array.from(new Set([...ORTAOKUL_SUBJECTS, ...LISE_SUBJECTS]));
 }
+
+// ----------------------------------------------------------------------------- Zümreler (Aşama 12)
+// Etüt formunda bir ders seçilince aynı zümredeki bütün öğretmenler de listelenir
+// (ör. Fen Bilimleri seçilince Fizik, Kimya ve Biyoloji öğretmenleri de gelir).
+export const ZUMRELER: Array<{ name: string; subjects: string[] }> = [
+  { name: 'Fen', subjects: ['Fen Bilimleri', 'Fizik', 'Kimya', 'Biyoloji'] },
+  { name: 'Matematik', subjects: ['Matematik', 'Geometri'] },
+  { name: 'Türkçe ve Edebiyat', subjects: ['Türkçe', 'Türk Dili ve Edebiyatı'] },
+  { name: 'Sosyal Bilimler', subjects: ['Sosyal Bilgiler', 'T.C. İnkılap Tarihi', 'Tarih', 'Coğrafya', 'Felsefe'] },
+];
+
+// Dersin zümresi; zümresi tanımlı değilse yalnızca dersin kendisi
+export function zumreOf(subject?: string | null): { name: string; subjects: string[] } {
+  const s = normalizeSubject(subject || '');
+  const z = ZUMRELER.find((g) => g.subjects.includes(s));
+  return z || { name: s, subjects: s ? [s] : [] };
+}
+
+// Soru hedefinde birden çok ders seçilebilir (Aşama 14): "Matematik, Fen Bilimleri" biçiminde saklanır.
+export function targetSubjectList(subject?: string | null): string[] {
+  const out: string[] = [];
+  for (const part of (subject || '').split(',')) {
+    const s = normalizeSubject(part);
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+export function joinTargetSubjects(list: string[]): string {
+  return targetSubjectList(list.join(',')).join(', ');
+}
+// Bu hedefe hangi dersin soruları sayılır? (boş liste = tüm dersler)
+export function targetSubjectMatcher(subject?: string | null): (s?: string | null) => boolean {
+  const set = new Set(targetSubjectList(subject));
+  if (set.size === 0) return () => true;
+  return (s) => set.has(normalizeSubject(s || ''));
+}
+export function sameTargetSubjects(a?: string | null, b?: string | null): boolean {
+  return targetSubjectList(a).sort().join('|') === targetSubjectList(b).sort().join('|');
+}

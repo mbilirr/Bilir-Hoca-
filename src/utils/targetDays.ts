@@ -1,5 +1,5 @@
 import type { WeeklyQuestionTarget, StudentQuestionLog } from '../types';
-import { normalizeSubject } from '../lib/subjects';
+import { normalizeSubject, targetSubjectMatcher } from '../lib/subjects';
 
 // Bir soru hedefinin gün gün hesabı (Aşama 10b). Ekrandaki "Gün gün durum" tablosu ve PDF raporu aynı sonucu kullanır.
 
@@ -60,13 +60,14 @@ export function computeTargetDays(
   const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
   const daily = Math.max(1, Number(t.dailyTarget) || Math.round(total / Math.max(1, t.targetDays || 7)) || 1);
   const subject = t.subject ? normalizeSubject(t.subject) : '';
+  const counts = targetSubjectMatcher(t.subject);
   const perDay = new Map<string, number>();
   for (const l of logs) {
     if (l.studentId !== studentId || !l.date || l.date < start || l.date > end) continue;
     let n = 0;
     const entries = Array.isArray(l.entries) ? l.entries : [];
     if (entries.length) {
-      for (const e of entries) if (!subject || normalizeSubject(e.subject || '') === subject) n += Number(e.questionCount) || 0;
+      for (const e of entries) if (counts(e.subject)) n += Number(e.questionCount) || 0;
     } else if (!subject) n = Number(l.totalQuestions) || 0;
     perDay.set(l.date, (perDay.get(l.date) || 0) + n);
   }

@@ -243,6 +243,7 @@ export function isAssigned(pe: PreparedEtut, info: StudentInfo): boolean {
 export function isMine(pe: PreparedEtut, me: Teacher | null): boolean {
   if (!me) return false;
   const tid = pe.etut.teacherId;
+  if (pe.etut.teacherIds && pe.etut.teacherIds.includes(me.id)) return true;
   if (tid) return tid === me.id || (!!me.auth_user_id && tid === me.auth_user_id);
   const n = (pe.etut.teacherName || '').trim().toLocaleLowerCase('tr-TR');
   return !!n && n === (me.name || '').trim().toLocaleLowerCase('tr-TR');

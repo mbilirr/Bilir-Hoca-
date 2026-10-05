@@ -2,7 +2,7 @@ import React from 'react';
 import { Target, Check, Sparkles } from 'lucide-react';
 import type { WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
-import { normalizeSubject } from '../../lib/subjects';
+import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatTurkishDate } from '../../utils/questionAnalytics';
 import { TargetDailyBreakdown } from './TargetDailyBreakdown';
 
@@ -27,7 +27,7 @@ export const StudentTargetCards: React.FC<{ targets: WeeklyQuestionTarget[]; stu
       {targets.map((t) => {
         const p = dataService.questionTargetProgress(t, studentId, logs);
         const teacher = t.assignedByTeacherName || (t.assignedBy && t.assignedBy !== 'Öğretmen' ? t.assignedBy : 'Öğretmenin');
-        const subs = t.subject ? [] : subjectEntries(t).filter(([, n]) => n > 0);
+        const subs = targetSubjectList(t.subject).length === 1 ? [] : subjectEntries(t).filter(([, n]) => n > 0);
         return (
           <div key={t.id} className="rounded-2xl border border-warning/30 bg-warning-soft/60 p-4 space-y-3" data-testid="student-target-card">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

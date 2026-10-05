@@ -180,6 +180,8 @@ export interface Etut {
   createdAt: string;
   teacherId?: string; // Etütü oluşturan veya atanan öğretmen ID'si
   teacherName?: string;
+  teacherIds?: string[]; // Aşama 14: etüde birden çok öğretmen atanabilir (ilk sıradaki teacherId ile aynıdır)
+  teacherNames?: string[];
   teacherBranch?: string;
   studentAttendance?: Record<string, EtutStudentAttendance>; // Öğrenci ID -> Katılım Durumu
   createdById?: string; // Etüdü kaydeden öğretmen (Aşama 9)

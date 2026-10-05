@@ -558,7 +558,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
     heading,
     greeting: `Merhaba ${clean(teacher.name)},`,
     intro: intros[kind],
-    rows: etutRows(etut, teacher.name),
+    rows: etutRows(etut, etut.teacherIds && etut.teacherIds.length > 1 && etut.teacherName ? etut.teacherName : teacher.name),
     extraHtml: changesHtml + (showStudents ? list.html : ''),
     extraText: [changesText, showStudents ? list.text : ''].filter(Boolean).join('\n\n'),
     buttonLabel: showStudents ? 'Sistemde görüntüle' : undefined,
@@ -857,9 +857,24 @@ function etutView(row) {
     userNotes: meta.userNotes || '',
     teacherId: row.etut_teacher_id || meta.teacherId || null,
     teacherName: meta.teacherName || '',
+    // Aşama 14: birden çok öğretmen (ilk sıradaki = teacherId)
+    teacherIds: uniqIds([row.etut_teacher_id || meta.teacherId, ...arr(row.etut_teacher_ids), ...arr(meta.teacherIds)]),
     studentIds: arr(row.assigned_student_ids),
     createdById: meta.createdById || null,
   };
+}
+function uniqIds(list) {
+  const out = [];
+  for (const x of list) if (typeof x === 'string' && x && x.length <= 120 && !out.includes(x)) out.push(x);
+  return out.slice(0, 40);
+}
+async function resolveEtutTeachers(ids, fallbackName) {
+  const out = [];
+  for (const id of ids) {
+    const t = await resolveEtutTeacher(id, ids.length === 1 ? fallbackName : null);
+    if (t) out.push(t);
+  }
+  return out;
 }
 async function resolveEtutTeacher(teacherId, fallbackName) {
   if (!teacherId) return null;
@@ -1058,9 +1073,10 @@ async function actionEtutCreated(caller, body, req, deadline) {
     throw new HttpError(403, 'Bu etüdün e-postasını yalnızca etüdü oluşturan öğretmen gönderebilir.');
   }
   const students = await studentsByIds(etut.studentIds, caller.token);
-  const teacher = await resolveEtutTeacher(etut.teacherId, etut.teacherName);
+  const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
+  const teacher = teachers[0] || null;
   const url = appUrl(req);
-  const teacherName = (teacher && teacher.name) || etut.teacherName || caller.name;
+  const teacherName = teachers.length ? teachers.map((t) => t.name).join(', ') : etut.teacherName || caller.name;
   const items = students.map((s) => ({
     event: 'etut-created',
     refId: etut.id,
@@ -1070,23 +1086,26 @@ async function actionEtutCreated(caller, body, req, deadline) {
     role: 'ogrenci',
     ...etutStudentMail(etut, s, teacherName, url),
   }));
-  let teacherResult = { status: 'none' };
-  if (teacher) {
-    if (teacher.authId && teacher.authId === caller.authId) teacherResult = { status: 'self', name: teacher.name };
-    else if (!isEmail(teacher.email)) teacherResult = { status: 'no-email', name: teacher.name };
+  const teacherResults = [];
+  for (const t of teachers) {
+    if (t.authId && t.authId === caller.authId) teacherResults.push({ status: 'self', name: t.name });
+    else if (!isEmail(t.email)) teacherResults.push({ status: 'no-email', name: t.name });
+    else if (items.some((it) => it.role === 'ogretmen' && it.to.toLowerCase() === t.email.toLowerCase())) teacherResults.push({ status: 'queued', name: t.name });
     else {
       items.push({
         event: 'etut-created',
         refId: etut.id,
         refTitle: `${etut.subject} – ${etut.topic}`,
-        to: teacher.email,
-        toName: teacher.name,
+        to: t.email,
+        toName: t.name,
         role: 'ogretmen',
-        ...etutTeacherMail('etut-created', etut, teacher, students, caller.name, url),
+        ...etutTeacherMail('etut-created', etut, t, students, caller.name, url),
       });
-      teacherResult = { status: 'queued', name: teacher.name };
+      teacherResults.push({ status: 'queued', name: t.name });
     }
   }
+  const teacherResult = teacherResults[0] || { status: 'none' };
+  void teacher;
   const sender = await resolveSender(caller);
   const summary = await deliver(sender, caller, items, deadline);
   return {
@@ -1094,6 +1113,7 @@ async function actionEtutCreated(caller, body, req, deadline) {
     total: items.length,
     students: students.length,
     teacher: teacherResult,
+    teachers: teacherResults,
     ...summary,
   };
 }
@@ -1103,7 +1123,7 @@ async function actionEtutTeacherOnly(kind, caller, body, req, deadline) {
   const etut = etutView(row);
   const url = appUrl(req);
   const students = kind === 'etut-cancelled' ? [] : await studentsByIds(etut.studentIds, caller.token);
-  const current = await resolveEtutTeacher(etut.teacherId, etut.teacherName);
+  const currentList = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
   const items = [];
   const notes = [];
   const push = (k, t) => {
@@ -1129,14 +1149,22 @@ async function actionEtutTeacherOnly(kind, caller, body, req, deadline) {
       to: clean(c && c.to).slice(0, 160),
     }))
     .filter((c) => c.label);
-  if (kind === 'etut-cancelled') push('etut-cancelled', current);
+  if (kind === 'etut-cancelled') currentList.forEach((t) => push('etut-cancelled', t));
   else {
-    const prevId = typeof body.previousTeacherId === 'string' ? body.previousTeacherId : null;
-    if (prevId && current && prevId !== current.id) {
-      const prev = await resolveEtutTeacher(prevId, null);
-      push('etut-unassigned', prev);
-      push('etut-assigned', current);
-    } else if (changes.length) push('etut-changed', current);
+    // Önceki öğretmenler: liste (Aşama 14) ya da tek öğretmen (eski sürüm)
+    const prevIds = Array.isArray(body.previousTeacherIds)
+      ? uniqIds(body.previousTeacherIds)
+      : typeof body.previousTeacherId === 'string' && body.previousTeacherId
+        ? [body.previousTeacherId]
+        : null;
+    const curIds = currentList.map((t) => t.id);
+    if (prevIds) {
+      for (const id of prevIds.filter((id) => !curIds.includes(id))) push('etut-unassigned', await resolveEtutTeacher(id, null));
+      for (const t of currentList) {
+        if (!prevIds.includes(t.id)) push('etut-assigned', t);
+        else if (changes.length) push('etut-changed', t);
+      }
+    } else if (changes.length) currentList.forEach((t) => push('etut-changed', t));
   }
   const sender = await resolveSender(caller);
   const summary = await deliver(sender, caller, items, deadline);

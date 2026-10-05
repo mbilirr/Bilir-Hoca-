@@ -40,7 +40,7 @@ import {
 } from '../lib/emailTemplates';
 import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
 import { detectSchoolLevelFromGrade } from '../constants/schoolConstants';
-import { subjectsForBranch, normalizeSubject } from '../lib/subjects';
+import { subjectsForBranch, normalizeSubject, targetSubjectList, targetSubjectMatcher, sameTargetSubjects } from '../lib/subjects';
 import {
   isValidEmail,
   isInternalLoginEmail,
@@ -1534,6 +1534,8 @@ export class DataService {
         createdAt: row.created_at || new Date().toISOString(),
         teacherId: row.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
         teacherName: parsedMeta.teacherName || 'Öğretmen',
+        teacherIds: DataService.etutTeacherIdsOf(row.etut_teacher_ids, parsedMeta.teacherIds),
+        teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
         teacherBranch: parsedMeta.teacherBranch || '',
         lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
         gradeLevel: parsedMeta.gradeLevel,
@@ -1795,6 +1797,8 @@ export class DataService {
         studentAttendance: etut.studentAttendance || {},
         teacherId: etut.teacherId,
         teacherName: etut.teacherName,
+        teacherIds: etut.teacherIds && etut.teacherIds.length > 1 ? etut.teacherIds : undefined,
+        teacherNames: etut.teacherIds && etut.teacherIds.length > 1 ? etut.teacherNames : undefined,
         teacherBranch: etut.teacherBranch || '',
         lessonPeriod: etut.lessonPeriod || 'Ders',
         duration: Number(etut.duration) || 45,
@@ -1821,10 +1825,20 @@ export class DataService {
       };
       // Aşama 9: etüde atanan öğretmen ayrı sütunda (13 numaralı SQL). SQL henüz çalıştırılmadıysa sütunsuz kaydet.
       if (DataService.etutTeacherColumnAvailable) row.etut_teacher_id = etut.teacherId || null;
+      // Aşama 14: birden çok öğretmen (15 numaralı SQL). Sütun yoksa yalnızca bu alan çıkarılır.
+      if (DataService.etutTeacherIdsColumnAvailable && DataService.etutTeacherColumnAvailable)
+        row.etut_teacher_ids = etut.teacherIds && etut.teacherIds.length ? etut.teacherIds : etut.teacherId ? [etut.teacherId] : null;
       let { error } = await supabase.from('etuts').upsert(row);
-      if (error && row.etut_teacher_id !== undefined && /etut_teacher_id/.test(error.message || '')) {
-        DataService.etutTeacherColumnAvailable = false;
-        delete row.etut_teacher_id;
+      for (let attempt = 0; attempt < 2 && error; attempt++) {
+        const msg = error.message || '';
+        if (row.etut_teacher_ids !== undefined && /etut_teacher_ids/.test(msg)) {
+          DataService.etutTeacherIdsColumnAvailable = false;
+          delete row.etut_teacher_ids;
+        } else if (row.etut_teacher_id !== undefined && /etut_teacher_id/.test(msg)) {
+          DataService.etutTeacherColumnAvailable = false;
+          delete row.etut_teacher_id;
+          delete row.etut_teacher_ids;
+        } else break;
         ({ error } = await supabase.from('etuts').upsert(row));
       }
 
@@ -1891,6 +1905,8 @@ export class DataService {
             createdAt: re.created_at || new Date().toISOString(),
             teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
             teacherName: parsedMeta.teacherName || 'Öğretmen',
+            teacherIds: DataService.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
+            teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
             teacherBranch: parsedMeta.teacherBranch || '',
             lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
             gradeLevel: parsedMeta.gradeLevel,
@@ -2587,6 +2603,14 @@ export class DataService {
   // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
   public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
   public static etutTeacherColumnAvailable = true;
+  public static etutTeacherIdsColumnAvailable = true;
+  // Etüdün tüm öğretmenleri (sütun veya eski kayıtlarda notlar içindeki bilgi)
+  public static etutTeacherIdsOf(col: any, meta: any): string[] | undefined {
+    const src = Array.isArray(col) && col.length ? col : Array.isArray(meta) ? meta : null;
+    if (!src) return undefined;
+    const ids = Array.from(new Set(src.filter((x: any) => typeof x === 'string' && x)));
+    return ids.length ? (ids as string[]) : undefined;
+  }
 
   private assertInlineResourcesFit(resources?: HomeworkResource[]): void {
     const tooBig = (resources || []).find(
@@ -8204,7 +8228,7 @@ export class DataService {
           this.isClassQuestionTarget(t) === isClass &&
           (isClass ? t.classId === draft.classId : t.studentId === draft.studentId) &&
           ownerKeys.has(this.questionTargetOwnerKey(t)) &&
-          normalizeSubject(t.subject || '') === normalizeSubject(draft.subject || '') &&
+          sameTargetSubjects(t.subject, draft.subject) &&
           (t.weekStartDate || '') <= end &&
           this.questionTargetEnd(t) >= start
       ) || null
@@ -8263,7 +8287,7 @@ export class DataService {
       weeklyTarget: total,
       dailyTarget: daily,
       weekEndDate: this.questionTargetEnd({ ...draft, targetDays: days }),
-      subject: draft.subject ? normalizeSubject(draft.subject) : undefined,
+      subject: targetSubjectList(draft.subject).join(', ') || undefined,
       subjectTargets: subjectTargets && Object.keys(subjectTargets).length ? subjectTargets : undefined,
       notes: (draft.notes || '').trim().slice(0, 400) || undefined,
       // Sahip değişmez: düzenlemede ilk veren öğretmen kalır
@@ -8349,6 +8373,7 @@ export class DataService {
     const start = t.weekStartDate || '';
     const end = this.questionTargetEnd(t);
     const subj = t.subject ? normalizeSubject(t.subject) : '';
+    const counts = targetSubjectMatcher(t.subject);
     const bySubject: Record<string, number> = {};
     let solved = 0;
     for (const l of logs) {
@@ -8359,7 +8384,7 @@ export class DataService {
           const name = normalizeSubject(e.subject || '');
           const n = Number(e.questionCount) || 0;
           bySubject[name] = (bySubject[name] || 0) + n;
-          if (!subj || name === subj) solved += n;
+          if (counts(name)) solved += n;
         }
       } else if (!subj) {
         solved += Number(l.totalQuestions) || 0;

@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus } from 'lucide-react';
+import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented } from '../ui/kit';
-import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
+import { normalizeSubject, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
+import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
 // ============================================================================
@@ -96,7 +97,7 @@ const TargetFormContent: React.FC<Props> = ({
       kind,
       studentId: st ? studentId : '',
       classId,
-      subject: t?.subject ? normalizeSubject(t.subject) : '',
+      subjects: targetSubjectList(t?.subject),
       start,
       end,
       daily: String(daily),
@@ -114,7 +115,9 @@ const TargetFormContent: React.FC<Props> = ({
   const [end, setEnd] = useState(initial.end);
   const [daily, setDaily] = useState(initial.daily);
   const [total, setTotal] = useState(initial.total);
-  const [subjectRows, setSubjectRows] = useState<Record<string, string>>(initial.subjectRows);
+  // Tüm dersler hedefinde eklenen ders satırları / birden çok ders seçildiğinde her dersin kutusu
+  const [subjectRows, setSubjectRows] = useState<Record<string, string>>(initial.subjects.length > 1 ? {} : initial.subjectRows);
+  const [multiRows, setMultiRows] = useState<Record<string, string>>(initial.subjects.length > 1 ? initial.subjectRows : {});
   const [subjectToAdd, setSubjectToAdd] = useState('');
   const [notes, setNotes] = useState(initial.notes);
   const [sendMail, setSendMail] = useState(true);
@@ -136,29 +139,55 @@ const TargetFormContent: React.FC<Props> = ({
   const selectedStudent = students.find((s) => s.id === studentId) || null;
   const level = classLevel(kind === 'student' ? classes.find((c) => c.id === selectedStudent?.classId) || selectedClass : selectedClass);
 
-  // ---- ders seçenekleri ('' = tüm dersler)
-  const subjectOptions = useMemo(() => {
+  // ---- ders seçenekleri (birden çok ders seçilebilir; hiç seçilmezse tüm dersler)
+  const { subjectOptions, allowGeneral } = useMemo(() => {
     let list: string[];
-    let allowGeneral: boolean;
+    let allowAll: boolean;
     if (mySubjects) {
       list = mySubjects.filter((s) => !NON_QUESTION_SUBJECTS.has(s));
-      allowGeneral = list.length === 0; // rehberlik vb. branşlar genel hedef verir
+      allowAll = list.length === 0; // rehberlik vb. branşlar genel hedef verir
     } else {
       list = subjectsForLevel(level).filter((s) => !NON_QUESTION_SUBJECTS.has(s));
-      allowGeneral = true;
+      allowAll = true;
     }
-    const opts = [...(allowGeneral ? [''] : []), ...list];
-    if (isEdit && !opts.includes(initial.subject)) opts.push(initial.subject); // eski kayıt kaybolmasın
-    return opts;
-  }, [mySubjects, level, isEdit, initial.subject]);
-  const [subject, setSubject] = useState<string>(() =>
-    subjectOptions.includes(initial.subject) ? initial.subject : subjectOptions[0] ?? ''
-  );
-  const effectiveSubject = subjectOptions.includes(subject) ? subject : subjectOptions[0] ?? '';
+    if (isEdit) for (const s of initial.subjects) if (!list.includes(s)) list = [...list, s]; // eski kayıt kaybolmasın
+    return { subjectOptions: list, allowGeneral: allowAll };
+  }, [mySubjects, level, isEdit, initial.subjects]);
+  const [subjectsSel, setSubjectsSel] = useState<string[]>(() => initial.subjects);
+  const selectedSubjects = useMemo(() => {
+    const valid = subjectsSel.filter((s) => subjectOptions.includes(s));
+    if (valid.length === 0 && !allowGeneral) return subjectOptions.slice(0, 1);
+    return valid;
+  }, [subjectsSel, subjectOptions, allowGeneral]);
+  const effectiveSubject = selectedSubjects.join(', ');
+  const fixedSubject = !allowGeneral && subjectOptions.length <= 1;
+  // Ders dağılımı: birden çok ders seçildiyse o dersler, hiç seçilmediyse (tüm dersler) eklenen dersler
+  const multi = selectedSubjects.length > 1;
+  const showBreakdown = selectedSubjects.length !== 1;
+  const breakdownRows: Array<[string, string]> = multi
+    ? selectedSubjects.map((s) => [s, multiRows[s] ?? ''])
+    : Object.entries(subjectRows);
   const breakdownSubjects = useMemo(
     () => subjectsForLevel(level).filter((s) => !NON_QUESTION_SUBJECTS.has(s) && !(s in subjectRows)),
     [level, subjectRows]
   );
+  const breakdownTargets = Object.fromEntries(
+    breakdownRows.filter(([, v]) => v.trim() !== '').map(([k, v]) => [k, toInt(v) || 0])
+  );
+  const distributeEvenly = () => {
+    const tn = toInt(total);
+    const names = breakdownRows.map(([k]) => k);
+    if (!(tn >= 1) || names.length === 0) return;
+    const base = Math.floor(tn / names.length);
+    let rest = tn - base * names.length;
+    const next: Record<string, string> = { ...(multi ? multiRows : subjectRows) };
+    for (const k of names) {
+      next[k] = String(base + (rest > 0 ? 1 : 0));
+      if (rest > 0) rest--;
+    }
+    (multi ? setMultiRows : setSubjectRows)(next);
+  };
+  const setRow = (k: string, v: string) => (multi ? setMultiRows : setSubjectRows)((r) => ({ ...r, [k]: v }));
 
   // ---- gün / günlük / toplam bağlantısı
   const days = Math.max(0, daysBetween(start, end));
@@ -226,9 +255,7 @@ const TargetFormContent: React.FC<Props> = ({
     targetQuestions: toInt(total),
     dailyTarget: toInt(daily),
     subject: effectiveSubject || undefined,
-    subjectTargets: effectiveSubject
-      ? undefined
-      : Object.fromEntries(Object.entries(subjectRows).map(([k, v]) => [k, toInt(v) || 0])),
+    subjectTargets: showBreakdown ? breakdownTargets : undefined,
     notes,
     assignedByTeacherId: editTarget?.assignedByTeacherId,
   };
@@ -243,9 +270,10 @@ const TargetFormContent: React.FC<Props> = ({
     end !== initial.end ||
     total !== initial.total ||
     daily !== initial.daily ||
-    effectiveSubject !== initial.subject ||
+    effectiveSubject !== initial.subjects.join(', ') ||
     notes !== initial.notes ||
-    JSON.stringify(subjectRows) !== JSON.stringify(initial.subjectRows);
+    JSON.stringify(showBreakdown ? breakdownTargets : {}) !==
+      JSON.stringify(Object.fromEntries(Object.entries(initial.subjectRows).map(([k, v]) => [k, toInt(v) || 0])));
 
   const requestClose = () => {
     if (isSaving) return;
@@ -267,11 +295,13 @@ const TargetFormContent: React.FC<Props> = ({
     const tn = toInt(total);
     if (!(dn >= 1 && dn <= MAX_DAILY)) return `Günlük hedef 1 ile ${MAX_DAILY} arasında tam sayı olmalı.`;
     if (!(tn >= 1 && tn <= MAX_TOTAL)) return `Toplam hedef 1 ile ${MAX_TOTAL.toLocaleString('tr-TR')} arasında tam sayı olmalı.`;
-    if (!effectiveSubject) {
+    if (selectedSubjects.length === 0 && !allowGeneral) return 'En az bir ders seçin.';
+    if (showBreakdown) {
       let sum = 0;
-      for (const [k, v] of Object.entries(subjectRows)) {
+      for (const [k, v] of breakdownRows) {
+        if (v.trim() === '') continue; // boş bırakılan ders için ayrı hedef yok
         const n = toInt(v);
-        if (!(n >= 1)) return `${k} için ders hedefi en az 1 olmalı (istemiyorsanız satırı kaldırın).`;
+        if (!(n >= 1)) return `${k} için ders hedefi en az 1 olmalı (istemiyorsanız kutuyu boş bırakın).`;
         sum += n;
       }
       if (sum > tn) return `Ders hedeflerinin toplamı (${sum}) genel hedeften (${tn}) büyük olamaz.`;
@@ -455,23 +485,18 @@ const TargetFormContent: React.FC<Props> = ({
         </FormSection>
 
         <FormSection title="2. Ders" hint={mySubjects ? 'Branşınıza göre' : undefined}>
-          {subjectOptions.length <= 1 ? (
+          {fixedSubject || (allowGeneral && subjectOptions.length === 0) ? (
             <div id="qt-subject-fixed" className="px-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
               {effectiveSubject || 'Tüm dersler (genel hedef)'}
             </div>
           ) : (
-            <select id="qt-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
-              {subjectOptions.map((s) => (
-                <option key={s || 'all'} value={s}>
-                  {s || 'Tüm dersler (genel hedef)'}
-                </option>
-              ))}
-            </select>
+            <SubjectMultiSelect id="qt-subject" options={subjectOptions} value={selectedSubjects} onChange={setSubjectsSel} allowAll={allowGeneral} />
           )}
-          <p className="text-[11px] text-muted">
+          <p className="text-[11px] text-muted" id="qt-subject-hint">
             {effectiveSubject
               ? `Yalnızca ${effectiveSubject} soruları bu hedefe sayılır.`
               : 'Öğrencinin tüm derslerde çözdüğü sorular bu hedefe sayılır.'}
+            {!fixedSubject && ' Listeyi açıp kutucuklarla birden çok ders seçebilirsiniz.'}
           </p>
         </FormSection>
 
@@ -567,36 +592,59 @@ const TargetFormContent: React.FC<Props> = ({
           </div>
           <p className="text-[11px] text-muted">Birini değiştirince diğeri gün sayısına göre otomatik hesaplanır.</p>
 
-          {!effectiveSubject && (
-            <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2">
-              <div className="text-xs font-semibold text-fg">Ders dağılımı (isteğe bağlı)</div>
-              {Object.entries(subjectRows).map(([s, v]) => (
-                <div key={s} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm text-fg truncate">{s}</span>
-                  <input
-                    aria-label={`${s} hedefi`}
-                    inputMode="numeric"
-                    value={v}
-                    onChange={(e) => setSubjectRows((r) => ({ ...r, [s]: e.target.value.replace(/[^\d]/g, '').slice(0, 6) }))}
-                    className={`${inputCls} w-24 text-center`}
-                  />
-                  <button
-                    type="button"
-                    aria-label={`${s} kaldır`}
-                    onClick={() =>
-                      setSubjectRows((r) => {
-                        const c = { ...r };
-                        delete c[s];
-                        return c;
-                      })
-                    }
-                    className="ui-btn ui-btn-ghost ui-btn-icon"
-                  >
-                    <X className="w-4 h-4" />
+          {showBreakdown && (
+            <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2" id="qt-breakdown">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-fg">Ders dağılımı (isteğe bağlı)</div>
+                {breakdownRows.length > 1 && (
+                  <button type="button" id="qt-breakdown-even" onClick={distributeEvenly} className="ui-btn ui-btn-ghost ui-btn-sm">
+                    <Divide className="w-3.5 h-3.5" /> Eşit dağıt
                   </button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted">
+                {multi
+                  ? 'Seçtiğiniz derslerin her biri için ayrı soru sayısı yazabilirsiniz. Boş bırakılan derse ayrı hedef konmaz.'
+                  : 'İsterseniz bazı dersler için ayrı soru sayısı belirleyin. Boş bırakılan derse ayrı hedef konmaz.'}
+              </p>
+              {breakdownRows.map(([s, v]) => (
+                <div key={s} className="flex items-center gap-2" data-testid="qt-breakdown-row">
+                  <span className="flex-1 text-sm text-fg truncate">{s}</span>
+                  <div className="relative w-32 shrink-0">
+                    <input
+                      aria-label={`${s} hedefi`}
+                      inputMode="numeric"
+                      value={v}
+                      placeholder="-"
+                      onChange={(e) => setRow(s, e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                      className={`${inputCls} text-center pr-10`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted">soru</span>
+                  </div>
+                  {!multi && (
+                    <button
+                      type="button"
+                      aria-label={`${s} kaldır`}
+                      onClick={() =>
+                        setSubjectRows((r) => {
+                          const c = { ...r };
+                          delete c[s];
+                          return c;
+                        })
+                      }
+                      className="ui-btn ui-btn-ghost ui-btn-icon"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
-              {breakdownSubjects.length > 0 && (
+              {breakdownRows.length > 0 && (
+                <p className="text-[11px] text-muted" id="qt-breakdown-sum">
+                  Dağıtılan: {Object.values(breakdownTargets).reduce((a, b) => a + b, 0)} / {toInt(total) || 0} soru
+                </p>
+              )}
+              {!multi && breakdownSubjects.length > 0 && (
                 <div className="flex items-center gap-2">
                   <select id="qt-breakdown-subject" value={subjectToAdd} onChange={(e) => setSubjectToAdd(e.target.value)} className={inputCls}>
                     <option value="">Ders ekle…</option>
@@ -612,7 +660,7 @@ const TargetFormContent: React.FC<Props> = ({
                     disabled={!subjectToAdd}
                     onClick={() => {
                       if (!subjectToAdd) return;
-                      setSubjectRows((r) => ({ ...r, [subjectToAdd]: String(Math.max(1, Math.round((toInt(total) || 100) / 4))) }));
+                      setSubjectRows((r) => ({ ...r, [subjectToAdd]: '' }));
                       setSubjectToAdd('');
                     }}
                     className="ui-btn ui-btn-secondary shrink-0"

@@ -118,8 +118,11 @@ export function describeMailResult(r: MailResult | null | undefined): { tone: 's
   if (r.sent) parts.push(`${r.sent} kişiye e-posta gönderildi`);
   if (r.skipped) parts.push(`${r.skipped} kişiye daha önce gönderilmişti`);
   if (r.noEmail) parts.push(`${r.noEmail} öğrencinin e-postası kayıtlı değil`);
-  const noEmailTeacher = [r.teacher, ...(r.teachers || [])].find((t) => t && t.status === 'no-email');
-  if (noEmailTeacher) parts.push(`${noEmailTeacher.name || 'Etüt öğretmeni'} için e-posta adresi yok`);
+  const noEmailTeachers = Array.from(
+    new Set([r.teacher, ...(r.teachers || [])].filter((t) => t && t.status === 'no-email').map((t) => (t && t.name) || 'Etüt öğretmeni'))
+  );
+  const noEmailTeacher = noEmailTeachers.length > 0;
+  if (noEmailTeacher) parts.push(`${noEmailTeachers.join(', ')} için e-posta adresi yok`);
   if (r.failed) parts.push(`${r.failed} e-posta gönderilemedi${r.errors && r.errors[0] ? ` (${r.errors[0]})` : ''}`);
   if (r.remaining) parts.push(`${r.remaining} e-posta sırada kaldı`);
   if (parts.length === 0) return { tone: 'warning', text: 'E-posta gönderilecek kimse bulunamadı.' };

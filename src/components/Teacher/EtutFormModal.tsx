@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, UserCheck, Users, Search, Repeat, MailWarning, Settings2 } from 'lucide-react';
+import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Repeat, Settings2 } from 'lucide-react';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService, type EtutTeacherOption } from '../../services/dataService';
 import { Modal, cx } from '../ui/kit';
-import { normalizeSubject, subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
+import { normalizeSubject, subjectsForBranch, subjectsForLevel, zumreOf } from '../../lib/subjects';
+import { EtutTeacherSelect, type TeacherGroup } from './EtutTeacherSelect';
 import {
   FormSection,
   FieldLabel,
@@ -35,6 +36,7 @@ export interface EtutFormSaved {
   sendMail: boolean;
   changes?: EtutChange[];
   previousTeacherId?: string | null;
+  previousTeacherIds?: string[] | null;
   failedCount?: number;
 }
 
@@ -119,6 +121,8 @@ const EtutFormContent: React.FC<Props> = ({
       subject: source ? normalizeSubject(source.subject) : '',
       teacherId: source?.teacherId || '',
       teacherName: source?.teacherName || '',
+      teacherIds: source ? (source.teacherIds && source.teacherIds.length ? source.teacherIds : source.teacherId ? [source.teacherId] : []) : [],
+      teacherNames: source?.teacherNames || [],
       topic: source?.topic || '',
       notes: source?.notes || '',
       selected: sel,
@@ -150,8 +154,7 @@ const EtutFormContent: React.FC<Props> = ({
   });
   const effectiveSubject = subjectOptions.includes(subject) ? subject : subjectOptions[0] || '';
 
-  const [teacherId, setTeacherId] = useState<string>(initial.teacherId);
-  const [teacherQuery, setTeacherQuery] = useState('');
+  const [teacherIds, setTeacherIds] = useState<string[]>(initial.teacherIds);
   const [topic, setTopic] = useState(initial.topic);
   const [notes, setNotes] = useState(initial.notes);
   const [filterClassIds, setFilterClassIds] = useState<string[]>(() => {
@@ -174,37 +177,62 @@ const EtutFormContent: React.FC<Props> = ({
     if (errorText || conflicts) document.getElementById('etut-form-alert')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [errorText, conflicts]);
 
-  // ---- bu dersin öğretmenleri
+  // ---- bu dersin ve aynı zümrenin öğretmenleri (Aşama 12: Fen seçilince Fizik/Kimya/Biyoloji öğretmenleri de)
+  const zumre = useMemo(() => zumreOf(effectiveSubject), [effectiveSubject]);
   const subjectTeachers = useMemo(() => {
-    const list = (teacherOptions || []).filter((o) => o.isMe || o.subjects.includes(effectiveSubject));
-    // düzenlenen etüdün mevcut öğretmeni listede yoksa kaybolmasın
-    if ((isEdit || isCopy) && initial.teacherId && !list.some((o) => o.id === initial.teacherId)) {
-      list.push({ id: initial.teacherId, name: initial.teacherName || 'Mevcut öğretmen', subjects: [effectiveSubject], kind: initial.teacherId.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
+    const list = (teacherOptions || []).filter((o) => o.isMe || o.subjects.some((s) => zumre.subjects.includes(s)));
+    // düzenlenen etüdün mevcut öğretmenleri listede yoksa kaybolmasın
+    if (isEdit || isCopy) {
+      initial.teacherIds.forEach((id, i) => {
+        if (list.some((o) => o.id === id)) return;
+        const name = initial.teacherNames[i] || (initial.teacherIds.length === 1 ? initial.teacherName : '') || 'Mevcut öğretmen';
+        list.push({ id, name, subjects: [effectiveSubject], kind: id.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
+      });
     }
     if (me && !list.some((o) => o.isMe || o.id === me.id)) {
       list.unshift({ id: me.id, name: me.name, subjects: subjectsForBranch(me.branch), kind: 'system', hasEmail: !!me.email, rowId: null, isMe: true });
     }
     return list.sort((a, b) => (a.isMe === b.isMe ? (a.kind === b.kind ? a.name.localeCompare(b.name, 'tr') : a.kind === 'system' ? -1 : 1) : a.isMe ? -1 : 1));
-  }, [teacherOptions, effectiveSubject, isEdit, isCopy, initial.teacherId, initial.teacherName, me]);
+  }, [teacherOptions, effectiveSubject, zumre, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me]);
 
   // Ders değişince: o ders için son seçilen öğretmen, yoksa (kendi dersiyse) öğretmenin kendisi
   useEffect(() => {
     if (!teacherOptions) return;
-    if (teacherId && subjectTeachers.some((o) => o.id === teacherId)) return;
+    const keep = teacherIds.filter((id) => subjectTeachers.some((o) => o.id === id));
+    if (keep.length) {
+      if (keep.length !== teacherIds.length) setTeacherIds(keep);
+      return;
+    }
     const remembered = prefs.teacherBySubject?.[effectiveSubject];
     const pick =
       subjectTeachers.find((o) => o.id === remembered) ||
       subjectTeachers.find((o) => o.isMe && o.subjects.includes(effectiveSubject)) ||
       (subjectTeachers.filter((o) => !o.isMe).length === 1 ? subjectTeachers.find((o) => !o.isMe) : undefined) ||
       subjectTeachers.find((o) => o.isMe);
-    setTeacherId(pick ? pick.id : '');
+    setTeacherIds(pick ? [pick.id] : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveSubject, teacherOptions]);
 
-  const selectedTeacher = subjectTeachers.find((o) => o.id === teacherId) || null;
-  const visibleTeachers = teacherQuery.trim()
-    ? subjectTeachers.filter((o) => o.name.toLocaleLowerCase('tr-TR').includes(teacherQuery.trim().toLocaleLowerCase('tr-TR')))
-    : subjectTeachers;
+  const selectedTeachers = teacherIds.map((id) => subjectTeachers.find((o) => o.id === id)).filter(Boolean) as EtutTeacherOption[];
+  const selectedTeacher = selectedTeachers[0] || null; // ana öğretmen (ilk sıradaki)
+  const teacherNamesText = selectedTeachers.map((o) => o.name).join(', ');
+  // Açılır listedeki gruplar: önce seçilen dersin öğretmenleri, sonra zümredeki her dersin öğretmenleri
+  const teacherGroups: TeacherGroup[] = useMemo(() => {
+    const order = [effectiveSubject, ...zumre.subjects.filter((s) => s !== effectiveSubject)].filter(Boolean);
+    const used = new Set<string>();
+    const groups: TeacherGroup[] = [];
+    for (const subj of order) {
+      const opts = subjectTeachers.filter((o) => !used.has(o.id) && o.subjects.includes(subj));
+      opts.forEach((o) => used.add(o.id));
+      if (opts.length) groups.push({ key: `s:${subj}`, title: `${subj} öğretmenleri`, options: opts });
+    }
+    const rest = subjectTeachers.filter((o) => !used.has(o.id));
+    if (rest.length) {
+      if (groups.length && groups[0].key === `s:${effectiveSubject}`) groups[0] = { ...groups[0], options: [...rest, ...groups[0].options] };
+      else groups.unshift({ key: `s:${effectiveSubject || 'diger'}`, title: `${effectiveSubject || 'Ders'} öğretmenleri`, options: rest });
+    }
+    return groups;
+  }, [subjectTeachers, effectiveSubject, zumre]);
 
   // ---- ders saati -> saat (daha önceki etütlerden öğrenilir)
   const periodTimes = useMemo(() => {
@@ -237,7 +265,7 @@ const EtutFormContent: React.FC<Props> = ({
     date !== initial.date ||
     time !== initial.time ||
     location !== initial.location ||
-    (isEdit && (teacherId !== initial.teacherId || effectiveSubject !== initial.subject));
+    (isEdit && (teacherIds.join('|') !== initial.teacherIds.join('|') || effectiveSubject !== initial.subject));
 
   const requestClose = () => {
     if (isSaving) return;
@@ -258,11 +286,13 @@ const EtutFormContent: React.FC<Props> = ({
         const s2 = toMin(e.time);
         const e2 = s2 + (Number(e.duration) || 45);
         if (!(start < e2 && s2 < end)) continue;
-        const sameTeacher = !!teacherId && e.teacherId === teacherId;
+        const theirs = e.teacherIds && e.teacherIds.length ? e.teacherIds : e.teacherId ? [e.teacherId] : [];
+        const busy = selectedTeachers.filter((o) => theirs.includes(o.id));
+        const sameTeacher = busy.length > 0;
         const shared = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.filter((id) => sel.has(id)) : [];
         if (!sameTeacher && shared.length === 0) continue;
         const who = [
-          sameTeacher ? `${selectedTeacher?.name || 'öğretmen'} aynı saatte` : '',
+          sameTeacher ? `${busy.map((o) => o.name).join(', ')} aynı saatte` : '',
           shared.length
             ? `${shared
                 .slice(0, 3)
@@ -283,7 +313,7 @@ const EtutFormContent: React.FC<Props> = ({
     setErrorText(null);
     setConfirmDiscard(false);
     if (!effectiveSubject) return setErrorText('Ders seçin.');
-    if (!teacherId || !selectedTeacher) return setErrorText('Etüt öğretmenini seçin.');
+    if (!selectedTeacher) return setErrorText('Etüt öğretmenini seçin.');
     if (!topic.trim()) return setErrorText('Etüt konusunu yazın.');
     if (selectedIds.length === 0) return setErrorText('En az bir öğrenci seçin.');
     if (!date) return setErrorText('Tarih seçin.');
@@ -314,7 +344,9 @@ const EtutFormContent: React.FC<Props> = ({
       location: location.trim() || 'Derslik',
       lessonPeriod: lessonPeriod || 'Ders',
       teacherId: selectedTeacher.id,
-      teacherName: selectedTeacher.name,
+      teacherName: teacherNamesText,
+      teacherIds: selectedTeachers.map((o) => o.id),
+      teacherNames: selectedTeachers.map((o) => o.name),
       teacherBranch: effectiveSubject,
       assignedStudentIds: selectedIds,
       schoolLevel: levels.length === 1 ? levels[0] : undefined,
@@ -342,7 +374,9 @@ const EtutFormContent: React.FC<Props> = ({
         cmp('Yer', source.location, payload.location);
         const prevCount = Array.isArray(source.assignedStudentIds) ? source.assignedStudentIds.length : students.length;
         cmp('Öğrenci sayısı', prevCount, selectedIds.length);
-        const teacherChanged = (source.teacherId || '') !== selectedTeacher.id;
+        const prevIds = initial.teacherIds;
+        const nowIds = selectedTeachers.map((o) => o.id);
+        const teacherChanged = prevIds.length !== nowIds.length || prevIds.some((id) => !nowIds.includes(id));
         await dataService.updateEtut(source.id, { ...payload, date });
         onSaved({
           mode: 'edit',
@@ -350,6 +384,7 @@ const EtutFormContent: React.FC<Props> = ({
           sendMail: sendMail && (changes.length > 0 || teacherChanged),
           changes,
           previousTeacherId: teacherChanged ? source.teacherId || null : null,
+          previousTeacherIds: teacherChanged ? prevIds : null,
         });
       } else {
         const created: Etut[] = [];
@@ -412,7 +447,7 @@ const EtutFormContent: React.FC<Props> = ({
         ) : (
           <div className="w-full flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-muted truncate max-w-full sm:max-w-[55%]" id="etut-form-summary">
-              {selectedTeacher ? selectedTeacher.name : 'Öğretmen seçilmedi'} · {selectedIds.length} öğrenci
+              {selectedTeacher ? teacherNamesText : 'Öğretmen seçilmedi'} · {selectedIds.length} öğrenci
               {date ? ` · ${shortTrDate(date)}${time ? ` ${time}` : ''}` : ''}
               {occurrences.length > 1 ? ` · ${occurrences.length} hafta` : ''}
             </span>
@@ -463,23 +498,9 @@ const EtutFormContent: React.FC<Props> = ({
             </div>
           )}
 
-          <div className="rounded-xl border border-line bg-surface">
-            <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-line">
-              <span className="text-xs font-semibold text-fg-2 flex items-center gap-1.5">
-                <UserCheck className="w-4 h-4 text-info-fg" />
-                {effectiveSubject ? `${effectiveSubject} öğretmenleri` : 'Öğretmenler'}
-              </span>
-              {subjectTeachers.length > 6 && (
-                <div className="relative flex-1 min-w-[140px]">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-subtle" />
-                  <input
-                    value={teacherQuery}
-                    onChange={(e) => setTeacherQuery(e.target.value)}
-                    placeholder="Öğretmen ara"
-                    className="w-full bg-surface-2 border border-line rounded-lg pl-8 pr-2 py-1 text-xs text-fg focus:outline-none focus:border-brand"
-                  />
-                </div>
-              )}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <FieldLabel htmlFor="etut-teacher-select">Etüt öğretmenleri</FieldLabel>
               {isAdmin && onManageTeachers && (
                 <button type="button" id="etut-manage-teachers" onClick={onManageTeachers} className="ml-auto text-xs font-semibold text-brand-fg hover:underline flex items-center gap-1 cursor-pointer">
                   <Settings2 className="w-3.5 h-3.5" />
@@ -487,57 +508,29 @@ const EtutFormContent: React.FC<Props> = ({
                 </button>
               )}
             </div>
-            <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto" role="radiogroup" aria-label="Etüt öğretmeni" id="etut-teacher-list">
-              {teacherOptions === null ? (
-                <div className="col-span-full py-4 text-center text-xs text-muted">Öğretmenler yükleniyor…</div>
-              ) : visibleTeachers.length === 0 ? (
-                <div className="col-span-full py-4 text-center text-xs text-muted">Bu ders için öğretmen bulunamadı.</div>
-              ) : (
-                visibleTeachers.map((o) => {
-                  const on = o.id === teacherId;
-                  const otherSubject = o.isMe && !o.subjects.includes(effectiveSubject);
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={on}
-                      data-teacher-id={o.id}
-                      onClick={() => setTeacherId(o.id)}
-                      className={cx(
-                        'flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left cursor-pointer transition-colors',
-                        on ? 'border-brand bg-brand-soft ring-2 ring-brand/20' : 'border-line bg-surface-2/50 hover:bg-surface-2'
-                      )}
-                    >
-                      <span className={cx('w-4 h-4 rounded-full border-2 shrink-0', on ? 'border-brand bg-brand shadow-[inset_0_0_0_3px_var(--color-surface)]' : 'border-line-strong')} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-fg truncate">
-                          {o.name}
-                          {o.isMe && <span className="ml-1 text-[11px] font-medium text-muted">(ben)</span>}
-                        </span>
-                        <span className="flex flex-wrap gap-1 mt-0.5">
-                          {o.kind === 'external' && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-info-soft text-info-fg">Dış öğretmen</span>}
-                          {otherSubject && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-muted">farklı branş</span>}
-                          {!o.hasEmail && !o.isMe && (
-                            <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg inline-flex items-center gap-0.5">
-                              <MailWarning className="w-3 h-3" />
-                              e-posta yok
-                            </span>
-                          )}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-          {selectedTeacher && !selectedTeacher.isMe && !selectedTeacher.hasEmail && (
-            <p className="text-[11px] text-warning-fg">
-              {selectedTeacher.name} için e-posta adresi kayıtlı değil; etüt kaydedilir ama öğretmene e-posta gitmez.
-              {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
+            <EtutTeacherSelect
+              groups={teacherGroups}
+              value={teacherIds}
+              onChange={setTeacherIds}
+              loading={teacherOptions === null}
+              placeholder="Öğretmen seçin"
+              currentSubject={effectiveSubject}
+              allLabel={zumre.subjects.length > 1 ? `${zumre.name} zümresinin tüm öğretmenleri` : undefined}
+            />
+            <p className="text-[11px] text-muted mt-1">
+              Kutucuklarla birden çok öğretmen seçebilirsiniz; seçilen her öğretmene etüt tanımlanır ve e-posta gider.
+              {zumre.subjects.length > 1 && ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) bütün öğretmenleri var.`}
             </p>
-          )}
+          </div>
+          {(() => {
+            const noMail = selectedTeachers.filter((o) => !o.isMe && !o.hasEmail);
+            return noMail.length ? (
+              <p className="text-[11px] text-warning-fg" id="etut-teacher-nomail">
+                {noMail.map((o) => o.name).join(', ')} için e-posta adresi kayıtlı değil; etüt kaydedilir ama {noMail.length > 1 ? 'bu öğretmenlere' : 'öğretmene'} e-posta gitmez.
+                {isAdmin ? ' Öğretmen listesinden e-posta ekleyebilirsiniz.' : ' Yöneticiden eklemesini isteyin.'}
+              </p>
+            ) : null;
+          })()}
         </FormSection>
 
         {/* 2. KONU */}

@@ -94,6 +94,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
     return etuts.filter((e) => {
       if (e.teacherId && e.teacherId === currentTeacher.id) return true;
+      if (e.teacherIds && e.teacherIds.includes(currentTeacher.id)) return true;
       if (e.teacherName && e.teacherName.trim().toLowerCase() === tName) return true;
       if (e.teacherName && e.teacherName.trim().toLowerCase() === tUser) return true;
       if (tBranch && (e.teacherBranch?.toLowerCase() === tBranch || e.subject?.toLowerCase() === tBranch)) return true;
@@ -139,7 +140,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       const res =
         r.mode !== 'edit'
           ? await callMail('etut-created', { etutId: e.id })
-          : await callMail('etut-changed', { etutId: e.id, changes: r.changes || [], previousTeacherId: r.previousTeacherId || null });
+          : await callMail('etut-changed', { etutId: e.id, changes: r.changes || [], previousTeacherId: r.previousTeacherId || null, previousTeacherIds: r.previousTeacherIds || null });
       if (!total) total = res;
       else {
         total = {
@@ -169,7 +170,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     // Yapılmamış (bugün veya ileri tarihli) etüt iptal edilirse etüt öğretmenine haber ver
     if (etut.date >= todayStr && etut.teacherId) {
       const res = await callMail('etut-cancelled', { etutId: etut.id });
-      if (res.ok && res.sent) mailText = ' Etüt öğretmenine iptal e-postası gönderildi.';
+      if (res.ok && res.sent) mailText = res.sent > 1 ? ` Etüt öğretmenlerine (${res.sent}) iptal e-postası gönderildi.` : ' Etüt öğretmenine iptal e-postası gönderildi.';
       else if (res.ok && res.teachers && res.teachers[0]?.status === 'no-email') mailText = ' Etüt öğretmeninin e-postası kayıtlı olmadığı için bildirim gitmedi.';
       else if (!res.ok || res.failed || res.notConfigured) mailText = ` ${describeMailResult(res).text}`;
     }
