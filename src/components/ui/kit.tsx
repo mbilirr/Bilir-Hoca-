@@ -198,6 +198,10 @@ export function Segmented<T extends string>({
   );
 }
 
+// Açık pencereler yığını: iç içe pencerelerde Esc yalnızca en üstteki pencereyi kapatır
+const modalStack: number[] = [];
+let modalSeq = 0;
+
 // Açılır pencere (Esc ile kapanır, arka plan kaydırılmaz)
 export const Modal: React.FC<{
   open: boolean;
@@ -221,8 +225,11 @@ export const Modal: React.FC<{
 
   useEffect(() => {
     if (!open) return;
+    const token = ++modalSeq;
+    modalStack.push(token);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCloseRef.current();
+      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token) return;
+      onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -231,7 +238,9 @@ export const Modal: React.FC<{
     if (panelRef.current && !panelRef.current.contains(document.activeElement)) panelRef.current.focus();
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      const i = modalStack.indexOf(token);
+      if (i >= 0) modalStack.splice(i, 1);
+      document.body.style.overflow = modalStack.length ? 'hidden' : prev;
     };
   }, [open]);
 
