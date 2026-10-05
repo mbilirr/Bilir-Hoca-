@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Student, ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
+import { currentAcademicYear } from '../../lib/importNormalize';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import {
   SCHOOL_LEVELS,
@@ -177,6 +178,8 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
         matchedClass = classes.find((c) => c.name.toLowerCase().includes(regGrade.toLowerCase()));
       }
 
+      // Aynı adlı sınıf bu eğitim yılında zaten varsa (8/A = 8-A) yenisi açılmaz, o kullanılır
+      if (!matchedClass) matchedClass = dataService.findDuplicateClass(constructedClassName, currentAcademicYear());
       let targetClassId = matchedClass?.id;
       if (!targetClassId) {
         const newCls = await dataService.addClass({
@@ -184,7 +187,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
           branch: regBranch || 'Genel',
           schoolLevel: regSchool,
           gradeLevel: regGrade,
-          academicYear: '2026-2027',
+          academicYear: currentAcademicYear(),
           description: `${regSchool} ${regGrade} ${regBranch ? `(${regBranch})` : ''} öğrenci grubu`,
         });
         targetClassId = newCls.id;

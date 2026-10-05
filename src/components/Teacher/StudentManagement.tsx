@@ -51,7 +51,18 @@ import {
 import * as XLSX from 'xlsx';
 import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
-import { PageHeader, Segmented } from '../ui/kit';
+import { inputCls } from './FormParts';
+import { PageHeader, Segmented, Modal, cx } from '../ui/kit';
+import {
+  STUDENT_COLUMNS,
+  matrixToRows,
+  extractStudentRows,
+  emailIssue,
+  normalizeTurkishPhone,
+  PHONE_ERROR,
+  currentAcademicYear,
+  normalizeAcademicYear,
+} from '../../lib/importNormalize';
 
 interface StudentManagementProps {
   students: Student[];
@@ -138,6 +149,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentAvatar, setStudentAvatar] = useState<string>('');
   const [isProcessingStudentPhoto, setIsProcessingStudentPhoto] = useState(false);
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
+  const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
+  const [studentPhoneError, setStudentPhoneError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -194,9 +207,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [classSchoolLevel, setClassSchoolLevel] = useState<'Ortaokul' | 'Lise' | ''>('Ortaokul');
   const [classGradeLevel, setClassGradeLevel] = useState('5. Sınıf');
   const [classBranch, setClassBranch] = useState('A');
-  const [classAcademicYear, setClassAcademicYear] = useState('2026-2027');
+  const [classAcademicYear, setClassAcademicYear] = useState(() => currentAcademicYear());
   const [classDescription, setClassDescription] = useState('');
   const [classFormError, setClassFormError] = useState<string | null>(null);
+  const [isSavingClass, setIsSavingClass] = useState(false);
 
   // Mükerrer (aynı isim, sınıf ve okul no'ya sahip) öğrencileri tespit etme ve renklendirme
   const duplicateStudentGroups = useMemo(() => {
@@ -481,6 +495,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setStudentFormError('Lütfen öğrencinin sınıfını seçiniz.');
       return;
     }
+    const mailProblem = emailIssue(studentEmail);
+    const phoneNorm = normalizeTurkishPhone(studentPhone);
+    setStudentEmailError(mailProblem);
+    setStudentPhoneError(phoneNorm.valid ? null : PHONE_ERROR);
+    if (mailProblem || !phoneNorm.valid) {
+      setStudentFormError('Lütfen işaretli alanları düzeltiniz.');
+      return;
+    }
     const cleanPassword = studentPassword.trim();
     if (!editingStudent && cleanPassword.length < 6) {
       setStudentFormError('Giriş şifresi en az 6 karakter olmalıdır.');
@@ -496,7 +518,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       email: studentEmail.trim(),
       classId: targetClass.id,
       studentNumber: cleanNumber,
-      phone: studentPhone.trim(),
+      phone: phoneNorm.value,
       avatar:
         studentAvatar ||
         editingStudent?.avatar ||
@@ -606,6 +628,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentAvatar('');
     setStudentClassId(classes[0]?.id || '');
     setStudentFormError(null);
+    setStudentEmailError(null);
+    setStudentPhoneError(null);
   };
 
   const openEditStudent = (student: Student) => {
@@ -619,6 +643,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentPhone(student.phone || '');
     setStudentAvatar(student.avatar || '');
     setStudentFormError(null);
+    setStudentEmailError(null);
+    setStudentPhoneError(null);
     setIsAddStudentOpen(true);
   };
 
@@ -645,10 +671,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
   // Excel bulk upload state for Add Class modal
   interface ExcelClassStudentPreview {
+    rowNumber: number;
     fullName: string;
     studentNumber: string;
     email: string;
     phone: string;
+    // Önizlemede bulunan hata veya kayıt sırasında sunucudan dönen hata (satır aktarılmaz / aktarılamadı)
+    error?: string;
   }
   const [classExcelStudents, setClassExcelStudents] = useState<ExcelClassStudentPreview[]>([]);
   const [classExcelFileName, setClassExcelFileName] = useState<string>('');
@@ -656,27 +685,76 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [classExcelError, setClassExcelError] = useState<string | null>(null);
   const [showExcelStudentList, setShowExcelStudentList] = useState<boolean>(false);
 
+  const classExcelValidRows = classExcelStudents.filter((r) => !r.error);
+  const classExcelInvalidCount = classExcelStudents.length - classExcelValidRows.length;
+
+  // Sınıf penceresindeki Excel satırlarını doğrula (isim, numara, e-posta, telefon)
+  const validateClassExcelRows = (rows: ExcelClassStudentPreview[]): ExcelClassStudentPreview[] => {
+    const counts = new Map<string, number>();
+    rows.forEach((r) => {
+      const k = r.studentNumber.trim().toLowerCase();
+      if (k) counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    const taken = new Map(
+      students.map((s) => [(s.studentNumber || '').trim().toLowerCase(), s.name] as const).filter(([k]) => !!k)
+    );
+    return rows.map((r) => {
+      const num = r.studentNumber.trim();
+      let error: string | undefined;
+      if (!r.fullName.trim()) error = 'Ad soyad bulunamadı (isim sütunu boş)';
+      else if (r.fullName.trim().length < 2) error = 'İsim bilgisi geçersiz';
+      else if (!num) error = 'Öğrenci no zorunlu (giriş adı)';
+      else if (!dataService.isValidLoginIdentifier(num)) error = 'Numara yalnızca rakam/harf olmalı';
+      else if ((counts.get(num.toLowerCase()) || 0) > 1) error = 'Numara listede tekrar ediyor';
+      else if (taken.has(num.toLowerCase())) error = `Bu numara "${taken.get(num.toLowerCase())}" adlı öğrenciye ait`;
+      else if (emailIssue(r.email)) error = emailIssue(r.email) || undefined;
+      else if (!normalizeTurkishPhone(r.phone).valid) error = PHONE_ERROR;
+      return { ...r, error };
+    });
+  };
+
+  const resetClassExcelState = () => {
+    setClassExcelStudents([]);
+    setClassExcelFileName('');
+    setClassExcelError(null);
+    setShowExcelStudentList(false);
+  };
+
+  // "Yeni Sınıf Ekle": önceki düzenlemeden kalan bilgileri temizle, eğitim yılını bugüne göre hesapla
+  const resetClassForm = () => {
+    setEditingClass(null);
+    setClassName('');
+    setClassSchoolLevel('Ortaokul');
+    setClassGradeLevel('5. Sınıf');
+    setClassBranch('A');
+    setClassAcademicYear(currentAcademicYear());
+    setClassDescription('');
+    setClassFormError(null);
+    resetClassExcelState();
+  };
+
   const downloadSampleClassExcel = () => {
+    // Örnek e-postalar açıkça örnek adreslerdir: gerçek adresle değiştirilmeli veya silinmelidir
     const sampleData = [
       {
         'Öğrenci Adı': 'Ahmet',
         'Öğrenci Soyadı': 'Yılmaz',
         'Öğrenci No': '101',
-        'E-posta': 'ahmet.yilmaz@okul.k12.tr',
+        'E-posta': 'ornek1@example.com',
         'Veli Telefonu': '05551112233',
       },
       {
         'Öğrenci Adı': 'Zeynep',
         'Öğrenci Soyadı': 'Kaya',
         'Öğrenci No': '102',
-        'E-posta': 'zeynep.kaya@okul.k12.tr',
+        'E-posta': 'ornek2@example.com',
         'Veli Telefonu': '05552223344',
       },
       {
         'Öğrenci Adı': 'Mehmet Ali',
         'Öğrenci Soyadı': 'Demir',
         'Öğrenci No': '103',
-        'E-posta': 'mehmet.demir@okul.k12.tr',
+        'E-posta': '',
         'Veli Telefonu': '05553334455',
       },
     ];
@@ -701,88 +779,31 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       try {
         const buffer = e.target?.result;
         const workbook = XLSX.read(buffer, { type: 'binary', cellDates: true });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Başlık satırı ilk 10 satır içinde aranır (e-Okul listelerinde üstte başlık satırları olur)
+        const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
+        const { headers, rows } = matrixToRows(matrix, STUDENT_COLUMNS);
 
-        if (rawData.length === 0) {
+        if (rows.length === 0) {
           setClassExcelError('Yüklenen Excel dosyasında öğrenci verisi bulunamadı.');
-          setIsReadingClassExcel(false);
           return;
         }
 
-        const normalizeStr = (str: string) =>
-          str
-            .toLowerCase()
-            .replace(/ı/g, 'i')
-            .replace(/ğ/g, 'g')
-            .replace(/ü/g, 'u')
-            .replace(/ş/g, 's')
-            .replace(/ö/g, 'o')
-            .replace(/ç/g, 'c')
-            .trim();
+        const parsed = validateClassExcelRows(
+          extractStudentRows(headers, rows).map((f) => {
+            const phone = normalizeTurkishPhone(f.phone);
+            return {
+              rowNumber: f.rowNumber,
+              fullName: f.fullName,
+              studentNumber: f.studentNumber,
+              email: f.email,
+              phone: phone.valid ? phone.value : f.phone,
+            };
+          })
+        );
 
-        const parsed: ExcelClassStudentPreview[] = [];
-
-        rawData.forEach((row, idx) => {
-          const keys = Object.keys(row);
-          const getVal = (...possibleKeys: string[]): string => {
-            for (const pKey of possibleKeys) {
-              const normP = normalizeStr(pKey);
-              const foundKey = keys.find(
-                (k) => normalizeStr(k) === normP || normalizeStr(k).includes(normP)
-              );
-              if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
-                return String(row[foundKey]).trim();
-              }
-            }
-            return '';
-          };
-
-          const rawFullName = getVal(
-            'ad soyad',
-            'isim soyisim',
-            'adi soyadi',
-            'ogrenci adi',
-            'full name',
-            'ad-soyad'
-          );
-          let firstName = getVal('ad', 'isim', 'adi', 'first name', 'adiniz', 'ogrenci ad');
-          let lastName = getVal('soyad', 'soyisim', 'soyadi', 'last name', 'soyadiniz', 'ogrenci soyad');
-
-          if (!firstName && !lastName && rawFullName) {
-            const parts = rawFullName.trim().split(/\s+/);
-            if (parts.length === 1) {
-              firstName = parts[0];
-              lastName = '';
-            } else {
-              lastName = parts.pop() || '';
-              firstName = parts.join(' ');
-            }
-          }
-
-          const fullName = (
-            rawFullName ||
-            `${firstName} ${lastName}`.trim() ||
-            `Öğrenci ${idx + 1}`
-          ).trim();
-
-          const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id');
-          const email = getVal('eposta', 'e-posta', 'email', 'mail');
-          const phone = getVal('telefon', 'tel', 'phone', 'gsm', 'veli tel') || '';
-
-          if (fullName.length >= 2) {
-            parsed.push({
-              fullName,
-              studentNumber,
-              email,
-              phone,
-            });
-          }
-        });
-
-        if (parsed.length === 0) {
-          setClassExcelError('Geçerli isim içeren öğrenci satırı bulunamadı.');
+        if (!parsed.some((r) => r.fullName.trim())) {
+          setClassExcelError('Ad soyad sütunu bulunamadı. Başlık satırında "Ad Soyad" veya "Ad" ve "Soyad" sütunları olmalıdır.');
         } else {
           setClassExcelStudents(parsed);
           setShowExcelStudentList(true);
@@ -808,6 +829,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Handle Save Class
   const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingClass) return;
     setClassFormError(null);
 
     if (!editingClass && !isAdmin) {
@@ -828,36 +850,37 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setClassFormError('Lütfen Şube seçimini yapınız.');
       return;
     }
+    const academicYear = normalizeAcademicYear(classAcademicYear);
+    if (!academicYear) {
+      setClassFormError(`Eğitim yılını "${currentAcademicYear()}" biçiminde yazınız.`);
+      return;
+    }
 
+    setIsSavingClass(true);
     try {
       const finalClassName = className.trim() || `${classGradeLevel} - ${classBranch}`;
+      const classPayload = {
+        name: finalClassName,
+        schoolLevel: classSchoolLevel,
+        gradeLevel: classGradeLevel,
+        branch: classBranch,
+        academicYear,
+        description: classDescription.trim(),
+      };
 
       let savedClassId = '';
+      let createdNow: ClassGroup | null = null;
       if (editingClass) {
-        await dataService.updateClass(editingClass.id, {
-          name: finalClassName,
-          schoolLevel: classSchoolLevel,
-          gradeLevel: classGradeLevel,
-          branch: classBranch,
-          academicYear: classAcademicYear,
-          description: classDescription,
-        });
+        await dataService.updateClass(editingClass.id, classPayload);
         savedClassId = editingClass.id;
-        setEditingClass(null);
       } else {
-        const created = await dataService.addClass({
-          name: finalClassName,
-          schoolLevel: classSchoolLevel,
-          gradeLevel: classGradeLevel,
-          branch: classBranch,
-          academicYear: classAcademicYear,
-          description: classDescription,
-        });
+        const { autoAssignedCount, ...created } = await dataService.addClass(classPayload);
         savedClassId = created.id;
+        createdNow = created;
 
-        if (created.autoAssignedCount && created.autoAssignedCount > 0) {
+        if (autoAssignedCount && autoAssignedCount > 0) {
           setStudentSuccessFeedback(
-            `"${finalClassName}" sınıfı oluşturuldu ve eşleşen ${created.autoAssignedCount} kayıtlı öğrenci otomatik olarak bu sınıfa aktarıldı!`
+            `"${finalClassName}" sınıfı oluşturuldu ve sınıfı olmayan, sınıf adı eşleşen ${autoAssignedCount} öğrenci bu sınıfa aktarıldı.`
           );
           confetti({
             particleCount: 60,
@@ -871,21 +894,45 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         }
       }
 
-      // Excel'deki öğrencileri bu sınıfa ekle: her öğrenci için gerçek giriş hesabı açılır
-      if (classExcelStudents.length > 0) {
-        const result = await dataService.createStudentsWithAccounts(
-          classExcelStudents.map((std) => ({
-            name: std.fullName,
-            studentNumber: std.studentNumber,
-            classId: savedClassId,
-            email: std.email,
-            phone: std.phone,
-            schoolLevel: classSchoolLevel || undefined,
-            gradeLevel: classGradeLevel,
-            branch: classBranch,
-          }))
-        );
-        setCredentialsResult({ credentials: result.created, failures: result.failed, title: 'Sınıfa Eklenen Öğrenciler' });
+      // Sınıf kaydedildi: öğrenci aktarımı başarısız olursa form bu sınıfı DÜZENLEME moduna geçer
+      // (tekrar basınca ikinci bir sınıf açılmaz, yalnızca kalan öğrenciler eklenir)
+      const switchToEditCreated = () => {
+        if (!createdNow) return;
+        const fresh = dataService.getAllClasses().find((c) => c.id === createdNow!.id) || createdNow;
+        setEditingClass(fresh);
+        setClassName(fresh.name);
+      };
+
+      // Excel'deki geçerli öğrencileri bu sınıfa ekle: her öğrenci için gerçek giriş hesabı açılır
+      const sendable = classExcelStudents.filter((r) => !r.error);
+      const skippedInvalid = classExcelStudents.length - sendable.length;
+      if (sendable.length > 0) {
+        let result;
+        try {
+          result = await dataService.createStudentsWithAccounts(
+            sendable.map((std) => ({
+              name: std.fullName,
+              studentNumber: std.studentNumber,
+              classId: savedClassId,
+              email: std.email,
+              phone: normalizeTurkishPhone(std.phone).value,
+              schoolLevel: classSchoolLevel || undefined,
+              gradeLevel: classGradeLevel,
+              branch: classBranch,
+            }))
+          );
+        } catch (err: any) {
+          switchToEditCreated();
+          setShowExcelStudentList(true);
+          setClassFormError(
+            `Sınıf kaydedildi ancak öğrenciler eklenemedi: ${err?.message || 'bilinmeyen hata'}. Tekrar denemek için "Kaydet ve Öğrencileri Ekle" düğmesine basınız.`
+          );
+          return;
+        }
+
+        if (result.created.length > 0 || result.failed.length > 0) {
+          setCredentialsResult({ credentials: result.created, failures: result.failed, title: 'Sınıfa Eklenen Öğrenciler' });
+        }
         if (result.created.length > 0) {
           confetti({
             particleCount: 50,
@@ -893,25 +940,42 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             origin: { y: 0.6 },
           });
         }
+        if (result.failed.length > 0) {
+          // Eklenemeyen satırları sunucunun verdiği hatayla listede bırak, eklenenleri çıkar
+          const remaining: ExcelClassStudentPreview[] = [];
+          sendable.forEach((row) => {
+            const f = result.failed.find(
+              (x) => (x.studentNumber && x.studentNumber === row.studentNumber.trim()) || (!x.studentNumber && x.name === row.fullName.trim())
+            );
+            if (f) remaining.push({ ...row, error: `Eklenemedi: ${f.error}` });
+          });
+          setClassExcelStudents([...remaining, ...classExcelStudents.filter((r) => r.error)]);
+          setShowExcelStudentList(true);
+          switchToEditCreated();
+          setClassFormError(
+            `Sınıf kaydedildi. ${result.created.length} öğrenci eklendi, ${result.failed.length} satır eklenemedi (aşağıda işaretli). Satırı kaldırabilir veya düzeltilmiş Excel'i yeniden yükleyebilirsiniz.`
+          );
+          return;
+        }
       }
 
-      setClassName('');
-      setClassSchoolLevel('Ortaokul');
-      setClassGradeLevel('5. Sınıf');
-      setClassBranch('A');
-      setClassDescription('');
-      setClassFormError(null);
-      setClassExcelStudents([]);
-      setClassExcelFileName('');
-      setClassExcelError(null);
-      setShowExcelStudentList(false);
+      if (skippedInvalid > 0) {
+        setStudentSuccessFeedback(
+          `"${finalClassName}" sınıfı kaydedildi. ${sendable.length} öğrenci eklendi; ${skippedInvalid} hatalı Excel satırı aktarılmadı.`
+        );
+      }
+
+      resetClassForm();
       setIsAddClassOpen(false);
     } catch (err: any) {
       setClassFormError(err.message || 'Sınıf oluşturulurken bir hata oluştu.');
+    } finally {
+      setIsSavingClass(false);
     }
   };
 
   const openEditClass = (cls: ClassGroup) => {
+    resetClassExcelState();
     setEditingClass(cls);
     setClassName(cls.name);
     const detectedSchool =
@@ -925,7 +989,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setClassSchoolLevel(detectedSchool);
     setClassGradeLevel(matchedGrade);
     setClassBranch(cls.branch?.replace(/şube\s*/i, '').trim() || 'A');
-    setClassAcademicYear(cls.academicYear);
+    setClassAcademicYear(cls.academicYear || currentAcademicYear());
     setClassDescription(cls.description || '');
     setClassFormError(null);
     setIsAddClassOpen(true);
@@ -988,22 +1052,28 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </span>
             )
           ) : isAdmin ? (
-            <button
-              onClick={() => {
-                setEditingClass(null);
-                setClassName('');
-                setClassSchoolLevel('Ortaokul');
-                setClassGradeLevel('5. Sınıf');
-                setClassBranch('A');
-                setClassDescription('');
-                setClassFormError(null);
-                setIsAddClassOpen(true);
-              }}
-              className="ui-btn ui-btn-primary"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Yeni Sınıf Ekle</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsExcelClassModalOpen(true)}
+                className="ui-btn ui-btn-secondary"
+                title="Excel (.xlsx, .xls) veya CSV dosyasından toplu sınıf ekle"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-success-fg" />
+                <span>Excel'den Sınıf Yükle</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetClassForm();
+                  setIsAddClassOpen(true);
+                }}
+                className="ui-btn ui-btn-primary"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yeni Sınıf Ekle</span>
+              </button>
+            </>
           ) : (
             <span className="ui-chip ui-chip-warning py-1.5 px-3 text-xs">
               <ShieldCheck className="w-4 h-4 shrink-0" />
@@ -1609,522 +1679,545 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       )}
 
       {/* ADD/EDIT STUDENT MODAL */}
-      {isAddStudentOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
-          onClick={() => setIsAddStudentOpen(false)}
-        >
-          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-            <div
-              className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
-              onClick={(e) => e.stopPropagation()}
+      <Modal
+        open={isAddStudentOpen}
+        onClose={() => setIsAddStudentOpen(false)}
+        closeOnBackdrop={false}
+        icon={UserPlus}
+        tone="brand"
+        title={editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
+        footer={
+          <>
+            <button type="button" onClick={() => setIsAddStudentOpen(false)} className="ui-btn ui-btn-secondary">
+              İptal
+            </button>
+            <button type="submit" form="student-form" disabled={isSavingStudent} className="ui-btn ui-btn-primary">
+              {isSavingStudent ? 'Kaydediliyor...' : editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle ve Hesap Aç'}
+            </button>
+          </>
+        }
+      >
+        {studentFormError && (
+          <div role="alert" className="mb-4 p-3 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{studentFormError}</span>
+          </div>
+        )}
+
+        <form id="student-form" onSubmit={handleSaveStudent} noValidate className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad *</label>
+              <input
+                id="student-form-name"
+                type="text"
+                required
+                placeholder="Örn: Ahmet Yılmaz"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label htmlFor="student-form-number" className="block text-xs font-bold text-fg-2 mb-1">
+                Öğrenci No * <span className="font-medium text-muted">(giriş adı)</span>
+              </label>
+              <input
+                id="student-form-number"
+                type="text"
+                required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={studentNumber}
+                onChange={(e) => setStudentNumber(e.target.value)}
+                placeholder="Örn: 1042"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
+          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-2">
+            <label htmlFor="student-form-class" className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
+              <School className="w-4 h-4 text-brand-fg" />
+              <span>Sınıf *</span>
+            </label>
+            <select
+              id="student-form-class"
+              required
+              value={studentClassId}
+              onChange={(e) => setStudentClassId(e.target.value)}
+              className={cx(inputCls, 'font-semibold cursor-pointer')}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-line mb-5">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-fg">
-                    {editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setIsAddStudentOpen(false)}
-                  className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+              <option value="">Sınıf seçiniz *</option>
+              {classes.map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted">
+              {isAdmin
+                ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
+                : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="student-form-email" className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
+              <input
+                id="student-form-email"
+                type="email"
+                value={studentEmail}
+                onChange={(e) => {
+                  setStudentEmail(e.target.value);
+                  if (studentEmailError) setStudentEmailError(null);
+                }}
+                onBlur={() => setStudentEmailError(emailIssue(studentEmail))}
+                placeholder="ogrenci@okul.com"
+                aria-invalid={!!studentEmailError}
+                aria-describedby={studentEmailError ? 'student-form-email-error' : undefined}
+                className={cx(inputCls, studentEmailError && 'border-danger focus:border-danger')}
+              />
+              {studentEmailError && (
+                <p id="student-form-email-error" className="mt-1 text-[11px] font-semibold text-danger-fg">
+                  {studentEmailError}
+                </p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="student-form-phone" className="block text-xs font-bold text-fg-2 mb-1">Telefon</label>
+              <input
+                id="student-form-phone"
+                type="tel"
+                inputMode="tel"
+                value={studentPhone}
+                onChange={(e) => {
+                  setStudentPhone(e.target.value);
+                  if (studentPhoneError) setStudentPhoneError(null);
+                }}
+                onBlur={() => {
+                  const n = normalizeTurkishPhone(studentPhone);
+                  if (n.valid) setStudentPhone(n.value);
+                  setStudentPhoneError(n.valid ? null : PHONE_ERROR);
+                }}
+                placeholder="0555 123 4567"
+                aria-invalid={!!studentPhoneError}
+                aria-describedby={studentPhoneError ? 'student-form-phone-error' : undefined}
+                className={cx(inputCls, studentPhoneError && 'border-danger focus:border-danger')}
+              />
+              {studentPhoneError && (
+                <p id="student-form-phone-error" className="mt-1 text-[11px] font-semibold text-danger-fg">
+                  {studentPhoneError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
+          <div className="p-4 bg-brand-soft rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="student-form-password" className="text-xs font-bold text-fg flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-brand-fg" />
+                <span>{editingStudent ? 'Yeni Giriş Şifresi (isteğe bağlı)' : 'Giriş Şifresi *'}</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setStudentPassword(dataService.generatePassword());
+                  setShowStudentPassword(true);
+                }}
+                className="text-[11px] text-brand-fg font-bold underline cursor-pointer"
+              >
+                🎲 Rastgele Şifre Oluştur
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                id="student-form-password"
+                type={showStudentPassword ? 'text' : 'password'}
+                required={!editingStudent}
+                minLength={6}
+                autoComplete="new-password"
+                value={studentPassword}
+                onChange={(e) => setStudentPassword(e.target.value)}
+                placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
+                className={cx(inputCls, 'pr-10 font-mono font-bold tracking-wider')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowStudentPassword(!showStudentPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-subtle hover:text-muted cursor-pointer"
+                title={showStudentPassword ? 'Gizle' : 'Göster'}
+                aria-label={showStudentPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+              >
+                {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-muted leading-relaxed">
+              Öğrenci, giriş ekranında <strong>Öğrenci Portalı</strong> sekmesinden <strong>öğrenci numarası</strong> ve bu
+              şifreyle giriş yapar; ilk girişte şifresini değiştirmesi istenir. Kaydettikten sonra giriş bilgilerini
+              WhatsApp/e-posta ile iletebileceğiniz bir pencere açılır. Şifreler sistemde saklanmaz.
+            </p>
+          </div>
+
+          {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
+          <div className="p-3.5 bg-surface-2 rounded-xl border border-line space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5 text-brand-fg" />
+                <span>Öğrenci Profil Fotoğrafı</span>
+              </span>
+              <span className="text-[10px] text-muted font-medium">İsteğe Bağlı</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
+                {studentAvatar ? (
+                  <img src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
+                ) : (
+                  <Users className="w-6 h-6 text-subtle" />
+                )}
               </div>
 
-            {studentFormError && (
-              <div className="mb-4 p-3.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-300" />
-                <span>{studentFormError}</span>
-              </div>
-            )}
+              <div className="flex-1">
+                <input
+                  ref={studentFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
+                  onChange={handleStudentPhotoChange}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => studentFileInputRef.current?.click()}
+                    disabled={isProcessingStudentPhoto}
+                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isProcessingStudentPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
+                  </button>
 
-            <form onSubmit={handleSaveStudent} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Örn: Ahmet Yılmaz"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                  />
+                  {studentAvatar && (
+                    <button
+                      type="button"
+                      onClick={() => setStudentAvatar('')}
+                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
+                      title="Fotoğrafı Kaldır"
+                      aria-label="Fotoğrafı Kaldır"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-fg-2 mb-1">Öğrenci No * <span className="font-medium text-muted">(giriş adı)</span></label>
-                  <input
-                    type="text"
-                    required
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={studentNumber}
-                    onChange={(e) => setStudentNumber(e.target.value)}
-                    placeholder="Örn: 1042"
-                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                  />
-                </div>
+                <p className="text-[10px] text-muted mt-1">PNG, JPG veya WebP • Otomatik optimize edilir</p>
               </div>
+            </div>
+          </div>
+        </form>
+      </Modal>
 
-              {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
-              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-2">
-                <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
-                  <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
-                  <span>Sınıf *</span>
+      {/* ADD/EDIT CLASS MODAL */}
+      <Modal
+        open={isAddClassOpen}
+        onClose={() => {
+          if (!isSavingClass) setIsAddClassOpen(false);
+        }}
+        closeOnBackdrop={false}
+        icon={School}
+        tone="brand"
+        title={editingClass ? 'Sınıfı Düzenle' : 'Sınıf Ekle'}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsAddClassOpen(false)}
+              disabled={isSavingClass}
+              className="ui-btn ui-btn-secondary"
+            >
+              İptal
+            </button>
+            <button type="submit" form="class-form" disabled={isSavingClass} className="ui-btn ui-btn-primary">
+              {isSavingClass ? (
+                <span>Kaydediliyor...</span>
+              ) : classExcelValidRows.length > 0 ? (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    {editingClass
+                      ? `Kaydet ve ${classExcelValidRows.length} Öğrenciyi Ekle`
+                      : `Sınıfı & ${classExcelValidRows.length} Öğrenciyi Oluştur`}
+                  </span>
+                </>
+              ) : (
+                <span>{editingClass ? 'Kaydet' : 'Sınıfı Oluştur'}</span>
+              )}
+            </button>
+          </>
+        }
+      >
+        {classFormError && (
+          <div role="alert" className="mb-4 p-3 bg-danger-soft rounded-xl flex items-start gap-2 text-xs font-semibold text-danger-fg">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+            <span>{classFormError}</span>
+          </div>
+        )}
+
+        <form id="class-form" onSubmit={handleSaveClass} className="space-y-4">
+          {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
+          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-line">
+              <span className="text-xs font-bold text-fg flex items-center gap-1.5">
+                <School className="w-4 h-4 text-brand-fg" />
+                <span>Kademe & Şube Belirleme (Mecburi)</span>
+              </span>
+              <span className="ui-chip ui-chip-warning">* Zorunlu</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label htmlFor="class-form-school" className="block text-[11px] font-bold text-fg-2 mb-1">
+                  Okul *
                 </label>
                 <select
+                  id="class-form-school"
                   required
-                  value={studentClassId}
-                  onChange={(e) => setStudentClassId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+                  value={classSchoolLevel}
+                  onChange={(e) => {
+                    const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
+                    setClassSchoolLevel(newSchool);
+                    const firstGrade = newSchool === 'Lise' ? '9. Sınıf' : '5. Sınıf';
+                    setClassGradeLevel(firstGrade);
+                    setClassName(`${firstGrade} - ${classBranch}`);
+                  }}
+                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
                 >
-                  <option value="">Sınıf seçiniz *</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                  <option value="">Okul Seçiniz *</option>
+                  <option value="Ortaokul">🏫 Ortaokul</option>
+                  <option value="Lise">🎓 Lise</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="class-form-grade" className="block text-[11px] font-bold text-fg-2 mb-1">
+                  Sınıf *
+                </label>
+                <select
+                  id="class-form-grade"
+                  required
+                  value={classGradeLevel}
+                  onChange={(e) => {
+                    const newGrade = e.target.value;
+                    setClassGradeLevel(newGrade);
+                    setClassName(formatClassDisplayName('', classBranch, newGrade));
+                  }}
+                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
+                >
+                  {!classSchoolLevel ? (
+                    <option value="">Önce Okul Seçiniz *</option>
+                  ) : (
+                    getGradesForSchoolLevel(classSchoolLevel).map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="class-form-branch" className="block text-[11px] font-bold text-fg-2 mb-1">
+                  Şube *
+                </label>
+                <select
+                  id="class-form-branch"
+                  required
+                  value={classBranch}
+                  onChange={(e) => {
+                    const newBranch = e.target.value;
+                    setClassBranch(newBranch);
+                    setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
+                  }}
+                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
+                >
+                  <option value="">Şube Seçiniz *</option>
+                  {BRANCH_OPTIONS.map((b) => (
+                    <option key={b.id} value={b.label}>
+                      {b.label}
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-muted">
-                  {isAdmin
-                    ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
-                    : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
-                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
-                  <input
-                    type="email"
-                    value={studentEmail}
-                    onChange={(e) => setStudentEmail(e.target.value)}
-                    placeholder="ogrenci@okul.com"
-                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-fg-2 mb-1">Telefon</label>
-                  <input
-                    type="tel"
-                    value={studentPhone}
-                    onChange={(e) => setStudentPhone(e.target.value)}
-                    placeholder="0555 123 4567"
-                    className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                  />
-                </div>
-              </div>
-
-              {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
-              <div className="p-4 bg-indigo-50/70 dark:bg-indigo-500/10 rounded-xl border border-indigo-100 dark:border-indigo-500/30 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center space-x-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                    <span>{editingStudent ? 'Yeni Giriş Şifresi (isteğe bağlı)' : 'Giriş Şifresi *'}</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStudentPassword(dataService.generatePassword());
-                      setShowStudentPassword(true);
-                    }}
-                    className="text-[11px] text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 font-bold underline cursor-pointer"
-                  >
-                    🎲 Rastgele Şifre Oluştur
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showStudentPassword ? 'text' : 'password'}
-                    required={!editingStudent}
-                    minLength={6}
-                    autoComplete="new-password"
-                    value={studentPassword}
-                    onChange={(e) => setStudentPassword(e.target.value)}
-                    placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
-                    className="w-full pl-3 pr-10 py-2 bg-surface border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-fg text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowStudentPassword(!showStudentPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-subtle hover:text-muted cursor-pointer"
-                    title={showStudentPassword ? 'Gizle' : 'Göster'}
-                  >
-                    {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <p className="text-[11px] text-muted leading-relaxed">
-                  Öğrenci, giriş ekranında <strong>Öğrenci Portalı</strong> sekmesinden <strong>öğrenci numarası</strong> ve bu
-                  şifreyle giriş yapar; ilk girişte şifresini değiştirmesi istenir. Kaydettikten sonra giriş bilgilerini
-                  WhatsApp/e-posta ile iletebileceğiniz bir pencere açılır. Şifreler sistemde saklanmaz.
-                </p>
-              </div>
-
-              {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
-              <div className="p-3.5 bg-surface-2 rounded-xl border border-line space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-fg-2 flex items-center space-x-1.5">
-                    <Camera className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                    <span>Öğrenci Profil Fotoğrafı</span>
-                  </label>
-                  <span className="text-[10px] text-muted font-medium">İsteğe Bağlı</span>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 rounded-xl bg-surface border border-line shadow-2xs overflow-hidden shrink-0 flex items-center justify-center">
-                    {studentAvatar ? (
-                      <img src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
-                    ) : (
-                      <Users className="w-6 h-6 text-subtle" />
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    <input
-                      ref={studentFileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,image/jpg"
-                      onChange={handleStudentPhotoChange}
-                      className="hidden"
-                    />
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => studentFileInputRef.current?.click()}
-                        disabled={isProcessingStudentPhoto}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-surface hover:bg-surface-2 text-indigo-700 dark:text-indigo-300 border border-line rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
-                      >
-                        <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                        <span>{isProcessingStudentPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
-                      </button>
-
-                      {studentAvatar && (
-                        <button
-                          type="button"
-                          onClick={() => setStudentAvatar('')}
-                          className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                          title="Fotoğrafı Kaldır"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted mt-1">
-                      PNG, JPG veya WebP • Otomatik optimize edilir
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddStudentOpen(false)}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingStudent}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
-                >
-                  {isSavingStudent ? 'Kaydediliyor...' : editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle ve Hesap Aç'}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      </div>
-      )}
 
-      {/* ADD/EDIT CLASS MODAL */}
-      {isAddClassOpen && (
-        <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
-          onClick={() => setIsAddClassOpen(false)}
-        >
-          <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
-            <div
-              className="relative w-full max-w-lg bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200 text-fg"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-                    <School className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-bold text-fg">
-                    {editingClass ? 'Sınıfı Düzenle' : 'Sınıf Ekle'}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setIsAddClassOpen(false)}
-                  className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="class-form-name" className="block text-xs font-bold text-fg-2 mb-1">Sınıf Adı *</label>
+              <input
+                id="class-form-name"
+                type="text"
+                required
+                placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+                className={inputCls}
+              />
+            </div>
 
-            {classFormError && (
-              <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-300" />
-                <span>{classFormError}</span>
+            <div>
+              <label htmlFor="class-form-year" className="block text-xs font-bold text-fg-2 mb-1">Eğitim Yılı</label>
+              <input
+                id="class-form-year"
+                type="text"
+                value={classAcademicYear}
+                onChange={(e) => setClassAcademicYear(e.target.value)}
+                placeholder={currentAcademicYear()}
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="class-form-description" className="flex items-center justify-between text-xs font-bold text-fg-2 mb-1">
+              <span>Açıklama</span>
+              <span className="text-[10px] font-normal text-subtle">isteğe bağlı</span>
+            </label>
+            <textarea
+              id="class-form-description"
+              rows={2}
+              maxLength={300}
+              value={classDescription}
+              onChange={(e) => setClassDescription(e.target.value)}
+              placeholder="Örn: LGS hazırlık sınıfı"
+              className={cx(inputCls, 'resize-y')}
+            />
+          </div>
+
+          {/* Toplu Öğrenci Yükleme Bölümü */}
+          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-fg flex items-center gap-1.5">
+                <FileSpreadsheet className="w-4 h-4 text-success-fg" />
+                <span>Toplu Öğrenci Yükle</span>
+              </span>
+              <button
+                type="button"
+                onClick={downloadSampleClassExcel}
+                className="text-[11px] text-brand-fg hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                title="Excel şablonunu bilgisayarınıza indirin"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Örnek Şablon İndir</span>
+              </button>
+            </div>
+
+            {classExcelError && (
+              <div role="alert" className="p-2.5 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>{classExcelError}</span>
               </div>
             )}
 
-            <form onSubmit={handleSaveClass} className="space-y-4">
-              {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-line">
-                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center space-x-1.5">
-                    <School className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
-                    <span>Kademe & Şube Belirleme (Mecburi)</span>
-                  </span>
-                  <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-2 py-0.5 rounded-md font-bold">* Zorunlu</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Okul Açılır Buton */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
-                      Okul *
-                    </label>
-                    <select
-                      required
-                      value={classSchoolLevel}
-                      onChange={(e) => {
-                        const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
-                        setClassSchoolLevel(newSchool);
-                        const firstGrade = newSchool === 'Lise' ? '9. Sınıf' : '5. Sınıf';
-                        setClassGradeLevel(firstGrade);
-                        setClassName(`${firstGrade} - ${classBranch}`);
-                      }}
-                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      <option value="">Okul Seçiniz *</option>
-                      <option value="Ortaokul">🏫 Ortaokul</option>
-                      <option value="Lise">🎓 Lise</option>
-                    </select>
-                  </div>
-
-                  {/* Sınıf Açılır Penceresi */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
-                      Sınıf *
-                    </label>
-                    <select
-                      required
-                      value={classGradeLevel}
-                      onChange={(e) => {
-                        const newGrade = e.target.value;
-                        setClassGradeLevel(newGrade);
-                        setClassName(formatClassDisplayName('', classBranch, newGrade));
-                      }}
-                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      {!classSchoolLevel ? (
-                        <option value="">Önce Okul Seçiniz *</option>
-                      ) : (
-                        getGradesForSchoolLevel(classSchoolLevel).map((g) => (
-                          <option key={g} value={g}>
-                            {g}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Şube Açılır Buton */}
-                  <div>
-                    <label className="block text-[11px] font-bold text-fg-2 mb-1">
-                      Şube *
-                    </label>
-                    <select
-                      required
-                      value={classBranch}
-                      onChange={(e) => {
-                        const newBranch = e.target.value;
-                        setClassBranch(newBranch);
-                        setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
-                      }}
-                      className="w-full px-2.5 py-2 bg-surface border border-line rounded-xl text-fg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
-                    >
-                      <option value="">Şube Seçiniz *</option>
-                      {BRANCH_OPTIONS.map((b) => (
-                        <option key={b.id} value={b.label}>
-                          {b.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
+            {classExcelStudents.length === 0 ? (
               <div>
-                <label className="block text-xs font-bold text-fg-2 mb-1">Sınıf Adı *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
-                  value={className}
-                  onChange={(e) => setClassName(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-fg-2 mb-1">Eğitim Yılı</label>
-                <input
-                  type="text"
-                  value={classAcademicYear}
-                  onChange={(e) => setClassAcademicYear(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-sm focus:bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-subtle"
-                />
-              </div>
-
-              {/* Toplu Öğrenci Yükleme Bölümü */}
-              <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center space-x-1.5">
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
-                    <span>Toplu Öğrenci Yükle</span>
+                <label
+                  htmlFor="class-excel-upload"
+                  className="border-2 border-dashed border-line-strong hover:border-success bg-surface rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                >
+                  <input
+                    id="class-excel-upload"
+                    type="file"
+                    accept=".xlsx, .xls, .csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleClassExcelFile(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="w-9 h-9 rounded-xl bg-success-soft text-success-fg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-fg-2 group-hover:text-success-fg">
+                    {isReadingClassExcel ? 'Excel Okunuyor...' : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
                   </span>
-                  <button
-                    type="button"
-                    onClick={downloadSampleClassExcel}
-                    className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 hover:underline flex items-center space-x-1 font-bold cursor-pointer"
-                    title="Excel şablonunu bilgisayarınıza indirin"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Örnek Şablon İndir</span>
-                  </button>
-                </div>
-
-                {classExcelError && (
-                  <div className="p-2.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600 dark:text-rose-300" />
-                    <span>{classExcelError}</span>
-                  </div>
-                )}
-
-                {classExcelStudents.length === 0 ? (
-                  <div>
-                    <label
-                      htmlFor="class-excel-upload"
-                      className="border-2 border-dashed border-line-strong hover:border-emerald-500 bg-surface hover:bg-emerald-50/30 dark:hover:bg-emerald-500/10 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group shadow-2xs"
-                    >
-                      <input
-                        id="class-excel-upload"
-                        type="file"
-                        accept=".xlsx, .xls, .csv"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleClassExcelFile(file);
-                          e.target.value = '';
-                        }}
-                      />
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-300 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                        <Upload className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-bold text-fg-2 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
-                        {isReadingClassExcel
-                          ? 'Excel Okunuyor...'
-                          : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
-                      </span>
-                      <span className="text-[11px] text-muted mt-0.5">
-                        veya bilgisayarınızdan dosyayı buraya sürükleyip bırakın
-                      </span>
-                    </label>
-                  </div>
-                ) : (
-                  <div className="space-y-2 bg-surface p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/30 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                          {classExcelStudents.length} Öğrenci Hazır
-                        </span>
-                        <span className="text-[11px] text-muted truncate max-w-[140px]">
-                          ({classExcelFileName})
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowExcelStudentList(!showExcelStudentList)}
-                          className="text-[11px] text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 font-bold cursor-pointer"
-                        >
-                          {showExcelStudentList ? 'Gizle' : 'Öğrencileri Gör'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setClassExcelStudents([]);
-                            setClassExcelFileName('');
-                            setClassExcelError(null);
-                          }}
-                          className="p-1 text-subtle hover:text-rose-600 dark:hover:text-rose-300 rounded cursor-pointer"
-                          title="Listeyi Temizle"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {showExcelStudentList && (
-                      <div className="max-h-36 overflow-y-auto border border-line rounded-lg bg-surface-2 p-2 space-y-1">
-                        {classExcelStudents.map((st, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center justify-between text-[11px] py-1 px-2 hover:bg-surface-2 rounded text-fg-2"
-                          >
-                            <span className="font-semibold text-fg truncate max-w-[170px]">
-                              {i + 1}. {st.fullName}
-                            </span>
-                            <span className="text-muted font-mono">No: {st.studentNumber}</span>
-                          </div>
-                        ))}
-                      </div>
+                  <span className="text-[11px] text-muted mt-0.5">Sütunlar: Ad Soyad (veya Ad + Soyad), Öğrenci No, E-posta, Telefon</span>
+                </label>
+              </div>
+            ) : (
+              <div className="space-y-2 bg-surface p-3 rounded-xl border border-line">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="ui-chip ui-chip-success">{classExcelValidRows.length} Öğrenci Hazır</span>
+                    {classExcelInvalidCount > 0 && (
+                      <span className="ui-chip ui-chip-danger">{classExcelInvalidCount} Hatalı Satır</span>
                     )}
+                    <span className="text-[11px] text-muted truncate max-w-[160px]">({classExcelFileName})</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowExcelStudentList(!showExcelStudentList)}
+                      className="text-[11px] text-brand-fg font-bold cursor-pointer"
+                    >
+                      {showExcelStudentList ? 'Gizle' : 'Öğrencileri Gör'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetClassExcelState}
+                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
+                      title="Listeyi Temizle"
+                      aria-label="Listeyi Temizle"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                {classExcelInvalidCount > 0 && (
+                  <p className="text-[11px] text-warning-fg">
+                    Hatalı satırlar aktarılmaz. Satırı kaldırabilir veya Excel'i düzeltip yeniden yükleyebilirsiniz.
+                  </p>
+                )}
+
+                {showExcelStudentList && (
+                  <ul className="max-h-48 overflow-y-auto border border-line rounded-lg bg-surface-2 p-1.5 space-y-1">
+                    {classExcelStudents.map((st, i) => (
+                      <li
+                        key={`${st.rowNumber}-${i}`}
+                        className={cx('flex items-start justify-between gap-2 text-[11px] py-1 px-2 rounded', st.error ? 'bg-danger-soft' : 'text-fg-2')}
+                      >
+                        <div className="min-w-0">
+                          <span className="font-semibold text-fg">
+                            <span className="text-muted font-mono mr-1">{st.rowNumber}.</span>
+                            {st.fullName || <em className="text-muted">(isim yok)</em>}
+                          </span>
+                          {st.error && <span className="block text-danger-fg font-semibold">{st.error}</span>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-muted font-mono">No: {st.studentNumber || '-'}</span>
+                          <button
+                            type="button"
+                            onClick={() => setClassExcelStudents((prev) => validateClassExcelRows(prev.filter((_, idx) => idx !== i)))}
+                            className="p-0.5 text-subtle hover:text-danger-fg rounded cursor-pointer"
+                            title="Satırı kaldır"
+                            aria-label={`${st.rowNumber}. satırı kaldır`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
-
-              <div className="pt-4 border-t border-line flex justify-end space-x-2.5">
-                <button
-                  type="button"
-                  onClick={() => setIsAddClassOpen(false)}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all"
-                >
-                  {classExcelStudents.length > 0 ? (
-                    <>
-                      <Sparkles className="w-4 h-4 text-emerald-200" />
-                      <span>Sınıfı & {classExcelStudents.length} Öğrenciyi Oluştur</span>
-                    </>
-                  ) : (
-                    <span>{editingClass ? 'Kaydet' : 'Sınıfı Oluştur'}</span>
-                  )}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      </div>
-      )}
+        </form>
+      </Modal>
 
       {/* EXCEL BULK UPLOAD MODAL - STUDENTS */}
       <ExcelStudentUploadModal
@@ -2205,82 +2298,65 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       />
 
       {/* ŞİFRE BELİRLEME PENCERESİ */}
-      {passwordTarget && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 flex items-center justify-center">
-          <div className="w-full max-w-md bg-surface text-fg rounded-2xl shadow-2xl border border-line p-5 space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
-                  <Key className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold">
-                    {passwordTarget.auth_user_id ? 'Yeni Şifre Belirle' : 'Giriş Hesabı Aç'}
-                  </h3>
-                  <p className="text-xs text-muted">
-                    {passwordTarget.name} • No: {passwordTarget.studentNumber || '-'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPasswordTarget(null)}
-                className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg"
-                aria-label="Kapat"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <Modal
+        open={!!passwordTarget}
+        onClose={() => setPasswordTarget(null)}
+        closeOnBackdrop={false}
+        size="sm"
+        icon={Key}
+        tone="brand"
+        title={passwordTarget?.auth_user_id ? 'Yeni Şifre Belirle' : 'Giriş Hesabı Aç'}
+        description={passwordTarget ? `${passwordTarget.name} • No: ${passwordTarget.studentNumber || '-'}` : undefined}
+        footer={
+          <>
+            <button type="button" onClick={() => setPasswordTarget(null)} className="ui-btn ui-btn-secondary">
+              Vazgeç
+            </button>
+            <button type="button" onClick={handleConfirmSetPassword} disabled={isSettingPassword} className="ui-btn ui-btn-primary">
+              {isSettingPassword ? 'Kaydediliyor...' : passwordTarget?.auth_user_id ? 'Şifreyi Kaydet' : 'Hesabı Aç'}
+            </button>
+          </>
+        }
+      >
+        {passwordTarget && (
+          <div className="space-y-4">
             <p className="text-xs text-muted leading-relaxed">
               {passwordTarget.auth_user_id
                 ? 'Öğrencinin eski şifresi geçersiz olur. Öğrenci yeni şifreyle giriş yapınca şifresini değiştirmesi istenir.'
                 : 'Bu öğrencinin henüz giriş hesabı yok. Belirlediğiniz şifreyle hesap açılır; öğrenci, öğrenci numarası ve bu şifreyle giriş yapar.'}
             </p>
             {passwordTargetError && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-xl text-xs font-semibold text-rose-700 dark:text-rose-300 flex items-center space-x-2">
+              <div role="alert" className="p-3 bg-danger-soft rounded-xl text-xs font-semibold text-danger-fg flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{passwordTargetError}</span>
               </div>
             )}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={passwordTargetValue}
                 onChange={(e) => setPasswordTargetValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleConfirmSetPassword();
+                }}
                 autoComplete="off"
                 autoCapitalize="none"
                 spellCheck={false}
-                className="flex-1 px-3 py-2 bg-surface-2 border border-line rounded-xl text-sm font-mono font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Yeni şifre"
+                className={cx(inputCls, 'flex-1 font-mono font-bold tracking-wider')}
                 placeholder="En az 6 karakter"
               />
               <button
                 type="button"
                 onClick={() => setPasswordTargetValue(dataService.generatePassword())}
-                className="px-3 py-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 border border-indigo-100 dark:border-indigo-500/30 rounded-xl"
+                className="ui-btn ui-btn-secondary"
               >
                 🎲 Üret
               </button>
             </div>
-            <div className="flex justify-end space-x-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setPasswordTarget(null)}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmSetPassword}
-                disabled={isSettingPassword}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white rounded-xl text-sm font-bold"
-              >
-                {isSettingPassword ? 'Kaydediliyor...' : passwordTarget.auth_user_id ? 'Şifreyi Kaydet' : 'Hesabı Aç'}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* SINIF ÖĞRENCİ LİSTESİ PENCERESİ (MODAL) */}
       {viewingClassStudents && (() => {
@@ -2861,49 +2937,43 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         );
       })()}
 
-      {/* ========================================================================= */}
       {/* DUPLICATE STUDENT WARNING MODAL (ÇAKIŞAN ÖĞRENCİ UYARI VE SEÇİM PENCERESİ) */}
-      {/* ========================================================================= */}
-      {duplicateWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-surface border-2 border-amber-500/60 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl shadow-amber-950/40 relative">
-            <div className="flex items-start space-x-3.5 mb-4">
-              <div className="w-11 h-11 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-amber-700 dark:text-amber-400">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-fg leading-tight">
-                  Bu Numarayla Kayıtlı Öğrenci Var!
-                </h3>
-                <p className="text-xs text-muted mt-1">
-                  Sistemde bu öğrenciyle tamamen eşleşen kayıtlı bir profil tespit edildi.
-                </p>
-              </div>
-            </div>
-
-            {/* Bilgi Karşılaştırma Kartı */}
-            <div className="bg-canvas/80 rounded-xl p-3.5 border border-line space-y-3 mb-5 text-xs">
-              <div className="text-amber-700 dark:text-amber-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                <span>📋 Çakışan Kayıt Bilgileri</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-fg-2">
+      <Modal
+        open={!!duplicateWarning}
+        onClose={() => setDuplicateWarning(null)}
+        closeOnBackdrop={false}
+        icon={AlertCircle}
+        tone="warning"
+        title="Bu Numarayla Kayıtlı Öğrenci Var!"
+        description="Sistemde bu öğrenciyle tamamen eşleşen kayıtlı bir profil tespit edildi."
+        footer={
+          <>
+            <button type="button" onClick={() => setDuplicateWarning(null)} className="ui-btn ui-btn-secondary">
+              Vazgeç ve Düzenlemeye Dön
+            </button>
+            <button type="button" onClick={handleDuplicateReplace} className="ui-btn ui-btn-warning">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Kayıtlı Öğrenciyi Güncelle</span>
+            </button>
+          </>
+        }
+      >
+        {duplicateWarning && (
+          <div className="space-y-4">
+            <div className="bg-surface-2 rounded-xl p-3.5 border border-line space-y-3 text-xs">
+              <div className="text-warning-fg font-bold uppercase tracking-wider text-[10px]">📋 Çakışan Kayıt Bilgileri</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-fg-2">
                 <div className="space-y-1">
                   <span className="text-[11px] text-muted block">Öğrenci Adı Soyadı</span>
-                  <span className="font-bold text-fg text-sm">
-                    {duplicateWarning.existingStudent.name}
-                  </span>
+                  <span className="font-bold text-fg text-sm">{duplicateWarning.existingStudent.name}</span>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[11px] text-muted block">Okul Numarası</span>
-                  <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
-                    #{duplicateWarning.existingStudent.studentNumber || '-'}
-                  </span>
+                  <span className="font-mono font-bold text-warning-fg">#{duplicateWarning.existingStudent.studentNumber || '-'}</span>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[11px] text-muted block">Sınıf & Şube</span>
-                  <span className="font-semibold text-fg">
-                    {duplicateWarning.existingStudent.className || '-'}
-                  </span>
+                  <span className="font-semibold text-fg">{duplicateWarning.existingStudent.className || '-'}</span>
                 </div>
                 <div className="space-y-1">
                   <span className="text-[11px] text-muted block">İletişim</span>
@@ -2913,36 +2983,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </div>
               </div>
             </div>
-
-            <p className="text-xs text-fg-2 mb-5 leading-relaxed">
-              Öğrenci numarası giriş adı olarak kullanıldığı için aynı numarayla ikinci bir kayıt açılamaz. Kayıtlı öğrenciyi yeni bilgilerle güncelleyebilir veya geri dönüp numarayı düzeltebilirsiniz:
+            <p className="text-xs text-fg-2 leading-relaxed">
+              Öğrenci numarası giriş adı olarak kullanıldığı için aynı numarayla ikinci bir kayıt açılamaz. Kayıtlı öğrenciyi
+              yeni bilgilerle güncelleyebilir veya geri dönüp numarayı düzeltebilirsiniz.
             </p>
-
-            {/* Aksiyon Butonları */}
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              <button
-                type="button"
-                onClick={handleDuplicateReplace}
-                className="flex-1 py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Kayıtlı Öğrenciyi Güncelle</span>
-              </button>
-
-            </div>
-
-            <div className="mt-3 text-center">
-              <button
-                type="button"
-                onClick={() => setDuplicateWarning(null)}
-                className="text-xs text-muted hover:text-fg underline cursor-pointer py-1"
-              >
-                Vazgeç ve Düzenlemeye Dön
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

@@ -1,6 +1,10 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { StudentQuestionLog, Student, ClassGroup } from '../types';
+import type { UserOptions } from 'jspdf-autotable';
+import { StudentQuestionLog, Student, ClassGroup, WeeklyQuestionTarget } from '../types';
+import { PDF_FONT, registerTurkishPdfFont } from '../lib/pdfFonts';
+import { computeTargetDays, targetDayStatusText, targetDayLabel } from './targetDays';
+import type { TargetDayRow, TargetDayStatus } from './targetDays';
 import {
   MIDDLE_SCHOOL_SUBJECTS,
   HIGH_SCHOOL_SUBJECTS,
@@ -312,16 +316,34 @@ export function computeWeeklyAnalytics(
   let badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
   let reportSummary = '';
 
-  if (weeklyDifference > 20 || weeklyGrowthRate >= 15) {
+  if (previousWeekTotal === 0) {
+    // Önceki haftada kayıt yoksa yüzde hesaplanmaz (Aşama 10b: "+%100" yanıltıcıydı)
+    if (totalQuestions === 0) {
+      trend = 'stable';
+      badgeText = 'Kayıt Yok';
+      badgeClass = 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+      reportSummary = 'Bu hafta ve önceki hafta için soru kaydı bulunmuyor.';
+    } else {
+      trend = 'up';
+      badgeText = 'Önceki haftada kayıt yok';
+      badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+      reportSummary = `Öğrenci bu hafta ${solvedDaysCount} gün çalışarak toplam ${totalQuestions} soru çözdü. Önceki haftada soru kaydı olmadığı için karşılaştırma yapılamıyor.`;
+    }
+  } else if (totalQuestions === 0) {
+    trend = 'down';
+    badgeText = 'Bu hafta kayıt yok';
+    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    reportSummary = `Bu hafta soru kaydı yok; önceki hafta ${previousWeekTotal} soru çözülmüştü. Düzenli günlük çalışmaya dönülmesi önerilir.`;
+  } else if (weeklyDifference > 20 || weeklyGrowthRate >= 15) {
     trend = 'up';
     badgeText = `Yükselen Başarı (+%${weeklyGrowthRate})`;
     badgeClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-    reportSummary = `Öğrenci bu hafta önceki haftaya göre ${Math.abs(weeklyDifference)} soru (%+${weeklyGrowthRate}) daha fazla çözerek belirgin bir başarı ivmesi yakalamıştır. Soru çözme sürekliliği güçlü olup, başarı grafiği yukarı yönlüdür.`;
+    reportSummary = `Öğrenci bu hafta önceki haftaya göre ${Math.abs(weeklyDifference)} soru (+%${weeklyGrowthRate}) daha fazla çözdü. Soru çözme temposu yükseliyor.`;
   } else if (weeklyDifference < -20 || weeklyGrowthRate <= -15) {
     trend = 'down';
-    badgeText = `Hacim Düşüşü (%${weeklyGrowthRate})`;
+    badgeText = `Hacim Düşüşü (-%${Math.abs(weeklyGrowthRate)})`;
     badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-    reportSummary = `Öğrencinin haftalık soru çözüm hacminde önceki haftaya kıyasla ${Math.abs(weeklyDifference)} soru (%${weeklyGrowthRate}) azalma görülmektedir. Soru çözülmeyen günlerin azaltılması ve düzenli günlük çalışma hedeflerinin desteklenmesi önerilir.`;
+    reportSummary = `Öğrencinin haftalık soru sayısı önceki haftaya göre ${Math.abs(weeklyDifference)} soru (-%${Math.abs(weeklyGrowthRate)}) azaldı. Soru çözülmeyen günlerin azaltılması ve düzenli günlük çalışma önerilir.`;
   } else {
     trend = 'stable';
     badgeText = 'Dengeli & İstikrarlı Süreç';
@@ -502,16 +524,33 @@ export function computeMonthlyAnalytics(
   let badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
   let reportSummary = '';
 
-  if (monthlyDifference > 80 || monthlyGrowthRate >= 15) {
+  if (previousMonthTotal === 0) {
+    if (totalQuestions === 0) {
+      trend = 'stable';
+      badgeText = 'Kayıt Yok';
+      badgeClass = 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+      reportSummary = 'Bu ay ve önceki ay için soru kaydı bulunmuyor.';
+    } else {
+      trend = 'up';
+      badgeText = 'Önceki ayda kayıt yok';
+      badgeClass = 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+      reportSummary = `Öğrenci bu ay ${activeDatesSet.size} gün çalışarak toplam ${totalQuestions} soru çözdü. Önceki ayda soru kaydı olmadığı için karşılaştırma yapılamıyor.`;
+    }
+  } else if (totalQuestions === 0) {
+    trend = 'down';
+    badgeText = 'Bu ay kayıt yok';
+    badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+    reportSummary = `Bu ay soru kaydı yok; önceki ay ${previousMonthTotal} soru çözülmüştü.`;
+  } else if (monthlyDifference > 80 || monthlyGrowthRate >= 15) {
     trend = 'up';
     badgeText = `Aylık Artış (+%${monthlyGrowthRate})`;
     badgeClass = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
-    reportSummary = `Öğrenci bu ay önceki aya göre toplam ${Math.abs(monthlyDifference)} soru (%+${monthlyGrowthRate}) artış sağlayarak güçlü bir akademik ilerleme göstermiştir. Haftalık soru hedeflerine uyum yüksek olup konu pekiştirme süreci başarıyla devam etmektedir.`;
+    reportSummary = `Öğrenci bu ay önceki aya göre ${Math.abs(monthlyDifference)} soru (+%${monthlyGrowthRate}) daha fazla çözdü. Soru çözme temposu yükseliyor.`;
   } else if (monthlyDifference < -80 || monthlyGrowthRate <= -15) {
     trend = 'down';
-    badgeText = `Aylık Düşüş (%${monthlyGrowthRate})`;
+    badgeText = `Aylık Düşüş (-%${Math.abs(monthlyGrowthRate)})`;
     badgeClass = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-    reportSummary = `Öğrencinin aylık toplam soru sayısında önceki aya kıyasla ${Math.abs(monthlyDifference)} soru (%${monthlyGrowthRate}) gerileme tespit edilmiştir. Deneme sınavları ve soru bankası takip planlaması yapılarak çalışma motivasyonunun artırılması hedeflenmelidir.`;
+    reportSummary = `Öğrencinin aylık soru sayısı önceki aya göre ${Math.abs(monthlyDifference)} soru (-%${Math.abs(monthlyGrowthRate)}) azaldı. Haftalık çalışma planının gözden geçirilmesi önerilir.`;
   } else {
     trend = 'stable';
     badgeText = 'Dengeli & İstikrarlı Süreç';
@@ -547,8 +586,8 @@ export function computeMonthlyAnalytics(
 }
 
 /**
- * Sanitizes Turkish text specifically for standard jsPDF fonts (Helvetica/Times)
- * to avoid byte-shifting, character overlapping, or glyph corruption.
+ * Yedek: Türkçe yazı tipi PDF'e gömülemezse (registerTurkishPdfFont false dönerse) metni
+ * standart Helvetica'nın basabileceği ASCII karakterlere çevirir. Normalde kullanılmaz.
  */
 export function sanitizeForPdf(str: string | undefined | null): string {
   if (!str) return '';
@@ -579,1188 +618,974 @@ export function sanitizeForPdf(str: string | undefined | null): string {
     .trim();
 }
 
-/**
- * Generates a high-resolution, pixel-perfect chart canvas image (PNG DataURL)
- * for Weekly Question Analytics. Rendered at 1600x700 for ultra-sharp PDF output.
- */
-export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1600;
-  canvas.height = 700;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
+// ============================================================================
+// PDF RAPORLARI (Aşama 10b)
+// Türkçe yazı tipi gömülür (lib/pdfFonts); yüklenemezse Helvetica + sanitizeForPdf kullanılır.
+// Öğretmen hedefleri utils/targetDays ile ekrandakiyle aynı şekilde hesaplanır.
+// ============================================================================
 
-  // Background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+type RGB = [number, number, number];
+const PDF_INK: RGB = [17, 24, 39];
+const PDF_TEXT: RGB = [55, 65, 81];
+const PDF_MUTED: RGB = [107, 114, 128];
+const PDF_LINE: RGB = [209, 213, 219];
+const PDF_SOFT: RGB = [243, 244, 246];
+const PDF_ACCENT: RGB = [67, 56, 202];
+const PDF_ACCENT_SOFT: RGB = [238, 242, 255];
+const PDF_OK: RGB = [21, 128, 61];
+const PDF_WARN: RGB = [180, 83, 9];
+const PDF_BAD: RGB = [185, 28, 28];
 
-  // Inner card box with subtle border
-  ctx.fillStyle = '#f8fafc';
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 2;
-  const cardMargin = 16;
-  ctx.beginPath();
-  ctx.roundRect(cardMargin, cardMargin, canvas.width - cardMargin * 2, canvas.height - cardMargin * 2, 16);
-  ctx.fill();
-  ctx.stroke();
+// Gömülü yazı tipinde bulunan karakterler dışındakiler (emoji, ✓, ★ vb.) PDF'te kutu olarak çıkmasın diye atılır
+const PDF_UNSUPPORTED_CHARS =
+  /[^\n\x20-\x7E -ſ–—‘’“”•…←→−≤≥]/g;
 
-  // Header Title
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('HAFTALIK GÜNLÜK SORU ÇÖZÜM PERFORMANS GRAFİĞİ', 50, 65);
-
-  // Subtitle
-  ctx.fillStyle = '#64748b';
-  ctx.font = '500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(
-    `${analytics.studentName} • ${analytics.weekLabel} • Toplam Çözülen: ${analytics.totalQuestions} Soru`,
-    50,
-    98
-  );
-
-  // Legend
-  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  // Active pill
-  ctx.fillStyle = '#ea580c';
-  ctx.beginPath();
-  ctx.roundRect(canvas.width - 560, 50, 22, 22, 6);
-  ctx.fill();
-  ctx.fillStyle = '#334155';
-  ctx.fillText('Çözülen Günler', canvas.width - 528, 68);
-
-  // Inactive pill
-  ctx.fillStyle = '#f43f5e';
-  ctx.beginPath();
-  ctx.roundRect(canvas.width - 320, 50, 22, 22, 6);
-  ctx.fill();
-  ctx.fillStyle = '#334155';
-  ctx.fillText('Soru Çözülmeyen Günler', canvas.width - 288, 68);
-
-  // Chart coordinates
-  const chartLeft = 110;
-  const chartRight = canvas.width - 60;
-  const chartTop = 150;
-  const chartBottom = 540;
-  const chartHeight = chartBottom - chartTop;
-  const chartWidth = chartRight - chartLeft;
-
-  const maxVal = Math.max(...analytics.days.map((d) => d.totalQuestions), 10);
-  const tickCount = 4;
-  const step = Math.ceil(maxVal / tickCount / 10) * 10 || 10;
-  const maxY = step * tickCount;
-
-  // Grid lines and Y-axis labels
-  ctx.textAlign = 'right';
-  ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-  for (let i = 0; i <= tickCount; i++) {
-    const val = i * step;
-    const y = chartBottom - (val / maxY) * chartHeight;
-
-    ctx.strokeStyle = i === 0 ? '#cbd5e1' : '#e2e8f0';
-    ctx.lineWidth = i === 0 ? 2 : 1.2;
-    ctx.beginPath();
-    ctx.moveTo(chartLeft, y);
-    ctx.lineTo(chartRight, y);
-    ctx.stroke();
-
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(`${val} Soru`, chartLeft - 16, y + 6);
-  }
-
-  // Draw 7 Day Bars
-  const count = analytics.days.length;
-  const gap = 34;
-  const totalBarWidth = (chartWidth - gap * (count + 1)) / count;
-  const barWidth = Math.min(Math.max(totalBarWidth, 70), 160);
-
-  analytics.days.forEach((day, index) => {
-    const x = chartLeft + gap + index * (barWidth + gap);
-    const hasQuestions = day.totalQuestions > 0;
-    const barHeight = hasQuestions ? Math.max((day.totalQuestions / maxY) * chartHeight, 20) : 12;
-    const y = chartBottom - barHeight;
-
-    // Gradient bar fill
-    if (hasQuestions) {
-      const grad = ctx.createLinearGradient(x, y, x, chartBottom);
-      grad.addColorStop(0, '#f97316');
-      grad.addColorStop(1, '#ea580c');
-      ctx.fillStyle = grad;
-    } else {
-      ctx.fillStyle = '#fee2e2'; // Rose 100
-    }
-
-    // Rounded top bar
-    const radius = 10;
-    ctx.beginPath();
-    ctx.moveTo(x, chartBottom);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.lineTo(x + barWidth - radius, y);
-    ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
-    ctx.lineTo(x + barWidth, chartBottom);
-    ctx.closePath();
-    ctx.fill();
-
-    // Subtle outline
-    ctx.strokeStyle = hasQuestions ? '#c2410c' : '#fca5a5';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Value Badge above bar
-    ctx.textAlign = 'center';
-    if (hasQuestions) {
-      // Badge background pill
-      const badgeText = `${day.totalQuestions} Soru`;
-      ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      const textWidth = ctx.measureText(badgeText).width;
-      ctx.fillStyle = '#fff7ed';
-      ctx.beginPath();
-      ctx.roundRect(x + barWidth / 2 - textWidth / 2 - 10, y - 36, textWidth + 20, 26, 8);
-      ctx.fill();
-      ctx.strokeStyle = '#fed7aa';
-      ctx.stroke();
-
-      ctx.fillStyle = '#9a3412';
-      ctx.fillText(badgeText, x + barWidth / 2, y - 18);
-    } else {
-      ctx.fillStyle = '#e11d48';
-      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillText('0 (Boş)', x + barWidth / 2, y - 14);
-    }
-
-    // Day Name below bar
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(day.dayName, x + barWidth / 2, chartBottom + 36);
-
-    // Formatted Date
-    ctx.fillStyle = '#64748b';
-    ctx.font = '600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(formatTurkishDate(day.dateStr), x + barWidth / 2, chartBottom + 64);
-
-    // Has Solved Indicator Dot
-    ctx.fillStyle = hasQuestions ? '#10b981' : '#f43f5e';
-    ctx.beginPath();
-    ctx.arc(x + barWidth / 2, chartBottom + 86, 6, 0, Math.PI * 2);
-    ctx.fill();
-  });
-
-  return canvas.toDataURL('image/png');
+export function cleanForPdfFont(str: unknown): string {
+  if (str === undefined || str === null) return '';
+  return String(str)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, ' ')
+    .replace(PDF_UNSUPPORTED_CHARS, '')
+    .replace(/[  ]{2,}/g, ' ')
+    .trim();
 }
 
-/**
- * Generates a high-resolution, pixel-perfect chart canvas image (PNG DataURL)
- * for Monthly Question Analytics. Rendered at 1600x700 for ultra-sharp PDF output.
- */
-export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1600;
-  canvas.height = 700;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
-
-  // Background
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // Inner card box
-  ctx.fillStyle = '#f8fafc';
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 2;
-  const cardMargin = 16;
-  ctx.beginPath();
-  ctx.roundRect(cardMargin, cardMargin, canvas.width - cardMargin * 2, canvas.height - cardMargin * 2, 16);
-  ctx.fill();
-  ctx.stroke();
-
-  // Header Title
-  ctx.fillStyle = '#0f172a';
-  ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText('AYLIK HAFTALIK SORU ÇÖZÜM VE GELİŞİM GRAFİĞİ', 50, 65);
-
-  // Subtitle
-  ctx.fillStyle = '#64748b';
-  ctx.font = '500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillText(
-    `${analytics.studentName} • ${analytics.monthLabel} • Toplam Çözülen: ${analytics.totalQuestions} Soru`,
-    50,
-    98
-  );
-
-  // Legend
-  ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-  ctx.fillStyle = '#ea580c';
-  ctx.beginPath();
-  ctx.roundRect(canvas.width - 440, 50, 22, 22, 6);
-  ctx.fill();
-  ctx.fillStyle = '#334155';
-  ctx.fillText('Haftalık Soru Toplamı', canvas.width - 408, 68);
-
-  // Chart coordinates
-  const chartLeft = 110;
-  const chartRight = canvas.width - 60;
-  const chartTop = 150;
-  const chartBottom = 540;
-  const chartHeight = chartBottom - chartTop;
-  const chartWidth = chartRight - chartLeft;
-
-  const maxVal = Math.max(...analytics.weeks.map((w) => w.totalQuestions), 10);
-  const tickCount = 4;
-  const step = Math.ceil(maxVal / tickCount / 10) * 10 || 10;
-  const maxY = step * tickCount;
-
-  // Grid lines
-  ctx.textAlign = 'right';
-  ctx.font = '600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-  for (let i = 0; i <= tickCount; i++) {
-    const val = i * step;
-    const y = chartBottom - (val / maxY) * chartHeight;
-
-    ctx.strokeStyle = i === 0 ? '#cbd5e1' : '#e2e8f0';
-    ctx.lineWidth = i === 0 ? 2 : 1.2;
-    ctx.beginPath();
-    ctx.moveTo(chartLeft, y);
-    ctx.lineTo(chartRight, y);
-    ctx.stroke();
-
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(`${val} Soru`, chartLeft - 16, y + 6);
-  }
-
-  // Draw Bars
-  const count = analytics.weeks.length;
-  const gap = 44;
-  const totalBarWidth = (chartWidth - gap * (count + 1)) / count;
-  const barWidth = Math.min(Math.max(totalBarWidth, 80), 200);
-
-  analytics.weeks.forEach((week, index) => {
-    const x = chartLeft + gap + index * (barWidth + gap);
-    const hasQuestions = week.totalQuestions > 0;
-    const barHeight = hasQuestions ? Math.max((week.totalQuestions / maxY) * chartHeight, 20) : 12;
-    const y = chartBottom - barHeight;
-
-    if (hasQuestions) {
-      const grad = ctx.createLinearGradient(x, y, x, chartBottom);
-      grad.addColorStop(0, '#f97316');
-      grad.addColorStop(1, '#ea580c');
-      ctx.fillStyle = grad;
-    } else {
-      ctx.fillStyle = '#e2e8f0';
-    }
-
-    const radius = 10;
-    ctx.beginPath();
-    ctx.moveTo(x, chartBottom);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.lineTo(x + barWidth - radius, y);
-    ctx.quadraticCurveTo(x + barWidth, y, x + barWidth, y + radius);
-    ctx.lineTo(x + barWidth, chartBottom);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = hasQuestions ? '#c2410c' : '#cbd5e1';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Value Badge
-    ctx.textAlign = 'center';
-    const badgeText = `${week.totalQuestions} Soru`;
-    ctx.font = 'bold 18px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    const textWidth = ctx.measureText(badgeText).width;
-    ctx.fillStyle = '#fff7ed';
-    ctx.beginPath();
-    ctx.roundRect(x + barWidth / 2 - textWidth / 2 - 10, y - 36, textWidth + 20, 26, 8);
-    ctx.fill();
-    ctx.strokeStyle = '#fed7aa';
-    ctx.stroke();
-
-    ctx.fillStyle = '#9a3412';
-    ctx.fillText(badgeText, x + barWidth / 2, y - 18);
-
-    // Week Label
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(`${week.weekIndex}. Hafta`, x + barWidth / 2, chartBottom + 36);
-
-    // Date Range
-    ctx.fillStyle = '#64748b';
-    ctx.font = '600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(week.weekLabel, x + barWidth / 2, chartBottom + 62);
-
-    // Active Days Tag
-    ctx.fillStyle = '#059669';
-    ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillText(`${week.activeDaysCount} Gün Aktif`, x + barWidth / 2, chartBottom + 86);
-  });
-
-  return canvas.toDataURL('image/png');
+interface PdfKit {
+  doc: jsPDF;
+  F: string;
+  t: (s: unknown) => string;
+  pageW: number;
+  pageH: number;
+  M: number;
+  W: number;
+  y: number;
+  top: number;
+  bottom: number;
 }
 
-/**
- * Downloads a high-quality, professional 2-Page PDF Report for Weekly Analytics
- * with zero text-shifting, mathematically exact positioning, and an embedded high-resolution chart.
- */
-export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null): void {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
+function createPdfKit(): PdfKit {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const fontOk = registerTurkishPdfFont(doc);
+  const F = fontOk ? PDF_FONT : 'helvetica';
+  doc.setFont(F, 'normal');
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 14;
+  return {
+    doc,
+    F,
+    t: fontOk ? cleanForPdfFont : (s: unknown) => sanitizeForPdf(s === undefined || s === null ? '' : String(s)),
+    pageW,
+    pageH,
+    M,
+    W: pageW - M * 2,
+    y: M,
+    top: 18,
+    bottom: pageH - 16,
+  };
+}
 
-  const pageWidth = doc.internal.pageSize.getWidth(); // 210 mm
-  const margin = 12;
-  const contentWidth = pageWidth - margin * 2; // 186 mm
+function pdfFont(k: PdfKit, style: 'normal' | 'bold', size: number, color: RGB = PDF_TEXT) {
+  k.doc.setFont(k.F, style);
+  k.doc.setFontSize(size);
+  k.doc.setTextColor(color[0], color[1], color[2]);
+}
 
-  // =========================================================================
-  // PAGE 1: YÖNETİCİ ÖZETİ, KPI METRİKLER VE YÜKSEK ÇÖZÜNÜRLÜKLÜ GRAFİK
-  // =========================================================================
-
-  // Top Header Banner (Deep Slate 900)
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 26, 'F');
-
-  // Indigo Accent Bar
-  doc.setFillColor(79, 70, 229);
-  doc.rect(0, 26, pageWidth, 1.8, 'F');
-
-  // Title & Subtitle
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text(
-    sanitizeForPdf('OGRENCI HAFTALIK SORU COZUM VE BASARI ANALIZ RAPORU'),
-    pageWidth / 2,
-    11,
-    { align: 'center' }
-  );
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    sanitizeForPdf('Akademik Takip, Gunluk Performans ve Gecmis Hafta Karsilastirma Cizelgesi'),
-    pageWidth / 2,
-    18,
-    { align: 'center' }
-  );
-
-  // Student & Context Info Box (Y: 31 to 49mm)
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, 31, contentWidth, 18, 2, 2, 'FD');
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(sanitizeForPdf(`Ogrenci: ${analytics.studentName}`), margin + 5, 37.5);
-  doc.text(
-    sanitizeForPdf(`Sinif: ${analytics.className || student?.className || 'Genel'}`),
-    margin + 5,
-    44.5
-  );
-
-  if (student?.studentNumber) {
-    doc.text(sanitizeForPdf(`No: #${student.studentNumber}`), margin + 65, 44.5);
+function ensureSpace(k: PdfKit, h: number) {
+  if (k.y + h > k.bottom) {
+    k.doc.addPage();
+    k.y = k.top;
   }
+}
 
-  doc.text(sanitizeForPdf(`Analiz Haftasi: ${analytics.weekLabel}`), margin + 105, 37.5);
-  doc.text(
-    sanitizeForPdf(`Rapor Tarihi: ${new Date().toLocaleDateString('tr-TR')}`),
-    margin + 105,
-    44.5
-  );
+function sectionTitle(k: PdfKit, text: string, minFollow = 22) {
+  ensureSpace(k, 9 + minFollow);
+  pdfFont(k, 'bold', 10.5, PDF_INK);
+  k.doc.text(k.t(text), k.M, k.y + 4);
+  k.doc.setFillColor(...PDF_ACCENT);
+  k.doc.rect(k.M, k.y + 5.6, 12, 0.7, 'F');
+  k.y += 9;
+}
 
-  // KPI Summary Metrics AutoTable (startY: 50mm)
-  const metricsData = [
-    [
-      sanitizeForPdf('Toplam Cozulen Soru'),
-      `${analytics.totalQuestions} Soru`,
-      sanitizeForPdf('Gunluk Ortalama'),
-      `${analytics.dailyAverage} Soru / Gun`,
-    ],
-    [
-      sanitizeForPdf('Aktif Calisilan Gunler'),
-      `${analytics.solvedDaysCount} / 7 Gun`,
-      sanitizeForPdf('Soru Cozulmeyen Gunler'),
-      analytics.unsolvedDays.length > 0
-        ? sanitizeForPdf(analytics.unsolvedDays.join(', '))
-        : sanitizeForPdf('Tum Gunler Calisildi'),
-    ],
-    [
-      sanitizeForPdf('Onceki Hafta Toplami'),
-      `${analytics.previousWeekTotal} Soru`,
-      sanitizeForPdf('Haftalik Ilerleme'),
-      `${analytics.weeklyDifference >= 0 ? '+' : ''}${analytics.weeklyDifference} Soru (%${
-        analytics.weeklyGrowthRate >= 0 ? '+' : ''
-      }${analytics.weeklyGrowthRate})`,
-    ],
-  ];
+function paragraph(
+  k: PdfKit,
+  text: string,
+  opts: { size?: number; color?: RGB; bold?: boolean; gap?: number; indent?: number } = {}
+) {
+  const size = opts.size ?? 8.5;
+  const indent = opts.indent ?? 0;
+  const lineH = size * 0.3528 * 1.4;
+  pdfFont(k, opts.bold ? 'bold' : 'normal', size, opts.color ?? PDF_TEXT);
+  const lines: string[] = k.doc.splitTextToSize(k.t(text), k.W - indent);
+  for (const ln of lines) {
+    ensureSpace(k, lineH);
+    k.doc.text(ln, k.M + indent, k.y + lineH * 0.75);
+    k.y += lineH;
+  }
+  k.y += opts.gap ?? 1.5;
+}
 
-  autoTable(doc, {
-    startY: 50,
-    margin: { left: margin, right: margin },
-    body: metricsData,
+function pdfTable(k: PdfKit, opts: UserOptions, gapAfter = 5) {
+  autoTable(k.doc, {
+    startY: k.y,
+    margin: { left: k.M, right: k.M, top: k.top, bottom: k.pageH - k.bottom },
     theme: 'grid',
+    ...opts,
     styles: {
-      fontSize: 8,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
+      font: k.F,
+      fontSize: 7.8,
+      cellPadding: 1.5,
+      textColor: PDF_TEXT,
+      lineColor: PDF_LINE,
+      lineWidth: 0.15,
+      valign: 'middle',
+      ...(opts.styles || {}),
     },
-    columnStyles: {
-      0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      1: { fontStyle: 'bold', textColor: [234, 88, 12], cellWidth: 46.5 },
-      2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      3: { fontStyle: 'bold', cellWidth: 46.5 },
-    },
-  });
-
-  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Dinamik Konumlandırma - Tablonun altına tam oturur, asla üstüne binmez)
-  const metricsTableEnd = (doc as any).lastAutoTable?.finalY || 76;
-  const chartY = metricsTableEnd + 4;
-  const chartHeight = 74;
-  const chartImg = generateWeeklyChartCanvas(analytics);
-  if (chartImg) {
-    doc.addImage(chartImg, 'PNG', margin, chartY, contentWidth, chartHeight);
-  }
-
-  // Pedagogical Assessment & Progress Card (Grafiğin hemen altına dinamik olarak yerleşir)
-  const reportBoxY = chartY + chartHeight + 4;
-  const reportBoxHeight = 44;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(234, 88, 12);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(margin, reportBoxY, contentWidth, reportBoxHeight, 2.5, 2.5, 'FD');
-
-  // Badge bar inside assessment card
-  doc.setFillColor(255, 247, 237);
-  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 7.5, 'F');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(194, 65, 12);
-  doc.text(
-    sanitizeForPdf(
-      `PEDAGOJIK DEGERLENDIRME VE BASARI DURUMU: ${analytics.statusAssessment.badgeText.toUpperCase()}`
-    ),
-    margin + 4,
-    reportBoxY + 5.5
-  );
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(30, 41, 59);
-  const splitText = doc.splitTextToSize(
-    sanitizeForPdf(analytics.statusAssessment.reportSummary),
-    contentWidth - 8
-  );
-  doc.text(splitText, margin + 4, reportBoxY + 12);
-
-  // Weekly study habit recommendation note
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text(sanitizeForPdf('Akademik Disiplin & Hedef:'), margin + 4, reportBoxY + 28);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  const habitNote =
-    analytics.unsolvedDays.length > 0
-      ? `Haftada ${analytics.solvedDaysCount} gun aktif calisma kaydedildi. Bos birakilan gunlerde (${analytics.unsolvedDays.join(
-          ', '
-        )}) duzenli soru cozumu alişkanligi kazanilmasi tavsiye edilir.`
-      : `Haftanin 7 gunu kesintisiz ve duzenli soru cozumu gerceklestirildi. Harika bir calisma disiplini sergilenmektedir.`;
-  const splitHabit = doc.splitTextToSize(sanitizeForPdf(habitNote), contentWidth - 8);
-  doc.text(splitHabit, margin + 4, reportBoxY + 33);
-
-  // Quick Highlights Card (Dinamik olarak değerlendirme kartının altına yerleşir)
-  const highY = reportBoxY + reportBoxHeight + 4;
-  const highHeight = 40;
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(margin, highY, contentWidth, highHeight, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('HAFTALIK ONEMLI PERFORMANS DETAYLARI'), margin + 4, highY + 6);
-
-  const bestDay = [...analytics.days].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
-  const topSubject = analytics.subjectBreakdown[0];
-
-  const highlights = [
-    `• En Verimli Calisilan Gun: ${bestDay?.dayName || '-'} (${bestDay?.totalQuestions || 0} Soru cozumu ile zirve)`,
-    `• En Cok Odaklanilan Ders: ${topSubject ? `${topSubject.subject} (%${topSubject.percentage} pay)` : 'Belirtilmedi'}`,
-    `• Gunluk Calisma Rutini: Gun basina ortalama ${analytics.dailyAverage} soru hedefi yakalandi`,
-    `• Calisma Devamliligi: Haftalik %${Math.round((analytics.solvedDaysCount / 7) * 100)} gunluk katilim disiplini`,
-  ];
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  highlights.forEach((h, idx) => {
-    doc.text(sanitizeForPdf(h), margin + 4, highY + 13 + idx * 6.5);
-  });
-
-  // Page 1 Footer
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    sanitizeForPdf('Sayfa 1 / 2 - Egitim & Ogrenci Takip Sistemi - Resmi Analiz Ciktisi'),
-    pageWidth / 2,
-    290,
-    { align: 'center' }
-  );
-
-  // =========================================================================
-  // PAGE 2: DETAYLI GÜNLÜK VE DERS ÇİZELGELERİ, ÖNERİLER VE İMZALAR
-  // =========================================================================
-  doc.addPage();
-
-  // Page 2 Header Banner
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 20, 'F');
-
-  doc.setFillColor(79, 70, 229);
-  doc.rect(0, 20, pageWidth, 1.5, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(
-    sanitizeForPdf('DETAYLI GUNLUK SORU COZUM CIZELGESI VE DERS DAGILIMI'),
-    pageWidth / 2,
-    9.5,
-    { align: 'center' }
-  );
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    sanitizeForPdf(
-      `Ogrenci: ${analytics.studentName} - Sinif: ${analytics.className || 'Genel'} - Donem: ${analytics.weekLabel}`
-    ),
-    pageWidth / 2,
-    16,
-    { align: 'center' }
-  );
-
-  // Table 1: Daily Breakdown Table (startY: 25mm)
-  const daysTableHead = [
-    [
-      sanitizeForPdf('Gun'),
-      sanitizeForPdf('Tarih'),
-      sanitizeForPdf('Cozulen Soru'),
-      sanitizeForPdf('Calisilan Dersler'),
-      sanitizeForPdf('Durum'),
-    ],
-  ];
-
-  const daysTableBody = analytics.days.map((d) => [
-    sanitizeForPdf(d.dayName),
-    formatTurkishDate(d.dateStr),
-    `${d.totalQuestions} Soru`,
-    sanitizeForPdf(d.subjectsText || '-'),
-    d.hasSolved ? sanitizeForPdf('Tamamlandi') : sanitizeForPdf('Soru Cozulmedi (!)'),
-  ]);
-
-  autoTable(doc, {
-    startY: 25,
-    margin: { left: margin, right: margin },
-    head: daysTableHead,
-    body: daysTableBody,
-    theme: 'striped',
     headStyles: {
-      fillColor: [79, 70, 229],
-      textColor: [255, 255, 255],
+      font: k.F,
+      fillColor: PDF_ACCENT_SOFT,
+      textColor: PDF_INK,
       fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: 2.2,
+      ...(opts.headStyles || {}),
     },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.0,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 24 },
-      1: { cellWidth: 26 },
-      2: { fontStyle: 'bold', cellWidth: 26, halign: 'center' },
-      3: { cellWidth: 82 },
-      4: { fontStyle: 'bold', cellWidth: 28, halign: 'center' },
-    },
-    didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 4) {
-        if (data.cell.raw === 'Soru Cozulmedi (!)') {
-          data.cell.styles.textColor = [225, 29, 72];
-          data.cell.styles.fillColor = [255, 241, 242];
-        } else {
-          data.cell.styles.textColor = [16, 185, 129];
+  });
+  k.y = ((k.doc as any).lastAutoTable?.finalY ?? k.y) + gapAfter;
+}
+
+const nowTr = () => {
+  const d = new Date();
+  return {
+    date: d.toLocaleDateString('tr-TR'),
+    dateTime: `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`,
+  };
+};
+
+const parseYmdLocal = (s: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? { y: +m[1], m: +m[2] - 1, d: +m[3] } : null;
+};
+
+// "28 Eylül – 4 Ekim 2026", "1 – 7 Mayıs 2026"
+function formatTurkishRange(a: string, b: string): string {
+  const pa = parseYmdLocal(a);
+  const pb = parseYmdLocal(b);
+  if (!pa || !pb) return `${a || ''} – ${b || ''}`;
+  if (pa.y !== pb.y) return `${formatTurkishDate(a)} – ${formatTurkishDate(b)}`;
+  if (pa.m === pb.m) return pa.d === pb.d ? formatTurkishDate(a) : `${pa.d} – ${pb.d} ${TURKISH_MONTHS[pb.m]} ${pb.y}`;
+  return `${pa.d} ${TURKISH_MONTHS[pa.m]} – ${pb.d} ${TURKISH_MONTHS[pb.m]} ${pb.y}`;
+}
+
+const fmtNum = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
+const accuracyOf = (correct: number, wrong: number) =>
+  correct + wrong > 0 ? `%${Math.round((correct / (correct + wrong)) * 100)}` : '–';
+const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+
+interface PdfSubjectStat {
+  subject: string;
+  count: number;
+  correct: number;
+  wrong: number;
+  empty: number;
+  topics: string[];
+}
+
+// Dönemdeki ders bazlı doğru/yanlış/boş, çalışılan konular ve öğrenci notları
+function collectPeriodDetails(
+  logs: StudentQuestionLog[] | undefined,
+  studentId: string,
+  start: string,
+  end: string
+): { subjects: PdfSubjectStat[]; notes: { date: string; text: string }[] } | null {
+  if (!logs) return null;
+  const map = new Map<string, PdfSubjectStat>();
+  const topicKeys = new Map<string, Set<string>>();
+  const notes: { date: string; text: string }[] = [];
+  const own = logs
+    .filter((l) => l.studentId === studentId && l.date >= start && l.date <= end)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  for (const l of own) {
+    for (const e of Array.isArray(l.entries) ? l.entries : []) {
+      const q = Number(e.questionCount) || 0;
+      if (q <= 0) continue;
+      const key = e.subject || 'Diğer';
+      let s = map.get(key);
+      if (!s) {
+        s = { subject: key, count: 0, correct: 0, wrong: 0, empty: 0, topics: [] };
+        map.set(key, s);
+        topicKeys.set(key, new Set());
+      }
+      const c = Number(e.correctCount) || 0;
+      const w = Number(e.wrongCount) || 0;
+      s.count += q;
+      s.correct += c;
+      s.wrong += w;
+      s.empty += e.emptyCount !== undefined && e.emptyCount !== null ? Number(e.emptyCount) || 0 : c || w ? Math.max(0, q - c - w) : 0;
+      const topic = String(e.topic || '').replace(/\s+/g, ' ').trim();
+      if (topic) {
+        const tk = topic.toLocaleLowerCase('tr');
+        const seen = topicKeys.get(key)!;
+        if (!seen.has(tk)) {
+          seen.add(tk);
+          s.topics.push(topic);
         }
       }
+    }
+    const note = String(l.notes || '').replace(/\s+/g, ' ').trim();
+    if (note) notes.push({ date: l.date, text: note });
+  }
+  return { subjects: [...map.values()].sort((a, b) => b.count - a.count), notes };
+}
+
+function topicsText(topics: string[]): string {
+  if (!topics.length) return '–';
+  const shown = topics.slice(0, 5).map((x) => truncate(x, 32));
+  return shown.join(', ') + (topics.length > 5 ? ` (+${topics.length - 5} konu)` : '');
+}
+
+function drawReportHeader(k: PdfKit, title: string, generatedAt: string) {
+  const { doc } = k;
+  doc.setFillColor(...PDF_ACCENT);
+  doc.rect(0, 0, k.pageW, 2.5, 'F');
+  pdfFont(k, 'bold', 16, PDF_INK);
+  doc.text(k.t(title), k.M, 14.5);
+  pdfFont(k, 'normal', 8, PDF_MUTED);
+  doc.text(k.t(`Oluşturulma: ${generatedAt}`), k.pageW - k.M, 14.5, { align: 'right' });
+  doc.setDrawColor(...PDF_LINE);
+  doc.setLineWidth(0.3);
+  doc.line(k.M, 18.5, k.pageW - k.M, 18.5);
+  k.y = 21.5;
+}
+
+function drawInfoRow(k: PdfKit, items: [string, string][], widths: number[]) {
+  let x = k.M;
+  items.forEach(([label, value], i) => {
+    pdfFont(k, 'normal', 7.2, PDF_MUTED);
+    k.doc.text(k.t(label), x, k.y + 3);
+    pdfFont(k, 'bold', 9.5, PDF_INK);
+    const v = (k.doc.splitTextToSize(k.t(value || '–'), widths[i] - 3) as string[])[0] || '–';
+    k.doc.text(v, x, k.y + 8);
+    x += widths[i];
+  });
+  k.y += 13;
+}
+
+function drawKpiTiles(k: PdfKit, tiles: { label: string; value: string }[]) {
+  const gap = 2.5;
+  const n = tiles.length;
+  const w = (k.W - gap * (n - 1)) / n;
+  const h = 14.5;
+  tiles.forEach((tile, i) => {
+    const x = k.M + i * (w + gap);
+    k.doc.setFillColor(...PDF_SOFT);
+    k.doc.roundedRect(x, k.y, w, h, 1.5, 1.5, 'F');
+    pdfFont(k, 'bold', 13, PDF_INK);
+    k.doc.text(k.t(tile.value), x + 3, k.y + 7);
+    pdfFont(k, 'normal', 7.2, PDF_MUTED);
+    k.doc.text(k.t(tile.label), x + 3, k.y + 11.8);
+  });
+  k.y += h + 3.5;
+}
+
+function drawNoticeBox(k: PdfKit, title: string, text: string) {
+  pdfFont(k, 'normal', 8.5, PDF_TEXT);
+  const lines: string[] = k.doc.splitTextToSize(k.t(text), k.W - 10);
+  const h = 11 + lines.length * 4.2;
+  ensureSpace(k, h);
+  k.doc.setFillColor(...PDF_ACCENT_SOFT);
+  k.doc.roundedRect(k.M, k.y, k.W, h, 2, 2, 'F');
+  k.doc.setFillColor(...PDF_ACCENT);
+  k.doc.rect(k.M, k.y, 1.2, h, 'F');
+  pdfFont(k, 'bold', 11, PDF_INK);
+  k.doc.text(k.t(title), k.M + 5, k.y + 7);
+  pdfFont(k, 'normal', 8.5, PDF_TEXT);
+  k.doc.text(lines, k.M + 5, k.y + 12.5);
+  k.y += h + 5;
+}
+
+function drawChartImage(k: PdfKit, img: string, ratio: number) {
+  if (!img) return;
+  const h = k.W * ratio;
+  ensureSpace(k, h + 2);
+  try {
+    k.doc.addImage(img, 'PNG', k.M, k.y, k.W, h, undefined, 'FAST');
+    k.y += h + 4;
+  } catch (e) {
+    console.warn('[PDF] Grafik eklenemedi:', e);
+  }
+}
+
+function drawSubjectTable(k: PdfKit, subjects: PdfSubjectStat[], total: number) {
+  sectionTitle(k, 'Ders Dağılımı', Math.min(subjects.length, 8) * 5.6 + 7);
+  pdfTable(k, {
+    head: [['Ders', 'Soru', 'D', 'Y', 'B', 'Doğruluk', 'Pay', 'Çalışılan konular'].map(k.t)],
+    body: subjects.map((s) =>
+      [
+        s.subject,
+        String(s.count),
+        String(s.correct),
+        String(s.wrong),
+        String(s.empty),
+        accuracyOf(s.correct, s.wrong),
+        total > 0 ? `%${Math.round((s.count / total) * 100)}` : '–',
+        topicsText(s.topics),
+      ].map(k.t)
+    ),
+    columnStyles: {
+      0: { cellWidth: 36, fontStyle: 'bold', textColor: PDF_INK },
+      1: { cellWidth: 13, halign: 'center' },
+      2: { cellWidth: 11, halign: 'center' },
+      3: { cellWidth: 11, halign: 'center' },
+      4: { cellWidth: 11, halign: 'center' },
+      5: { cellWidth: 16, halign: 'center' },
+      6: { cellWidth: 12, halign: 'center' },
+      7: { cellWidth: 'auto' },
     },
   });
+}
 
-  // Table 2: Subject Distribution Table (starts after Table 1)
-  const afterDaysY = (doc as any).lastAutoTable.finalY + 5;
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('DERS BAZINDA SORU DAGILIMI VE BASARI GOSTERGELERI'), margin, afterDaysY);
+function drawStudentNotes(k: PdfKit, notes: { date: string; text: string }[], max: number) {
+  if (!notes.length) return;
+  sectionTitle(k, 'Öğrenci Notları', 10);
+  const shown = notes.slice(0, max);
+  pdfTable(k, {
+    body: shown.map((n) => {
+      const lbl = targetDayLabel(n.date);
+      return [`${lbl.weekday} ${lbl.label}`, truncate(n.text, 300)].map(k.t);
+    }),
+    columnStyles: { 0: { cellWidth: 24, fontStyle: 'bold', textColor: PDF_INK }, 1: { cellWidth: 'auto' } },
+  }, notes.length > max ? 1.5 : 5);
+  if (notes.length > max) paragraph(k, `(${notes.length - max} not daha var; uygulamadan görüntülenebilir.)`, { size: 7.2, color: PDF_MUTED, gap: 3 });
+}
 
-  const subjectTableHead = [
-    [
-      sanitizeForPdf('Ders Adi'),
-      sanitizeForPdf('Haftalik Soru Sayisi'),
-      sanitizeForPdf('Yuzdelik Pay (%)'),
-      sanitizeForPdf('Performans Duzeyi'),
-    ],
-  ];
+const STATUS_COLOR: Record<TargetDayStatus, RGB> = {
+  met: PDF_OK,
+  partial: PDF_WARN,
+  none: PDF_BAD,
+  today: PDF_MUTED,
+  future: PDF_MUTED,
+};
 
-  const subjectTableBody = analytics.subjectBreakdown.map((s) => [
-    sanitizeForPdf(s.subject),
-    `${s.count} Soru`,
-    `%${s.percentage}`,
-    s.percentage >= 25
-      ? sanitizeForPdf('Yuksek Odak (+)')
-      : s.percentage >= 15
-      ? sanitizeForPdf('Duzenli Calisma')
-      : sanitizeForPdf('Temel Tekrar'),
-  ]);
+function subjectTargetsText(st: WeeklyQuestionTarget['subjectTargets']): string {
+  if (!st) return '';
+  const pairs: [string, number][] = Array.isArray(st)
+    ? st.map((x) => [x.subject, Number(x.target) || 0] as [string, number])
+    : Object.entries(st).map(([s, v]) => [s, Number(v) || 0] as [string, number]);
+  return pairs
+    .filter(([s, v]) => s && v > 0)
+    .map(([s, v]) => `${s} ${v}`)
+    .join(', ');
+}
 
-  if (subjectTableBody.length === 0) {
-    subjectTableBody.push([
-      sanitizeForPdf('Bu hafta icin henuz ders bazli soru kaydi bulunmuyor.'),
-      '0',
-      '%0',
-      '-',
-    ]);
+function drawTargetsSection(
+  k: PdfKit,
+  targets: WeeklyQuestionTarget[],
+  studentId: string,
+  logs: StudentQuestionLog[],
+  emptyText: string
+) {
+  sectionTitle(k, 'Soru Hedefleri', targets.length ? 40 : 8);
+  if (!targets.length) {
+    paragraph(k, emptyText, { size: 8.5, color: PDF_TEXT, gap: 4 });
+    return;
+  }
+  targets.forEach((tg, idx) => {
+    const res = computeTargetDays(tg, studentId, logs);
+    const subjectLabel = tg.subject || 'Tüm dersler';
+    const teacher = tg.assignedByTeacherName || tg.assignedBy || 'Belirtilmemiş';
+    const isClass = tg.targetType === 'class';
+    const kind = isClass ? `Sınıf hedefi${tg.className ? ` (${tg.className})` : ''}` : 'Öğrenciye özel hedef';
+    const result = res.elapsedDays
+      ? `${res.metDays}/${res.elapsedDays} günde hedef tuttu${res.rows.some((r) => r.status === 'today') ? ' (bugün devam ediyor)' : ''}`
+      : 'Henüz geçen gün yok';
+
+    ensureSpace(k, 40);
+    pdfFont(k, 'bold', 9.2, PDF_INK);
+    k.doc.text(k.t(`${idx + 1}. ${subjectLabel} hedefi`), k.M, k.y + 3.5);
+    const titleW = k.doc.getTextWidth(k.t(`${idx + 1}. ${subjectLabel} hedefi`));
+    pdfFont(k, 'normal', 7.8, PDF_MUTED);
+    k.doc.text(k.t(`· ${kind}`), k.M + titleW + 2, k.y + 3.5);
+    pdfFont(k, 'bold', 8.5, res.elapsedDays && res.metDays === res.elapsedDays ? PDF_OK : PDF_INK);
+    k.doc.text(k.t(result), k.pageW - k.M, k.y + 3.5, { align: 'right' });
+    k.y += 5.5;
+
+    const span3 = (content: string) => ({ content: k.t(content), colSpan: 3 });
+    const body: any[] = [
+      ['Veren öğretmen', teacher, 'Ders', subjectLabel].map(k.t),
+      ['Tarih aralığı', `${formatTurkishRange(res.start, res.end)} (${res.rows.length} gün)`, 'Günlük hedef', `${res.daily} soru`].map(k.t),
+      ['Toplam hedef', `${res.total} soru`, 'Çözülen', `${res.solved} soru (%${res.percent})`].map(k.t),
+    ];
+    const st = subjectTargetsText(tg.subjectTargets);
+    if (st) body.push([k.t('Ders hedefleri'), span3(st)]);
+    const note = String(tg.notes || '').replace(/\s+/g, ' ').trim();
+    if (note) body.push([k.t('Öğretmen notu'), span3(truncate(note, 400))]);
+    pdfTable(
+      k,
+      {
+        body,
+        styles: { fontSize: 7.8, cellPadding: 1.3 },
+        columnStyles: {
+          0: { cellWidth: 27, fillColor: PDF_SOFT, fontStyle: 'bold', textColor: PDF_INK },
+          1: { cellWidth: 64 },
+          2: { cellWidth: 27, fillColor: PDF_SOFT, fontStyle: 'bold', textColor: PDF_INK },
+          3: { cellWidth: 64 },
+        },
+      },
+      2
+    );
+
+    // Gün gün tablo: 4 satırdan uzunsa iki sütun grubu yan yana (yer kazanmak için)
+    const rows = res.rows;
+    if (rows.length) {
+      const cells = (r: TargetDayRow) => [`${r.weekday} ${r.label}`, String(r.solved), String(res.daily), targetDayStatusText(r, res.daily)];
+      const split = rows.length > 4;
+      const half = Math.ceil(rows.length / 2);
+      const left = split ? rows.slice(0, half) : rows;
+      const right = split ? rows.slice(half) : [];
+      const H = ['Gün', 'Çözülen', 'Hedef', 'Durum'];
+      const body2 = left.map((r, i) =>
+        [...cells(r), ...(split ? (right[i] ? cells(right[i]) : ['', '', '', '']) : [])].map(k.t)
+      );
+      const colsOne = {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 14, halign: 'center' as const },
+        2: { cellWidth: 12, halign: 'center' as const },
+        3: { cellWidth: 43 },
+      };
+      pdfTable(
+        k,
+        {
+          head: [(split ? [...H, ...H] : H).map(k.t)],
+          body: body2,
+          tableWidth: split ? k.W : 91,
+          styles: { fontSize: 7.3, cellPadding: 1.1 },
+          headStyles: { fillColor: PDF_SOFT, fontSize: 7.3 },
+          columnStyles: split
+            ? { ...colsOne, 4: colsOne[0], 5: colsOne[1], 6: colsOne[2], 7: colsOne[3] }
+            : colsOne,
+          didParseCell: (data) => {
+            if (data.section !== 'body') return;
+            const ci = data.column.index;
+            if (split && ci === 4) data.cell.styles.lineWidth = { left: 0.5, top: 0.15, right: 0.15, bottom: 0.15 };
+            if (ci % 4 !== 3) return;
+            const r = ci < 4 ? left[data.row.index] : right[data.row.index];
+            if (!r) return;
+            data.cell.styles.textColor = STATUS_COLOR[r.status];
+            if (r.status === 'met') data.cell.styles.fontStyle = 'bold';
+          },
+        },
+        5
+      );
+    }
+  });
+}
+
+function drawSignatures(k: PdfKit) {
+  ensureSpace(k, 22);
+  k.y += 2;
+  const gap = 14;
+  const colW = (k.W - gap) / 2;
+  ['Öğretmen İmza', 'Veli İmza'].forEach((title, i) => {
+    const x = k.M + i * (colW + gap);
+    pdfFont(k, 'bold', 9, PDF_INK);
+    k.doc.text(k.t(title), x, k.y + 4);
+    k.doc.setDrawColor(...PDF_MUTED);
+    k.doc.setLineWidth(0.3);
+    k.doc.line(x, k.y + 14, x + colW, k.y + 14);
+    pdfFont(k, 'normal', 7, PDF_MUTED);
+    k.doc.text(k.t('Ad Soyad / İmza / Tarih'), x, k.y + 17.5);
+  });
+  k.y += 20;
+}
+
+// Tüm sayfalara üst bilgi (2. sayfadan itibaren) ve alt bilgi (Sayfa N / M, rapor tarihi)
+function drawPageFrames(k: PdfKit, runningHeader: string, footerLeft: string, reportDate: string) {
+  const { doc } = k;
+  const n = doc.getNumberOfPages();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(...PDF_LINE);
+    doc.setLineWidth(0.2);
+    if (i > 1) {
+      pdfFont(k, 'normal', 7.5, PDF_MUTED);
+      doc.text((doc.splitTextToSize(k.t(runningHeader), k.W) as string[])[0] || '', k.M, 10);
+      doc.line(k.M, 12, k.pageW - k.M, 12);
+    }
+    doc.line(k.M, k.pageH - 11, k.pageW - k.M, k.pageH - 11);
+    pdfFont(k, 'normal', 7.2, PDF_MUTED);
+    doc.text((doc.splitTextToSize(k.t(footerLeft), k.W - 62) as string[])[0] || '', k.M, k.pageH - 7);
+    doc.text(k.t(`Rapor tarihi: ${reportDate} · Sayfa ${i} / ${n}`), k.pageW - k.M, k.pageH - 7, { align: 'right' });
+  }
+}
+
+const CHART_W = 1600;
+const CHART_H = 560;
+const CHART_RATIO = CHART_H / CHART_W;
+const CHART_ACCENT = '#4338ca';
+const CHART_TARGET = '#b45309';
+const chartFont = (weight: string, px: number) => `${weight} ${px}px Arial, "Liberation Sans", "Helvetica Neue", "Segoe UI", sans-serif`;
+
+function niceAxis(maxVal: number) {
+  const raw = Math.max(1, maxVal) / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = ([1, 2, 2.5, 5, 10].find((m) => m * mag >= raw) || 10) * mag;
+  return { step, maxY: step * Math.ceil(maxVal / step) };
+}
+
+interface ChartBar {
+  value: number;
+  label: string;
+  sub: string;
+  sub2?: string;
+}
+
+function drawBarChart(bars: ChartBar[], opts: { legend: string; target?: (number | null)[]; targetLegend?: string }): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = CHART_W;
+  canvas.height = CHART_H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return '';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, CHART_W, CHART_H);
+
+  const left = 90;
+  const right = CHART_W - 20;
+  const top = 78;
+  const bottom = CHART_H - (bars.some((b) => b.sub2) ? 112 : 84);
+  const plotH = bottom - top;
+  const targets = opts.target || [];
+  const hasTarget = targets.some((v) => v !== null && v !== undefined && v > 0);
+  const maxVal = Math.max(10, ...bars.map((b) => b.value), ...targets.map((v) => v || 0)) * 1.12;
+  const { step, maxY } = niceAxis(maxVal);
+  const yOf = (v: number) => bottom - (v / maxY) * plotH;
+
+  // Lejant
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = chartFont('600', 24);
+  ctx.fillStyle = CHART_ACCENT;
+  ctx.fillRect(left, 24, 26, 26);
+  ctx.fillStyle = '#374151';
+  ctx.fillText(opts.legend, left + 38, 38);
+  if (hasTarget) {
+    const lx = left + 60 + ctx.measureText(opts.legend).width;
+    ctx.strokeStyle = CHART_TARGET;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath();
+    ctx.moveTo(lx, 38);
+    ctx.lineTo(lx + 50, 38);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#374151';
+    ctx.fillText(opts.targetLegend || 'Günlük hedef', lx + 62, 38);
   }
 
-  autoTable(doc, {
-    startY: afterDaysY + 3,
-    margin: { left: margin, right: margin },
-    head: subjectTableHead,
-    body: subjectTableBody,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: 2.2,
-    },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.0,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 60 },
-      1: { cellWidth: 38, halign: 'center' },
-      2: { cellWidth: 38, halign: 'center' },
-      3: { cellWidth: 50, halign: 'center' },
-    },
+  // Izgara ve eksen
+  ctx.textAlign = 'right';
+  ctx.font = chartFont('400', 22);
+  for (let v = 0; v <= maxY + 0.001; v += step) {
+    const y = yOf(v);
+    ctx.strokeStyle = v === 0 ? '#9ca3af' : '#e5e7eb';
+    ctx.lineWidth = v === 0 ? 2 : 1.5;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(String(Math.round(v * 10) / 10), left - 14, y);
+  }
+
+  const slot = (right - left) / Math.max(1, bars.length);
+  const barW = Math.min(slot * 0.58, 170);
+  bars.forEach((b, i) => {
+    const cx = left + slot * i + slot / 2;
+    const x = cx - barW / 2;
+    if (b.value > 0) {
+      const y = yOf(b.value);
+      const h = Math.max(bottom - y, 3);
+      ctx.fillStyle = CHART_ACCENT;
+      ctx.beginPath();
+      ctx.roundRect(x, bottom - h, barW, h, [8, 8, 0, 0]);
+      ctx.fill();
+    }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = chartFont('700', 25);
+    ctx.fillStyle = b.value > 0 ? '#111827' : '#9ca3af';
+    ctx.fillText(String(b.value), cx, yOf(b.value) - 10);
+    ctx.font = chartFont('700', 24);
+    ctx.fillStyle = '#111827';
+    ctx.fillText(b.label, cx, bottom + 34);
+    ctx.font = chartFont('400', 22);
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText(b.sub, cx, bottom + 62);
+    if (b.sub2) ctx.fillText(b.sub2, cx, bottom + 90);
   });
 
-  // Guidance Recommendations Note Box
-  const afterSubjectY = (doc as any).lastAutoTable?.finalY || 140;
-  const guideBoxY = afterSubjectY + 5;
-  const guideBoxHeight = 32;
-
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, guideBoxY, contentWidth, guideBoxHeight, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(234, 88, 12);
-  doc.text(
-    sanitizeForPdf('REHBERLIK VE HAFTALIK CALISMA TAVSIYELERI'),
-    margin + 4,
-    guideBoxY + 6.5
-  );
-
-  const guideNotes = [
-    '1. Eksik kalan veya yanlis yapilan sorularin cozum videolarini izleyip ogretmene sormayi unutmayiniz.',
-    '2. Soru cozumunu tek bir gune yigmak yerine tum haftaya yayarak hafizada kaliciligi guclendiriniz.',
-    '3. Duzenli soru takibi ve deneme sinavlari icin haftalik calisma cizelgenizi rehber ogretmeninizle paylasiniz.',
-  ];
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  guideNotes.forEach((n, idx) => {
-    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 5.8);
-  });
-
-  // Official Institutional Signatures Box (Dinamik olarak rehberlik kutusunun altına yerleşir)
-  const sigY = Math.max(guideBoxY + guideBoxHeight + 6, 240);
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, sigY, contentWidth, 36, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 41, 59);
-  doc.text(sanitizeForPdf('Danisman / Brans Ogretmeni'), margin + 16, sigY + 8);
-  doc.text(sanitizeForPdf('Ogrenci / Veli Onayi'), pageWidth - margin - 60, sigY + 8);
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text(
-    sanitizeForPdf(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`),
-    margin + 16,
-    sigY + 15
-  );
-  doc.text(
-    sanitizeForPdf(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`),
-    pageWidth - margin - 60,
-    sigY + 15
-  );
-
-  doc.text('Imza: _______________________', margin + 16, sigY + 26);
-  doc.text('Imza: _______________________', pageWidth - margin - 60, sigY + 26);
-
-  // Page 2 Footer
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    sanitizeForPdf('Sayfa 2 / 2 - Egitim & Ogrenci Takip Sistemi - Resmi Analiz Ciktisi'),
-    pageWidth / 2,
-    290,
-    { align: 'center' }
-  );
-
-  doc.save(`${analytics.studentName.replace(/\s+/g, '_')}_Haftalik_Soru_Raporu.pdf`);
+  // Günlük hedef çizgisi (genel hedefin kapsadığı günler)
+  if (hasTarget) {
+    ctx.strokeStyle = CHART_TARGET;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([14, 10]);
+    targets.forEach((v, i) => {
+      if (!v || v <= 0) return;
+      const y = yOf(v);
+      ctx.beginPath();
+      ctx.moveTo(left + slot * i + 4, y);
+      ctx.lineTo(left + slot * (i + 1) - 4, y);
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+  return canvas.toDataURL('image/png');
 }
 
 /**
- * Downloads a high-quality, professional 2-Page PDF Report for Monthly Analytics
- * with zero text-shifting, mathematically exact positioning, and an embedded high-resolution chart.
+ * Haftalık grafik (PDF için). Oran 1600x560; PDF'te en-boy oranı korunarak yerleştirilir.
+ * dailyTargets: her gün için genel hedefin günlük sayısı (yoksa null) — kesikli çizgi olarak çizilir.
  */
-export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Student | null): void {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
+export function generateWeeklyChartCanvas(analytics: WeeklyAnalytics, dailyTargets?: (number | null)[]): string {
+  const bars: ChartBar[] = analytics.days.map((d) => {
+    const lbl = targetDayLabel(d.dateStr);
+    const answered = d.totalCorrect + d.totalWrong;
+    return {
+      value: d.totalQuestions,
+      label: d.dayName,
+      sub: lbl.label,
+      sub2: answered > 0 ? `%${Math.round((d.totalCorrect / answered) * 100)} doğru` : '',
+    };
   });
+  const vals = (dailyTargets || []).filter((v): v is number => !!v && v > 0);
+  const same = vals.length > 0 && vals.every((v) => v === vals[0]);
+  return drawBarChart(bars, {
+    legend: 'Çözülen soru',
+    target: dailyTargets,
+    targetLegend: same ? `Günlük hedef (${vals[0]} soru)` : 'Günlük hedef',
+  });
+}
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 12;
-  const contentWidth = pageWidth - margin * 2; // 186 mm
+/**
+ * Aylık grafik (PDF için): ayın haftalarına göre çözülen soru.
+ */
+export function generateMonthlyChartCanvas(analytics: MonthlyAnalytics): string {
+  const bars: ChartBar[] = analytics.weeks.map((w) => {
+    const a = parseYmdLocal(w.startDateStr);
+    const b = parseYmdLocal(w.endDateStr);
+    const range = a && b ? `${a.d}–${b.d} ${TURKISH_MONTHS[b.m]}` : '';
+    return {
+      value: w.totalQuestions,
+      label: `${w.weekIndex}. Hafta`,
+      sub: range,
+      sub2: `${w.activeDaysCount} gün aktif`,
+    };
+  });
+  return drawBarChart(bars, { legend: 'Haftalık çözülen soru' });
+}
 
-  // =========================================================================
-  // PAGE 1: YÖNETİCİ ÖZETİ, AYLIK METRİKLER VE GRAFİK
-  // =========================================================================
+export interface PdfTargetOptions {
+  logs?: StudentQuestionLog[];
+  // Rapor tarih aralığına denk gelen hedefleri döndürür (YYYY-MM-DD, YYYY-MM-DD)
+  getTargets?: (rangeStart: string, rangeEnd: string) => WeeklyQuestionTarget[];
+}
 
-  // Header Banner
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 26, 'F');
-
-  // Violet Accent Bar
-  doc.setFillColor(124, 58, 237);
-  doc.rect(0, 26, pageWidth, 1.8, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text(
-    sanitizeForPdf('OGRENCI AYLIK SORU COZUM VE BASARI ANALIZ RAPORU'),
-    pageWidth / 2,
-    11,
-    { align: 'center' }
-  );
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    sanitizeForPdf('Aylik Toplam Soru Sayisi, Haftalik Gelisim ve Gecmis Aya Gore Ilerleme'),
-    pageWidth / 2,
-    18,
-    { align: 'center' }
-  );
-
-  // Student Info Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, 31, contentWidth, 18, 2, 2, 'FD');
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(sanitizeForPdf(`Ogrenci: ${analytics.studentName}`), margin + 5, 37.5);
-  doc.text(
-    sanitizeForPdf(`Sinif: ${analytics.className || student?.className || 'Genel'}`),
-    margin + 5,
-    44.5
-  );
-
-  if (student?.studentNumber) {
-    doc.text(sanitizeForPdf(`No: #${student.studentNumber}`), margin + 65, 44.5);
+function safeTargets(options: PdfTargetOptions | undefined, start: string, end: string): WeeklyQuestionTarget[] {
+  try {
+    return options?.getTargets ? options.getTargets(start, end) || [] : [];
+  } catch (e) {
+    console.warn('[PDF] Hedefler alınamadı:', e);
+    return [];
   }
+}
 
-  doc.text(sanitizeForPdf(`Analiz Ayi: ${analytics.monthLabel}`), margin + 105, 37.5);
-  doc.text(
-    sanitizeForPdf(`Rapor Tarihi: ${new Date().toLocaleDateString('tr-TR')}`),
-    margin + 105,
-    44.5
-  );
+/**
+ * Haftalık soru çözüm raporu (PDF). Normal bir hafta 1-2 sayfadır.
+ */
+export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
+  const k = createPdfKit();
+  const { date: reportDate, dateTime } = nowTr();
+  const today = formatDateISO(new Date());
+  const logs = options?.logs || [];
+  const studentId = analytics.studentId;
+  const className = analytics.className || student?.className || '–';
+  const period = formatTurkishRange(analytics.startDateStr, analytics.endDateStr);
+  const targets = safeTargets(options, analytics.startDateStr, analytics.endDateStr);
+  const details = collectPeriodDetails(options?.logs, studentId, analytics.startDateStr, analytics.endDateStr);
+  const hasData = analytics.totalQuestions > 0;
 
-  // Summary Metrics AutoTable
-  const metricsData = [
+  // Genel (ders seçilmemiş) hedef: günlük tablodaki "Durum" ve grafikteki hedef çizgisi bunun günlük sayısını kullanır
+  const general = targets.find((t) => !t.subject) || null;
+  const generalRes = general ? computeTargetDays(general, studentId, logs, today) : null;
+  const generalRow = (ymd: string) => generalRes?.rows.find((r) => r.ymd === ymd) || null;
+
+  drawReportHeader(k, 'Haftalık Soru Çözüm Raporu', dateTime);
+  drawInfoRow(
+    k,
     [
-      sanitizeForPdf('Ayda Cozulen Toplam Soru'),
-      `${analytics.totalQuestions} Soru`,
-      sanitizeForPdf('Haftalik Ortalama Soru'),
-      `${analytics.weeklyAverage} Soru / Hafta`,
+      ['Öğrenci', analytics.studentName],
+      ['Sınıf', className],
+      ['Öğrenci No', student?.studentNumber || '–'],
+      ['Hafta', period],
     ],
-    [
-      sanitizeForPdf('Aktif Calisilan Gunler'),
-      `${analytics.activeDaysCount} Gun`,
-      sanitizeForPdf('Gecmis Aya Gore Ilerleme'),
-      `${analytics.monthlyDifference >= 0 ? '+' : ''}${analytics.monthlyDifference} Soru (%${
-        analytics.monthlyGrowthRate >= 0 ? '+' : ''
-      }${analytics.monthlyGrowthRate})`,
-    ],
-    [
-      sanitizeForPdf('Onceki Ay Toplami'),
-      `${analytics.previousMonthTotal} Soru`,
-      sanitizeForPdf('Genel Basari Durumu'),
-      sanitizeForPdf(analytics.statusAssessment.badgeText),
-    ],
-  ];
-
-  autoTable(doc, {
-    startY: 50,
-    margin: { left: margin, right: margin },
-    body: metricsData,
-    theme: 'grid',
-    styles: {
-      fontSize: 8,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      1: { fontStyle: 'bold', textColor: [234, 88, 12], cellWidth: 46.5 },
-      2: { fontStyle: 'bold', fillColor: [241, 245, 249], cellWidth: 46.5 },
-      3: { fontStyle: 'bold', cellWidth: 46.5 },
-    },
-  });
-
-  // EMBEDDED HIGH-RESOLUTION GRAPHIC (Dinamik Konumlandırma - Tablonun altına tam oturur, asla üstüne binmez)
-  const metricsTableEnd = (doc as any).lastAutoTable?.finalY || 76;
-  const chartY = metricsTableEnd + 4;
-  const chartHeight = 74;
-  const chartImg = generateMonthlyChartCanvas(analytics);
-  if (chartImg) {
-    doc.addImage(chartImg, 'PNG', margin, chartY, contentWidth, chartHeight);
-  }
-
-  // Monthly Pedagogical Assessment Card (Grafiğin hemen altına dinamik olarak yerleşir)
-  const reportBoxY = chartY + chartHeight + 4;
-  const reportBoxHeight = 44;
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(234, 88, 12);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(margin, reportBoxY, contentWidth, reportBoxHeight, 2.5, 2.5, 'FD');
-
-  doc.setFillColor(255, 247, 237);
-  doc.rect(margin + 0.6, reportBoxY + 0.6, contentWidth - 1.2, 7.5, 'F');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(194, 65, 12);
-  doc.text(
-    sanitizeForPdf(
-      `AYLIK PEDAGOJIK DEGERLENDIRME VE BASARI: ${analytics.statusAssessment.badgeText.toUpperCase()}`
-    ),
-    margin + 4,
-    reportBoxY + 5.5
+    [52, 40, 26, 64]
   );
 
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(30, 41, 59);
-  const splitText = doc.splitTextToSize(
-    sanitizeForPdf(analytics.statusAssessment.reportSummary),
-    contentWidth - 8
-  );
-  doc.text(splitText, margin + 4, reportBoxY + 12);
+  const prevText =
+    analytics.previousWeekTotal > 0
+      ? `Önceki hafta ${analytics.previousWeekTotal} soru (değişim ${analytics.weeklyDifference >= 0 ? '+' : ''}${analytics.weeklyDifference} soru)`
+      : 'Önceki haftada kayıt yok';
 
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(71, 85, 105);
-  doc.text(sanitizeForPdf('Aylik Gelisim Hedefi:'), margin + 4, reportBoxY + 28);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  const monthlyHabitNote = `Ay boyunca ${analytics.activeDaysCount} gun aktif calisma yapildi. Aylik toplam ${analytics.totalQuestions} soruya ulasildi. Gelecek ay icin hedefi korumak ve her hafta en az ${Math.round(
-    analytics.weeklyAverage * 1.1
-  )} soruya ulasmak onerilir.`;
-  const splitMonthlyHabit = doc.splitTextToSize(sanitizeForPdf(monthlyHabitNote), contentWidth - 8);
-  doc.text(splitMonthlyHabit, margin + 4, reportBoxY + 33);
-
-  // Highlights Card (Dinamik olarak değerlendirme kartının altına yerleşir)
-  const highY = reportBoxY + reportBoxHeight + 4;
-  const highHeight = 40;
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(margin, highY, contentWidth, highHeight, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('AYLIK ONEMLI BASARI VE ODOS DETAYLARI'), margin + 4, highY + 6);
-
-  const topWeek = [...analytics.weeks].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
-  const topMonthlySubject = analytics.subjectBreakdown[0];
-
-  const monthlyHighlights = [
-    `• En Verimli Hafta: ${topWeek ? `${topWeek.weekIndex}. Hafta (${topWeek.totalQuestions} Soru)` : '-'}`,
-    `• En Cok Cozulen Ders: ${topMonthlySubject ? `${topMonthlySubject.subject} (%${topMonthlySubject.percentage} pay)` : 'Belirtilmedi'}`,
-    `• Aylik Soru Artisi: ${analytics.monthlyDifference >= 0 ? '+' : ''}${analytics.monthlyDifference} Soru gecmis aya gore degisim`,
-    `• Calisma Sikligi: Ayin ${analytics.activeDaysCount} gununde aktif akademik calisma gerceklesti`,
-  ];
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  monthlyHighlights.forEach((h, idx) => {
-    doc.text(sanitizeForPdf(h), margin + 4, highY + 13 + idx * 6.5);
-  });
-
-  // Page 1 Footer
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    sanitizeForPdf('Sayfa 1 / 2 - Egitim & Ogrenci Takip Sistemi - Resmi Analiz Ciktisi'),
-    pageWidth / 2,
-    290,
-    { align: 'center' }
-  );
-
-  // =========================================================================
-  // PAGE 2: HAFTALIK ÇİZELGE, DERS DAĞILIMI VE RESMİ ONAYLAR
-  // =========================================================================
-  doc.addPage();
-
-  // Page 2 Header Banner
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 20, 'F');
-
-  doc.setFillColor(124, 58, 237);
-  doc.rect(0, 20, pageWidth, 1.5, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(
-    sanitizeForPdf('DETAYLI AYLIK HAFTALIK DAGILIM VE DERS CIZELGESI'),
-    pageWidth / 2,
-    9.5,
-    { align: 'center' }
-  );
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    sanitizeForPdf(
-      `Ogrenci: ${analytics.studentName} - Sinif: ${analytics.className || 'Genel'} - Donem: ${analytics.monthLabel}`
-    ),
-    pageWidth / 2,
-    16,
-    { align: 'center' }
-  );
-
-  // Table 1: Weekly Breakdown in Month Table (startY: 25mm)
-  const weeksTableHead = [
-    [
-      sanitizeForPdf('Hafta'),
-      sanitizeForPdf('Tarih Araligi'),
-      sanitizeForPdf('Haftalik Soru Sayisi'),
-      sanitizeForPdf('Aktif Gun'),
-      sanitizeForPdf('Agirlikli Ders'),
-    ],
-  ];
-
-  const weeksTableBody = analytics.weeks.map((w) => [
-    `${w.weekIndex}. Hafta`,
-    sanitizeForPdf(w.weekLabel),
-    `${w.totalQuestions} Soru`,
-    `${w.activeDaysCount} Gun`,
-    sanitizeForPdf(w.topSubject || '-'),
-  ]);
-
-  autoTable(doc, {
-    startY: 25,
-    margin: { left: margin, right: margin },
-    head: weeksTableHead,
-    body: weeksTableBody,
-    theme: 'striped',
-    headStyles: {
-      fillColor: [124, 58, 237],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: 2.2,
-    },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.0,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 26 },
-      1: { cellWidth: 54 },
-      2: { fontStyle: 'bold', cellWidth: 36, halign: 'center' },
-      3: { cellWidth: 32, halign: 'center' },
-      4: { cellWidth: 38, halign: 'center' },
-    },
-  });
-
-  // Table 2: Subject Distribution Table
-  const afterWeeksY = (doc as any).lastAutoTable.finalY + 5;
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(15, 23, 42);
-  doc.text(sanitizeForPdf('DERS BAZINDA AYLIK SORU DAGILIMI VE AGIRLIKLAR'), margin, afterWeeksY);
-
-  const subjectTableHead = [
-    [
-      sanitizeForPdf('Ders Adi'),
-      sanitizeForPdf('Aylik Cozulen Soru'),
-      sanitizeForPdf('Yuzdelik Pay (%)'),
-      sanitizeForPdf('Akademik Durum'),
-    ],
-  ];
-
-  const subjectTableBody = analytics.subjectBreakdown.map((s) => [
-    sanitizeForPdf(s.subject),
-    `${s.count} Soru`,
-    `%${s.percentage}`,
-    s.percentage >= 25
-      ? sanitizeForPdf('Yuksek Yogunluk (+)')
-      : s.percentage >= 15
-      ? sanitizeForPdf('Duzenli Calisma')
-      : sanitizeForPdf('Temel Hacim'),
-  ]);
-
-  if (subjectTableBody.length === 0) {
-    subjectTableBody.push([
-      sanitizeForPdf('Bu ay icin henuz soru kaydi bulunmuyor.'),
-      '0',
-      '%0',
-      '-',
+  if (!hasData) {
+    drawNoticeBox(
+      k,
+      'Bu hafta soru kaydı yok',
+      `${period} tarihleri arasında öğrenci soru çözümü girmedi. ${prevText}.`
+    );
+  } else {
+    drawKpiTiles(k, [
+      { label: 'Toplam soru', value: String(analytics.totalQuestions) },
+      { label: 'Doğru', value: String(analytics.totalCorrect) },
+      { label: 'Yanlış', value: String(analytics.totalWrong) },
+      { label: 'Boş', value: String(analytics.totalEmpty) },
+      { label: 'Doğruluk', value: accuracyOf(analytics.totalCorrect, analytics.totalWrong) },
+      { label: 'Çalışılan gün', value: `${analytics.solvedDaysCount} / 7` },
     ]);
+    paragraph(
+      k,
+      `Günlük ortalama ${fmtNum(analytics.dailyAverage)} soru · ${prevText}` +
+        (general && generalRes ? ` · Genel günlük hedef ${generalRes.daily} soru` : ''),
+      { size: 8, color: PDF_MUTED, gap: 3 }
+    );
+
+    // Grafik
+    const dailyTargets = analytics.days.map((d) => (generalRow(d.dateStr) ? generalRes!.daily : null));
+    drawChartImage(k, generateWeeklyChartCanvas(analytics, dailyTargets), CHART_RATIO);
+
+    // Değerlendirme
+    sectionTitle(k, 'Değerlendirme', 10);
+    const bestDay = [...analytics.days].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
+    const topSubject = analytics.subjectBreakdown[0];
+    const parts = [analytics.statusAssessment.reportSummary];
+    if (bestDay && bestDay.totalQuestions > 0) parts.push(`En çok soru ${bestDay.dayName} günü çözüldü (${bestDay.totalQuestions} soru).`);
+    if (topSubject)
+      parts.push(
+        analytics.subjectBreakdown.length === 1
+          ? `Çalışılan tek ders: ${topSubject.subject}.`
+          : `En çok çalışılan ders: ${topSubject.subject} (toplamın %${topSubject.percentage} kadarı).`
+      );
+    parts.push(
+      analytics.unsolvedDays.length > 0
+        ? `Soru girilmeyen günler: ${analytics.unsolvedDays.join(', ')}.`
+        : 'Haftanın her günü soru çözüldü.'
+    );
+    paragraph(k, parts.join(' '), { size: 8.5, gap: 3 });
+
+    // Günlük döküm
+    sectionTitle(k, 'Günlük Döküm', 30);
+    const statusOf = (d: DayQuestionSummary): { text: string; color: RGB; bold?: boolean } => {
+      const row = generalRow(d.dateStr);
+      if (row && generalRes) {
+        return { text: targetDayStatusText(row, generalRes.daily), color: STATUS_COLOR[row.status], bold: row.status === 'met' };
+      }
+      if (d.hasSolved) return { text: 'Soru çözüldü', color: PDF_TEXT };
+      if (d.dateStr > today) return { text: 'Henüz gelmedi', color: PDF_MUTED };
+      if (d.dateStr === today) return { text: 'Bugün · henüz girilmedi', color: PDF_MUTED };
+      return { text: 'Kayıt yok', color: PDF_BAD };
+    };
+    const statuses = analytics.days.map(statusOf);
+    pdfTable(
+      k,
+      {
+        head: [['Gün', 'Soru', 'D', 'Y', 'B', 'Doğruluk', 'Dersler', general ? `Durum (hedef ${generalRes!.daily})` : 'Durum'].map(k.t)],
+        body: analytics.days.map((d, i) =>
+          [
+            `${d.dayShortName} ${targetDayLabel(d.dateStr).label}`,
+            String(d.totalQuestions),
+            String(d.totalCorrect),
+            String(d.totalWrong),
+            String(d.totalEmpty),
+            accuracyOf(d.totalCorrect, d.totalWrong),
+            d.subjects.length ? d.subjects.map((s) => `${s.subject} ${s.count}`).join(', ') : '–',
+            statuses[i].text,
+          ].map(k.t)
+        ),
+        columnStyles: {
+          0: { cellWidth: 22, fontStyle: 'bold', textColor: PDF_INK },
+          1: { cellWidth: 12, halign: 'center', fontStyle: 'bold', textColor: PDF_INK },
+          2: { cellWidth: 10, halign: 'center' },
+          3: { cellWidth: 10, halign: 'center' },
+          4: { cellWidth: 10, halign: 'center' },
+          5: { cellWidth: 16, halign: 'center' },
+          6: { cellWidth: 'auto' },
+          7: { cellWidth: 34 },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 7) {
+            const s = statuses[data.row.index];
+            data.cell.styles.textColor = s.color;
+            if (s.bold) data.cell.styles.fontStyle = 'bold';
+          }
+        },
+      },
+      1.5
+    );
+    paragraph(
+      k,
+      'D: doğru, Y: yanlış, B: boş. Doğruluk = doğru / (doğru + yanlış).' +
+        (general ? ' Durum, öğretmenin genel (tüm dersler) hedefinin günlük sayısına göredir.' : ' Bu hafta genel bir günlük hedef olmadığı için gün bazında hedef değerlendirmesi yapılmadı.'),
+      { size: 7.2, color: PDF_MUTED, gap: 4 }
+    );
+
+    // Ders dağılımı
+    const subjects: PdfSubjectStat[] =
+      details?.subjects ??
+      analytics.subjectBreakdown.map((s) => {
+        let correct = 0;
+        let wrong = 0;
+        analytics.days.forEach((d) =>
+          d.subjects.forEach((x) => {
+            if (x.subject === s.subject) {
+              correct += x.correct || 0;
+              wrong += x.wrong || 0;
+            }
+          })
+        );
+        return { subject: s.subject, count: s.count, correct, wrong, empty: Math.max(0, s.count - correct - wrong), topics: [] };
+      });
+    if (subjects.length) drawSubjectTable(k, subjects, analytics.totalQuestions);
   }
 
-  autoTable(doc, {
-    startY: afterWeeksY + 3,
-    margin: { left: margin, right: margin },
-    head: subjectTableHead,
-    body: subjectTableBody,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      fontSize: 8,
-      cellPadding: 2.2,
-    },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.0,
-      textColor: [30, 41, 59],
-    },
-    columnStyles: {
-      0: { fontStyle: 'bold', cellWidth: 60 },
-      1: { cellWidth: 38, halign: 'center' },
-      2: { cellWidth: 38, halign: 'center' },
-      3: { cellWidth: 50, halign: 'center' },
-    },
-  });
-
-  // Monthly Study Recommendations Note Box
-  const afterSubjectY = (doc as any).lastAutoTable?.finalY || 140;
-  const guideBoxY = afterSubjectY + 5;
-  const guideBoxHeight = 32;
-
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(margin, guideBoxY, contentWidth, guideBoxHeight, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(234, 88, 12);
-  doc.text(
-    sanitizeForPdf('REHBERLIK VE GELECEK AY CALISMA PLANLAMASI'),
-    margin + 4,
-    guideBoxY + 6.5
+  if (details) drawStudentNotes(k, details.notes, 10);
+  drawTargetsSection(k, targets, studentId, logs, 'Bu dönem için öğretmen hedefi yok.');
+  drawSignatures(k);
+  drawPageFrames(
+    k,
+    `Haftalık Soru Çözüm Raporu · ${analytics.studentName} (${className}) · ${period}`,
+    `${analytics.studentName} · ${period}`,
+    reportDate
   );
 
-  const guideNotes = [
-    '1. Gelecek ay basinda belirlenen soru hedefinin haftalara dengeli bolunmesi basariyi artiracaktir.',
-    '2. Yuzdelik payi dusuk kalan derslerdeki eksik kazanimlar icin brans ogretmenlerinden etut talep ediniz.',
-    '3. Aylik gelişim grafiginizi aileniz ve rehber ogretmeniniz ile birlikte degerlendiriniz.',
-  ];
+  k.doc.save(`${analytics.studentName.replace(/\s+/g, '_')}_Haftalik_Soru_Raporu.pdf`);
+}
 
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(51, 65, 85);
-  guideNotes.forEach((n, idx) => {
-    doc.text(sanitizeForPdf(n), margin + 4, guideBoxY + 13 + idx * 5.8);
-  });
+/**
+ * Aylık soru çözüm raporu (PDF).
+ */
+export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
+  const k = createPdfKit();
+  const { date: reportDate, dateTime } = nowTr();
+  const logs = options?.logs || [];
+  const studentId = analytics.studentId;
+  const className = analytics.className || student?.className || '–';
+  const daysInMonth = new Date(analytics.year, analytics.month + 1, 0).getDate();
+  const mm = String(analytics.month + 1).padStart(2, '0');
+  const monthStart = `${analytics.year}-${mm}-01`;
+  const monthEnd = `${analytics.year}-${mm}-${String(daysInMonth).padStart(2, '0')}`;
+  const targets = safeTargets(options, monthStart, monthEnd);
+  const details = collectPeriodDetails(options?.logs, studentId, monthStart, monthEnd);
+  const hasData = analytics.totalQuestions > 0;
+  const prevMonthDate = new Date(analytics.year, analytics.month - 1, 1);
+  const prevMonthLabel = `${TURKISH_MONTHS[prevMonthDate.getMonth()]} ${prevMonthDate.getFullYear()}`;
 
-  // Official Institutional Signatures Box (Dinamik olarak rehberlik kutusunun altına yerleşir)
-  const sigY = Math.max(guideBoxY + guideBoxHeight + 6, 240);
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, sigY, contentWidth, 36, 2, 2, 'FD');
-
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 41, 59);
-  doc.text(sanitizeForPdf('Danisman / Brans Ogretmeni'), margin + 16, sigY + 8);
-  doc.text(sanitizeForPdf('Ogrenci / Veli Onayi'), pageWidth - margin - 60, sigY + 8);
-
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text(
-    sanitizeForPdf(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`),
-    margin + 16,
-    sigY + 15
-  );
-  doc.text(
-    sanitizeForPdf(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`),
-    pageWidth - margin - 60,
-    sigY + 15
+  drawReportHeader(k, 'Aylık Soru Çözüm Raporu', dateTime);
+  drawInfoRow(
+    k,
+    [
+      ['Öğrenci', analytics.studentName],
+      ['Sınıf', className],
+      ['Öğrenci No', student?.studentNumber || '–'],
+      ['Ay', `${analytics.monthLabel} (${formatTurkishRange(monthStart, monthEnd)})`],
+    ],
+    [52, 40, 26, 64]
   );
 
-  doc.text('Imza: _______________________', margin + 16, sigY + 26);
-  doc.text('Imza: _______________________', pageWidth - margin - 60, sigY + 26);
+  const prevText =
+    analytics.previousMonthTotal > 0
+      ? `Önceki ay (${prevMonthLabel}) ${analytics.previousMonthTotal} soru (değişim ${analytics.monthlyDifference >= 0 ? '+' : ''}${analytics.monthlyDifference} soru)`
+      : `Önceki ayda (${prevMonthLabel}) kayıt yok`;
 
-  // Page 2 Footer
-  doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(148, 163, 184);
-  doc.text(
-    sanitizeForPdf('Sayfa 2 / 2 - Egitim & Ogrenci Takip Sistemi - Resmi Analiz Ciktisi'),
-    pageWidth / 2,
-    290,
-    { align: 'center' }
+  if (!hasData) {
+    drawNoticeBox(k, 'Bu ay soru kaydı yok', `${analytics.monthLabel} ayında öğrenci soru çözümü girmedi. ${prevText}.`);
+  } else {
+    drawKpiTiles(k, [
+      { label: 'Toplam soru', value: String(analytics.totalQuestions) },
+      { label: 'Doğru', value: String(analytics.totalCorrect) },
+      { label: 'Yanlış', value: String(analytics.totalWrong) },
+      { label: 'Boş', value: String(analytics.totalEmpty) },
+      { label: 'Doğruluk', value: accuracyOf(analytics.totalCorrect, analytics.totalWrong) },
+      { label: 'Çalışılan gün', value: `${analytics.activeDaysCount} / ${daysInMonth}` },
+    ]);
+    paragraph(k, `Haftalık ortalama ${analytics.weeklyAverage} soru · ${prevText}`, { size: 8, color: PDF_MUTED, gap: 3 });
+
+    drawChartImage(k, generateMonthlyChartCanvas(analytics), CHART_RATIO);
+
+    sectionTitle(k, 'Değerlendirme', 10);
+    const topWeek = [...analytics.weeks].sort((a, b) => b.totalQuestions - a.totalQuestions)[0];
+    const topSubject = analytics.subjectBreakdown[0];
+    const parts = [analytics.statusAssessment.reportSummary];
+    if (topWeek && topWeek.totalQuestions > 0) parts.push(`En çok soru ${topWeek.weekIndex}. haftada çözüldü (${topWeek.totalQuestions} soru).`);
+    if (topSubject)
+      parts.push(
+        analytics.subjectBreakdown.length === 1
+          ? `Çalışılan tek ders: ${topSubject.subject}.`
+          : `En çok çalışılan ders: ${topSubject.subject} (toplamın %${topSubject.percentage} kadarı).`
+      );
+    parts.push(`Ayın ${daysInMonth} gününün ${analytics.activeDaysCount} gününde soru çözüldü.`);
+    paragraph(k, parts.join(' '), { size: 8.5, gap: 3 });
+
+    // Haftalık döküm (haftaların boş sayısı kayıtlardan hesaplanır)
+    sectionTitle(k, 'Haftalık Döküm', 26);
+    const weekEmpty = (w: WeekInMonthSummary) =>
+      logs
+        .filter((l) => l.studentId === studentId && l.date >= w.startDateStr && l.date <= w.endDateStr)
+        .reduce((a, l) => a + (Number(l.totalEmpty) || 0), 0);
+    pdfTable(
+      k,
+      {
+        head: [['Hafta', 'Tarih', 'Soru', 'D', 'Y', 'B', 'Doğruluk', 'Aktif gün', 'En çok çalışılan ders'].map(k.t)],
+        body: analytics.weeks.map((w) =>
+          [
+            `${w.weekIndex}. Hafta`,
+            formatTurkishRange(w.startDateStr, w.endDateStr),
+            String(w.totalQuestions),
+            String(w.totalCorrect),
+            String(w.totalWrong),
+            options?.logs ? String(weekEmpty(w)) : '–',
+            accuracyOf(w.totalCorrect, w.totalWrong),
+            String(w.activeDaysCount),
+            w.totalQuestions > 0 ? w.topSubject || '–' : '–',
+          ].map(k.t)
+        ),
+        columnStyles: {
+          0: { cellWidth: 18, fontStyle: 'bold', textColor: PDF_INK },
+          1: { cellWidth: 34 },
+          2: { cellWidth: 13, halign: 'center', fontStyle: 'bold', textColor: PDF_INK },
+          3: { cellWidth: 11, halign: 'center' },
+          4: { cellWidth: 11, halign: 'center' },
+          5: { cellWidth: 11, halign: 'center' },
+          6: { cellWidth: 16, halign: 'center' },
+          7: { cellWidth: 16, halign: 'center' },
+          8: { cellWidth: 'auto' },
+        },
+      },
+      1.5
+    );
+    paragraph(k, 'D: doğru, Y: yanlış, B: boş. Doğruluk = doğru / (doğru + yanlış).', { size: 7.2, color: PDF_MUTED, gap: 4 });
+
+    const subjects: PdfSubjectStat[] =
+      details?.subjects ??
+      analytics.subjectBreakdown.map((s) => ({ subject: s.subject, count: s.count, correct: 0, wrong: 0, empty: 0, topics: [] }));
+    if (subjects.length) drawSubjectTable(k, subjects, analytics.totalQuestions);
+  }
+
+  if (details) drawStudentNotes(k, details.notes, 15);
+  drawTargetsSection(k, targets, studentId, logs, 'Bu dönem için öğretmen hedefi yok.');
+  drawSignatures(k);
+  drawPageFrames(
+    k,
+    `Aylık Soru Çözüm Raporu · ${analytics.studentName} (${className}) · ${analytics.monthLabel}`,
+    `${analytics.studentName} · ${analytics.monthLabel}`,
+    reportDate
   );
 
-  doc.save(`${analytics.studentName.replace(/\s+/g, '_')}_Aylik_Soru_Raporu.pdf`);
+  k.doc.save(`${analytics.studentName.replace(/\s+/g, '_')}_Aylik_Soru_Raporu.pdf`);
 }

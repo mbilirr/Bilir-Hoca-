@@ -1,17 +1,5 @@
 import React, { useState, useRef } from 'react';
-import {
-  X,
-  FileSpreadsheet,
-  Upload,
-  Download,
-  CheckCircle2,
-  AlertCircle,
-  School,
-  Trash2,
-  Sparkles,
-  Clipboard,
-  FileText,
-} from 'lucide-react';
+import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Trash2, Sparkles, Clipboard, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ClassGroup } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -22,6 +10,20 @@ import {
   detectSchoolLevelFromGrade,
   formatClassDisplayName,
 } from '../../constants/schoolConstants';
+import { Modal, Segmented, cx } from '../ui/kit';
+import {
+  CLASS_COLUMNS,
+  SheetRow,
+  matrixToRows,
+  resolveColumns,
+  textToMatrix,
+  trFold,
+  parseClassName,
+  parseBranch,
+  normalizeClassKey,
+  normalizeAcademicYear,
+  currentAcademicYear,
+} from '../../lib/importNormalize';
 
 interface ExcelClassUploadModalProps {
   isOpen: boolean;
@@ -31,6 +33,7 @@ interface ExcelClassUploadModalProps {
 
 interface ParsedClassRow {
   id: string;
+  rowNumber: number;
   schoolLevel: 'Ortaokul' | 'Lise';
   gradeLevel: string;
   branch: string;
@@ -39,17 +42,19 @@ interface ParsedClassRow {
   description: string;
   isValid: boolean;
   validationError?: string;
+  // Sistemde aynı ad + eğitim yılıyla kayıtlı sınıf (yüklemede atlanır)
+  existingName?: string;
+  result?: { status: 'created' | 'skipped' | 'failed'; message: string };
 }
 
-export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
-  isOpen,
-  onClose,
-  onUploadSuccess,
-}) => {
+const PASTE_HEADERS = ['Okul', 'Sınıf', 'Şube', 'Eğitim Yılı', 'Açıklama'];
+
+export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
   const [activeInputMode, setActiveInputMode] = useState<'file' | 'paste'>('file');
   const [pastedText, setPastedText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedClassRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -59,119 +64,94 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Normalize grade string e.g. "5", "5.", "5. Sınıf", "5-A" -> "5. Sınıf"
-  const normalizeGrade = (raw: string): string => {
-    const trimmed = (raw || '').trim();
-    const match = trimmed.match(/^(5|6|7|8|9|10|11|12)/);
-    if (match) {
-      return `${match[1]}. Sınıf`;
-    }
-    return trimmed;
-  };
-
-  // Normalize branch e.g. "A", "Şube A", "a" -> "A"
-  const normalizeBranch = (raw: string): string => {
-    const trimmed = (raw || '').trim().toUpperCase();
-    const match = trimmed.match(/([A-ZÇĞİÖŞÜ])/);
-    if (match) {
-      return match[1];
-    }
-    return trimmed ? trimmed.replace(/şube/gi, '').trim() || 'A' : 'A';
-  };
-
-  // Parse generic row data from Excel or text
-  const parseRawRows = (rows: Record<string, unknown>[]) => {
+  const parseRows = (headers: string[], rows: SheetRow[]) => {
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!rows || rows.length === 0) {
+    if (rows.length === 0) {
       setErrorMessage('Dosyada işlenebilecek veri satırı bulunamadı.');
       return;
     }
 
-    const parsed: ParsedClassRow[] = [];
+    const cols = resolveColumns(headers, CLASS_COLUMNS);
+    if (!cols.grade && !cols.name) {
+      setErrorMessage('Sınıf bilgisi içeren sütun bulunamadı. Başlık satırında "Sınıf" ve "Şube" (veya "Sınıf Adı") sütunları olmalıdır.');
+      return;
+    }
+    const get = (row: SheetRow, field: keyof typeof CLASS_COLUMNS) => {
+      const key = cols[field];
+      return key ? (row.values[key] || '').trim() : '';
+    };
 
-    rows.forEach((row, idx) => {
-      // Find keys flexibly
-      const keys = Object.keys(row);
-      const getKeyVal = (...candidates: string[]) => {
-        for (const cand of candidates) {
-          const matchedKey = keys.find((k) =>
-            k.toLowerCase().trim().replace(/[^a-z0-9çğıöşü]/g, '').includes(cand.toLowerCase())
-          );
-          if (matchedKey && row[matchedKey] !== undefined && row[matchedKey] !== null) {
-            return String(row[matchedKey]).trim();
-          }
-        }
-        return '';
-      };
+    const seenKeys = new Set<string>();
+    const parsed: ParsedClassRow[] = rows.map((row, idx) => {
+      const rawOkul = get(row, 'schoolLevel');
+      const rawGrade = get(row, 'grade');
+      const rawBranch = get(row, 'branch');
+      const rawName = get(row, 'name');
+      const rawYear = get(row, 'academicYear');
+      const rawDesc = get(row, 'description');
 
-      const rawOkul = getKeyVal('okul', 'kademe', 'tur', 'seviye');
-      const rawGrade = getKeyVal('sinif', 'grade', 'kademe');
-      const rawBranch = getKeyVal('sube', 'alan', 'branch');
-      const rawName = getKeyVal('ad', 'isim', 'sinifadi', 'name');
-      const rawYear = getKeyVal('yil', 'donem', 'akademik', 'year') || '2026-2027';
-      const rawDesc = getKeyVal('aciklama', 'not', 'tanim', 'desc') || '';
+      const fromGrade = parseClassName(rawGrade);
+      const fromName = parseClassName(rawName);
+      const gradeNum = fromGrade.grade ?? fromName.grade;
+      const gradeLevel = gradeNum ? `${gradeNum}. Sınıf` : rawGrade;
+      const branch = (rawBranch ? parseBranch(rawBranch) : '') || fromGrade.branch || fromName.branch || '';
 
-      // Clean values
-      const gradeLevel = normalizeGrade(rawGrade);
-      const branch = normalizeBranch(rawBranch);
+      const okul = trFold(rawOkul);
+      let schoolLevel: 'Ortaokul' | 'Lise';
+      if (okul.includes('lise')) schoolLevel = 'Lise';
+      else if (okul.includes('orta')) schoolLevel = 'Ortaokul';
+      else schoolLevel = detectSchoolLevelFromGrade(gradeLevel) || 'Ortaokul';
 
-      let schoolLevel: 'Ortaokul' | 'Lise' = 'Ortaokul';
-      if (rawOkul.toLowerCase().includes('lise')) {
-        schoolLevel = 'Lise';
-      } else if (rawOkul.toLowerCase().includes('orta')) {
-        schoolLevel = 'Ortaokul';
-      } else {
-        // Auto-detect from grade
-        schoolLevel = detectSchoolLevelFromGrade(gradeLevel) || 'Ortaokul';
+      let name = '';
+      if (rawName) {
+        // "12-A Sayısal" gibi ekli adlar olduğu gibi kalır; "8. Sınıf - Şube A" -> "8/A"
+        name = fromName.rest || !gradeNum || !branch ? rawName : formatClassDisplayName(rawName, branch, gradeLevel);
+      } else if (gradeNum && branch) {
+        name = formatClassDisplayName('', branch, gradeLevel);
       }
 
-      // Generate clean name if not provided
-      let name = rawName;
-      if (!name) {
-        if (gradeLevel && branch) {
-          name = formatClassDisplayName('', branch, gradeLevel);
-        } else if (gradeLevel) {
-          name = `${gradeLevel}`;
-        } else {
-          name = `Sınıf ${idx + 1}`;
-        }
-      } else {
-        name = formatClassDisplayName(name, branch, gradeLevel);
-      }
+      const academicYear = rawYear ? normalizeAcademicYear(rawYear) : currentAcademicYear();
 
-      let isValid = true;
       let validationError: string | undefined;
-
       if (!ALL_GRADES.includes(gradeLevel)) {
-        isValid = false;
         validationError = 'Geçersiz sınıf seviyesi (5-12 arası olmalıdır)';
       } else if (schoolLevel === 'Ortaokul' && !MIDDLE_SCHOOL_GRADES.includes(gradeLevel)) {
-        isValid = false;
         validationError = 'Ortaokul için 5, 6, 7 veya 8. sınıf seçilmelidir';
       } else if (schoolLevel === 'Lise' && !HIGH_SCHOOL_GRADES.includes(gradeLevel)) {
-        isValid = false;
         validationError = 'Lise için 9, 10, 11 veya 12. sınıf seçilmelidir';
+      } else if (!branch) {
+        validationError = rawBranch ? `Geçersiz şube: "${rawBranch}" (tek harf olmalı)` : 'Şube belirtilmemiş';
+      } else if (!academicYear) {
+        validationError = `Eğitim yılı "${rawYear}" anlaşılamadı (örn. ${currentAcademicYear()})`;
       }
 
-      parsed.push({
+      let existingName: string | undefined;
+      if (!validationError) {
+        const dupKey = `${normalizeClassKey(name)}|${academicYear}`;
+        if (seenKeys.has(dupKey)) {
+          validationError = 'Bu sınıf listede tekrar ediyor';
+        } else {
+          seenKeys.add(dupKey);
+          existingName = dataService.findDuplicateClass(name, academicYear)?.name;
+        }
+      }
+
+      return {
         id: `row-${Date.now()}-${idx}`,
+        rowNumber: row.rowNumber,
         schoolLevel,
         gradeLevel,
         branch,
-        name,
-        academicYear: rawYear,
+        name: name || rawName || rawGrade || '-',
+        academicYear: academicYear || rawYear,
         description: rawDesc,
-        isValid,
+        isValid: !validationError,
         validationError,
-      });
+        existingName,
+      };
     });
-
-    if (parsed.length === 0) {
-      setErrorMessage('Hiçbir geçerli sınıf satırı okunamadı.');
-      return;
-    }
 
     setParsedRows(parsed);
   };
@@ -179,20 +159,19 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
   const handleFileUpload = async (file: File) => {
     setIsProcessing(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
     setFileName(file.name);
 
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
-
-      if (!jsonData || jsonData.length === 0) {
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
+      if (!matrix || matrix.length === 0) {
         throw new Error('Yüklenen Excel çalışma sayfası boş görünüyor.');
       }
-
-      parseRawRows(jsonData);
+      const { headers, rows } = matrixToRows(matrix, CLASS_COLUMNS);
+      parseRows(headers, rows);
     } catch (err: unknown) {
       console.error(err);
       setErrorMessage(
@@ -210,427 +189,340 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({
       setErrorMessage('Lütfen yapıştırılmış bir veri giriniz.');
       return;
     }
-
-    const lines = pastedText.trim().split('\n');
-    if (lines.length === 0) return;
-
-    const separator = pastedText.includes('\t') ? '\t' : ',';
-    const rows = lines.map((line) => line.split(separator).map((cell) => cell.trim()));
-
-    // Check if first line is a header
-    const firstLineJoined = lines[0].toLowerCase();
-    const hasHeader =
-      firstLineJoined.includes('okul') ||
-      firstLineJoined.includes('sınıf') ||
-      firstLineJoined.includes('sinif') ||
-      firstLineJoined.includes('şube') ||
-      firstLineJoined.includes('sube');
-
-    const dataLines = hasHeader ? rows.slice(1) : rows;
-
-    const objectRows: Record<string, unknown>[] = dataLines
-      .filter((r) => r.some((c) => c.length > 0))
-      .map((r) => ({
-        okul: r[0] || '',
-        sinif: r[1] || '',
-        sube: r[2] || '',
-        yil: r[3] || '2026-2027',
-        aciklama: r[4] || '',
-      }));
-
-    parseRawRows(objectRows);
+    const matrix = textToMatrix(pastedText);
+    const { headers, rows } = matrixToRows(matrix, CLASS_COLUMNS, PASTE_HEADERS);
+    parseRows(headers, rows);
   };
 
   const downloadSampleExcel = () => {
-    const sampleData = [
-      {
-        Okul: 'Ortaokul',
-        Sınıf: '5. Sınıf',
-        Şube: 'Şube A',
-        'Sınıf Adı': '5. Sınıf - Şube A',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '5-A Şubesi Temel Eğitim Grubu',
-      },
-      {
-        Okul: 'Ortaokul',
-        Sınıf: '6. Sınıf',
-        Şube: 'Şube B',
-        'Sınıf Adı': '6. Sınıf - Şube B',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '6-B Şubesi',
-      },
-      {
-        Okul: 'Ortaokul',
-        Sınıf: '7. Sınıf',
-        Şube: 'Şube C',
-        'Sınıf Adı': '7. Sınıf - Şube C',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '7-C Şubesi',
-      },
-      {
-        Okul: 'Ortaokul',
-        Sınıf: '8. Sınıf',
-        Şube: 'Şube A',
-        'Sınıf Adı': '8. Sınıf - Şube A',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '8-A LGS Hazırlık Sınıfı',
-      },
-      {
-        Okul: 'Lise',
-        Sınıf: '9. Sınıf',
-        Şube: 'Şube A',
-        'Sınıf Adı': '9. Sınıf - Şube A',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '9-A Şubesi Anadolu Lisesi',
-      },
-      {
-        Okul: 'Lise',
-        Sınıf: '10. Sınıf',
-        Şube: 'Şube B',
-        'Sınıf Adı': '10. Sınıf - Şube B',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '10-B Şubesi',
-      },
-      {
-        Okul: 'Lise',
-        Sınıf: '11. Sınıf',
-        Şube: 'Şube C',
-        'Sınıf Adı': '11. Sınıf - Şube C',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '11-C Sayısal Sınıfı',
-      },
-      {
-        Okul: 'Lise',
-        Sınıf: '12. Sınıf',
-        Şube: 'Şube D',
-        'Sınıf Adı': '12. Sınıf - Şube D',
-        'Eğitim Yılı': '2026-2027',
-        Açıklama: '12-D YKS Hazırlık Sınıfı',
-      },
+    const year = currentAcademicYear();
+    const sample: Array<[string, string, string, string]> = [
+      ['Ortaokul', '5. Sınıf', 'Şube A', '5-A Şubesi Temel Eğitim Grubu'],
+      ['Ortaokul', '6. Sınıf', 'Şube B', '6-B Şubesi'],
+      ['Ortaokul', '7. Sınıf', 'Şube C', '7-C Şubesi'],
+      ['Ortaokul', '8. Sınıf', 'Şube A', '8-A LGS Hazırlık Sınıfı'],
+      ['Lise', '9. Sınıf', 'Şube A', '9-A Şubesi Anadolu Lisesi'],
+      ['Lise', '10. Sınıf', 'Şube B', '10-B Şubesi'],
+      ['Lise', '11. Sınıf', 'Şube C', '11-C Sayısal Sınıfı'],
+      ['Lise', '12. Sınıf', 'Şube D', '12-D YKS Hazırlık Sınıfı'],
     ];
+    const sampleData = sample.map(([okul, sinif, sube, aciklama]) => ({
+      Okul: okul,
+      Sınıf: sinif,
+      Şube: sube,
+      'Sınıf Adı': `${sinif} - ${sube}`,
+      'Eğitim Yılı': year,
+      Açıklama: aciklama,
+    }));
 
     const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    worksheet['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 22 }, { wch: 14 }, { wch: 32 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Sınıflar');
     XLSX.writeFile(workbook, 'Ornek_Sinif_Yukleme_Sablonu.xlsx');
   };
 
+  // Her satırı ayrı dene: kayıtlı olanları atla, hata olsa da kalanlarla devam et, satır satır sonuç göster
   const handleSaveAllClasses = async () => {
-    const validRows = parsedRows.filter((r) => r.isValid);
-    if (validRows.length === 0) {
-      setErrorMessage('Kaydedilecek geçerli bir sınıf bulunmuyor.');
+    const pending = parsedRows.filter((r) => r.isValid && !r.existingName && r.result?.status !== 'created');
+    if (pending.length === 0) {
+      setErrorMessage('Kaydedilecek yeni ve geçerli bir sınıf bulunmuyor.');
       return;
     }
 
     setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsSaving(true);
     const createdClasses: ClassGroup[] = [];
+    const results = new Map<string, ParsedClassRow['result']>();
 
-    try {
-      for (const row of validRows) {
+    for (const row of pending) {
+      const existing = dataService.findDuplicateClass(row.name, row.academicYear);
+      if (existing) {
+        results.set(row.id, { status: 'skipped', message: `Zaten kayıtlı: ${existing.name}` });
+        continue;
+      }
+      try {
         const newClass = await dataService.addClass({
           name: row.name,
           branch: row.branch,
           schoolLevel: row.schoolLevel,
           gradeLevel: row.gradeLevel,
-          academicYear: row.academicYear || '2026-2027',
+          academicYear: row.academicYear,
           description: row.description,
         });
         createdClasses.push(newClass);
+        results.set(row.id, { status: 'created', message: 'Eklendi' });
+      } catch (err: any) {
+        results.set(row.id, { status: 'failed', message: err?.message || 'Eklenemedi' });
       }
-
-      setSuccessMessage(`${createdClasses.length} sınıf sisteme başarıyla eklendi!`);
-      if (onUploadSuccess) {
-        onUploadSuccess(createdClasses);
-      }
-
-      setTimeout(() => {
-        onClose();
-      }, 1500);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Sınıflar yüklenirken bir hata oluştu.');
     }
+
+    setParsedRows((prev) => prev.map((r) => (results.has(r.id) ? { ...r, result: results.get(r.id) } : r)));
+    setIsSaving(false);
+
+    const skipped = Array.from(results.values()).filter((r) => r?.status === 'skipped').length + parsedRows.filter((r) => r.isValid && r.existingName).length;
+    const failed = Array.from(results.values()).filter((r) => r?.status === 'failed').length;
+    const parts = [`${createdClasses.length} sınıf eklendi`];
+    if (skipped > 0) parts.push(`${skipped} sınıf zaten kayıtlı olduğu için atlandı`);
+    if (failed > 0) parts.push(`${failed} sınıf eklenemedi (satırlardaki hata mesajlarına bakınız)`);
+    if (failed > 0) setErrorMessage(parts.join(', ') + '.');
+    else setSuccessMessage(parts.join(', ') + '.');
+
+    if (createdClasses.length > 0 && onUploadSuccess) onUploadSuccess(createdClasses);
   };
 
-  const removeRow = (id: string) => {
-    setParsedRows((prev) => prev.filter((r) => r.id !== id));
+  const removeRow = (id: string) => setParsedRows((prev) => prev.filter((r) => r.id !== id));
+
+  const handleClose = () => {
+    if (isSaving) return;
+    // Yükleme tamamlandıysa bir sonraki açılışta temiz başla
+    if (parsedRows.length > 0 && parsedRows.every((r) => r.result || !r.isValid || r.existingName)) {
+      setParsedRows([]);
+      setFileName(null);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+    }
+    onClose();
   };
 
-  const validCount = parsedRows.filter((r) => r.isValid).length;
+  const pendingCount = parsedRows.filter((r) => r.isValid && !r.existingName && r.result?.status !== 'created').length;
   const invalidCount = parsedRows.filter((r) => !r.isValid).length;
+  const existingCount = parsedRows.filter((r) => r.isValid && r.existingName).length;
+  const finished = parsedRows.some((r) => r.result) && pendingCount === 0;
+
+  const statusCell = (row: ParsedClassRow) => {
+    if (row.result) {
+      const tone =
+        row.result.status === 'created' ? 'text-success-fg' : row.result.status === 'skipped' ? 'text-warning-fg' : 'text-danger-fg';
+      const Icon = row.result.status === 'created' ? CheckCircle2 : row.result.status === 'skipped' ? Info : AlertCircle;
+      return (
+        <span className={cx('flex items-start gap-1 text-[11px]', tone)}>
+          <Icon className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>{row.result.message}</span>
+        </span>
+      );
+    }
+    if (!row.isValid) {
+      return (
+        <span className="flex items-start gap-1 text-danger-fg text-[11px]">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>{row.validationError || 'Hatalı'}</span>
+        </span>
+      );
+    }
+    if (row.existingName) {
+      return (
+        <span className="flex items-start gap-1 text-warning-fg text-[11px]">
+          <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+          <span>Zaten kayıtlı ({row.existingName}), atlanacak</span>
+        </span>
+      );
+    }
+    return (
+      <span className="flex items-center gap-1 text-success-fg text-[11px]">
+        <CheckCircle2 className="w-3.5 h-3.5" />
+        <span>Hazır</span>
+      </span>
+    );
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[92vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-canvas/60">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
-              <FileSpreadsheet className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <span>Excel'den Toplu Sınıf Yükleme</span>
-                <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                  Ortaokul & Lise
-                </span>
-              </h3>
-              <p className="text-xs text-muted">
-                Excel veya CSV dosyasından tüm sınıfları, şubeleri ve kademeleri tek tıkla sisteme aktarın.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={downloadSampleExcel}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface-2 hover:bg-surface-3 text-fg hover:text-fg border border-line transition-colors cursor-pointer"
-              title="Örnek şablon indir"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-              <span className="hidden sm:inline">Örnek Şablon (.xlsx)</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Mode Switcher */}
-          <div className="flex bg-canvas p-1 rounded-xl border border-line w-fit">
-            <button
-              type="button"
-              onClick={() => setActiveInputMode('file')}
-              className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeInputMode === 'file'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-muted hover:text-fg'
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Excel / CSV Dosyası Yükle</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveInputMode('paste')}
-              className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activeInputMode === 'paste'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'text-muted hover:text-fg'
-              }`}
-            >
-              <Clipboard className="w-3.5 h-3.5" />
-              <span>Excel Tablosunu Yapıştır</span>
-            </button>
-          </div>
-
-          {/* Input Method 1: File Upload */}
-          {activeInputMode === 'file' && (
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragOver(false);
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                  handleFileUpload(e.dataTransfer.files[0]);
-                }
-              }}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer ${
-                isDragOver
-                  ? 'border-emerald-500 bg-emerald-500/10'
-                  : 'border-line hover:border-line bg-canvas/40'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-              />
-              <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
-                <Upload className="w-6 h-6" />
-              </div>
-              <p className="text-sm font-semibold text-fg mb-1">
-                {fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
-              </p>
-              <p className="text-xs text-muted">
-                veya bilgisayarınızdan seçmek için{' '}
-                <span className="text-emerald-700 dark:text-emerald-400 underline">tıklayın</span>
-              </p>
-              <div className="mt-3 flex items-center justify-center space-x-2 text-[11px] text-muted">
-                <span>Desteklenen Sütunlar: Okul, Sınıf, Şube, Sınıf Adı, Eğitim Yılı, Açıklama</span>
-              </div>
-            </div>
-          )}
-
-          {/* Input Method 2: Paste Text */}
-          {activeInputMode === 'paste' && (
-            <div className="space-y-3">
-              <div className="text-xs text-muted flex items-center justify-between">
-                <span>Excel'den kopyaladığınız hücreleri doğrudan bu alana yapıştırın:</span>
-                <span className="text-muted text-[11px]">Sütunlar: Okul | Sınıf | Şube | Yıl | Açıklama</span>
-              </div>
-              <textarea
-                rows={5}
-                value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
-                placeholder="Ortaokul	5. Sınıf	Şube A	2026-2027	5-A Temel Sınıf&#10;Lise	9. Sınıf	Şube B	2026-2027	9-B Hazırlık"
-                className="w-full p-3 bg-canvas border border-line rounded-xl text-xs text-fg font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleTextParse}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold shadow-md cursor-pointer transition-all flex items-center space-x-2"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Yapıştırılan Tabloyu Çözümle</span>
-              </button>
-            </div>
-          )}
-
-          {/* Alerts */}
-          {errorMessage && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center space-x-2 text-xs text-rose-600 dark:text-rose-400">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {successMessage && (
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center space-x-2 text-xs text-emerald-700 dark:text-emerald-400">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
-          {/* Parsed Results Table */}
-          {parsedRows.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-3">
-                  <span className="font-bold text-fg">Çözümlenen Sınıflar: {parsedRows.length} Adet</span>
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/20">
-                    {validCount} Geçerli
-                  </span>
-                  {invalidCount > 0 && (
-                    <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold border border-rose-500/20">
-                      {invalidCount} Hatalı
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setParsedRows([])}
-                  className="text-xs text-muted hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                >
-                  Listeyi Temizle
-                </button>
-              </div>
-
-              <div className="border border-line rounded-xl overflow-hidden bg-canvas/60 max-h-64 overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-surface text-muted sticky top-0 border-b border-line">
-                    <tr>
-                      <th className="p-2.5 font-semibold">Okul</th>
-                      <th className="p-2.5 font-semibold">Sınıf</th>
-                      <th className="p-2.5 font-semibold">Şube</th>
-                      <th className="p-2.5 font-semibold">Sınıf Adı</th>
-                      <th className="p-2.5 font-semibold">Eğitim Yılı</th>
-                      <th className="p-2.5 font-semibold">Durum</th>
-                      <th className="p-2.5 text-right font-semibold">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {parsedRows.map((row) => (
-                      <tr key={row.id} className="hover:bg-surface/50">
-                        <td className="p-2.5">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              row.schoolLevel === 'Ortaokul'
-                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
-                                : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20'
-                            }`}
-                          >
-                            {row.schoolLevel}
-                          </span>
-                        </td>
-                        <td className="p-2.5 font-semibold text-fg">{row.gradeLevel}</td>
-                        <td className="p-2.5 font-semibold text-fg-2">{row.branch}</td>
-                        <td className="p-2.5 text-indigo-600 dark:text-indigo-300 font-medium">{row.name}</td>
-                        <td className="p-2.5 text-muted font-mono text-[11px]">{row.academicYear}</td>
-                        <td className="p-2.5">
-                          {row.isValid ? (
-                            <span className="flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 text-[11px]">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Hazır</span>
-                            </span>
-                          ) : (
-                            <span
-                              className="flex items-center space-x-1 text-rose-600 dark:text-rose-400 text-[11px]"
-                              title={row.validationError}
-                            >
-                              <AlertCircle className="w-3.5 h-3.5" />
-                              <span>{row.validationError || 'Hatalı'}</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-2.5 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeRow(row.id)}
-                            className="p-1 text-muted hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Satırı Kaldır"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-line bg-canvas/60 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-2 hover:bg-surface-3 text-fg-2 transition-colors cursor-pointer"
-          >
-            Vazgeç
+    <Modal
+      open={isOpen}
+      onClose={handleClose}
+      closeOnBackdrop={false}
+      size="xl"
+      icon={FileSpreadsheet}
+      tone="success"
+      title="Excel'den Toplu Sınıf Yükleme"
+      description="Excel veya CSV dosyasından sınıfları, şubeleri ve kademeleri sisteme aktarın. Kayıtlı sınıflar atlanır."
+      footer={
+        <>
+          <button type="button" onClick={downloadSampleExcel} className="ui-btn ui-btn-ghost ui-btn-sm mr-auto">
+            <Download className="w-3.5 h-3.5 text-success-fg" />
+            <span>Örnek Şablon (.xlsx)</span>
           </button>
-
+          <button type="button" onClick={handleClose} disabled={isSaving} className="ui-btn ui-btn-secondary ui-btn-sm">
+            {finished ? 'Kapat' : 'Vazgeç'}
+          </button>
           <button
             type="button"
-            disabled={validCount === 0 || isProcessing}
+            disabled={pendingCount === 0 || isProcessing || isSaving}
             onClick={handleSaveAllClasses}
-            className="flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+            className="ui-btn ui-btn-success ui-btn-sm"
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>{validCount} Sınıfı Sisteme Yükle</span>
+            <span>{isSaving ? 'Yükleniyor...' : `${pendingCount} Sınıfı Sisteme Yükle`}</span>
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        <Segmented<'file' | 'paste'>
+          value={activeInputMode}
+          onChange={setActiveInputMode}
+          size="sm"
+          items={[
+            { value: 'file', label: 'Excel / CSV Dosyası Yükle', icon: Upload },
+            { value: 'paste', label: 'Excel Tablosunu Yapıştır', icon: Clipboard },
+          ]}
+        />
+
+        {activeInputMode === 'file' && (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileUpload(e.dataTransfer.files[0]);
+              }
+            }}
+            className={cx(
+              'border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer',
+              isDragOver ? 'border-success bg-success-soft' : 'border-line-strong hover:border-success bg-surface-2/40'
+            )}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileUpload(e.target.files[0]);
+                }
+                e.target.value = '';
+              }}
+            />
+            <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-success-soft flex items-center justify-center text-success-fg">
+              <Upload className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-semibold text-fg mb-1">
+              {isProcessing ? 'Dosya okunuyor...' : fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
+            </p>
+            <p className="text-xs text-muted">
+              veya bilgisayarınızdan seçmek için <span className="text-success-fg underline">tıklayın</span>
+            </p>
+            <p className="mt-3 text-[11px] text-muted">
+              Desteklenen sütunlar: Okul, Sınıf, Şube, Sınıf Adı, Eğitim Yılı, Açıklama. Başlık satırı üstte başka satırlar olsa da bulunur.
+            </p>
+          </div>
+        )}
+
+        {activeInputMode === 'paste' && (
+          <div className="space-y-3">
+            <div className="text-xs text-muted flex flex-wrap items-center justify-between gap-2">
+              <span>Excel'den kopyaladığınız hücreleri (başlık satırıyla veya başlıksız) bu alana yapıştırın:</span>
+              <span className="text-[11px]">Başlıksız sıra: Okul | Sınıf | Şube | Yıl | Açıklama</span>
+            </div>
+            <textarea
+              rows={5}
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder={`Ortaokul\t5. Sınıf\tŞube A\t${currentAcademicYear()}\t5-A Temel Sınıf\nLise\t9. Sınıf\tŞube B\t${currentAcademicYear()}\t9-B Hazırlık`}
+              className="w-full p-3 bg-surface border border-line-strong rounded-xl text-xs text-fg font-mono focus:ring-2 focus:ring-brand/25 focus:outline-none"
+            />
+            <button type="button" onClick={handleTextParse} className="ui-btn ui-btn-success ui-btn-sm">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Yapıştırılan Tabloyu Çözümle</span>
+            </button>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div role="alert" className="p-3 bg-danger-soft rounded-xl flex items-start gap-2 text-xs text-danger-fg">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3 bg-success-soft rounded-xl flex items-start gap-2 text-xs text-success-fg">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-px" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        {parsedRows.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-fg">Çözümlenen Sınıflar: {parsedRows.length} Adet</span>
+                <span className="ui-chip ui-chip-success">{pendingCount} Yüklenecek</span>
+                {existingCount > 0 && <span className="ui-chip ui-chip-warning">{existingCount} Zaten Kayıtlı</span>}
+                {invalidCount > 0 && <span className="ui-chip ui-chip-danger">{invalidCount} Hatalı</span>}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setParsedRows([]);
+                  setSuccessMessage(null);
+                  setErrorMessage(null);
+                }}
+                disabled={isSaving}
+                className="ui-btn ui-btn-ghost ui-btn-sm"
+              >
+                Listeyi Temizle
+              </button>
+            </div>
+
+            <div className="border border-line rounded-xl overflow-auto max-h-72">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-surface-2 text-muted sticky top-0 border-b border-line">
+                  <tr>
+                    <th className="p-2.5 font-semibold">Satır</th>
+                    <th className="p-2.5 font-semibold">Okul</th>
+                    <th className="p-2.5 font-semibold">Sınıf</th>
+                    <th className="p-2.5 font-semibold">Şube</th>
+                    <th className="p-2.5 font-semibold">Sınıf Adı</th>
+                    <th className="p-2.5 font-semibold">Eğitim Yılı</th>
+                    <th className="p-2.5 font-semibold">Açıklama</th>
+                    <th className="p-2.5 font-semibold">Durum</th>
+                    <th className="p-2.5 text-right font-semibold">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {parsedRows.map((row) => (
+                    <tr key={row.id} className={cx(!row.isValid || row.result?.status === 'failed' ? 'bg-danger-soft/40' : 'hover:bg-surface-2/50')}>
+                      <td className="p-2.5 font-mono text-muted">{row.rowNumber}</td>
+                      <td className="p-2.5">
+                        <span className={cx('ui-chip', row.schoolLevel === 'Ortaokul' ? 'ui-chip-warning' : 'ui-chip-brand')}>{row.schoolLevel}</span>
+                      </td>
+                      <td className="p-2.5 font-semibold text-fg">{row.gradeLevel || '-'}</td>
+                      <td className="p-2.5 font-semibold text-fg-2">{row.branch || '-'}</td>
+                      <td className="p-2.5 text-brand-fg font-medium">{row.name}</td>
+                      <td className="p-2.5 text-muted font-mono text-[11px]">{row.academicYear || '-'}</td>
+                      <td className="p-2.5 text-muted max-w-[180px] truncate" title={row.description}>
+                        {row.description || '-'}
+                      </td>
+                      <td className="p-2.5 min-w-[160px]">{statusCell(row)}</td>
+                      <td className="p-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.id)}
+                          disabled={isSaving}
+                          className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
+                          title="Satırı Kaldır"
+                          aria-label={`${row.rowNumber}. satırı kaldır`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

@@ -41,6 +41,13 @@ import {
 import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
 import { detectSchoolLevelFromGrade } from '../constants/schoolConstants';
 import { subjectsForBranch, normalizeSubject } from '../lib/subjects';
+import {
+  isValidEmail,
+  isInternalLoginEmail,
+  normalizeClassKey,
+  normalizeAcademicYear,
+  currentAcademicYear,
+} from '../lib/importNormalize';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -81,36 +88,15 @@ export const INITIAL_MESSAGES: StudentMessage[] = [];
 // Öğretmenler yalnızca buluttan (Supabase) gelir; uygulama içine gömülü hayali öğretmen kaydı yoktur.
 export const INITIAL_TEACHERS: Teacher[] = [];
 
-// Helper to detect and clean auto-generated / fake / random placeholder emails
+// Sistemin kendi ürettiği giriş adreslerini (std_<no>@okul.internal.net, tch_<ad>@okul.internal.net,
+// eski sürümlerde *@school.internal) ve biçimi bozuk adresleri tespit eder. Bunlar gerçek e-posta değildir.
+// Diğer tüm geçerli adresler (okul.k12.tr, gmail vb.) korunur: otomatik e-postalar students.email'e gider.
 export function isAutoOrFakeEmail(email?: string | null): boolean {
   if (!email || typeof email !== 'string') return true;
   const e = email.trim().toLowerCase();
   if (!e) return true;
-
-  if (
-    e.endsWith('@okul.k12.tr') ||
-    e.endsWith('@school.com') ||
-    e.endsWith('@school.internal') ||
-    e.endsWith('@student.school.internal') ||
-    e.endsWith('@example.com') ||
-    e.endsWith('@fake.com') ||
-    e.endsWith('@test.com') ||
-    e.endsWith('@dummy.com') ||
-    e.includes('ogrenci.') ||
-    e.includes('ogrenci_') ||
-    e.includes('student.') ||
-    e.includes('student_') ||
-    e.includes('noemail') ||
-    e.includes('temp_') ||
-    e.startsWith('std_') ||
-    e.startsWith('student_') ||
-    e.startsWith('ogr_') ||
-    !e.includes('@') ||
-    !e.includes('.')
-  ) {
-    return true;
-  }
-  return false;
+  if (isInternalLoginEmail(e)) return true;
+  return !isValidEmail(e);
 }
 
 export function cleanStudentEmail(email?: string | null): string {
@@ -1361,9 +1347,8 @@ export class DataService {
       const normName = (row.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
       if (!normName || normName === 'sinif' || normName === 'atanmadi' || normName === 'tanimsiz') return;
 
-      const existingIdx = this.classes.findIndex(
-        (c) => c.id === row.id || (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '') === normName
-      );
+      // Yalnızca aynı kimlikli sınıf güncellenir (aynı adlı başka yılın sınıfının üzerine yazılmaz)
+      const existingIdx = this.classes.findIndex((c) => c.id === row.id);
 
       const mapped: ClassGroup = {
         id: row.id,
@@ -1371,9 +1356,10 @@ export class DataService {
         branch: row.branch || 'Genel',
         gradeLevel: row.level ? `${row.level}. Sınıf` : undefined,
         schoolLevel: row.level && row.level >= 9 ? 'Lise' : 'Ortaokul',
-        academicYear: row.academic_year || '2026-2027',
+        academicYear: row.academic_year || currentAcademicYear(),
         createdTeacherId: 'teacher-1',
       };
+      if ('description' in row) mapped.description = row.description || undefined;
 
       if (existingIdx !== -1) {
         this.classes[existingIdx] = { ...this.classes[existingIdx], ...mapped };
@@ -2418,7 +2404,18 @@ export class DataService {
   public async syncQuestionTargetsFromSupabase(isBackground = false): Promise<WeeklyQuestionTarget[]> {
     if (!(await this.hasCloudSession())) return this.weeklyQuestionTargets;
     try {
-      const { data, error } = await supabase.from('question_targets').select('*');
+      // Supabase bir istekte en fazla 1000 satır döndürür; hedefler sayfa sayfa okunur
+      const data: any[] = [];
+      let error: any = null;
+      for (let from = 0; from < 50000; from += 1000) {
+        const res = await supabase.from('question_targets').select('*').order('id', { ascending: true }).range(from, from + 999);
+        if (res.error) {
+          error = res.error;
+          break;
+        }
+        data.push(...(res.data || []));
+        if (!res.data || res.data.length < 1000) break;
+      }
       if (error) {
         if (!isBackground) console.warn('[QuestionTargetsSync] Error:', error);
         return this.weeklyQuestionTargets;
@@ -2729,7 +2726,7 @@ export class DataService {
       student_id: isClass ? null : t.studentId || null,
       class_id: t.classId || null,
       week_start_date: t.weekStartDate || null,
-      data: JSON.parse(JSON.stringify(t)),
+      data: JSON.parse(JSON.stringify({ ...t, createdBy: undefined })),
       updated_at: new Date().toISOString(),
     };
   }
@@ -2743,6 +2740,7 @@ export class DataService {
       studentId: r.target_type === 'class' ? undefined : r.student_id || data.studentId,
       classId: r.class_id || data.classId,
       weekStartDate: r.week_start_date || data.weekStartDate,
+      createdBy: r.created_by || undefined,
     };
   }
 
@@ -4894,6 +4892,22 @@ export class DataService {
   }
 
   // --- CLASSES ---
+  // Aynı sınıf (adın normalize hâli: "8/A" = "8-A" = "8. Sınıf - A") aynı eğitim yılında zaten var mı?
+  public findDuplicateClass(name: string, academicYear?: string, excludeId?: string): ClassGroup | undefined {
+    const key = normalizeClassKey(name);
+    if (!key) return undefined;
+    const year = normalizeAcademicYear(academicYear) || (academicYear || '').trim();
+    return this.classes.find((c) => {
+      if (!c || c.id === excludeId || this.deletedClassIds.has(c.id)) return false;
+      const cYear = normalizeAcademicYear(c.academicYear) || (c.academicYear || '').trim();
+      return normalizeClassKey(c.name) === key && cYear === year;
+    });
+  }
+
+  private duplicateClassMessage(existing: ClassGroup, year: string): string {
+    return `"${existing.name}" sınıfı ${year || existing.academicYear} eğitim yılı için zaten kayıtlı. Aynı sınıf ikinci kez oluşturulamaz; mevcut sınıfı düzenleyebilir veya farklı bir şube seçebilirsiniz.`;
+  }
+
   public async addClass(
     classData: Omit<ClassGroup, 'id'>,
     forcedTeacherId?: string
@@ -4902,9 +4916,17 @@ export class DataService {
     const currentTeacherId =
       forcedTeacherId || (session?.role === 'teacher' ? session.user.id : undefined);
 
+    const academicYear =
+      normalizeAcademicYear(classData.academicYear) || (classData.academicYear || '').trim() || currentAcademicYear();
+    const duplicate = this.findDuplicateClass(classData.name, academicYear);
+    if (duplicate) {
+      throw new Error(this.duplicateClassMessage(duplicate, academicYear));
+    }
+
     const newClass: ClassGroup = {
       ...classData,
-      id: `class-${Date.now()}`,
+      academicYear,
+      id: `class-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       createdTeacherId: currentTeacherId,
     };
 
@@ -4928,33 +4950,29 @@ export class DataService {
     }
 
     // OTOMATİK SINIF AKTARIMI:
-    // Oluşturulan sınıf ismi ile önceden kayıt olmuş öğrenciler var ise otomatik olarak bu sınıfa aktarılır
-    const normalizeClassStr = (str: string | undefined | null): string => {
-      if (!str) return '';
-      return str
-        .toLowerCase()
-        .replace(/[\s\-_/\\.]/g, '')
-        .replace(/şube/g, '')
-        .replace(/sube/g, '')
-        .replace(/sınıf/g, '')
-        .replace(/sinif/g, '')
-        .trim();
+    // Yalnızca SINIFI OLMAYAN öğrenciler (ör. kendi kaydını yapıp sınıf adını yazmış olanlar) adı eşleşirse
+    // bu sınıfa aktarılır. Başka bir sınıfa kayıtlı öğrenciye asla dokunulmaz.
+    const UNASSIGNED_NAMES = ['', 'atanmadı', 'tanımsız', 'sınıfsız'];
+    const existingClassIds = new Set(prevClasses.map((c) => c.id));
+    const isWithoutClass = (s: Student) => {
+      if (!s.classId) return true;
+      const cn = (s.className || '').trim().toLocaleLowerCase('tr-TR');
+      return UNASSIGNED_NAMES.includes(cn) && !existingClassIds.has(s.classId);
     };
-
-    const targetNorm = normalizeClassStr(newClass.name);
+    const targetNorm = normalizeClassKey(newClass.name);
     let autoAssignedCount = 0;
 
     this.students = this.students.map((s) => {
-      const sNorm = normalizeClassStr(s.className);
-      const isExactName = (s.className || '').trim().toLowerCase() === newClass.name.trim().toLowerCase();
+      if (!isWithoutClass(s)) return s;
+      const sNorm = normalizeClassKey(s.className);
       const isNormMatch = targetNorm.length > 0 && sNorm.length > 0 && sNorm === targetNorm;
       const isGradeBranchMatch =
-        newClass.gradeLevel &&
-        newClass.branch &&
+        !!newClass.gradeLevel &&
+        !!newClass.branch &&
         s.gradeLevel === newClass.gradeLevel &&
         s.branch === newClass.branch;
 
-      if (isExactName || isNormMatch || (isGradeBranchMatch && (!s.classId || s.className === 'Atanmadı'))) {
+      if (isNormMatch || isGradeBranchMatch) {
         autoAssignedCount++;
         return {
           ...s,
@@ -5109,6 +5127,12 @@ export class DataService {
   }
 
   public async updateClass(id: string, updates: Partial<ClassGroup>): Promise<void> {
+    const current = this.classes.find((c) => c.id === id);
+    if (current && (updates.name !== undefined || updates.academicYear !== undefined)) {
+      const nextYear = updates.academicYear !== undefined ? updates.academicYear : current.academicYear;
+      const duplicate = this.findDuplicateClass(updates.name ?? current.name, nextYear, id);
+      if (duplicate) throw new Error(this.duplicateClassMessage(duplicate, nextYear));
+    }
     const prevClasses = this.classes;
     this.classes = this.classes.map((c) => (c.id === id ? { ...c, ...updates } : c));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
@@ -5199,6 +5223,14 @@ export class DataService {
   }
 
   // --- CLOUD SYNCHRONIZATION FOR CLASSES ---
+  public static classDescriptionColumnAvailable = true;
+
+  private static isMissingDescriptionColumn(error: any): boolean {
+    const code = String(error?.code || '');
+    const msg = String(error?.message || '');
+    return (code === 'PGRST204' || code === '42703' || /column/i.test(msg)) && /description/i.test(msg);
+  }
+
   public async syncClassToCloud(cls: ClassGroup): Promise<{ success: boolean; error?: any }> {
     try {
       const studentCount = this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length;
@@ -5211,14 +5243,22 @@ export class DataService {
         if (m) levelNum = parseInt(m[0], 10);
       }
 
-      const { error } = await supabase.from('classes').upsert({
+      const row: Record<string, any> = {
         id: cls.id,
         name: cls.name,
         branch: cls.branch || 'Genel',
         level: levelNum,
         student_count: studentCount,
-        academic_year: cls.academicYear || '2026-2027',
-      });
+        academic_year: cls.academicYear || currentAcademicYear(),
+      };
+      // classes.description sütunu ayrı bir SQL ile eklenir; henüz eklenmemişse sütunsuz kaydet.
+      if (DataService.classDescriptionColumnAvailable) row.description = cls.description || null;
+      let { error } = await supabase.from('classes').upsert(row);
+      if (error && row.description !== undefined && DataService.isMissingDescriptionColumn(error)) {
+        DataService.classDescriptionColumnAvailable = false;
+        delete row.description;
+        ({ error } = await supabase.from('classes').upsert(row));
+      }
 
       if (error) {
         console.warn('Error syncing class to cloud:', error);
@@ -5255,18 +5295,25 @@ export class DataService {
           const m = cls.name.match(/\d+/);
           if (m) levelNum = parseInt(m[0], 10);
         }
-        return {
+        const row: Record<string, any> = {
           id: cls.id,
           name: cls.name,
           branch: cls.branch || 'Genel',
           level: levelNum,
           student_count: this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length,
-          academic_year: cls.academicYear || '2026-2027',
+          academic_year: cls.academicYear || currentAcademicYear(),
         };
+        if (DataService.classDescriptionColumnAvailable) row.description = cls.description || null;
+        return row;
       });
 
       if (payload.length > 0) {
-        const { error } = await supabase.from('classes').upsert(payload);
+        let { error } = await supabase.from('classes').upsert(payload);
+        if (error && DataService.classDescriptionColumnAvailable && DataService.isMissingDescriptionColumn(error)) {
+          DataService.classDescriptionColumnAvailable = false;
+          payload.forEach((r) => delete r.description);
+          ({ error } = await supabase.from('classes').upsert(payload));
+        }
         if (error) {
           console.warn('Error syncing all classes to cloud:', error);
         }
@@ -5301,13 +5348,16 @@ export class DataService {
           const normRcName = (rc.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
           if (!normRcName || normRcName === 'sinif' || normRcName === 'atanmadi' || normRcName === 'tanimsiz') return;
 
+          const localCopy = this.classes.find((c) => c.id === rc.id);
           remoteMap.set(rc.id, {
             id: rc.id,
             name: rc.name,
             branch: rc.branch || 'Genel',
             gradeLevel: rc.level ? `${rc.level}. Sınıf` : undefined,
             schoolLevel: rc.level && rc.level >= 9 ? 'Lise' : 'Ortaokul',
-            academicYear: rc.academic_year || '2026-2027',
+            academicYear: rc.academic_year || currentAcademicYear(),
+            // Sütun henüz yoksa (SQL çalıştırılmadıysa) yereldeki açıklama korunur
+            description: 'description' in rc ? rc.description || undefined : localCopy?.description,
             createdTeacherId: 'teacher-1',
           });
         });
@@ -6835,20 +6885,36 @@ export class DataService {
     return this.messages.filter((m) => m.studentId === studentId);
   }
 
-  // Helper to strictly deduplicate classes by canonical normalized name and eliminate dummy classes
+  // Aynı kimlikli kopyaları ve sahte ("Sınıf", "Atanmadı") sınıfları ayıklar.
+  // Aynı sınıf adı (normalize) + AYNI eğitim yılı tekrar ediyorsa yalnızca ÖĞRENCİSİ OLMAYAN kopya gizlenir;
+  // öğrencisi olan bir sınıf asla gizlenmez, farklı yılların sınıfları ayrı tutulur.
   public deduplicateClasses(classesList: ClassGroup[]): ClassGroup[] {
-    const seenNorm = new Set<string>();
     const seenId = new Set<string>();
-    const result: ClassGroup[] = [];
+    const candidates: Array<{ cls: ClassGroup; key: string; hasStudents: boolean }> = [];
+    const classIdsWithStudents = new Set(this.students.map((s) => s.classId).filter(Boolean));
 
     for (const c of classesList) {
-      if (!c || !c.id || this.deletedClassIds.has(c.id)) continue;
-      const norm = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
-      if (!norm || norm === 'sinif' || norm === 'atanmadi' || norm === 'tanimsiz') continue;
-      if (seenNorm.has(norm) || seenId.has(c.id)) continue;
-      seenNorm.add(norm);
+      if (!c || !c.id || this.deletedClassIds.has(c.id) || seenId.has(c.id)) continue;
+      const plain = (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
+      if (!plain || plain === 'sinif' || plain === 'sınıf' || plain === 'atanmadi' || plain === 'atanmadı' || plain === 'tanimsiz' || plain === 'tanımsız') continue;
       seenId.add(c.id);
-      result.push(c);
+      const year = normalizeAcademicYear(c.academicYear) || (c.academicYear || '').trim();
+      candidates.push({ cls: c, key: `${normalizeClassKey(c.name)}|${year}`, hasStudents: classIdsWithStudents.has(c.id) });
+    }
+
+    const keptForKey = new Set<string>();
+    // Öğrencisi olanlar her zaman görünür
+    candidates.forEach((x) => {
+      if (x.hasStudents) keptForKey.add(x.key);
+    });
+    const result: ClassGroup[] = [];
+    for (const x of candidates) {
+      if (x.hasStudents) {
+        result.push(x.cls);
+      } else if (!keptForKey.has(x.key)) {
+        keptForKey.add(x.key);
+        result.push(x.cls);
+      }
     }
 
     return result.sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true }));
@@ -7735,48 +7801,107 @@ export class DataService {
     return this.questionLogs.filter((q) => q.classId === classId);
   }
 
+  // Veritabanı hatasını öğrenciye gösterilecek Türkçe bir mesaja çevirir (ham İngilizce hata gösterilmez)
+  private questionLogDbError(error: any): any {
+    if (!error) return null;
+    const code = String(error?.code || '');
+    if (code === '42501') return error; // yetki mesajı runCloudWrite içinde Türkçe veriliyor
+    const raw = String(error?.message || '');
+    let message = 'Sunucu kaydı kabul etmedi, lütfen tekrar dene';
+    if (code === '22003') message = 'Girilen sayı çok büyük';
+    else if (code === '23505') message = 'Bu tarih için zaten bir kayıt var, sayfayı yenileyip tekrar dene';
+    else if (code === '23514' || code === '23502') message = 'Girilen değerler geçersiz';
+    else if (code.startsWith('22')) message = 'Geçersiz tarih veya sayı';
+    else if (/fetch|network|timeout|Failed to/i.test(raw)) message = 'Bağlantı sorunu';
+    else if (/[çğıöşüÇĞİÖŞÜ]/.test(raw)) message = raw; // zaten Türkçe bir mesaj
+    return { code, message };
+  }
+
   public async saveQuestionLog(
     logData: Omit<StudentQuestionLog, 'id' | 'createdAt' | 'totalQuestions'> & {
       id?: string;
       totalQuestions?: number;
     }
   ): Promise<StudentQuestionLog> {
+    // Girilen değerler doğrulanır; geçersiz kayıt hiç yazılmaz (Türkçe hata fırlatılır)
+    const MAX_COUNT = 1000;
+    const date = String(logData.date || '').trim();
+    const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    const dateObj = dm ? new Date(+dm[1], +dm[2] - 1, +dm[3]) : null;
+    if (!dm || !dateObj || dateObj.getDate() !== +dm[3] || dateObj.getMonth() !== +dm[2] - 1) {
+      throw new Error('Geçerli bir tarih seçmelisin.');
+    }
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (date > todayStr) {
+      throw new Error('İleri bir tarihe soru kaydı girilemez.');
+    }
+    const toCount = (v: unknown, label: string, subject: string): number => {
+      if (v === undefined || v === null || v === '') return 0;
+      const n = typeof v === 'number' ? v : Number(String(v).trim());
+      if (!Number.isInteger(n) || n < 0 || n > MAX_COUNT || !/^\d+$/.test(String(v).trim())) {
+        throw new Error(`${subject}: ${label} 0 ile ${MAX_COUNT} arasında bir tam sayı olmalı.`);
+      }
+      return n;
+    };
+
+    // Aynı ders birden fazla kez girildiyse sayılar toplanır
+    const merged = new Map<string, { subject: string; questionCount: number; correctCount: number; wrongCount: number; topics: string[] }>();
+    for (const e of logData.entries || []) {
+      const subject = String(e.subject || '').trim();
+      if (!subject) throw new Error('Ders adı boş olamaz.');
+      const qc = toCount(e.questionCount, 'soru sayısı', subject);
+      const c = toCount(e.correctCount, 'doğru sayısı', subject);
+      const w = toCount(e.wrongCount, 'yanlış sayısı', subject);
+      if (c + w > qc) throw new Error(`${subject}: doğru + yanlış, soru sayısından fazla olamaz.`);
+      if (qc === 0) continue;
+      const cur = merged.get(subject) || { subject, questionCount: 0, correctCount: 0, wrongCount: 0, topics: [] };
+      cur.questionCount += qc;
+      cur.correctCount += c;
+      cur.wrongCount += w;
+      const topic = String(e.topic || '').trim();
+      if (topic && !cur.topics.includes(topic)) cur.topics.push(topic);
+      merged.set(subject, cur);
+    }
+    for (const m of merged.values()) {
+      if (m.questionCount > MAX_COUNT) throw new Error(`${m.subject}: bir günde en fazla ${MAX_COUNT} soru girilebilir.`);
+    }
+    if (merged.size === 0) {
+      throw new Error('En az bir ders için soru sayısı girmelisin.');
+    }
+
     let calculatedTotal = 0;
     let calculatedCorrect = 0;
     let calculatedWrong = 0;
     let calculatedEmpty = 0;
+    const cleanEntries = Array.from(merged.values()).map((m) => {
+      const emp = Math.max(0, m.questionCount - m.correctCount - m.wrongCount);
+      calculatedTotal += m.questionCount;
+      calculatedCorrect += m.correctCount;
+      calculatedWrong += m.wrongCount;
+      calculatedEmpty += emp;
+      return {
+        subject: m.subject,
+        questionCount: m.questionCount,
+        correctCount: m.correctCount,
+        wrongCount: m.wrongCount,
+        emptyCount: emp,
+        topic: m.topics.join(', ').slice(0, 200),
+      };
+    });
 
-    const cleanEntries = (logData.entries || [])
-      .filter((e) => (e.questionCount || 0) > 0)
-      .map((e) => {
-        const qc = Number(e.questionCount) || 0;
-        const c = Number(e.correctCount) || 0;
-        const w = Number(e.wrongCount) || 0;
-        const emp = e.emptyCount !== undefined ? Number(e.emptyCount) : Math.max(0, qc - c - w);
-        calculatedTotal += qc;
-        calculatedCorrect += c;
-        calculatedWrong += w;
-        calculatedEmpty += emp;
-        return {
-          subject: e.subject,
-          questionCount: qc,
-          correctCount: c,
-          wrongCount: w,
-          emptyCount: emp,
-          topic: e.topic || '',
-        };
-      });
+    // Toplamlar her zaman derslerden hesaplanır (tutarsız toplam yazılmaz)
+    const finalTotal = calculatedTotal;
+    const finalCorrect = calculatedCorrect;
+    const finalWrong = calculatedWrong;
+    const finalEmpty = calculatedEmpty;
+    const notes = String(logData.notes || '').trim().slice(0, 300);
 
-    const finalTotal = logData.totalQuestions || calculatedTotal;
-    const finalCorrect = logData.totalCorrect !== undefined ? logData.totalCorrect : calculatedCorrect;
-    const finalWrong = logData.totalWrong !== undefined ? logData.totalWrong : calculatedWrong;
-    const finalEmpty = logData.totalEmpty !== undefined ? logData.totalEmpty : calculatedEmpty;
-
-    // Check if an entry exists for the same student and same date
+    // Aynı öğrenci + aynı tarih için kayıt varsa o kayıt güncellenir (form o günün tüm derslerini içerir)
     const existingIdx = logData.id
       ? this.questionLogs.findIndex((q) => q.id === logData.id)
       : this.questionLogs.findIndex(
-          (q) => q.studentId === logData.studentId && q.date === logData.date
+          (q) => q.studentId === logData.studentId && q.date === date
         );
 
     const prevLogs = [...this.questionLogs];
@@ -7785,15 +7910,19 @@ export class DataService {
       saved = {
         ...this.questionLogs[existingIdx],
         ...logData,
+        date,
         entries: cleanEntries,
         totalQuestions: finalTotal,
         totalCorrect: finalCorrect,
         totalWrong: finalWrong,
         totalEmpty: finalEmpty,
-        notes: logData.notes || '',
+        notes,
       } as StudentQuestionLog;
       const target = saved;
-      this.questionLogs = this.questionLogs.map((q, i) => (i === existingIdx ? target : q));
+      // Aynı gün için yerelde kalmış kopyalar (eski sürümler) çift sayılmasın
+      this.questionLogs = this.questionLogs
+        .map((q, i) => (i === existingIdx ? target : q))
+        .filter((q) => q.id === target.id || !(q.studentId === target.studentId && q.date === target.date));
     } else {
       saved = {
         id: logData.id || `qlog-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -7801,13 +7930,13 @@ export class DataService {
         studentName: logData.studentName,
         classId: logData.classId,
         className: logData.className,
-        date: logData.date,
+        date,
         entries: cleanEntries,
         totalQuestions: finalTotal,
         totalCorrect: finalCorrect,
         totalWrong: finalWrong,
         totalEmpty: finalEmpty,
-        notes: logData.notes || '',
+        notes,
         createdAt: new Date().toISOString(),
       };
       this.questionLogs = [saved, ...this.questionLogs];
@@ -7836,7 +7965,7 @@ export class DataService {
             res = await supabase.from('question_logs').upsert(this.questionLogToRow(saved), { onConflict: 'id' });
           }
         }
-        return { error: res.error };
+        return { error: this.questionLogDbError(res.error) };
       },
       () => {
         this.questionLogs = prevLogs;
@@ -7876,7 +8005,10 @@ export class DataService {
     this.notify();
 
     await this.runCloudWrite(
-      () => this.deleteRowsVerified('question_logs', [id]),
+      async () => {
+        const res = await this.deleteRowsVerified('question_logs', [id]);
+        return { error: this.questionLogDbError(res.error) };
+      },
       () => {
         this.questionLogs = prevLogs;
         if (!wasTombstoned) this.deletedQuestionLogIds.delete(id);
@@ -7929,11 +8061,59 @@ export class DataService {
     // Soru sayıları otomatik yüklenmez; kullanıcıların ve öğrencilerin kendi girdiği gerçek kayıtlar tutulur.
   }
 
-  // --- WEEKLY & CUSTOM QUESTION TARGETS (ÖĞRENCİ VE SINIF SORU HEDEFLERİ) ---
+  // --- SORU HEDEFLERİ (Aşama 10) ---
+  // Her öğretmen kendi hedefini verir: aynı öğrenciye aynı dönemde farklı öğretmenlerin ayrı hedefleri olabilir.
+  // Sınıf hedefi tek kayıttır; sınıftaki (sonradan eklenenler dahil) her öğrenci onu görür.
+  // Bir öğretmenin aynı dönem için hem sınıf hem öğrenci hedefi varsa öğrenciye özel olan geçerlidir.
+
+  // Hedefin bitiş günü (YYYY-MM-DD)
+  public questionTargetEnd(t: WeeklyQuestionTarget): string {
+    if (t.weekEndDate && /^\d{4}-\d{2}-\d{2}$/.test(t.weekEndDate)) return t.weekEndDate;
+    const start = t.weekStartDate || '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
+    if (!m) return start;
+    const d = new Date(+m[1], +m[2] - 1, +m[3]);
+    d.setDate(d.getDate() + Math.max(1, t.targetDays || 7) - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // Hedefin sahibi (öğretmen). Eski kayıtlarda kaydeden hesabın kimliği kullanılır.
+  public questionTargetOwnerKey(t: WeeklyQuestionTarget): string {
+    return t.assignedByTeacherId || (t.createdBy ? `auth:${t.createdBy}` : 'eski');
+  }
+
+  private myQuestionTargetOwnerKeys(): Set<string> {
+    const me = this.getCurrentTeacher();
+    const keys = new Set<string>();
+    if (me?.id) keys.add(me.id);
+    if (me?.auth_user_id) keys.add(`auth:${me.auth_user_id}`);
+    return keys;
+  }
+
+  public isMyQuestionTarget(t: WeeklyQuestionTarget): boolean {
+    const me = this.getCurrentTeacher();
+    if (!me) return false;
+    if (t.assignedByTeacherId) return t.assignedByTeacherId === me.id;
+    if (t.createdBy && me.auth_user_id) return t.createdBy === me.auth_user_id;
+    return false;
+  }
+
+  // Düzenleme / silme izni: yönetici her hedefi, öğretmen yalnızca kendi hedefini (ve sahibi bilinmeyen eski kayıtları)
+  public canEditQuestionTarget(t: WeeklyQuestionTarget): boolean {
+    if (this.getAuthSession()?.role !== 'teacher') return false;
+    if (this.isCurrentUserAdmin()) return true;
+    if (!t.assignedByTeacherId && !t.createdBy) return true;
+    return this.isMyQuestionTarget(t);
+  }
+
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
-      return this.weeklyQuestionTargets.filter((t) => t.studentId === session.user.id);
+      const myId = session.user.id;
+      const myClassId = this.students.find((s) => s.id === myId)?.classId || (session.user as any).classId;
+      return this.weeklyQuestionTargets.filter((t) =>
+        this.isClassQuestionTarget(t) ? !!myClassId && t.classId === myClassId : t.studentId === myId
+      );
     }
     if (session?.role === 'teacher') {
       const teacher = this.getCurrentTeacher();
@@ -7942,193 +8122,201 @@ export class DataService {
       }
       const visibleStudentIds = new Set(this.getStudents(teacher?.id).map((s) => s.id));
       const visibleClassIds = new Set(this.getClasses().map((c) => c.id));
-      return this.weeklyQuestionTargets.filter(
-        (t) => (t.studentId && visibleStudentIds.has(t.studentId)) || (t.classId && visibleClassIds.has(t.classId))
+      return this.weeklyQuestionTargets.filter((t) =>
+        this.isClassQuestionTarget(t) ? !!t.classId && visibleClassIds.has(t.classId) : !!t.studentId && visibleStudentIds.has(t.studentId)
       );
     }
     return [...this.weeklyQuestionTargets];
   }
 
   public getStudentQuestionTargets(): WeeklyQuestionTarget[] {
-    return this.getWeeklyQuestionTargets().filter((t) => t.targetType !== 'class' && !!t.studentId);
+    return this.getWeeklyQuestionTargets().filter((t) => !this.isClassQuestionTarget(t) && !!t.studentId);
   }
 
   public getClassQuestionTargets(): WeeklyQuestionTarget[] {
-    return this.weeklyQuestionTargets.filter((t) => t.targetType === 'class' || (!!t.classId && !t.studentId));
+    return this.getWeeklyQuestionTargets().filter((t) => this.isClassQuestionTarget(t) && !!t.classId);
   }
 
-  public getClassQuestionTarget(classId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
-    if (weekStartDate) {
-      const match = this.weeklyQuestionTargets.find(
-        (t) => (t.targetType === 'class' || (!t.studentId && !!t.classId)) && t.classId === classId && t.weekStartDate === weekStartDate
+  private questionTargetOverlaps(t: WeeklyQuestionTarget, rangeStart: string, rangeEnd: string): boolean {
+    const start = t.weekStartDate || '';
+    if (!start) return false;
+    return start <= rangeEnd && this.questionTargetEnd(t) >= rangeStart;
+  }
+
+  // Sıralama: önce benim hedefim, sonra başlangıç tarihi
+  private sortQuestionTargets(list: WeeklyQuestionTarget[]): WeeklyQuestionTarget[] {
+    return [...list].sort((a, b) => {
+      const am = this.isMyQuestionTarget(a) ? 0 : 1;
+      const bm = this.isMyQuestionTarget(b) ? 0 : 1;
+      if (am !== bm) return am - bm;
+      return (a.weekStartDate || '').localeCompare(b.weekStartDate || '');
+    });
+  }
+
+  // Bir öğrencinin verilen tarih aralığına denk gelen geçerli hedefleri (öğrenci + sınıf hedefleri)
+  public getQuestionTargetsForStudent(studentId: string, rangeStart: string, rangeEnd: string = rangeStart): WeeklyQuestionTarget[] {
+    const student = this.students.find((s) => s.id === studentId);
+    const classId = student?.classId;
+    const visible = this.getWeeklyQuestionTargets().filter((t) => this.questionTargetOverlaps(t, rangeStart, rangeEnd));
+    const own = visible.filter((t) => !this.isClassQuestionTarget(t) && t.studentId === studentId);
+    const cls = classId ? visible.filter((t) => this.isClassQuestionTarget(t) && t.classId === classId) : [];
+    const result = [...own];
+    for (const c of cls) {
+      // Aynı öğretmenin aynı ders için öğrenciye özel hedefi varsa sınıf hedefi gösterilmez
+      const covered = own.some(
+        (o) =>
+          this.questionTargetOwnerKey(o) === this.questionTargetOwnerKey(c) &&
+          normalizeSubject(o.subject || '') === normalizeSubject(c.subject || '') &&
+          (o.weekStartDate || '') <= this.questionTargetEnd(c) &&
+          this.questionTargetEnd(o) >= (c.weekStartDate || '')
       );
-      if (match) return match;
+      if (!covered) result.push(c);
     }
+    return this.sortQuestionTargets(result);
+  }
+
+  public getQuestionTargetsForClass(classId: string, rangeStart: string, rangeEnd: string = rangeStart): WeeklyQuestionTarget[] {
+    return this.sortQuestionTargets(
+      this.getClassQuestionTargets().filter((t) => t.classId === classId && this.questionTargetOverlaps(t, rangeStart, rangeEnd))
+    );
+  }
+
+  // Eski kullanım için: haftaya denk gelen ilk (öncelikle benim) hedef. Başka haftanın hedefi ASLA döndürülmez.
+  public getWeeklyQuestionTarget(studentId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
+    if (!weekStartDate) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekStartDate);
+    if (!m) return null;
+    const end = new Date(+m[1], +m[2] - 1, +m[3] + 6);
+    const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    return this.getQuestionTargetsForStudent(studentId, weekStartDate, endStr)[0] || null;
+  }
+
+  // Aynı öğretmenin aynı öğrenci/sınıf ve ders için çakışan başka hedefi (yeni kayıtta "güncellenecek" diye gösterilir)
+  public findQuestionTargetConflict(draft: WeeklyQuestionTarget): WeeklyQuestionTarget | null {
+    const isClass = this.isClassQuestionTarget(draft);
+    const ownerKeys = draft.assignedByTeacherId ? new Set([draft.assignedByTeacherId]) : this.myQuestionTargetOwnerKeys();
+    const start = draft.weekStartDate || '';
+    const end = this.questionTargetEnd(draft);
     return (
       this.weeklyQuestionTargets.find(
-        (t) => (t.targetType === 'class' || (!t.studentId && !!t.classId)) && t.classId === classId
+        (t) =>
+          t.id !== draft.id &&
+          this.isClassQuestionTarget(t) === isClass &&
+          (isClass ? t.classId === draft.classId : t.studentId === draft.studentId) &&
+          ownerKeys.has(this.questionTargetOwnerKey(t)) &&
+          normalizeSubject(t.subject || '') === normalizeSubject(draft.subject || '') &&
+          (t.weekStartDate || '') <= end &&
+          this.questionTargetEnd(t) >= start
       ) || null
     );
   }
 
-  public getWeeklyQuestionTarget(studentId: string, weekStartDate?: string): WeeklyQuestionTarget | null {
-    if (weekStartDate) {
-      const match = this.weeklyQuestionTargets.find(
-        (t) => t.studentId === studentId && t.weekStartDate === weekStartDate
-      );
-      if (match) return match;
-    }
-    return this.weeklyQuestionTargets.find((t) => t.studentId === studentId) || null;
-  }
-
-  // Hedefi yerel listeye işler (aynı öğrenci/sınıf + aynı hafta varsa onu günceller) ve kaydedilecek hâlini döndürür.
-  private applyQuestionTargetLocally(target: WeeklyQuestionTarget): WeeklyQuestionTarget {
-    const isClassTarget = this.isClassQuestionTarget(target);
-
-    const existingIdx = this.weeklyQuestionTargets.findIndex((t) => {
-      if (isClassTarget) {
-        if (t.classId !== target.classId || !this.isClassQuestionTarget(t)) return false;
-        if (target.weekStartDate && t.weekStartDate) {
-          return t.weekStartDate === target.weekStartDate;
-        }
-        return true;
-      }
-      if (this.isClassQuestionTarget(t) || t.studentId !== target.studentId) return false;
-      if (target.weekStartDate && t.weekStartDate) {
-        return t.weekStartDate === target.weekStartDate;
-      }
-      return true;
-    });
-
-    const days = target.targetDays && target.targetDays > 0 ? target.targetDays : 7;
-    const targetQ = target.targetQuestions || target.weeklyTarget || 350;
-    const dailyQ = target.dailyTarget || Math.max(1, Math.round(targetQ / days));
-
-    const normalizedTarget: WeeklyQuestionTarget = {
-      ...target,
-      targetType: isClassTarget ? 'class' : 'student',
-      targetDays: days,
-      targetPeriodLabel:
-        target.targetPeriodLabel ||
-        (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`),
-      targetQuestions: targetQ,
-      weeklyTarget: targetQ,
-      dailyTarget: dailyQ,
-    };
-
-    let savedTarget: WeeklyQuestionTarget;
-    if (existingIdx !== -1) {
-      savedTarget = {
-        ...this.weeklyQuestionTargets[existingIdx],
-        ...normalizedTarget,
-        id: this.weeklyQuestionTargets[existingIdx].id || normalizedTarget.id,
-        assignedDate: target.assignedDate || new Date().toISOString(),
-      };
-      this.weeklyQuestionTargets = this.weeklyQuestionTargets.map((t, i) => (i === existingIdx ? savedTarget : t));
-    } else {
-      const generatedId = isClassTarget
-        ? `class_target_${target.classId}_${target.weekStartDate || Date.now()}`
-        : target.id || `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-      savedTarget = {
-        ...normalizedTarget,
-        id: generatedId,
-        assignedDate: target.assignedDate || new Date().toISOString(),
-      };
-      this.weeklyQuestionTargets = [savedTarget, ...this.weeklyQuestionTargets];
-    }
-    if (!savedTarget.id) {
-      savedTarget.id = `target-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    }
-    return savedTarget;
-  }
-
-  private async persistQuestionTargets(
-    targets: WeeklyQuestionTarget[],
-    prevTargets: WeeklyQuestionTarget[],
-    userMessage: string
-  ): Promise<void> {
-    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-    this.notify();
-    await this.runCloudWrite(
-      () =>
-        supabase
-          .from('question_targets')
-          .upsert(targets.map((t) => this.questionTargetToRow(t)), { onConflict: 'id' }),
-      () => {
-        this.weeklyQuestionTargets = prevTargets;
-        saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-      },
-      userMessage
+  // Eski sürümün sınıf hedefiyle birlikte öğrencilere kopyaladığı kayıtlar (aynı anda kaydedildikleri için
+  // aynı sınıf, aynı başlangıç ve aynı atanma zamanına sahiptirler)
+  private legacyClassTargetCopies(classTarget: WeeklyQuestionTarget): WeeklyQuestionTarget[] {
+    if (!classTarget.assignedDate || classTarget.assignedByTeacherId) return [];
+    return this.weeklyQuestionTargets.filter(
+      (t) =>
+        !this.isClassQuestionTarget(t) &&
+        t.classId === classTarget.classId &&
+        t.weekStartDate === classTarget.weekStartDate &&
+        t.assignedDate === classTarget.assignedDate &&
+        !t.assignedByTeacherId
     );
   }
 
-  public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
+  private newQuestionTargetId(): string {
+    return `qt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // Hedefi kaydeder (yeni ya da düzenleme). Kimlik verilirse o kayıt güncellenir.
+  public async saveQuestionTarget(draft: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
+    const isClass = this.isClassQuestionTarget(draft);
+    if (isClass ? !draft.classId : !draft.studentId) throw new Error(isClass ? 'Sınıf seçilmedi.' : 'Öğrenci seçilmedi.');
+    if (!draft.weekStartDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.weekStartDate)) throw new Error('Başlangıç tarihi geçersiz.');
+    const days = Math.max(1, Math.min(366, Math.round(draft.targetDays || 7)));
+    const total = Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
+    if (total < 1) throw new Error('Toplam soru hedefi en az 1 olmalı.');
+    const daily = Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
+    const me = this.getCurrentTeacher();
+    const existing = draft.id ? this.weeklyQuestionTargets.find((t) => t.id === draft.id) : undefined;
+    if (existing && !this.canEditQuestionTarget(existing)) throw new Error('Bu hedefi yalnızca hedefi veren öğretmen değiştirebilir.');
+
+    const subjectTargets =
+      draft.subjectTargets && !Array.isArray(draft.subjectTargets)
+        ? Object.fromEntries(
+            Object.entries(draft.subjectTargets)
+              .map(([k, v]) => [normalizeSubject(k), Math.round(Number(v) || 0)] as [string, number])
+              .filter(([k, v]) => k && v > 0)
+          )
+        : undefined;
+
+    const saved: WeeklyQuestionTarget = {
+      ...(existing || {}),
+      ...draft,
+      id: existing?.id || draft.id || this.newQuestionTargetId(),
+      targetType: isClass ? 'class' : 'student',
+      studentId: isClass ? undefined : draft.studentId,
+      targetDays: days,
+      targetPeriodLabel: days === 7 ? 'Haftalık (7 Gün)' : `${days} Günlük`,
+      targetQuestions: total,
+      weeklyTarget: total,
+      dailyTarget: daily,
+      weekEndDate: this.questionTargetEnd({ ...draft, targetDays: days }),
+      subject: draft.subject ? normalizeSubject(draft.subject) : undefined,
+      subjectTargets: subjectTargets && Object.keys(subjectTargets).length ? subjectTargets : undefined,
+      notes: (draft.notes || '').trim().slice(0, 400) || undefined,
+      // Sahip değişmez: düzenlemede ilk veren öğretmen kalır
+      assignedByTeacherId: existing?.assignedByTeacherId || draft.assignedByTeacherId || me?.id,
+      assignedByTeacherName: existing?.assignedByTeacherName || draft.assignedByTeacherName || me?.name,
+      assignedBy: existing?.assignedByTeacherName || draft.assignedByTeacherName || me?.name || 'Öğretmen',
+      assignedDate: new Date().toISOString(),
+    };
+    if (!saved.assignedByTeacherId) delete saved.assignedByTeacherId;
+
     const prevTargets = [...this.weeklyQuestionTargets];
-    const savedTarget = this.applyQuestionTargetLocally(target);
-    await this.persistQuestionTargets([savedTarget], prevTargets, 'Soru hedefi kaydedilemedi');
-    return savedTarget;
+    // Eski sınıf hedefi düzenleniyorsa öğrencilere yapılmış eski kopyalar kaldırılır (artık sınıf kaydı geçerli)
+    const legacyCopies = existing && isClass ? this.legacyClassTargetCopies(existing) : [];
+    const legacyIds = new Set(legacyCopies.map((t) => t.id));
+    this.weeklyQuestionTargets = [saved, ...this.weeklyQuestionTargets.filter((t) => t.id !== saved.id && !legacyIds.has(t.id))];
+    saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+    this.notify();
+    const rollback = () => {
+      this.weeklyQuestionTargets = prevTargets;
+      saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+    };
+    await this.runCloudWrite(
+      () => supabase.from('question_targets').upsert([this.questionTargetToRow(saved)], { onConflict: 'id' }),
+      rollback,
+      'Soru hedefi kaydedilemedi'
+    );
+    if (legacyCopies.length) {
+      const ids = legacyCopies.map((t) => t.id).filter((id): id is string => !!id);
+      await this.runCloudWrite(() => this.deleteRowsVerified('question_targets', ids), () => {}, 'Eski hedef kopyaları silinemedi', { silent: true });
+    }
+    return saved;
+  }
+
+  public async deleteQuestionTargetById(id: string): Promise<void> {
+    const target = this.weeklyQuestionTargets.find((t) => t.id === id);
+    if (!target) return;
+    if (!this.canEditQuestionTarget(target)) throw new Error('Bu hedefi yalnızca hedefi veren öğretmen silebilir.');
+    const extra = this.isClassQuestionTarget(target) ? this.legacyClassTargetCopies(target) : [];
+    const removeIds = new Set([id, ...extra.map((t) => t.id)]);
+    await this.removeQuestionTargets((t) => removeIds.has(t.id), 'Soru hedefi silinemedi');
+  }
+
+  // Eski çağrılar için (yeni ekranlar saveQuestionTarget kullanır)
+  public async setWeeklyQuestionTarget(target: WeeklyQuestionTarget): Promise<WeeklyQuestionTarget> {
+    return this.saveQuestionTarget({ ...target, targetType: 'student' });
   }
 
   public async setClassQuestionTarget(
     classId: string,
     className: string,
-    targetData: Partial<WeeklyQuestionTarget>,
-    applyToStudents: boolean = true
+    targetData: Partial<WeeklyQuestionTarget>
   ): Promise<WeeklyQuestionTarget> {
-    const days = targetData.targetDays && targetData.targetDays > 0 ? targetData.targetDays : 7;
-    const targetQ = targetData.targetQuestions || targetData.weeklyTarget || 350;
-    const dailyQ = targetData.dailyTarget || Math.max(1, Math.round(targetQ / days));
-    const periodLabel =
-      targetData.targetPeriodLabel ||
-      (days === 7 ? 'Haftalık (7 Gün)' : days === 1 ? '1 Günlük' : `${days} Günlük`);
-    const nowIso = new Date().toISOString();
-
-    const prevTargets = [...this.weeklyQuestionTargets];
-
-    // 1. Sınıf hedefi
-    const savedClassTarget = this.applyQuestionTargetLocally({
-      ...targetData,
-      id: `class_target_${classId}_${targetData.weekStartDate || Date.now()}`,
-      targetType: 'class',
-      studentId: undefined,
-      classId,
-      className,
-      targetDays: days,
-      targetPeriodLabel: periodLabel,
-      targetQuestions: targetQ,
-      weeklyTarget: targetQ,
-      dailyTarget: dailyQ,
-      assignedDate: nowIso,
-    });
-    const toSave: WeeklyQuestionTarget[] = [savedClassTarget];
-
-    // 2. Sınıftaki öğrencilere de aynı hedef (tek seferde kaydedilir)
-    if (applyToStudents) {
-      this.students
-        .filter((s) => s.classId === classId)
-        .forEach((std) => {
-          toSave.push(
-            this.applyQuestionTargetLocally({
-              ...targetData,
-              id: `target_${std.id}_${targetData.weekStartDate || Date.now()}`,
-              targetType: 'student',
-              studentId: std.id,
-              studentName: std.name,
-              classId,
-              className,
-              targetDays: days,
-              targetPeriodLabel: periodLabel,
-              targetQuestions: targetQ,
-              weeklyTarget: targetQ,
-              dailyTarget: dailyQ,
-              assignedDate: nowIso,
-            })
-          );
-        });
-    }
-
-    await this.persistQuestionTargets(toSave, prevTargets, 'Sınıf soru hedefi kaydedilemedi');
-    return savedClassTarget;
+    return this.saveQuestionTarget({ ...targetData, targetType: 'class', classId, className, studentId: undefined });
   }
 
   private async removeQuestionTargets(
@@ -8152,22 +8340,40 @@ export class DataService {
     );
   }
 
-  public async deleteClassQuestionTarget(classId: string, weekStartDate?: string): Promise<void> {
-    await this.removeQuestionTargets((t) => {
-      if (!this.isClassQuestionTarget(t) || t.classId !== classId) return false;
-      if (weekStartDate && t.weekStartDate) return t.weekStartDate === weekStartDate;
-      return true;
-    }, 'Sınıf soru hedefi silinemedi');
-  }
-
-  // Öğrenci hedefini siler. Hafta verilirse yalnızca o haftanın hedefi silinir.
-  public async deleteWeeklyQuestionTarget(studentIdOrId: string, weekStartDate?: string): Promise<void> {
-    await this.removeQuestionTargets((t) => {
-      if (t.id === studentIdOrId) return true;
-      if (this.isClassQuestionTarget(t) || t.studentId !== studentIdOrId) return false;
-      if (weekStartDate && t.weekStartDate) return t.weekStartDate === weekStartDate;
-      return true;
-    }, 'Soru hedefi silinemedi');
+  // Hedefin ilerlemesi: yalnızca hedefin kendi tarihleri (ve dersi seçildiyse o ders) sayılır
+  public questionTargetProgress(
+    t: WeeklyQuestionTarget,
+    studentId: string,
+    logs: StudentQuestionLog[]
+  ): { solved: number; total: number; percent: number; done: boolean; remaining: number; bySubject: Record<string, number> } {
+    const start = t.weekStartDate || '';
+    const end = this.questionTargetEnd(t);
+    const subj = t.subject ? normalizeSubject(t.subject) : '';
+    const bySubject: Record<string, number> = {};
+    let solved = 0;
+    for (const l of logs) {
+      if (l.studentId !== studentId || !l.date || l.date < start || l.date > end) continue;
+      const entries = Array.isArray(l.entries) ? l.entries : [];
+      if (entries.length) {
+        for (const e of entries) {
+          const name = normalizeSubject(e.subject || '');
+          const n = Number(e.questionCount) || 0;
+          bySubject[name] = (bySubject[name] || 0) + n;
+          if (!subj || name === subj) solved += n;
+        }
+      } else if (!subj) {
+        solved += Number(l.totalQuestions) || 0;
+      }
+    }
+    const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
+    return {
+      solved,
+      total,
+      percent: Math.min(100, Math.round((solved / total) * 100)),
+      done: solved >= total,
+      remaining: Math.max(0, total - solved),
+      bySubject,
+    };
   }
 
   // =========================================================================

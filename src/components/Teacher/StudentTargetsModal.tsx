@@ -1,334 +1,145 @@
-import React, { useState, useMemo } from 'react';
-import {
-  X,
-  Target,
-  User,
-  Search,
-  Users,
-  CheckCircle2,
-  Clock,
-  Trash2,
-  Edit3,
-  Sparkles,
-  Plus,
-  Flame,
-  Award,
-  AlertTriangle,
-} from 'lucide-react';
-import { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
+import React, { useState } from 'react';
+import { User, Search, Plus, Target } from 'lucide-react';
+import type { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
-import { formatClassDisplayName } from '../../constants/schoolConstants';
+import { Modal, Segmented, EmptyState } from '../ui/kit';
+import { inputCls, localDateStr } from './FormParts';
+import { PERIOD_ITEMS, TargetPeriodFilter, periodOf, targetPeriodText, ownerText, ProgressBar, TargetRowActions } from './TargetListParts';
 
-interface StudentTargetsModalProps {
+// Öğrenci soru hedefleri listesi (Aşama 10)
+interface Props {
   isOpen: boolean;
   onClose: () => void;
   students: Student[];
   classes: ClassGroup[];
   allLogs: StudentQuestionLog[];
-  onOpenTargetModalForStudent: (student: Student, existingTarget?: WeeklyQuestionTarget | null) => void;
+  onEdit: (target: WeeklyQuestionTarget) => void;
+  onNew: () => void;
   onSelectStudentToAnalyze: (studentId: string) => void;
 }
 
-export const StudentTargetsModal: React.FC<StudentTargetsModalProps> = ({
-  isOpen,
-  onClose,
-  students,
-  classes,
-  allLogs,
-  onOpenTargetModalForStudent,
-  onSelectStudentToAnalyze,
-}) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClassFilter, setSelectedClassFilter] = useState('all');
-
-  const targets = useMemo(() => {
-    return dataService.getStudentQuestionTargets();
-  }, [isOpen, students]);
-
-  // Öğrenci bazlı soru çözüm ilerlemelerini hesapla
-  const studentTargetStats = useMemo(() => {
-    return targets.map((target) => {
-      const student = students.find((s) => s.id === target.studentId);
-      const studentName = student?.name || target.studentName || 'İsimsiz Öğrenci';
-      const studentClass =
-        student?.className ||
-        target.className ||
-        (student?.classId ? classes.find((c) => c.id === student.classId)?.name : '') ||
-        'Sınıfsız';
-
-      // Öğrencinin loglarını topla
-      const sLogs = allLogs.filter((l) => l.studentId === target.studentId);
-      let solvedQuestions = 0;
-
-      if (target.weekStartDate && target.weekEndDate) {
-        sLogs.forEach((l) => {
-          if (l.date >= target.weekStartDate! && l.date <= target.weekEndDate!) {
-            solvedQuestions += l.totalQuestions || 0;
-          }
-        });
-      } else {
-        // Son 7 günün veya hedefin gün sayısı kadar
-        const days = target.targetDays || 7;
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - days);
-        const cutoffStr = cutoff.toISOString().split('T')[0];
-
-        sLogs.forEach((l) => {
-          if (l.date >= cutoffStr) {
-            solvedQuestions += l.totalQuestions || 0;
-          }
-        });
-      }
-
-      const targetTotal = target.targetQuestions || target.weeklyTarget || 350;
-      const progressPercent = Math.min(100, Math.round((solvedQuestions / Math.max(1, targetTotal)) * 100));
-      const isCompleted = solvedQuestions >= targetTotal;
-      const remaining = Math.max(0, targetTotal - solvedQuestions);
-
-      return {
-        target,
-        student,
-        studentName,
-        studentClass,
-        targetTotal,
-        dailyTarget: target.dailyTarget || Math.round(targetTotal / (target.targetDays || 7)),
-        targetDays: target.targetDays || 7,
-        targetPeriodLabel: target.targetPeriodLabel || (target.targetDays === 7 ? 'Haftalık (7 Gün)' : `${target.targetDays || 7} Günlük`),
-        solvedQuestions,
-        progressPercent,
-        isCompleted,
-        remaining,
-      };
-    });
-  }, [targets, students, classes, allLogs]);
-
-  // Filtrelenmiş liste
-  const filteredList = useMemo(() => {
-    return studentTargetStats.filter((item) => {
-      if (selectedClassFilter !== 'all') {
-        if (item.student?.classId !== selectedClassFilter && item.target.classId !== selectedClassFilter) {
-          return false;
-        }
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesName = item.studentName.toLowerCase().includes(q);
-        const matchesClass = item.studentClass.toLowerCase().includes(q);
-        return matchesName || matchesClass;
-      }
-      return true;
-    });
-  }, [studentTargetStats, selectedClassFilter, searchQuery]);
-
+export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students, classes, allLogs, onEdit, onNew, onSelectStudentToAnalyze }) => {
+  const [query, setQuery] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
+  const [period, setPeriod] = useState<TargetPeriodFilter>('active');
+  const [onlyMine, setOnlyMine] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [, setTick] = useState(0);
   if (!isOpen) return null;
 
-  const handleDeleteTarget = async (studentId: string, weekStartDate?: string) => {
-    if (confirm('Bu öğrenci için belirlenmiş soru hedefini silmek istediğinize emin misiniz?')) {
-      try {
-        await dataService.deleteWeeklyQuestionTarget(studentId, weekStartDate);
-      } catch {
-        // hata uyarısı gösterildi, hedef geri getirildi
-      }
-    }
-  };
+  const today = localDateStr(new Date());
+  const all = dataService.getStudentQuestionTargets();
+  const q = query.toLocaleLowerCase('tr-TR').trim();
+  const rows = all
+    .map((t) => {
+      const st = students.find((s) => s.id === t.studentId);
+      const name = st?.name || t.studentName || 'Öğrenci';
+      const className = st?.className || t.className || classes.find((c) => c.id === (st?.classId || t.classId))?.name || '';
+      return { t, st, name, className, classId: st?.classId || t.classId, p: dataService.questionTargetProgress(t, t.studentId || '', allLogs) };
+    })
+    .filter((r) => period === 'all' || periodOf(r.t, today) === period)
+    .filter((r) => classFilter === 'all' || r.classId === classFilter)
+    .filter((r) => !onlyMine || dataService.isMyQuestionTarget(r.t))
+    .filter((r) => !q || r.name.toLocaleLowerCase('tr-TR').includes(q) || r.className.toLocaleLowerCase('tr-TR').includes(q))
+    .sort((a, b) => (b.t.weekStartDate || '').localeCompare(a.t.weekStartDate || '') || a.name.localeCompare(b.name, 'tr'));
+  const studentCount = new Set(rows.map((r) => r.t.studentId)).size;
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
+    <Modal
+      open
+      id="student-targets-modal"
+      onClose={onClose}
+      icon={User}
+      tone="warning"
+      size="lg"
+      title="Öğrenci Soru Hedefleri"
+      description={`${rows.length} hedef · ${studentCount} öğrenci`}
     >
-      <div
-        className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
-              <User className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <span>Öğrenci Soru Hedefleri</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-extrabold dark:bg-orange-950/60 dark:text-orange-300">
-                  {targets.length} Öğrenci
-                </span>
-              </h3>
-              <p className="text-xs text-muted mt-0.5">
-                Öğrencilere tanımlanmış soru sayısı hedefleri ve anlık çözüm ilerleme durumu
-              </p>
-            </div>
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-subtle absolute left-3 top-1/2 -translate-y-1/2" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Öğrenci adı veya sınıf ara…" className={`${inputCls} pl-9`} />
           </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-subtle hover:text-muted rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Filter & Search Bar */}
-        <div className="p-4 border-b border-line bg-surface flex flex-col sm:flex-row gap-2.5 items-center justify-between">
-          <div className="flex-1 flex items-center gap-2 w-full">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-subtle absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Öğrenci adı veya sınıf ara..."
-                className="w-full pl-9 pr-3 py-1.5 bg-surface-2 border border-line rounded-xl text-xs text-fg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-
-            <select
-              value={selectedClassFilter}
-              onChange={(e) => setSelectedClassFilter(e.target.value)}
-              className="px-3 py-1.5 bg-surface-2 border border-line rounded-xl text-xs font-semibold text-fg focus:outline-none cursor-pointer"
-            >
-              <option value="all">Tüm Sınıflar</option>
-              {classes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {formatClassDisplayName(c.name, c.branch, c.gradeLevel)}
-                </option>
-              ))}
-            </select>
-          </div>
-
+          <select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={`${inputCls} sm:w-44`} aria-label="Sınıf">
+            <option value="all">Tüm sınıflar</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
+            id="btn-new-student-target"
             onClick={() => {
               onClose();
-              onOpenTargetModalForStudent(students[0] || ({} as Student), null);
+              onNew();
             }}
-            className="w-full sm:w-auto px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer whitespace-nowrap"
+            className="ui-btn ui-btn-primary shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            <span>Yeni Hedef Belirle</span>
+            <Plus className="w-4 h-4" /> Yeni Hedef
           </button>
         </div>
-
-        {/* List Content */}
-        <div className="p-6 overflow-y-auto space-y-3">
-          {filteredList.length === 0 ? (
-            <div className="text-center py-12 px-4">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 flex items-center justify-center mb-3">
-                <Target className="w-7 h-7" />
-              </div>
-              <h4 className="text-sm font-bold text-fg-2">
-                Kayıtlı Öğrenci Hedefi Bulunamadı
-              </h4>
-              <p className="text-xs text-subtle mt-1 max-w-sm mx-auto">
-                Henüz öğrenci bazlı bir soru hedefi tanımlanmamış veya arama kriterlerine uygun kayıt bulunmuyor.
-              </p>
-            </div>
-          ) : (
-            filteredList.map((item) => (
-              <div
-                key={item.target.id || item.target.studentId}
-                className="p-4 bg-surface-2 border border-line rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-orange-300 dark:hover:border-orange-500/50 transition-all"
-              >
-                {/* Student Info */}
-                <div className="flex items-center space-x-3 min-w-0">
-                  <img
-                    src={
-                      item.student?.avatar ||
-                      `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                        item.studentName
-                      )}`
-                    }
-                    alt={item.studentName}
-                    className="w-11 h-11 rounded-full bg-surface-3 shrink-0 ring-2 ring-orange-200 dark:ring-orange-500/30"
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-fg truncate">
-                        {item.studentName}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                        {item.studentClass}
-                      </span>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        {item.targetPeriodLabel}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted mt-0.5 flex items-center gap-2">
-                      <span>
-                        Hedef: <strong className="text-orange-600 dark:text-orange-400 font-bold">{item.targetTotal} Soru</strong>
-                      </span>
-                      <span>•</span>
-                      <span>Günlük: <strong>{item.dailyTarget} Soru/Gün</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Progress & Actions */}
-                <div className="flex items-center gap-4 sm:shrink-0 justify-between sm:justify-end">
-                  {/* Progress Bar & Stat */}
-                  <div className="w-36 text-right">
-                    <div className="flex items-center justify-between text-[11px] mb-1">
-                      <span className="text-muted font-medium">Çözülen:</span>
-                      <span className="font-extrabold text-fg">
-                        {item.solvedQuestions} / {item.targetTotal}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-surface-3 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          item.progressPercent >= 100
-                            ? 'bg-emerald-500'
-                            : item.progressPercent >= 60
-                            ? 'bg-orange-500'
-                            : 'bg-amber-500'
-                        }`}
-                        style={{ width: `${item.progressPercent}%` }}
-                      />
-                    </div>
-                    <div className="text-[10px] font-extrabold text-right mt-0.5 text-orange-600 dark:text-orange-400">
-                      %{item.progressPercent} Tamamlandı
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onSelectStudentToAnalyze(item.target.studentId || item.student?.id || '');
-                      }}
-                      className="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition-colors cursor-pointer"
-                      title="Bu öğrencinin detaylı soru grafiğine git"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onOpenTargetModalForStudent(item.student || ({} as Student), item.target);
-                      }}
-                      className="p-2 text-muted hover:text-orange-600 dark:hover:text-orange-300 hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
-                      title="Hedefi Düzenle"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteTarget(item.target.studentId || '', item.target.weekStartDate)}
-                      className="p-2 text-subtle hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-                      title="Hedefi Sil"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Segmented<TargetPeriodFilter> size="sm" value={period} onChange={setPeriod} items={PERIOD_ITEMS} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-fg-2 cursor-pointer">
+            <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} className="w-4 h-4 accent-[var(--color-brand)]" />
+            Yalnızca benim verdiklerim
+          </label>
         </div>
+
+        {rows.length === 0 ? (
+          <EmptyState icon={Target} title="Hedef bulunamadı" description="Bu filtreye uyan öğrenci hedefi yok. Yeni Hedef ile hedef verebilirsiniz." />
+        ) : (
+          <ul className="space-y-2" id="student-target-list">
+            {rows.map(({ t, name, className, p }) => (
+              <li key={t.id} className="p-3 rounded-xl border border-line bg-surface-2/60 flex flex-col sm:flex-row sm:items-center gap-3" data-testid="student-target-row">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-sm font-semibold text-fg truncate">{name}</span>
+                    {className && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{className}</span>}
+                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
+                  </div>
+                  <div className="text-[11px] text-muted mt-0.5">
+                    {targetPeriodText(t)} · {t.targetQuestions} soru ({t.dailyTarget}/gün) · Veren: {ownerText(t)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 sm:shrink-0">
+                  <div className="w-32">
+                    <div className="flex justify-between text-[11px] mb-1">
+                      <span className="text-muted">%{p.percent}</span>
+                      <span className="font-semibold text-fg">
+                        {p.solved}/{p.total}
+                      </span>
+                    </div>
+                    <ProgressBar percent={p.percent} done={p.done} />
+                  </div>
+                  <TargetRowActions
+                    target={t}
+                    confirming={confirmId === t.id}
+                    onConfirmChange={(v) => setConfirmId(v ? t.id || null : null)}
+                    analyzeTitle="Öğrencinin soru grafiğine git"
+                    onAnalyze={
+                      t.studentId
+                        ? () => {
+                            onClose();
+                            onSelectStudentToAnalyze(t.studentId!);
+                          }
+                        : undefined
+                    }
+                    onEdit={() => {
+                      onClose();
+                      onEdit(t);
+                    }}
+                    onDeleted={() => setTick((n) => n + 1)}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

@@ -28,6 +28,7 @@ const EVENT_LABEL: Record<string, string> = {
   'homework-created': 'Yeni ödev',
   'homework-reminder': 'Ödev hatırlatma',
   'etut-created': 'Yeni etüt',
+  'question-target': 'Soru hedefi',
   'etut-assigned': 'Etüt atandı',
   'etut-changed': 'Etüt değişti',
   'etut-cancelled': 'Etüt iptal',

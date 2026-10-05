@@ -207,6 +207,8 @@ export interface WeeklyQuestionTarget {
   weekEndDate?: string;
   subjectTargets?: Record<string, number> | { subject: string; target: number }[];
   notes?: string;
+  subject?: string; // Aşama 10: yalnızca bu dersin soruları sayılır (boş = tüm dersler)
+  createdBy?: string; // Aşama 10: hedefi kaydeden hesabın (auth) kimliği — veritabanındaki created_by
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';

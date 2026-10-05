@@ -1,36 +1,50 @@
-import React, { useMemo } from 'react';
-import {
-  BookOpen,
-  Calendar,
-  Award,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  MessageSquare,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  Target,
-  Flame,
-  Zap,
-  HelpCircle,
-  BarChart3,
-  CalendarDays,
-} from 'lucide-react';
-import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord } from '../../types';
-import { StudentTabType } from './StudentHeroBanner';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Award, BookOpen, CalendarDays, Target } from 'lucide-react';
+import type { Etut, GradeRecord, Homework, HomeworkSubmission, Student, StudentQuestionLog } from '../../types';
+import type { StudentTabType } from './StudentHeroBanner';
 import { dataService } from '../../services/dataService';
+import { formatDateISO, getMondayOfWeek, TURKISH_DAYS_SHORT, TURKISH_MONTHS } from '../../utils/questionAnalytics';
+import { IconBox, cx, type Tone } from '../ui/kit';
+import { etutEnd, etutStart, homeworkStateFor, parseLocalDateTime } from './StudentHomeUtils';
+
+// ============================================================================
+// ÖĞRENCİ ANA SAYFASI — "Durumum"
+// Dört sakin özet kart: Ödevlerim, Etütlerim, Soru Çözümüm, Notlarım.
+// Her kartta tek bir ana sayı, kısa bir açıklama ve ilgili sekmeye geçiş.
+// ============================================================================
 
 interface StudentStatsOverviewProps {
   student: Student;
+  /** Bu öğrenciye atanmış ödevler */
   homeworks: Homework[];
   submissions: HomeworkSubmission[];
+  /** Bu öğrenciye ait etütler */
   etuts: Etut[];
+  /** Bu öğrencinin notları */
   grades: GradeRecord[];
-  attendance: AttendanceRecord[];
   onNavigateTab: (tab: StudentTabType) => void;
 }
+
+const addDays = (d: Date, n: number) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+};
+
+const dayIndexMonFirst = (d: Date) => (d.getDay() + 6) % 7;
+
+/** "bugün", "yarın" veya "8 Ekim Per" */
+const relativeDay = (d: Date, now: Date) => {
+  const key = formatDateISO(d);
+  if (key === formatDateISO(now)) return 'bugün';
+  if (key === formatDateISO(addDays(now, 1))) return 'yarın';
+  return `${d.getDate()} ${TURKISH_MONTHS[d.getMonth()]} ${TURKISH_DAYS_SHORT[dayIndexMonFirst(d)]}`;
+};
+
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+const fmtNumber = (n: number) => n.toLocaleString('tr-TR');
+const fmtAverage = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
 
 export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   student,
@@ -38,390 +52,414 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   submissions,
   etuts,
   grades,
-  attendance,
   onNavigateTab,
 }) => {
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  // Saat ilerledikçe (ör. gece yarısı, ödev saati geçince) değerler güncel kalsın
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
-  // 1. Ödev & Kurs Tamamlama İstatistikleri
-  const mySubmissions = useMemo(() => {
-    return submissions.filter((sub) => sub.studentId === student.id);
-  }, [submissions, student.id]);
+  // Soru kayıtları ve hedefler veri servisinden gelir; değiştiğinde yeniden oku
+  const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(
+    () =>
+      dataService.subscribe(() => {
+        setQuestionLogs(dataService.getQuestionLogs());
+        setDataVersion((v) => v + 1);
+      }),
+    []
+  );
 
-  const completedHwIds = useMemo(() => {
-    return new Set(mySubmissions.map((s) => s.homeworkId));
-  }, [mySubmissions]);
+  const todayYmd = formatDateISO(now);
+  const monday = useMemo(() => getMondayOfWeek(now), [now]);
 
-  const totalHws = homeworks.length;
-  const completedHwsCount = completedHwIds.size;
-  const pendingHwsCount = Math.max(0, totalHws - completedHwsCount);
-  const completionPercentage = totalHws > 0 ? Math.round((completedHwsCount / totalHws) * 100) : 100;
+  // ------------------------------------------------------------------ Ödevler
+  const hw = useMemo(() => {
+    const nowMs = now.getTime();
+    const byHw = new Map<string, HomeworkSubmission>();
+    submissions.forEach((s) => {
+      if (s.studentId === student.id && !byHw.has(s.homeworkId)) byHw.set(s.homeworkId, s);
+    });
+    let done = 0;
+    let excused = 0;
+    let overdue = 0;
+    const open: Array<{ hw: Homework; due: Date | null }> = [];
+    homeworks.forEach((h) => {
+      const sub = byHw.get(h.id) || (Array.isArray(h.submissions) ? h.submissions.find((s) => s.studentId === student.id) : undefined);
+      const state = homeworkStateFor(h, sub, nowMs);
+      if (state === 'done') done++;
+      else if (state === 'excused') excused++;
+      else if (state === 'overdue') overdue++;
+      else open.push({ hw: h, due: parseLocalDateTime(h.dueDate) });
+    });
+    open.sort((a, b) => (a.due?.getTime() ?? Infinity) - (b.due?.getTime() ?? Infinity));
+    const counted = homeworks.length - excused; // izinli ödevler orana katılmaz
+    return {
+      total: homeworks.length,
+      done,
+      overdue,
+      openCount: open.length,
+      next: open[0],
+      counted,
+      percent: counted > 0 ? Math.round((done / counted) * 100) : 0,
+    };
+  }, [homeworks, submissions, student.id, now]);
 
-  // Yaklaşan acil ödevler
-  const urgentHomeworks = useMemo(() => {
-    return homeworks
-      .filter((hw) => !completedHwIds.has(hw.id) && hw.dueDate && hw.dueDate.slice(0, 10) >= todayStr)
-      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
-      .slice(0, 4);
-  }, [homeworks, completedHwIds, todayStr]);
+  // ------------------------------------------------------------------ Etütler
+  const et = useMemo(() => {
+    const nowMs = now.getTime();
+    const weekEnd = addDays(monday, 7).getTime(); // Pazar 24:00
+    const upcoming = etuts
+      .map((e) => ({ e, start: etutStart(e), end: etutEnd(e) }))
+      .filter((x): x is { e: Etut; start: Date; end: Date } => !!x.start && !!x.end && x.end.getTime() > nowMs)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+    const thisWeek = upcoming.filter((x) => x.start.getTime() < weekEnd).length;
 
-  // 2. Etüt İstatistikleri
-  const todayEtuts = useMemo(() => {
-    return etuts.filter((e) => e.date === todayStr);
-  }, [etuts, todayStr]);
-
-  const upcomingEtuts = useMemo(() => {
-    return etuts
-      .filter((e) => e.date >= todayStr)
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-      .slice(0, 3);
-  }, [etuts, todayStr]);
-
-  // 3. Not Ortalaması
-  const myGrades = useMemo(() => {
-    return grades.filter((g) => g.studentId === student.id && g.score !== undefined);
-  }, [grades, student.id]);
-
-  const averageScore = useMemo(() => {
-    if (myGrades.length === 0) return null;
-    const sum = myGrades.reduce((acc, g) => acc + (g.score || 0), 0);
-    return Math.round((sum / myGrades.length) * 10) / 10;
-  }, [myGrades]);
-
-  const letterGrade = useMemo(() => {
-    if (averageScore === null) return '—';
-    if (averageScore >= 85) return 'Pekiyi (5)';
-    if (averageScore >= 70) return 'İyi (4)';
-    if (averageScore >= 55) return 'Orta (3)';
-    if (averageScore >= 45) return 'Geçer (2)';
-    return 'Geliştirilmeli (1)';
-  }, [averageScore]);
-
-  // 4. Devamsızlık
-  const { presentDays, absentDays, totalAttendanceDays } = useMemo(() => {
-    let present = 0;
-    let absent = 0;
-    let total = 0;
-
-    attendance.forEach((att) => {
-      const record = att.records.find((r) => r.studentId === student.id);
-      if (record) {
-        total++;
-        if (record.status === 'present') present++;
-        else if (record.status === 'absent') absent++;
+    // Kendi katılımın: yalnızca yoklaması alınmış etütler (izinli sayılmaz)
+    let attended = 0;
+    let marked = 0;
+    etuts.forEach((e) => {
+      const st = e.studentAttendance?.[student.id]?.status;
+      if (st === 'present' || st === 'late') {
+        attended++;
+        marked++;
+      } else if (st === 'absent') {
+        marked++;
       }
     });
+    return {
+      total: etuts.length,
+      thisWeek,
+      next: upcoming[0],
+      attended,
+      marked,
+      rate: marked > 0 ? Math.round((attended / marked) * 100) : null,
+    };
+  }, [etuts, student.id, monday, now]);
 
-    return { presentDays: present, absentDays: absent, totalAttendanceDays: total };
-  }, [attendance, student.id]);
+  // ------------------------------------------------------------------ Sorular
+  const q = useMemo(() => {
+    const mine = questionLogs.filter((l) => l.studentId === student.id);
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(monday, i);
+      return { ymd: formatDateISO(d), label: TURKISH_DAYS_SHORT[i], count: 0 };
+    });
+    const index = new Map(days.map((d, i) => [d.ymd, i]));
+    mine.forEach((l) => {
+      const i = index.get((l.date || '').slice(0, 10));
+      if (i !== undefined) days[i].count += Number(l.totalQuestions) || 0;
+    });
+    const week = days.reduce((s, d) => s + d.count, 0);
+    const today = days.find((d) => d.ymd === todayYmd)?.count ?? 0;
 
-  const attendanceRate = useMemo(() => {
-    if (totalAttendanceDays === 0) return 100;
-    return Math.round((presentDays / totalAttendanceDays) * 100);
-  }, [totalAttendanceDays, presentDays]);
+    // Bugün geçerli olan hedefler; en anlamlısı: henüz bitmemiş ve bitiş tarihi en yakın olan
+    const targets = dataService
+      .getQuestionTargetsForStudent(student.id, todayYmd, todayYmd)
+      .map((t) => ({ t, p: dataService.questionTargetProgress(t, student.id, mine), end: dataService.questionTargetEnd(t) }))
+      .sort((a, b) => Number(a.p.done) - Number(b.p.done) || a.end.localeCompare(b.end));
+    const top = targets[0];
+    const teacher = top ? top.t.assignedByTeacherName || (top.t.assignedBy && top.t.assignedBy !== 'Öğretmen' ? top.t.assignedBy : '') : '';
+    return {
+      days,
+      week,
+      today,
+      max: Math.max(1, ...days.map((d) => d.count)),
+      target: top ? { ...top, teacher, subject: top.t.subject || 'Tüm dersler' } : null,
+      otherTargets: Math.max(0, targets.length - 1),
+    };
+  }, [questionLogs, student.id, monday, todayYmd, dataVersion]);
 
-  // 5. Öğrencinin Bu Haftaki Soru Çözüm Verisi & Son 7 Günlük Dağılım Grafiği
-  const questionLogs = dataService.getQuestionLogs();
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-  const weekAgoStr = weekAgo.toISOString().slice(0, 10);
-  const studentWeeklyQuestions = questionLogs
-    .filter((l) => l.studentId === student.id && l.date >= weekAgoStr)
-    .reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
+  // ------------------------------------------------------------------ Notlar
+  const gr = useMemo(() => {
+    const valid = grades
+      .filter((g) => g.studentId === student.id && Number.isFinite(Number(g.score)))
+      .map((g) => {
+        const max = Number(g.maxScore) > 0 ? Number(g.maxScore) : 100;
+        return { g, max, pct: (Number(g.score) / max) * 100 };
+      });
+    if (valid.length === 0) return null;
+    const avg = valid.reduce((s, x) => s + x.pct, 0) / valid.length;
+    const last = [...valid].sort((a, b) => (b.g.date || '').localeCompare(a.g.date || ''))[0];
+    return { count: valid.length, average: Math.round(avg * 10) / 10, last };
+  }, [grades, student.id]);
 
-  // Son 7 günün günlük soru analitiği
-  const last7DaysData = useMemo(() => {
-    const days: { date: string; label: string; count: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dStr = d.toISOString().slice(0, 10);
-      const dayName = d.toLocaleDateString('tr-TR', { weekday: 'short' });
-      const count = questionLogs
-        .filter((l) => l.studentId === student.id && l.date === dStr)
-        .reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
-      days.push({ date: dStr, label: dayName, count });
-    }
-    return days;
-  }, [questionLogs, student.id]);
+  const go = (tab: StudentTabType) => {
+    onNavigateTab(tab);
+    window.scrollTo({ top: 0 });
+  };
 
-  const maxDailyCount = Math.max(1, ...last7DaysData.map((d) => d.count));
+  // ------------------------------------------------------------------ Görünüm
+  const nextDueLabel = (() => {
+    const n = hw.next;
+    if (!n) return null;
+    if (!n.due) return `Sıradaki: ${n.hw.subject || n.hw.title}`;
+    const hasTime = /T\d{2}:\d{2}/.test(n.hw.dueDate);
+    return `En yakın teslim: ${relativeDay(n.due, now)}${hasTime ? ` ${hhmm(n.due)}` : ''} · ${n.hw.subject || n.hw.title}`;
+  })();
+
+  const nextEtutLabel = (() => {
+    const n = et.next;
+    if (!n) return null;
+    const live = n.start.getTime() <= now.getTime();
+    const when = live ? 'Şu an' : `Sıradaki: ${relativeDay(n.start, now)} ${hhmm(n.start)}`;
+    return [when, n.e.subject, n.e.teacherName].filter(Boolean).join(' · ');
+  })();
 
   return (
-    <div id="student-analytics-overview-wall" className="bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-      {/* Duvar Başlığı */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-line gap-2">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 flex items-center justify-center text-orange-600 dark:text-orange-300">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-fg">
-              Akademik Başarı & Gelişim Göstergeleri
-            </h3>
-            <p className="text-[11px] text-muted">
-              Kurs ödevleri, etütler, not ortalaması, soru analitiği ve başarı rozetlerinizin genel görünümü
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-1.5 text-xs font-semibold text-muted bg-surface-2/80 px-2.5 py-1 rounded-full border border-line">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
-          <span className="text-[11px] font-bold text-fg-2">Dönem Performans Özeti</span>
+    <section id="student-home-stats" aria-labelledby="student-home-stats-title" className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="student-home-stats-title" className="text-base sm:text-lg font-semibold text-fg">
+            Durumum
+          </h2>
+          <p className="text-xs text-muted mt-0.5">Ödevlerin, etütlerin, soru çözümün ve notların bir bakışta</p>
         </div>
       </div>
 
-      {/* TEK DUVAR İÇİNDE YAN YANA 5 KUTU (Rozetler ve Not Ortalaması yer değiştirildi, Rozetler daha büyük ve dikkat çekici) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-stretch">
-        {/* Kutu 1: Kurs & Ödev Bitirme */}
-        <div
-          onClick={() => onNavigateTab('homework')}
-          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-surface-2 border border-line rounded-xl p-3.5 hover:border-orange-300 dark:hover:border-orange-500/30 hover:bg-surface hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* ---------------- Ödevlerim ---------------- */}
+        <SummaryCard
+          id="student-home-stat-homework"
+          label="Ödevlerim"
+          icon={BookOpen}
+          tone="success"
+          goLabel="Ödevlerime git"
+          onClick={() => go('homework')}
         >
-          <div>
-            <div className="flex items-center justify-between text-muted text-xs font-semibold">
-              <span className="text-[11px] font-bold text-muted truncate">Kurs & Ödev Bitirme</span>
-              <div className="w-6 h-6 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-200/80 dark:border-orange-500/30 flex items-center justify-center text-orange-600 dark:text-orange-300 group-hover:scale-105 transition-transform shrink-0">
-                <BookOpen className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <div className="mt-2.5">
-              <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-fg tracking-tight">
-                  %{completionPercentage}
-                </span>
-                <span className="text-[10px] font-semibold text-muted">Bitti</span>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-surface-3 rounded-full h-1.5 mt-2 overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-orange-500 to-amber-500 h-1.5 rounded-full transition-all duration-500"
-                  style={{ width: `${completionPercentage}%` }}
-                />
-              </div>
-
-              <div className="flex justify-between items-center text-[10px] text-muted mt-2">
-                <span className="font-semibold">{completedHwsCount}/{totalHws} Ödev</span>
-                <span className={pendingHwsCount > 0 ? 'text-orange-600 dark:text-orange-300 font-bold' : 'text-emerald-600 dark:text-emerald-300 font-bold'}>
-                  {pendingHwsCount > 0 ? `${pendingHwsCount} Bekleyen` : 'Tamamı Bitti'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 mt-2.5 border-t border-line flex items-center justify-between text-[10px] font-bold text-orange-600 dark:text-orange-300 group-hover:text-orange-700 dark:group-hover:text-orange-300">
-            <span>Ödevlerime Git</span>
-            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </div>
-
-        {/* Kutu 2: Etüt & Birebir Destek */}
-        <div
-          onClick={() => onNavigateTab('etuts')}
-          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-surface-2 border border-line rounded-xl p-3.5 hover:border-blue-300 dark:hover:border-blue-500/30 hover:bg-surface hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between text-muted text-xs font-semibold">
-              <span className="text-[11px] font-bold text-muted truncate">Etüt & Birebir Destek</span>
-              <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200/80 dark:border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-300 group-hover:scale-105 transition-transform shrink-0">
-                <Calendar className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <div className="mt-2.5">
-              <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-fg tracking-tight">
-                  {etuts.length}
-                </span>
-                <span className="text-[10px] font-semibold text-muted">Program</span>
-              </div>
-
-              <div className="mt-2 text-[10px] min-h-[30px] flex items-center">
-                {todayEtuts.length > 0 ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-200 font-bold text-[10px] truncate">
-                    Bugün {todayEtuts.length} Etüt Var!
+          {hw.total === 0 ? (
+            <CardEmpty title="Şu an ödevin yok" hint="Yeni ödev verildiğinde burada göreceksin." />
+          ) : (
+            <>
+              <MainValue value={hw.openCount} unit="bekleyen ödev" />
+              <ContextLine>
+                {nextDueLabel ?? (hw.overdue > 0 ? 'Yeni bekleyen ödevin yok' : 'Bütün ödevlerin tamam, tebrikler')}
+              </ContextLine>
+              <div className="mt-3 space-y-1.5">
+                <ProgressBar percent={hw.percent} tone="success" label={`Ödev tamamlama oranı %${hw.percent}`} />
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                  <span className="tabular-nums">
+                    {hw.done}/{hw.counted} tamamlandı
                   </span>
-                ) : upcomingEtuts.length > 0 ? (
-                  <span className="text-muted text-[10px] truncate">
-                    Yakın: <strong className="text-fg">{upcomingEtuts[0].subject}</strong>
+                  {hw.overdue > 0 && (
+                    <span id="student-home-stat-homework-overdue" className="ui-chip ui-chip-danger">
+                      {hw.overdue} ödevin süresi geçti
+                    </span>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </SummaryCard>
+
+        {/* ---------------- Etütlerim ---------------- */}
+        <SummaryCard
+          id="student-home-stat-etuts"
+          label="Etütlerim"
+          icon={CalendarDays}
+          tone="info"
+          goLabel="Etütlerime git"
+          onClick={() => go('etuts')}
+        >
+          {et.total === 0 ? (
+            <CardEmpty title="Henüz etüdün yok" hint="Öğretmenin etüt planladığında burada görünecek." />
+          ) : (
+            <>
+              <MainValue value={et.thisWeek} unit="etüt bu hafta" />
+              <ContextLine>{nextEtutLabel ?? 'Planlanmış yeni etüdün yok'}</ContextLine>
+              <div className="mt-3 text-xs text-muted">
+                Katılımın:{' '}
+                {et.rate === null ? (
+                  <span className="text-fg-2 font-semibold" title="Henüz yoklama girilmedi">
+                    —
                   </span>
                 ) : (
-                  <span className="text-subtle text-[10px]">Aktif etüt yok</span>
+                  <>
+                    <span className="text-fg font-semibold tabular-nums">%{et.rate}</span>{' '}
+                    <span className="tabular-nums">
+                      ({et.attended}/{et.marked} etüt)
+                    </span>
+                  </>
                 )}
               </div>
-            </div>
-          </div>
+            </>
+          )}
+        </SummaryCard>
 
-          <div className="pt-2 mt-2.5 border-t border-line flex items-center justify-between text-[10px] font-bold text-blue-600 dark:text-blue-300 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-            <span>Etüt Programı</span>
-            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </div>
-
-        {/* Kutu 3: Akademik Başarı Rozetlerim (NOT ORTALAMA BAŞARI İLE YER DEĞİŞTİRİLDİ, DAHA BÜYÜK VE DİKKAT ÇEKİCİ) */}
-        <div
-          id="student-stats-academic-badges"
-          className="col-span-1 sm:col-span-2 lg:col-span-4 bg-gradient-to-br from-amber-500/15 via-surface to-amber-50 dark:to-amber-950/40 border-2 border-amber-400/90 rounded-xl p-3.5 shadow-lg shadow-amber-500/10 ring-1 ring-amber-400/40 flex flex-col justify-between relative overflow-hidden group"
+        {/* ---------------- Soru Çözümüm ---------------- */}
+        <SummaryCard
+          id="student-home-stat-questions"
+          label="Soru Çözümüm"
+          icon={Target}
+          tone="warning"
+          goLabel="Soru takibine git"
+          onClick={() => go('questions')}
         >
-          {/* Subtle golden ambient glow */}
-          <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-400/15 rounded-full blur-xl pointer-events-none" />
-
-          <div>
-            {/* Header: Title and Glowing Badge Status */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-700 dark:text-amber-300 shadow-inner shrink-0">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" />
-                </div>
-                <span className="text-xs sm:text-sm font-black text-amber-700 dark:text-amber-100 tracking-tight">
-                  Akademik Başarı Rozetlerim
-                </span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-[10px] shadow-sm flex items-center gap-1 shrink-0 animate-pulse">
-                <Flame className="w-3 h-3 text-red-600 fill-red-600" />
-                4/4 KAZANILDI
-              </span>
+          <MainValue value={fmtNumber(q.week)} unit="soru bu hafta" />
+          {q.target ? (
+            <div id="student-home-stat-questions-target" className="mt-1.5 space-y-1.5">
+              <p className="text-xs text-muted">
+                Hedef:{' '}
+                <span className="text-fg font-semibold tabular-nums">
+                  {fmtNumber(q.target.p.solved)}/{fmtNumber(q.target.p.total)}
+                </span>{' '}
+                ({q.target.subject}
+                {q.target.teacher ? ` – ${q.target.teacher}` : ''})
+                {q.otherTargets > 0 && <span> · +{q.otherTargets} hedef daha</span>}
+              </p>
+              <ProgressBar
+                percent={q.target.p.percent}
+                tone={q.target.p.done ? 'success' : 'warning'}
+                label={`Hedef ilerlemesi %${q.target.p.percent}`}
+              />
             </div>
+          ) : (
+            <ContextLine>{q.week > 0 ? `Bugün ${fmtNumber(q.today)} soru` : 'Bu hafta henüz soru girmedin'}</ContextLine>
+          )}
+          <WeekBars days={q.days} max={q.max} todayYmd={todayYmd} />
+        </SummaryCard>
 
-            {/* Score & Level Sub-Bar */}
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-amber-700 dark:text-amber-300 tracking-tight">
-                  4 / 4
-                </span>
-                <span className="text-[10px] font-bold text-amber-700/80 dark:text-amber-200/80">Tamamlandı</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-400/40 text-amber-700 dark:text-amber-200 text-[10px] font-extrabold flex items-center space-x-1">
-                <span>🏆 Seviye 1 Yıldız Öğrenci</span>
-              </span>
-            </div>
-
-            {/* 4 Dikkat Çekici Büyük Rozet Kartı */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2">
-              <div className="bg-surface border border-amber-400/50 rounded-lg p-2 text-center hover:border-amber-400 transition-all">
-                <span className="text-base sm:text-lg block">🎯</span>
-                <span className="text-[10px] font-extrabold text-fg block mt-0.5 truncate">Ödev Ustası</span>
-                <span className="text-[8.5px] font-bold text-emerald-700 dark:text-emerald-300 block">%100 Teslim</span>
-              </div>
-              <div className="bg-surface border border-amber-400/50 rounded-lg p-2 text-center hover:border-amber-400 transition-all">
-                <span className="text-base sm:text-lg block">⭐</span>
-                <span className="text-[10px] font-extrabold text-fg block mt-0.5 truncate">Etüt Yıldızı</span>
-                <span className="text-[8.5px] font-bold text-amber-700 dark:text-amber-300 block">Tam Katılım</span>
-              </div>
-              <div className="bg-surface border border-amber-400/50 rounded-lg p-2 text-center hover:border-amber-400 transition-all">
-                <span className="text-base sm:text-lg block">🏆</span>
-                <span className="text-[10px] font-extrabold text-fg block mt-0.5 truncate">Soru Şampiyonu</span>
-                <span className="text-[8.5px] font-bold text-blue-700 dark:text-blue-300 block">Haftalık Hedef</span>
-              </div>
-              <div className="bg-surface border border-amber-400/50 rounded-lg p-2 text-center hover:border-amber-400 transition-all">
-                <span className="text-base sm:text-lg block">🚀</span>
-                <span className="text-[10px] font-extrabold text-fg block mt-0.5 truncate">Gelişim Lideri</span>
-                <span className="text-[8.5px] font-bold text-purple-700 dark:text-purple-300 block">Aktif Seri</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Golden Progress and Status Footer */}
-          <div className="pt-2 mt-2 border-t border-amber-500/30 flex items-center justify-between text-[10px] font-bold text-amber-700 dark:text-amber-200">
-            <span className="flex items-center space-x-1">
-              <span>✨ Tüm Dönem Rozetleri Açıldı</span>
-            </span>
-            <span className="text-amber-700 dark:text-amber-300 font-extrabold flex items-center space-x-1">
-              <span>Süper Seri Aktif</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            </span>
-          </div>
-        </div>
-
-        {/* Kutu 4: Soru Analitiği & Grafikler */}
-        <div
-          onClick={() => onNavigateTab('questions')}
-          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-surface-2 border border-line rounded-xl p-3.5 hover:border-emerald-300 dark:hover:border-emerald-500/30 hover:bg-surface hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
+        {/* ---------------- Notlarım ---------------- */}
+        <SummaryCard
+          id="student-home-stat-grades"
+          label="Notlarım"
+          icon={Award}
+          tone="brand"
+          goLabel="Notlarıma git"
+          onClick={() => go('grades')}
         >
-          <div>
-            <div className="flex items-center justify-between text-muted text-xs font-semibold">
-              <span className="text-[11px] font-bold text-muted truncate">Soru Analitiği & Grafikler</span>
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/80 dark:border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-300 group-hover:scale-105 transition-transform shrink-0">
-                <BarChart3 className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <div className="mt-2.5">
-              <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight">
-                  {studentWeeklyQuestions}
+          {gr === null ? (
+            <CardEmpty title="Henüz notun girilmedi" hint="Sınav ve performans notların burada görünecek." />
+          ) : (
+            <>
+              <MainValue value={fmtAverage(gr.average)} unit="/ 100 ortalama" />
+              <ContextLine>
+                Son not: {gr.last.g.subject}
+                {gr.last.g.examType ? ` · ${gr.last.g.examType}` : ''} ·{' '}
+                <span className="tabular-nums">
+                  {fmtAverage(Number(gr.last.g.score))}/{fmtAverage(gr.last.max)}
                 </span>
-                <span className="text-[10px] font-semibold text-muted">Soru/Hafta</span>
-              </div>
-
-              {/* Son 7 Günlük Mini Çubuk Grafik */}
-              <div className="mt-2 pt-0.5 flex items-end justify-between gap-1 h-7 bg-surface px-1 py-0.5 rounded border border-line">
-                {last7DaysData.map((d, idx) => {
-                  const heightPercent = maxDailyCount > 0 ? Math.max(15, Math.round((d.count / maxDailyCount) * 100)) : 15;
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center group/bar" title={`${d.label} (${d.date}): ${d.count} Soru`}>
-                      <div
-                        className={`w-full rounded-t transition-all ${
-                          d.count > 0 ? 'bg-emerald-500 group-hover/bar:bg-emerald-600' : 'bg-surface-3'
-                        }`}
-                        style={{ height: `${heightPercent}%` }}
-                      />
-                      <span className="text-[7px] text-subtle font-mono mt-0.5 leading-none">
-                        {d.label.slice(0, 1)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 mt-2.5 border-t border-line flex items-center justify-between text-[10px] font-bold text-emerald-600 dark:text-emerald-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
-            <span>Soru Analizine Git</span>
-            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </div>
-
-        {/* Kutu 5: Not Ortalama Başarı (AKADEMİK BAŞARI ROZETLERİM İLE YER DEĞİŞTİRİLDİ) */}
-        <div
-          onClick={() => onNavigateTab('grades')}
-          className="col-span-1 sm:col-span-1 lg:col-span-2 bg-surface-2 border border-line rounded-xl p-3.5 hover:border-purple-300 dark:hover:border-purple-500/30 hover:bg-surface hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between text-muted text-xs font-semibold">
-              <span className="text-[11px] font-bold text-muted truncate">Not Ortalama Başarı</span>
-              <div className="w-6 h-6 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-200/80 dark:border-purple-500/30 flex items-center justify-center text-purple-600 dark:text-purple-300 group-hover:scale-105 transition-transform shrink-0">
-                <Award className="w-3.5 h-3.5" />
-              </div>
-            </div>
-
-            <div className="mt-2.5">
-              <div className="flex items-baseline space-x-1.5">
-                <span className="text-2xl font-black text-fg tracking-tight">
-                  {averageScore !== null ? averageScore : '—'}
-                </span>
-                <span className="text-[10px] font-semibold text-muted">/ 100</span>
-              </div>
-
-              <div className="mt-2 flex items-center justify-between gap-1 text-[10px] min-h-[30px]">
-                <span className="px-1.5 py-0.5 rounded bg-fg text-surface font-bold text-[9px] truncate">
-                  {letterGrade}
-                </span>
-                <span className="text-muted font-medium truncate">
-                  {myGrades.length} Not Kaydı
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 mt-2.5 border-t border-line flex items-center justify-between text-[10px] font-bold text-purple-600 dark:text-purple-300 group-hover:text-purple-700 dark:group-hover:text-purple-300">
-            <span>Karneler & Notlar</span>
-            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </div>
+              </ContextLine>
+              <div className="mt-3 text-xs text-muted tabular-nums">{gr.count} not kaydı</div>
+            </>
+          )}
+        </SummaryCard>
       </div>
-    </div>
+    </section>
   );
 };
+
+// ---------------------------------------------------------------------------
+// Parçalar
+// ---------------------------------------------------------------------------
+type IconType = React.ComponentType<{ className?: string }>;
+
+const SummaryCard: React.FC<{
+  id: string;
+  label: string;
+  icon: IconType;
+  tone: Tone;
+  goLabel: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ id, label, icon, tone, goLabel, onClick, children }) => (
+  <button
+    type="button"
+    id={id}
+    onClick={onClick}
+    className="ui-card ui-card-pad group w-full min-w-0 text-left flex flex-col cursor-pointer transition-colors hover:border-line-strong"
+  >
+    <span className="flex items-start justify-between gap-3 w-full">
+      <span className="ui-eyebrow">{label}</span>
+      <IconBox icon={icon} tone={tone} size="sm" />
+    </span>
+    <span className="block flex-1 w-full min-w-0">{children}</span>
+    <span className="mt-4 pt-3 border-t border-line w-full flex items-center justify-between text-xs font-semibold text-brand-fg">
+      <span>{goLabel}</span>
+      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+    </span>
+  </button>
+);
+
+const MainValue: React.FC<{ value: React.ReactNode; unit: string }> = ({ value, unit }) => (
+  <span className="mt-2 flex items-baseline gap-1.5 flex-wrap">
+    <span className="text-2xl sm:text-3xl font-bold tracking-tight text-fg tabular-nums">{value}</span>
+    <span className="text-sm text-muted">{unit}</span>
+  </span>
+);
+
+const ContextLine: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="mt-1.5 block text-xs text-fg-2 leading-relaxed break-words">{children}</span>
+);
+
+const CardEmpty: React.FC<{ title: string; hint: string }> = ({ title, hint }) => (
+  <span className="mt-3 block">
+    <span className="block text-sm font-semibold text-fg">{title}</span>
+    <span className="block text-xs text-muted mt-1">{hint}</span>
+  </span>
+);
+
+const barTone: Record<'success' | 'warning', string> = {
+  success: 'bg-success',
+  warning: 'bg-warning',
+};
+
+const ProgressBar: React.FC<{ percent: number; tone: 'success' | 'warning'; label: string }> = ({ percent, tone, label }) => {
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <span
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={p}
+      aria-label={label}
+      className="block h-1.5 w-full rounded-full bg-surface-3 overflow-hidden"
+    >
+      <span className={cx('block h-full rounded-full', barTone[tone])} style={{ width: `${p}%` }} />
+    </span>
+  );
+};
+
+// Bu haftanın (Pazartesi–Pazar) günlük soru sayıları — sabit piksel yükseklikli çubuklar
+const BAR_MAX_PX = 32;
+const WeekBars: React.FC<{ days: Array<{ ymd: string; label: string; count: number }>; max: number; todayYmd: string }> = ({
+  days,
+  max,
+  todayYmd,
+}) => (
+  <span className="mt-3 block" id="student-home-stat-questions-week">
+    <span className="sr-only">
+      Bu haftaki günlük soru sayıları: {days.map((d) => `${d.label} ${d.count}`).join(', ')}
+    </span>
+    <span className="grid grid-cols-7 gap-1.5" aria-hidden="true">
+      {days.map((d) => {
+        const isToday = d.ymd === todayYmd;
+        const isFuture = d.ymd > todayYmd;
+        const h = d.count > 0 ? Math.max(4, Math.round((d.count / max) * BAR_MAX_PX)) : 2;
+        return (
+          <span key={d.ymd} className="flex flex-col items-center gap-1 min-w-0" title={`${d.label}: ${d.count} soru`}>
+            <span className="flex items-end w-full justify-center" style={{ height: BAR_MAX_PX }}>
+              <span
+                className={cx(
+                  'block w-full max-w-[18px] rounded-t',
+                  d.count === 0 ? 'bg-surface-3' : isToday ? 'bg-warning' : 'bg-warning/45'
+                )}
+                style={{ height: h }}
+              />
+            </span>
+            <span
+              className={cx(
+                'text-[11px] leading-none tabular-nums',
+                isToday ? 'font-semibold text-fg' : isFuture ? 'text-subtle' : 'text-muted'
+              )}
+            >
+              {d.label}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  </span>
+);

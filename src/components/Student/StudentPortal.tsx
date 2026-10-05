@@ -44,6 +44,7 @@ import { StudentNotificationCenterModal } from './StudentNotificationCenterModal
 import { StudentAvatarModal } from './StudentAvatarModal';
 import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
 import { StudentStatsOverview } from './StudentStatsOverview';
+import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { StudentQuestionModule } from './StudentQuestionModule';
 import { StudentBottomNav } from '../Layout/BottomNav';
@@ -147,22 +148,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Filter homeworks assigned to this student (or assigned to 'all' or class)
   const myHomeworks = homeworks.filter((h) => dataService.isHomeworkForStudent(h, currentStudent));
 
-  // Filter etuts assigned to this student (or assigned to 'all', or in attendance list, or grade match)
-  const myEtuts = etuts.filter((e) => {
-    if (e.assignedStudentIds === 'all') return true;
-    if (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.includes(currentStudent.id)) return true;
-    if (e.studentAttendance && e.studentAttendance[currentStudent.id]) return true;
-    if (!e.assignedStudentIds || (Array.isArray(e.assignedStudentIds) && e.assignedStudentIds.length === 0)) {
-      if (e.gradeLevel && currentStudent.className && typeof currentStudent.className === 'string') {
-        const gradePart = (e.gradeLevel.split('.')[0] || '').toLowerCase();
-        if (gradePart && currentStudent.className.toLowerCase().includes(gradePart)) {
-          return true;
-        }
-      }
-      return true;
-    }
-    return false;
-  });
+  // Bu öğrencinin etütleri: kendisine atanmış / yoklamasında olan etütler; öğrenci listesi "herkes" veya boş olan
+  // eski etütler yalnızca etüdün sınıf/kademe bilgisi öğrencininkiyle eşleşirse
+  const myEtuts = React.useMemo(() => {
+    const myClass = classes.find((c) => c.id === currentStudent.classId);
+    return etuts.filter((e) => isEtutForStudent(e, currentStudent, myClass));
+  }, [etuts, currentStudent, classes]);
 
   // Filter student grades
   const myGrades = grades.filter((g) => g.studentId === currentStudent.id);
@@ -533,14 +524,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
           />
 
-          {/* Wall 2: Öğrenci Durum Özetleri, İstatistikler, Rozetler ve Hızlı Geçiş Duvarı */}
+          {/* Wall 2: "Durumum" — ödev, etüt, soru ve not özeti */}
           <StudentStatsOverview
             student={currentStudent}
             homeworks={myHomeworks}
             submissions={getSubmissionsList()}
             etuts={myEtuts}
-            grades={grades}
-            attendance={attendance}
+            grades={myGrades}
             onNavigateTab={(tab) => setActiveTab(tab)}
           />
         </div>

@@ -1,22 +1,24 @@
 import React, { useState, useRef } from 'react';
-import {
-  X,
-  FileSpreadsheet,
-  Upload,
-  Download,
-  CheckCircle2,
-  AlertCircle,
-  Users,
-  School,
-  Trash2,
-  Sparkles,
-  Clipboard,
-  FileText,
-  HelpCircle,
-} from 'lucide-react';
+import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, School, Trash2, Sparkles, Clipboard, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ClassGroup, Student, StudentAccountResult } from '../../types';
+import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure } from '../../types';
 import { dataService } from '../../services/dataService';
+import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../constants/schoolConstants';
+import { Modal, Segmented, cx } from '../ui/kit';
+import {
+  STUDENT_COLUMNS,
+  SheetRow,
+  matrixToRows,
+  textToMatrix,
+  extractStudentRows,
+  parseClassName,
+  normalizeClassKey,
+  currentAcademicYear,
+  trFold,
+  emailIssue,
+  normalizeTurkishPhone,
+  PHONE_ERROR,
+} from '../../lib/importNormalize';
 
 interface ExcelStudentUploadModalProps {
   isOpen: boolean;
@@ -30,11 +32,15 @@ interface ExcelStudentUploadModalProps {
 
 interface ParsedStudentRow {
   id: string;
+  rowNumber: number;
   firstName: string;
   lastName: string;
   fullName: string;
   className: string;
   matchedClassId: string;
+  classError?: string;
+  // Excel'de sınıf hücresi boştu: "Sınıfı boş satırlar için" seçimindeki sınıfa atanır
+  usesDefaultClass: boolean;
   studentNumber: string;
   email: string;
   phone: string;
@@ -42,6 +48,27 @@ interface ParsedStudentRow {
   isNewClass: boolean;
   isValid: boolean;
   validationError?: string;
+}
+
+interface ClassMatch {
+  classId: string;
+  className: string;
+  isNew: boolean;
+  error?: string;
+}
+
+const PASTE_HEADERS = ['Ad', 'Soyad', 'Sınıf', 'Öğrenci No', 'Telefon', 'E-Posta'];
+
+// Sınıfın şube/sınıf bilgisi (ad çözümlenemezse sınıf seviyesi ve şube alanlarından)
+function classGradeBranch(c: ClassGroup): { grade?: number; branch?: string } {
+  const p = parseClassName(c.name);
+  let grade = p.grade;
+  let branch = p.branch;
+  if (!grade && c.gradeLevel) grade = parseClassName(c.gradeLevel).grade;
+  if (!branch && c.branch && /^[A-Za-zÇĞİÖŞÜçğıöşü]$/.test(c.branch.replace(/şube/gi, '').trim())) {
+    branch = c.branch.replace(/şube/gi, '').trim();
+  }
+  return { grade, branch: branch ? trFold(branch) : undefined };
 }
 
 export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = ({
@@ -68,53 +95,58 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
 
   if (!isOpen) return null;
 
-  // Clean Turkish character normalization for matching
-  const normalizeStr = (str: string) => {
-    return str
-      .trim()
-      .toLowerCase()
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ı/g, 'i')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c');
-  };
-
-  // Find matching class ID by class name or keywords
-  const findMatchingClass = (rawClassName: string): { classId: string; className: string; isNew: boolean } => {
-    if (!rawClassName || rawClassName.trim() === '') {
+  // Excel'deki sınıf yazısını sistemdeki sınıfla eşleştirir: "8-A", "8/A", "8A", "8. Sınıf - A" aynı sayılır.
+  // Yalnızca sınıf seviyesi ("8") yazılmışsa eşleştirme yapılmaz (hangi şube olduğu belli değil).
+  const findMatchingClass = (rawClassName: string): ClassMatch => {
+    const raw = (rawClassName || '').trim();
+    if (!raw) {
       const defaultClass = classes.find((c) => c.id === defaultClassId) || classes[0];
       return {
         classId: defaultClass ? defaultClass.id : '',
-        className: defaultClass ? defaultClass.name : 'Genel',
+        className: defaultClass ? defaultClass.name : '',
         isNew: false,
       };
     }
 
-    const normRaw = normalizeStr(rawClassName);
+    const parsed = parseClassName(raw);
+    if (parsed.grade && !parsed.branch && !parsed.rest) {
+      return { classId: '', className: raw, isNew: false, error: 'Şube eksik: sınıfı "8/A" gibi şubesiyle yazın' };
+    }
 
-    // Exact match
-    const exact = classes.find((c) => normalizeStr(c.name) === normRaw);
-    if (exact) return { classId: exact.id, className: exact.name, isNew: false };
+    const key = normalizeClassKey(raw);
+    const exact = classes.filter((c) => normalizeClassKey(c.name) === key);
+    if (exact.length > 0) {
+      const year = currentAcademicYear();
+      const pick = exact.find((c) => c.academicYear === year) || exact[0];
+      return { classId: pick.id, className: pick.name, isNew: false };
+    }
 
-    // Partial / Starts with match (e.g., "12-A" matches "12-A Sayısal")
-    const partial = classes.find((c) => {
-      const normC = normalizeStr(c.name);
-      return normC.startsWith(normRaw) || normRaw.startsWith(normC) || normC.includes(normRaw);
-    });
+    // "12-A" <-> "12-A Sayısal": aynı sınıf + şubeye sahip TEK sınıf varsa onunla eşleştir
+    if (parsed.grade && parsed.branch) {
+      const branch = trFold(parsed.branch);
+      const candidates = classes.filter((c) => {
+        const gb = classGradeBranch(c);
+        if (gb.grade !== parsed.grade || gb.branch !== branch) return false;
+        return !parsed.rest || !parseClassName(c.name).rest;
+      });
+      if (candidates.length === 1) return { classId: candidates[0].id, className: candidates[0].name, isNew: false };
+      if (candidates.length > 1) {
+        return {
+          classId: '',
+          className: raw,
+          isNew: false,
+          error: `Birden fazla sınıfla eşleşiyor (${candidates.map((c) => c.name).join(', ')}); tam sınıf adını yazın`,
+        };
+      }
+    }
 
-    if (partial) return { classId: partial.id, className: partial.name, isNew: false };
-
-    // It's a new class name
-    return {
-      classId: '',
-      className: rawClassName.trim(),
-      isNew: true,
-    };
+    // Sistemde yok: yeni sınıf adı ("8-B" -> "8/B"; "12-A Sayısal" olduğu gibi)
+    const displayName = parsed.grade && parsed.branch && !parsed.rest ? formatClassDisplayName(raw) : raw;
+    return { classId: '', className: displayName, isNew: true };
   };
 
-  // Satırları doğrula: numara zorunlu/benzersiz, sınıf sistemde olmalı (yalnızca yönetici yeni sınıf açabilir)
+  // Satırları doğrula: isim, numara zorunlu/benzersiz, e-posta/telefon biçimi, sınıf sistemde olmalı
+  // (yalnızca yönetici yeni sınıf açabilir)
   const validateRows = (rows: ParsedStudentRow[], allowNewClasses: boolean): ParsedStudentRow[] => {
     const counts = new Map<string, number>();
     rows.forEach((r) => {
@@ -125,89 +157,66 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     return rows.map((r) => {
       const num = r.studentNumber.trim();
       let error: string | undefined;
-      if (r.fullName.trim().length < 2) error = 'İsim bilgisi geçersiz';
+      if (!r.fullName.trim()) error = 'Ad soyad bulunamadı (isim sütunu boş)';
+      else if (r.fullName.trim().length < 2) error = 'İsim bilgisi geçersiz';
       else if (!num) error = 'Öğrenci no zorunlu (giriş adı)';
       else if (!/^[0-9A-Za-z_-]{1,20}$/.test(num)) error = 'Numara yalnızca rakam/harf olmalı';
       else if ((counts.get(num.toLowerCase()) || 0) > 1) error = 'Numara listede tekrar ediyor';
       else if (taken.has(num.toLowerCase())) error = 'Bu numara sistemde kayıtlı';
       else if (r.password && r.password.trim().length > 0 && r.password.trim().length < 6) error = 'Şifre en az 6 karakter';
+      else if (emailIssue(r.email)) error = emailIssue(r.email) || undefined;
+      else if (!normalizeTurkishPhone(r.phone).valid) error = PHONE_ERROR;
+      else if (r.classError) error = r.classError;
       else if (r.isNewClass && !(isAdmin && allowNewClasses)) error = isAdmin ? 'Sınıf sistemde yok' : 'Sınıf yok / yetkiniz yok';
       else if (!r.isNewClass && !r.matchedClassId) error = 'Sınıf seçilmedi';
       return { ...r, isValid: !error, validationError: error };
     });
   };
 
-  // Process raw object rows from XLSX or CSV
-  const processRawData = (rows: Record<string, unknown>[]) => {
+  const applyClassMatch = (row: ParsedStudentRow, rawClass: string): ParsedStudentRow => {
+    const match = findMatchingClass(rawClass);
+    return {
+      ...row,
+      className: match.className || rawClass,
+      matchedClassId: match.classId,
+      isNewClass: match.isNew,
+      classError: match.error,
+      usesDefaultClass: !(rawClass || '').trim(),
+    };
+  };
+
+  // Başlık satırı bulunmuş hücre satırlarını önizleme satırlarına çevirir
+  const processRows = (headers: string[], rows: SheetRow[]) => {
     if (!rows || rows.length === 0) {
       setErrorMessage('Yüklenen dosyada okunabilir öğrenci satırı bulunamadı.');
       return;
     }
-
-    const mapped: ParsedStudentRow[] = [];
-
-    rows.forEach((row, index) => {
-      // Find key mappings case-insensitively
-      const keys = Object.keys(row);
-      const getVal = (...possibleKeys: string[]): string => {
-        for (const pKey of possibleKeys) {
-          const normP = normalizeStr(pKey);
-          const foundKey = keys.find((k) => normalizeStr(k) === normP || normalizeStr(k).includes(normP));
-          if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null) {
-            return String(row[foundKey]).trim();
-          }
-        }
-        return '';
-      };
-
-      const rawFullName = getVal('ad soyad', 'isim soyisim', 'adi soyadi', 'ogrenci adi', 'full name', 'ad-soyad');
-      let firstName = getVal('ad', 'isim', 'adi', 'first name', 'adiniz', 'ogrenci ad');
-      let lastName = getVal('soyad', 'soyisim', 'soyadi', 'last name', 'soyadiniz', 'ogrenci soyad');
-
-      if (!firstName && !lastName && rawFullName) {
-        const parts = rawFullName.trim().split(/\s+/);
-        if (parts.length === 1) {
-          firstName = parts[0];
-          lastName = '';
-        } else {
-          lastName = parts.pop() || '';
-          firstName = parts.join(' ');
-        }
-      }
-
-      const finalFullName = (
-        rawFullName ||
-        `${firstName} ${lastName}`.trim() ||
-        `Öğrenci ${index + 1}`
-      ).trim();
-
-      const rawClass = getVal('sinif', 'sinifi', 'sube', 'subesi', 'class', 'grade', 'alan', 'sinif/sube');
-      const studentNumber = getVal('numara', 'ogrenci no', 'okul no', 'no', 'number', 'student no', 'id');
-      const email = getVal('eposta', 'e-posta', 'email', 'mail') || '';
-      const phone = getVal('telefon', 'tel', 'phone', 'gsm', 'veli tel') || '';
-      const password = getVal('sifre', 'parola', 'password');
-
-      const match = findMatchingClass(rawClass);
-
-      mapped.push({
-        id: `parsed-${index}-${Date.now()}`,
-        firstName: firstName || finalFullName.split(' ')[0] || '',
-        lastName: lastName || finalFullName.split(' ').slice(1).join(' ') || '',
-        fullName: finalFullName,
-        className: match.className,
-        matchedClassId: match.classId,
-        studentNumber,
-        email,
-        phone,
-        password,
-        isNewClass: match.isNew,
+    const fields = extractStudentRows(headers, rows);
+    const stamp = Date.now();
+    const mapped: ParsedStudentRow[] = fields.map((f, index) => {
+      const phone = normalizeTurkishPhone(f.phone);
+      const base: ParsedStudentRow = {
+        id: `parsed-${index}-${stamp}`,
+        rowNumber: f.rowNumber,
+        firstName: f.firstName,
+        lastName: f.lastName,
+        fullName: f.fullName,
+        className: '',
+        matchedClassId: '',
+        usesDefaultClass: false,
+        studentNumber: f.studentNumber,
+        email: f.email,
+        phone: phone.valid ? phone.value : f.phone,
+        password: f.password,
+        isNewClass: false,
         isValid: false,
-      });
+      };
+      return applyClassMatch(base, f.className);
     });
 
     setParsedRows(validateRows(mapped, autoCreateClasses));
     setErrorMessage(null);
-    setSuccessMessage(`${mapped.length} adet öğrenci satırı başarıyla ayrıştırıldı. Lütfen aşağıdaki önizlemeyi kontrol ediniz.`);
+    setSuccessMessage(`${mapped.length} adet öğrenci satırı ayrıştırıldı. Lütfen aşağıdaki önizlemeyi kontrol ediniz.`);
   };
 
   // Handle file upload (.xlsx, .xls, .csv)
@@ -223,16 +232,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
       try {
         const buffer = e.target?.result;
         const workbook = XLSX.read(buffer, { type: 'binary', cellDates: true });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-
-        // Convert sheet to JSON objects with header row
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
-          defval: '',
-          raw: false,
-        });
-
-        processRawData(jsonData);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        // Başlık satırını kendimiz buluyoruz (e-Okul çıktılarında üstte okul adı vb. satırlar olur)
+        const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
+        const { headers, rows } = matrixToRows(matrix, STUDENT_COLUMNS);
+        processRows(headers, rows);
       } catch (err) {
         console.error('Excel parse error:', err);
         setErrorMessage('Dosya okunurken bir hata oluştu. Lütfen dosyanın geçerli bir Excel (.xlsx, .xls) veya CSV formatında olduğunu kontrol edin.');
@@ -249,7 +253,6 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     reader.readAsBinaryString(file);
   };
 
-  // Handle Drag and Drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -258,82 +261,47 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     }
   };
 
-  // Handle Paste from Clipboard (Excel table copy-paste)
+  // Excel'den kopyalanıp yapıştırılan tablo (başlık satırı varsa kullanılır, yoksa varsayılan sütun sırası)
   const handleParsePastedText = () => {
     if (!pastedText.trim()) {
       setErrorMessage('Lütfen yapıştırmak istediğiniz veriyi metin alanına giriniz.');
       return;
     }
-
     try {
-      const lines = pastedText.trim().split(/\r?\n/);
-      if (lines.length === 0) {
+      const matrix = textToMatrix(pastedText);
+      if (matrix.length === 0) {
         setErrorMessage('Geçerli bir veri satırı bulunamadı.');
         return;
       }
-
-      // Check if first line contains headers
-      const delimiter = lines[0].includes('\t') ? '\t' : lines[0].includes(';') ? ';' : ',';
-      const firstLineTokens = lines[0].split(delimiter).map((t) => t.trim());
-
-      const isHeaderLine = firstLineTokens.some((t) => {
-        const n = normalizeStr(t);
-        return n.includes('ad') || n.includes('isim') || n.includes('sinif') || n.includes('no') || n.includes('soyad');
-      });
-
-      let headers: string[] = [];
-      let dataLines: string[] = [];
-
-      if (isHeaderLine) {
-        headers = firstLineTokens;
-        dataLines = lines.slice(1);
-      } else {
-        // Assume default columns: [Ad, Soyad, Sınıf, Öğrenci No, Telefon, E-Posta]
-        headers = ['Ad', 'Soyad', 'Sınıf', 'Öğrenci No', 'Telefon', 'E-Posta'];
-        dataLines = lines;
-      }
-
-      const rows: Record<string, unknown>[] = [];
-
-      dataLines.forEach((line) => {
-        if (!line.trim()) return;
-        const tokens = line.split(delimiter).map((t) => t.trim().replace(/^["']|["']$/g, ''));
-        const obj: Record<string, unknown> = {};
-        headers.forEach((h, i) => {
-          obj[h] = tokens[i] !== undefined ? tokens[i] : '';
-        });
-        rows.push(obj);
-      });
-
-      processRawData(rows);
+      const { headers, rows } = matrixToRows(matrix, STUDENT_COLUMNS, PASTE_HEADERS);
+      processRows(headers, rows);
     } catch (err) {
       console.error('Paste parse error:', err);
       setErrorMessage('Yapıştırılan metin ayrıştırılırken hata oluştu.');
     }
   };
 
-  // Remove a row from parsed rows
   const handleRemoveRow = (id: string) => {
     setParsedRows((prev) => validateRows(prev.filter((r) => r.id !== id), autoCreateClasses));
   };
 
-  // Update a row in parsed rows
   const handleUpdateRow = (id: string, field: keyof ParsedStudentRow, value: string) => {
     setParsedRows((prev) =>
-      validateRows(prev.map((row) => {
-        if (row.id !== id) return row;
-        const updated = { ...row, [field]: value };
-        if (field === 'firstName' || field === 'lastName') {
-          updated.fullName = `${updated.firstName} ${updated.lastName}`.trim();
-        }
-        if (field === 'className') {
-          const match = findMatchingClass(value);
-          updated.className = value;
-          updated.matchedClassId = match.classId;
-          updated.isNewClass = match.isNew;
-        }
-        return updated;
-      }), autoCreateClasses)
+      validateRows(
+        prev.map((row) => {
+          if (row.id !== id) return row;
+          let updated: ParsedStudentRow = { ...row, [field]: value };
+          if (field === 'firstName' || field === 'lastName') {
+            updated.fullName = `${updated.firstName} ${updated.lastName}`.trim();
+          }
+          if (field === 'className') {
+            updated = applyClassMatch(updated, value);
+            updated.className = value;
+          }
+          return updated;
+        }),
+        autoCreateClasses
+      )
     );
   };
 
@@ -349,39 +317,78 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     setErrorMessage(null);
 
     try {
-      // Yalnızca yönetici: Excel'de olup sistemde olmayan sınıfları önce oluştur
+      // Yalnızca yönetici: Excel'de olup sistemde olmayan sınıfları önce oluştur ("8-B" ve "8/B" tek sınıf olur)
       const createdClassIds = new Map<string, string>();
+      const classFailures = new Map<string, string>();
       if (isAdmin && autoCreateClasses) {
-        const newNames = Array.from(new Set(validRows.filter((r) => r.isNewClass).map((r) => r.className.trim())));
-        for (const name of newNames) {
-          const created = await dataService.addClass({
-            name,
-            branch: 'Genel',
-            academicYear: '2026-2027',
-            description: 'Excel yüklemesi ile oluşturuldu',
-          });
-          createdClassIds.set(name, created.id);
+        const academicYear = currentAcademicYear();
+        const groups = new Map<string, string>();
+        validRows.filter((r) => r.isNewClass).forEach((r) => {
+          const key = normalizeClassKey(r.className);
+          if (!groups.has(key)) groups.set(key, r.className.trim());
+        });
+        for (const [key, name] of groups) {
+          // Önceki denemede oluşturulduysa yeniden oluşturma
+          const already = dataService.findDuplicateClass(name, academicYear);
+          if (already) {
+            createdClassIds.set(key, already.id);
+            continue;
+          }
+          const parsed = parseClassName(name);
+          const gradeLevel = parsed.grade ? `${parsed.grade}. Sınıf` : undefined;
+          try {
+            const created = await dataService.addClass({
+              name,
+              branch: parsed.branch || 'Genel',
+              gradeLevel,
+              schoolLevel: detectSchoolLevelFromGrade(gradeLevel || name),
+              academicYear,
+              description: 'Excel yüklemesi ile oluşturuldu',
+            });
+            createdClassIds.set(key, created.id);
+          } catch (err: any) {
+            classFailures.set(key, err?.message || 'Sınıf oluşturulamadı');
+          }
         }
       }
 
-      const result = await dataService.createStudentsWithAccounts(
-        validRows.map((row) => ({
+      const classFailed: StudentAccountFailure[] = [];
+      const toCreate = validRows.filter((row) => {
+        if (!row.isNewClass) return true;
+        const key = normalizeClassKey(row.className);
+        if (createdClassIds.has(key)) return true;
+        classFailed.push({
           name: row.fullName,
           studentNumber: row.studentNumber.trim(),
-          classId: row.isNewClass ? createdClassIds.get(row.className.trim()) || '' : row.matchedClassId || defaultClassId,
-          email: row.email ? row.email.trim() : '',
-          phone: row.phone,
-          password: row.password?.trim() || undefined,
-        }))
-      );
+          error: `Sınıf "${row.className}" oluşturulamadı: ${classFailures.get(key) || 'bilinmeyen hata'}`,
+        });
+        return false;
+      });
+
+      const result: StudentAccountResult =
+        toCreate.length > 0
+          ? await dataService.createStudentsWithAccounts(
+              toCreate.map((row) => ({
+                name: row.fullName.trim().replace(/\s+/g, ' '),
+                studentNumber: row.studentNumber.trim(),
+                classId: row.isNewClass ? createdClassIds.get(normalizeClassKey(row.className)) || '' : row.matchedClassId || defaultClassId,
+                email: row.email ? row.email.trim() : '',
+                phone: normalizeTurkishPhone(row.phone).value,
+                password: row.password?.trim() || undefined,
+              }))
+            )
+          : { created: [], failed: [] };
+      const merged: StudentAccountResult = { created: result.created, failed: [...classFailed, ...result.failed] };
 
       if (onUploadSuccess) {
-        onUploadSuccess(result.created.map((c) => c.student));
+        onUploadSuccess(merged.created.map((c) => c.student));
       }
       if (onAccountsCreated) {
-        onAccountsCreated(result);
+        onAccountsCreated(merged);
       }
       setParsedRows([]);
+      setFileName(null);
+      setSuccessMessage(null);
       onClose();
     } catch (err: any) {
       console.error('Commit error:', err);
@@ -391,79 +398,27 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     }
   };
 
-  // Download Sample Excel Template
-  const downloadSampleExcel = () => {
-    const sampleData = [
-      {
-        'Ad': 'Ahmet Can',
-        'Soyad': 'Yılmaz',
-        'Sınıf': '12-A Sayısal',
-        'Öğrenci No': '1051',
-        'Telefon': '0555 111 2233',
-        'E-Posta': 'ahmet.yilmaz@ornek.k12.tr',
-      },
-      {
-        'Ad': 'Merve',
-        'Soyad': 'Aydın',
-        'Sınıf': '12-A Sayısal',
-        'Öğrenci No': '1052',
-        'Telefon': '0555 222 3344',
-        'E-Posta': 'merve.aydin@ornek.k12.tr',
-      },
-      {
-        'Ad': 'Mehmet',
-        'Soyad': 'Korkmaz',
-        'Sınıf': '12-B Eşit Ağırlık',
-        'Öğrenci No': '1085',
-        'Telefon': '0555 333 4455',
-        'E-Posta': 'mehmet.korkmaz@ornek.k12.tr',
-      },
-      {
-        'Ad': 'Büşra',
-        'Soyad': 'Öztürk',
-        'Sınıf': '11-A Fen',
-        'Öğrenci No': '1210',
-        'Telefon': '0555 444 5566',
-        'E-Posta': 'busra.ozturk@ornek.k12.tr',
-      },
-      {
-        'Ad': 'Kerem',
-        'Soyad': 'Demir',
-        'Sınıf': '10-A Anadolu',
-        'Öğrenci No': '1380',
-        'Telefon': '0555 555 6677',
-        'E-Posta': 'kerem.demir@ornek.k12.tr',
-      },
-    ];
+  // Örnek şablon: e-postalar açıkça örnek adresler (gerçek adresle değiştirilmeli veya silinmeli)
+  const SAMPLE_ROWS = [
+    { Ad: 'Ahmet Can', Soyad: 'Yılmaz', Sınıf: '8/A', 'Öğrenci No': '1051', Telefon: '0555 111 2233', 'E-Posta': 'ornek1@example.com' },
+    { Ad: 'Merve', Soyad: 'Aydın', Sınıf: '8/A', 'Öğrenci No': '1052', Telefon: '0555 222 3344', 'E-Posta': 'ornek2@example.com' },
+    { Ad: 'Mehmet', Soyad: 'Korkmaz', Sınıf: '8/B', 'Öğrenci No': '1085', Telefon: '0555 333 4455', 'E-Posta': '' },
+    { Ad: 'Büşra', Soyad: 'Öztürk', Sınıf: '11-A Fen', 'Öğrenci No': '1210', Telefon: '0555 444 5566', 'E-Posta': 'ornek3@example.com' },
+    { Ad: 'Kerem', Soyad: 'Demir', Sınıf: '10/A', 'Öğrenci No': '1380', Telefon: '', 'E-Posta': '' },
+  ];
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+  const downloadSampleExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(SAMPLE_ROWS);
+    worksheet['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 15 }, { wch: 18 }, { wch: 30 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Öğrenci Listesi');
-
-    // Auto-fit column widths
-    const maxCols = [
-      { wch: 18 }, // Ad
-      { wch: 18 }, // Soyad
-      { wch: 22 }, // Sınıf
-      { wch: 15 }, // Öğrenci No
-      { wch: 18 }, // Telefon
-      { wch: 30 }, // E-Posta
-    ];
-    worksheet['!cols'] = maxCols;
-
     XLSX.writeFile(workbook, 'Ogrenci_Yukleme_Sablonu.xlsx');
   };
 
-  // Download Sample CSV Template
   const downloadSampleCsv = () => {
-    const csvContent =
-      'Ad,Soyad,Sınıf,Öğrenci No,Telefon,E-Posta\n' +
-      'Ahmet Can,Yılmaz,12-A Sayısal,1051,0555 111 2233,ahmet.yilmaz@ornek.k12.tr\n' +
-      'Merve,Aydın,12-A Sayısal,1052,0555 222 3344,merve.aydin@ornek.k12.tr\n' +
-      'Mehmet,Korkmaz,12-B Eşit Ağırlık,1085,0555 333 4455,mehmet.korkmaz@ornek.k12.tr\n' +
-      'Büşra,Öztürk,11-A Fen,1210,0555 444 5566,busra.ozturk@ornek.k12.tr\n';
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const header = Object.keys(SAMPLE_ROWS[0]);
+    const csvContent = [header.join(','), ...SAMPLE_ROWS.map((r) => header.map((h) => (r as Record<string, string>)[h]).join(','))].join('\n') + '\n';
+    const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -474,434 +429,370 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     URL.revokeObjectURL(url);
   };
 
-  const detectedNewClasses = Array.from(
-    new Set(parsedRows.filter((r) => r.isNewClass && r.className).map((r) => r.className))
-  );
+  const detectedNewClasses = Array.from(new Set(parsedRows.filter((r) => r.isNewClass && r.className).map((r) => r.className)));
+  const validCount = parsedRows.filter((r) => r.isValid).length;
+  const invalidCount = parsedRows.length - validCount;
+  const cellCls = 'bg-surface border rounded-lg px-2 py-1 text-fg text-xs w-full focus:ring-2 focus:ring-brand/25 focus:outline-none';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-5xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 max-h-[92vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface/90 flex-shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
-              <FileSpreadsheet className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-lg font-bold text-fg tracking-tight">Excel'den Toplu Öğrenci Yükleme</h2>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                  .xlsx / .xls / .csv
-                </span>
-              </div>
-            </div>
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      closeOnBackdrop={false}
+      size="full"
+      icon={FileSpreadsheet}
+      tone="success"
+      title="Excel'den Toplu Öğrenci Yükleme"
+      description=".xlsx / .xls / .csv dosyası veya Excel'den kopyala-yapıştır"
+      footer={
+        <>
+          <span className="mr-auto self-center text-xs text-muted">
+            {parsedRows.length > 0 && (
+              <>
+                Toplam <strong>{parsedRows.length}</strong> öğrenci ({validCount} kaydedilebilir
+                {invalidCount > 0 ? `, ${invalidCount} hatalı satır aktarılmaz` : ''})
+              </>
+            )}
+          </span>
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm">
+            İptal
+          </button>
+          <button
+            type="button"
+            disabled={parsedRows.length === 0 || validCount === 0 || isProcessing}
+            onClick={handleCommitUpload}
+            className="ui-btn ui-btn-success ui-btn-sm"
+          >
+            {isProcessing ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-label="İşleniyor" />
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Öğrencileri Sisteme Aktar ({validCount})</span>
+              </>
+            )}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        {errorMessage && (
+          <div role="alert" className="p-3 bg-danger-soft rounded-xl flex items-start gap-2 text-danger-fg text-sm">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <span>{errorMessage}</span>
           </div>
+        )}
 
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={downloadSampleExcel}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg border border-line rounded-xl text-xs font-semibold transition-colors"
-              title="Örnek Excel Şablonu İndir"
-            >
-              <Download className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-              <span>Örnek Excel İndir</span>
+        {successMessage && (
+          <div className="p-3 bg-success-soft rounded-xl flex items-start gap-2 text-success-fg text-sm">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <Segmented<'file' | 'paste'>
+            value={activeInputMode}
+            onChange={setActiveInputMode}
+            size="sm"
+            items={[
+              { value: 'file', label: 'Excel / CSV Dosyası Yükle', icon: Upload },
+              { value: 'paste', label: "Excel'den Kopyala-Yapıştır", icon: Clipboard },
+            ]}
+          />
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted">Şablonlar:</span>
+            <button type="button" onClick={downloadSampleExcel} className="ui-btn ui-btn-ghost ui-btn-sm" title="Örnek Excel Şablonu İndir">
+              <Download className="w-3.5 h-3.5 text-success-fg" />
+              Excel (.xlsx)
             </button>
-            <button
-              onClick={onClose}
-              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
+            <button type="button" onClick={downloadSampleCsv} className="ui-btn ui-btn-ghost ui-btn-sm">
+              CSV (.csv)
             </button>
           </div>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-grow">
-          {/* Notifications */}
-          {errorMessage && (
-            <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-3 text-rose-600 dark:text-rose-300 text-sm">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600 dark:text-rose-400" />
-              <span>{errorMessage}</span>
+        {activeInputMode === 'file' ? (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={cx(
+              'border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all',
+              isDragOver ? 'border-brand bg-brand-soft' : 'border-line-strong hover:border-brand bg-surface-2/40'
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileUpload(e.target.files[0]);
+                }
+                e.target.value = '';
+              }}
+            />
+            <div className="w-14 h-14 bg-success-soft rounded-2xl flex items-center justify-center mx-auto mb-3 text-success-fg">
+              <FileSpreadsheet className="w-7 h-7" />
             </div>
-          )}
-
-          {successMessage && (
-            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center space-x-3 text-emerald-700 dark:text-emerald-300 text-sm">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-700 dark:text-emerald-400" />
-              <span>{successMessage}</span>
+            <p className="text-base font-semibold text-fg mb-3">
+              {isProcessing ? 'Dosya okunuyor...' : fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
+            </p>
+            <span className="ui-btn ui-btn-secondary ui-btn-sm pointer-events-none">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Dosya Seç</span>
+            </span>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+              <span>Excel veya Google E-Tablolar'dan kopyaladığınız satırları (başlık satırıyla birlikte) buraya yapıştırın:</span>
+              <span className="font-mono">Başlıksız sıra: Ad [Tab] Soyad [Tab] Sınıf [Tab] No</span>
             </div>
-          )}
-
-          {/* Upload Method Tabs */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface-2/40 p-1.5 rounded-xl border border-line">
-            <div className="flex space-x-1 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setActiveInputMode('file')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                  activeInputMode === 'file'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-muted hover:text-fg hover:bg-surface-2'
-                }`}
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Excel / CSV Dosyası Yükle</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveInputMode('paste')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                  activeInputMode === 'paste'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-muted hover:text-fg hover:bg-surface-2'
-                }`}
-              >
-                <Clipboard className="w-3.5 h-3.5" />
-                <span>Excel'den Kopyala-Yapıştır</span>
-              </button>
-            </div>
-
-            {/* Template shortcuts for mobile/small screen */}
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="text-muted hidden sm:inline">Şablonlar:</span>
-              <button
-                type="button"
-                onClick={downloadSampleExcel}
-                className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 underline font-medium"
-              >
-                Excel (.xlsx)
-              </button>
-              <span className="text-subtle">•</span>
-              <button
-                type="button"
-                onClick={downloadSampleCsv}
-                className="text-muted hover:text-fg-2 underline font-medium"
-              >
-                CSV (.csv)
+            <textarea
+              rows={5}
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder={`Ad\tSoyad\tSınıf\tNo\nAhmet\tYılmaz\t12-A Sayısal\t1051\nZeynep\tKaya\t12-B Eşit Ağırlık\t1052\nMustafa\tÇelik\t11-A Fen\t1053`}
+              className="w-full p-4 bg-surface border border-line-strong rounded-xl text-fg font-mono text-xs focus:ring-2 focus:ring-brand/25 focus:outline-none placeholder:text-subtle leading-relaxed"
+            />
+            <div className="flex justify-end">
+              <button type="button" onClick={handleParsePastedText} className="ui-btn ui-btn-primary ui-btn-sm">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Verileri Ayrıştır ve Önizle</span>
               </button>
             </div>
           </div>
+        )}
 
-          {/* INPUT SECTION */}
-          {activeInputMode === 'file' ? (
-            /* Drag and Drop Zone */
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-                isDragOver
-                  ? 'border-indigo-500 bg-indigo-500/10 scale-[0.99]'
-                  : 'border-line hover:border-indigo-500/60 bg-surface-2/30 hover:bg-surface-2/50'
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx, .xls, .csv"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileUpload(e.target.files[0]);
-                  }
-                }}
-              />
-              <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600/20 to-indigo-600/20 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-700 dark:text-emerald-400 shadow-inner">
-                <FileSpreadsheet className="w-8 h-8" />
-              </div>
-              <p className="text-base font-semibold text-fg mb-3">
-                {fileName ? fileName : 'Excel (.xlsx, .xls) veya CSV dosyanızı buraya sürükleyin'}
-              </p>
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-2 text-indigo-600 dark:text-indigo-300 border border-line">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Dosya Seç</span>
-              </span>
-            </div>
-          ) : (
-            /* Copy-Paste Textarea */
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-muted">
-                <span>Excel veya Google E-Tablolar'dan kopyaladığınız satırları buraya yapıştırın:</span>
-                <span className="font-mono text-muted">Sütunlar: Ad [Tab] Soyad [Tab] Sınıf</span>
-              </div>
-              <textarea
-                rows={5}
-                value={pastedText}
-                onChange={(e) => setPastedText(e.target.value)}
-                placeholder={`Ad\tSoyad\tSınıf\tNo\nAhmet\tYılmaz\t12-A Sayısal\t1051\nZeynep\tKaya\t12-B Eşit Ağırlık\t1052\nMustafa\tÇelik\t11-A Fen\t1053`}
-                className="w-full p-4 bg-surface-2 border border-line rounded-xl text-fg font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none placeholder-subtle leading-relaxed"
-              />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleParsePastedText}
-                  className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-md"
+        {parsedRows.length > 0 && (
+          <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h4 className="text-sm font-bold text-fg flex items-center gap-2">
+                <Users className="w-4 h-4 text-brand-fg" />
+                <span>Önizleme ve Aktarım Ayarları ({parsedRows.length} Öğrenci)</span>
+              </h4>
+              <label className="flex items-center gap-2 text-xs text-fg-2 font-medium">
+                <span>Sınıfı boş satırlar için:</span>
+                <select
+                  value={defaultClassId}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setDefaultClassId(v);
+                    // Sınıfı boş olan satırlar yeni varsayılana geçer
+                    setParsedRows((prev) =>
+                      validateRows(
+                        prev.map((r) =>
+                          r.usesDefaultClass ? { ...r, matchedClassId: v, className: classes.find((c) => c.id === v)?.name || '' } : r
+                        ),
+                        autoCreateClasses
+                      )
+                    );
+                  }}
+                  className="bg-surface border border-line text-fg text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-brand/25 focus:outline-none"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Verileri Ayrıştır ve Önizle</span>
-                </button>
-              </div>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      {cls.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          )}
 
-          {/* Quick Mapping & Global Settings */}
-          {parsedRows.length > 0 && (
-            <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-sm font-bold text-fg flex items-center space-x-2">
-                    <Users className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Önizleme ve Aktarım Ayarları ({parsedRows.length} Öğrenci)</span>
-                  </h4>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-fg-2 font-medium">Varsayılan Sınıf:</span>
-                    <select
-                      value={defaultClassId}
-                      onChange={(e) => setDefaultClassId(e.target.value)}
-                      className="bg-surface border border-line text-fg text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    >
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {detectedNewClasses.length > 0 && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start space-x-3 text-xs text-amber-700 dark:text-amber-200">
-                  <School className="w-4 h-4 text-amber-700 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-semibold text-amber-700 dark:text-amber-300">
-                      Excel'de yeni sınıflar tespit edildi: {detectedNewClasses.join(', ')}
+            {detectedNewClasses.length > 0 && (
+              <div className="p-3 bg-warning-soft rounded-lg flex items-start gap-3 text-xs text-warning-fg">
+                <School className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">Excel'de sistemde olmayan sınıflar var: {detectedNewClasses.join(', ')}</p>
+                  {isAdmin ? (
+                    <label className="flex items-center gap-2 cursor-pointer text-fg-2 hover:text-fg">
+                      <input
+                        type="checkbox"
+                        checked={autoCreateClasses}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setAutoCreateClasses(checked);
+                          setParsedRows((prev) => validateRows(prev, checked));
+                        }}
+                        className="rounded border-line bg-surface"
+                      />
+                      <span>Bu sınıfları {currentAcademicYear()} eğitim yılı için otomatik oluştur (şube sınıf adından alınır)</span>
+                    </label>
+                  ) : (
+                    <p className="text-fg-2">
+                      Bu sınıflar sistemde yok veya yetkiniz bulunmuyor. Satırlardaki sınıf adını yetkili olduğunuz bir
+                      sınıfla değiştiriniz ya da yöneticinizden sınıf açmasını isteyiniz.
                     </p>
-                    {isAdmin ? (
-                      <label className="flex items-center space-x-2 cursor-pointer text-fg-2 hover:text-fg">
-                        <input
-                          type="checkbox"
-                          checked={autoCreateClasses}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setAutoCreateClasses(checked);
-                            setParsedRows((prev) => validateRows(prev, checked));
-                          }}
-                          className="rounded border-line bg-surface text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500"
-                        />
-                        <span>Bu sınıfları sistemde otomatik olarak yeni sınıf grubu olarak oluştur</span>
-                      </label>
-                    ) : (
-                      <p className="text-fg-2">
-                        Bu sınıflar sistemde yok veya yetkiniz bulunmuyor. Satırlardaki sınıf adını yetkili olduğunuz bir
-                        sınıfla değiştiriniz ya da yöneticinizden sınıf açmasını isteyiniz.
-                      </p>
-                    )}
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* PARSED DATA PREVIEW TABLE */}
-          {parsedRows.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-muted uppercase tracking-wider">
-                  Yüklenecek Öğrenci Listesi ({parsedRows.filter((r) => r.isValid).length} Geçerli)
-                </span>
-                <span className="text-[11px] text-muted">
-                  Tablodaki alanları doğrudan tıklayarak düzenleyebilirsiniz.
-                </span>
               </div>
+            )}
+          </div>
+        )}
 
-              <div className="border border-line rounded-xl overflow-hidden shadow-inner max-h-72 overflow-y-auto">
-                <table className="w-full text-left text-xs text-fg-2">
-                  <thead className="bg-surface-2 text-muted sticky top-0 uppercase tracking-wider font-semibold z-10">
-                    <tr>
-                      <th className="px-4 py-3">#</th>
-                      <th className="px-4 py-3">İsim</th>
-                      <th className="px-4 py-3">Soyisim</th>
-                      <th className="px-4 py-3">Sınıf / Şube</th>
-                      <th className="px-4 py-3">Öğrenci No</th>
-                      <th className="px-4 py-3">İletişim (Tel / E-Posta)</th>
-                      <th className="px-4 py-3 text-center">Durum</th>
-                      <th className="px-4 py-3 text-right">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line bg-surface/60">
-                    {parsedRows.map((row, idx) => (
-                      <tr
-                        key={row.id}
-                        className={`hover:bg-surface-2/40 transition-colors ${
-                          !row.isValid ? 'bg-rose-50 dark:bg-rose-950/20' : ''
-                        }`}
-                      >
-                        <td className="px-4 py-2.5 font-mono text-muted">{idx + 1}</td>
-                        <td className="px-4 py-2.5">
+        {parsedRows.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+                Yüklenecek Öğrenci Listesi ({validCount} Geçerli)
+              </span>
+              <span className="text-[11px] text-muted">Tablodaki alanları doğrudan tıklayarak düzenleyebilirsiniz.</span>
+            </div>
+
+            <div className="border border-line rounded-xl overflow-auto max-h-80">
+              <table className="w-full text-left text-xs text-fg-2">
+                <thead className="bg-surface-2 text-muted sticky top-0 uppercase tracking-wider font-semibold z-10">
+                  <tr>
+                    <th className="px-3 py-3">Satır</th>
+                    <th className="px-3 py-3">İsim</th>
+                    <th className="px-3 py-3">Soyisim</th>
+                    <th className="px-3 py-3">Sınıf / Şube</th>
+                    <th className="px-3 py-3">Öğrenci No</th>
+                    <th className="px-3 py-3">İletişim (Tel / E-Posta)</th>
+                    <th className="px-3 py-3 text-center">Durum</th>
+                    <th className="px-3 py-3 text-right">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line bg-surface">
+                  {parsedRows.map((row) => {
+                    const mailBad = !!emailIssue(row.email);
+                    const phoneBad = !normalizeTurkishPhone(row.phone).valid;
+                    return (
+                      <tr key={row.id} className={cx('transition-colors', !row.isValid ? 'bg-danger-soft/40' : 'hover:bg-surface-2/40')}>
+                        <td className="px-3 py-2.5 font-mono text-muted">{row.rowNumber}</td>
+                        <td className="px-3 py-2.5 min-w-[110px]">
                           <input
                             type="text"
                             value={row.firstName}
                             onChange={(e) => handleUpdateRow(row.id, 'firstName', e.target.value)}
-                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            aria-label={`${row.rowNumber}. satır isim`}
+                            className={cx(cellCls, !row.fullName.trim() ? 'border-danger' : 'border-line')}
                           />
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-2.5 min-w-[110px]">
                           <input
                             type="text"
                             value={row.lastName}
                             onChange={(e) => handleUpdateRow(row.id, 'lastName', e.target.value)}
-                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            aria-label={`${row.rowNumber}. satır soyisim`}
+                            className={cx(cellCls, 'border-line')}
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={row.className}
-                              onChange={(e) => handleUpdateRow(row.id, 'className', e.target.value)}
-                              placeholder="Sınıf adı..."
-                              className={`bg-surface-2/90 border rounded px-2 py-1 text-xs w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none ${
-                                row.isNewClass
-                                  ? 'border-amber-500/50 text-amber-700 dark:text-amber-200'
-                                  : 'border-line text-fg'
-                              }`}
-                            />
-                            {row.isNewClass && (
-                              <span className="text-[9px] text-amber-700 dark:text-amber-400 block mt-0.5">Yeni sınıf</span>
-                            )}
-                          </div>
+                        <td className="px-3 py-2.5 min-w-[120px]">
+                          <input
+                            type="text"
+                            value={row.className}
+                            onChange={(e) => handleUpdateRow(row.id, 'className', e.target.value)}
+                            placeholder="Sınıf adı..."
+                            aria-label={`${row.rowNumber}. satır sınıf`}
+                            className={cx(cellCls, row.classError ? 'border-danger' : row.isNewClass ? 'border-warning text-warning-fg' : 'border-line')}
+                          />
+                          {row.isNewClass && <span className="text-[10px] text-warning-fg block mt-0.5">Yeni sınıf</span>}
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-2.5">
                           <input
                             type="text"
                             value={row.studentNumber}
                             onChange={(e) => handleUpdateRow(row.id, 'studentNumber', e.target.value)}
-                            className="bg-surface-2/90 border border-line rounded px-2 py-1 text-fg font-mono text-xs w-20 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            aria-label={`${row.rowNumber}. satır öğrenci no`}
+                            className={cx(cellCls, 'font-mono w-20 border-line')}
                           />
                         </td>
-                        <td className="px-4 py-2.5 text-[11px] space-y-1">
+                        <td className="px-3 py-2.5 min-w-[170px] space-y-1">
                           <input
                             type="text"
+                            inputMode="tel"
                             value={row.phone}
                             onChange={(e) => handleUpdateRow(row.id, 'phone', e.target.value)}
+                            onBlur={(e) => {
+                              const n = normalizeTurkishPhone(e.target.value);
+                              if (n.valid && n.value !== row.phone) handleUpdateRow(row.id, 'phone', n.value);
+                            }}
                             placeholder="Telefon"
-                            className="bg-surface-2/90 border border-line rounded px-2 py-0.5 text-fg-2 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none mb-1"
+                            aria-label={`${row.rowNumber}. satır telefon`}
+                            aria-invalid={phoneBad}
+                            className={cx(cellCls, 'text-[11px]', phoneBad ? 'border-danger' : 'border-line')}
                           />
                           <input
                             type="email"
                             value={row.email}
                             onChange={(e) => handleUpdateRow(row.id, 'email', e.target.value)}
                             placeholder="E-Posta"
-                            className="bg-surface-2/90 border border-line rounded px-2 py-0.5 text-fg-2 text-[11px] w-full focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            aria-label={`${row.rowNumber}. satır e-posta`}
+                            aria-invalid={mailBad}
+                            className={cx(cellCls, 'text-[11px]', mailBad ? 'border-danger' : 'border-line')}
                           />
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-3 py-2.5 text-center min-w-[140px]">
                           {row.isValid ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                              Hazır
-                            </span>
+                            <span className="ui-chip ui-chip-success">Hazır</span>
                           ) : (
-                            <span
-                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
-                              title={row.validationError}
-                            >
+                            <span className="inline-block text-left text-[11px] font-semibold text-danger-fg" title={row.validationError}>
                               {row.validationError || 'Hatalı'}
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-right">
+                        <td className="px-3 py-2.5 text-right">
                           <button
                             type="button"
                             onClick={() => handleRemoveRow(row.id)}
-                            className="p-1 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface-2 rounded transition-colors"
+                            className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
                             title="Listeden Çıkar"
+                            aria-label={`${row.rowNumber}. satırı listeden çıkar`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {/* Guide / Instruction Box */}
-          <div className="bg-canvas/40 p-4 rounded-xl border border-line text-xs text-muted space-y-2">
-            <div className="flex items-center space-x-1.5 text-indigo-600 dark:text-indigo-300 font-semibold">
-              <HelpCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>Excel Dosyası Hazırlama Rehberi</span>
-            </div>
-            <ul className="list-disc list-inside space-y-1 pl-1 text-muted">
-              <li>
-                Excel dosyanızda sütun başlıkları olarak <strong>Ad</strong> (veya <strong>İsim</strong>),{' '}
-                <strong>Soyad</strong> (veya <strong>Soyisim</strong>), <strong>Sınıf</strong>,{' '}
-                <strong>Öğrenci No</strong> ve <strong>Telefon</strong> kullanabilirsiniz.
-              </li>
-              <li>
-                Eğer tek bir sütunda <strong>"Ad Soyad"</strong> şeklinde yazılmışsa sistem bunu otomatik olarak ad ve soyada ayırır.
-              </li>
-              <li>
-                Excel'deki sınıf isimleri (örn: <em>12-A Sayısal</em>) sistemdeki sınıflarla otomatik eşleştirilir.{' '}
-                {isAdmin ? 'Sınıf henüz yoksa (seçeneği işaretlerseniz) yeni sınıf oluşturulur.' : 'Yalnızca yetkili olduğunuz sınıflara öğrenci ekleyebilirsiniz.'}
-              </li>
-              <li>
-                <strong>Öğrenci No zorunludur</strong>: öğrenci sisteme bu numarayla giriş yapar ve her öğrencide farklı olmalıdır.
-              </li>
-              <li>
-                İsteğe bağlı <strong>Şifre</strong> sütunu ekleyebilirsiniz (en az 6 karakter). Boş bırakılırsa sistem her öğrenciye
-                rastgele şifre üretir. Aktarım bitince tüm giriş bilgilerini Excel olarak indirebilirsiniz.
-              </li>
-            </ul>
           </div>
-        </div>
+        )}
 
-        {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-line bg-surface flex items-center justify-between flex-shrink-0">
-          <div className="text-xs text-muted">
-            {parsedRows.length > 0 && (
-              <span>
-                Toplam <strong>{parsedRows.length}</strong> öğrenci ({parsedRows.filter((r) => r.isValid).length} kaydedilebilir)
-              </span>
-            )}
+        <div className="bg-surface-2/50 p-4 rounded-xl border border-line text-xs text-muted space-y-2">
+          <div className="flex items-center gap-1.5 text-brand-fg font-semibold">
+            <HelpCircle className="w-4 h-4" />
+            <span>Excel Dosyası Hazırlama Rehberi</span>
           </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-colors"
-            >
-              İptal
-            </button>
-            <button
-              type="button"
-              disabled={parsedRows.length === 0 || parsedRows.filter((r) => r.isValid).length === 0 || isProcessing}
-              onClick={handleCommitUpload}
-              className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:pointer-events-none text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-600/20"
-            >
-              {isProcessing ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Öğrencileri Sisteme Aktar ({parsedRows.filter((r) => r.isValid).length})</span>
-                </>
-              )}
-            </button>
-          </div>
+          <ul className="list-disc list-inside space-y-1 pl-1">
+            <li>
+              Sütun başlıkları olarak <strong>Ad</strong> (veya <strong>Öğrenci Adı</strong>, <strong>İsim</strong>),{' '}
+              <strong>Soyad</strong> (veya <strong>Soyisim</strong>), <strong>Sınıf</strong>, <strong>Öğrenci No</strong>,{' '}
+              <strong>Telefon</strong> ve <strong>E-Posta</strong> kullanabilirsiniz. Büyük/küçük harf ve Türkçe karakter fark etmez.
+            </li>
+            <li>
+              Ad ve soyad tek sütunda (<strong>"Ad Soyad"</strong>, <strong>"Adı Soyadı"</strong>) ise sistem son kelimeyi soyad olarak ayırır.
+              e-Okul listelerinde başlığın üstündeki okul adı satırları otomatik atlanır.
+            </li>
+            <li>
+              Sınıf yazımı <em>8/A, 8-A, 8A, 8. Sınıf - A</em> şeklinde olabilir; sistemdeki sınıfla otomatik eşleşir. Yalnızca{' '}
+              <em>8</em> yazmak yetmez, şube de gerekir.{' '}
+              {isAdmin ? 'Sınıf henüz yoksa (seçeneği işaretlerseniz) yeni sınıf oluşturulur.' : 'Yalnızca yetkili olduğunuz sınıflara öğrenci ekleyebilirsiniz.'}
+            </li>
+            <li>
+              <strong>Öğrenci No zorunludur</strong>: öğrenci sisteme bu numarayla giriş yapar ve her öğrencide farklı olmalıdır.
+            </li>
+            <li>
+              Telefon <em>0532 123 45 67</em>, <em>5321234567</em> veya <em>+90 532 …</em> biçiminde olabilir. Geçersiz e-posta veya
+              telefon içeren satırlar işaretlenir; düzeltin ya da alanı boşaltın.
+            </li>
+            <li>
+              İsteğe bağlı <strong>Şifre</strong> sütunu ekleyebilirsiniz (en az 6 karakter). Boş bırakılırsa sistem her öğrenciye
+              rastgele şifre üretir. Aktarım bitince tüm giriş bilgilerini Excel olarak indirebilirsiniz.
+            </li>
+          </ul>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

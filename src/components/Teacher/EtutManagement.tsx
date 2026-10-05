@@ -456,7 +456,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                             setIsReportModalOpen(true);
                           }}
                           className="inline-flex items-center space-x-1 text-[11px] bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-800 dark:hover:text-indigo-200 text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
-                          title={`${std.name} için etüt analizini ve PDF/DOCX raporunu görüntüle`}
+                          title={`${std.name} için etüt analizini görüntüle`}
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                           <span>{std.name}</span>
@@ -929,18 +929,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         onClose={() => setIsSentCommunicationsOpen(false)}
       />
 
-      {/* Etüt Analiz & Belge Çıktısı (PDF/DOCX) Modalı */}
-      <EtutAnalysisReportModal
-        isOpen={isReportModalOpen}
-        onClose={() => {
-          setIsReportModalOpen(false);
-          setReportSelectedStudentId(undefined);
-        }}
-        etuts={etuts}
-        students={students}
-        classes={classes}
-        preselectedStudentId={reportSelectedStudentId}
-      />
+      {/* Etüt Analizi (yalnızca açıkken çizilir; her açılışta durum sıfırlanır) */}
+      {isReportModalOpen && (
+        <EtutAnalysisReportModal
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setReportSelectedStudentId(undefined);
+          }}
+          etuts={etuts}
+          students={students}
+          classes={classes}
+          preselectedStudentId={reportSelectedStudentId}
+          defaultScope={scopeFilter}
+        />
+      )}
 
       {/* Etüt Bilgilendirme ve İletişim (WhatsApp & Otomatik Mail) Modalı */}
       <EtutNotificationModal

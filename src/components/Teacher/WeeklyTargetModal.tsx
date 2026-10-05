@@ -1,840 +1,668 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  X,
-  Target,
-  Save,
-  Sparkles,
-  BookOpen,
-  Calendar,
-  CalendarDays,
-  User,
-  Users,
-  CheckCircle2,
-  Trash2,
-  Clock,
-  Layers,
-  ArrowRight,
-} from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus } from 'lucide-react';
+import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
-import { formatClassDisplayName } from '../../constants/schoolConstants';
-import { formatTurkishDate, formatDateISO } from '../../utils/questionAnalytics';
+import { Modal, Segmented } from '../ui/kit';
+import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
+import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
-interface WeeklyTargetModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  student?: Student | null;
-  targetClass?: ClassGroup | null;
-  initialTargetType?: 'student' | 'class';
-  classes?: ClassGroup[];
-  students?: Student[];
-  weekStartDate: string;
-  weekEndDate: string;
-  existingTarget?: WeeklyQuestionTarget | null;
-  onSaved?: () => void;
+// ============================================================================
+// Soru hedefi ver / düzenle penceresi (Aşama 10)
+// Her öğretmen kendi hedefini verir; hedef yalnızca kendi tarihleri (ve seçildiyse kendi dersi) içinde sayılır.
+// ============================================================================
+
+export interface TargetFormSaved {
+  target: WeeklyQuestionTarget;
+  isNew: boolean;
+  changed: boolean;
+  sendMail: boolean;
 }
 
-const COMMON_SUBJECTS = [
-  'Matematik',
-  'Türkçe',
-  'Fen Bilimleri',
-  'Sosyal Bilgiler',
-  'T.C. İnkılap Tarihi',
-  'İngilizce',
-  'Din Kültürü',
-  'Fizik',
-  'Kimya',
-  'Biyoloji',
-  'Edebiyat',
-  'Tarih',
-  'Coğrafya',
-];
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  students: Student[];
+  classes: ClassGroup[];
+  editTarget?: WeeklyQuestionTarget | null;
+  presetKind?: 'student' | 'class';
+  presetStudentId?: string;
+  presetClassId?: string;
+  defaultStart: string;
+  defaultEnd: string;
+  onSaved: (r: TargetFormSaved) => void;
+}
 
-const PRESET_DAYS = [
-  { days: 1, label: '1 Gün' },
-  { days: 3, label: '3 Gün' },
-  { days: 5, label: '5 Gün' },
-  { days: 7, label: '7 Gün (Haftalık)' },
-  { days: 10, label: '10 Gün' },
-  { days: 14, label: '14 Gün (2 Hafta)' },
-  { days: 21, label: '21 Gün (3 Hafta)' },
-  { days: 30, label: '30 Gün (Aylık)' },
-];
+// Soru çözülmeyen dersler hedef listesinde gösterilmez
+const NON_QUESTION_SUBJECTS = new Set(['Görsel Sanatlar', 'Müzik', 'Beden Eğitimi', 'Rehberlik', 'Teknoloji ve Tasarım', 'Bilişim Teknolojileri', 'Genel']);
+const MAX_DAILY = 2000;
+const MAX_TOTAL = 100000;
 
-const normalizeSubjectTargets = (targets: any): Record<string, number> => {
-  if (!targets) return {};
-  if (Array.isArray(targets)) {
-    const res: Record<string, number> = {};
-    for (const item of targets) {
-      if (item && item.subject) {
-        res[item.subject] = Number(item.target) || 0;
-      }
-    }
-    return res;
-  }
-  if (typeof targets === 'object') {
-    return { ...targets };
-  }
-  return {};
+const parseYmd = (s: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+};
+const daysBetween = (a: string, b: string) => {
+  const da = parseYmd(a);
+  const db = parseYmd(b);
+  if (!da || !db) return 0;
+  return Math.round((db.getTime() - da.getTime()) / 86400000) + 1;
+};
+const mondayOf = (d: Date) => {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = x.getDay();
+  x.setDate(x.getDate() - (day === 0 ? 6 : day - 1));
+  return x;
+};
+const toInt = (v: string) => (/^\d+$/.test(v.trim()) ? parseInt(v.trim(), 10) : NaN);
+const subjectTargetsOf = (t?: WeeklyQuestionTarget | null): Record<string, string> => {
+  const out: Record<string, string> = {};
+  const st = t?.subjectTargets;
+  if (Array.isArray(st)) st.forEach((x) => x && x.subject && (out[normalizeSubject(x.subject)] = String(Number(x.target) || 0)));
+  else if (st && typeof st === 'object') Object.entries(st).forEach(([k, v]) => (out[normalizeSubject(k)] = String(Number(v) || 0)));
+  return out;
 };
 
-export const WeeklyTargetModal: React.FC<WeeklyTargetModalProps> = ({
-  isOpen,
+export const WeeklyTargetModal: React.FC<Props> = (props) =>
+  props.open ? <TargetFormContent key={props.editTarget?.id || `new-${props.presetKind}-${props.presetStudentId}-${props.presetClassId}`} {...props} /> : null;
+
+const TargetFormContent: React.FC<Props> = ({
   onClose,
-  student,
-  targetClass,
-  initialTargetType = 'student',
-  classes = [],
-  students = [],
-  weekStartDate: defaultStartDate,
-  weekEndDate: defaultEndDate,
-  existingTarget,
+  students,
+  classes,
+  editTarget,
+  presetKind,
+  presetStudentId,
+  presetClassId,
+  defaultStart,
+  defaultEnd,
   onSaved,
 }) => {
-  const [targetType, setTargetType] = useState<'student' | 'class'>(() => {
-    if (existingTarget?.targetType) return existingTarget.targetType;
-    if (initialTargetType) return initialTargetType;
-    if (!student && targetClass) return 'class';
-    return 'student';
-  });
+  const isEdit = !!editTarget;
+  const canEdit = !editTarget || dataService.canEditQuestionTarget(editTarget);
+  const mySubjects = dataService.getMySubjects(); // null = yönetici
 
-  const [selectedStudentId, setSelectedStudentId] = useState<string>(() => {
-    return existingTarget?.studentId || student?.id || '';
-  });
+  const initial = useMemo(() => {
+    const t = editTarget;
+    const kind: 'student' | 'class' = t ? (t.targetType === 'class' || (!t.studentId && t.classId) ? 'class' : 'student') : presetKind || 'student';
+    const studentId = t?.studentId || presetStudentId || '';
+    const st = students.find((s) => s.id === studentId);
+    const classId = t?.classId || presetClassId || st?.classId || (classes.length === 1 ? classes[0].id : '');
+    const start = t?.weekStartDate || defaultStart || localDateStr(new Date());
+    const end = t ? dataService.questionTargetEnd(t) : defaultEnd || localDateStr(addDays(parseYmd(start) || new Date(), 6));
+    const days = Math.max(1, daysBetween(start, end));
+    const total = t ? Number(t.targetQuestions || t.weeklyTarget) || 350 : 350;
+    const daily = t ? Number(t.dailyTarget) || Math.max(1, Math.round(total / days)) : Math.max(1, Math.round(total / days));
+    return {
+      kind,
+      studentId: st ? studentId : '',
+      classId,
+      subject: t?.subject ? normalizeSubject(t.subject) : '',
+      start,
+      end,
+      daily: String(daily),
+      total: String(total),
+      subjectRows: subjectTargetsOf(t),
+      notes: t?.notes || '',
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const [selectedClassId, setSelectedClassId] = useState<string>(() => {
-    return existingTarget?.classId || targetClass?.id || student?.classId || (classes[0]?.id || '');
-  });
+  const [kind, setKind] = useState<'student' | 'class'>(initial.kind);
+  const [classId, setClassId] = useState(initial.classId);
+  const [studentId, setStudentId] = useState(initial.studentId);
+  const [start, setStart] = useState(initial.start);
+  const [end, setEnd] = useState(initial.end);
+  const [daily, setDaily] = useState(initial.daily);
+  const [total, setTotal] = useState(initial.total);
+  const [subjectRows, setSubjectRows] = useState<Record<string, string>>(initial.subjectRows);
+  const [subjectToAdd, setSubjectToAdd] = useState('');
+  const [notes, setNotes] = useState(initial.notes);
+  const [sendMail, setSendMail] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [daysDraft, setDaysDraft] = useState<string | null>(null); // gün sayısı kutusuna yazılırken
 
-  // Tarih Aralığı (Start Date - End Date)
-  const [startDate, setStartDate] = useState<string>(() => {
-    return existingTarget?.weekStartDate || defaultStartDate || formatDateISO(new Date());
-  });
-
-  const [endDate, setEndDate] = useState<string>(() => {
-    if (existingTarget?.weekEndDate) return existingTarget.weekEndDate;
-    if (defaultEndDate) return defaultEndDate;
-    const end = new Date();
-    end.setDate(end.getDate() + 6);
-    return formatDateISO(end);
-  });
-
-  // Hedef Gün Sayısı
-  const [targetDays, setTargetDays] = useState<number>(() => {
-    return existingTarget?.targetDays || 7;
-  });
-
-  const [dailyTargetCount, setDailyTargetCount] = useState<number>(() => {
-    if (existingTarget?.dailyTarget) return existingTarget.dailyTarget;
-    const total = existingTarget?.targetQuestions || existingTarget?.weeklyTarget || 350;
-    const days = existingTarget?.targetDays || 7;
-    return Math.max(10, Math.round(total / days));
-  });
-
-  const [targetCount, setTargetCount] = useState<number>(() => {
-    if (existingTarget?.targetQuestions) return existingTarget.targetQuestions;
-    if (existingTarget?.weeklyTarget) return existingTarget.weeklyTarget;
-    return (existingTarget?.dailyTarget || 50) * (existingTarget?.targetDays || 7);
-  });
-
-  const [notes, setNotes] = useState<string>(() => {
-    return existingTarget?.notes || '';
-  });
-
-  const [subjectTargets, setSubjectTargets] = useState<Record<string, number>>(() => {
-    return normalizeSubjectTargets(existingTarget?.subjectTargets);
-  });
-
-  const [selectedSubjectToAdd, setSelectedSubjectToAdd] = useState<string>(COMMON_SUBJECTS[0]);
-  const [savedSuccess, setSavedSuccess] = useState(false);
-
-  // Güncelleme senkronizasyonu
   useEffect(() => {
-    if (existingTarget) {
-      const isClass = existingTarget.targetType === 'class' || (!!existingTarget.classId && !existingTarget.studentId);
-      setTargetType(isClass ? 'class' : 'student');
-      if (existingTarget.studentId) setSelectedStudentId(existingTarget.studentId);
-      if (existingTarget.classId) setSelectedClassId(existingTarget.classId);
+    if (errorText) document.getElementById('qt-form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [errorText]);
 
-      const sDate = existingTarget.weekStartDate || defaultStartDate || formatDateISO(new Date());
-      const eDate = existingTarget.weekEndDate || defaultEndDate || formatDateISO(new Date());
-      setStartDate(sDate);
-      setEndDate(eDate);
+  const selectedClass = classes.find((c) => c.id === classId) || null;
+  const classStudents = useMemo(
+    () => students.filter((s) => s.classId === classId).sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    [students, classId]
+  );
+  const selectedStudent = students.find((s) => s.id === studentId) || null;
+  const level = classLevel(kind === 'student' ? classes.find((c) => c.id === selectedStudent?.classId) || selectedClass : selectedClass);
 
-      const days = existingTarget.targetDays || 7;
-      setTargetDays(days);
-
-      const tQuestions = existingTarget.targetQuestions || existingTarget.weeklyTarget || 350;
-      setTargetCount(tQuestions);
-      setDailyTargetCount(existingTarget.dailyTarget || Math.round(tQuestions / days));
-      setNotes(existingTarget.notes || '');
-      setSubjectTargets(normalizeSubjectTargets(existingTarget.subjectTargets));
+  // ---- ders seçenekleri ('' = tüm dersler)
+  const subjectOptions = useMemo(() => {
+    let list: string[];
+    let allowGeneral: boolean;
+    if (mySubjects) {
+      list = mySubjects.filter((s) => !NON_QUESTION_SUBJECTS.has(s));
+      allowGeneral = list.length === 0; // rehberlik vb. branşlar genel hedef verir
     } else {
-      setTargetType(initialTargetType);
-      if (student) setSelectedStudentId(student.id);
-      if (targetClass) setSelectedClassId(targetClass.id);
-      else if (student?.classId) setSelectedClassId(student.classId);
-
-      const sDate = defaultStartDate || formatDateISO(new Date());
-      const eDate = defaultEndDate || (() => {
-        const d = new Date(sDate);
-        d.setDate(d.getDate() + 6);
-        return formatDateISO(d);
-      })();
-
-      setStartDate(sDate);
-      setEndDate(eDate);
-      setTargetDays(7);
-      setDailyTargetCount(50);
-      setTargetCount(350);
-      setNotes('');
-      setSubjectTargets({});
+      list = subjectsForLevel(level).filter((s) => !NON_QUESTION_SUBJECTS.has(s));
+      allowGeneral = true;
     }
-    // Yalnızca pencere açıldığında veya gerçekten başka bir öğrenci/sınıf seçildiğinde doldurulur.
-    // (Arka plan eşitlemesi kayıtları yeniden getirdiğinde öğretmenin yazdıkları silinmez.)
-  }, [student?.id, targetClass?.id, initialTargetType, isOpen]);
+    const opts = [...(allowGeneral ? [''] : []), ...list];
+    if (isEdit && !opts.includes(initial.subject)) opts.push(initial.subject); // eski kayıt kaybolmasın
+    return opts;
+  }, [mySubjects, level, isEdit, initial.subject]);
+  const [subject, setSubject] = useState<string>(() =>
+    subjectOptions.includes(initial.subject) ? initial.subject : subjectOptions[0] ?? ''
+  );
+  const effectiveSubject = subjectOptions.includes(subject) ? subject : subjectOptions[0] ?? '';
+  const breakdownSubjects = useMemo(
+    () => subjectsForLevel(level).filter((s) => !NON_QUESTION_SUBJECTS.has(s) && !(s in subjectRows)),
+    [level, subjectRows]
+  );
 
-  // Tarihler değiştiğinde gün sayısını ve hedefi otomatik hesapla
-  const handleStartDateChange = (newStart: string) => {
-    setStartDate(newStart);
-    if (newStart && endDate) {
-      const s = new Date(newStart + 'T00:00:00');
-      const e = new Date(endDate + 'T00:00:00');
-      if (e >= s) {
-        const diffDays = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        setTargetDays(diffDays);
-        setTargetCount(dailyTargetCount * diffDays);
-      } else {
-        // Otomatik end date'i start + targetDays yap
-        const newEnd = new Date(s);
-        newEnd.setDate(s.getDate() + targetDays - 1);
-        setEndDate(formatDateISO(newEnd));
-      }
+  // ---- gün / günlük / toplam bağlantısı
+  const days = Math.max(0, daysBetween(start, end));
+  const applyDates = (s: string, e: string) => {
+    setStart(s);
+    setEnd(e);
+    const d = daysBetween(s, e);
+    const dn = toInt(daily);
+    if (d >= 1 && dn >= 1) setTotal(String(dn * d));
+  };
+  // Gün sayısı elle girilince bitiş tarihi = başlangıç + gün − 1; toplam hedef günlüğe göre yeniden hesaplanır
+  const onDaysChange = (v: string) => {
+    const clean = v.replace(/[^\d]/g, '').slice(0, 3);
+    setDaysDraft(clean);
+    const n = toInt(clean);
+    const s0 = parseYmd(start);
+    if (!s0 || !(n >= 1 && n <= 366)) return;
+    const e = localDateStr(addDays(s0, n - 1));
+    setEnd(e);
+    const dn = toInt(daily);
+    if (dn >= 1) setTotal(String(dn * n));
+  };
+  const onDailyChange = (v: string) => {
+    const clean = v.replace(/[^\d]/g, '').slice(0, 5);
+    setDaily(clean);
+    const n = toInt(clean);
+    if (n >= 1 && days >= 1) setTotal(String(n * days));
+  };
+  const onTotalChange = (v: string) => {
+    const clean = v.replace(/[^\d]/g, '').slice(0, 6);
+    setTotal(clean);
+    const n = toInt(clean);
+    if (n >= 1 && days >= 1) setDaily(String(Math.max(1, Math.round(n / days))));
+  };
+  const today = new Date();
+  const presets: Array<{ id: string; label: string; s: string; e: string }> = useMemo(() => {
+    const mon = mondayOf(today);
+    const nextMon = addDays(mon, 7);
+    return [
+      { id: 'this-week', label: 'Bu hafta', s: localDateStr(mon), e: localDateStr(addDays(mon, 6)) },
+      { id: 'next-week', label: 'Gelecek hafta', s: localDateStr(nextMon), e: localDateStr(addDays(nextMon, 6)) },
+      { id: '7-days', label: 'Bugünden 7 gün', s: localDateStr(today), e: localDateStr(addDays(today, 6)) },
+      { id: '2-weeks', label: '2 hafta', s: localDateStr(mon), e: localDateStr(addDays(mon, 13)) },
+      {
+        id: 'month',
+        label: 'Bu ay',
+        s: localDateStr(new Date(today.getFullYear(), today.getMonth(), 1)),
+        e: localDateStr(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+      },
+    ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- taslak ve çakışma
+  const draft: WeeklyQuestionTarget = {
+    id: editTarget?.id,
+    targetType: kind,
+    studentId: kind === 'student' ? studentId : undefined,
+    studentName: kind === 'student' ? selectedStudent?.name : undefined,
+    classId: kind === 'student' ? selectedStudent?.classId || classId : classId,
+    className: kind === 'student' ? selectedStudent?.className || selectedClass?.name : selectedClass?.name,
+    weekStartDate: start,
+    weekEndDate: end,
+    targetDays: days,
+    targetQuestions: toInt(total),
+    dailyTarget: toInt(daily),
+    subject: effectiveSubject || undefined,
+    subjectTargets: effectiveSubject
+      ? undefined
+      : Object.fromEntries(Object.entries(subjectRows).map(([k, v]) => [k, toInt(v) || 0])),
+    notes,
+    assignedByTeacherId: editTarget?.assignedByTeacherId,
+  };
+  const hasTarget = kind === 'student' ? !!studentId : !!classId;
+  const conflict = !isEdit && hasTarget && start && end >= start ? dataService.findQuestionTargetConflict(draft) : null;
+
+  const dirty =
+    kind !== initial.kind ||
+    classId !== initial.classId ||
+    studentId !== initial.studentId ||
+    start !== initial.start ||
+    end !== initial.end ||
+    total !== initial.total ||
+    daily !== initial.daily ||
+    effectiveSubject !== initial.subject ||
+    notes !== initial.notes ||
+    JSON.stringify(subjectRows) !== JSON.stringify(initial.subjectRows);
+
+  const requestClose = () => {
+    if (isSaving) return;
+    if (dirty && !confirmDiscard) {
+      setConfirmDiscard(true);
+      return;
     }
-  };
-
-  const handleEndDateChange = (newEnd: string) => {
-    setEndDate(newEnd);
-    if (startDate && newEnd) {
-      const s = new Date(startDate + 'T00:00:00');
-      const e = new Date(newEnd + 'T00:00:00');
-      if (e >= s) {
-        const diffDays = Math.max(1, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        setTargetDays(diffDays);
-        setTargetCount(dailyTargetCount * diffDays);
-      }
-    }
-  };
-
-  // Hızlı Ön Tanımlı Tarih Aralıkları (Preset Quick Dates)
-  const applyDatePreset = (presetType: 'this_week' | 'next_week' | '15_days' | 'this_month') => {
-    const today = new Date();
-    if (presetType === 'this_week') {
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1);
-      const mon = new Date(today.setDate(diff));
-      const sun = new Date(mon);
-      sun.setDate(mon.getDate() + 6);
-      setStartDate(formatDateISO(mon));
-      setEndDate(formatDateISO(sun));
-      setTargetDays(7);
-      setTargetCount(dailyTargetCount * 7);
-    } else if (presetType === 'next_week') {
-      const day = today.getDay();
-      const diff = today.getDate() - day + (day === 0 ? -6 : 1) + 7;
-      const mon = new Date(today.setDate(diff));
-      const sun = new Date(mon);
-      sun.setDate(mon.getDate() + 6);
-      setStartDate(formatDateISO(mon));
-      setEndDate(formatDateISO(sun));
-      setTargetDays(7);
-      setTargetCount(dailyTargetCount * 7);
-    } else if (presetType === '15_days') {
-      const start = new Date();
-      const end = new Date();
-      end.setDate(start.getDate() + 14);
-      setStartDate(formatDateISO(start));
-      setEndDate(formatDateISO(end));
-      setTargetDays(15);
-      setTargetCount(dailyTargetCount * 15);
-    } else if (presetType === 'this_month') {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      setStartDate(formatDateISO(start));
-      setEndDate(formatDateISO(end));
-      const diffDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      setTargetDays(diffDays);
-      setTargetCount(dailyTargetCount * diffDays);
-    }
-  };
-
-  // Gün Sayısı Değiştiğinde
-  const handleDaysChange = (newDays: number) => {
-    const cleanDays = Math.max(1, Math.min(365, newDays));
-    setTargetDays(cleanDays);
-    // End Date'i start + cleanDays - 1 olarak güncelle
-    if (startDate) {
-      const s = new Date(startDate + 'T00:00:00');
-      const e = new Date(s);
-      e.setDate(s.getDate() + cleanDays - 1);
-      setEndDate(formatDateISO(e));
-    }
-    // Günlük hedefe göre toplam hedefi güncelle
-    setTargetCount(dailyTargetCount * cleanDays);
-  };
-
-  // Günlük Hedef Değiştiğinde
-  const handleDailyTargetChange = (val: number) => {
-    const cleanDaily = Math.max(1, val);
-    setDailyTargetCount(cleanDaily);
-    setTargetCount(cleanDaily * targetDays);
-  };
-
-  // Toplam Hedef Değiştiğinde
-  const handleTotalTargetChange = (val: number) => {
-    const cleanTotal = Math.max(1, val);
-    setTargetCount(cleanTotal);
-    setDailyTargetCount(Math.max(1, Math.round(cleanTotal / targetDays)));
-  };
-
-  // Aktif seçili öğrenci ve sınıf
-  const currentSelectedStudent = useMemo(() => {
-    if (student && student.id === selectedStudentId) return student;
-    return students.find((s) => s.id === selectedStudentId) || student || null;
-  }, [students, selectedStudentId, student]);
-
-  const currentSelectedClass = useMemo(() => {
-    if (targetClass && targetClass.id === selectedClassId) return targetClass;
-    return classes.find((c) => c.id === selectedClassId) || targetClass || null;
-  }, [classes, selectedClassId, targetClass]);
-
-  const classStudentsCount = useMemo(() => {
-    if (!selectedClassId) return 0;
-    return students.filter((s) => s.classId === selectedClassId).length;
-  }, [students, selectedClassId]);
-
-  if (!isOpen) return null;
-
-  const handleAddSubjectTarget = () => {
-    if (!subjectTargets[selectedSubjectToAdd]) {
-      setSubjectTargets((prev) => ({
-        ...prev,
-        [selectedSubjectToAdd]: Math.max(10, Math.round(targetCount / 4)),
-      }));
-    }
-  };
-
-  const handleRemoveSubjectTarget = (sub: string) => {
-    setSubjectTargets((prev) => {
-      const copy = { ...prev };
-      delete copy[sub];
-      return copy;
-    });
-  };
-
-  const handleSubjectTargetChange = (sub: string, val: number) => {
-    setSubjectTargets((prev) => ({
-      ...prev,
-      [sub]: Math.max(0, val),
-    }));
-  };
-
-  const handleSave = async () => {
-    const formattedRange = `${formatTurkishDate(startDate)} - ${formatTurkishDate(endDate)}`;
-    const periodLabel = `${formattedRange} (${targetDays} Gün)`;
-
-    if (targetType === 'class') {
-      if (!selectedClassId) {
-        alert('Lütfen hedef atanacak sınıfı seçiniz.');
-        return;
-      }
-      const clsName =
-        currentSelectedClass?.name ||
-        formatClassDisplayName(
-          currentSelectedClass?.name,
-          currentSelectedClass?.branch,
-          currentSelectedClass?.gradeLevel
-        );
-
-      try {
-        await dataService.setClassQuestionTarget(
-          selectedClassId,
-          clsName,
-          {
-            targetDays,
-            targetPeriodLabel: periodLabel,
-            targetQuestions: targetCount,
-            weeklyTarget: targetCount,
-            dailyTarget: dailyTargetCount,
-            weekStartDate: startDate,
-            weekEndDate: endDate,
-            subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
-            notes: notes.trim() || undefined,
-            assignedBy: 'Öğretmen',
-          },
-          true // Sınıftaki tüm öğrencilere de hedefi ata
-        );
-      } catch {
-        return; // hata uyarısı gösterildi; form açık kalır
-      }
-    } else {
-      if (!selectedStudentId && !currentSelectedStudent) {
-        alert('Lütfen hedef atanacak öğrenciyi seçiniz.');
-        return;
-      }
-      const st = currentSelectedStudent || students.find((s) => s.id === selectedStudentId);
-
-      try {
-        await dataService.setWeeklyQuestionTarget({
-          targetType: 'student',
-          studentId: selectedStudentId || st?.id || '',
-          studentName: st?.name,
-          classId: st?.classId || selectedClassId,
-          className: st?.className || currentSelectedClass?.name,
-          targetDays,
-          targetPeriodLabel: periodLabel,
-          targetQuestions: targetCount,
-          weeklyTarget: targetCount,
-          dailyTarget: dailyTargetCount,
-          weekStartDate: startDate,
-          weekEndDate: endDate,
-          subjectTargets: Object.keys(subjectTargets).length > 0 ? subjectTargets : undefined,
-          notes: notes.trim() || undefined,
-          assignedBy: 'Öğretmen',
-          assignedDate: new Date().toISOString(),
-        });
-      } catch {
-        return; // hata uyarısı gösterildi; form açık kalır
-      }
-    }
-
-    try {
-      confetti({
-        particleCount: 60,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch {}
-
-    setSavedSuccess(true);
-    if (onSaved) onSaved();
-
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1100);
-  };
-
-  const handleDelete = async () => {
-    try {
-      if (targetType === 'class' && selectedClassId) {
-        await dataService.deleteClassQuestionTarget(selectedClassId, startDate);
-      } else if (selectedStudentId) {
-        await dataService.deleteWeeklyQuestionTarget(selectedStudentId, startDate);
-      }
-    } catch {
-      return; // hata uyarısı gösterildi
-    }
-    if (onSaved) onSaved();
     onClose();
   };
 
+  const validate = (): string | null => {
+    if (!canEdit) return 'Bu hedefi yalnızca hedefi veren öğretmen değiştirebilir.';
+    if (kind === 'class' && !classId) return 'Hedef verilecek sınıfı seçin.';
+    if (kind === 'student' && !studentId) return 'Hedef verilecek öğrenciyi seçin.';
+    if (!parseYmd(start) || !parseYmd(end)) return 'Başlangıç ve bitiş tarihini seçin.';
+    if (end < start) return 'Bitiş tarihi başlangıçtan önce olamaz.';
+    if (days > 366) return 'Hedef süresi en fazla 1 yıl olabilir.';
+    const dn = toInt(daily);
+    const tn = toInt(total);
+    if (!(dn >= 1 && dn <= MAX_DAILY)) return `Günlük hedef 1 ile ${MAX_DAILY} arasında tam sayı olmalı.`;
+    if (!(tn >= 1 && tn <= MAX_TOTAL)) return `Toplam hedef 1 ile ${MAX_TOTAL.toLocaleString('tr-TR')} arasında tam sayı olmalı.`;
+    if (!effectiveSubject) {
+      let sum = 0;
+      for (const [k, v] of Object.entries(subjectRows)) {
+        const n = toInt(v);
+        if (!(n >= 1)) return `${k} için ders hedefi en az 1 olmalı (istemiyorsanız satırı kaldırın).`;
+        sum += n;
+      }
+      if (sum > tn) return `Ders hedeflerinin toplamı (${sum}) genel hedeften (${tn}) büyük olamaz.`;
+    }
+    if (notes.length > 400) return 'Not en fazla 400 karakter olabilir.';
+    return null;
+  };
+
+  const handleSave = async () => {
+    if (isSaving) return;
+    setConfirmDiscard(false);
+    const err = validate();
+    if (err) return setErrorText(err);
+    setErrorText(null);
+    setIsSaving(true);
+    try {
+      const toSave: WeeklyQuestionTarget = { ...draft, id: editTarget?.id || conflict?.id };
+      const saved = await dataService.saveQuestionTarget(toSave);
+      const base = editTarget || conflict;
+      const sig = (t?: WeeklyQuestionTarget | null) =>
+        t
+          ? JSON.stringify([
+              t.targetType === 'class' ? 'c' : 's',
+              t.studentId || '',
+              t.classId || '',
+              t.weekStartDate,
+              dataService.questionTargetEnd(t),
+              Number(t.targetQuestions || t.weeklyTarget) || 0,
+              Number(t.dailyTarget) || 0,
+              normalizeSubject(t.subject || ''),
+              subjectTargetsOf(t),
+              (t.notes || '').trim(),
+            ])
+          : '';
+      onSaved({ target: saved, isNew: !base, changed: !base || sig(base) !== sig(saved), sendMail });
+    } catch (e: any) {
+      setErrorText(e?.message || 'Hedef kaydedilemedi. Lütfen tekrar deneyin.');
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editTarget?.id || isSaving) return;
+    setIsSaving(true);
+    try {
+      await dataService.deleteQuestionTargetById(editTarget.id);
+      onClose();
+    } catch (e: any) {
+      setErrorText(e?.message || 'Hedef silinemedi.');
+      setIsSaving(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  const who =
+    kind === 'class'
+      ? selectedClass
+        ? `${selectedClass.name} sınıfı (${classStudents.length} öğrenci)`
+        : 'Sınıf seçilmedi'
+      : selectedStudent
+        ? selectedStudent.name
+        : 'Öğrenci seçilmedi';
+
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
-      onClick={onClose}
+    <Modal
+      open
+      id="question-target-modal"
+      onClose={requestClose}
+      icon={Target}
+      tone="warning"
+      size="lg"
+      title={isEdit ? 'Soru Hedefini Düzenle' : 'Soru Hedefi Ver'}
+      description={isEdit ? `${who}${editTarget?.assignedByTeacherName ? ` · Veren: ${editTarget.assignedByTeacherName}` : ''}` : 'Öğrenciye ya da sınıfa belirli tarihler için soru hedefi'}
+      footer={
+        confirmDiscard ? (
+          <DiscardBar onKeep={() => setConfirmDiscard(false)} onDiscard={onClose} />
+        ) : confirmDelete ? (
+          <div role="alert" className="w-full flex flex-wrap items-center justify-between gap-2 rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">
+            <span className="flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" />
+              Bu hedef silinsin mi? Öğrenci artık bu hedefi görmez.
+            </span>
+            <span className="flex gap-2">
+              <button type="button" onClick={() => setConfirmDelete(false)} className="ui-btn ui-btn-secondary ui-btn-sm">
+                Vazgeç
+              </button>
+              <button type="button" id="qt-delete-confirm" onClick={handleDelete} disabled={isSaving} className="ui-btn ui-btn-danger ui-btn-sm">
+                Evet, sil
+              </button>
+            </span>
+          </div>
+        ) : (
+          <div className="w-full flex flex-wrap items-center justify-between gap-2">
+            <span className="flex items-center gap-2 min-w-0">
+              {isEdit && canEdit && (
+                <button type="button" id="qt-delete" onClick={() => setConfirmDelete(true)} className="ui-btn ui-btn-ghost text-danger-fg">
+                  <Trash2 className="w-4 h-4" /> Sil
+                </button>
+              )}
+              <span className="text-[11px] text-muted truncate" id="qt-form-summary">
+                {who} · {days >= 1 ? `${shortTrDate(start)} – ${shortTrDate(end)} (${days} gün)` : 'tarih seçilmedi'}
+              </span>
+            </span>
+            <span className="flex gap-2 ml-auto">
+              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary">
+                İptal
+              </button>
+              <button type="button" id="qt-save" onClick={handleSave} disabled={isSaving || !canEdit} className="ui-btn ui-btn-primary">
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Kaydediliyor…' : isEdit || conflict ? 'Hedefi Güncelle' : 'Hedefi Kaydet'}
+              </button>
+            </span>
+          </div>
+        )
+      }
     >
-      <div
-        className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] text-fg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-line bg-surface-2/80 shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center shadow-md shadow-orange-500/20">
-              <Target className="w-5 h-5" />
-            </div>
+      <div className="space-y-6">
+        {!canEdit && (
+          <div className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning-fg px-3 py-2 text-xs font-semibold">
+            <Info className="w-4 h-4 shrink-0" />
+            Bu hedefi {editTarget?.assignedByTeacherName || 'başka bir öğretmen'} verdi. Yalnızca o öğretmen veya yönetici değiştirebilir.
+          </div>
+        )}
+
+        <FormSection title="1. Kime">
+          {!isEdit && (
+            <Segmented
+              value={kind}
+              onChange={(v) => setKind(v)}
+              items={[
+                { value: 'student', label: 'Öğrenciye', icon: User, id: 'qt-kind-student' },
+                { value: 'class', label: 'Sınıfa', icon: Users, id: 'qt-kind-class' },
+              ]}
+            />
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <h3 className="text-base font-bold text-fg flex items-center space-x-2">
-                <span>Soru Sayısı Hedefi Belirleme</span>
-              </h3>
-              <p className="text-xs text-muted flex items-center space-x-1.5 mt-0.5">
-                <span className="font-semibold text-fg-2">
-                  {targetType === 'class'
-                    ? `Sınıf: ${
-                        currentSelectedClass
-                          ? formatClassDisplayName(
-                              currentSelectedClass.name,
-                              currentSelectedClass.branch,
-                              currentSelectedClass.gradeLevel
-                            )
-                          : 'Sınıf Seçiniz'
-                      }`
-                    : `Öğrenci: ${currentSelectedStudent?.name || 'Öğrenci Seçiniz'}`}
-                </span>
-                <span>•</span>
-                <span className="text-orange-600 dark:text-orange-300 font-bold">{targetDays} Günlük Hedef</span>
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 text-subtle hover:text-fg-2 rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content Form */}
-        <div className="p-6 overflow-y-auto space-y-4">
-          {/* 1. HEDEF TİPİ SEÇİMİ (Öğrenci Bazlı / Sınıfa Toplu) */}
-          <div className="bg-surface-2 p-1 rounded-xl flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setTargetType('student')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                targetType === 'student'
-                  ? 'bg-surface text-orange-600 dark:text-orange-300 shadow-xs'
-                  : 'text-muted hover:text-fg'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              <span>Öğrenci Bazlı Hedef</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTargetType('class')}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                targetType === 'class'
-                  ? 'bg-surface text-orange-600 dark:text-orange-300 shadow-xs'
-                  : 'text-muted hover:text-fg'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              <span>Sınıfa Toplu Soru Hedefi</span>
-            </button>
-          </div>
-
-          {/* Sınıf veya Öğrenci Seçim Kartı */}
-          {targetType === 'class' ? (
-            <div className="p-4 bg-orange-50/70 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 rounded-xl space-y-2.5 shadow-2xs">
-              <label className="block text-xs font-bold text-fg flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-orange-600 dark:text-orange-300" />
-                  <span>Hedef Verilecek Sınıf:</span>
-                </span>
-                <span className="text-xs font-bold text-orange-800 dark:text-orange-200 bg-surface px-2 py-0.5 rounded border border-orange-200 dark:border-orange-500/30">
-                  {classStudentsCount} Öğrenciye Uygulanacak
-                </span>
-              </label>
-
+              <FieldLabel htmlFor="qt-class">Sınıf</FieldLabel>
               <select
-                value={selectedClassId}
-                onChange={(e) => setSelectedClassId(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-orange-300 dark:border-orange-500/30 rounded-xl text-xs font-bold text-fg focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
+                id="qt-class"
+                value={classId}
+                disabled={isEdit}
+                onChange={(e) => {
+                  setClassId(e.target.value);
+                  setStudentId('');
+                }}
+                className={inputCls}
               >
-                <option value="">Sınıf Seçiniz</option>
-                {classes.map((cls) => {
-                  const count = students.filter((s) => s.classId === cls.id).length;
-                  return (
-                    <option key={cls.id} value={cls.id}>
-                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({count} Öğrenci)
-                    </option>
-                  );
-                })}
+                <option value="">Sınıf seçin</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({students.filter((s) => s.classId === c.id).length} öğrenci)
+                  </option>
+                ))}
               </select>
             </div>
+            {kind === 'student' && (
+              <div>
+                <FieldLabel htmlFor="qt-student">Öğrenci</FieldLabel>
+                <select
+                  id="qt-student"
+                  value={studentId}
+                  disabled={isEdit || !classId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">{classId ? 'Öğrenci seçin' : 'Önce sınıf seçin'}</option>
+                  {classStudents.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                      {s.studentNumber ? ` (${s.studentNumber})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          {kind === 'class' && classId && (
+            <p className="text-[11px] text-muted">Sınıf hedefi sınıftaki tüm öğrencilere görünür; sınıfa sonradan katılan öğrenciler de görür.</p>
+          )}
+        </FormSection>
+
+        <FormSection title="2. Ders" hint={mySubjects ? 'Branşınıza göre' : undefined}>
+          {subjectOptions.length <= 1 ? (
+            <div id="qt-subject-fixed" className="px-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
+              {effectiveSubject || 'Tüm dersler (genel hedef)'}
+            </div>
           ) : (
-            <div className="p-3.5 bg-orange-50/70 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 rounded-xl flex items-center gap-3 shadow-2xs">
-              {currentSelectedStudent ? (
-                <>
-                  <img
-                    src={
-                      currentSelectedStudent.avatar ||
-                      `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                        currentSelectedStudent.name
-                      )}`
-                    }
-                    alt={currentSelectedStudent.name}
-                    className="w-11 h-11 rounded-full bg-surface-3 shrink-0 ring-2 ring-orange-300 dark:ring-orange-500/30 shadow-2xs"
+            <select id="qt-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
+              {subjectOptions.map((s) => (
+                <option key={s || 'all'} value={s}>
+                  {s || 'Tüm dersler (genel hedef)'}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="text-[11px] text-muted">
+            {effectiveSubject
+              ? `Yalnızca ${effectiveSubject} soruları bu hedefe sayılır.`
+              : 'Öğrencinin tüm derslerde çözdüğü sorular bu hedefe sayılır.'}
+          </p>
+        </FormSection>
+
+        <FormSection title="3. Tarihler">
+          <div className="flex flex-wrap gap-1.5">
+            {presets.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                id={`qt-preset-${p.id}`}
+                className={chipCls(presets.find((x) => x.s === start && x.e === end)?.id === p.id)}
+                onClick={() => {
+                  setDaysDraft(null);
+                  applyDates(p.s, p.e);
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_8rem_1fr] gap-3">
+            <div>
+              <FieldLabel htmlFor="qt-start">Başlangıç</FieldLabel>
+              <input
+                id="qt-start"
+                type="date"
+                value={start}
+                onChange={(e) => {
+                  // Gün sayısı korunur: başlangıç kayınca bitiş de kayar
+                  const ns = e.target.value;
+                  const s0 = parseYmd(ns);
+                  if (s0 && days >= 1) applyDates(ns, localDateStr(addDays(s0, days - 1)));
+                  else applyDates(ns, end < ns ? ns : end);
+                }}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <FieldLabel htmlFor="qt-days-input">Gün sayısı</FieldLabel>
+              <div className="relative">
+                <input
+                  id="qt-days-input"
+                  inputMode="numeric"
+                  value={daysDraft ?? (days >= 1 ? String(days) : '')}
+                  onChange={(e) => onDaysChange(e.target.value)}
+                  onBlur={() => setDaysDraft(null)}
+                  className={`${inputCls} pr-10`}
+                  placeholder="7"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">gün</span>
+              </div>
+            </div>
+            <div>
+              <FieldLabel htmlFor="qt-end">Bitiş</FieldLabel>
+              <input
+                id="qt-end"
+                type="date"
+                value={end}
+                min={start}
+                onChange={(e) => {
+                  setDaysDraft(null);
+                  applyDates(start, e.target.value);
+                }}
+                className={inputCls}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted" id="qt-days">
+            {daysDraft !== null && !(toInt(daysDraft) >= 1 && toInt(daysDraft) <= 366)
+              ? 'Gün sayısı 1 ile 366 arasında olmalı.'
+              : days >= 1
+                ? `${days} günlük hedef · ${shortTrDate(start)} – ${shortTrDate(end)}`
+                : 'Bitiş tarihi başlangıçtan önce olamaz.'}
+          </p>
+        </FormSection>
+
+        <FormSection title="4. Soru hedefi">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel htmlFor="qt-daily">Günlük</FieldLabel>
+              <div className="relative">
+                <input id="qt-daily" inputMode="numeric" value={daily} onChange={(e) => onDailyChange(e.target.value)} className={`${inputCls} pr-16`} placeholder="50" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru/gün</span>
+              </div>
+            </div>
+            <div>
+              <FieldLabel htmlFor="qt-total">Toplam ({days >= 1 ? days : '-'} gün)</FieldLabel>
+              <div className="relative">
+                <input id="qt-total" inputMode="numeric" value={total} onChange={(e) => onTotalChange(e.target.value)} className={`${inputCls} pr-12`} placeholder="350" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted">Birini değiştirince diğeri gün sayısına göre otomatik hesaplanır.</p>
+
+          {!effectiveSubject && (
+            <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2">
+              <div className="text-xs font-semibold text-fg">Ders dağılımı (isteğe bağlı)</div>
+              {Object.entries(subjectRows).map(([s, v]) => (
+                <div key={s} className="flex items-center gap-2">
+                  <span className="flex-1 text-sm text-fg truncate">{s}</span>
+                  <input
+                    aria-label={`${s} hedefi`}
+                    inputMode="numeric"
+                    value={v}
+                    onChange={(e) => setSubjectRows((r) => ({ ...r, [s]: e.target.value.replace(/[^\d]/g, '').slice(0, 6) }))}
+                    className={`${inputCls} w-24 text-center`}
                   />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-fg truncate">
-                      {currentSelectedStudent.name}
-                    </div>
-                    <div className="text-[11px] text-muted">
-                      {currentSelectedStudent.className || 'Sınıf Belirtilmedi'} • No: #
-                      {currentSelectedStudent.studentNumber || '-'}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1">
-                  <label className="block text-xs font-bold text-fg mb-1">
-                    Hedef Verilecek Öğrenciyi Seçiniz:
-                  </label>
-                  <select
-                    value={selectedStudentId}
-                    onChange={(e) => setSelectedStudentId(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface border border-orange-300 dark:border-orange-500/30 rounded-xl text-xs font-bold text-fg focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
+                  <button
+                    type="button"
+                    aria-label={`${s} kaldır`}
+                    onClick={() =>
+                      setSubjectRows((r) => {
+                        const c = { ...r };
+                        delete c[s];
+                        return c;
+                      })
+                    }
+                    className="ui-btn ui-btn-ghost ui-btn-icon"
                   >
-                    <option value="">Öğrenci Seçiniz</option>
-                    {students.map((st) => (
-                      <option key={st.id} value={st.id}>
-                        {st.name} ({st.className || 'Sınıfsız'}) - #{st.studentNumber || '-'}
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {breakdownSubjects.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <select id="qt-breakdown-subject" value={subjectToAdd} onChange={(e) => setSubjectToAdd(e.target.value)} className={inputCls}>
+                    <option value="">Ders ekle…</option>
+                    {breakdownSubjects.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
                       </option>
                     ))}
                   </select>
+                  <button
+                    type="button"
+                    id="qt-breakdown-add"
+                    disabled={!subjectToAdd}
+                    onClick={() => {
+                      if (!subjectToAdd) return;
+                      setSubjectRows((r) => ({ ...r, [subjectToAdd]: String(Math.max(1, Math.round((toInt(total) || 100) / 4))) }));
+                      setSubjectToAdd('');
+                    }}
+                    className="ui-btn ui-btn-secondary shrink-0"
+                  >
+                    <Plus className="w-4 h-4" /> Ekle
+                  </button>
                 </div>
               )}
             </div>
           )}
+        </FormSection>
 
-          {/* 2. TARİH SEÇİMİ BÖLÜMÜ (BAŞLANGIÇ VE BİTİŞ TARİHLERİ) */}
-          <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between pb-1 border-b border-line">
-              <label className="text-xs font-bold text-fg flex items-center space-x-1.5">
-                <CalendarDays className="w-4 h-4 text-orange-600 dark:text-orange-300" />
-                <span>Hedef Tarih Seçimi:</span>
-              </label>
-              <span className="text-[11px] font-bold text-orange-700 dark:text-orange-300 bg-orange-100/70 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 px-2 py-0.5 rounded-md">
-                {targetDays} Günlük Süre
-              </span>
-            </div>
-
-            {/* Başlangıç ve Bitiş Tarihleri */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">
-                  Başlangıç Tarihi:
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => handleStartDateChange(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-xs font-bold text-fg focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-fg-2 mb-1">
-                  Bitiş Tarihi:
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => handleEndDateChange(e.target.value)}
-                  min={startDate}
-                  className="w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-xs font-bold text-fg focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-2xs"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 3. GÜNLÜK VE TOPLAM SORU HEDEFİ GİRİŞİ */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Günlük Hedef */}
-            <div className="p-4 bg-orange-50/70 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 rounded-xl space-y-2 shadow-2xs">
-              <label className="block text-[11px] font-bold text-fg">
-                Günlük Soru Hedefi:
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="5"
-                  max="1000"
-                  step="5"
-                  value={dailyTargetCount}
-                  onChange={(e) => handleDailyTargetChange(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-base font-black text-orange-700 dark:text-orange-300 bg-surface border border-orange-300 dark:border-orange-500/30 rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-2xs"
-                />
-                <span className="text-xs font-bold text-muted whitespace-nowrap">
-                  Soru/Gün
-                </span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="250"
-                step="5"
-                value={dailyTargetCount}
-                onChange={(e) => handleDailyTargetChange(Number(e.target.value))}
-                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-surface-3 rounded-lg"
-              />
-            </div>
-
-            {/* Toplam Soru Hedefi (Seçilen Gün Sayısına Göre) */}
-            <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-2 shadow-2xs">
-              <label className="block text-[11px] font-bold text-fg">
-                {targetDays} Günlük Toplam Hedef:
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="5"
-                  max="10000"
-                  step="25"
-                  value={targetCount}
-                  onChange={(e) => handleTotalTargetChange(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-base font-black text-fg bg-surface border border-line-strong rounded-xl text-center focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-2xs"
-                />
-                <span className="text-xs font-bold text-muted whitespace-nowrap">
-                  Toplam Soru
-                </span>
-              </div>
-              <input
-                type="range"
-                min="50"
-                max="3000"
-                step="25"
-                value={targetCount}
-                onChange={(e) => handleTotalTargetChange(Number(e.target.value))}
-                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-surface-3 rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Hızlı Toplam Hedef Presetleri */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold text-muted mr-1">Hızlı Soru Hedefi:</span>
-            {[140, 210, 350, 500, 700, 1000, 1500].map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => handleTotalTargetChange(preset)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  targetCount === preset
-                    ? 'bg-orange-500 text-white shadow-xs'
-                    : 'bg-surface text-fg-2 hover:bg-surface-2 border border-line'
-                }`}
-              >
-                {preset} Soru
-              </button>
-            ))}
-          </div>
-
-          {/* 4. DERS BAZLI HEDEFLER (İsteğe Bağlı) */}
-          <div className="p-4 bg-surface-2 border border-line rounded-xl space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-fg flex items-center space-x-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                <span>Ders Bazlı Branş Hedefleri (İsteğe Bağlı)</span>
-              </span>
-              <span className="text-[10px] text-muted">Özel ders hedefleri ekle</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                value={selectedSubjectToAdd}
-                onChange={(e) => setSelectedSubjectToAdd(e.target.value)}
-                className="flex-1 px-3 py-1.5 bg-surface border border-line-strong rounded-lg text-xs font-semibold text-fg"
-              >
-                {COMMON_SUBJECTS.map((sub) => (
-                  <option key={sub} value={sub}>
-                    {sub}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleAddSubjectTarget}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
-              >
-                + Ders Ekle
-              </button>
-            </div>
-
-            {Object.keys(subjectTargets).length > 0 && (
-              <div className="space-y-2 pt-1">
-                {Object.entries(subjectTargets).map(([sub, count]) => (
-                  <div
-                    key={sub}
-                    className="flex items-center justify-between p-2 bg-surface border border-line rounded-lg text-xs shadow-2xs"
-                  >
-                    <span className="font-bold text-fg">{sub}</span>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max="1000"
-                        step="10"
-                        value={count}
-                        onChange={(e) => handleSubjectTargetChange(sub, Number(e.target.value))}
-                        className="w-16 px-2 py-1 text-center bg-surface-2 border border-line-strong rounded text-xs font-bold text-fg"
-                      />
-                      <span className="text-[11px] text-muted">Soru</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSubjectTarget(sub)}
-                        className="text-subtle hover:text-rose-600 dark:hover:text-rose-300 p-1"
-                        title="Ders hedefini kaldır"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 5. ÖĞRETMEN NOTU & TAVSİYESİ */}
+        <FormSection title="5. Not ve e-posta">
           <div>
-            <label className="block text-xs font-bold text-fg-2 mb-1">
-              Öğrencilere / Sınıfa Motivasyon Notu (İsteğe Bağlı)
-            </label>
+            <FieldLabel htmlFor="qt-notes" optional>
+              Öğrenciye not
+            </FieldLabel>
             <textarea
+              id="qt-notes"
               rows={2}
+              maxLength={400}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Örn: Bu dönem özellikle yeni nesil sorulara odaklanalım ve günlük hedefleri aksatmayalım. Başarılar!"
-              className="w-full px-3 py-2 bg-surface-2 hover:bg-surface-2/50 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:bg-surface focus:outline-none focus:ring-2 focus:ring-orange-500"
+              placeholder="Örn: Yeni nesil sorulara ağırlık verelim."
+              className={`${inputCls} resize-y`}
             />
           </div>
-        </div>
+          <MailOptIn
+            id="qt-send-mail"
+            checked={sendMail}
+            onChange={setSendMail}
+            label={kind === 'class' ? 'Sınıftaki öğrencilere e-posta gönder' : 'Öğrenciye e-posta gönder'}
+            hint="E-postası kayıtlı öğrencilere hedef, tarihler ve notunuz gider. Hiçbir şey değişmediyse tekrar gönderilmez."
+          />
+        </FormSection>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-surface-2 shrink-0">
-          <div>
-            {existingTarget && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="text-xs text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 font-bold flex items-center space-x-1 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Hedefi Sil</span>
-              </button>
-            )}
+        {conflict && (
+          <div id="qt-conflict" className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2 text-xs font-semibold">
+            <Info className="w-4 h-4 shrink-0" />
+            Bu tarihlerde aynı {conflict.targetType === 'class' ? 'sınıfa' : 'öğrenciye'} verdiğiniz bir hedef var ({shortTrDate(conflict.weekStartDate || '')} –{' '}
+            {shortTrDate(dataService.questionTargetEnd(conflict))}, {conflict.targetQuestions} soru). Kaydederseniz o hedef güncellenir.
           </div>
-
-          <div className="flex items-center space-x-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-surface-3 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-            >
-              Vazgeç
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="flex items-center space-x-2 px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/25 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>
-                {savedSuccess
-                  ? 'Kaydedildi!'
-                  : targetType === 'class'
-                  ? 'Sınıfa Hedefi Tanımla ve İlet'
-                  : 'Hedefi Kaydet ve İlet'}
-              </span>
-            </button>
+        )}
+        {errorText && (
+          <div id="qt-form-error" role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {errorText}
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

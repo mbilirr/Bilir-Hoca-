@@ -52,7 +52,25 @@ import {
 } from 'recharts';
 import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget, StudentNotification } from '../../types';
 import { dataService } from '../../services/dataService';
-import { WeeklyTargetModal } from './WeeklyTargetModal';
+import { WeeklyTargetModal, TargetFormSaved } from './WeeklyTargetModal';
+import { callMail, describeMailResult } from '../../lib/mailApi';
+import { MailNoticeBar } from './FormParts';
+import { periodOf, targetPeriodText, ownerText } from './TargetListParts';
+import { StudentTargetCards } from '../Student/StudentTargetCards';
+import {
+  generalDailyTarget,
+  computeMonthlyTargetPlan,
+  useTodayIso,
+  useIsNarrowScreen,
+  shortTurkishDate,
+  parseIsoDate,
+  TargetLineLabel,
+  WeeklyChartLegend,
+  MonthlyBucketTooltip,
+  CHART_BAR_CURSOR,
+  CHART_LINE_CURSOR,
+  CHART_COLORS,
+} from '../Student/StudentQuestionModule';
 import { StudentTargetsModal } from './StudentTargetsModal';
 import { ClassTargetsModal } from './ClassTargetsModal';
 import {
@@ -181,13 +199,19 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   // Görünüm modları: 'weekly' (Haftalık Analiz) | 'monthly' (Aylık Analiz) | 'class_overview' (Sınıf Başarı Sıralaması)
   const [activeAnalysisMode, setActiveAnalysisMode] = useState<'weekly' | 'monthly' | 'class_overview'>('weekly');
 
-  // Grafik görselleştirme tipi: 'bar' (Sütun Grafiği) | 'area' (Trend & Alan) | 'accuracy' (Doğru / Yanlış)
-  const [chartVisualType, setChartVisualType] = useState<'bar' | 'area' | 'accuracy'>('bar');
+  // Grafik görselleştirme tipi: 'bar' (Sütun Grafiği) | 'area' (Trend & Alan)
+  const [chartVisualType, setChartVisualType] = useState<'bar' | 'area'>('bar');
 
-  // Hedef Soru Sayısı (Öğretmen tarafından dinamik olarak ayarlanabilir, varsayılan 50 soru/gün)
-  const [dailyQuestionTarget, setDailyQuestionTarget] = useState<number>(50);
-  const [isWeeklyTargetModalOpen, setIsWeeklyTargetModalOpen] = useState<boolean>(false);
+  // Soru hedefi penceresi (Aşama 10): her açılışta ne açılacağı açıkça belirlenir
+  const [targetForm, setTargetForm] = useState<{
+    open: boolean;
+    editTarget?: WeeklyQuestionTarget | null;
+    presetKind?: 'student' | 'class';
+    presetStudentId?: string;
+    presetClassId?: string;
+  }>({ open: false });
   const [targetUpdateTrigger, setTargetUpdateTrigger] = useState<number>(0);
+  const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
 
   // Tarih ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -228,7 +252,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return unsub;
   }, []);
 
-  const todayIsoStr = useMemo(() => formatDateISO(new Date()), []);
+  // Yerel "bugün": pencere odaklanınca / görünür olunca ve her dakika yenilenir (gece yarısı sonrası eskimez)
+  const todayIsoStr = useTodayIso();
+  const isNarrow = useIsNarrowScreen();
 
   // Belirli bir öğrencinin bugün kaç soru çözdüğünü döndürür
   const getStudentTodayQuestionCount = (studentId: string): number => {
@@ -302,10 +328,10 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   // Aktif öğrenci için haftalık analitik
   const targetWeekDate = useMemo(() => {
-    const d = new Date();
+    const d = parseIsoDate(todayIsoStr) || new Date();
     d.setDate(d.getDate() + weekOffset * 7);
     return d;
-  }, [weekOffset]);
+  }, [weekOffset, todayIsoStr]);
 
   const currentWeekStartDate = useMemo(() => {
     const mon = getMondayOfWeek(targetWeekDate);
@@ -319,53 +345,61 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return formatDateISO(sun);
   }, [targetWeekDate]);
 
-  const activeWeeklyTarget = useMemo(() => {
-    if (!activeStudent) return null;
-    return dataService.getWeeklyQuestionTarget(activeStudent.id, currentWeekStartDate);
-  }, [activeStudent, currentWeekStartDate, targetUpdateTrigger, allLogs]);
+  // Bu haftaya denk gelen hedefler (önce benim verdiğim). Başka haftanın hedefi gösterilmez.
+  const activeTargets = useMemo(() => {
+    if (!activeStudent) return [] as WeeklyQuestionTarget[];
+    return dataService.getQuestionTargetsForStudent(activeStudent.id, currentWeekStartDate, currentWeekEndDate);
+  }, [activeStudent, currentWeekStartDate, currentWeekEndDate, targetUpdateTrigger, allLogs]);
+  const activeWeeklyTarget = activeTargets[0] || null;
+  const myActiveTarget = activeTargets.find((t) => dataService.isMyQuestionTarget(t) && dataService.canEditQuestionTarget(t)) || null;
+  // Günlük hedef çizgisi: bu haftanın GENEL (ders seçilmemiş) hedefinin günlük sayısı, yoksa 50.
+  // Ders hedefi (ör. yalnızca Matematik) tüm derslerin toplamıyla karşılaştırılmaz. Öğrenci ekranıyla aynı kural.
+  // ("Soru Hedefi" kartı ise activeWeeklyTarget'ı göstermeye devam eder.)
+  const dailyQuestionTarget = generalDailyTarget(activeTargets);
+  const activeTargetProgress = useMemo(
+    () => (activeStudent && activeWeeklyTarget ? dataService.questionTargetProgress(activeWeeklyTarget, activeStudent.id, allLogs) : null),
+    [activeStudent, activeWeeklyTarget, allLogs]
+  );
 
-  // Hedef Modalleri Durumları ('Öğrenci Hedefleri' & 'Sınıf Hedefleri')
+  // Hedef listeleri
   const [isStudentTargetsModalOpen, setIsStudentTargetsModalOpen] = useState<boolean>(false);
   const [isClassTargetsModalOpen, setIsClassTargetsModalOpen] = useState<boolean>(false);
-  const [targetModalStudent, setTargetModalStudent] = useState<Student | null>(null);
-  const [targetModalClass, setTargetModalClass] = useState<ClassGroup | null>(null);
-  const [targetModalInitialType, setTargetModalInitialType] = useState<'student' | 'class'>('student');
-  const [targetModalExistingTarget, setTargetModalExistingTarget] = useState<WeeklyQuestionTarget | null>(null);
 
   const studentTargetsCount = useMemo(() => {
-    return dataService.getStudentQuestionTargets().length;
+    return dataService.getStudentQuestionTargets().filter((t) => periodOf(t) === 'active').length;
   }, [targetUpdateTrigger, allLogs, students]);
 
   const classTargetsCount = useMemo(() => {
-    return dataService.getClassQuestionTargets().length;
+    return dataService.getClassQuestionTargets().filter((t) => periodOf(t) === 'active').length;
   }, [targetUpdateTrigger, allLogs, classes]);
 
-  const handleOpenStudentTargetModal = (st?: Student | null, existing?: WeeklyQuestionTarget | null) => {
-    setTargetModalStudent(st || activeStudent || students[0] || null);
-    setTargetModalClass(null);
-    setTargetModalInitialType('student');
-    setTargetModalExistingTarget(
-      existing ||
-        (st
-          ? dataService.getWeeklyQuestionTarget(st.id, currentWeekStartDate)
-          : activeWeeklyTarget)
-    );
-    setIsWeeklyTargetModalOpen(true);
+  const openNewTarget = (kind: 'student' | 'class', studentId?: string, classId?: string) =>
+    setTargetForm({ open: true, editTarget: null, presetKind: kind, presetStudentId: studentId, presetClassId: classId });
+  const openEditTarget = (t: WeeklyQuestionTarget) => setTargetForm({ open: true, editTarget: t });
+
+  // Öğrenci kartındaki "Hedef" düğmesi: bu hafta benim hedefim varsa onu düzenle, yoksa yeni hedef
+  const handleOpenStudentTargetModal = (st?: Student | null) => {
+    const student = st || activeStudent || null;
+    if (student && student.id === activeStudent?.id && myActiveTarget) return openEditTarget(myActiveTarget);
+    openNewTarget('student', student?.id, student?.classId);
   };
 
-  const handleOpenClassTargetModal = (cls?: ClassGroup | null, existing?: WeeklyQuestionTarget | null) => {
-    const targetC =
-      cls || (activeClass && activeClass.id !== 'all' ? activeClass : classes[0]) || null;
-    setTargetModalClass(targetC);
-    setTargetModalStudent(null);
-    setTargetModalInitialType('class');
-    setTargetModalExistingTarget(
-      existing ||
-        (targetC
-          ? dataService.getClassQuestionTarget(targetC.id, currentWeekStartDate)
-          : null)
-    );
-    setIsWeeklyTargetModalOpen(true);
+  const handleOpenClassTargetModal = (cls?: ClassGroup | null) => {
+    const targetC = cls || (activeClass && activeClass.id !== 'all' ? activeClass : null);
+    openNewTarget('class', undefined, targetC?.id);
+  };
+
+  const handleTargetSaved = (r: TargetFormSaved) => {
+    setTargetForm({ open: false });
+    setTargetUpdateTrigger((prev) => prev + 1);
+    if (r.sendMail && r.changed && r.target.id) {
+      setMailNotice({ tone: 'info', text: 'Öğrencilere e-posta gönderiliyor…' });
+      callMail('question-target', { targetId: r.target.id, mode: r.isNew ? 'new' : 'updated' }).then((res) => setMailNotice(describeMailResult(res)));
+    } else if (r.sendMail && !r.changed) {
+      setMailNotice({ tone: 'info', text: 'Hedefte değişiklik olmadığı için e-posta gönderilmedi.' });
+    } else {
+      setMailNotice(null);
+    }
   };
 
   const weeklyAnalytics = useMemo(() => {
@@ -454,7 +488,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent?.id]);
+  }, [allLogs, activeStudent?.id, todayIsoStr]);
 
   // Filtrelenmiş geçmiş haftalar
   const filteredPastWeeks = useMemo(() => {
@@ -547,7 +581,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent?.id]);
+  }, [allLogs, activeStudent?.id, todayIsoStr]);
 
   const filteredPastMonths = useMemo(() => {
     return pastMonthsList.filter((item) => {
@@ -609,6 +643,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         unsolvedDays: stWeekly.unsolvedDays,
         weeklyDiff: stWeekly.weeklyDifference,
         weeklyGrowthRate: stWeekly.weeklyGrowthRate,
+        prevWeekTotal: stWeekly.previousWeekTotal,
         accuracyPercentage: stWeekly.accuracyPercentage,
         monthlyTotal: stMonthly.totalQuestions,
         monthlyDiff: stMonthly.monthlyDifference,
@@ -649,14 +684,20 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   }, [classStudents, classOverviewData, allLogs, todayIsoStr]);
 
   // Haftalık Hedef Tamamlama Oranı Hesabı (Öğretmenin atadığı hedef öncelikli)
-  const weeklyTargetTotal = activeWeeklyTarget?.targetQuestions || (dailyQuestionTarget * 7);
+  // Hedef varsa kendi tarihleri (ve dersi) içindeki çözümler sayılır; yoksa bu hafta / varsayılan 50×7
+  const weeklyTargetTotal = activeTargetProgress ? activeTargetProgress.total : dailyQuestionTarget * 7;
+  const weeklyTargetSolved = activeTargetProgress ? activeTargetProgress.solved : weeklyAnalytics?.totalQuestions || 0;
   const weeklyTargetCompletionRate = useMemo(() => {
-    if (!weeklyAnalytics || weeklyTargetTotal <= 0) return 0;
-    return Math.min(100, Math.round((weeklyAnalytics.totalQuestions / weeklyTargetTotal) * 100));
-  }, [weeklyAnalytics, weeklyTargetTotal]);
+    if (weeklyTargetTotal <= 0) return 0;
+    return Math.min(100, Math.round((weeklyTargetSolved / weeklyTargetTotal) * 100));
+  }, [weeklyTargetSolved, weeklyTargetTotal]);
 
-  // Aylık Hedef Tamamlama Oranı Hesabı (30 gün üzerinden)
-  const monthlyTargetTotal = dailyQuestionTarget * 30;
+  // Aylık hedef: seçilen ayın her günü için o haftanın genel hedefi (yoksa 50) toplanır (öğrenci ekranıyla aynı)
+  const monthlyPlan = useMemo(
+    () => computeMonthlyTargetPlan(activeStudent?.id || '', monthDate.year, monthDate.month),
+    [activeStudent?.id, monthDate, allLogs, targetUpdateTrigger]
+  );
+  const monthlyTargetTotal = monthlyPlan.total;
   const monthlyTargetCompletionRate = useMemo(() => {
     if (!monthlyAnalytics || monthlyTargetTotal <= 0) return 0;
     return Math.min(100, Math.round((monthlyAnalytics.totalQuestions / monthlyTargetTotal) * 100));
@@ -731,6 +772,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
       {/* ========================================================================= */}
       {/* GOOGLE LOOKER STUDIO - EXECUTIVE CONTROL BAR & APP HEADER               */}
       {/* ========================================================================= */}
@@ -795,7 +837,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 } else if (activeClass && activeClass.id !== 'all') {
                   handleOpenClassTargetModal(activeClass);
                 } else {
-                  handleOpenStudentTargetModal();
+                  openNewTarget('student');
                 }
               }}
               className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm shadow-orange-500/20 cursor-pointer"
@@ -804,8 +846,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <Target className="w-3.5 h-3.5" />
               <span>
                 {activeStudent
-                  ? activeWeeklyTarget
-                    ? `Hedef: ${activeWeeklyTarget.targetQuestions} Soru (Düzenle)`
+                  ? myActiveTarget
+                    ? `Hedef: ${myActiveTarget.targetQuestions} Soru (Düzenle)`
                     : '🎯 Öğrenci Hedefi Ver'
                   : activeClass && activeClass.id !== 'all'
                   ? '🎯 Sınıfa Toplu Hedef Ver'
@@ -830,7 +872,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {activeAnalysisMode === 'weekly' && weeklyAnalytics && (
                   <button
                     id="btn-looker-pdf-weekly"
-                    onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent)}
+                    onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                     className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -840,7 +882,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {activeAnalysisMode === 'monthly' && monthlyAnalytics && (
                   <button
                     id="btn-looker-pdf-monthly"
-                    onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent)}
+                    onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                     className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -1327,7 +1369,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             </td>
                             <td className="px-4 py-3.5 text-center font-semibold">
                               <span className={row.weeklyDiff >= 0 ? 'text-emerald-700 dark:text-emerald-300 font-bold' : 'text-rose-700 dark:text-rose-300 font-bold'}>
-                                {row.weeklyDiff >= 0 ? '+' : ''}{row.weeklyDiff} ({row.weeklyGrowthRate >= 0 ? '+' : ''}%{row.weeklyGrowthRate})
+                                {row.weeklyDiff >= 0 ? '+' : ''}{row.weeklyDiff} {row.prevWeekTotal > 0 ? `(${row.weeklyGrowthRate >= 0 ? '+' : ''}%${row.weeklyGrowthRate})` : '(önceki hafta kayıt yok)'}
                               </span>
                             </td>
                             <td className="px-4 py-3.5 text-center font-extrabold text-[#1e3a8a] dark:text-blue-200">
@@ -1596,7 +1638,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     {weeklyAnalytics.weeklyDifference >= 0 ? (
                       <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        +{weeklyAnalytics.weeklyDifference} soru (+%{weeklyAnalytics.weeklyGrowthRate})
+                        +{weeklyAnalytics.weeklyDifference} soru {weeklyAnalytics.previousWeekTotal > 0 ? `(+%${weeklyAnalytics.weeklyGrowthRate})` : '(önceki hafta kayıt yok)'}
                       </span>
                     ) : (
                       <span className="text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -1610,60 +1652,67 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Kurs / Müfredat Hedef Bitirme Oranı (%) */}
-                <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                {/* 2. Soru hedefi (Aşama 10: hedefin kendi tarihleri ve dersi sayılır) */}
+                <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow" id="active-target-card">
                   <div className="flex items-center justify-between text-muted text-xs font-semibold">
-                    <span className="flex items-center gap-1.5">
-                      <span>Haftalık Soru Hedefi</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span>Soru Hedefi</span>
                       {activeWeeklyTarget && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30">
-                          Öğretmen Hedefi
+                        <span className="text-[9px] font-bold px-1.5 py-px rounded bg-success-soft text-success-fg truncate">
+                          {activeWeeklyTarget.subject || 'Tüm dersler'}
                         </span>
                       )}
                     </span>
                     <button
                       type="button"
-                      onClick={() => setIsWeeklyTargetModalOpen(true)}
-                      className="p-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 text-orange-600 dark:text-orange-300 transition-colors cursor-pointer"
-                      title="Haftalık Soru Hedefini Belirle / Güncelle"
+                      onClick={() => handleOpenStudentTargetModal(activeStudent)}
+                      className="p-1 rounded-lg bg-warning-soft text-warning-fg transition-colors cursor-pointer"
+                      title={myActiveTarget ? 'Hedefimi düzenle' : 'Hedef ver'}
+                      aria-label={myActiveTarget ? 'Hedefimi düzenle' : 'Hedef ver'}
                     >
                       <Target className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-3xl font-black text-orange-600 dark:text-orange-300 tracking-tight">
-                      %{weeklyTargetCompletionRate}
-                    </span>
+                    <span className="text-3xl font-black text-warning-fg tracking-tight">%{weeklyTargetCompletionRate}</span>
                     <span className="text-xs font-semibold text-muted">
-                      {weeklyAnalytics.totalQuestions} / {weeklyTargetTotal} Soru
+                      {weeklyTargetSolved} / {weeklyTargetTotal} Soru
                     </span>
                   </div>
-
-                  {/* Progress Bar */}
                   <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
-                    <div
-                      className="bg-orange-500 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }}
-                    />
+                    <div className="bg-warning h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, weeklyTargetCompletionRate)}%` }} />
                   </div>
-                  <div className="mt-2 text-[11px] text-muted flex justify-between items-center">
-                    <span>
-                      Hedef: <strong>{weeklyTargetTotal} Soru</strong>
-                      {weeklyAnalytics.totalQuestions >= weeklyTargetTotal ? (
-                        <span className="text-emerald-600 dark:text-emerald-300 font-bold ml-1.5">✓ Tamamlandı!</span>
-                      ) : (
-                        <span className="text-orange-600 dark:text-orange-300 font-semibold ml-1.5">
-                          ({weeklyTargetTotal - weeklyAnalytics.totalQuestions} kaldı)
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsWeeklyTargetModalOpen(true)}
-                      className="text-[10px] font-bold text-orange-600 dark:text-orange-300 hover:text-orange-700 dark:hover:text-orange-300 underline cursor-pointer"
-                    >
-                      Hedef Belirle
-                    </button>
+                  <div className="mt-2 text-[11px] text-muted space-y-0.5">
+                    {activeWeeklyTarget ? (
+                      <>
+                        <div>
+                          {targetPeriodText(activeWeeklyTarget)} · Veren: <strong className="text-fg-2">{ownerText(activeWeeklyTarget)}</strong>
+                        </div>
+                        <div>
+                          {weeklyTargetSolved >= weeklyTargetTotal ? (
+                            <span className="text-success-fg font-bold">✓ Tamamlandı</span>
+                          ) : (
+                            <span className="text-warning-fg font-semibold">{weeklyTargetTotal - weeklyTargetSolved} soru kaldı</span>
+                          )}
+                        </div>
+                        {activeTargets.length > 1 && (
+                          <div id="other-targets-note">
+                            +{activeTargets.length - 1} hedef daha:{' '}
+                            {activeTargets
+                              .slice(1)
+                              .map((t) => `${ownerText(t)} (${t.subject || 'Tüm dersler'}, ${t.targetQuestions})`)
+                              .join(', ')}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <span>Bu hafta hedef yok (varsayılan: günde 50 soru)</span>
+                        <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="text-[10px] font-bold text-warning-fg underline cursor-pointer">
+                          Hedef ver
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1734,6 +1783,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </div>
               </div>
 
+              {/* Bu haftaya denk gelen hedefler: her hedefin gün gün tablosu ve grafiği (Aşama 10b) */}
+              {activeStudent && activeTargets.length > 0 && (
+                <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={allLogs} />
+              )}
+
               {/* ========================================================================= */}
               {/* GOOGLE LOOKER STUDIO ANA GRAFİĞİ (HAFİF GRİ ARKA PLAN, KOYU GRİ METİNLER) */}
               {/* ========================================================================= */}
@@ -1757,17 +1811,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   {/* Chart Type & Legend Switcher */}
                   <div className="flex flex-wrap items-center gap-3">
                     {/* Legend */}
-                    <div className="flex items-center gap-3 text-xs font-semibold text-muted mr-2">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded bg-[var(--chart-1)] inline-block" /> Çözülen Soru
-                      </span>
-                      <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-300">
-                        <span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Hedef ({dailyQuestionTarget})
-                      </span>
-                      <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-300">
-                        <span className="w-3 h-3 rounded bg-rose-500 inline-block" /> 0 Soru
-                      </span>
-                    </div>
+                    <WeeklyChartLegend dailyTarget={dailyQuestionTarget} mode={chartVisualType} />
 
                     {/* Chart Mode Buttons */}
                     <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
@@ -1803,39 +1847,36 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     {chartVisualType === 'bar' ? (
                       <BarChart
                         data={weeklyAnalytics.days}
-                        margin={{ top: 25, right: 15, left: -10, bottom: 5 }}
+                        margin={{ top: 28, right: isNarrow ? 6 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                         <XAxis
-                          dataKey="dayName"
+                          dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                          interval={0}
                           stroke="var(--color-muted)"
-                          fontSize={12}
+                          fontSize={isNarrow ? 10 : 12}
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
                         />
                         <YAxis
                           stroke="var(--color-muted)"
-                          fontSize={12}
+                          fontSize={isNarrow ? 10 : 12}
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
+                          domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                          allowDecimals={false}
                         />
-                        <Tooltip content={renderLookerTooltip} />
+                        <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
 
                         {/* Canlı Turuncu Hedef Referans Çizgisi */}
                         <ReferenceLine
                           y={dailyQuestionTarget}
-                          stroke="#ea580c"
+                          stroke={CHART_COLORS.target}
                           strokeWidth={2}
                           strokeDasharray="4 4"
-                          label={{
-                            value: `Hedef: ${dailyQuestionTarget} Soru`,
-                            fill: '#ea580c',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            position: 'insideTopRight',
-                          }}
+                          label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
                         />
 
                         {/* Sütun Çizimi ve Tepede Net Değerler (LabelList) */}
@@ -1843,16 +1884,17 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           dataKey="totalQuestions"
                           radius={[6, 6, 0, 0]}
                           maxBarSize={55}
+                          minPointSize={4}
                         >
                           {/* Sütunların üzerine net sayıları yazdır */}
                           <LabelList
                             dataKey="totalQuestions"
                             position="top"
                             fill="var(--color-fg)"
-                            fontSize={12}
+                            fontSize={isNarrow ? 10 : 12}
                             fontWeight={800}
-                            offset={8}
-                            formatter={(val: number) => (val > 0 ? val : '0')}
+                            offset={6}
+                            formatter={(val: unknown) => String(Number(val) || 0)}
                           />
                           {weeklyAnalytics.days.map((entry, index) => {
                             // Gece mavisi (#1e3a8a), hedefe ulaştıysa lacivert, 0 ise belirgin turuncu/rose
@@ -1861,8 +1903,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             return (
                               <Cell
                                 key={`cell-looker-${index}`}
-                                fill={isZero ? '#f43f5e' : isAboveTarget ? 'var(--chart-1)' : '#3b82f6'}
-                                opacity={isZero ? 0.85 : 1}
+                                fill={isZero ? CHART_COLORS.zero : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
                               />
                             );
                           })}
@@ -1871,7 +1912,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     ) : (
                       <AreaChart
                         data={weeklyAnalytics.days}
-                        margin={{ top: 25, right: 15, left: -10, bottom: 5 }}
+                        margin={{ top: 28, right: isNarrow ? 6 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                       >
                         <defs>
                           <linearGradient id="lookerNavyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1881,34 +1922,31 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                         <XAxis
-                          dataKey="dayName"
+                          dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                          interval={0}
                           stroke="var(--color-muted)"
-                          fontSize={12}
+                          fontSize={isNarrow ? 10 : 12}
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
                         />
                         <YAxis
                           stroke="var(--color-muted)"
-                          fontSize={12}
+                          fontSize={isNarrow ? 10 : 12}
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
+                          domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                          allowDecimals={false}
                         />
-                        <Tooltip content={renderLookerTooltip} />
+                        <Tooltip content={renderLookerTooltip} cursor={CHART_LINE_CURSOR} />
 
                         <ReferenceLine
                           y={dailyQuestionTarget}
-                          stroke="#ea580c"
+                          stroke={CHART_COLORS.target}
                           strokeWidth={2}
                           strokeDasharray="4 4"
-                          label={{
-                            value: `Hedef: ${dailyQuestionTarget} Soru`,
-                            fill: '#ea580c',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            position: 'insideTopRight',
-                          }}
+                          label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
                         />
 
                         <Area
@@ -1956,17 +1994,20 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </span>
                   </div>
 
+                  <p className="xl:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">
+                    Tablo sığmazsa yana kaydırabilirsiniz →
+                  </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
                         <tr>
-                          <th className="px-3.5 py-2.5">Gün</th>
-                          <th className="px-3.5 py-2.5">Tarih</th>
-                          <th className="px-3.5 py-2.5 text-center">Çözülen Soru</th>
-                          <th className="px-3.5 py-2.5">Ders Dağılımı</th>
-                          <th className="px-3.5 py-2.5 text-center">Hedef Durumu</th>
-                          <th className="px-3.5 py-2.5 text-center">Durum</th>
-                          <th className="px-3.5 py-2.5 text-center">Öğretmen Tebriki</th>
+                          <th className="px-2.5 py-2.5">Gün</th>
+                          <th className="px-2.5 py-2.5">Tarih</th>
+                          <th className="px-2.5 py-2.5 text-center">Çözülen Soru</th>
+                          <th className="px-2.5 py-2.5">Ders Dağılımı</th>
+                          <th className="px-2.5 py-2.5 text-center">Hedef Durumu</th>
+                          <th className="px-2.5 py-2.5 text-center">Durum</th>
+                          <th className="px-2.5 py-2.5 text-center">Öğretmen Tebriki</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-line">
@@ -1977,17 +2018,17 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                           return (
                             <tr key={d.dateStr} className="hover:bg-surface-2 transition-colors">
-                              <td className="px-3.5 py-2.5 font-bold text-fg">{d.dayName}</td>
-                              <td className="px-3.5 py-2.5 text-muted">{formatTurkishDate(d.dateStr)}</td>
-                              <td className="px-3.5 py-2.5 text-center">
+                              <td className="px-2.5 py-2.5 font-bold text-fg">{d.dayName}</td>
+                              <td className="px-2.5 py-2.5 text-muted whitespace-nowrap">{shortTurkishDate(d.dateStr)}</td>
+                              <td className="px-2.5 py-2.5 text-center">
                                 <span className="font-extrabold text-fg text-sm">
                                   {d.totalQuestions}
                                 </span>
                               </td>
-                              <td className="px-3.5 py-2.5 text-muted truncate max-w-xs">
+                              <td className="px-2.5 py-2.5 text-muted min-w-[130px] max-w-[220px] whitespace-normal break-words">
                                 {d.subjectsText || <span className="text-subtle italic">Ders kaydı yok</span>}
                               </td>
-                              <td className="px-3.5 py-2.5 text-center">
+                              <td className="px-2.5 py-2.5 text-center">
                                 <div className="inline-flex items-center gap-1.5">
                                   <div className="w-12 bg-surface-3 rounded-full h-1.5 overflow-hidden">
                                     <div
@@ -1998,27 +2039,27 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                   <span className="text-[10px] font-bold text-muted">%{completionRate}</span>
                                 </div>
                               </td>
-                              <td className="px-3.5 py-2.5 text-center">
+                              <td className="px-2.5 py-2.5 text-center">
                                 {d.hasSolved ? (
                                   metTarget ? (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
+                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
                                       Hedef Tamamlandı
                                     </span>
                                   ) : (
-                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30">
+                                    <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30">
                                       Kısmi Çözüm
                                     </span>
                                   )
                                 ) : (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
+                                  <span className="inline-block whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
                                     0 Soru ⚠️
                                   </span>
                                 )}
                               </td>
-                              <td className="px-3.5 py-2.5 text-center">
+                              <td className="px-2.5 py-2.5 text-center">
                                 {d.totalQuestions > 0 ? (
                                   praised ? (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30 shadow-2xs">
+                                    <span className="inline-flex whitespace-nowrap items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30 shadow-2xs">
                                       <CheckCircle2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
                                       <span>Tebrik Edildi ✓</span>
                                     </span>
@@ -2026,7 +2067,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                     <button
                                       type="button"
                                       onClick={() => handleOpenPraiseModal(d)}
-                                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white shadow-xs hover:shadow transition-all cursor-pointer hover:scale-105"
+                                      className="inline-flex whitespace-nowrap items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white shadow-xs hover:shadow transition-all cursor-pointer hover:scale-105"
                                       title={`${activeStudent?.name} öğrencisine ${d.dayName} günü çözdüğü ${d.totalQuestions} soru için tebrik ve aferin mesajı gönder`}
                                     >
                                       <Award className="w-3.5 h-3.5 text-amber-100" />
@@ -2051,7 +2092,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-line">
                       <BookOpen className="w-4 h-4 text-orange-600 dark:text-orange-300" />
                       <h4 className="text-sm font-bold text-fg">
-                        Kurs & Ders Bitirme Oranları
+                        Derslere Göre Soru Dağılımı
                       </h4>
                     </div>
 
@@ -2097,7 +2138,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                   <div className="pt-3 border-t border-line">
                     <button
-                      onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent)}
+                      onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                       className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                     >
                       <Download className="w-4 h-4 text-orange-400" />
@@ -2238,6 +2279,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                   <div className="mt-2 text-[11px] text-muted">
                     Aylık Hedef: <strong>{monthlyTargetTotal} Soru</strong>
+                    <span className="block text-[10px] text-subtle">
+                      {monthlyPlan.hasGeneralTarget ? 'Genel hedeflerin günlük sayısı × ayın günleri' : `Genel hedef yok: günde 50 × ${monthlyPlan.days} gün`}
+                    </span>
                   </div>
                 </div>
 
@@ -2256,7 +2300,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </span>
                   </div>
                   <div className="mt-3 text-[11px] text-muted">
-                    Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / 30) * 100)}</strong>
+                    Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / monthlyPlan.days) * 100)}</strong>
                   </div>
                 </div>
 
@@ -2280,7 +2324,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     )}
                   </div>
                   <div className="mt-3 text-[11px] text-muted">
-                    Önceki Ay: <strong className="text-fg">{monthlyAnalytics.previousMonthTotal} soru</strong> ({monthlyAnalytics.monthlyGrowthRate >= 0 ? '+' : ''}%{monthlyAnalytics.monthlyGrowthRate})
+                    Önceki Ay: <strong className="text-fg">{monthlyAnalytics.previousMonthTotal} soru</strong> {monthlyAnalytics.previousMonthTotal > 0 ? `(${monthlyAnalytics.monthlyGrowthRate >= 0 ? '+' : ''}%${monthlyAnalytics.monthlyGrowthRate})` : ''}
                   </div>
                 </div>
               </div>
@@ -2307,8 +2351,10 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                       <XAxis
                         dataKey="weekLabel"
+                        interval={0}
+                        tickFormatter={(v: string) => (isNarrow ? String(v).replace(/\s*\(.*\)$/, '').replace('Hafta', 'Hf.') : String(v))}
                         stroke="var(--color-muted)"
-                        fontSize={12}
+                        fontSize={isNarrow ? 10 : 11}
                         fontWeight={600}
                         tickLine={false}
                         axisLine={{ stroke: 'var(--color-line-strong)' }}
@@ -2320,7 +2366,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         tickLine={false}
                         axisLine={{ stroke: 'var(--color-line-strong)' }}
                       />
-                      <Tooltip content={renderLookerTooltip} />
+                      <Tooltip content={<MonthlyBucketTooltip plan={monthlyPlan} />} cursor={CHART_BAR_CURSOR} />
                       <Bar
                         dataKey="totalQuestions"
                         fill="var(--chart-1)"
@@ -2407,7 +2453,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                   <div className="pt-3 border-t border-line">
                     <button
-                      onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent)}
+                      onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                       className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                     >
                       <Download className="w-4 h-4 text-orange-400" />
@@ -2488,7 +2534,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                         </td>
                         <td className="px-4 py-3 text-center font-semibold">
                           <span className={row.weeklyDiff >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}>
-                            {row.weeklyDiff >= 0 ? '+' : ''}{row.weeklyDiff} ({row.weeklyGrowthRate >= 0 ? '+' : ''}%{row.weeklyGrowthRate})
+                            {row.weeklyDiff >= 0 ? '+' : ''}{row.weeklyDiff} {row.prevWeekTotal > 0 ? `(${row.weeklyGrowthRate >= 0 ? '+' : ''}%${row.weeklyGrowthRate})` : '(önceki hafta kayıt yok)'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center font-extrabold text-[#1e3a8a] dark:text-blue-200">
@@ -3255,56 +3301,56 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         </div>
       )}
 
-      {/* Soru Hedefi Belirleme Modalı (Öğrenci veya Sınıf) */}
-      {isWeeklyTargetModalOpen && (
-        <WeeklyTargetModal
-          isOpen={isWeeklyTargetModalOpen}
-          onClose={() => {
-            setIsWeeklyTargetModalOpen(false);
-            setTargetUpdateTrigger((prev) => prev + 1);
-          }}
-          student={targetModalStudent || activeStudent || null}
-          targetClass={targetModalClass || (activeClass && activeClass.id !== 'all' ? activeClass : null)}
-          initialTargetType={targetModalInitialType}
-          classes={classes}
-          students={students}
-          weekStartDate={currentWeekStartDate}
-          weekEndDate={currentWeekEndDate}
-          existingTarget={targetModalExistingTarget || activeWeeklyTarget}
-          onSaved={() => {
-            setTargetUpdateTrigger((prev) => prev + 1);
-          }}
-        />
-      )}
+      {/* Soru Hedefi Ver / Düzenle (Aşama 10) */}
+      <WeeklyTargetModal
+        open={targetForm.open}
+        onClose={() => {
+          setTargetForm({ open: false });
+          setTargetUpdateTrigger((prev) => prev + 1);
+        }}
+        students={students}
+        classes={classes}
+        editTarget={targetForm.editTarget}
+        presetKind={targetForm.presetKind}
+        presetStudentId={targetForm.presetStudentId}
+        presetClassId={targetForm.presetClassId}
+        defaultStart={currentWeekStartDate}
+        defaultEnd={currentWeekEndDate}
+        onSaved={handleTargetSaved}
+      />
 
-      {/* Öğrenci Hedefleri Açılır Listesi Modalı */}
+      {/* Öğrenci Hedefleri Listesi */}
       {isStudentTargetsModalOpen && (
         <StudentTargetsModal
           isOpen={isStudentTargetsModalOpen}
-          onClose={() => setIsStudentTargetsModalOpen(false)}
+          onClose={() => {
+            setIsStudentTargetsModalOpen(false);
+            setTargetUpdateTrigger((prev) => prev + 1);
+          }}
           students={students}
           classes={classes}
           allLogs={allLogs}
-          onOpenTargetModalForStudent={(st, existing) => {
-            handleOpenStudentTargetModal(st, existing);
-          }}
+          onEdit={openEditTarget}
+          onNew={() => openNewTarget('student', activeStudent?.id, activeStudent?.classId)}
           onSelectStudentToAnalyze={(stId) => {
             handleSelectStudent(stId);
           }}
         />
       )}
 
-      {/* Sınıf Hedefleri Açılır Listesi Modalı */}
+      {/* Sınıf Hedefleri Listesi */}
       {isClassTargetsModalOpen && (
         <ClassTargetsModal
           isOpen={isClassTargetsModalOpen}
-          onClose={() => setIsClassTargetsModalOpen(false)}
+          onClose={() => {
+            setIsClassTargetsModalOpen(false);
+            setTargetUpdateTrigger((prev) => prev + 1);
+          }}
           classes={classes}
           students={students}
           allLogs={allLogs}
-          onOpenTargetModalForClass={(cls, existing) => {
-            handleOpenClassTargetModal(cls, existing);
-          }}
+          onEdit={openEditTarget}
+          onNew={() => openNewTarget('class', undefined, activeClass && activeClass.id !== 'all' ? activeClass.id : undefined)}
           onSelectClassToAnalyze={(clsId) => {
             handleSelectClass(clsId);
           }}

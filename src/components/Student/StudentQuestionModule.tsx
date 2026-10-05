@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   HelpCircle,
   Plus,
@@ -46,8 +46,9 @@ import {
   ReferenceLine,
   LabelList,
 } from 'recharts';
-import { Student, ClassGroup, StudentQuestionLog, QuestionLogSubjectEntry } from '../../types';
+import { Student, ClassGroup, StudentQuestionLog, QuestionLogSubjectEntry, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
+import { StudentTargetCards } from './StudentTargetCards';
 import {
   DEFAULT_SUBJECTS,
   computeWeeklyAnalytics,
@@ -61,6 +62,351 @@ import {
   getStudentSchoolLevel,
   getStudentQuestionSubjects,
 } from '../../utils/questionAnalytics';
+
+// =============================================================================
+// Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
+// =============================================================================
+
+/** Genel hedef yoksa kullanılan günlük soru hedefi */
+export const DEFAULT_DAILY_QUESTION_TARGET = 50;
+/** Bir derste bir günde girilebilecek en büyük sayı */
+export const MAX_QUESTION_COUNT = 1000;
+/** Kaç gün öncesine kadar soru kaydı girilebilir */
+export const QUESTION_ENTRY_MAX_PAST_DAYS = 60;
+
+/** YYYY-MM-DD → yerel Date (geçersizse null) */
+export function parseIsoDate(s: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return null;
+  return d;
+}
+
+/** "28 Eyl" gibi kısa tarih */
+export function shortTurkishDate(iso: string): string {
+  const d = parseIsoDate(iso);
+  if (!d) return iso;
+  return `${d.getDate()} ${(TURKISH_MONTHS[d.getMonth()] || '').slice(0, 3)}`;
+}
+
+/**
+ * Grafikteki günlük hedef çizgisi: o haftaya denk gelen hedefler içinde DERS SEÇİLMEMİŞ (genel)
+ * ilk hedefin günlük sayısı; genel hedef yoksa 50. Ders hedefi (ör. yalnızca Matematik) tüm derslerin
+ * toplamıyla karşılaştırılamayacağı için çizgide kullanılmaz.
+ */
+export function generalDailyTarget(targets: WeeklyQuestionTarget[]): number {
+  const general = targets.find((t) => !t.subject);
+  return Math.max(1, Number(general?.dailyTarget) || DEFAULT_DAILY_QUESTION_TARGET);
+}
+
+export interface MonthlyTargetPlan {
+  total: number;
+  days: number;
+  perDay: Record<string, number>;
+  hasGeneralTarget: boolean;
+}
+
+/**
+ * Aylık hedef: ayın her günü için, o günün haftasına (Pzt–Paz) denk gelen genel hedefin günlük sayısı
+ * (yoksa 50) toplanır. Tek bir genel hedef bütün ayı kapsıyorsa sonuç = günlük × ayın gün sayısı.
+ */
+export function computeMonthlyTargetPlan(studentId: string, year: number, month: number): MonthlyTargetPlan {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthStart = formatDateISO(new Date(year, month, 1));
+  const monthEnd = formatDateISO(new Date(year, month, daysInMonth));
+  const monthTargets = studentId ? dataService.getQuestionTargetsForStudent(studentId, monthStart, monthEnd) : [];
+  const hasGeneralTarget = monthTargets.some((t) => !t.subject);
+  const perDay: Record<string, number> = {};
+  const weekCache = new Map<string, number>();
+  let total = 0;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    let daily = DEFAULT_DAILY_QUESTION_TARGET;
+    if (hasGeneralTarget) {
+      const mon = getMondayOfWeek(d);
+      const monStr = formatDateISO(mon);
+      if (!weekCache.has(monStr)) {
+        const sun = new Date(mon);
+        sun.setDate(mon.getDate() + 6);
+        weekCache.set(monStr, generalDailyTarget(dataService.getQuestionTargetsForStudent(studentId, monStr, formatDateISO(sun))));
+      }
+      daily = weekCache.get(monStr) as number;
+    }
+    perDay[formatDateISO(d)] = daily;
+    total += daily;
+  }
+  return { total, days: daysInMonth, perDay, hasGeneralTarget };
+}
+
+/** Bir tarih aralığının (ayın içindeki) hedef toplamı */
+export function sumPlanRange(plan: MonthlyTargetPlan, startIso: string, endIso: string): number {
+  let sum = 0;
+  for (const [iso, v] of Object.entries(plan.perDay)) {
+    if (iso >= startIso && iso <= endIso) sum += v;
+  }
+  return sum;
+}
+
+/** Yerel "bugün" (YYYY-MM-DD); pencere odaklanınca / görünür olunca ve her dakika yenilenir */
+export function useTodayIso(): string {
+  const [today, setToday] = useState<string>(() => formatDateISO(new Date()));
+  useEffect(() => {
+    const refresh = () => setToday(formatDateISO(new Date()));
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+  return today;
+}
+
+/** Dar ekran (telefon) mu? */
+export function useIsNarrowScreen(maxWidth = 639): boolean {
+  const query = `(max-width: ${maxWidth}px)`;
+  const [narrow, setNarrow] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(query);
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, [query]);
+  return narrow;
+}
+
+/** Hedef çizgisinin etiketi: çizginin solunda, arka planlı (sütunların üstüne binse de okunur) */
+export const TargetLineLabel: React.FC<{ viewBox?: { x?: number; y?: number }; text: string }> = ({ viewBox, text }) => {
+  if (!viewBox) return null;
+  const x = (viewBox.x ?? 0) + 4;
+  const y = (viewBox.y ?? 0) - 20;
+  const width = Math.round(text.length * 6.3 + 12);
+  return (
+    <g pointerEvents="none">
+      <rect x={x} y={y} width={width} height={17} rx={5} fill="var(--color-surface)" stroke="#ea580c" strokeWidth={1} opacity={0.95} />
+      <text x={x + 6} y={y + 12.5} fill="#ea580c" fontSize={11} fontWeight={700}>
+        {text}
+      </text>
+    </g>
+  );
+};
+
+/** Grafiklerde imleç arka planı (koyu temada parlak gri blok yerine tema rengi) */
+export const CHART_BAR_CURSOR = { fill: 'var(--color-surface-3)', opacity: 0.55 };
+export const CHART_LINE_CURSOR = { stroke: 'var(--color-line-strong)', strokeWidth: 1.5 };
+
+/** Grafik renkleri */
+export const CHART_COLORS = {
+  met: 'var(--chart-1)',
+  below: '#3b82f6',
+  zero: '#f43f5e',
+  target: '#ea580c',
+};
+
+/** Haftalık grafiğin açıklaması (iki ekranda aynı) */
+export const WeeklyChartLegend: React.FC<{ dailyTarget: number; mode: 'bar' | 'area' }> = ({ dailyTarget, mode }) => (
+  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold text-muted" data-testid="weekly-chart-legend">
+    {mode === 'bar' ? (
+      <>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.met }} /> Hedefe ulaştı
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.below }} /> Hedefin altında
+        </span>
+        <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-300">
+          <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.zero }} /> 0 Soru
+        </span>
+      </>
+    ) : (
+      <span className="flex items-center gap-1.5">
+        <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.met }} /> Çözülen Soru
+      </span>
+    )}
+    <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-300">
+      <span className="w-4 border-t-2 border-dashed border-orange-500 inline-block" /> Günlük hedef ({dailyTarget})
+    </span>
+  </div>
+);
+
+/** Aylık grafikteki hafta dilimi için ipucu kutusu (hafta toplamı, o dilimin hedefiyle karşılaştırılır) */
+export const MonthlyBucketTooltip: React.FC<{ active?: boolean; payload?: any[]; plan: MonthlyTargetPlan }> = ({ active, payload, plan }) => {
+  if (!active || !payload || !payload.length) return null;
+  const w = payload[0].payload as {
+    weekLabel: string;
+    startDateStr: string;
+    endDateStr: string;
+    totalQuestions: number;
+    totalCorrect: number;
+    totalWrong: number;
+    activeDaysCount: number;
+    topSubject: string;
+  };
+  const start = parseIsoDate(w.startDateStr);
+  const end = parseIsoDate(w.endDateStr);
+  const dayCount = start && end ? Math.round((end.getTime() - start.getTime()) / 86400000) + 1 : 7;
+  const bucketTarget = sumPlanRange(plan, w.startDateStr, w.endDateStr);
+  const pct = bucketTarget > 0 ? Math.round((w.totalQuestions / bucketTarget) * 100) : 0;
+  return (
+    <div className="bg-surface border border-line shadow-xl rounded-xl p-3.5 text-xs text-fg space-y-1.5 z-50 min-w-[210px]" data-testid="monthly-tooltip">
+      <div className="font-bold text-fg border-b border-line pb-1.5">{w.weekLabel}</div>
+      <div className="flex justify-between text-muted">
+        <span>Toplam çözülen:</span>
+        <strong className="text-fg">{w.totalQuestions} soru</strong>
+      </div>
+      <div className="flex justify-between text-muted">
+        <span>Soru girilen gün:</span>
+        <strong className="text-fg">
+          {w.activeDaysCount} / {dayCount}
+        </strong>
+      </div>
+      {w.totalCorrect > 0 || w.totalWrong > 0 ? (
+        <div className="flex justify-between text-muted">
+          <span>Doğru / Yanlış:</span>
+          <span>
+            <strong className="text-emerald-700 dark:text-emerald-300">{w.totalCorrect}</strong> /{' '}
+            <strong className="text-rose-700 dark:text-rose-300">{w.totalWrong}</strong>
+          </span>
+        </div>
+      ) : null}
+      {w.topSubject && w.topSubject !== '—' && (
+        <div className="flex justify-between text-muted">
+          <span>En çok çalışılan:</span>
+          <strong className="text-fg">{w.topSubject}</strong>
+        </div>
+      )}
+      <div className="pt-1 border-t border-line text-[11px] text-muted">
+        Bu {dayCount} günün hedefi: <strong className="text-fg">{bucketTarget} soru</strong> (%{pct})
+      </div>
+    </div>
+  );
+};
+
+// =============================================================================
+// Soru giriş formu yardımcıları
+// =============================================================================
+
+type EntryRow = { subject: string; questionCount: string; correctCount: string; wrongCount: string; topic: string };
+
+const emptyEntryRow = (subject: string): EntryRow => ({
+  subject,
+  questionCount: '',
+  correctCount: '',
+  wrongCount: '',
+  topic: '',
+});
+
+const rowHasContent = (r: EntryRow) =>
+  !!(r.questionCount.trim() || r.correctCount.trim() || r.wrongCount.trim() || r.topic.trim());
+
+/** Sayı alanı: boş → null; yalnızca rakam, 0..1000 */
+function parseCountField(raw: string, label: string): { value: number | null; error?: string } {
+  const t = (raw ?? '').trim();
+  if (t === '') return { value: null };
+  if (!/^\d+$/.test(t)) return { value: null, error: `${label}: yalnızca tam sayı girebilirsin.` };
+  const n = parseInt(t, 10);
+  if (n > MAX_QUESTION_COUNT) return { value: null, error: `${label}: en fazla ${MAX_QUESTION_COUNT} olabilir.` };
+  return { value: n };
+}
+
+interface EntryRowCheck {
+  count: number | null;
+  correct: number | null;
+  wrong: number | null;
+  empty: number | null;
+  errors: string[];
+  invalid: { count: boolean; correct: boolean; wrong: boolean };
+}
+
+function checkEntryRow(r: EntryRow): EntryRowCheck {
+  const q = parseCountField(r.questionCount, 'Soru');
+  const c = parseCountField(r.correctCount, 'Doğru');
+  const w = parseCountField(r.wrongCount, 'Yanlış');
+  const errors: string[] = [];
+  const invalid = { count: !!q.error, correct: !!c.error, wrong: !!w.error };
+  [q, c, w].forEach((x) => x.error && errors.push(x.error));
+  const cv = c.value || 0;
+  const wv = w.value || 0;
+  if (!q.error && !c.error && !w.error) {
+    if ((q.value === null || q.value === 0) && cv + wv > 0) {
+      errors.push('Doğru/yanlış girdiysen soru sayısını da girmelisin.');
+      invalid.count = true;
+    } else if (q.value !== null && cv + wv > q.value) {
+      errors.push(`Doğru + yanlış (${cv + wv}) soru sayısından (${q.value}) fazla olamaz.`);
+      invalid.correct = true;
+      invalid.wrong = true;
+    }
+  }
+  const empty = q.value !== null && errors.length === 0 ? Math.max(0, q.value - cv - wv) : null;
+  return { count: q.value, correct: c.value, wrong: w.value, empty, errors, invalid };
+}
+
+/** Aynı dersten birden fazla satır varsa sayıları toplar, konuları birleştirir */
+function mergeSubjectEntries(entries: QuestionLogSubjectEntry[]): QuestionLogSubjectEntry[] {
+  const map = new Map<string, QuestionLogSubjectEntry>();
+  for (const e of entries) {
+    if (!e || !e.subject) continue;
+    const cur = map.get(e.subject);
+    if (!cur) {
+      map.set(e.subject, { ...e, topic: e.topic?.trim() || undefined });
+      continue;
+    }
+    cur.questionCount = (Number(cur.questionCount) || 0) + (Number(e.questionCount) || 0);
+    if (cur.correctCount !== undefined || e.correctCount !== undefined) {
+      cur.correctCount = (Number(cur.correctCount) || 0) + (Number(e.correctCount) || 0);
+    }
+    if (cur.wrongCount !== undefined || e.wrongCount !== undefined) {
+      cur.wrongCount = (Number(cur.wrongCount) || 0) + (Number(e.wrongCount) || 0);
+    }
+    cur.emptyCount = undefined;
+    const t = e.topic?.trim();
+    if (t) {
+      const topics = (cur.topic || '').split(',').map((x) => x.trim()).filter(Boolean);
+      if (!topics.includes(t)) cur.topic = [...topics, t].join(', ');
+    }
+  }
+  return Array.from(map.values());
+}
+
+/** Kayıttaki dersleri form satırlarına çevirir (ders listesi + listede olmayan dersler) */
+function buildEntryRows(subjects: string[], entries: QuestionLogSubjectEntry[]): EntryRow[] {
+  const toRow = (subject: string, e?: QuestionLogSubjectEntry): EntryRow =>
+    e
+      ? {
+          subject,
+          questionCount: e.questionCount ? String(e.questionCount) : '',
+          correctCount: e.correctCount ? String(e.correctCount) : '',
+          wrongCount: e.wrongCount ? String(e.wrongCount) : '',
+          topic: e.topic || '',
+        }
+      : emptyEntryRow(subject);
+  const rows = subjects.map((s) => toRow(s, entries.find((e) => e.subject === s)));
+  entries.filter((e) => !subjects.includes(e.subject)).forEach((e) => rows.push(toRow(e.subject, e)));
+  return rows;
+}
+
+/** Sayı kutularında rakam dışındaki tuşlar (e, +, -, virgül, nokta) engellenir */
+const blockNonDigitKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault();
+};
+
+/** Yapıştırılan metinden yalnızca rakamlar alınır */
+const pasteDigitsOnly = (setter: (v: string) => void) => (e: React.ClipboardEvent<HTMLInputElement>) => {
+  e.preventDefault();
+  const digits = (e.clipboardData.getData('text') || '').replace(/\D/g, '').slice(0, 4);
+  setter(digits);
+};
 
 interface StudentQuestionModuleProps {
   currentStudent: Student;
@@ -92,8 +438,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   // Grafik görselleştirme tipi: 'bar' (Sütun) | 'area' (Trend & Alan)
   const [chartVisualType, setChartVisualType] = useState<'bar' | 'area'>('bar');
 
-  // Dinamik günlük hedef soru sayısı
-  const [dailyQuestionTarget, setDailyQuestionTarget] = useState<number>(50);
+  // Yerel "bugün" (gece yarısından sonra kendiliğinden yenilenir)
+  const todayIso = useTodayIso();
+  const isNarrow = useIsNarrowScreen();
 
   // Tarih ve dönem ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -108,45 +455,69 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const [weekSearchQuery, setWeekSearchQuery] = useState<string>('');
   const [monthSearchQuery, setMonthSearchQuery] = useState<string>('');
 
+  // Esc ile hafta / ay seçim pencerelerini kapatma
+  useEffect(() => {
+    if (!isWeekModalOpen && !isMonthModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsWeekModalOpen(false);
+        setIsMonthModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isWeekModalOpen, isMonthModalOpen]);
+
   // Form input mode: 'list' (Tüm derslerin karşısına yazma) or 'single' (Tek ders seçip yazma)
   const [inputMode, setInputMode] = useState<'list' | 'single'>('list');
 
   // Soru giriş formu
-  const [entryDate, setEntryDate] = useState<string>(formatDateISO(new Date()));
+  // Öğrenci tarihi kendisi seçmediyse tarih her zaman "bugün"dür (gece yarısı geçince de güncellenir)
+  const [entryDate, setEntryDate] = useState<string>(todayIso);
+  const [entryDateTouched, setEntryDateTouched] = useState<boolean>(false);
+  useEffect(() => {
+    if (!entryDateTouched) setEntryDate(todayIso);
+  }, [todayIso, entryDateTouched]);
   const [entryNotes, setEntryNotes] = useState<string>('');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
+  const [submitAttempted, setSubmitAttempted] = useState<boolean>(false);
+  const [formError, setFormError] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const successTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (successTimerRef.current) window.clearTimeout(successTimerRef.current);
+  }, []);
+
+  const minEntryDate = useMemo(() => {
+    const d = parseIsoDate(todayIso) || new Date();
+    d.setDate(d.getDate() - QUESTION_ENTRY_MAX_PAST_DAYS);
+    return formatDateISO(d);
+  }, [todayIso]);
+
+  const dateError = useMemo(() => {
+    if (!entryDate) return 'Soru çözdüğün tarihi seçmelisin.';
+    if (!parseIsoDate(entryDate)) return 'Geçerli bir tarih seçmelisin.';
+    if (entryDate > todayIso) return `İleri bir tarih seçemezsin; en geç bugün (${formatTurkishDate(todayIso)}) olabilir.`;
+    if (entryDate < minEntryDate)
+      return `En fazla ${QUESTION_ENTRY_MAX_PAST_DAYS} gün öncesine (${formatTurkishDate(minEntryDate)}) kayıt girebilirsin.`;
+    return '';
+  }, [entryDate, todayIso, minEntryDate]);
 
   const activeSubjects = useMemo(() => {
     return getStudentQuestionSubjects(activeStudent, classes);
   }, [activeStudent, classes]);
 
-  const [listRows, setListRows] = useState<
-    { subject: string; questionCount: string; correctCount: string; wrongCount: string; topic: string }[]
-  >(() => {
+  const [listRows, setListRows] = useState<EntryRow[]>(() => {
     const subs = getStudentQuestionSubjects(currentStudent, classes);
-    return subs.map((sub) => ({
-      subject: sub,
-      questionCount: '',
-      correctCount: '',
-      wrongCount: '',
-      topic: '',
-    }));
+    return subs.map((sub) => emptyEntryRow(sub));
   });
 
   useEffect(() => {
     setListRows((prev) => {
-      return activeSubjects.map((sub) => {
-        const found = prev.find((p) => p.subject === sub);
-        return (
-          found || {
-            subject: sub,
-            questionCount: '',
-            correctCount: '',
-            wrongCount: '',
-            topic: '',
-          }
-        );
-      });
+      const base = activeSubjects.map((sub) => prev.find((p) => p.subject === sub) || emptyEntryRow(sub));
+      // Ders listesinde olmayan ama kayıtta bulunan (dolu) dersler kaybolmaz
+      const extras = prev.filter((p) => !activeSubjects.includes(p.subject) && rowHasContent(p));
+      return [...base, ...extras];
     });
   }, [activeSubjects]);
 
@@ -156,6 +527,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const [singleWrong, setSingleWrong] = useState<string>('');
   const [singleTopic, setSingleTopic] = useState<string>('');
   const [singleEntries, setSingleEntries] = useState<QuestionLogSubjectEntry[]>([]);
+  const [singleError, setSingleError] = useState<string>('');
+  const [singleInfo, setSingleInfo] = useState<string>('');
 
   // Soru logları aboneliği
   const [allLogs, setAllLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
@@ -167,24 +540,126 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     return unsub;
   }, []);
 
+  // Seçili tarihte daha önce kaydedilmiş kayıt (varsa form bu kaydı düzenler)
+  const sameDayLogs = useMemo(
+    () => allLogs.filter((l) => l.studentId === activeStudent.id && l.date === entryDate),
+    [allLogs, activeStudent.id, entryDate]
+  );
+  const existingLog = sameDayLogs[0] || null;
+  const isEditMode = !!existingLog;
+  const existingLogKey = existingLog ? existingLog.id : '';
+
+  // Tarih (veya öğrenci) değişince: o günün kaydı varsa derslerini forma yükle; kayıt yoksa ve
+  // form başka bir günün kaydını gösteriyorsa formu boşalt. Yazılmakta olan yeni giriş korunur.
+  const loadedLogIdRef = useRef<string | null>(null);
+  const savingRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (savingRef.current) {
+      // Kaydetme sürerken (veya bulut hatasıyla geri alınırken) form içeriği korunur
+      loadedLogIdRef.current = existingLog ? existingLog.id : null;
+      return;
+    }
+    if (existingLog) {
+      const merged = mergeSubjectEntries(sameDayLogs.flatMap((l) => l.entries || []));
+      setListRows(buildEntryRows(activeSubjects, merged));
+      setSingleEntries(merged);
+      setEntryNotes(existingLog.notes || '');
+      loadedLogIdRef.current = existingLog.id;
+    } else if (loadedLogIdRef.current) {
+      setListRows(activeSubjects.map((s) => emptyEntryRow(s)));
+      setSingleEntries([]);
+      setEntryNotes('');
+      loadedLogIdRef.current = null;
+    }
+    setSubmitAttempted(false);
+    setFormError('');
+    setSingleError('');
+    setSingleInfo('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStudent.id, entryDate, existingLogKey]);
+
+  // Satır doğrulaması (her değişiklikte)
+  const rowChecks = useMemo(() => listRows.map((r) => checkEntryRow(r)), [listRows]);
+  const rowsWithErrors = useMemo(
+    () => listRows.filter((_, i) => rowChecks[i].errors.length > 0).map((r) => r.subject),
+    [listRows, rowChecks]
+  );
+  const listTotal = useMemo(() => rowChecks.reduce((s, c) => s + (c.count || 0), 0), [rowChecks]);
+  const singleTotal = useMemo(() => singleEntries.reduce((s, e) => s + (e.questionCount || 0), 0), [singleEntries]);
+  const formTotal = inputMode === 'list' ? listTotal : singleTotal;
+
+  const clearMessages = () => {
+    setFormError('');
+    if (saveSuccessMsg) setSaveSuccessMsg('');
+  };
+
+  const updateListRow = (idx: number, field: keyof EntryRow, value: string) => {
+    clearMessages();
+    setListRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  };
+
+  // Liste ↔ tek tek modu arasında geçişte girilen dersler taşınır
+  const switchInputMode = (mode: 'list' | 'single') => {
+    if (mode === inputMode) return;
+    if (mode === 'single') {
+      const entries: QuestionLogSubjectEntry[] = [];
+      listRows.forEach((r, i) => {
+        const c = rowChecks[i];
+        if (c.errors.length === 0 && c.count && c.count > 0) {
+          entries.push({
+            subject: r.subject,
+            questionCount: c.count,
+            correctCount: c.correct ?? undefined,
+            wrongCount: c.wrong ?? undefined,
+            topic: r.topic.trim() || undefined,
+          });
+        }
+      });
+      setSingleEntries(mergeSubjectEntries(entries));
+    } else {
+      setListRows(buildEntryRows(activeSubjects, mergeSubjectEntries(singleEntries)));
+    }
+    setSingleError('');
+    setSingleInfo('');
+    setInputMode(mode);
+  };
+
   const handleAddSingleEntry = (e: React.FormEvent) => {
     e.preventDefault();
-    const count = parseInt(singleCount, 10);
-    if (isNaN(count) || count <= 0) return;
-
-    const corr = singleCorrect ? parseInt(singleCorrect, 10) : undefined;
-    const wrng = singleWrong ? parseInt(singleWrong, 10) : undefined;
-
-    setSingleEntries((prev) => [
-      ...prev,
-      {
-        subject: singleSubject,
-        questionCount: count,
-        correctCount: corr,
-        wrongCount: wrng,
-        topic: singleTopic.trim() || undefined,
-      },
-    ]);
+    clearMessages();
+    setSingleInfo('');
+    const check = checkEntryRow({
+      subject: singleSubject,
+      questionCount: singleCount,
+      correctCount: singleCorrect,
+      wrongCount: singleWrong,
+      topic: singleTopic,
+    });
+    if (check.errors.length > 0) {
+      setSingleError(check.errors.join(' '));
+      return;
+    }
+    if (!check.count || check.count <= 0) {
+      setSingleError('Soru sayısını girmelisin (en az 1).');
+      return;
+    }
+    const newEntry: QuestionLogSubjectEntry = {
+      subject: singleSubject,
+      questionCount: check.count,
+      correctCount: check.correct ?? undefined,
+      wrongCount: check.wrong ?? undefined,
+      topic: singleTopic.trim() || undefined,
+    };
+    const already = singleEntries.some((x) => x.subject === singleSubject);
+    const next = mergeSubjectEntries([...singleEntries, newEntry]);
+    const mergedRow = next.find((x) => x.subject === singleSubject);
+    if (mergedRow && mergedRow.questionCount > MAX_QUESTION_COUNT) {
+      setSingleError(`${singleSubject} için bir günde en fazla ${MAX_QUESTION_COUNT} soru girebilirsin.`);
+      return;
+    }
+    setSingleEntries(next);
+    setSingleError('');
+    if (already) setSingleInfo(`${singleSubject} listede zaten vardı; sayılar toplandı.`);
 
     setSingleCount('');
     setSingleCorrect('');
@@ -193,23 +668,29 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   };
 
   const handleRemoveSingleEntry = (index: number) => {
+    clearMessages();
     setSingleEntries((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSaveQuestionLog = async () => {
-    let finalEntries: QuestionLogSubjectEntry[] = [];
+    if (isSaving) return;
+    setSubmitAttempted(true);
+    setFormError('');
+    setSaveSuccessMsg('');
 
+    if (dateError) return;
+
+    let finalEntries: QuestionLogSubjectEntry[] = [];
     if (inputMode === 'list') {
-      listRows.forEach((row) => {
-        const count = parseInt(row.questionCount, 10);
-        if (!isNaN(count) && count > 0) {
-          const corr = row.correctCount ? parseInt(row.correctCount, 10) : undefined;
-          const wrng = row.wrongCount ? parseInt(row.wrongCount, 10) : undefined;
+      if (rowsWithErrors.length > 0) return;
+      listRows.forEach((row, i) => {
+        const c = rowChecks[i];
+        if (c.count && c.count > 0) {
           finalEntries.push({
             subject: row.subject,
-            questionCount: count,
-            correctCount: corr,
-            wrongCount: wrng,
+            questionCount: c.count,
+            correctCount: c.correct ?? undefined,
+            wrongCount: c.wrong ?? undefined,
             topic: row.topic.trim() || undefined,
           });
         }
@@ -217,57 +698,87 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     } else {
       finalEntries = [...singleEntries];
     }
+    // Aynı ders iki kez girildiyse sayılar toplanır
+    finalEntries = mergeSubjectEntries(finalEntries.filter((e) => (e.questionCount || 0) > 0));
 
     if (finalEntries.length === 0) {
-      alert('Lütfen en az bir ders için çözülen soru sayısı giriniz.');
+      setFormError(
+        isEditMode
+          ? 'En az bir derste soru sayısı girmelisin. Bu günün kaydını tamamen kaldırmak istiyorsan Geçmiş Kayıtlar sekmesindeki sil düğmesini kullan.'
+          : 'En az bir derste soru sayısı girmelisin.'
+      );
       return;
     }
 
     const currentClass = classes.find((c) => c.id === activeStudent.classId);
+    const wasEdit = isEditMode;
+    const savedDate = entryDate;
 
+    setIsSaving(true);
+    savingRef.current = true;
+    let saved: StudentQuestionLog;
     try {
-      await dataService.saveQuestionLog({
+      saved = await dataService.saveQuestionLog({
+        id: existingLog?.id,
         studentId: activeStudent.id,
         studentName: activeStudent.name,
         classId: activeStudent.classId || selectedClassId,
         className: activeStudent.className || currentClass?.name || 'Belirtilmedi',
-        date: entryDate,
+        date: savedDate,
         entries: finalEntries,
         notes: entryNotes.trim(),
       });
-    } catch {
-      // Hata uyarısı gösterildi; girilen sayılar kaybolmasın diye form temizlenmez
+    } catch (err) {
+      // Girilen sayılar kaybolmasın diye form temizlenmez
+      const msg = err instanceof Error && err.message ? err.message : '';
+      setFormError(msg && /[çğıöşüÇĞİÖŞÜ]|soru|kayıt/i.test(msg) ? msg : 'Kayıt yapılamadı, lütfen tekrar dene.');
+      // Kayıt geri alındıysa form boşaltılmasın: yüklü kayıt bilgisi kaydetmeden önceki duruma döner
+      loadedLogIdRef.current = existingLog ? existingLog.id : null;
+      savingRef.current = false;
+      setIsSaving(false);
       return;
     }
+    savingRef.current = false;
+    setIsSaving(false);
+    setSubmitAttempted(false);
 
-    setSaveSuccessMsg(`${formatTurkishDate(entryDate)} tarihli soru sayısı kaydınız başarıyla kaydedildi!`);
-    setTimeout(() => {
-      setSaveSuccessMsg('');
-    }, 4500);
-
-    // Formu sıfırla
-    if (inputMode === 'list') {
-      setListRows((prev) =>
-        prev.map((r) => ({
-          ...r,
-          questionCount: '',
-          correctCount: '',
-          wrongCount: '',
-          topic: '',
-        }))
-      );
-    } else {
-      setSingleEntries([]);
-    }
-    setEntryNotes('');
+    const dayLabel = formatTurkishDate(savedDate);
+    setSaveSuccessMsg(
+      wasEdit
+        ? `${dayLabel}: kaydın güncellendi, bu günün toplamı ${saved.totalQuestions} soru.`
+        : `${dayLabel}: ${saved.totalQuestions} soru kaydedildi.`
+    );
+    if (successTimerRef.current) window.clearTimeout(successTimerRef.current);
+    successTimerRef.current = window.setTimeout(() => setSaveSuccessMsg(''), 7000);
+    // Form, kaydedilen günün içeriğini göstermeye devam eder (artık düzenleme modunda)
   };
+
+  // Geçmiş kayıtlardan "Düzenle": o günü giriş sekmesinde aç
+  const handleEditHistoryLog = (log: StudentQuestionLog) => {
+    setSaveSuccessMsg('');
+    setEntryDateTouched(true);
+    setEntryDate(log.date);
+    if (inputMode !== 'list') setInputMode('list');
+    setActiveTab('entry');
+    window.setTimeout(() => {
+      document.getElementById('question-entry-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
+  // "Bugünün Sorularını Ekle": giriş sekmesini bugünün tarihiyle aç
+  const openTodayEntry = () => {
+    setEntryDateTouched(false);
+    setEntryDate(todayIso);
+    setActiveTab('entry');
+  };
+
 
   // Haftalık analitik hesaplama
   const targetWeekDate = useMemo(() => {
-    const d = new Date();
+    const d = parseIsoDate(todayIso) || new Date();
     d.setDate(d.getDate() + weekOffset * 7);
     return d;
-  }, [weekOffset]);
+  }, [weekOffset, todayIso]);
 
   const weeklyAnalytics = useMemo(() => {
     return computeWeeklyAnalytics(
@@ -372,7 +883,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent.id]);
+  }, [allLogs, activeStudent.id, todayIso]);
 
   // Filtrelenmiş geçmiş haftalar (Arama için)
   const filteredPastWeeks = useMemo(() => {
@@ -457,7 +968,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent.id]);
+  }, [allLogs, activeStudent.id, todayIso]);
 
   const filteredPastMonths = useMemo(() => {
     return pastMonthsList.filter((item) => {
@@ -526,19 +1037,19 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     return formatDateISO(sun);
   }, [targetWeekDate]);
 
-  // Öğretmen tarafından öğrenciye atanan haftalık soru hedefi
-  const activeWeeklyTarget = useMemo(() => {
-    return dataService.getWeeklyQuestionTarget(activeStudent.id, currentWeekStartDate);
-  }, [activeStudent.id, currentWeekStartDate, allLogs]);
+  const activeTargets = useMemo(() => {
+    return dataService.getQuestionTargetsForStudent(activeStudent.id, currentWeekStartDate, currentWeekEndDate);
+  }, [activeStudent.id, currentWeekStartDate, currentWeekEndDate, allLogs]);
+  // Günlük hedef çizgisi: bu haftanın GENEL (ders seçilmemiş) hedefinin günlük sayısı, yoksa 50.
+  // Öğretmen ekranı da aynı kuralı kullanır (generalDailyTarget).
+  const dailyQuestionTarget = generalDailyTarget(activeTargets);
 
-  // Hedef Tamamlama Oranı (Öğretmenin atadığı haftalık hedef önceliklidir)
-  const weeklyTargetTotal = activeWeeklyTarget?.targetQuestions || (dailyQuestionTarget * 7);
-  const weeklyTargetCompletionRate = useMemo(() => {
-    if (!weeklyAnalytics || weeklyTargetTotal <= 0) return 0;
-    return Math.min(100, Math.round((weeklyAnalytics.totalQuestions / weeklyTargetTotal) * 100));
-  }, [weeklyAnalytics, weeklyTargetTotal]);
-
-  const monthlyTargetTotal = dailyQuestionTarget * 30;
+  // Aylık hedef: seçilen ayın her günü için o haftanın genel hedefi (yoksa 50) toplanır
+  const monthlyPlan = useMemo(
+    () => computeMonthlyTargetPlan(activeStudent.id, monthDate.year, monthDate.month),
+    [activeStudent.id, monthDate, allLogs]
+  );
+  const monthlyTargetTotal = monthlyPlan.total;
   const monthlyTargetCompletionRate = useMemo(() => {
     if (!monthlyAnalytics || monthlyTargetTotal <= 0) return 0;
     return Math.min(100, Math.round((monthlyAnalytics.totalQuestions / monthlyTargetTotal) * 100));
@@ -634,7 +1145,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             {activeTab === 'weekly' && weeklyAnalytics && (
               <button
                 id="btn-student-looker-pdf-weekly"
-                onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent)}
+                onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                 className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -644,7 +1155,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             {activeTab === 'monthly' && monthlyAnalytics && (
               <button
                 id="btn-student-looker-pdf-monthly"
-                onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent)}
+                onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                 className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -804,7 +1315,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setActiveTab('entry')}
+                onClick={openTodayEntry}
                 className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -813,99 +1324,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           </div>
 
-          {/* Öğretmen Haftalık Soru Hedefi & Rehberlik Kutusu */}
-          {activeWeeklyTarget && (
-            <div className="bg-gradient-to-r from-orange-50/90 dark:from-orange-500/10 via-amber-50 dark:via-amber-500/10 to-emerald-50/70 dark:to-emerald-500/10 border border-orange-200/90 dark:border-orange-500/30 rounded-2xl p-4.5 shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-orange-200/60 dark:border-orange-500/30 pb-2.5">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                    <Target className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-fg flex items-center gap-1.5 flex-wrap">
-                      <span>
-                        🎯 Öğretmeninizin {activeWeeklyTarget.targetPeriodLabel || 'Bu Dönem İçin'} Belirlediği Soru Hedefi:
-                      </span>
-                      <span className="text-orange-700 dark:text-orange-300 font-black text-base">{activeWeeklyTarget.targetQuestions} Soru</span>
-                      {activeWeeklyTarget.dailyTarget && (
-                        <span className="text-xs font-bold text-muted">
-                          (Günlük {activeWeeklyTarget.dailyTarget} Soru/Gün)
-                        </span>
-                      )}
-                    </h4>
-                    <p className="text-xs text-muted">
-                      Tarih Aralığı: {formatTurkishDate(currentWeekStartDate)} - {formatTurkishDate(currentWeekEndDate)}
-                      {activeWeeklyTarget.assignedBy && ` • Belirleyen: ${activeWeeklyTarget.assignedBy}`}
-                    </p>
-                  </div>
-                </div>
+          {/* Öğretmenlerin verdiği soru hedefleri */}
+          <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={allLogs} />
 
-                <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-surface border border-orange-300 dark:border-orange-500/30 text-orange-800 dark:text-orange-200 shadow-2xs">
-                    %{weeklyTargetCompletionRate} Tamamlandı
-                  </span>
-                  {weeklyAnalytics.totalQuestions >= activeWeeklyTarget.targetQuestions ? (
-                    <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-600 text-white shadow-2xs flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" />
-                      Tebrikler, Hedef Başarıldı!
-                    </span>
-                  ) : (
-                    <span className="px-3 py-1 rounded-full text-xs font-black bg-orange-600 text-white shadow-2xs">
-                      {activeWeeklyTarget.targetQuestions - weeklyAnalytics.totalQuestions} Soru Kaldı
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {activeWeeklyTarget.notes && (
-                <div className="p-3 bg-surface/80 backdrop-blur-xs rounded-xl border border-orange-200/70 dark:border-orange-500/30 text-xs text-fg flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-orange-700 dark:text-orange-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="text-orange-950 dark:text-orange-200 font-bold block mb-0.5">Öğretmeninizin Çalışma Notu:</strong>
-                    <span className="italic text-fg-2">{activeWeeklyTarget.notes}</span>
-                  </div>
-                </div>
-              )}
-
-              {activeWeeklyTarget.subjectTargets && (
-                <div className="space-y-1.5 pt-1">
-                  <span className="text-[11px] font-bold text-fg-2 uppercase tracking-wider block">
-                    📚 Ders Bazlı Haftalık Hedef Dağılımı:
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {(Array.isArray(activeWeeklyTarget.subjectTargets)
-                      ? activeWeeklyTarget.subjectTargets.map((item) => [item.subject, item.target] as [string, number])
-                      : Object.entries(activeWeeklyTarget.subjectTargets)
-                    ).map(([subj, targetCount]) => {
-                      const solvedCount = weeklyAnalytics.subjectBreakdown.find((s) => s.subject === subj)?.count || 0;
-                      const isSubjComplete = solvedCount >= (Number(targetCount) || 0);
-                      return (
-                        <div
-                          key={subj}
-                          className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between ${
-                            isSubjComplete
-                              ? 'bg-emerald-50/90 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30 text-emerald-950 dark:text-emerald-200'
-                              : 'bg-surface border-orange-200/80 dark:border-orange-500/30 text-fg'
-                          }`}
-                        >
-                          <span className="font-bold text-[11px] truncate">{subj}</span>
-                          <div className="flex items-baseline justify-between mt-1.5">
-                            <span className="font-extrabold text-sm">
-                              {solvedCount} / {targetCount}
-                            </span>
-                            {isSubjComplete && <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300 shrink-0" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Ana Grafik (Hafif Gri Çizim Alanı, Koyu Gri Metinler, Doğrudan Değerler) */}
-          <div className="bg-surface border border-line rounded-2xl p-6 shadow-sm">
+          {/* Ana Grafik */}
+          <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-sm" id="student-weekly-chart">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-line">
               <div>
                 <h4 className="text-base font-bold text-fg tracking-tight">
@@ -914,17 +1337,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-3 text-xs font-semibold text-muted mr-2">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded bg-[var(--chart-1)] inline-block" /> Çözülen Soru
-                  </span>
-                  <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-300">
-                    <span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Hedef ({dailyQuestionTarget})
-                  </span>
-                  <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-300">
-                    <span className="w-3 h-3 rounded bg-rose-500 inline-block" /> 0 Soru
-                  </span>
-                </div>
+                <WeeklyChartLegend dailyTarget={dailyQuestionTarget} mode={chartVisualType} />
 
                 <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
                   <button
@@ -953,56 +1366,49 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
             </div>
 
-            <div className="h-80 w-full bg-surface-2 rounded-xl p-3 border border-line">
+            <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
               <ResponsiveContainer width="100%" height="100%">
                 {chartVisualType === 'bar' ? (
                   <BarChart
                     data={weeklyAnalytics.days}
-                    margin={{ top: 25, right: 15, left: -10, bottom: 5 }}
+                    margin={{ top: 28, right: isNarrow ? 4 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis
-                      dataKey="dayName"
+                      dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                      interval={0}
                       stroke="var(--color-muted)"
-                      fontSize={12}
+                      fontSize={isNarrow ? 10 : 12}
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
                     />
                     <YAxis
                       stroke="var(--color-muted)"
-                      fontSize={12}
+                      fontSize={isNarrow ? 10 : 12}
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
+                      domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                      allowDecimals={false}
                     />
-                    <Tooltip content={renderLookerTooltip} />
+                    <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
                     <ReferenceLine
                       y={dailyQuestionTarget}
-                      stroke="#ea580c"
+                      stroke={CHART_COLORS.target}
                       strokeWidth={2}
                       strokeDasharray="4 4"
-                      label={{
-                        value: `Hedef: ${dailyQuestionTarget} Soru`,
-                        fill: '#ea580c',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        position: 'insideTopRight',
-                      }}
+                      label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
                     />
-                    <Bar
-                      dataKey="totalQuestions"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={55}
-                    >
+                    <Bar dataKey="totalQuestions" radius={[6, 6, 0, 0]} maxBarSize={55} minPointSize={4}>
                       <LabelList
                         dataKey="totalQuestions"
                         position="top"
                         fill="var(--color-fg)"
-                        fontSize={12}
+                        fontSize={isNarrow ? 10 : 12}
                         fontWeight={800}
-                        offset={8}
-                        formatter={(val: number) => (val > 0 ? val : '0')}
+                        offset={6}
+                        formatter={(val: unknown) => String(Number(val) || 0)}
                       />
                       {weeklyAnalytics.days.map((entry, index) => {
                         const isZero = entry.totalQuestions === 0;
@@ -1010,8 +1416,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         return (
                           <Cell
                             key={`cell-student-${index}`}
-                            fill={isZero ? '#f43f5e' : isAboveTarget ? 'var(--chart-1)' : '#3b82f6'}
-                            opacity={isZero ? 0.85 : 1}
+                            fill={isZero ? CHART_COLORS.zero : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
                           />
                         );
                       })}
@@ -1020,7 +1425,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 ) : (
                   <AreaChart
                     data={weeklyAnalytics.days}
-                    margin={{ top: 25, right: 15, left: -10, bottom: 5 }}
+                    margin={{ top: 28, right: isNarrow ? 8 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                   >
                     <defs>
                       <linearGradient id="studentNavyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1030,33 +1435,30 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis
-                      dataKey="dayName"
+                      dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                      interval={0}
                       stroke="var(--color-muted)"
-                      fontSize={12}
+                      fontSize={isNarrow ? 10 : 12}
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
                     />
                     <YAxis
                       stroke="var(--color-muted)"
-                      fontSize={12}
+                      fontSize={isNarrow ? 10 : 12}
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
+                      domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                      allowDecimals={false}
                     />
-                    <Tooltip content={renderLookerTooltip} />
+                    <Tooltip content={renderLookerTooltip} cursor={CHART_LINE_CURSOR} />
                     <ReferenceLine
                       y={dailyQuestionTarget}
-                      stroke="#ea580c"
+                      stroke={CHART_COLORS.target}
                       strokeWidth={2}
                       strokeDasharray="4 4"
-                      label={{
-                        value: `Hedef: ${dailyQuestionTarget} Soru`,
-                        fill: '#ea580c',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        position: 'insideTopRight',
-                      }}
+                      label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
                     />
                     <Area
                       type="monotone"
@@ -1071,7 +1473,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         dataKey="totalQuestions"
                         position="top"
                         fill="var(--color-fg)"
-                        fontSize={12}
+                        fontSize={isNarrow ? 10 : 12}
                         fontWeight={800}
                         offset={8}
                       />
@@ -1088,6 +1490,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <h4 className="text-sm font-bold text-fg mb-4 pb-2 border-b border-line">
                 Günlük Soru Çözüm ve Başarı Tablosu
               </h4>
+              <p className="sm:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">Tabloyu yana kaydırabilirsin →</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
@@ -1107,11 +1510,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       return (
                         <tr key={d.dateStr} className="hover:bg-surface-2 transition-colors">
                           <td className="px-3.5 py-2.5 font-bold text-fg">{d.dayName}</td>
-                          <td className="px-3.5 py-2.5 text-muted">{formatTurkishDate(d.dateStr)}</td>
+                          <td className="px-3.5 py-2.5 text-muted whitespace-nowrap">{shortTurkishDate(d.dateStr)}</td>
                           <td className="px-3.5 py-2.5 text-center">
                             <span className="font-extrabold text-fg text-sm">{d.totalQuestions}</span>
                           </td>
-                          <td className="px-3.5 py-2.5 text-muted truncate max-w-xs">
+                          <td className="px-3.5 py-2.5 text-muted min-w-[140px] max-w-[260px] whitespace-normal">
                             {d.subjectsText || <span className="text-subtle italic">Ders kaydı yok</span>}
                           </td>
                           <td className="px-3.5 py-2.5 text-center">
@@ -1154,7 +1557,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <div>
                 <h4 className="text-sm font-bold text-fg mb-3 pb-2 border-b border-line flex items-center gap-1.5">
                   <BookOpen className="w-4 h-4 text-orange-600 dark:text-orange-300" />
-                  Kurs & Ders Bitirme Oranları
+                  Derslere Göre Soru Dağılımı
                 </h4>
                 {weeklyAnalytics.subjectBreakdown.length > 0 ? (
                   <div className="space-y-3">
@@ -1194,7 +1597,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
               <div className="pt-3 border-t border-line">
                 <button
-                  onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent)}
+                  onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                   className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-orange-400" />
@@ -1323,6 +1726,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
               <div className="mt-2 text-[11px] text-muted">
                 Aylık Hedef: <strong>{monthlyTargetTotal} Soru</strong>
+                <span className="block text-[10px] text-subtle">
+                  {monthlyPlan.hasGeneralTarget ? 'Genel hedeflerin günlük sayısı × ayın günleri' : `Genel hedef yok: günde ${DEFAULT_DAILY_QUESTION_TARGET} × ${monthlyPlan.days} gün`}
+                </span>
               </div>
             </div>
 
@@ -1333,7 +1739,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span className="text-xs font-semibold text-muted">Gün</span>
               </div>
               <div className="mt-3 text-[11px] text-muted">
-                Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / 30) * 100)}</strong>
+                Aylık Düzenlilik: <strong className="text-fg">%{Math.round((monthlyAnalytics.activeDaysCount / monthlyPlan.days) * 100)}</strong>
               </div>
             </div>
 
@@ -1352,19 +1758,27 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           </div>
 
-          <div className="bg-surface border border-line rounded-2xl p-6 shadow-sm">
+          <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-sm" id="student-monthly-chart">
             <h4 className="text-base font-bold text-fg tracking-tight mb-4">
               Aylık Hafta Bazında Soru Çözüm Grafiği
             </h4>
-            <div className="h-80 w-full bg-surface-2 rounded-xl p-3 border border-line">
+            <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyAnalytics.weeks} margin={{ top: 25, right: 15, left: -10, bottom: 5 }}>
+                <BarChart data={monthlyAnalytics.weeks} margin={{ top: 25, right: isNarrow ? 4 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
-                  <XAxis dataKey="weekLabel" stroke="var(--color-muted)" fontSize={12} fontWeight={600} tickLine={false} />
-                  <YAxis stroke="var(--color-muted)" fontSize={12} fontWeight={600} tickLine={false} />
-                  <Tooltip content={renderLookerTooltip} />
+                  <XAxis
+                    dataKey="weekLabel"
+                    interval={0}
+                    tickFormatter={(v: string) => (isNarrow ? String(v).replace(/\s*\(.*\)$/, '').replace('Hafta', 'Hf.') : String(v))}
+                    stroke="var(--color-muted)"
+                    fontSize={isNarrow ? 10 : 11}
+                    fontWeight={600}
+                    tickLine={false}
+                  />
+                  <YAxis stroke="var(--color-muted)" fontSize={isNarrow ? 10 : 12} fontWeight={600} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<MonthlyBucketTooltip plan={monthlyPlan} />} cursor={CHART_BAR_CURSOR} />
                   <Bar dataKey="totalQuestions" fill="var(--chart-1)" radius={[6, 6, 0, 0]} maxBarSize={60}>
-                    <LabelList dataKey="totalQuestions" position="top" fill="var(--color-fg)" fontSize={12} fontWeight={800} offset={8} />
+                    <LabelList dataKey="totalQuestions" position="top" fill="var(--color-fg)" fontSize={isNarrow ? 10 : 12} fontWeight={800} offset={8} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1377,17 +1791,20 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* SEKME 3: YENİ SORU SAYISI KAYDET FORMU                                    */}
       {/* ========================================================================= */}
       {activeTab === 'entry' && (
-        <div className="bg-surface border border-line rounded-2xl p-6 shadow-sm space-y-6">
+        <div id="question-entry-form" className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
             <div>
-              <h3 className="text-base font-bold text-fg">Günlük Soru Sayısı Girişi</h3>
+              <h3 className="text-base font-bold text-fg">
+                {isEditMode ? 'Günlük Soru Kaydını Düzenle' : 'Günlük Soru Sayısı Girişi'}
+              </h3>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
                 <button
                   type="button"
-                  onClick={() => setInputMode('list')}
+                  id="qe-mode-list"
+                  onClick={() => switchInputMode('list')}
                   className={`px-3 py-1 rounded-md font-bold transition-all ${
                     inputMode === 'list'
                       ? 'bg-surface text-fg shadow-xs'
@@ -1398,7 +1815,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setInputMode('single')}
+                  id="qe-mode-single"
+                  onClick={() => switchInputMode('single')}
                   className={`px-3 py-1 rounded-md font-bold transition-all ${
                     inputMode === 'single'
                       ? 'bg-surface text-fg shadow-xs'
@@ -1412,8 +1830,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           </div>
 
           {saveSuccessMsg && (
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-300 shrink-0" />
+            <div
+              id="qe-success"
+              role="status"
+              className="p-3 bg-success-soft border border-emerald-200 dark:border-emerald-500/30 text-success-fg rounded-xl text-xs font-bold flex items-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{saveSuccessMsg}</span>
             </div>
           )}
@@ -1421,122 +1843,209 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {/* Tarih Seçimi */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-surface-2 p-3.5 rounded-xl border border-line">
-              <label className="block text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
+              <label htmlFor="qe-date" className="block text-xs font-bold text-fg-2 mb-1.5 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#1e3a8a] dark:text-blue-200" />
                 Soru Çözülen Tarih
               </label>
               <input
+                id="qe-date"
                 type="date"
+                required
+                min={minEntryDate}
+                max={todayIso}
                 value={entryDate}
-                onChange={(e) => setEntryDate(e.target.value)}
-                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-1.5 text-xs font-bold text-fg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                aria-invalid={!!dateError}
+                onChange={(e) => {
+                  setSaveSuccessMsg('');
+                  setEntryDateTouched(true);
+                  setEntryDate(e.target.value);
+                }}
+                className={`w-full bg-surface border rounded-lg px-3 py-1.5 text-xs font-bold text-fg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 ${
+                  dateError ? 'border-rose-500' : 'border-line-strong'
+                }`}
               />
+              {dateError ? (
+                <p id="qe-date-error" className="mt-1.5 text-[11px] font-semibold text-danger-fg">
+                  {dateError}
+                </p>
+              ) : (
+                <p className="mt-1.5 text-[11px] text-muted">
+                  Bugün veya son {QUESTION_ENTRY_MAX_PAST_DAYS} gün içinden bir tarih seçebilirsin.
+                </p>
+              )}
             </div>
 
             <div className="bg-surface-2 p-3.5 rounded-xl border border-line">
-              <label className="block text-xs font-bold text-fg-2 mb-1.5">
+              <label htmlFor="qe-notes" className="block text-xs font-bold text-fg-2 mb-1.5">
                 Çalışma Notu veya Deneme Adı (İsteğe Bağlı)
               </label>
               <input
+                id="qe-notes"
                 type="text"
+                maxLength={300}
                 placeholder="Örn: Hafta sonu genel tarama testi"
                 value={entryNotes}
-                onChange={(e) => setEntryNotes(e.target.value)}
+                onChange={(e) => {
+                  clearMessages();
+                  setEntryNotes(e.target.value);
+                }}
                 className="w-full bg-surface border border-line-strong rounded-lg px-3 py-1.5 text-xs text-fg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
               />
             </div>
           </div>
 
-          {/* Input Mode: List Tablosu */}
+          {isEditMode && !dateError && (
+            <div
+              id="qe-edit-notice"
+              role="note"
+              className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-warning-soft text-warning-fg text-xs flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Bu tarihte kaydın var; değişikliklerin bu kaydı günceller.</p>
+                <p className="mt-0.5 opacity-90">
+                  {formatTurkishDate(entryDate)} günü kaydettiğin dersler ({existingLog?.totalQuestions ?? 0} soru) forma yüklendi.
+                  Sayıları değiştirebilir veya yeni ders ekleyebilirsin.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Input Mode: Ders listesi (masaüstünde tablo, telefonda her ders bir kart) */}
           {inputMode === 'list' && (
-            <div className="overflow-x-auto border border-line rounded-xl">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
-                  <tr>
-                    <th className="px-3.5 py-2.5">Ders Adı</th>
-                    <th className="px-3.5 py-2.5 text-center">Çözülen Soru</th>
-                    <th className="px-3.5 py-2.5 text-center">Doğru</th>
-                    <th className="px-3.5 py-2.5 text-center">Yanlış</th>
-                    <th className="px-3.5 py-2.5">Çalışılan Konu / Test</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {listRows.map((row, idx) => (
-                    <tr key={row.subject} className="hover:bg-surface-2">
-                      <td className="px-3.5 py-2 font-bold text-fg">{row.subject}</td>
-                      <td className="px-3.5 py-2 text-center">
+            <div className="border border-line rounded-xl overflow-hidden" id="qe-list">
+              <div className="hidden sm:grid grid-cols-[minmax(110px,1.3fr)_repeat(4,minmax(60px,0.6fr))_minmax(130px,2fr)] gap-3 px-3.5 py-2.5 bg-surface-2 text-fg-2 font-bold text-xs border-b border-line">
+                <span>Ders Adı</span>
+                <span className="text-center">Çözülen Soru</span>
+                <span className="text-center">Doğru</span>
+                <span className="text-center">Yanlış</span>
+                <span className="text-center">Boş</span>
+                <span>Çalışılan Konu / Test</span>
+              </div>
+              <div className="divide-y divide-line">
+                {listRows.map((row, idx) => {
+                  const check = rowChecks[idx];
+                  const hasError = check.errors.length > 0;
+                  const inputBase =
+                    'w-full bg-surface border rounded-lg px-2 py-1.5 sm:py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20';
+                  return (
+                    <div
+                      key={row.subject}
+                      data-testid="qe-row"
+                      data-subject={row.subject}
+                      className={`grid grid-cols-2 sm:grid-cols-[minmax(110px,1.3fr)_repeat(4,minmax(60px,0.6fr))_minmax(130px,2fr)] gap-x-3 gap-y-2 px-3.5 py-3 sm:py-2 items-center ${
+                        hasError ? 'bg-danger-soft/40' : 'hover:bg-surface-2'
+                      }`}
+                    >
+                      <div className="col-span-2 sm:col-span-1 font-bold text-fg text-xs">{row.subject}</div>
+                      <label className="block">
+                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Soru</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           min="0"
+                          max={MAX_QUESTION_COUNT}
+                          step="1"
                           placeholder="0"
+                          aria-label={`${row.subject} çözülen soru`}
+                          aria-invalid={check.invalid.count}
+                          data-testid="qe-count"
                           value={row.questionCount}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setListRows((prev) =>
-                              prev.map((r, i) => (i === idx ? { ...r, questionCount: val } : r))
-                            );
-                          }}
-                          className="w-20 bg-surface border border-line-strong rounded-lg px-2 py-1 text-xs text-center font-bold text-fg focus:border-orange-500 focus:outline-none"
+                          onKeyDown={blockNonDigitKeys}
+                          onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'questionCount', v))}
+                          onChange={(e) => updateListRow(idx, 'questionCount', e.target.value)}
+                          className={`${inputBase} font-bold text-fg ${check.invalid.count ? 'border-rose-500' : 'border-line-strong focus:border-orange-500'}`}
                         />
-                      </td>
-                      <td className="px-3.5 py-2 text-center">
+                      </label>
+                      <label className="block">
+                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Doğru</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           min="0"
+                          max={MAX_QUESTION_COUNT}
+                          step="1"
                           placeholder="—"
+                          aria-label={`${row.subject} doğru`}
+                          aria-invalid={check.invalid.correct}
+                          data-testid="qe-correct"
                           value={row.correctCount}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setListRows((prev) =>
-                              prev.map((r, i) => (i === idx ? { ...r, correctCount: val } : r))
-                            );
-                          }}
-                          className="w-16 bg-surface border border-line-strong rounded-lg px-2 py-1 text-xs text-center text-emerald-700 dark:text-emerald-300 font-semibold focus:border-emerald-500 focus:outline-none"
+                          onKeyDown={blockNonDigitKeys}
+                          onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'correctCount', v))}
+                          onChange={(e) => updateListRow(idx, 'correctCount', e.target.value)}
+                          className={`${inputBase} text-emerald-700 dark:text-emerald-300 font-semibold ${check.invalid.correct ? 'border-rose-500' : 'border-line-strong focus:border-emerald-500'}`}
                         />
-                      </td>
-                      <td className="px-3.5 py-2 text-center">
+                      </label>
+                      <label className="block">
+                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Yanlış</span>
                         <input
                           type="number"
+                          inputMode="numeric"
                           min="0"
+                          max={MAX_QUESTION_COUNT}
+                          step="1"
                           placeholder="—"
+                          aria-label={`${row.subject} yanlış`}
+                          aria-invalid={check.invalid.wrong}
+                          data-testid="qe-wrong"
                           value={row.wrongCount}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setListRows((prev) =>
-                              prev.map((r, i) => (i === idx ? { ...r, wrongCount: val } : r))
-                            );
-                          }}
-                          className="w-16 bg-surface border border-line-strong rounded-lg px-2 py-1 text-xs text-center text-rose-700 dark:text-rose-300 font-semibold focus:border-rose-500 focus:outline-none"
+                          onKeyDown={blockNonDigitKeys}
+                          onPaste={pasteDigitsOnly((v) => updateListRow(idx, 'wrongCount', v))}
+                          onChange={(e) => updateListRow(idx, 'wrongCount', e.target.value)}
+                          className={`${inputBase} text-rose-700 dark:text-rose-300 font-semibold ${check.invalid.wrong ? 'border-rose-500' : 'border-line-strong focus:border-rose-500'}`}
                         />
-                      </td>
-                      <td className="px-3.5 py-2">
+                      </label>
+                      <div>
+                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Boş (otomatik)</span>
+                        <div
+                          data-testid="qe-empty"
+                          title="Boş = soru − doğru − yanlış"
+                          className="w-full rounded-lg px-2 py-1.5 sm:py-1 text-xs text-center text-muted bg-surface-2 border border-dashed border-line"
+                        >
+                          {check.empty !== null && check.count ? check.empty : '—'}
+                        </div>
+                      </div>
+                      <label className="block col-span-2 sm:col-span-1">
+                        <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Konu / Test</span>
                         <input
                           type="text"
+                          maxLength={120}
                           placeholder="Konu adı..."
+                          aria-label={`${row.subject} konu`}
+                          data-testid="qe-topic"
                           value={row.topic}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setListRows((prev) =>
-                              prev.map((r, i) => (i === idx ? { ...r, topic: val } : r))
-                            );
-                          }}
-                          className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1 text-xs text-fg focus:border-orange-500 focus:outline-none"
+                          onChange={(e) => updateListRow(idx, 'topic', e.target.value)}
+                          className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 sm:py-1 text-xs text-fg focus:border-orange-500 focus:outline-none"
                         />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </label>
+                      {hasError && (
+                        <p
+                          data-testid="qe-row-error"
+                          role="alert"
+                          className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-danger-fg"
+                        >
+                          {check.errors.join(' ')}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
           {/* Input Mode: Single Form */}
           {inputMode === 'single' && (
             <div className="space-y-4">
-              <form onSubmit={handleAddSingleEntry} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-surface-2 p-4 rounded-xl border border-line">
-                <div>
-                  <label className="block text-[11px] font-bold text-fg-2 mb-1">Ders</label>
+              <form
+                onSubmit={handleAddSingleEntry}
+                noValidate
+                className="grid grid-cols-2 sm:grid-cols-6 gap-3 bg-surface-2 p-4 rounded-xl border border-line"
+              >
+                <div className="col-span-2 sm:col-span-1">
+                  <label htmlFor="qe-single-subject" className="block text-[11px] font-bold text-fg-2 mb-1">Ders</label>
                   <select
+                    id="qe-single-subject"
                     value={singleSubject}
                     onChange={(e) => setSingleSubject(e.target.value)}
                     className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs font-bold text-fg"
@@ -1548,96 +2057,169 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-fg-2 mb-1">Soru Sayısı</label>
+                  <label htmlFor="qe-single-count" className="block text-[11px] font-bold text-fg-2 mb-1">Soru Sayısı</label>
                   <input
+                    id="qe-single-count"
                     type="number"
+                    inputMode="numeric"
                     min="1"
+                    max={MAX_QUESTION_COUNT}
+                    step="1"
                     placeholder="Soru"
                     value={singleCount}
-                    onChange={(e) => setSingleCount(e.target.value)}
+                    onKeyDown={blockNonDigitKeys}
+                    onPaste={pasteDigitsOnly(setSingleCount)}
+                    onChange={(e) => {
+                      setSingleError('');
+                      setSingleCount(e.target.value);
+                    }}
                     className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs font-bold text-fg"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-fg-2 mb-1">Doğru</label>
+                  <label htmlFor="qe-single-correct" className="block text-[11px] font-bold text-fg-2 mb-1">Doğru</label>
                   <input
+                    id="qe-single-correct"
                     type="number"
+                    inputMode="numeric"
                     min="0"
+                    max={MAX_QUESTION_COUNT}
+                    step="1"
                     placeholder="D"
                     value={singleCorrect}
-                    onChange={(e) => setSingleCorrect(e.target.value)}
+                    onKeyDown={blockNonDigitKeys}
+                    onPaste={pasteDigitsOnly(setSingleCorrect)}
+                    onChange={(e) => {
+                      setSingleError('');
+                      setSingleCorrect(e.target.value);
+                    }}
                     className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300 font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-fg-2 mb-1">Yanlış</label>
+                  <label htmlFor="qe-single-wrong" className="block text-[11px] font-bold text-fg-2 mb-1">Yanlış</label>
                   <input
+                    id="qe-single-wrong"
                     type="number"
+                    inputMode="numeric"
                     min="0"
+                    max={MAX_QUESTION_COUNT}
+                    step="1"
                     placeholder="Y"
                     value={singleWrong}
-                    onChange={(e) => setSingleWrong(e.target.value)}
+                    onKeyDown={blockNonDigitKeys}
+                    onPaste={pasteDigitsOnly(setSingleWrong)}
+                    onChange={(e) => {
+                      setSingleError('');
+                      setSingleWrong(e.target.value);
+                    }}
                     className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-300 font-semibold"
                   />
                 </div>
 
-                <div className="flex items-end">
+                <div className="col-span-2 sm:col-span-1">
+                  <label htmlFor="qe-single-topic" className="block text-[11px] font-bold text-fg-2 mb-1">Konu / Test</label>
+                  <input
+                    id="qe-single-topic"
+                    type="text"
+                    maxLength={120}
+                    placeholder="Konu adı..."
+                    value={singleTopic}
+                    onChange={(e) => setSingleTopic(e.target.value)}
+                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-fg"
+                  />
+                </div>
+
+                <div className="flex items-end col-span-2 sm:col-span-1">
                   <button
                     type="submit"
+                    id="qe-single-add"
                     className="w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" /> Ekle
                   </button>
                 </div>
+
+                {singleError && (
+                  <p id="qe-single-error" role="alert" className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-danger-fg">
+                    {singleError}
+                  </p>
+                )}
+                {singleInfo && !singleError && (
+                  <p id="qe-single-info" className="col-span-2 sm:col-span-6 text-[11px] font-semibold text-muted">
+                    {singleInfo}
+                  </p>
+                )}
               </form>
 
               {singleEntries.length > 0 && (
-                <div className="border border-line rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-surface-2 text-fg-2 font-bold">
-                      <tr>
-                        <th className="px-3.5 py-2">Ders</th>
-                        <th className="px-3.5 py-2 text-center">Soru</th>
-                        <th className="px-3.5 py-2 text-center">D / Y</th>
-                        <th className="px-3.5 py-2 text-right">Sil</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line">
-                      {singleEntries.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-surface-2">
-                          <td className="px-3.5 py-2 font-bold text-fg">{item.subject}</td>
-                          <td className="px-3.5 py-2 text-center font-bold text-fg">{item.questionCount} Soru</td>
-                          <td className="px-3.5 py-2 text-center text-muted">
-                            D: {item.correctCount ?? '—'} / Y: {item.wrongCount ?? '—'}
-                          </td>
-                          <td className="px-3.5 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSingleEntry(idx)}
-                              className="text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 text-xs font-semibold cursor-pointer"
-                            >
-                              Kaldır
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="border border-line rounded-xl overflow-hidden divide-y divide-line" id="qe-single-list">
+                  {singleEntries.map((item, idx) => {
+                    const c = item.correctCount ?? 0;
+                    const w = item.wrongCount ?? 0;
+                    return (
+                      <div key={`${item.subject}-${idx}`} data-testid="qe-single-row" className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 text-xs hover:bg-surface-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-fg">{item.subject}</span>
+                          <span className="ml-2 font-bold text-fg">{item.questionCount} soru</span>
+                          <span className="ml-2 text-muted">
+                            D {c} · Y {w} · B {Math.max(0, item.questionCount - c - w)}
+                          </span>
+                          {item.topic && <span className="block text-[11px] text-muted truncate">Konu: {item.topic}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSingleEntry(idx)}
+                          className="text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 text-xs font-semibold cursor-pointer"
+                        >
+                          Kaldır
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
-          <div className="flex justify-end pt-3 border-t border-line">
+          {submitAttempted && (dateError || formError || (inputMode === 'list' && rowsWithErrors.length > 0)) ? (
+            <div
+              id="qe-error-summary"
+              role="alert"
+              className="p-3 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-danger-soft text-danger-fg text-xs space-y-1"
+            >
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" /> Kayıt yapılamadı, lütfen şunları düzelt:
+              </p>
+              <ul className="list-disc pl-6 space-y-0.5">
+                {dateError && <li>{dateError}</li>}
+                {inputMode === 'list' && rowsWithErrors.length > 0 && (
+                  <li>Hatalı satırlar: {rowsWithErrors.join(', ')}</li>
+                )}
+                {formError && <li>{formError}</li>}
+              </ul>
+            </div>
+          ) : formError ? (
+            <div id="qe-error-summary" role="alert" className="p-3 rounded-xl bg-danger-soft text-danger-fg text-xs font-semibold">
+              {formError}
+            </div>
+          ) : null}
+
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-line">
+            <span className="text-xs text-muted" id="qe-form-total">
+              Formdaki toplam: <strong className="text-fg">{formTotal} soru</strong>
+            </span>
             <button
               type="button"
+              id="qe-save"
               onClick={handleSaveQuestionLog}
-              className="px-6 py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+              disabled={isSaving}
+              className="px-6 py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
               <Check className="w-4 h-4 text-orange-400" />
-              <span>Soru Kaydını Tamamla ve Gönder</span>
+              <span>{isSaving ? 'Kaydediliyor…' : isEditMode ? 'Kaydı Güncelle' : 'Soru Kaydını Tamamla ve Gönder'}</span>
             </button>
           </div>
         </div>
@@ -1647,8 +2229,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* SEKME 4: GEÇMİŞ KAYITLAR                                                  */}
       {/* ========================================================================= */}
       {activeTab === 'history' && (
-        <div className="bg-surface border border-line rounded-2xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-line">
+        <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-sm space-y-4" id="question-history">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-line">
             <div>
               <h3 className="text-base font-bold text-fg">Geçmiş Soru Sayısı Kayıtları</h3>
             </div>
@@ -1662,37 +2244,41 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               Henüz geçmiş bir soru çözümü kaydı bulunmuyor.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
-                  <tr>
-                    <th className="px-4 py-3">Tarih</th>
-                    <th className="px-4 py-3 text-center">Toplam Soru</th>
-                    <th className="px-4 py-3">Çözülen Dersler</th>
-                    <th className="px-4 py-3">Not</th>
-                    <th className="px-4 py-3 text-right">Sil</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {studentHistoryLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-surface-2 transition-colors">
-                      <td className="px-4 py-3 font-bold text-fg">
-                        {formatTurkishDate(log.date)}
-                      </td>
-                      <td className="px-4 py-3 text-center font-extrabold text-[#1e3a8a] dark:text-blue-200 text-sm">
-                        {log.totalQuestions} Soru
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {log.entries.map((e) => `${e.subject}: ${e.questionCount}`).join(', ')}
-                      </td>
-                      <td className="px-4 py-3 text-muted italic">
-                        {log.notes || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
+            <div className="divide-y divide-line border border-line rounded-xl overflow-hidden">
+              {studentHistoryLogs.map((log) => {
+                const editable = log.date >= minEntryDate && log.date <= todayIso;
+                return (
+                  <div key={log.id} data-testid="qh-row" data-date={log.date} className="p-3.5 hover:bg-surface-2 transition-colors">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-3">
+                        <span className="font-bold text-fg text-sm">{formatTurkishDate(log.date)}</span>
+                        <span className="font-extrabold text-[#1e3a8a] dark:text-blue-200 text-sm" data-testid="qh-total">
+                          {log.totalQuestions} Soru
+                        </span>
+                        <span className="text-[11px] text-muted" data-testid="qh-dyb">
+                          D {log.totalCorrect || 0} · Y {log.totalWrong || 0} · B {log.totalEmpty || 0}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <button
                           type="button"
+                          data-testid="qh-edit"
+                          disabled={!editable}
+                          onClick={() => handleEditHistoryLog(log)}
+                          title={
+                            editable
+                              ? 'Bu günün kaydını düzenle'
+                              : `${QUESTION_ENTRY_MAX_PAST_DAYS} günden eski kayıtlar düzenlenemez`
+                          }
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold border border-line-strong text-fg-2 bg-surface hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="qh-delete"
                           onClick={async () => {
-                            if (window.confirm('Bu soru kaydını silmek istediğinize emin misiniz?')) {
+                            if (window.confirm(`${formatTurkishDate(log.date)} tarihli soru kaydını silmek istediğine emin misin?`)) {
                               try {
                                 await dataService.deleteQuestionLog(log.id);
                               } catch {
@@ -1702,14 +2288,33 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           }}
                           className="p-1.5 text-rose-600 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                           title="Kaydı Sil"
+                          aria-label="Kaydı Sil"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    </div>
+                    <ul className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs" data-testid="qh-entries">
+                      {log.entries.map((e, i) => {
+                        const c = Number(e.correctCount) || 0;
+                        const w = Number(e.wrongCount) || 0;
+                        const emp = e.emptyCount !== undefined ? Number(e.emptyCount) || 0 : Math.max(0, e.questionCount - c - w);
+                        return (
+                          <li key={`${e.subject}-${i}`} className="min-w-0">
+                            <span className="font-semibold text-fg">{e.subject}:</span>{' '}
+                            <span className="font-bold text-fg">{e.questionCount}</span>{' '}
+                            <span className="text-muted">
+                              (D {c} · Y {w} · B {emp})
+                            </span>
+                            {e.topic && <span className="text-muted"> — {e.topic}</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {log.notes && <p className="mt-1.5 text-[11px] text-muted italic">Not: {log.notes}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
