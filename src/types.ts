@@ -192,6 +192,7 @@ export interface Etut {
   createdById?: string; // Etüdü kaydeden öğretmen (Aşama 9)
   createdByName?: string;
   recurrenceGroupId?: string; // Tekrarlayan etütlerde ortak kimlik
+  mailMode?: 'scheduled' | 'off'; // Aşama 19: 'scheduled' = e-posta etüt gününde otomatik gider, 'off' = e-posta gitmez; boşsa kaydedilirken gider
 }
 
 export interface WeeklyQuestionTarget {

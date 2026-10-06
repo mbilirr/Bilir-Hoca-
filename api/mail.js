@@ -29,7 +29,7 @@ const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta 
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'question-target']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'question-target']);
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -535,17 +535,19 @@ function etutRows(etut, teacherName) {
     ['Not', clean(etut.userNotes).slice(0, 400)],
   ];
 }
-function etutStudentMail(etut, student, teacherName, url) {
+function etutStudentMail(etut, student, teacherName, url, scheduled) {
   const body = layout({
-    heading: 'Yeni etüt planlandı',
+    heading: scheduled ? 'Etüdün yaklaşıyor' : 'Yeni etüt planlandı',
     greeting: `Merhaba ${clean(student.name)},`,
-    intro: 'Senin için aşağıdaki etüt planlandı. Lütfen zamanında katıl.',
+    intro: scheduled
+      ? 'Aşağıdaki etüdün yakında başlayacak. Lütfen zamanında katıl.'
+      : 'Senin için aşağıdaki etüt planlandı. Lütfen zamanında katıl.',
     rows: etutRows(etut, teacherName),
     buttonLabel: 'Sistemde görüntüle',
     url,
   });
   return {
-    subject: `Etüt: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`,
+    subject: `${scheduled ? 'Etüt hatırlatması' : 'Etüt'}: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`,
     ...body,
   };
 }
@@ -553,6 +555,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
   const list = studentListBlock(students);
   const titles = {
     'etut-created': ['Size yeni bir etüt atandı', `Size etüt atandı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
+    'etut-scheduled': ['Etüdünüz yaklaşıyor', `Etüt hatırlatması: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-assigned': ['Size bir etüt atandı', `Size etüt atandı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-changed': ['Etüt bilgileri değişti', `Etüt güncellendi: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-cancelled': ['Etüt iptal edildi', `Etüt iptal edildi: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
@@ -565,6 +568,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
   const [heading, subject] = titles[kind];
   const intros = {
     'etut-created': `${creatorName} tarafından size aşağıdaki etüt atandı.`,
+    'etut-scheduled': 'Aşağıdaki etüdünüz yakında başlayacak. Etüt sonrası yoklamayı aşağıdaki düğmeyle alabilirsiniz; sisteme giriş yapmanız gerekmez.',
     'etut-assigned': `${creatorName} aşağıdaki etüdü size atadı.`,
     'etut-changed': `${creatorName} aşağıdaki etüdün bilgilerini değiştirdi.`,
     'etut-cancelled': `${creatorName} aşağıdaki etüdü iptal etti. Etüt yapılmayacaktır.`,
@@ -1102,6 +1106,8 @@ function etutView(row) {
     teacherIds: uniqIds([row.etut_teacher_id || meta.teacherId, ...arr(row.etut_teacher_ids), ...arr(meta.teacherIds)]),
     studentIds: arr(row.assigned_student_ids),
     createdById: meta.createdById || null,
+    // Aşama 19: 'scheduled' = e-posta etüt gününde otomatik gider; 'off' = hiç gitmez; yoksa kaydedilirken anında gider
+    mailMode: meta.mailMode === 'scheduled' || meta.mailMode === 'off' ? meta.mailMode : '',
   };
 }
 function uniqIds(list) {
@@ -1306,9 +1312,126 @@ async function actionHomeworkCreated(caller, body, req, deadline) {
   return { ok: true, total: students.length, ...summary };
 }
 
+function noMailYet(etut) {
+  return {
+    ok: true,
+    total: 0,
+    students: 0,
+    teacher: { status: 'none' },
+    teachers: [],
+    sent: 0,
+    failed: 0,
+    skipped: 0,
+    noEmail: 0,
+    remaining: 0,
+    scheduled: etut.mailMode === 'scheduled',
+  };
+}
+
+// ----------------------------------------------------------------------------- Zamanlanmış etüt e-postası (Aşama 19)
+// Kopyalanan (mailMode='scheduled') etütlerde e-posta, etüt gününde kendiliğinden gider:
+// saat girilmişse etüt saatinden 1 saat önce, saat yoksa sabah 08:00'de. Etüdün son hâli kullanılır
+// (tarih/saat sonradan değiştirilirse yeni zamana göre gider); her kişiye en fazla bir kez gider.
+const ETUT_DEFAULT_MAIL_MINUTE = 8 * 60;
+function istanbulNow() {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Istanbul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    })
+      .formatToParts(new Date())
+      .map((x) => [x.type, x.value]),
+  );
+  return { date: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) };
+}
+function etutStartMinute(etut) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(etut.time || ''));
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+function etutMailDueMinute(etut) {
+  const st = etutStartMinute(etut);
+  return st === null ? ETUT_DEFAULT_MAIL_MINUTE : Math.max(0, st - 60);
+}
+async function sendScheduledEtut(row, url, deadline) {
+  const etut = etutView(row);
+  const students = await studentsByIds(etut.studentIds, 'service');
+  const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
+  const teacherName = teachers.length ? teachers.map((t) => t.name).join(', ') : etut.teacherName || 'Öğretmen';
+  // Gönderen: etüdü kaydeden öğretmen (kendi Gmail'i varsa o), yoksa okulun hesabı
+  let owner = null;
+  if (etut.createdById) {
+    const t = await rest(`teachers?select=id,name,email,auth_user_id&id=eq.${encodeURIComponent(etut.createdById)}`, { token: 'service' });
+    if (t && t[0]) owner = { authId: t[0].auth_user_id || null, name: t[0].name, email: t[0].email || '' };
+  }
+  if (!owner) owner = teachers[0] ? { authId: teachers[0].authId || null, name: teachers[0].name, email: teachers[0].email || '' } : { authId: null, name: 'Etüt', email: '' };
+  const refTitle = `${etut.subject} – ${etut.topic}`;
+  const items = students.map((s) => ({
+    event: 'etut-scheduled',
+    refId: etut.id,
+    refTitle,
+    to: s.email,
+    toName: s.name,
+    role: 'ogrenci',
+    ...etutStudentMail(etut, s, teacherName, url, true),
+  }));
+  for (const t of teachers) {
+    if (!isEmail(t.email)) continue;
+    if (items.some((it) => String(it.to).toLowerCase() === t.email.toLowerCase())) continue;
+    items.push({
+      event: 'etut-scheduled',
+      refId: etut.id,
+      refTitle,
+      to: t.email,
+      toName: t.name,
+      role: 'ogretmen',
+      ...etutTeacherMail('etut-scheduled', etut, t, students, owner.name, url),
+    });
+  }
+  if (!items.length) return null;
+  const sender = await resolveSender(owner);
+  return deliver(sender, owner, items, deadline);
+}
+async function actionEtutReminders(req, deadline) {
+  const now = istanbulNow();
+  const rows = await rest(`etuts?select=*&date=like.${now.date}*`, { token: 'service' });
+  const url = appUrl(req);
+  const out = { ok: true, date: now.date, scheduled: 0, due: 0, leftover: 0, total: null };
+  for (const row of rows || []) {
+    if (!row || typeof row.id !== 'string' || row.id.startsWith('__')) continue;
+    const etut = etutView(row);
+    if (etut.mailMode !== 'scheduled') continue;
+    out.scheduled++;
+    if (now.minutes < etutMailDueMinute(etut)) continue;
+    const st = etutStartMinute(etut);
+    // Saati geçmiş (bitmiş) etüt için artık e-posta gitmez
+    if (st !== null && now.minutes > st + (Number(etut.duration) || 45)) continue;
+    if (Date.now() > deadline) {
+      out.leftover++;
+      continue;
+    }
+    out.due++;
+    try {
+      const summary = await sendScheduledEtut(row, url, deadline);
+      if (summary) out.total = mergeSummaries(out.total, summary);
+    } catch (err) {
+      console.error('[mail] etüt e-postası hatası', row.id, err && err.message);
+      out.total = mergeSummaries(out.total, { sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [`${etut.subject}: ${err && err.message}`] });
+    }
+  }
+  const t = out.total || {};
+  return { ...out, sent: t.sent || 0, failed: t.failed || 0, skipped: t.skipped || 0, noEmail: t.noEmail || 0, errors: t.errors || [], total: undefined };
+}
+
 async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
+  // Aşama 19: kopyalanan etütlerde e-posta kaydederken gitmez; etüt gününde otomatik gider (ya da hiç gitmez)
+  if (etut.mailMode) return noMailYet(etut);
   // Etüdü yalnızca kaydeden öğretmen (veya yönetici) duyurabilir
   if (etut.createdById && caller.teacherId && etut.createdById !== caller.teacherId && !(await managesTeacher(caller, { teacherId: etut.createdById }))) {
     throw new HttpError(403, 'Bu etüdün e-postasını yalnızca etüdü oluşturan öğretmen gönderebilir.');
@@ -1362,6 +1485,13 @@ async function actionEtutCreated(caller, body, req, deadline) {
 async function actionEtutTeacherOnly(kind, caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
+  // Aşama 19: kopyalanan etütte değişiklik e-postası gitmez. İptal e-postası yalnızca etüdün haberi
+  // zaten gönderilmişse gider (kimseye haber verilmemiş bir etüdün iptali bildirilmez).
+  if (etut.mailMode) {
+    if (kind !== 'etut-cancelled') return noMailYet(etut);
+    const sentBefore = await rest(`mail_log?select=id&status=eq.sent&event=eq.etut-scheduled&ref_id=eq.${encodeURIComponent(etut.id)}&limit=1`, { token: 'service' });
+    if (!(sentBefore || []).length) return noMailYet(etut);
+  }
   const url = appUrl(req);
   const students = kind === 'etut-cancelled' ? [] : await studentsByIds(etut.studentIds, caller.token);
   const currentList = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
@@ -1839,15 +1969,28 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const task = (req.query && req.query.task) || new URL(req.url, 'http://x').searchParams.get('task');
       const isCron = /vercel-cron/i.test(String(req.headers['user-agent'] || ''));
-      if (task !== 'reminders' && !isCron) return res.status(200).json({ ok: true, service: 'mail' });
+      if (task !== 'reminders' && task !== 'etut-reminders' && !isCron) return res.status(200).json({ ok: true, service: 'mail' });
       const e = env();
       if (e.cronSecret && String(req.headers.authorization || '') !== `Bearer ${e.cronSecret}`) {
         return res.status(401).json({ ok: false, error: 'Yetkisiz' });
       }
       if (!e.service) return res.status(503).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY eksik' });
+      // Aşama 19: etüt e-postaları (Supabase zamanlayıcısı her 10 dakikada çağırır)
+      if (task === 'etut-reminders') {
+        const er = await actionEtutReminders(req, deadline);
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail });
+      }
       const r = await actionReminders(req, deadline);
+      // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
+      let er = null;
+      try {
+        er = await actionEtutReminders(req, deadline);
+      } catch (err) {
+        console.error('[mail] günlük etüt e-postası hatası', err && err.message);
+      }
       // Zamanlanmış görev yanıtında kişi/ödev adı verilmez (yalnızca sayılar)
       return res.status(200).json({
+        etutSent: er ? er.sent : 0,
         ok: r.ok,
         date: r.date,
         homeworks: r.homeworks.length,

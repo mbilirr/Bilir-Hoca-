@@ -40,6 +40,7 @@ import {
   Info,
   HelpCircle,
   Copy,
+  CalendarRange,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Homework, HomeworkSubmission, Student, ClassGroup, HomeworkResource, HomeworkCheckStatus } from '../../types';
@@ -60,6 +61,7 @@ import {
 } from './SubmissionViewModal';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
+import { StudyPlanManager } from './StudyPlanManager';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -81,7 +83,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const submissions: HomeworkSubmission[] = propSubmissions || dataService.getSubmissions() || [];
 
   // View Mode: 'tracker' (Ödev Kontrol Çizelgesi) | 'all' (Tüm Oluşturulan Ödevler)
-  const [activeTab, setActiveTab] = useState<'tracker' | 'all'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'all' | 'plan'>('tracker');
 
   // Ödev Kontrol Seçimleri
   const [selectedHomeworkId, setSelectedHomeworkId] = useState<string>(''); // Ödev Kontrol'de açık olan şerit
@@ -555,6 +557,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         items={[
           { value: 'tracker', label: 'Ödev Kontrol', icon: CheckCircle2, id: 'btn-tab-tracker' },
           { value: 'all', label: `Tüm Ödevler (${homeworks.length})`, icon: FileText, id: 'btn-tab-all' },
+          { value: 'plan', label: 'Haftalık Plan', icon: CalendarRange, id: 'btn-tab-plan' },
         ]}
       />
 
@@ -571,6 +574,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         </div>
       )}
       {mailNotice && <MailNoticeBar notice={mailNotice} onClose={() => setMailNotice(null)} />}
+
+      {/* TAB 3: HAFTALIK ÇALIŞMA PLANI (Aşama 19) */}
+      {activeTab === 'plan' && <StudyPlanManager students={students} classes={classes} />}
 
       {/* TAB 1: ÖDEV KONTROL — üstte arama/sınıf/ders çubuğu, altta ödev şeritleri */}
       {activeTab === 'tracker' && (() => {

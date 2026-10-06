@@ -1706,6 +1706,7 @@ export class DataService {
         createdById: parsedMeta.createdById || undefined,
         createdByName: parsedMeta.createdByName || undefined,
         recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
+        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
       };
 
       const existingIdx = this.etuts.findIndex((e) => e.id === incomingEtut.id);
@@ -1994,6 +1995,7 @@ export class DataService {
         createdById: etut.createdById || null,
         createdByName: etut.createdByName || null,
         recurrenceGroupId: etut.recurrenceGroupId || null,
+        mailMode: etut.mailMode || undefined,
       });
 
       const cleanDate = etut.date ? etut.date.trim().split('T')[0] : '';
@@ -2102,6 +2104,7 @@ export class DataService {
             createdById: parsedMeta.createdById || undefined,
             createdByName: parsedMeta.createdByName || undefined,
             recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
+        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
           };
 
           const existingIdx = this.etuts.findIndex((e) => e.id === re.id);

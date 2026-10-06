@@ -153,7 +153,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             : 'Etüt kaydedildi.'
         : 'Etüt güncellendi.';
     if (!r.sendMail) {
-      setMailNotice({ tone: r.failedCount ? 'warning' : 'success', text: base });
+      const extra = r.mailScheduled ? ' E-postalar etüt gününde otomatik gönderilecek (saat girilmişse 1 saat önce, değilse sabah 08:00).' : '';
+      setMailNotice({ tone: r.failedCount ? 'warning' : 'success', text: `${base}${extra}` });
       return;
     }
     setMailNotice({ tone: 'info', text: `${base} E-postalar gönderiliyor…` });

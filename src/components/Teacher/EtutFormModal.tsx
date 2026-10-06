@@ -38,6 +38,7 @@ export interface EtutFormSaved {
   previousTeacherId?: string | null;
   previousTeacherIds?: string[] | null;
   failedCount?: number;
+  mailScheduled?: boolean; // Aşama 19: e-postalar etüt gününde otomatik gidecek
 }
 
 interface Props {
@@ -259,6 +260,11 @@ const EtutFormContent: React.FC<Props> = ({
     return Array.from({ length: n }, (_, i) => localDateStr(addDays(base, i * 7)));
   }, [date, repeatWeeks, isEdit]);
 
+  // Aşama 19: kopyalanan / birden çok haftaya tekrarlanan etütlerde e-posta kaydederken gitmez;
+  // etüt gününde (saatten 1 saat önce, saat yoksa 08:00) otomatik gider.
+  const scheduledMail = !isEdit && (isCopy || occurrences.length > 1);
+  const editScheduled = isEdit && !!source?.mailMode;
+
   const dirty =
     topic !== initial.topic ||
     notes !== initial.notes ||
@@ -389,7 +395,8 @@ const EtutFormContent: React.FC<Props> = ({
         onSaved({
           mode: 'edit',
           etuts: [{ ...source, ...payload, date } as Etut],
-          sendMail: sendMail && (changes.length > 0 || teacherChanged),
+          // Zamanlı e-posta kullanan (kopyalanmış) etütte değişiklik e-postası gitmez
+          sendMail: !source.mailMode && sendMail && (changes.length > 0 || teacherChanged),
           changes,
           previousTeacherId: teacherChanged ? source.teacherId || null : null,
           previousTeacherIds: teacherChanged ? prevIds : null,
@@ -400,7 +407,12 @@ const EtutFormContent: React.FC<Props> = ({
         let failed = 0;
         for (const day of occurrences) {
           try {
-            const e = await dataService.createEtut({ ...(payload as Etut), date: day, recurrenceGroupId: groupId });
+            const e = await dataService.createEtut({
+              ...(payload as Etut),
+              date: day,
+              recurrenceGroupId: groupId,
+              mailMode: scheduledMail ? (sendMail ? 'scheduled' : 'off') : undefined,
+            });
             created.push(e);
           } catch {
             failed++;
@@ -408,7 +420,13 @@ const EtutFormContent: React.FC<Props> = ({
           }
         }
         if (created.length === 0) throw new Error('Etüt kaydedilemedi (yetki veya bağlantı sorunu). Lütfen tekrar deneyin.');
-        onSaved({ mode: isCopy ? 'copy' : 'create', etuts: created, sendMail, failedCount: occurrences.length - created.length });
+        onSaved({
+          mode: isCopy ? 'copy' : 'create',
+          etuts: created,
+          sendMail: scheduledMail ? false : sendMail,
+          mailScheduled: scheduledMail && sendMail,
+          failedCount: occurrences.length - created.length,
+        });
         void failed;
       }
     } catch (err: any) {
@@ -724,17 +742,31 @@ const EtutFormContent: React.FC<Props> = ({
           )}
         </FormSection>
 
-        <MailOptIn
-          id="etut-send-mail"
-          checked={sendMail}
-          onChange={setSendMail}
-          label={isEdit ? 'Değişiklikleri etüt öğretmenine e-postayla bildir' : 'Öğrencilere ve etüt öğretmenine e-posta gönder'}
-          hint={
-            isEdit
-              ? 'Tarih, saat, yer, konu veya öğretmen değişirse yalnızca öğretmene bilgi gider. Öğretmen değişirse eski öğretmene de bildirilir.'
-              : 'Öğrencilere etüt bilgisi, öğretmene etüt bilgisi ve öğrenci listesi gider.'
-          }
-        />
+        {editScheduled ? (
+          <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5 text-[11px] text-muted">
+            Bu etüt kopyalanarak tanımlandığı için e-posta etüt gününde otomatik gider. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir.
+          </div>
+        ) : (
+          <MailOptIn
+            id="etut-send-mail"
+            checked={sendMail}
+            onChange={setSendMail}
+            label={
+              isEdit
+                ? 'Değişiklikleri etüt öğretmenine e-postayla bildir'
+                : scheduledMail
+                  ? 'Etüt gününde öğrencilere ve etüt öğretmenine otomatik e-posta gönder'
+                  : 'Öğrencilere ve etüt öğretmenine e-posta gönder'
+            }
+            hint={
+              isEdit
+                ? 'Tarih, saat, yer, konu veya öğretmen değişirse yalnızca öğretmene bilgi gider. Öğretmen değişirse eski öğretmene de bildirilir.'
+                : scheduledMail
+                  ? 'Şimdi e-posta gitmez. Her etüt için, etüt gününde saat girilmişse etüt saatinden 1 saat önce, saat girilmemişse sabah 08:00\'de gider.'
+                  : 'Öğrencilere etüt bilgisi, öğretmene etüt bilgisi ve öğrenci listesi gider.'
+            }
+          />
+        )}
 
         {(errorText || conflicts) && (
           <div id="etut-form-alert">

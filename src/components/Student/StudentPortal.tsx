@@ -44,6 +44,7 @@ import { StudentNotificationCenterModal } from './StudentNotificationCenterModal
 import { StudentAvatarModal } from './StudentAvatarModal';
 import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
 import { StudentStatsOverview } from './StudentStatsOverview';
+import { StudentTodayPlan } from './StudentTodayPlan';
 import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
@@ -520,6 +521,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <h1 id="student-home-greeting" className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
             {timeGreeting()} {firstNameOf(currentStudent.name, '')}
           </h1>
+
+          {/* Aşama 19: öğretmenin ödev olarak gönderdiği haftalık planın bugünkü görevleri */}
+          <StudentTodayPlan />
 
           {/* Wall 1: Öğrenci Karşılama ve Güncel Ayı Gösteren İnteraktif Ajanda Duvarı */}
           <StudentHeroBanner
