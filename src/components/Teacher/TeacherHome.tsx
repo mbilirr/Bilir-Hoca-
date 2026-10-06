@@ -85,15 +85,25 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     if (focus) setTimeout(() => setQuickFocus(...focus), 0);
   };
 
+  // Aşama 15: sınıf mevcutları ve teslim sayıları bir kez sayılır (her ödev için tüm listeler taranmaz)
+  const classSize = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of students) m.set(s.classId, (m.get(s.classId) || 0) + 1);
+    return m;
+  }, [students]);
+  const doneByHw = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of submissions) if (s.status === 'on_time' || s.status === 'late') m.set(s.homeworkId, (m.get(s.homeworkId) || 0) + 1);
+    return m;
+  }, [submissions]);
   // Bir ödevi kaç öğrencinin yapması gerekiyor
   const expectedFor = (hw: Homework) => {
     if (Array.isArray(hw.assignedTo)) return hw.assignedTo.length;
-    if (hw.targetClassIds && hw.targetClassIds.length) return students.filter((s) => hw.targetClassIds!.includes(s.classId)).length;
-    if (hw.classId) return students.filter((s) => s.classId === hw.classId).length;
+    if (hw.targetClassIds && hw.targetClassIds.length) return Array.from(new Set(hw.targetClassIds)).reduce((n, id) => n + (classSize.get(id) || 0), 0);
+    if (hw.classId) return classSize.get(hw.classId) || 0;
     return students.length;
   };
-  const doneFor = (hwId: string) =>
-    submissions.filter((s) => s.homeworkId === hwId && (s.status === 'on_time' || s.status === 'late')).length;
+  const doneFor = (hwId: string) => doneByHw.get(hwId) || 0;
 
   // --- Bugün ---
   const todayEtuts = useMemo(

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Users, Search, Plus } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -24,6 +24,17 @@ export const ClassTargetsModal: React.FC<Props> = ({ isOpen, onClose, classes, s
   const [onlyMine, setOnlyMine] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  // Aşama 15: kayıtlar öğrenciye göre bir kez gruplanır (her hedef için tüm kayıtlar taranmaz)
+  const byStudent = useMemo(() => {
+    const m = new Map<string, StudentQuestionLog[]>();
+    if (!isOpen) return m;
+    for (const l of allLogs) {
+      let a = m.get(l.studentId);
+      if (!a) m.set(l.studentId, (a = []));
+      a.push(l);
+    }
+    return m;
+  }, [allLogs, isOpen]);
   if (!isOpen) return null;
 
   const today = localDateStr(new Date());
@@ -34,7 +45,7 @@ export const ClassTargetsModal: React.FC<Props> = ({ isOpen, onClose, classes, s
       const cls = classes.find((c) => c.id === t.classId);
       const name = cls?.name || t.className || 'Sınıf';
       const members = students.filter((s) => s.classId === t.classId);
-      const progresses = members.map((s) => dataService.questionTargetProgress(t, s.id, allLogs));
+      const progresses = members.map((s) => dataService.questionTargetProgress(t, s.id, byStudent.get(s.id) || []));
       const doneCount = progresses.filter((p) => p.done).length;
       const avg = progresses.length ? Math.round(progresses.reduce((a, p) => a + p.percent, 0) / progresses.length) : 0;
       return { t, name, members: members.length, doneCount, avg };

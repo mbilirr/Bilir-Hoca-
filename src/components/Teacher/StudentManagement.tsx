@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
+import { usePagedList, useMediaQuery, ShowMoreBar } from '../../lib/listPaging';
 import {
   Users,
   Search,
@@ -353,7 +354,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   }, [students, classes]);
 
   // Filter & sort students: Mükerrer kayıtlar HER ZAMAN otomatik olarak YAN YANA gelir
+  // Aşama 15: yazarken kutu donmasın diye süzme bir adım geriden gelir
+  const deferredSearch = useDeferredValue(searchTerm);
   const filteredStudents = useMemo(() => {
+    const searchTerm = deferredSearch;
     const list = students.filter((s) => {
       const matchesSearch =
         matchTurkishSearch(s.name, searchTerm) ||
@@ -423,7 +427,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
 
     return list;
-  }, [students, classes, searchTerm, selectedClassFilter, sortOrder, duplicateStudentGroups]);
+  }, [students, classes, deferredSearch, selectedClassFilter, sortOrder, duplicateStudentGroups]);
+  // Aşama 15: liste parça parça çizilir; telefonda yalnız kart listesi, bilgisayarda yalnız tablo çizilir
+  const isPhoneList = useMediaQuery('(max-width: 767px)');
+  const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${selectedClassFilter}|${sortOrder}`);
 
   // Çoklu öğrenci seçimi mantığı
   const allFilteredSelected = useMemo(() => {
@@ -1237,11 +1244,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           )}
 
           {/* Telefon: kart listesi */}
+          {isPhoneList && (
           <ul className="md:hidden divide-y divide-line" id="students-mobile-list">
             {filteredStudents.length === 0 ? (
               <li className="px-4 py-10 text-center text-sm text-muted">Arama kriterlerine uygun öğrenci bulunamadı.</li>
             ) : (
-              filteredStudents.map((std) => {
+              pagedStudents.visible.map((std) => {
                 const dupInfo = duplicateStudentGroups.dupMap.get(std.id);
                 const isSelected = selectedStudentIds.includes(std.id);
                 const suspended = std.isSuspended || std.status === 'suspended';
@@ -1255,7 +1263,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         className="w-4 h-4 rounded border-line-strong cursor-pointer shrink-0"
                         aria-label={`${std.name} seç`}
                       />
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                         alt=""
                         className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-line shrink-0"
@@ -1307,8 +1315,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               })
             )}
           </ul>
+          )}
 
           {/* Students Table */}
+          {!isPhoneList && (
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm text-fg-2">
               <thead className="bg-surface-2/90 text-[11px] uppercase tracking-wider text-muted border-b border-line font-bold">
@@ -1345,7 +1355,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((std) => {
+                  pagedStudents.visible.map((std) => {
                     const dupInfo = duplicateStudentGroups.dupMap.get(std.id);
                     const isDuplicate = !!dupInfo;
                     const isSelected = selectedStudentIds.includes(std.id);
@@ -1371,7 +1381,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-3">
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={
                               std.avatar ||
                               `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
@@ -1537,6 +1547,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </tbody>
             </table>
           </div>
+          )}
+          <ShowMoreBar
+            id="students-show-more"
+            remaining={pagedStudents.remaining}
+            total={pagedStudents.total}
+            shown={pagedStudents.visible.length}
+            onMore={pagedStudents.showMore}
+            onAll={pagedStudents.showAll}
+          />
         </div>
       </div>
       ) : (
@@ -1876,7 +1895,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
                 {studentAvatar ? (
-                  <img src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
+                  <img loading="lazy" decoding="async" src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
                 ) : (
                   <Users className="w-6 h-6 text-subtle" />
                 )}
@@ -2564,7 +2583,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             </td>
                             <td className="py-2.5 px-3">
                               <div className="flex items-center space-x-2.5">
-                                <img
+                                <img loading="lazy" decoding="async"
                                   src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
                                   alt={std.name}
                                   className={`w-7 h-7 rounded-full object-cover border ${
@@ -2871,7 +2890,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             onChange={() => toggleSelectStudent(std.id)}
                             className="w-4 h-4 rounded text-indigo-600 dark:text-indigo-300 focus:ring-indigo-500 bg-surface-2 border-line cursor-pointer"
                           />
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={
                               std.avatar ||
                               `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(

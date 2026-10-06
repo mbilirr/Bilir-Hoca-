@@ -1,8 +1,24 @@
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type { jsPDF } from 'jspdf';
 import type { UserOptions } from 'jspdf-autotable';
 import { StudentQuestionLog, Student, ClassGroup, WeeklyQuestionTarget } from '../types';
-import { PDF_FONT, registerTurkishPdfFont } from '../lib/pdfFonts';
+// HIZ (Aşama 15): PDF kütüphaneleri ve gömülü yazı tipi (yaklaşık 450 KB) yalnız rapor indirilirken yüklenir
+let pdfLibs: {
+  JsPDF: typeof import('jspdf').jsPDF;
+  autoTable: typeof import('jspdf-autotable').default;
+  fonts: typeof import('../lib/pdfFonts');
+} | null = null;
+async function loadPdfLibs() {
+  if (pdfLibs) return pdfLibs;
+  const [a, b, c] = await Promise.all([import('jspdf'), import('jspdf-autotable'), import('../lib/pdfFonts')]);
+  pdfLibs = { JsPDF: a.jsPDF, autoTable: b.default, fonts: c };
+  return pdfLibs;
+}
+function reportPdfError(e: unknown) {
+  console.error('[PDF]', e);
+  try {
+    window.dispatchEvent(new CustomEvent('app-file-error', { detail: 'PDF raporu oluşturulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.' }));
+  } catch {}
+}
 import { computeTargetDays, targetDayStatusText, targetDayLabel } from './targetDays';
 import type { TargetDayRow, TargetDayStatus } from './targetDays';
 import {
@@ -664,9 +680,10 @@ interface PdfKit {
 }
 
 function createPdfKit(): PdfKit {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const fontOk = registerTurkishPdfFont(doc);
-  const F = fontOk ? PDF_FONT : 'helvetica';
+  const libs = pdfLibs!;
+  const doc = new libs.JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const fontOk = libs.fonts.registerTurkishPdfFont(doc);
+  const F = fontOk ? libs.fonts.PDF_FONT : 'helvetica';
   doc.setFont(F, 'normal');
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -726,7 +743,7 @@ function paragraph(
 }
 
 function pdfTable(k: PdfKit, opts: UserOptions, gapAfter = 5) {
-  autoTable(k.doc, {
+  pdfLibs!.autoTable(k.doc, {
     startY: k.y,
     margin: { left: k.M, right: k.M, top: k.top, bottom: k.pageH - k.bottom },
     theme: 'grid',
@@ -1300,7 +1317,12 @@ function safeTargets(options: PdfTargetOptions | undefined, start: string, end: 
 /**
  * Haftalık soru çözüm raporu (PDF). Normal bir hafta 1-2 sayfadır.
  */
-export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
+export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, options?: PdfTargetOptions): Promise<void> {
+  return loadPdfLibs()
+    .then(() => buildWeeklyPDF(analytics, student, options))
+    .catch(reportPdfError);
+}
+function buildWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
   const k = createPdfKit();
   const { date: reportDate, dateTime } = nowTr();
   const today = formatDateISO(new Date());
@@ -1470,7 +1492,12 @@ export function downloadWeeklyPDF(analytics: WeeklyAnalytics, student?: Student 
 /**
  * Aylık soru çözüm raporu (PDF).
  */
-export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
+export function downloadMonthlyPDF(analytics: MonthlyAnalytics, student?: Student | null, options?: PdfTargetOptions): Promise<void> {
+  return loadPdfLibs()
+    .then(() => buildMonthlyPDF(analytics, student, options))
+    .catch(reportPdfError);
+}
+function buildMonthlyPDF(analytics: MonthlyAnalytics, student?: Student | null, options?: PdfTargetOptions): void {
   const k = createPdfKit();
   const { date: reportDate, dateTime } = nowTr();
   const logs = options?.logs || [];

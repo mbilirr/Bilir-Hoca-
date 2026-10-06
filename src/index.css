@@ -362,3 +362,17 @@ html, body {
 }
 
 
+
+/* HIZ (Aşama 15): Telefon ve tablette arka plan bulanıklığı kapatılır.
+   Kaydırırken her karede yeniden hesaplandığı için orta ve alt seviye telefonlarda takılmaya yol açar.
+   Yapışkan üst menü bulanıklık yerine tam renkli zemin kullanır. */
+@media (max-width: 1023px), (pointer: coarse) {
+  [class*='backdrop-blur'] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .sticky[class*='backdrop-blur'],
+  .fixed.bottom-0[class*='backdrop-blur'] {
+    background-color: var(--color-surface) !important;
+  }
+}

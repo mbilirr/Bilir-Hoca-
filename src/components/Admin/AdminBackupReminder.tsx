@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DatabaseBackup, X } from 'lucide-react';
-import { getLastBackupDate } from '../../services/maintenanceService';
-import { BACKUP_REMINDER_DAYS } from './AdminMaintenancePanel';
+import { getLastBackupDate, BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
 
 // Yöneticiye: son yedek 7 günden eskiyse (veya hiç yoksa) hatırlatma bandı
 export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ onOpenBackup }) => {

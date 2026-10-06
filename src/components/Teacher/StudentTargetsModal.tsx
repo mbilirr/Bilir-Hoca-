@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { User, Search, Plus, Target } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -25,6 +25,17 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
   const [onlyMine, setOnlyMine] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  // Aşama 15: kayıtlar öğrenciye göre bir kez gruplanır (her hedef için tüm kayıtlar taranmaz)
+  const byStudent = useMemo(() => {
+    const m = new Map<string, StudentQuestionLog[]>();
+    if (!isOpen) return m;
+    for (const l of allLogs) {
+      let a = m.get(l.studentId);
+      if (!a) m.set(l.studentId, (a = []));
+      a.push(l);
+    }
+    return m;
+  }, [allLogs, isOpen]);
   if (!isOpen) return null;
 
   const today = localDateStr(new Date());
@@ -35,7 +46,7 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
       const st = students.find((s) => s.id === t.studentId);
       const name = st?.name || t.studentName || 'Öğrenci';
       const className = st?.className || t.className || classes.find((c) => c.id === (st?.classId || t.classId))?.name || '';
-      return { t, st, name, className, classId: st?.classId || t.classId, p: dataService.questionTargetProgress(t, t.studentId || '', allLogs) };
+      return { t, st, name, className, classId: st?.classId || t.classId, p: dataService.questionTargetProgress(t, t.studentId || '', byStudent.get(t.studentId || '') || []) };
     })
     .filter((r) => period === 'all' || periodOf(r.t, today) === period)
     .filter((r) => classFilter === 'all' || r.classId === classFilter)

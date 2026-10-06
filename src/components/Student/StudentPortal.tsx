@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import {
   BookOpen,
   Calendar,
@@ -46,9 +46,12 @@ import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
 import { StudentStatsOverview } from './StudentStatsOverview';
 import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
-import { StudentQuestionModule } from './StudentQuestionModule';
+import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
+
+// Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
+const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -70,6 +73,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   submissions: propSubmissions,
 }) => {
   const [activeTab, setActiveTab] = useState<StudentTabType>('home');
+  const selfList = useMemo(() => [currentStudent], [currentStudent]);
 
   // Profile and Avatar Modals state
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -1052,11 +1056,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
          ========================================================================= */}
       {activeTab === 'questions' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <StudentQuestionModule
-            currentStudent={currentStudent}
-            classes={dataService.getClasses()}
-            students={[currentStudent]}
-          />
+          <Suspense fallback={<PageLoading />}>
+            <StudentQuestionModule currentStudent={currentStudent} classes={dataService.getClasses()} students={selfList} />
+          </Suspense>
         </div>
       )}
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useDeferredValue } from 'react';
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -172,8 +173,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     return { total, admins, teachers, students, suspended, pending };
   }, [users]);
 
-  // Filtered Users
+  // Filtered Users (Aşama 15: arama bir adım geriden gelir, liste parça parça çizilir)
+  const deferredQuery = useDeferredValue(searchQuery);
   const filteredUsers = useMemo(() => {
+    const searchQuery = deferredQuery;
     return users.filter((u) => {
       // Role filter
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
@@ -202,7 +205,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       return true;
     });
-  }, [users, roleFilter, statusFilter, searchQuery]);
+  }, [users, roleFilter, statusFilter, deferredQuery]);
+  const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}`);
 
   // Route Guard: Sadece yöneticiler erişebilir
   const isSuperAdmin = Boolean(currentAdmin?.isAdmin);
@@ -811,7 +815,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u) => {
+                pagedUsers.visible.map((u) => {
                   const isCurrentAdminSelf = u.id === currentAdmin?.id;
                   const isProtectedAdmin = isCurrentAdminSelf || (u.role === 'admin' && stats.admins <= 1);
                   const isSuspended = u.isSuspended || u.status === 'suspended';
@@ -829,7 +833,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           <div className="relative shrink-0">
                             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-2 ring-2 ring-line overflow-hidden flex items-center justify-center">
                               {u.avatar ? (
-                                <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                                <img loading="lazy" decoding="async" src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                               ) : (
                                 <span className="text-xs font-bold text-fg-2">
                                   {u.name.slice(0, 2).toUpperCase()}
@@ -1036,6 +1040,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </tbody>
           </table>
         </div>
+        <ShowMoreBar
+          id="users-show-more"
+          remaining={pagedUsers.remaining}
+          total={pagedUsers.total}
+          shown={pagedUsers.visible.length}
+          onMore={pagedUsers.showMore}
+          onAll={pagedUsers.showAll}
+        />
       </div>
 
       {/* ========================================================================= */}

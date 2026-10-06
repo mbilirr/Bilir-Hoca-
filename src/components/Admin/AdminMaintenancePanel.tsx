@@ -11,7 +11,8 @@ import {
   LegacyMigrationResult,
 } from '../../services/maintenanceService';
 
-export const BACKUP_REMINDER_DAYS = 7;
+import { BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
+export { BACKUP_REMINDER_DAYS };
 
 const daysSince = (d: Date) => Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
 

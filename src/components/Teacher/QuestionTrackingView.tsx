@@ -85,6 +85,8 @@ import {
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 
+const NO_LOGS: StudentQuestionLog[] = [];
+
 interface QuestionTrackingViewProps {
   classes: ClassGroup[];
   students: Student[];
@@ -256,11 +258,31 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   const todayIsoStr = useTodayIso();
   const isNarrow = useIsNarrowScreen();
 
+  // HIZ (Aşama 15): kayıtlar öğrenciye göre bir kez gruplanır; her öğrenci için tüm kayıtlar tekrar taranmaz
+  const logsByStudent = useMemo(() => {
+    const m = new Map<string, StudentQuestionLog[]>();
+    for (const l of allLogs) {
+      let a = m.get(l.studentId);
+      if (!a) m.set(l.studentId, (a = []));
+      a.push(l);
+    }
+    return m;
+  }, [allLogs]);
+  const todayCountByStudent = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of allLogs) if (l.date === todayIsoStr) m.set(l.studentId, (m.get(l.studentId) || 0) + (l.totalQuestions || 0));
+    return m;
+  }, [allLogs, todayIsoStr]);
+  const logsOf = (studentId?: string | null): StudentQuestionLog[] => (studentId && logsByStudent.get(studentId)) || NO_LOGS;
+  const activeLogs = useMemo(() => (activeStudent && logsByStudent.get(activeStudent.id)) || NO_LOGS, [logsByStudent, activeStudent]);
+
+  // Aşama 15: açılan öğrencinin eski geçmişi ve seçilen eski hafta/ay ihtiyaç olunca buluttan okunur
+  useEffect(() => {
+    if (activeStudent?.id) dataService.ensureStudentQuestionHistory(activeStudent.id);
+  }, [activeStudent?.id]);
+
   // Belirli bir öğrencinin bugün kaç soru çözdüğünü döndürür
-  const getStudentTodayQuestionCount = (studentId: string): number => {
-    const logs = allLogs.filter((l) => l.studentId === studentId && l.date === todayIsoStr);
-    return logs.reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
-  };
+  const getStudentTodayQuestionCount = (studentId: string): number => todayCountByStudent.get(studentId) || 0;
 
   // Öğrenci arama kutusuna göre filtrelenmiş liste (Türkçe karakter ve büyük/küçük harf duyarsız arama)
   const filteredDropdownStudents = useMemo(() => {
@@ -332,6 +354,12 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     d.setDate(d.getDate() + weekOffset * 7);
     return d;
   }, [weekOffset, todayIsoStr]);
+  useEffect(() => {
+    const weekFrom = getMondayOfWeek(targetWeekDate);
+    weekFrom.setDate(weekFrom.getDate() - 7); // önceki haftayla karşılaştırma
+    const monthFrom = new Date(monthDate.year, monthDate.month - 1, 1); // önceki ayla karşılaştırma
+    dataService.ensureQuestionLogsFrom(formatDateISO(weekFrom < monthFrom ? weekFrom : monthFrom));
+  }, [targetWeekDate, monthDate]);
 
   const currentWeekStartDate = useMemo(() => {
     const mon = getMondayOfWeek(targetWeekDate);
@@ -357,8 +385,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   // ("Soru Hedefi" kartı ise activeWeeklyTarget'ı göstermeye devam eder.)
   const dailyQuestionTarget = generalDailyTarget(activeTargets);
   const activeTargetProgress = useMemo(
-    () => (activeStudent && activeWeeklyTarget ? dataService.questionTargetProgress(activeWeeklyTarget, activeStudent.id, allLogs) : null),
-    [activeStudent, activeWeeklyTarget, allLogs]
+    () => (activeStudent && activeWeeklyTarget ? dataService.questionTargetProgress(activeWeeklyTarget, activeStudent.id, activeLogs) : null),
+    [activeStudent, activeWeeklyTarget, activeLogs]
   );
 
   // Hedef listeleri
@@ -405,18 +433,18 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   const weeklyAnalytics = useMemo(() => {
     if (!activeStudent) return null;
     return computeWeeklyAnalytics(
-      allLogs,
+      activeLogs,
       activeStudent.id,
       activeStudent.name,
       activeStudent.className || activeClass?.name || 'Sınıf Belirtilmedi',
       targetWeekDate
     );
-  }, [allLogs, activeStudent, activeClass, targetWeekDate]);
+  }, [activeLogs, activeStudent, activeClass, targetWeekDate]);
 
   // Öğrencinin geçmiş haftaları ve soru sayıları (Açılır pencere için)
   const pastWeeksList = useMemo(() => {
     const currentMonday = getMondayOfWeek(new Date());
-    const studentLogs = allLogs.filter((l) => l.studentId === activeStudent?.id);
+    const studentLogs = activeLogs;
 
     // En az 26 hafta (yaklaşık 6 ay), eğer daha eski log varsa listeyi o tarihe kadar genişlet
     let maxPastWeeks = 26;
@@ -488,7 +516,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent?.id, todayIsoStr]);
+  }, [activeLogs, activeStudent?.id, todayIsoStr]);
 
   // Filtrelenmiş geçmiş haftalar
   const filteredPastWeeks = useMemo(() => {
@@ -513,7 +541,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   // Geçmiş aylar listesi (Son 24 ay)
   const pastMonthsList = useMemo(() => {
     if (!activeStudent) return [];
-    const studentLogs = allLogs.filter((l) => l.studentId === activeStudent.id);
+    const studentLogs = activeLogs;
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
@@ -581,7 +609,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent?.id, todayIsoStr]);
+  }, [activeLogs, activeStudent?.id, todayIsoStr]);
 
   const filteredPastMonths = useMemo(() => {
     return pastMonthsList.filter((item) => {
@@ -606,29 +634,30 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   const monthlyAnalytics = useMemo(() => {
     if (!activeStudent) return null;
     return computeMonthlyAnalytics(
-      allLogs,
+      activeLogs,
       activeStudent.id,
       activeStudent.name,
       activeStudent.className || activeClass?.name || 'Sınıf Belirtilmedi',
       monthDate.year,
       monthDate.month
     );
-  }, [allLogs, activeStudent, activeClass, monthDate]);
+  }, [activeLogs, activeStudent, activeClass, monthDate]);
 
   // Sınıf genel özeti & sıralaması
   const classOverviewData = useMemo(() => {
     if (classStudents.length === 0) return [];
     const classNameStr = activeClass?.name || 'Sınıf';
     return classStudents.map((st) => {
+      const stLogs = logsOf(st.id);
       const stWeekly = computeWeeklyAnalytics(
-        allLogs,
+        stLogs,
         st.id,
         st.name,
         st.className || classNameStr,
         targetWeekDate
       );
       const stMonthly = computeMonthlyAnalytics(
-        allLogs,
+        stLogs,
         st.id,
         st.name,
         st.className || classNameStr,
@@ -651,7 +680,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         badgeClass: stWeekly.statusAssessment.badgeClass,
       };
     }).sort((a, b) => b.weeklyTotal - a.weeklyTotal);
-  }, [activeClass, classStudents, allLogs, targetWeekDate, monthDate]);
+  }, [activeClass, classStudents, logsByStudent, targetWeekDate, monthDate]);
 
   // Sınıf genel istatistik özeti
   const classSummaryStats = useMemo(() => {
@@ -681,7 +710,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       todayTotalQuestions,
       topStudent,
     };
-  }, [classStudents, classOverviewData, allLogs, todayIsoStr]);
+  }, [classStudents, classOverviewData, todayCountByStudent]);
 
   // Haftalık Hedef Tamamlama Oranı Hesabı (Öğretmenin atadığı hedef öncelikli)
   // Hedef varsa kendi tarihleri (ve dersi) içindeki çözümler sayılır; yoksa bu hafta / varsayılan 50×7
@@ -872,7 +901,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {activeAnalysisMode === 'weekly' && weeklyAnalytics && (
                   <button
                     id="btn-looker-pdf-weekly"
-                    onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
+                    onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                     className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -882,7 +911,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 {activeAnalysisMode === 'monthly' && monthlyAnalytics && (
                   <button
                     id="btn-looker-pdf-monthly"
-                    onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
+                    onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                     className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-orange-400" />
@@ -1785,7 +1814,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
               {/* Bu haftaya denk gelen hedefler: her hedefin gün gün tablosu ve grafiği (Aşama 10b) */}
               {activeStudent && activeTargets.length > 0 && (
-                <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={allLogs} />
+                <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={activeLogs} />
               )}
 
               {/* ========================================================================= */}
@@ -2138,7 +2167,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                   <div className="pt-3 border-t border-line">
                     <button
-                      onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
+                      onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                       className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                     >
                       <Download className="w-4 h-4 text-orange-400" />
@@ -2453,7 +2482,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
                   <div className="pt-3 border-t border-line">
                     <button
-                      onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
+                      onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
                       className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
                     >
                       <Download className="w-4 h-4 text-orange-400" />
@@ -2614,7 +2643,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
             {/* Content List */}
             <div className="p-5 overflow-y-auto max-h-[60vh] space-y-3">
-              {allLogs.filter((l) => l.studentId === activeStudent.id).length === 0 ? (
+              {activeLogs.length === 0 ? (
                 <div className="text-center py-10 text-subtle">
                   <HelpCircle className="w-10 h-10 mx-auto text-subtle mb-2 opacity-70" />
                   <p className="font-bold text-sm text-muted">Henüz Kayıtlı Soru Girişi Yok</p>
@@ -2633,8 +2662,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
-                      {allLogs
-                        .filter((l) => l.studentId === activeStudent.id)
+                      {[...activeLogs]
                         .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
                         .map((log) => (
                           <tr key={log.id} className="hover:bg-surface-2 transition-colors">
@@ -2681,7 +2709,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
             {/* Modal Footer */}
             <div className="p-4 border-t border-line bg-surface-2 flex items-center justify-between">
               <span className="text-xs text-muted">
-                Toplam <strong>{allLogs.filter((l) => l.studentId === activeStudent.id).length}</strong> kayıt
+                Toplam <strong>{activeLogs.length}</strong> kayıt
               </span>
               <button
                 type="button"

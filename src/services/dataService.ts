@@ -219,6 +219,7 @@ function purgePersistentPersonalData(): number {
 
 // Çıkışta sekmedeki tüm uygulama verilerini siler
 function clearSessionAppData(): void {
+  cancelPendingSaves();
   if (!browserSessionStorage) return;
   try {
     const keys: string[] = [];
@@ -790,29 +791,102 @@ function isAlreadyInitialized(): boolean {
   return false;
 }
 
+// ============================================================================
+// HIZ (Aşama 15): Büyük listeler sekme önbelleğine hemen değil, tarayıcı boşken toplu yazılır.
+// Çok büyük listeler (ör. binlerce soru kaydı) önbelleğe hiç yazılmaz: yazmak telefonu dondurur,
+// sekme önbelleğinin sınırını (yaklaşık 5 MB) aşar ve zaten her açılışta buluttan gelir.
+// ============================================================================
+const DEFERRED_SAVE_KEYS = new Set<string>([
+  STORAGE_KEYS.STUDENTS,
+  STORAGE_KEYS.CLASSES,
+  STORAGE_KEYS.TEACHERS,
+  STORAGE_KEYS.HOMEWORK,
+  STORAGE_KEYS.SUBMISSIONS,
+  STORAGE_KEYS.ETUTS,
+  STORAGE_KEYS.ATTENDANCE,
+  STORAGE_KEYS.GRADES,
+  STORAGE_KEYS.MESSAGES,
+  STORAGE_KEYS.DOCUMENTS,
+  STORAGE_KEYS.QUESTION_LOGS,
+  STORAGE_KEYS.WEEKLY_QUESTION_TARGETS,
+  STORAGE_KEYS.STUDENT_NOTIFICATIONS,
+  STORAGE_KEYS.SENT_EMAILS,
+]);
+const MAX_CACHED_ITEMS = 2500;
+const pendingSaves = new Map<string, unknown>();
+let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let onDataChanged: (() => void) | null = null; // görünüm önbelleğini geçersiz kılar (DataService ayarlar)
+
+function writeNow(key: string, data: unknown): void {
+  if (Array.isArray(data) && data.length > MAX_CACHED_ITEMS) {
+    try { localStorage.removeItem(key); } catch {}
+    return;
+  }
+  saveDataNow(key, data);
+}
+function flushPendingSaves(): void {
+  if (pendingSaveTimer) {
+    clearTimeout(pendingSaveTimer);
+    pendingSaveTimer = null;
+  }
+  const items = Array.from(pendingSaves.entries());
+  pendingSaves.clear();
+  for (const [k, v] of items) writeNow(k, v);
+}
+function cancelPendingSaves(): void {
+  if (pendingSaveTimer) clearTimeout(pendingSaveTimer);
+  pendingSaveTimer = null;
+  pendingSaves.clear();
+}
+if (typeof window !== 'undefined') {
+  // Sekme arka plana geçerken / kapanırken bekleyen yazmalar tamamlanır
+  window.addEventListener('pagehide', flushPendingSaves);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSaves();
+  });
+}
+
 function saveData<T>(key: string, data: T): void {
+  if (onDataChanged) onDataChanged();
+  if (DEFERRED_SAVE_KEYS.has(key)) {
+    pendingSaves.set(key, data);
+    if (!pendingSaveTimer) {
+      pendingSaveTimer = setTimeout(() => {
+        pendingSaveTimer = null;
+        const run = () => flushPendingSaves();
+        const ric = (window as any).requestIdleCallback;
+        if (typeof ric === 'function') ric(run, { timeout: 2000 });
+        else run();
+      }, 600);
+    }
+    return;
+  }
+  saveDataNow(key, data);
+}
+
+function saveDataNow<T>(key: string, data: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
     if (key === STORAGE_KEYS.STUDENTS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.CLASSES) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.TEACHERS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.ETUTS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_ETUTS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.GRADES) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_GRADES, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.HOMEWORK) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_HOMEWORK, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.ATTENDANCE) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_ATTENDANCE, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.SUBMISSIONS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_SUBMISSIONS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.QUESTION_LOGS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     } else if (key === STORAGE_KEYS.DOCUMENTS) {
-      try { localStorage.setItem(PERMANENT_KEYS.MASTER_DOCUMENTS, JSON.stringify(data)); } catch {}
+      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
     }
   } catch (e) {
     console.warn(`Quota or write issue when saving ${key}. Freeing legacy storage and retrying...`, e);
@@ -857,6 +931,9 @@ export class DataService {
   private sessionDeviceId: string = '';
 
   private constructor() {
+    onDataChanged = () => {
+      this.dataVersion++;
+    };
     this.purgeSavedPasswords();
     this.initData();
     // Dosya açma/indirme hataları (görüntüleyici bileşenlerden) kullanıcıya gösterilir
@@ -1041,7 +1118,7 @@ export class DataService {
     if (studentsEmailCleaned) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
     }
 
@@ -1121,7 +1198,7 @@ export class DataService {
       { table: 'grades', onEvent: (p) => this.handleRemoteGradeRealtimeEvent(p), resync: () => this.syncGradesFromSupabase(true) },
       { table: 'messages', onEvent: (p) => this.handleRemoteMessageRealtimeEvent(p), resync: () => this.syncMessagesFromSupabase(true) },
       { table: 'homework_submissions', onEvent: () => this.scheduleTableRefetch('homework_submissions'), resync: () => this.syncSubmissionsFromSupabase(true) },
-      { table: 'question_logs', onEvent: () => this.scheduleTableRefetch('question_logs'), resync: () => this.syncQuestionLogsFromSupabase(true) },
+      { table: 'question_logs', onEvent: (p) => this.handleRemoteQuestionLogRealtimeEvent(p), resync: () => this.syncQuestionLogsFromSupabase(true) },
       { table: 'question_targets', onEvent: () => this.scheduleTableRefetch('question_targets'), resync: () => this.syncQuestionTargetsFromSupabase(true) },
     ];
     if (role === 'teacher') {
@@ -1263,7 +1340,7 @@ export class DataService {
           this.students = this.students.filter((s) => s.id !== oldRow.id);
           saveData(STORAGE_KEYS.STUDENTS, this.students);
           try {
-            localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+            /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
           } catch {}
           this.notify();
         }
@@ -1315,7 +1392,7 @@ export class DataService {
       }
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
     } catch (err) {
@@ -1334,7 +1411,7 @@ export class DataService {
           this.classes = this.classes.filter((c) => c.id !== oldRow.id);
           saveData(STORAGE_KEYS.CLASSES, this.classes);
           try {
-            localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+            /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
           } catch {}
           this.notify();
         }
@@ -1369,7 +1446,7 @@ export class DataService {
       this.classes = this.deduplicateClasses(this.classes);
       saveData(STORAGE_KEYS.CLASSES, this.classes);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
     } catch (e) {
@@ -1447,7 +1524,7 @@ export class DataService {
             if (this.students.length !== prevStdLen) {
               saveData(STORAGE_KEYS.STUDENTS, this.students);
               try {
-                localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
               } catch {}
             }
             const prevClsLen = this.classes.length;
@@ -1455,7 +1532,7 @@ export class DataService {
             if (this.classes.length !== prevClsLen) {
               saveData(STORAGE_KEYS.CLASSES, this.classes);
               try {
-                localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
               } catch {}
             }
             const prevQLogLen = this.questionLogs.length;
@@ -1463,7 +1540,7 @@ export class DataService {
             if (this.questionLogs.length !== prevQLogLen) {
               saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
               try {
-                localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
               } catch {}
             }
             this.notify();
@@ -1586,6 +1663,32 @@ export class DataService {
   }
 
   private refetchTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  // Aşama 15: soru kaydı değişikliği doğrudan işlenir (tablonun tamamı yeniden indirilmez)
+  public handleRemoteQuestionLogRealtimeEvent(payload: any) {
+    try {
+      const type = payload?.eventType;
+      if (type === 'DELETE') {
+        const id = payload?.old?.id;
+        if (!id) return this.scheduleTableRefetch('question_logs');
+        const before = this.questionLogs.length;
+        this.questionLogs = this.questionLogs.filter((l) => l.id !== id);
+        if (this.questionLogs.length !== before) {
+          this.persistQuestionLogsLocal();
+          this.notify();
+        }
+        return;
+      }
+      const row = payload?.new;
+      if (!row || !row.id) return this.scheduleTableRefetch('question_logs');
+      if (this.deletedQuestionLogIds?.has(row.id)) return;
+      this.mergeQuestionLogs([this.questionLogFromRow(row)], null);
+      this.persistQuestionLogsLocal();
+      this.notify();
+    } catch {
+      this.scheduleTableRefetch('question_logs');
+    }
+  }
 
   private scheduleTableRefetch(
     table: 'homeworks' | 'homework_submissions' | 'question_logs' | 'question_targets' | 'teacher_documents' | 'teachers'
@@ -1759,7 +1862,7 @@ export class DataService {
         saveData(STORAGE_KEYS.CLASSES, this.classes);
         saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
         try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         } catch {}
         this.notify();
       }
@@ -1862,7 +1965,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
     try {
-      const { data: remoteEtuts, error: errEtuts } = await supabase.from('etuts').select('*');
+      const { data: remoteEtuts, error: errEtuts } = await this.fetchAllRows('etuts');
       if (errEtuts) {
         if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
         return;
@@ -1981,10 +2084,69 @@ export class DataService {
     };
   }
 
+  // HIZ (Aşama 15): Aynı anda gelen değişiklik bildirimleri birleştirilir; ekran art arda
+  // defalarca değil, bir kez yenilenir (eşitlemede 15 tablo ayrı ayrı gelir).
+  private dataVersion = 0;
+  private notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  private notifyFirstAt = 0;
+  public bumpDataVersion(): void {
+    this.dataVersion++;
+  }
   private notify() {
     this.lastSyncTimestamp = Date.now();
-    this.listeners.forEach((l) => l());
+    this.dataVersion++;
+    const now = Date.now();
+    if (!this.notifyTimer) this.notifyFirstAt = now;
+    else clearTimeout(this.notifyTimer);
+    // en geç 250 ms içinde mutlaka yenilenir
+    const delay = now - this.notifyFirstAt >= 250 ? 0 : 40;
+    this.notifyTimer = setTimeout(() => {
+      this.notifyTimer = null;
+      this.listeners.slice().forEach((l) => {
+        try {
+          l();
+        } catch (e) {
+          console.warn('[notify] dinleyici hatası:', e);
+        }
+      });
+    }, delay);
   }
+
+  // Görünüm önbelleği: aynı veriyle tekrar tekrar yeni dizi üretilmez (ekranlar boşuna yeniden hesaplamaz).
+  // Veri değişince (bildirim/kayıt) ya da kaynak dizide herhangi bir öğe değişince yeniden hesaplanır.
+  private viewCache = new Map<string, { v: number; key: string; srcs: any[][]; copies: any[][]; val: any }>();
+  private memoView<T>(name: string, srcs: any[][], key: string, compute: () => T): T {
+    const c = this.viewCache.get(name);
+    if (c && c.v === this.dataVersion && c.key === key && c.srcs.length === srcs.length) {
+      let same = true;
+      for (let i = 0; i < srcs.length && same; i++) {
+        const a = srcs[i];
+        const b = c.copies[i];
+        if (c.srcs[i] !== a || a.length !== b.length) same = false;
+        else for (let j = 0; j < a.length; j++) if (a[j] !== b[j]) { same = false; break; }
+      }
+      if (same) return c.val as T;
+    }
+    const val = compute();
+    this.viewCache.set(name, { v: this.dataVersion, key, srcs, copies: srcs.map((a) => a.slice()), val });
+    return val;
+  }
+  private viewKey(extra = ''): string {
+    let raw = '';
+    try {
+      raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION) || '';
+    } catch {}
+    if (raw !== this.lastSessionRaw) {
+      let h = 5381;
+      for (let i = 0; i < raw.length; i++) h = ((h << 5) + h + raw.charCodeAt(i)) | 0;
+      this.lastSessionRaw = raw;
+      this.lastSessionHash = `${raw.length}:${h}`;
+    }
+    const acc = this.myTeacherAccess;
+    return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}`;
+  }
+  private lastSessionRaw = '';
+  private lastSessionHash = '';
 
   public getSessionDeviceId(): string {
     if (!this.sessionDeviceId) {
@@ -2107,7 +2269,7 @@ export class DataService {
       await this.syncTombstonesFromCloud();
 
       // 1. Fetch individual rows from students table
-      const { data: remoteStudents, error: errStd } = await supabase.from('students').select('*');
+      const { data: remoteStudents, error: errStd } = await this.fetchAllRows('students');
       if (errStd) {
         console.warn('Error fetching students from Supabase:', errStd);
         return this.students;
@@ -2178,7 +2340,7 @@ export class DataService {
       this.students = Array.from(mergedStudentMap.values());
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
 
@@ -2196,7 +2358,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.homeworks;
     try {
-      const { data: remoteHws, error: errHws } = await supabase.from('homeworks').select('*');
+      const { data: remoteHws, error: errHws } = await this.fetchAllRows('homeworks');
       if (errHws) {
         if (!isBackground) console.warn('[HomeworkSync] Error fetching homeworks from Supabase:', errHws);
         return this.homeworks;
@@ -2236,19 +2398,42 @@ export class DataService {
     }
   }
 
+  private submissionsSyncedAt = '';
+  private submissionsFullAt = 0;
   // Ödev teslimleri ayrı tablodan okunur (her öğrenci-ödev için tek satır)
   public async syncSubmissionsFromSupabase(isBackground = false): Promise<HomeworkSubmission[]> {
     if (!(await this.hasCloudSession())) return this.submissions;
     try {
-      const { data, error } = await supabase.from('homework_submissions').select('*');
+      // Aşama 15: arka planda (uygulamaya dönüşte) yalnız son değişen teslimler okunur; tamamı 30 dakikada bir
+      const incremental =
+        isBackground && this.submissionsSyncedAt && Date.now() - this.submissionsFullAt < 30 * 60000 ? this.submissionsSyncedAt : '';
+      const { data, error } = await this.fetchAllRows(
+        'homework_submissions',
+        incremental ? (q: any) => q.gte('updated_at', incremental) : undefined
+      );
       if (error) {
         if (!isBackground) console.warn('[SubmissionSync] Error:', error);
         return this.submissions;
       }
       if (Array.isArray(data)) {
-        this.submissions = data.map((r: any) => this.submissionFromRow(r));
-        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-        this.notify();
+        const rows = data.map((r: any) => this.submissionFromRow(r));
+        if (incremental) {
+          if (data.some((r: any) => !r || typeof r.updated_at !== 'string' || r.updated_at > incremental)) {
+            const ids = new Set(rows.map((r) => r.id));
+            this.submissions = [...rows, ...this.submissions.filter((x) => !ids.has(x.id))];
+            saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+            this.notify();
+          }
+        } else {
+          this.submissions = rows;
+          this.submissionsFullAt = Date.now();
+          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+          this.notify();
+        }
+        // işaret, sunucunun saatine göre (cihaz saati yanlış olabilir): en son değişen teslimin zamanı
+        let mark = incremental;
+        for (const r of data) if (r && typeof r.updated_at === 'string' && r.updated_at > mark) mark = r.updated_at;
+        this.submissionsSyncedAt = mark;
       }
       return this.submissions;
     } catch (e) {
@@ -2277,10 +2462,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.attendance;
     try {
-      const { data: remoteAtt, error: errAtt } = await supabase
-        .from('attendance')
-        .select('*')
-        .order('date', { ascending: false });
+      const { data: remoteAtt, error: errAtt } = await this.fetchAllRows('attendance', undefined, { order: 'date', ascending: false });
 
       if (errAtt) {
         if (!isBackground) console.warn('[AttendanceSync] Error:', errAtt);
@@ -2296,7 +2478,7 @@ export class DataService {
           records: Array.isArray(ra.records) ? ra.records : [],
         }));
 
-        this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        this.attendance.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
         this.notify();
       }
@@ -2313,10 +2495,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.grades;
     try {
-      const { data: remoteGrades, error: errGrd } = await supabase
-        .from('grades')
-        .select('*')
-        .order('date', { ascending: false });
+      const { data: remoteGrades, error: errGrd } = await this.fetchAllRows('grades', undefined, { order: 'date', ascending: false });
 
       if (errGrd) {
         if (!isBackground) console.warn('[GradesSync] Error:', errGrd);
@@ -2326,7 +2505,7 @@ export class DataService {
       if (remoteGrades && Array.isArray(remoteGrades)) {
         this.grades = remoteGrades.map((rg: any) => this.gradeFromRow(rg));
 
-        this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        this.grades.sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : (a.date || '') > (b.date || '') ? -1 : 0));
         saveData(STORAGE_KEYS.GRADES, this.grades);
         this.notify();
       }
@@ -2343,10 +2522,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.messages;
     try {
-      const { data: remoteMsgs, error: errMsgs } = await supabase
-        .from('messages')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data: remoteMsgs, error: errMsgs } = await this.fetchAllRows('messages', undefined, { order: 'created_at', ascending: false });
 
       if (errMsgs) {
         if (!isBackground) console.warn('[MessagesSync] Error:', errMsgs);
@@ -2390,23 +2566,66 @@ export class DataService {
     ]);
   }
 
+  // ---------------------------------------------------------------------------
+  // SORU KAYITLARI (Aşama 15)
+  // Öğretmen/yönetici: geçen ayın başından bugüne kadar olan kayıtlar toplu okunur (haftalık, aylık ve
+  // önceki ayla karşılaştırma için yeterli). Bir öğrencinin eski geçmişi o öğrenci açılınca, daha eski
+  // bir hafta/ay seçilince o aralık ayrıca okunur. Uygulamaya geri dönüldüğünde yalnız son 7 gün yenilenir (tamamı 2 saatte bir).
+  // Öğrenci: kendi kayıtlarının tamamı okunur (sayısı azdır).
+  // ---------------------------------------------------------------------------
+  private questionLogsFrom: string | null = null; // yüklenen ortak aralığın başlangıcı ('' = tamamı)
+  private questionLogsLoadedAt = 0;
+  private questionHistoryLoaded = new Set<string>();
+  private questionLoadPromises = new Map<string, Promise<void>>();
+  private static ymdLocal(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  private static defaultQuestionWindowStart(): string {
+    const n = new Date();
+    return DataService.ymdLocal(new Date(n.getFullYear(), n.getMonth() - 1, 1));
+  }
+  private static sortLogsDesc(list: StudentQuestionLog[]): StudentQuestionLog[] {
+    return list.sort((a, b) => {
+      const x = a.date || a.createdAt || '';
+      const y = b.date || b.createdAt || '';
+      return x < y ? 1 : x > y ? -1 : 0;
+    });
+  }
+  private mergeQuestionLogs(incoming: StudentQuestionLog[], replaceFrom: string | null): void {
+    const base = replaceFrom === null ? this.questionLogs : replaceFrom === '' ? [] : this.questionLogs.filter((l) => (l.date || '') < replaceFrom);
+    const byId = new Map<string, StudentQuestionLog>();
+    for (const l of base) byId.set(l.id, l);
+    for (const l of incoming) if (!this.deletedQuestionLogIds?.has(l.id)) byId.set(l.id, l);
+    this.questionLogs = DataService.sortLogsDesc(Array.from(byId.values()));
+  }
+
   public async syncQuestionLogsFromSupabase(isBackground = false): Promise<StudentQuestionLog[]> {
     if (!(await this.hasCloudSession())) return this.questionLogs;
     try {
-      const { data, error } = await supabase.from('question_logs').select('*');
+      const isStudent = this.getAuthSession()?.role === 'student';
+      const loaded = this.questionLogsFrom !== null;
+      const recentOnly = !isStudent && isBackground && loaded && Date.now() - this.questionLogsLoadedAt < 2 * 3600 * 1000;
+      let from: string;
+      if (isStudent) from = '';
+      else if (recentOnly) from = DataService.ymdLocal(new Date(Date.now() - 7 * 86400000));
+      else {
+        const def = DataService.defaultQuestionWindowStart();
+        from = loaded && this.questionLogsFrom !== null && this.questionLogsFrom < def ? this.questionLogsFrom : def;
+      }
+      const { data, error } = await this.fetchAllRows('question_logs', from ? (q: any) => q.gte('date', from) : undefined);
       if (error) {
         if (!isBackground) console.warn('[QuestionLogsSync] Error:', error);
         return this.questionLogs;
       }
       if (Array.isArray(data)) {
-        const logs = data
-          .map((r: any) => this.questionLogFromRow(r))
-          .filter((l) => !this.deletedQuestionLogIds?.has(l.id));
-        logs.sort(
-          (a, b) =>
-            new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+        this.mergeQuestionLogs(
+          data.map((r: any) => this.questionLogFromRow(r)),
+          from
         );
-        this.questionLogs = logs;
+        if (!recentOnly) {
+          this.questionLogsFrom = from;
+          this.questionLogsLoadedAt = Date.now();
+        }
         this.persistQuestionLogsLocal();
         this.notify();
       }
@@ -2415,6 +2634,54 @@ export class DataService {
       if (!isBackground) console.warn('[QuestionLogsSync] Exception:', e);
       return this.questionLogs;
     }
+  }
+
+  // Daha eski bir hafta/ay görüntülenecekse o tarihten itibaren olan kayıtlar da okunur
+  public ensureQuestionLogsFrom(fromDate: string): Promise<void> {
+    if (!fromDate || this.questionLogsFrom === null || this.questionLogsFrom === '' || fromDate >= this.questionLogsFrom) return Promise.resolve();
+    const key = `range:${fromDate}`;
+    const running = this.questionLoadPromises.get(key);
+    if (running) return running;
+    const until = this.questionLogsFrom;
+    const p = (async () => {
+      try {
+        const { data, error } = await this.fetchAllRows('question_logs', (q: any) => q.gte('date', fromDate).lt('date', until));
+        if (error || !Array.isArray(data)) return;
+        this.mergeQuestionLogs(data.map((r: any) => this.questionLogFromRow(r)), null);
+        if (this.questionLogsFrom !== null && this.questionLogsFrom !== '' && fromDate < this.questionLogsFrom) this.questionLogsFrom = fromDate;
+        this.notify();
+      } catch {
+        // bir sonraki denemede tekrar okunur
+      } finally {
+        this.questionLoadPromises.delete(key);
+      }
+    })();
+    this.questionLoadPromises.set(key, p);
+    return p;
+  }
+
+  // Bir öğrencinin tüm geçmişi (geçmiş haftalar/aylar listesi ve raporlar için)
+  public ensureStudentQuestionHistory(studentId: string): Promise<void> {
+    if (!studentId || this.questionHistoryLoaded.has(studentId) || this.questionLogsFrom === '') return Promise.resolve();
+    if (this.getAuthSession()?.role === 'student') return Promise.resolve();
+    const key = `student:${studentId}`;
+    const running = this.questionLoadPromises.get(key);
+    if (running) return running;
+    const p = (async () => {
+      try {
+        const { data, error } = await this.fetchAllRows('question_logs', (q: any) => q.eq('student_id', studentId));
+        if (error || !Array.isArray(data)) return;
+        this.questionHistoryLoaded.add(studentId);
+        this.mergeQuestionLogs(data.map((r: any) => this.questionLogFromRow(r)), null);
+        this.notify();
+      } catch {
+        // bir sonraki açılışta tekrar denenir
+      } finally {
+        this.questionLoadPromises.delete(key);
+      }
+    })();
+    this.questionLoadPromises.set(key, p);
+    return p;
   }
 
   public async syncQuestionTargetsFromSupabase(isBackground = false): Promise<WeeklyQuestionTarget[]> {
@@ -2603,6 +2870,43 @@ export class DataService {
   // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
   public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
   public static etutTeacherColumnAvailable = true;
+  private static legacySessionKeyCleared = false;
+
+  // Supabase bir istekte en fazla 1000 satır döndürür. Büyük tablolar sayfa sayfa (aynı anda 4 sayfa) okunur;
+  // yoksa 1000. satırdan sonrası sessizce eksik kalır.
+  private async fetchAllRows(
+    table: string,
+    build?: (q: any) => any,
+    opts: { columns?: string; order?: string; ascending?: boolean; max?: number } = {}
+  ): Promise<{ data: any[] | null; error: any }> {
+    const PAGE = 1000;
+    const max = opts.max ?? 100000;
+    const page = (from: number) => {
+      let q: any = supabase.from(table).select(opts.columns || '*');
+      if (build) q = build(q);
+      if (opts.order && opts.order !== 'id') q = q.order(opts.order, { ascending: opts.ascending ?? true });
+      return q.order('id', { ascending: true }).range(from, from + PAGE - 1);
+    };
+    const first = await page(0);
+    if (first.error) return { data: null, error: first.error };
+    const out: any[] = [...(first.data || [])];
+    if (out.length < PAGE) return { data: out, error: null };
+    let from = PAGE;
+    while (from < max) {
+      const batch = await Promise.all([0, 1, 2, 3].map((i) => page(from + i * PAGE)));
+      let done = false;
+      for (const r of batch) {
+        if (r.error) return { data: null, error: r.error };
+        out.push(...(r.data || []));
+        if (!r.data || r.data.length < PAGE) done = true;
+      }
+      if (done) break;
+      from += 4 * PAGE;
+    }
+    // sayfalar arasında eklenen satır yüzünden aynı kayıt iki kez gelebilir
+    const seen = new Set<string>();
+    return { data: out.filter((r) => (r && r.id ? (seen.has(r.id) ? false : (seen.add(r.id), true)) : true)), error: null };
+  }
   public static etutTeacherIdsColumnAvailable = true;
   // Etüdün tüm öğretmenleri (sütun veya eski kayıtlarda notlar içindeki bilgi)
   public static etutTeacherIdsOf(col: any, meta: any): string[] | undefined {
@@ -2771,7 +3075,7 @@ export class DataService {
   private persistQuestionLogsLocal(): void {
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_QUESTION_LOGS, JSON.stringify(this.questionLogs));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
   }
 
@@ -2889,6 +3193,14 @@ export class DataService {
     return this.fullSyncInFlight;
   }
 
+  private backgroundSyncedAt = new Map<string, number>();
+  private backgroundDue(name: string, isBackground: boolean, everyMs = 10 * 60000): boolean {
+    const last = this.backgroundSyncedAt.get(name) || 0;
+    if (isBackground && last && Date.now() - last < everyMs) return false;
+    this.backgroundSyncedAt.set(name, Date.now());
+    return true;
+  }
+
   private async runFullSync(isBackground: boolean): Promise<void> {
     try {
       this.ensureRealtime();
@@ -2900,8 +3212,9 @@ export class DataService {
         this.syncEtutsFromSupabase(isBackground),
         this.syncHomeworksFromSupabase(isBackground),
         this.syncSubmissionsFromSupabase(isBackground),
-        this.syncAttendanceFromSupabase(isBackground),
-        this.syncGradesFromSupabase(isBackground),
+        // yoklama ve notlar arka planda en fazla 10 dakikada bir yenilenir (anlık değişiklikler kanaldan gelir)
+        this.backgroundDue('attendance', isBackground) ? this.syncAttendanceFromSupabase(isBackground) : Promise.resolve(),
+        this.backgroundDue('grades', isBackground) ? this.syncGradesFromSupabase(isBackground) : Promise.resolve(),
         this.syncMessagesFromSupabase(isBackground),
         this.syncQuestionLogsAndTargetsFromSupabase(isBackground),
         this.syncTeacherDocumentsFromSupabase(isBackground),
@@ -3041,6 +3354,9 @@ export class DataService {
   }
 
   public getTeachers(): Teacher[] {
+    return this.memoView('Teachers', [this.teachers, this.teachers, this.classes, this.students], this.viewKey(), () => this.computeTeachers());
+  }
+  private computeTeachers(): Teacher[] {
     const session = this.getAuthSession();
     const currentTeacher = this.getCurrentTeacher();
 
@@ -3071,7 +3387,7 @@ export class DataService {
       teacher.status = 'approved';
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.syncTeacherToCloud(teacher);
       this.notify();
@@ -3084,7 +3400,7 @@ export class DataService {
       teacher.status = 'rejected';
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.syncTeacherToCloud(teacher);
       this.notify();
@@ -3097,7 +3413,7 @@ export class DataService {
     this.teachers = this.teachers.filter((t) => t.id !== teacherId);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     this.deleteTeacherFromCloud(teacherId);
     this.notify();
@@ -3112,7 +3428,7 @@ export class DataService {
       };
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
 
       const currentSession = this.getAuthSession();
@@ -3137,7 +3453,7 @@ export class DataService {
       };
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
 
       const currentSession = this.getAuthSession();
@@ -3162,7 +3478,7 @@ export class DataService {
       };
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
 
       const currentSession = this.getAuthSession();
@@ -3276,7 +3592,7 @@ export class DataService {
       );
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
       return;
@@ -3394,7 +3710,7 @@ export class DataService {
       );
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
     } else {
       this.students = this.students.map((s) =>
@@ -3402,7 +3718,7 @@ export class DataService {
       );
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
     }
     this.notify();
@@ -3513,7 +3829,7 @@ export class DataService {
     teacher.assignedClassIds = [...assignedClassIds];
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     // Sınıflardaki authorizedTeacherIds listesini güncelle
@@ -3538,7 +3854,7 @@ export class DataService {
     }
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     // Öğrencilerdeki authorizedTeacherIds listesini güncelle
@@ -3563,7 +3879,7 @@ export class DataService {
     }
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     this.notify();
@@ -3618,7 +3934,7 @@ export class DataService {
       this.teachers = this.teachers.filter((t) => t.id !== userId);
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
       return;
@@ -3828,7 +4144,7 @@ export class DataService {
     this.teachers = [teacher, ...this.teachers.filter((t) => t.id !== teacher.id)];
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     this.notify();
     return { teacher, password };
@@ -3869,7 +4185,7 @@ export class DataService {
     this.teachers.unshift(newTeacher);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     this.syncTeacherToCloud(newTeacher);
     this.notify();
@@ -3887,7 +4203,7 @@ export class DataService {
     this.teachers[idx] = updated;
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     try {
       localStorage.setItem(`edu_sys_teacher_custom_profile_${teacherId}`, JSON.stringify(updated));
@@ -4012,7 +4328,7 @@ export class DataService {
     );
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     const session = this.getAuthSession();
     if (session?.role === 'student' && session.user.id === studentId) {
@@ -4286,7 +4602,7 @@ export class DataService {
       if (changed) {
         saveData(STORAGE_KEYS.TEACHERS, this.teachers);
         try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_TEACHERS, JSON.stringify(this.teachers));
+          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         } catch {}
 
         if (newPendingCount > 0) {
@@ -4555,10 +4871,13 @@ export class DataService {
       console.error('SessionStorage parse error:', e);
     }
 
-    // Eski kalıntı localStorage oturum anahtarını temizle
-    try {
-      localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-    } catch {}
+    // Eski kalıntı localStorage oturum anahtarını temizle (bir kez yeterli)
+    if (!DataService.legacySessionKeyCleared) {
+      DataService.legacySessionKeyCleared = true;
+      try {
+        localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+      } catch {}
+    }
 
     if (saved && saved.user) {
       // Re-hydrate session user object from the current state so updates to name/username/branch/avatar are never lost
@@ -4632,6 +4951,13 @@ export class DataService {
   public logout(): void {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
+    this.questionLogsFrom = null;
+    this.questionLogsLoadedAt = 0;
+    this.submissionsSyncedAt = '';
+    this.submissionsFullAt = 0;
+    this.backgroundSyncedAt = new Map();
+    this.questionHistoryLoaded = new Set();
+    this.questionLoadPromises = new Map();
     this.pendingApplicationCount = 0;
     // Uygulama oturumu kapanınca Supabase oturumu da kapansın
     supabase.auth.signOut().catch(() => {});
@@ -5013,7 +5339,7 @@ export class DataService {
     if (autoAssignedCount > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.syncStudentsToCloud(this.students.filter((s) => s.classId === newClass.id)).catch(() => {});
     }
@@ -5074,7 +5400,7 @@ export class DataService {
     if (count > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
 
       // Sadece sınıfı değişen öğrencileri buluta senkronize et ve sonucunu doğrula
@@ -5085,7 +5411,7 @@ export class DataService {
         this.students = prevStudents;
         saveData(STORAGE_KEYS.STUDENTS, this.students);
         try {
-          localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         } catch {}
         this.notify();
 
@@ -5122,7 +5448,7 @@ export class DataService {
     });
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     const updated = this.students.find((s) => s.id === studentId);
@@ -5133,7 +5459,7 @@ export class DataService {
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
 
@@ -5195,8 +5521,8 @@ export class DataService {
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     // Clean legacy versioned keys
@@ -5226,8 +5552,8 @@ export class DataService {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         localStorage.setItem(PERMANENT_KEYS.DELETED_CLASSES, JSON.stringify(Array.from(this.deletedClassIds)));
       } catch {}
       this.notify();
@@ -5356,7 +5682,7 @@ export class DataService {
       await this.syncTombstonesFromCloud();
 
       // 1. Fetch from Supabase classes table (Central DB is source of truth)
-      const { data: remoteClasses, error: errCls } = await supabase.from('classes').select('*');
+      const { data: remoteClasses, error: errCls } = await this.fetchAllRows('classes');
       if (errCls) {
         if (!isBackground) {
           console.warn('Error fetching classes from Supabase:', errCls);
@@ -5393,7 +5719,7 @@ export class DataService {
       this.classes = deduplicatedClasses;
       saveData(STORAGE_KEYS.CLASSES, this.classes);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_CLASSES, JSON.stringify(this.classes));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
 
@@ -5530,7 +5856,7 @@ export class DataService {
       this.students = [...created.map((c) => c.student), ...this.students.filter((s) => !createdIds.has(s.id))];
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
     }
@@ -5645,7 +5971,7 @@ export class DataService {
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
       if (writeBack) {
@@ -5681,7 +6007,7 @@ export class DataService {
     }
 
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
     if (session?.role === 'student' && session.user.id === id) {
       const fresh = this.students.find((s) => s.id === id);
@@ -5867,7 +6193,7 @@ export class DataService {
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
 
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
     } catch {}
 
@@ -5909,7 +6235,7 @@ export class DataService {
       saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
 
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
       } catch {}
       this.notify();
@@ -6954,6 +7280,9 @@ export class DataService {
   }
 
   public getStudents(forTeacherId?: string): Student[] {
+    return this.memoView('Students:' + (forTeacherId || ''), [this.students, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeStudents(forTeacherId));
+  }
+  private computeStudents(forTeacherId?: string): Student[] {
     const session = this.getAuthSession();
 
     // If viewing in teacher context
@@ -7007,6 +7336,9 @@ export class DataService {
   }
 
   public getClasses(forTeacherId?: string): ClassGroup[] {
+    return this.memoView('Classes:' + (forTeacherId || ''), [this.classes, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeClasses(forTeacherId));
+  }
+  private computeClasses(forTeacherId?: string): ClassGroup[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7087,7 +7419,7 @@ export class DataService {
     this.students[studentIdx] = updated;
     saveData(STORAGE_KEYS.STUDENTS, this.students);
     try {
-      localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
     } catch {}
 
     // Bulut yazmasını AWAIT et ve sonucunu kontrol et
@@ -7105,7 +7437,7 @@ export class DataService {
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       try {
-        localStorage.setItem(PERMANENT_KEYS.MASTER_STUDENTS, JSON.stringify(this.students));
+        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       } catch {}
       this.notify();
 
@@ -7151,6 +7483,9 @@ export class DataService {
   }
 
   public getHomeworks(forTeacherId?: string): Homework[] {
+    return this.memoView('Homeworks:' + (forTeacherId || ''), [this.homeworks, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeHomeworks(forTeacherId));
+  }
+  private computeHomeworks(forTeacherId?: string): Homework[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7184,6 +7519,9 @@ export class DataService {
   }
 
   public getEtuts(forTeacherId?: string): Etut[] {
+    return this.memoView('Etuts:' + (forTeacherId || ''), [this.etuts, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeEtuts(forTeacherId));
+  }
+  private computeEtuts(forTeacherId?: string): Etut[] {
     const session = this.getAuthSession();
 
     // Öğretmen ve Yönetici Görünümü:
@@ -7221,6 +7559,9 @@ export class DataService {
   }
 
   public getGrades(forTeacherId?: string): GradeRecord[] {
+    return this.memoView('Grades:' + (forTeacherId || ''), [this.grades, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeGrades(forTeacherId));
+  }
+  private computeGrades(forTeacherId?: string): GradeRecord[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7240,6 +7581,9 @@ export class DataService {
   }
 
   public getAttendance(forTeacherId?: string): AttendanceRecord[] {
+    return this.memoView('Attendance:' + (forTeacherId || ''), [this.attendance, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeAttendance(forTeacherId));
+  }
+  private computeAttendance(forTeacherId?: string): AttendanceRecord[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7267,6 +7611,9 @@ export class DataService {
   }
 
   public getMessages(forTeacherId?: string): StudentMessage[] {
+    return this.memoView('Messages:' + (forTeacherId || ''), [this.messages, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeMessages(forTeacherId));
+  }
+  private computeMessages(forTeacherId?: string): StudentMessage[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7286,6 +7633,9 @@ export class DataService {
   }
 
   public getSubmissions(forTeacherId?: string): HomeworkSubmission[] {
+    return this.memoView('Submissions:' + (forTeacherId || ''), [this.submissions, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeSubmissions(forTeacherId));
+  }
+  private computeSubmissions(forTeacherId?: string): HomeworkSubmission[] {
     const session = this.getAuthSession();
 
     if (forTeacherId || session?.role === 'teacher') {
@@ -7390,6 +7740,9 @@ export class DataService {
 
   // ==================== TEACHER DOCUMENTS ARCHIVE ====================
   public getTeacherDocuments(): TeacherDocument[] {
+    return this.memoView('TeacherDocuments', [this.documents, this.teachers, this.classes, this.students], this.viewKey(), () => this.computeTeacherDocuments());
+  }
+  private computeTeacherDocuments(): TeacherDocument[] {
     return [...this.documents];
   }
 
@@ -7772,6 +8125,9 @@ export class DataService {
 
   // --- QUESTION LOGS (SORU SAYISI TAKİP) ---
   public getQuestionLogs(): StudentQuestionLog[] {
+    return this.memoView('QuestionLogs', [this.questionLogs, this.teachers, this.classes, this.students], this.viewKey(), () => this.computeQuestionLogs());
+  }
+  private computeQuestionLogs(): StudentQuestionLog[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
       return this.questionLogs.filter((q) => q.studentId === session.user.id);

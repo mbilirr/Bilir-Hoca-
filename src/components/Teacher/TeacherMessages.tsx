@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   MessageSquare,
   Search,
@@ -25,14 +26,17 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   );
   const [replyText, setReplyText] = useState('');
 
-  const filteredMessages = messages.filter((m) => {
+  const filteredMessages = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return (
-      (m.studentName || '').toLowerCase().includes(term) ||
-      (m.subject || '').toLowerCase().includes(term) ||
-      (m.text || '').toLowerCase().includes(term)
+    return messages.filter(
+      (m) =>
+        (m.studentName || '').toLowerCase().includes(term) ||
+        (m.subject || '').toLowerCase().includes(term) ||
+        (m.text || '').toLowerCase().includes(term)
     );
-  });
+  }, [messages, searchTerm]);
+  // Aşama 15: uzun mesaj listesi parça parça çizilir
+  const pagedMessages = usePagedList(filteredMessages, searchTerm);
 
   const activeMessage = messages.find((m) => m.id === selectedMessageId) || filteredMessages[0];
 
@@ -94,7 +98,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                 Aramanıza uygun mesaj bulunamadı.
               </div>
             ) : (
-              filteredMessages.map((msg) => {
+              pagedMessages.visible.map((msg) => {
                 const isSelected = activeMessage?.id === msg.id;
                 return (
                   <button
@@ -155,6 +159,13 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                 );
               })
             )}
+            <ShowMoreBar
+              id="messages-show-more"
+              remaining={pagedMessages.remaining}
+              total={pagedMessages.total}
+              shown={pagedMessages.visible.length}
+              onMore={pagedMessages.showMore}
+            />
           </div>
         </div>
 

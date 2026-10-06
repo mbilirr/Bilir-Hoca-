@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { PageHeader } from './components/ui/kit';
 import { Navbar } from './components/Navbar';
@@ -7,23 +7,14 @@ import { TeacherBottomNav } from './components/Layout/BottomNav';
 import { findTeacherNav } from './components/Layout/navItems';
 import { AuthPortal } from './components/Auth/AuthPortal';
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
-import { StudentManagement } from './components/Teacher/StudentManagement';
-import { HomeworkManagement } from './components/Teacher/HomeworkManagement';
-import { EtutManagement } from './components/Teacher/EtutManagement';
-import { TeacherMessages } from './components/Teacher/TeacherMessages';
-import { TeacherHome } from './components/Teacher/TeacherHome';
-import { TeacherDocumentsArchive } from './components/Teacher/Documents/TeacherDocumentsArchive';
-import { QuestionTrackingView } from './components/Teacher/QuestionTrackingView';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
-import { AdminMaintenancePanel } from './components/Admin/AdminMaintenancePanel';
 import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
-import { AdminUserManagement } from './components/Admin/AdminUserManagement';
-import { StudentPortal } from './components/Student/StudentPortal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { dataService } from './services/dataService';
+import { lazyNamed, PageLoading } from './lib/lazyLoad';
 import { supabase } from './lib/supabase';
 import {
   Student,
@@ -41,6 +32,18 @@ import {
   TeacherTabType,
   StudentQuestionLog,
 } from './types';
+
+// Aşama 15: sayfalar ilk açıldıklarında yüklenir (giriş ekranı ve öğrenci telefonu hızlı açılır)
+const StudentManagement = lazyNamed(() => import('./components/Teacher/StudentManagement'), 'StudentManagement');
+const HomeworkManagement = lazyNamed(() => import('./components/Teacher/HomeworkManagement'), 'HomeworkManagement');
+const EtutManagement = lazyNamed(() => import('./components/Teacher/EtutManagement'), 'EtutManagement');
+const TeacherMessages = lazyNamed(() => import('./components/Teacher/TeacherMessages'), 'TeacherMessages');
+const TeacherHome = lazyNamed(() => import('./components/Teacher/TeacherHome'), 'TeacherHome');
+const TeacherDocumentsArchive = lazyNamed(() => import('./components/Teacher/Documents/TeacherDocumentsArchive'), 'TeacherDocumentsArchive');
+const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
+const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
+const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
+const StudentPortal = lazyNamed(() => import('./components/Student/StudentPortal'), 'StudentPortal');
 
 // URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
 // Component dışında tanımlı, her render'da yeniden oluşturulmaz.
@@ -425,6 +428,7 @@ export default function App() {
 
             {/* ANA SAYFA: selamlama, "Bugün" özeti, özet kartları ve ajanda */}
             {teacherTab === 'home' && (
+              <Suspense fallback={<PageLoading />}>
               <TeacherHome
                 currentTeacher={currentTeacher}
                 students={students}
@@ -436,6 +440,7 @@ export default function App() {
                 onNavigateTab={selectTeacherTab}
                 onOpenStudentView={() => handleRoleChange('student')}
               />
+              </Suspense>
             )}
 
             {/* SEÇİLİ ÇALIŞMA MODÜLÜ: Çalışma modülü butonundan hangi bölüm seçildiyse sayfada SADECE o bölüm gözükür */}
@@ -447,6 +452,7 @@ export default function App() {
                   moduleName={findTeacherNav(teacherTab)?.title || 'Modül'}
                   onResetToHome={() => setTeacherTab('home')}
                 >
+                  <Suspense fallback={<PageLoading />}>
                   {teacherTab === 'students' && (
                     <StudentManagement
                       students={students}
@@ -511,6 +517,7 @@ export default function App() {
                       onNavigateHome={() => setTeacherTab('home')}
                     />
                   )}
+                  </Suspense>
                 </ModuleErrorBoundary>
               </div>
             )}
@@ -518,6 +525,7 @@ export default function App() {
         ) : (
           /* ================= STUDENT DASHBOARD ================= */
           currentStudent ? (
+            <Suspense fallback={<PageLoading />}>
             <StudentPortal
               key={currentStudent.id}
               currentStudent={currentStudent}
@@ -528,6 +536,7 @@ export default function App() {
               attendance={attendance}
               messages={messages}
             />
+            </Suspense>
           ) : (
             <div className="ui-card p-10 text-center max-w-md mx-auto space-y-3">
               <GraduationCap className="w-12 h-12 text-brand-fg mx-auto" />

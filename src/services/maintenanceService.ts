@@ -1,7 +1,7 @@
 // Yönetici bakım araçları (Aşama 7):
 //  1) Tüm verilerin yedeği (Excel + JSON) ve yedek kaydı
 //  2) Eski sürümde kayıtların içine gömülmüş dosyaların dosya deposuna taşınması
-import * as XLSX from 'xlsx';
+// Aşama 15: Excel kütüphanesi (yaklaşık 420 KB) yalnız yedek alınırken yüklenir
 import { supabase } from '../lib/supabase';
 import { uploadFile, removeStoredFiles, dataUrlToFile } from '../lib/fileStorage';
 
@@ -98,10 +98,14 @@ function downloadBlob(blob: Blob, fileName: string) {
 }
 
 // Tüm verileri buluttan okuyup Excel (okunabilir) ve JSON (tam) dosyaları olarak indirir.
+// Yedek hatırlatması kaç günde bir gösterilir
+export const BACKUP_REMINDER_DAYS = 7;
+
 export async function createFullBackup(
   adminName: string,
   onProgress?: (done: number, total: number, label: string) => void
 ): Promise<BackupResult> {
+  const XLSX = await import('xlsx');
   const now = new Date();
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
   const fileBaseName = `okul-yedek_${stamp}`;
