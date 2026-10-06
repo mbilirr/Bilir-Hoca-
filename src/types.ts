@@ -184,6 +184,7 @@ export interface Etut {
   teacherNames?: string[];
   teacherBranch?: string;
   studentAttendance?: Record<string, EtutStudentAttendance>; // Öğrenci ID -> Katılım Durumu
+  attendanceTakenBy?: { name?: string; at?: string; via?: string }; // Aşama 16: yoklamayı kim aldı (e-posta bağlantısıyla dahil)
   createdById?: string; // Etüdü kaydeden öğretmen (Aşama 9)
   createdByName?: string;
   recurrenceGroupId?: string; // Tekrarlayan etütlerde ortak kimlik

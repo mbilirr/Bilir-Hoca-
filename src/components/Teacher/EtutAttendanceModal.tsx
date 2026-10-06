@@ -10,7 +10,10 @@ import {
   Calendar,
   BookOpen,
   Sparkles,
+  Mail,
+  Link2,
 } from 'lucide-react';
+import { callMail, describeMailResult } from '../../lib/mailApi';
 import { Etut, Student, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
 
@@ -62,6 +65,21 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
   const [feedback, setFeedback] = useState(etut.teacherFeedback || '');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Aşama 16: etüt öğretmenine girişsiz yoklama bağlantısı
+  const [linkSending, setLinkSending] = useState(false);
+  const [linkNotice, setLinkNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const me = dataService.getCurrentTeacher();
+  const etutTeacherIds = etut.teacherIds && etut.teacherIds.length ? etut.teacherIds : etut.teacherId ? [etut.teacherId] : [];
+  const hasOtherTeacher = etutTeacherIds.some((id) => !me || id !== me.id);
+  const sendAttendanceLink = async () => {
+    if (linkSending) return;
+    setLinkSending(true);
+    setLinkNotice(null);
+    const r = await callMail('etut-attendance-link', { etutId: etut.id });
+    const d = describeMailResult(r);
+    setLinkNotice(r.ok && r.sent ? { tone: 'success', text: `Yoklama bağlantısı gönderildi. ${d.text}` } : d);
+    setLinkSending(false);
+  };
 
   if (!isOpen) return null;
 
@@ -177,6 +195,32 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Aşama 16: e-postadaki yoklama bağlantısı */}
+        {(hasOtherTeacher || etut.attendanceTakenBy?.via === 'link') && (
+          <div className="px-6 py-2.5 border-b border-line bg-info-soft/50 flex flex-wrap items-center gap-2 shrink-0" id="etut-attendance-link-bar">
+            <Link2 className="w-4 h-4 text-info-fg shrink-0" />
+            <span className="text-xs text-fg-2 flex-1 min-w-[12rem]">
+              {etut.attendanceTakenBy?.via === 'link' && etut.attendanceTakenBy.at
+                ? `Yoklamayı ${etut.attendanceTakenBy.name || 'etüt öğretmeni'} e-postadaki bağlantıyla aldı · ${new Date(etut.attendanceTakenBy.at).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}`
+                : 'Etüt öğretmeni yoklamayı e-postasındaki bağlantıyla, sisteme girmeden alabilir.'}
+            </span>
+            {hasOtherTeacher && (
+              <button type="button" id="etut-send-attendance-link" onClick={sendAttendanceLink} disabled={linkSending} className="ui-btn ui-btn-secondary ui-btn-sm">
+                <Mail className="w-3.5 h-3.5" />
+                {linkSending ? 'Gönderiliyor…' : 'Bağlantıyı e-postayla gönder'}
+              </button>
+            )}
+            {linkNotice && (
+              <p
+                id="etut-attendance-link-notice"
+                className={`w-full text-xs font-semibold ${linkNotice.tone === 'success' ? 'text-success-fg' : linkNotice.tone === 'warning' ? 'text-warning-fg' : 'text-danger-fg'}`}
+              >
+                {linkNotice.text}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Quick Summary Pill & Mass Actions */}
         <div className="px-6 py-3 bg-canvas/70 border-b border-line flex flex-wrap items-center justify-between gap-3 shrink-0">

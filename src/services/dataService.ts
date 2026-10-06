@@ -1602,10 +1602,10 @@ export class DataService {
         subject: row.subject,
         topic: row.topic,
         date: row.date ? row.date.trim().split('T')[0] : '',
-        time: row.time || '16:00',
+        time: row.time || '',
         duration: Number(row.duration) || parsedMeta.duration || 45,
         assignedStudentIds: incomingAssigned,
-        location: row.location || 'Derslik',
+        location: row.location || '',
         notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : ''),
         teacherFeedback: parsedMeta.teacherFeedback || '',
         createdAt: row.created_at || new Date().toISOString(),
@@ -1618,6 +1618,7 @@ export class DataService {
         gradeLevel: parsedMeta.gradeLevel,
         schoolLevel: parsedMeta.schoolLevel,
         studentAttendance: parsedMeta.studentAttendance || {},
+        attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
         createdById: parsedMeta.createdById || undefined,
         createdByName: parsedMeta.createdByName || undefined,
         recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
@@ -1628,10 +1629,7 @@ export class DataService {
         this.etuts[existingIdx] = {
           ...this.etuts[existingIdx],
           ...incomingEtut,
-          studentAttendance: {
-            ...(incomingEtut.studentAttendance || {}),
-            ...(this.etuts[existingIdx].studentAttendance || {}),
-          },
+          studentAttendance: DataService.mergeAttendance(incomingEtut.studentAttendance, this.etuts[existingIdx].studentAttendance),
         };
       } else {
         this.etuts.unshift(incomingEtut);
@@ -1898,6 +1896,7 @@ export class DataService {
         userNotes: etut.notes || '',
         teacherFeedback: etut.teacherFeedback || '',
         studentAttendance: etut.studentAttendance || {},
+        attendanceTakenBy: etut.attendanceTakenBy || undefined,
         teacherId: etut.teacherId,
         teacherName: etut.teacherName,
         teacherIds: etut.teacherIds && etut.teacherIds.length > 1 ? etut.teacherIds : undefined,
@@ -1922,7 +1921,7 @@ export class DataService {
         date: cleanDate,
         time: etut.time,
         duration: Number(etut.duration) || 45,
-        location: etut.location || 'Derslik',
+        location: etut.location || '',
         assigned_student_ids: finalAssigned,
         notes: meta,
       };
@@ -1999,10 +1998,10 @@ export class DataService {
             subject: re.subject,
             topic: re.topic,
             date: re.date ? re.date.trim().split('T')[0] : '',
-            time: re.time || '16:00',
+            time: re.time || '',
             duration: Number(re.duration) || parsedMeta.duration || 45,
             assignedStudentIds: incomingAssigned,
-            location: re.location || 'Derslik',
+            location: re.location || '',
             notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
             teacherFeedback: parsedMeta.teacherFeedback || '',
             createdAt: re.created_at || new Date().toISOString(),
@@ -2015,6 +2014,7 @@ export class DataService {
             gradeLevel: parsedMeta.gradeLevel,
             schoolLevel: parsedMeta.schoolLevel,
             studentAttendance: parsedMeta.studentAttendance || {},
+            attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
             createdById: parsedMeta.createdById || undefined,
             createdByName: parsedMeta.createdByName || undefined,
             recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
@@ -2023,10 +2023,7 @@ export class DataService {
           const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
           if (existingIdx !== -1) {
             const current = this.etuts[existingIdx];
-            const mergedAttendance = {
-              ...(incomingEtut.studentAttendance || {}),
-              ...(current.studentAttendance || {}),
-            };
+            const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
 
             const isDifferent =
               current.subject !== incomingEtut.subject ||
@@ -2870,6 +2867,26 @@ export class DataService {
   // Veritabanı satırına gömülebilecek en büyük dosya (≈1 MB). Daha büyükleri Aşama 5'te dosya deposuna taşınacak.
   public static readonly MAX_INLINE_FILE_CHARS = 1_400_000;
   public static etutTeacherColumnAvailable = true;
+
+  // Aşama 16: yoklama birleştirme — her öğrenci için en son işaretlenen durum geçerlidir
+  // (başka cihazdan / e-postadaki yoklama bağlantısından gelen yeni yoklama eskisinin altında kalmaz)
+  public static mergeAttendance(
+    incoming?: Record<string, EtutStudentAttendance>,
+    local?: Record<string, EtutStudentAttendance>
+  ): Record<string, EtutStudentAttendance> {
+    const out: Record<string, EtutStudentAttendance> = { ...(local || {}) };
+    for (const [id, inc] of Object.entries(incoming || {})) {
+      const cur = out[id];
+      if (!cur) {
+        out[id] = inc;
+        continue;
+      }
+      const ti = (inc && (inc.updatedAt || inc.markedAt)) || '';
+      const tl = (cur && (cur.updatedAt || cur.markedAt)) || '';
+      if (ti >= tl) out[id] = inc;
+    }
+    return out;
+  }
   private static legacySessionKeyCleared = false;
 
   // Supabase bir istekte en fazla 1000 satır döndürür. Büyük tablolar sayfa sayfa (aynı anda 4 sayfa) okunur;

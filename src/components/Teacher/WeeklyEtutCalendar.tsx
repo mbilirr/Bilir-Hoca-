@@ -546,7 +546,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                           </div>
                           <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-semibold flex items-center space-x-1">
                             <Clock className="w-3 h-3 text-amber-600 dark:text-amber-300" />
-                            <span>{etut.time}</span>
+                            <span>{etut.time || 'Saat yok'}</span>
                           </span>
                         </div>
 
@@ -645,7 +645,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                                   `etut-${etut.id}`,
                                   `[ETÜT] ${etut.subject}: ${etut.topic}`,
                                   etut.notes || `${etut.location || 'Derslik'}`,
-                                  `${etut.date}T${etut.time}:00`,
+                                  `${etut.date}T${etut.time || '14:00'}:00`,
                                   etut.duration || 45,
                                   etut.location || 'Okul'
                                 );

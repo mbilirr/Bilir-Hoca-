@@ -39,6 +39,7 @@ const EVENT_LABEL: Record<string, string> = {
   'etut-changed': 'Etüt değişti',
   'etut-cancelled': 'Etüt iptal',
   'etut-unassigned': 'Etüt başkasına verildi',
+  'etut-attendance': 'Etüt yoklama bağlantısı',
   test: 'Deneme',
 };
 type Filter = 'all' | 'homework' | 'etut' | 'failed';

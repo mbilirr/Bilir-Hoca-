@@ -56,6 +56,7 @@ interface Props {
 
 const LESSON_PERIODS = ['1. Ders', '2. Ders', '3. Ders', '4. Ders', '5. Ders', '6. Ders', '7. Ders', '8. Ders', '9. Ders', '10. Ders'];
 const DURATIONS = [30, 40, 45, 60, 80, 90];
+const DEFAULT_DURATION = 40;
 
 const toMin = (t: string) => {
   const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
@@ -275,6 +276,8 @@ const EtutFormContent: React.FC<Props> = ({
 
   // ---- çakışma kontrolü (aynı öğretmen veya aynı öğrenci, aynı gün, kesişen saat)
   const findConflicts = (): string[] => {
+    // Aşama 16: saat girilmediyse çakışma denetlenemez
+    if (!/^\d{2}:\d{2}$/.test(time)) return [];
     const start = toMin(time);
     const end = start + (Number(duration) || 40);
     const sel = new Set(selectedIds);
@@ -317,11 +320,16 @@ const EtutFormContent: React.FC<Props> = ({
     if (!topic.trim()) return setErrorText('Etüt konusunu yazın.');
     if (selectedIds.length === 0) return setErrorText('En az bir öğrenci seçin.');
     if (!date) return setErrorText('Tarih seçin.');
-    if (!/^\d{2}:\d{2}$/.test(time)) return setErrorText('Başlangıç saatini seçin.');
-    const dur = Number(duration);
-    if (!dur || dur < 10 || dur > 300) return setErrorText('Süre 10 ile 300 dakika arasında olmalı.');
-    if (!isEdit && new Date(`${date}T${time}:00`).getTime() < Date.now() - 5 * 60000) {
-      return setErrorText('Geçmiş bir saate etüt planlanamaz.');
+    // Aşama 16: zaman ve yer bölümünde yalnız tarih zorunlu; saat, süre ve yer isteğe bağlı
+    const hasTime = /^\d{2}:\d{2}$/.test(time);
+    if (time && !hasTime) return setErrorText('Başlangıç saati geçersiz. Silebilir ya da yeniden seçebilirsiniz.');
+    const dur = Number(duration) || DEFAULT_DURATION;
+    if (dur < 10 || dur > 300) return setErrorText('Süre 10 ile 300 dakika arasında olmalı (boş bırakılırsa 40 dk sayılır).');
+    if (!isEdit) {
+      if (hasTime && new Date(`${date}T${time}:00`).getTime() < Date.now() - 5 * 60000) {
+        return setErrorText('Geçmiş bir saate etüt planlanamaz.');
+      }
+      if (!hasTime && date < localDateStr(new Date())) return setErrorText('Geçmiş bir güne etüt planlanamaz.');
     }
     if (!force) {
       const found = findConflicts();
@@ -339,9 +347,9 @@ const EtutFormContent: React.FC<Props> = ({
       subject: effectiveSubject,
       topic: topic.trim(),
       notes: notes.trim(),
-      time,
+      time: hasTime ? time : '',
       duration: dur,
-      location: location.trim() || 'Derslik',
+      location: location.trim(),
       lessonPeriod: lessonPeriod || 'Ders',
       teacherId: selectedTeacher.id,
       teacherName: teacherNamesText,
@@ -626,11 +634,15 @@ const EtutFormContent: React.FC<Props> = ({
               </select>
             </div>
             <div>
-              <FieldLabel htmlFor="etut-time">Başlangıç</FieldLabel>
+              <FieldLabel htmlFor="etut-time" optional>
+                Başlangıç
+              </FieldLabel>
               <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <FieldLabel htmlFor="etut-duration">Süre (dk)</FieldLabel>
+              <FieldLabel htmlFor="etut-duration" optional>
+                Süre (dk)
+              </FieldLabel>
               <input
                 id="etut-duration"
                 type="number"
@@ -638,11 +650,15 @@ const EtutFormContent: React.FC<Props> = ({
                 max={300}
                 step={5}
                 value={duration || ''}
+                placeholder="40"
                 onChange={(e) => setDuration(Number(e.target.value))}
                 className={inputCls}
               />
             </div>
           </div>
+          <p className="text-[11px] text-muted" id="etut-time-hint">
+            Yalnızca tarih zorunlu. Saat, süre ve yer boş bırakılabilir (süre boşsa 40 dk sayılır).
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {DURATIONS.map((d) => (
               <button key={d} type="button" className={chipCls(Number(duration) === d)} onClick={() => setDuration(d)}>
@@ -652,7 +668,9 @@ const EtutFormContent: React.FC<Props> = ({
             {endLabel && <span className="self-center text-[11px] text-muted ml-1">Bitiş: {endLabel}</span>}
           </div>
           <div>
-            <FieldLabel htmlFor="etut-location">Yer</FieldLabel>
+            <FieldLabel htmlFor="etut-location" optional>
+              Yer
+            </FieldLabel>
             <input
               id="etut-location"
               list="etut-location-list"

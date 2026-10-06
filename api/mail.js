@@ -502,7 +502,7 @@ function etutRows(etut, teacherName) {
     ['Ders', etut.subject],
     ['Konu', etut.topic],
     ['Tarih', trDate(etut.date)],
-    ['Saat', `${clean(etut.time)}${end ? ` – ${end}` : ''} (${Number(etut.duration) || 45} dk)`],
+    ['Saat', clean(etut.time) ? `${clean(etut.time)}${end ? ` – ${end}` : ''} (${Number(etut.duration) || 45} dk)` : 'Belirtilmedi'],
     ['Yer', etut.location],
     ['Etüt öğretmeni', teacherName],
     ['Not', clean(etut.userNotes).slice(0, 400)],
@@ -529,6 +529,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
     'etut-assigned': ['Size bir etüt atandı', `Size etüt atandı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-changed': ['Etüt bilgileri değişti', `Etüt güncellendi: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-cancelled': ['Etüt iptal edildi', `Etüt iptal edildi: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
+    'etut-attendance': ['Etüt yoklama bağlantınız', `Yoklama bağlantısı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-unassigned': [
       'Etüt artık size atanmış değil',
       `Etüt başka öğretmene verildi: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`,
@@ -540,6 +541,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
     'etut-assigned': `${creatorName} aşağıdaki etüdü size atadı.`,
     'etut-changed': `${creatorName} aşağıdaki etüdün bilgilerini değiştirdi.`,
     'etut-cancelled': `${creatorName} aşağıdaki etüdü iptal etti. Etüt yapılmayacaktır.`,
+    'etut-attendance': `${creatorName} aşağıdaki etüdün yoklamasını almanızı istiyor. Etüt günü aşağıdaki düğmeye dokunun; sisteme giriş yapmanız gerekmez.`,
     'etut-unassigned': `${creatorName} aşağıdaki etüdü başka bir öğretmene verdi; bu etüde girmenize gerek yok.`,
   };
   let changesHtml = '';
@@ -559,12 +561,218 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
     greeting: `Merhaba ${clean(teacher.name)},`,
     intro: intros[kind],
     rows: etutRows(etut, etut.teacherIds && etut.teacherIds.length > 1 && etut.teacherName ? etut.teacherName : teacher.name),
-    extraHtml: changesHtml + (showStudents ? list.html : ''),
-    extraText: [changesText, showStudents ? list.text : ''].filter(Boolean).join('\n\n'),
-    buttonLabel: showStudents ? 'Sistemde görüntüle' : undefined,
-    url: showStudents ? url : undefined,
+    // Aşama 16: her öğretmene bu etüde özel, girişsiz yoklama bağlantısı
+    buttonLabel: showStudents ? 'Yoklamayı al' : undefined,
+    url: showStudents ? attendanceUrl(url, etut.id, teacher.id) : undefined,
+    extraText: [changesText, showStudents ? list.text : '', showStudents ? ATTENDANCE_HINT : ''].filter(Boolean).join('\n\n'),
+    extraHtml:
+      changesHtml +
+      (showStudents ? list.html : '') +
+      (showStudents ? `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:#64748b">${esc(ATTENDANCE_HINT)}</p>` : ''),
   });
   return { subject, ...body };
+}
+
+// ----------------------------------------------------------------------------- Girişsiz etüt yoklaması (Aşama 16)
+// Bağlantı yalnızca o etüdü ve o öğretmeni içerir, sunucunun gizli anahtarıyla imzalanır (değiştirilemez).
+// Öğretmen etütten çıkarılırsa ya da etüt silinirse bağlantı çalışmaz. Yoklama etüt gününden
+// itibaren 3 gün kaydedilebilir; bağlantı en geç 60 gün sonra tamamen geçersiz olur.
+const ATTENDANCE_HINT =
+  'Yoklama bağlantısı yalnız bu etüt içindir ve kişiseldir; başkasıyla paylaşmayın. Yoklama etüt gününden itibaren 3 gün içinde kaydedilebilir.';
+const ATT_TOKEN_DAYS = 60;
+const ATT_SAVE_DAYS = 3;
+const ATT_STATUSES = new Set(['present', 'absent', 'late']);
+function b64u(buf) {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function attendanceKey() {
+  const e = env();
+  const base = e.secretKey || e.service;
+  if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
+  return crypto.createHash('sha256').update(`etut-attendance:${base}`).digest();
+}
+function makeAttendanceToken(etutId, teacherId) {
+  const payload = b64u(JSON.stringify({ e: String(etutId), t: String(teacherId), x: Math.floor(Date.now() / 1000) + ATT_TOKEN_DAYS * 86400 }));
+  const sig = b64u(crypto.createHmac('sha256', attendanceKey()).update(payload).digest());
+  return `${payload}.${sig}`;
+}
+function attendanceUrl(base, etutId, teacherId) {
+  if (!base || !etutId || !teacherId) return undefined;
+  try {
+    return `${String(base).replace(/\/+$/, '')}/?yoklama=${makeAttendanceToken(etutId, teacherId)}`;
+  } catch {
+    return undefined;
+  }
+}
+function readAttendanceToken(token) {
+  if (typeof token !== 'string' || token.length > 800 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))
+    throw new HttpError(400, 'Yoklama bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.');
+  const [payload, sig] = token.split('.');
+  const expected = b64u(crypto.createHmac('sha256', attendanceKey()).update(payload).digest());
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
+    throw new HttpError(400, 'Yoklama bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.');
+  let data;
+  try {
+    data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  } catch {
+    throw new HttpError(400, 'Yoklama bağlantısı geçersiz.');
+  }
+  if (!data || typeof data.e !== 'string' || typeof data.t !== 'string') throw new HttpError(400, 'Yoklama bağlantısı geçersiz.');
+  if (!(Number(data.x) > Date.now() / 1000)) throw new HttpError(410, 'Bu yoklama bağlantısının süresi dolmuş.');
+  return { etutId: data.e, teacherId: data.t };
+}
+function istanbulToday() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+async function loadAttendanceContext(token) {
+  const { etutId, teacherId } = readAttendanceToken(token);
+  const rows = await rest(`etuts?select=*&id=eq.${encodeURIComponent(etutId)}`, { token: 'service' });
+  const row = rows && rows[0];
+  if (!row) throw new HttpError(404, 'Bu etüt silinmiş ya da bulunamadı.');
+  const etut = etutView(row);
+  if (!etut.teacherIds.includes(teacherId)) throw new HttpError(403, 'Bu etüde artık atanmış değilsiniz; bağlantı geçersiz.');
+  const teacher = await resolveEtutTeacher(teacherId, null);
+  const meta = parseEtutMeta(row);
+  const students = (await studentsByIds(etut.studentIds, 'service')).sort((x, y) => String(x.name || '').localeCompare(String(y.name || ''), 'tr'));
+  const today = istanbulToday();
+  const date = String(etut.date || '').slice(0, 10);
+  const last = addDaysYmd(date, ATT_SAVE_DAYS);
+  let canSave = true;
+  let reason = '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    canSave = false;
+    reason = 'Etüt tarihi okunamadı.';
+  } else if (today < date) {
+    canSave = false;
+    reason = `Yoklama etüt günü (${trDate(date)}) alınabilir. Listeyi şimdiden görebilirsiniz.`;
+  } else if (today > last) {
+    canSave = false;
+    reason = 'Yoklama süresi doldu (etüt gününden itibaren 3 gün). Değişiklik için etüdü oluşturan öğretmene başvurun.';
+  }
+  if (!students.length) {
+    canSave = false;
+    reason = reason || 'Bu etütte kayıtlı öğrenci bulunamadı.';
+  }
+  return { row, etut, meta, teacher, teacherId, students, canSave, reason };
+}
+async function actionAttendanceGet(body) {
+  const c = await loadAttendanceContext(body.token);
+  const att = (c.meta && typeof c.meta.studentAttendance === 'object' && c.meta.studentAttendance) || {};
+  return {
+    ok: true,
+    etut: {
+      subject: clean(c.etut.subject),
+      topic: clean(c.etut.topic),
+      date: c.etut.date,
+      time: clean(c.etut.time),
+      duration: Number(c.etut.duration) || 45,
+      location: clean(c.etut.location),
+      teacherNames: clean(c.etut.teacherName),
+    },
+    teacherName: (c.teacher && c.teacher.name) || '',
+    students: c.students.map((s) => ({ id: s.id, name: clean(s.name), className: clean(s.class_name) })),
+    attendance: Object.fromEntries(
+      Object.entries(att)
+        .filter(([, v]) => v && typeof v.status === 'string')
+        .map(([k, v]) => [k, v.status])
+    ),
+    takenBy: c.meta && c.meta.attendanceTakenBy ? { name: clean(c.meta.attendanceTakenBy.name), at: c.meta.attendanceTakenBy.at || null } : null,
+    canSave: c.canSave,
+    reason: c.reason,
+  };
+}
+async function actionAttendanceSave(body) {
+  const c = await loadAttendanceContext(body.token);
+  if (!c.canSave) throw new HttpError(409, c.reason || 'Yoklama şu anda kaydedilemez.');
+  const records = body.records && typeof body.records === 'object' ? body.records : {};
+  const byId = new Map(c.students.map((s) => [s.id, s]));
+  const entries = Object.entries(records).filter(([id]) => byId.has(id));
+  if (!entries.length) throw new HttpError(400, 'Yoklama boş. Öğrencilerin durumunu seçin.');
+  for (const [, st] of entries) if (!ATT_STATUSES.has(st)) throw new HttpError(400, 'Geçersiz yoklama durumu.');
+  const now = new Date().toISOString();
+  const teacherName = (c.teacher && c.teacher.name) || 'Etüt öğretmeni';
+  const prev = (c.meta && typeof c.meta.studentAttendance === 'object' && c.meta.studentAttendance) || {};
+  const next = { ...prev };
+  for (const [id, status] of entries) {
+    const s = byId.get(id);
+    next[id] = { ...(prev[id] || {}), studentId: id, studentName: s.name, status, note: (prev[id] && prev[id].note) || '', markedAt: now, updatedAt: now, markedBy: teacherName };
+  }
+  const meta = { ...(c.meta || {}), __etut_meta__: true, studentAttendance: next, attendanceTakenBy: { name: teacherName, at: now, via: 'link' } };
+  await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
+    token: 'service',
+    method: 'PATCH',
+    body: { notes: JSON.stringify(meta) },
+    prefer: 'return=minimal',
+  });
+  // Öğrencinin genel devamsızlık kaydına da yansıt (sistemdeki yoklama penceresiyle aynı kural)
+  try {
+    const first = c.students.find((s) => next[s.id]);
+    const classId = (first && first.class_id) || 'class-etut-general';
+    const subject = `${c.etut.subject} (Etüt)`;
+    const found = await rest(
+      `attendance?select=id&date=eq.${encodeURIComponent(c.etut.date)}&class_id=eq.${encodeURIComponent(classId)}&subject=eq.${encodeURIComponent(subject)}`,
+      { token: 'service' }
+    );
+    const id = (found && found[0] && found[0].id) || `att-${Date.now()}`;
+    const recs = Object.entries(next).map(([sid, v]) => ({
+      studentId: sid,
+      studentName: (v && v.studentName) || (byId.get(sid) && byId.get(sid).name) || 'Öğrenci',
+      status: v && v.status,
+      note: (v && v.note) || `Etüt: ${c.etut.topic || c.etut.subject}`,
+    }));
+    await rest('attendance?on_conflict=id', {
+      token: 'service',
+      method: 'POST',
+      body: [{ id, class_id: classId, date: c.etut.date, subject, records: recs }],
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    });
+  } catch (err) {
+    console.warn('[yoklama] genel devamsızlık kaydı yazılamadı:', err && err.message);
+  }
+  return { ok: true, saved: entries.length, at: now };
+}
+
+// Etüdü oluşturan (veya yönetici) atanmış öğretmenlere yoklama bağlantısını yeniden gönderir
+async function actionEtutAttendanceLink(caller, body, req, deadline) {
+  const row = await fetchVisible('etuts', body.etutId, caller.token);
+  const etut = etutView(row);
+  if (etut.createdById && caller.teacherId && etut.createdById !== caller.teacherId && !caller.isAdmin && !etut.teacherIds.includes(caller.teacherId)) {
+    throw new HttpError(403, 'Bu etüdün yoklama bağlantısını yalnızca etüdü oluşturan öğretmen gönderebilir.');
+  }
+  const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
+  const students = await studentsByIds(etut.studentIds, caller.token);
+  const url = appUrl(req);
+  const items = [];
+  const notes = [];
+  for (const t of teachers) {
+    if (t.authId && t.authId === caller.authId) {
+      notes.push({ status: 'self', name: t.name });
+      continue;
+    }
+    if (!isEmail(t.email)) {
+      notes.push({ status: 'no-email', name: t.name });
+      continue;
+    }
+    items.push({
+      event: 'etut-attendance',
+      refId: etut.id,
+      refTitle: `${etut.subject} – ${etut.topic}`,
+      to: t.email,
+      toName: t.name,
+      role: 'ogretmen',
+      ...etutTeacherMail('etut-attendance', etut, t, students, caller.name, url),
+    });
+    notes.push({ status: 'queued', name: t.name });
+  }
+  const sender = await resolveSender(caller);
+  const summary = await deliver(sender, caller, items, deadline);
+  return { ok: true, total: items.length, teachers: notes, ...summary };
 }
 
 // ----------------------------------------------------------------------------- Gönderen hesap
@@ -1625,6 +1833,12 @@ export default async function handler(req, res) {
       }
     }
     body = body && typeof body === 'object' ? body : {};
+    // Aşama 16: e-postadaki yoklama bağlantısı (giriş gerektirmez; imzalı bağlantı denetlenir)
+    if (body.action === 'attendance-get' || body.action === 'attendance-save') {
+      if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
+      const r = body.action === 'attendance-get' ? await actionAttendanceGet(body) : await actionAttendanceSave(body);
+      return res.status(200).json(r);
+    }
     const caller = await getCaller(req);
     let result;
     switch (body.action) {
@@ -1651,6 +1865,9 @@ export default async function handler(req, res) {
         break;
       case 'etut-cancelled':
         result = await actionEtutTeacherOnly('etut-cancelled', caller, body, req, deadline);
+        break;
+      case 'etut-attendance-link':
+        result = await actionEtutAttendanceLink(caller, body, req, deadline);
         break;
       case 'question-target':
         result = await actionQuestionTarget(caller, body, req, deadline);

@@ -14,6 +14,7 @@ export type MailAction =
   | 'etut-created'
   | 'etut-changed'
   | 'etut-cancelled'
+  | 'etut-attendance-link'
   | 'question-target'
   | 'teacher-account'
   | 'reminders';

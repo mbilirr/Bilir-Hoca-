@@ -36,6 +36,8 @@ export function etutStart(e: Etut): Date | null {
 export function etutEnd(e: Etut): Date | null {
   const start = etutStart(e);
   if (!start) return null;
+  // Saat girilmemiş etüt gün boyunca "bugünün etüdü" sayılır
+  if (!/^\d{1,2}:\d{2}/.test(e.time || '')) return new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59);
   return new Date(start.getTime() + (Number(e.duration) || 45) * 60000);
 }
 

@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -34,12 +34,30 @@ if (typeof Node === 'function' && Node.prototype) {
   };
 }
 
+// Aşama 16: e-postadaki yoklama bağlantısı (…/?yoklama=…) giriş gerektirmeyen ayrı bir sayfa açar
+const attendanceToken = (() => {
+  try {
+    return new URLSearchParams(window.location.search).get('yoklama');
+  } catch {
+    return null;
+  }
+})();
+const EtutAttendancePage = lazy(() =>
+  import('./components/Public/EtutAttendancePage').then((m) => ({ default: m.EtutAttendancePage }))
+);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      {attendanceToken ? (
+        <Suspense fallback={null}>
+          <EtutAttendancePage token={attendanceToken} />
+        </Suspense>
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
-    <UpdateAvailableBanner />
+    {!attendanceToken && <UpdateAvailableBanner />}
   </StrictMode>,
 );
 

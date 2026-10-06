@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { normalizeSubject } from '../../lib/subjects';
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   CalendarDays,
   LayoutGrid,
@@ -103,6 +105,26 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   }, [etuts, currentTeacher]);
 
   const activeEtuts = scopeFilter === 'mine' ? myEtuts : etuts;
+
+  // Aşama 16: Liste görünümünde ders süzgeci (Tüm dersler / tek ders) ve parça parça çizim
+  const [listSubject, setListSubject] = useState<string>('all');
+  const listSubjects = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of activeEtuts) {
+      const s = normalizeSubject(e.subject) || 'Belirtilmemiş';
+      m.set(s, (m.get(s) || 0) + 1);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr'));
+  }, [activeEtuts]);
+  const effectiveListSubject = listSubject !== 'all' && listSubjects.some(([s]) => s === listSubject) ? listSubject : 'all';
+  const listEtuts = useMemo(
+    () =>
+      effectiveListSubject === 'all'
+        ? activeEtuts
+        : activeEtuts.filter((e) => (normalizeSubject(e.subject) || 'Belirtilmemiş') === effectiveListSubject),
+    [activeEtuts, effectiveListSubject]
+  );
+  const pagedListEtuts = usePagedList(listEtuts, `${effectiveListSubject}|${scopeFilter}`, 30);
 
   // Etüt oluştur / düzenle penceresi (Aşama 9)
   const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null } | null>(null);
@@ -294,8 +316,33 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
       {viewMode === 'cards' && (
         /* Etüt List */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {activeEtuts.map((etut) => {
+        <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2" id="etut-list-filter">
+          <label htmlFor="etut-list-subject" className="text-xs font-semibold text-muted">
+            Ders
+          </label>
+          <select
+            id="etut-list-subject"
+            value={effectiveListSubject}
+            onChange={(e) => setListSubject(e.target.value)}
+            className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand min-w-[12rem]"
+          >
+            <option value="all">Tüm dersler ({activeEtuts.length})</option>
+            {listSubjects.map(([s, n]) => (
+              <option key={s} value={s}>
+                {s} ({n})
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-muted" id="etut-list-count">
+            {listEtuts.length} etüt listeleniyor
+          </span>
+        </div>
+        {listEtuts.length === 0 && (
+          <div className="ui-card p-8 text-center text-sm text-muted">Bu seçimde etüt yok.</div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="etut-list-grid">
+          {pagedListEtuts.visible.map((etut) => {
             const assignedStudents =
               etut.assignedStudentIds === 'all'
                 ? students
@@ -364,7 +411,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <div className="flex items-center space-x-2">
                       <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
                       <span className="text-fg font-medium">
-                        {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time} ({etut.duration} dk)
+                        {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -498,7 +545,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         `etut-${etut.subject}-${etut.date}`,
                         `[ETÜT] ${etut.subject}: ${etut.topic}`,
                         etut.notes || `${etut.location} yerinde etüt çalışması`,
-                        `${etut.date}T${etut.time}:00`,
+                        `${etut.date}T${etut.time || '14:00'}:00`,
                         etut.duration,
                         etut.location
                       )
@@ -512,6 +559,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </div>
             );
           })}
+        </div>
+        <ShowMoreBar
+          id="etut-list-show-more"
+          remaining={pagedListEtuts.remaining}
+          total={pagedListEtuts.total}
+          shown={pagedListEtuts.visible.length}
+          onMore={pagedListEtuts.showMore}
+          onAll={pagedListEtuts.showAll}
+          step={30}
+        />
         </div>
       )}
 
@@ -694,7 +751,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                     <span className="flex items-center space-x-1.5">
                       <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
-                      <span>{new Date(currentAttendanceEtut.date).toLocaleDateString('tr-TR')} • {currentAttendanceEtut.time} ({currentAttendanceEtut.duration} dk)</span>
+                      <span>{new Date(currentAttendanceEtut.date).toLocaleDateString('tr-TR')} • {currentAttendanceEtut.time ? `${currentAttendanceEtut.time} (${currentAttendanceEtut.duration} dk)` : 'Saat belirtilmedi'}</span>
                     </span>
                     <span className="flex items-center space-x-1.5">
                       <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />

@@ -820,7 +820,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                             `etut-${etut.id}`,
                             `[ETÜT] ${etut.subject}: ${etut.topic}`,
                             etut.notes || `${etut.location} dersliği`,
-                            `${etut.date}T${etut.time}:00`,
+                            `${etut.date}T${etut.time || '14:00'}:00`,
                             etut.duration,
                             etut.location
                           )

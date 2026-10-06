@@ -347,7 +347,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
               <div className="flex items-center space-x-2 truncate">
                 <Clock className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" />
                 <span className="font-bold">Bugün {todayEtuts.length} Etüdünüz Var:</span>
-                <span className="truncate">{todayEtuts[0].subject} ({todayEtuts[0].time})</span>
+                <span className="truncate">{todayEtuts[0].subject}{todayEtuts[0].time ? ` (${todayEtuts[0].time})` : ''}</span>
               </div>
               <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300 shrink-0 ml-2">Etüte Git →</span>
             </div>
