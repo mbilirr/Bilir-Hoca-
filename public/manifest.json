@@ -3,15 +3,21 @@
   "name": "Eğitim & Öğrenci Takip Sistemi",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "192x192 512x512",
-      "purpose": "any maskable"
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
-      "src": "/logo.svg",
-      "type": "image/svg+xml",
+      "src": "/icon-512.png",
+      "type": "image/png",
       "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
       "purpose": "any"
     }
   ],
@@ -19,5 +25,6 @@
   "background_color": "#020617",
   "theme_color": "#4f46e5",
   "display": "standalone",
-  "orientation": "portrait"
+  "id": "/",
+  "lang": "tr"
 }

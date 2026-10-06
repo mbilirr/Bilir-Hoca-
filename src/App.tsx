@@ -40,6 +40,7 @@ const EtutManagement = lazyNamed(() => import('./components/Teacher/EtutManageme
 const TeacherMessages = lazyNamed(() => import('./components/Teacher/TeacherMessages'), 'TeacherMessages');
 const TeacherHome = lazyNamed(() => import('./components/Teacher/TeacherHome'), 'TeacherHome');
 const TeacherDocumentsArchive = lazyNamed(() => import('./components/Teacher/Documents/TeacherDocumentsArchive'), 'TeacherDocumentsArchive');
+const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttendance'), 'GradeAttendance');
 const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
@@ -457,7 +458,7 @@ export default function App() {
                     <StudentManagement
                       students={students}
                       classes={classes}
-                      onSelectStudentForHomework={(std) => {
+                      onSelectStudentForHomework={() => {
                         setTeacherTab('homework');
                       }}
                     />
@@ -490,6 +491,10 @@ export default function App() {
                       documents={documents}
                       onDocumentsChange={() => setDocuments(dataService.getTeacherDocuments())}
                     />
+                  )}
+
+                  {teacherTab === 'grades' && (
+                    <GradeAttendance students={students} classes={classes} grades={grades} attendance={attendance} />
                   )}
 
                   {teacherTab === 'question_tracking' && (

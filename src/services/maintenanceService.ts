@@ -4,6 +4,7 @@
 // Aşama 15: Excel kütüphanesi (yaklaşık 420 KB) yalnız yedek alınırken yüklenir
 import { supabase } from '../lib/supabase';
 import { uploadFile, removeStoredFiles, dataUrlToFile } from '../lib/fileStorage';
+import { newId } from '../lib/ids';
 
 // ---------------------------------------------------------------------------
 // ORTAK: tablodan tüm satırları sayfa sayfa okur (sunucu tek seferde en fazla 1000 satır verir)
@@ -291,7 +292,7 @@ export async function migrateLegacyInlineFiles(
       meta.resources = resources;
       if (isDataUrl(meta.attachmentUrl)) {
         const moved = await moveOne(`odev/${hw.id}`, meta.attachmentUrl, 'ek-dosya', uploaded);
-        meta.resources = [...meta.resources, { id: `res-legacy-${Date.now()}`, type: 'pdf', title: 'Ek Dosya', url: moved.url, fileSize: moved.fileSize }];
+        meta.resources = [...meta.resources, { id: newId('res-legacy'), type: 'pdf', title: 'Ek Dosya', url: moved.url, fileSize: moved.fileSize }];
         meta.attachmentUrl = null;
       }
       const { data: upd, error: updErr } = await supabase.from('homeworks').update({ meta }).eq('id', hw.id).select('id');
@@ -321,7 +322,7 @@ export async function migrateLegacyInlineFiles(
       const patch: Record<string, any> = { resources };
       if (isDataUrl(row.attachment_link)) {
         const moved = await moveOne(folder, row.attachment_link, 'ek-dosya', uploaded);
-        patch.resources = [...resources, { id: `res-legacy-${Date.now()}`, type: 'pdf', title: 'Ek Dosya', url: moved.url, fileSize: moved.fileSize }];
+        patch.resources = [...resources, { id: newId('res-legacy'), type: 'pdf', title: 'Ek Dosya', url: moved.url, fileSize: moved.fileSize }];
         patch.attachment_link = null;
       }
       const { data: upd, error: updErr } = await supabase.from('homework_submissions').update(patch).eq('id', sub.id).select('id');

@@ -165,13 +165,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           : await callMail('etut-changed', { etutId: e.id, changes: r.changes || [], previousTeacherId: r.previousTeacherId || null, previousTeacherIds: r.previousTeacherIds || null });
       if (!total) total = res;
       else {
+        const prev: MailResult = total;
         total = {
-          ...total,
-          ok: total.ok && res.ok,
-          sent: (total.sent || 0) + (res.sent || 0),
-          failed: (total.failed || 0) + (res.failed || 0),
-          skipped: (total.skipped || 0) + (res.skipped || 0),
-          errors: [...(total.errors || []), ...(res.errors || [])].slice(0, 3),
+          ...prev,
+          ok: prev.ok && res.ok,
+          sent: (prev.sent || 0) + (res.sent || 0),
+          failed: (prev.failed || 0) + (res.failed || 0),
+          skipped: (prev.skipped || 0) + (res.skipped || 0),
+          errors: [...(prev.errors || []), ...(res.errors || [])].slice(0, 3),
         };
       }
       if (!res.ok || res.notConfigured || res.authError) break;

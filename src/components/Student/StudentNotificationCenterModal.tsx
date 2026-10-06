@@ -97,7 +97,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
         senderName: notif.teacherName || 'Öğretmeniniz',
         senderEmail: 'bilgilendirme@ornek.k12.tr',
         recipientName: currentStudent.name,
-        recipientEmail: currentStudent.email,
+        recipientEmail: currentStudent.email || '',
         sentAt: notif.emailDetails.sentAt || notif.createdAt,
         htmlContent: notif.emailDetails.bodyHtml,
         textContent: notif.message,

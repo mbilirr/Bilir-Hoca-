@@ -1,4 +1,4 @@
-import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck } from 'lucide-react';
+import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { TeacherTabType } from '../../types';
 import type { Tone } from '../ui/kit';
@@ -21,6 +21,8 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   { id: 'etuts', title: 'Etütler', description: 'Etüt ve birebir çalışma takibi', icon: CalendarDays, tone: 'info', keywords: 'etüt birebir takvim yoklama' },
   { id: 'messages', title: 'Mesajlar', description: 'Öğrenci soruları ve mesajlaşma', icon: MessageSquare, tone: 'danger', keywords: 'mesaj soru cevap' },
   { id: 'archive', title: 'Arşiv', description: 'Plan ve zümre evrakları', icon: FolderArchive, tone: 'warning', keywords: 'evrak belge plan zümre yıllık' },
+  // Aşama 17 (rapor Ö13): not ve devamsızlık girişi menüye bağlandı
+  { id: 'grades', title: 'Not & Yoklama', description: 'Sınav notları ve ders yoklaması', icon: ClipboardCheck, tone: 'success', keywords: 'not yazılı sınav puan yoklama devamsızlık' },
   { id: 'question_tracking', title: 'Soru Takibi', description: 'Çözülen soru sayıları ve analiz', icon: HelpCircle, tone: 'info', keywords: 'soru sayısı analiz hedef grafik' },
   {
     id: 'user_management',

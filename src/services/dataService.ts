@@ -48,6 +48,7 @@ import {
   normalizeAcademicYear,
   currentAcademicYear,
 } from '../lib/importNormalize';
+import { newId } from '../lib/ids';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -108,7 +109,7 @@ export function cleanStudentEmail(email?: string | null): string {
 
 // DATA STORE LOCAL STORAGE KEYS
 // Kurum yöneticisinin e-postası (veritabanındaki is_admin() kuralıyla aynı)
-const ADMIN_EMAIL = 'm.bilirr@gmail.com';
+export const ADMIN_EMAIL = 'm.bilirr@gmail.com';
 
 const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
@@ -1455,8 +1456,41 @@ export class DataService {
   }
 
   // --- TOMBSTONES SYNCHRONIZATION (CROSS-DEVICE GUARANTEE FOR DELETIONS) ---
+  // ---------------------------------------------------------------------------
+  // SİLİNEN KAYITLAR LİSTESİ (Aşama 17, rapor K8)
+  // Silinen öğrenci/sınıf/soru kaydı kimlikleri artık ödev tablosundaki ortak satırda değil, kendi
+  // tablosunda (deleted_records) satır satır tutulur: iki cihaz aynı anda silse de birbirini ezmez.
+  // 16 numaralı SQL çalıştırılmadıysa eski ortak satır kullanılmaya devam eder.
+  // ---------------------------------------------------------------------------
+  private static deletedRecordsTable: 'unknown' | 'yes' | 'no' = 'unknown';
+  private tombstonesPushed = new Set<string>();
+
   public async syncTombstonesToCloud(): Promise<void> {
     try {
+      if (DataService.deletedRecordsTable !== 'no') {
+        const rows: Array<{ id: string; kind: string; record_id: string }> = [];
+        const add = (kind: string, ids: Set<string>) =>
+          ids.forEach((id) => {
+            const key = `${kind}:${id}`;
+            if (id && !this.tombstonesPushed.has(key)) rows.push({ id: key, kind, record_id: id });
+          });
+        add('student', this.deletedStudentIds);
+        add('class', this.deletedClassIds);
+        add('question_log', this.deletedQuestionLogIds);
+        if (rows.length === 0) return;
+        const { error } = await supabase.from('deleted_records').upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+        if (!error) {
+          DataService.deletedRecordsTable = 'yes';
+          rows.forEach((r) => this.tombstonesPushed.add(r.id));
+          return;
+        }
+        if (!/deleted_records|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) {
+          console.warn('Silinen kayıt listesi buluta yazılamadı:', error.message);
+          return;
+        }
+        DataService.deletedRecordsTable = 'no';
+      }
+      // Eski yol (16 numaralı SQL henüz çalıştırılmadıysa)
       const payload = {
         deletedStudentIds: Array.from(this.deletedStudentIds),
         deletedClassIds: Array.from(this.deletedClassIds),
@@ -1476,76 +1510,69 @@ export class DataService {
     }
   }
 
+  // Buluttaki listeyi yerel listeye ekler; silinmiş kayıtlar ekrandan da kaldırılır
+  private applyTombstones(lists: { students?: string[]; classes?: string[]; questionLogs?: string[] }): void {
+    let changed = false;
+    const addAll = (ids: string[] | undefined, set: Set<string>) =>
+      (ids || []).forEach((id) => {
+        if (id && !set.has(id)) {
+          set.add(id);
+          changed = true;
+        }
+      });
+    addAll(lists.students, this.deletedStudentIds);
+    addAll(lists.classes, this.deletedClassIds);
+    addAll(lists.questionLogs, this.deletedQuestionLogIds);
+    if (!changed) return;
+    saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
+    saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
+    saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
+    const prevStd = this.students.length;
+    this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
+    if (this.students.length !== prevStd) saveData(STORAGE_KEYS.STUDENTS, this.students);
+    const prevCls = this.classes.length;
+    this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
+    if (this.classes.length !== prevCls) saveData(STORAGE_KEYS.CLASSES, this.classes);
+    const prevLogs = this.questionLogs.length;
+    this.questionLogs = this.questionLogs.filter((q) => !this.deletedQuestionLogIds.has(q.id));
+    if (this.questionLogs.length !== prevLogs) saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
+    this.notify();
+  }
+
+  private tombstonesFetchedAt = 0;
   public async syncTombstonesFromCloud(): Promise<void> {
     // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
-    // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
+    // Öğrenci bu listeye erişmez; bir eşitleme içinde birden çok kez okunmaz
+    if (this.getAuthSession()?.role === 'student') return;
+    if (Date.now() - this.tombstonesFetchedAt < 5000) return;
+    this.tombstonesFetchedAt = Date.now();
     try {
-      const { data } = await supabase
-        .from('homeworks')
-        .select('description')
-        .eq('id', '__system_sync_tombstones__')
-        .maybeSingle();
-
+      if (DataService.deletedRecordsTable !== 'no') {
+        const { data, error } = await this.fetchAllRows('deleted_records', undefined, { columns: 'id,kind,record_id' });
+        if (!error && Array.isArray(data)) {
+          DataService.deletedRecordsTable = 'yes';
+          const pick = (k: string) => data.filter((r: any) => r.kind === k).map((r: any) => String(r.record_id));
+          data.forEach((r: any) => this.tombstonesPushed.add(String(r.id)));
+          this.applyTombstones({ students: pick('student'), classes: pick('class'), questionLogs: pick('question_log') });
+          return;
+        }
+        if (error && !/deleted_records|PGRST205|42P01/i.test(`${error.code || ''} ${error.message || ''}`)) return;
+        DataService.deletedRecordsTable = 'no';
+      }
+      // Eski yol
+      const { data } = await supabase.from('homeworks').select('description').eq('id', '__system_sync_tombstones__').maybeSingle();
       if (data && data.description) {
         try {
           const parsed = JSON.parse(data.description);
-          let changed = false;
-          if (Array.isArray(parsed.deletedStudentIds)) {
-            parsed.deletedStudentIds.forEach((id: string) => {
-              if (id && !this.deletedStudentIds.has(id)) {
-                this.deletedStudentIds.add(id);
-                changed = true;
-              }
-            });
-          }
-          if (Array.isArray(parsed.deletedClassIds)) {
-            parsed.deletedClassIds.forEach((id: string) => {
-              if (id && !this.deletedClassIds.has(id)) {
-                this.deletedClassIds.add(id);
-                changed = true;
-              }
-            });
-          }
-          if (Array.isArray(parsed.deletedQuestionLogIds)) {
-            parsed.deletedQuestionLogIds.forEach((id: string) => {
-              if (id && !this.deletedQuestionLogIds.has(id)) {
-                this.deletedQuestionLogIds.add(id);
-                changed = true;
-              }
-            });
-          }
-          if (changed) {
-            saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
-            saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
-            saveData(STORAGE_KEYS.DELETED_QUESTION_LOGS, Array.from(this.deletedQuestionLogIds));
-            const prevStdLen = this.students.length;
-            this.students = this.students.filter((s) => !this.deletedStudentIds.has(s.id));
-            if (this.students.length !== prevStdLen) {
-              saveData(STORAGE_KEYS.STUDENTS, this.students);
-              try {
-                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-              } catch {}
-            }
-            const prevClsLen = this.classes.length;
-            this.classes = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
-            if (this.classes.length !== prevClsLen) {
-              saveData(STORAGE_KEYS.CLASSES, this.classes);
-              try {
-                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-              } catch {}
-            }
-            const prevQLogLen = this.questionLogs.length;
-            this.questionLogs = this.questionLogs.filter((q) => !this.deletedQuestionLogIds.has(q.id));
-            if (this.questionLogs.length !== prevQLogLen) {
-              saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-              try {
-                /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-              } catch {}
-            }
-            this.notify();
-          }
-        } catch {}
+          this.applyTombstones({
+            students: Array.isArray(parsed.deletedStudentIds) ? parsed.deletedStudentIds : [],
+            classes: Array.isArray(parsed.deletedClassIds) ? parsed.deletedClassIds : [],
+            questionLogs: Array.isArray(parsed.deletedQuestionLogIds) ? parsed.deletedQuestionLogIds : [],
+          });
+        } catch {
+          // bozuk eski kayıt yok sayılır
+        }
       }
     } catch (e) {
       console.warn('Error fetching tombstones from cloud:', e);
@@ -1964,7 +1991,7 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
     try {
-      const { data: remoteEtuts, error: errEtuts } = await this.fetchAllRows('etuts');
+      const { data: remoteEtuts, error: errEtuts } = await this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'));
       if (errEtuts) {
         if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
         return;
@@ -2459,7 +2486,9 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.attendance;
     try {
-      const { data: remoteAtt, error: errAtt } = await this.fetchAllRows('attendance', undefined, { order: 'date', ascending: false });
+      const { data: remoteAtt, error: errAtt } = await this.fetchStudentSafe('student_my_attendance', () =>
+        this.fetchAllRows('attendance', undefined, { order: 'date', ascending: false })
+      );
 
       if (errAtt) {
         if (!isBackground) console.warn('[AttendanceSync] Error:', errAtt);
@@ -2888,6 +2917,26 @@ export class DataService {
     return out;
   }
   private static legacySessionKeyCleared = false;
+
+  // Aşama 17 (gizlilik): öğrenci etüt ve yoklama verisini tablodan değil, yalnız kendi kaydını
+  // döndüren sunucu fonksiyonundan okur (16 numaralı SQL). Fonksiyon yoksa eski yola düşer.
+  private static studentRpcMissing = new Set<string>();
+  private async fetchStudentSafe(
+    rpcName: 'student_my_etuts' | 'student_my_attendance',
+    fallback: () => Promise<{ data: any[] | null; error: any }>
+  ): Promise<{ data: any[] | null; error: any }> {
+    if (this.getAuthSession()?.role !== 'student' || DataService.studentRpcMissing.has(rpcName)) return fallback();
+    const { data, error } = await supabase.rpc(rpcName);
+    if (error) {
+      const msg = `${error.code || ''} ${error.message || ''}`;
+      if (/PGRST202|42883|Could not find the function|does not exist/i.test(msg)) {
+        DataService.studentRpcMissing.add(rpcName);
+        return fallback();
+      }
+      return { data: null, error };
+    }
+    return { data: Array.isArray(data) ? data : [], error: null };
+  }
 
   // Supabase bir istekte en fazla 1000 satır döndürür. Büyük tablolar sayfa sayfa (aynı anda 4 sayfa) okunur;
   // yoksa 1000. satırdan sonrası sessizce eksik kalır.
@@ -3579,7 +3628,7 @@ export class DataService {
   // Baş yönetici (gerçek e-posta ile giriş yapan kurum yöneticisi) mi?
   private isHeadAdminTeacher(t?: Teacher | null): boolean {
     if (!t) return false;
-    return (t.email || '').toLowerCase() === 'm.bilirr@gmail.com' || t.id === 'admin-mustafa-bilir';
+    return (t.email || '').trim().toLowerCase() === ADMIN_EMAIL || t.id === 'admin-mustafa-bilir';
   }
 
   // Öğretmen <-> yönetici rol değişikliği: giriş hesabındaki rol (app_metadata) sunucuda değişir,
@@ -4705,7 +4754,7 @@ export class DataService {
 
     const appRole = authUser.app_metadata?.role;
     const isAppAdmin = appRole === 'admin' || authUser.app_metadata?.is_admin === true ||
-      (authUser.email || '').toLowerCase() === 'm.bilirr@gmail.com';
+      (authUser.email || '').trim().toLowerCase() === ADMIN_EMAIL;
     if (appRole !== 'teacher' && !isAppAdmin) {
       await supabase.auth.signOut();
       throw new Error(
@@ -5218,6 +5267,25 @@ export class DataService {
           console.error(e);
         }
       }
+    }
+  }
+
+  // Aşama 17: tarayıcının alert() penceresi yerine uygulama içi kısa bildirim
+  public showToast(message: string, tone: 'error' | 'success' = 'success'): void {
+    if (tone === 'error') return this.showFloatingErrorToast(message);
+    if (typeof document === 'undefined') return;
+    try {
+      document.getElementById('dataservice-error-toast')?.remove();
+      const toast = document.createElement('div');
+      toast.id = 'dataservice-error-toast';
+      toast.setAttribute('role', 'status');
+      toast.className =
+        'fixed top-5 right-5 z-[120] max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500 text-xs font-semibold';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3500);
+    } catch {
+      // bildirim gösterilemezse işlem yine de tamamdır
     }
   }
 
@@ -6484,7 +6552,7 @@ export class DataService {
     const existing = this.submissions.find((s) => s.homeworkId === homeworkId && s.studentId === studentId);
     const optimistic: HomeworkSubmission = {
       ...(existing || {}),
-      id: existing?.id || `sub-local-${Date.now()}`,
+      id: existing?.id || newId('sub-local'),
       homeworkId,
       studentId,
       studentName,
@@ -6627,7 +6695,7 @@ export class DataService {
     byStudent.forEach((checkStatus, studentId) => {
       if (updatedLocal.has(studentId)) return;
       updatedLocal.set(studentId, {
-        id: `sub-local-${Date.now()}-${studentId}`,
+        id: newId(`sub-local-${studentId}`),
         homeworkId,
         studentId,
         studentName: this.students.find((st) => st.id === studentId)?.name || 'Öğrenci',
@@ -6901,7 +6969,7 @@ export class DataService {
 
     const record: AttendanceRecord = {
       ...attData,
-      id: existingIndex >= 0 ? this.attendance[existingIndex].id : `att-${Date.now()}`,
+      id: existingIndex >= 0 ? this.attendance[existingIndex].id : newId('att'),
     };
 
     const prevAttendance = this.attendance;
@@ -6995,7 +7063,7 @@ export class DataService {
     const student = this.students.find((s) => s.id === gradeData.studentId);
     const newGrade: GradeRecord = {
       ...gradeData,
-      id: `gr-${Date.now()}`,
+      id: newId('gr'),
       studentName: student?.name,
     };
     const prevGrades = this.grades;
@@ -7062,7 +7130,7 @@ export class DataService {
   ): Promise<StudentMessage> {
     const student = this.students.find((s) => s.id === studentId);
     const newMsg: StudentMessage = {
-      id: `msg-${Date.now()}`,
+      id: newId('msg'),
       studentId,
       studentName: student ? student.name : 'Öğrenci',
       studentClass: student ? student.className : 'Genel',
@@ -7674,7 +7742,7 @@ export class DataService {
   public async sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): Promise<StudentMessage> {
     const newMsg: StudentMessage = {
       ...msgData,
-      id: `msg-${Date.now()}`,
+      id: newId('msg'),
       createdAt: new Date().toISOString(),
       read: false,
     };
@@ -7976,7 +8044,7 @@ export class DataService {
         targetStudents = [...this.students];
       }
     } else if (Array.isArray(hw.assignedTo)) {
-      targetStudents = this.students.filter((s) => hw.assignedTo.includes(s.id));
+      targetStudents = this.students.filter((s) => (hw.assignedTo as string[]).includes(s.id));
     }
 
     const nowIso = new Date().toISOString();
@@ -7985,7 +8053,7 @@ export class DataService {
     targetStudents.forEach((student) => {
       const emailContent = generateHomeworkEmail({
         studentName: student.name,
-        studentEmail: student.email,
+        studentEmail: student.email || '',
         teacherName: hw.createdByName || 'Öğretmen',
         subject: hw.subject,
         title: hw.title,
@@ -7998,7 +8066,7 @@ export class DataService {
 
       const emailLog: SentEmailLog = {
         id: `email-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        recipientEmail: student.email,
+        recipientEmail: student.email || '',
         recipientName: student.name,
         recipientRole: 'student',
         studentId: student.id,
@@ -8067,7 +8135,7 @@ export class DataService {
     targetStudents.forEach((student) => {
       const emailContent = generateEtutEmail({
         studentName: student.name,
-        studentEmail: student.email,
+        studentEmail: student.email || '',
         teacherName: etut.teacherName || 'Öğretmen',
         subject: etut.subject,
         topic: etut.topic,
@@ -8081,7 +8149,7 @@ export class DataService {
 
       const emailLog: SentEmailLog = {
         id: `email-${Date.now()}-${student.id}-${Math.random().toString(36).substr(2, 4)}`,
-        recipientEmail: student.email,
+        recipientEmail: student.email || '',
         recipientName: student.name,
         recipientRole: 'student',
         studentId: student.id,

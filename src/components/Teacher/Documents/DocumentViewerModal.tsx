@@ -44,10 +44,10 @@ interface DocumentViewerModalProps {
 // Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
 export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = (props) => {
   if (!props.isOpen || !props.document) return null;
-  return <DocumentViewerModalContent {...props} />;
+  return <DocumentViewerModalContent {...props} document={props.document} />;
 };
 
-const DocumentViewerModalContent: React.FC<DocumentViewerModalProps> = ({
+const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document: TeacherDocument }> = ({
   document,
   isOpen,
   onClose,

@@ -163,7 +163,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setQuickClassChangeFeedback(`✓ ${student.name} başarıyla "${targetClassName}" sınıfına aktarıldı.`);
       setTimeout(() => setQuickClassChangeFeedback(null), 3500);
     } catch (e: any) {
-      alert(e.message || 'Sınıf aktarılırken bir hata oluştu.');
+      dataService.showToast((e?.message || 'Sınıf aktarılırken bir hata oluştu.').replace(/^\[\w+\]\s*/, ''), 'error');
     }
   };
 
@@ -2395,8 +2395,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           const text = classStudents
             .map((s, idx) => `${idx + 1}. ${s.name} (No: ${s.studentNumber || '-'})`)
             .join('\n');
-          navigator.clipboard.writeText(text);
-          alert('Sınıf öğrenci listesi panoya kopyalandı.');
+          navigator.clipboard
+            .writeText(text)
+            .then(() => dataService.showToast('Sınıf öğrenci listesi panoya kopyalandı.'))
+            .catch(() => dataService.showToast('Liste kopyalanamadı. Tarayıcı izin vermedi.', 'error'));
         };
 
         return (

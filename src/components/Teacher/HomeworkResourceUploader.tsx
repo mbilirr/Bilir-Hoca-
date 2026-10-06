@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { HomeworkResource, HomeworkResourceType } from '../../types';
 import { uploadFile, removeStoredFiles, storagePathFromUrl, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, UPLOAD_LIMIT_MESSAGE } from '../../lib/fileStorage';
+import { newId } from '../../lib/ids';
 
 interface HomeworkResourceUploaderProps {
   resources: HomeworkResource[];
@@ -66,7 +67,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       const up = await uploadFile(storageFolder, file);
       sessionUploadsRef.current.add(up.path);
       const newResource: HomeworkResource = {
-        id: `res-${Date.now()}`,
+        id: newId('res'),
         type,
         title,
         url: up.url,
@@ -152,7 +153,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
 
       const newResource: HomeworkResource = {
-        id: `res-${Date.now()}`,
+        id: newId('res'),
         type: 'video',
         title: videoTitle.trim() || cleanTitle,
         url: dataUrl,
@@ -186,7 +187,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     }
 
     const newResource: HomeworkResource = {
-      id: `res-${Date.now()}`,
+      id: newId('res'),
       type: 'video',
       title: videoTitle.trim() || defaultTitle,
       url: videoUrl.trim(),
@@ -223,7 +224,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     }
 
     const newResource: HomeworkResource = {
-      id: `res-${Date.now()}`,
+      id: newId('res'),
       type: 'link',
       title: cleanTitle,
       url: formattedUrl,
@@ -278,7 +279,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
       const cleanTitle = file.name.replace(/\.pdf$/i, '');
 
       const newResource: HomeworkResource = {
-        id: `res-${Date.now()}`,
+        id: newId('res'),
         type: 'pdf',
         title: pdfTitle.trim() || cleanTitle,
         url: dataUrl,
@@ -309,7 +310,7 @@ export const HomeworkResourceUploader: React.FC<HomeworkResourceUploaderProps> =
     }
 
     const newResource: HomeworkResource = {
-      id: `res-${Date.now()}`,
+      id: newId('res'),
       type: 'pdf',
       title: pdfTitle.trim() || 'Online PDF Çalışma Fasikülü',
       url: formattedUrl,

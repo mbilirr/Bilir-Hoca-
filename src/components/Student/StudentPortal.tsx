@@ -97,6 +97,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [messageSubject, setMessageSubject] = useState('');
   const [messageText, setMessageText] = useState('');
   const [messageLink, setMessageLink] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageSentFeedback, setMessageSentFeedback] = useState(false);
 
   // Notification center modal state
@@ -234,8 +235,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Handle Send Message to Teacher
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageSubject.trim() || !messageText.trim()) return;
+    if (!messageSubject.trim() || !messageText.trim() || isSendingMessage) return;
 
+    setIsSendingMessage(true);
     try {
       await dataService.sendMessage({
         studentId: currentStudent.id,
@@ -249,6 +251,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     } catch {
       // Hata uyarısı zaten gösterildi; yazılan mesaj kaybolmasın diye form temizlenmez
       return;
+    } finally {
+      setIsSendingMessage(false);
     }
 
     setMessageSubject('');
@@ -985,10 +989,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2"
+                id="student-message-send"
+                disabled={isSendingMessage}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
-                <span>Öğretmene İlet</span>
+                <span>{isSendingMessage ? 'Gönderiliyor…' : 'Öğretmene İlet'}</span>
               </button>
             </form>
           </div>

@@ -4,6 +4,12 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { UpdateAvailableBanner } from './components/Common/UpdateAvailableBanner';
 import './index.css';
+import { installAvatarGuard } from './lib/localAvatar';
+import { installEscClose } from './lib/escClose';
+
+// Aşama 17: avatarlar dış servise gitmeden tarayıcıda çizilir; eski pencereler Esc ile kapanır
+installAvatarGuard();
+installEscClose();
 
 // Sanal DOM (Virtual DOM) ve Google Translate / Browser eklentisi çakışmalarını kalıcı olarak önleme:
 // 'NotFoundError: Failed to execute removeChild on Node: The node to be removed is not a child of this node'

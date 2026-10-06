@@ -25,6 +25,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     messages[0]?.id || null
   );
   const [replyText, setReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
 
   const filteredMessages = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -49,13 +50,16 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeMessage || !replyText.trim()) return;
+    if (!activeMessage || !replyText.trim() || isSendingReply) return;
 
+    setIsSendingReply(true);
     try {
       await dataService.replyToMessage(activeMessage.id, replyText.trim());
       setReplyText('');
     } catch {
       // Hata uyarısı zaten gösterildi; yazılan cevap kaybolmasın diye kutu temizlenmez
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
@@ -278,10 +282,12 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 transition-all"
+                    id="teacher-reply-send"
+                    disabled={isSendingReply}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>Gönder</span>
+                    <span>{isSendingReply ? 'Gönderiliyor…' : 'Gönder'}</span>
                   </button>
                 </div>
               </form>

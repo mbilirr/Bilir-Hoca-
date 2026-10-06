@@ -18,7 +18,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import { Teacher, ClassGroup } from '../../types';
-import { dataService } from '../../services/dataService';
+import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -82,8 +82,9 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
 
   const handleDelete = async (teacherId: string, name: string) => {
     const target = allTeachers.find((t) => t.id === teacherId);
-    if (target && (target.email || '').trim().toLowerCase() === 'm.bilirr@gmail.com') {
-      alert('Kurum yöneticisinin hesabı silinemez.');
+    if (target && (target.email || '').trim().toLowerCase() === ADMIN_EMAIL) {
+      setActionMsg('Kurum yöneticisinin hesabı silinemez.');
+      setTimeout(() => setActionMsg(null), 3500);
       return;
     }
     if (window.confirm(`${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?`)) {
@@ -143,13 +144,15 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const handleToggleAdmin = async (teacher: Teacher) => {
     const newStatus = !teacher.isAdmin;
     if (!newStatus) {
-      if ((teacher.email || '').trim().toLowerCase() === 'm.bilirr@gmail.com') {
-        alert('Kurum yöneticisinin yönetici yetkisi kaldırılamaz.');
+      if ((teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL) {
+        setActionMsg('Kurum yöneticisinin yönetici yetkisi kaldırılamaz.');
+        setTimeout(() => setActionMsg(null), 3500);
         return;
       }
       const adminCount = allTeachers.filter((t) => t.isAdmin).length;
       if (adminCount <= 1) {
-        alert('Sistemde en az 1 yönetici (admin) bulunmalıdır. Bu öğretmenden yöneticilik yetkisi alınamaz.');
+        setActionMsg('Sistemde en az 1 yönetici bulunmalıdır. Bu öğretmenden yöneticilik yetkisi alınamaz.');
+        setTimeout(() => setActionMsg(null), 3500);
         return;
       }
     }
