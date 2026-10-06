@@ -50,7 +50,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Kullanıcı adı giriş adıdır: yalnızca yönetici değiştirebilir
-  const canEditUsername = dataService.isCurrentUserAdmin();
+  const canEditUsername = dataService.isHeadAdmin();
 
   useEffect(() => {
     if (isOpen && teacher) {

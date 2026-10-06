@@ -28,6 +28,9 @@ import {
   StudentAccountFailure,
   StudentAccountResult,
   StudentApplication,
+  KurumModule,
+  KurumInfo,
+  TeacherTabType,
 } from '../types';
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
 import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
@@ -110,6 +113,57 @@ export function cleanStudentEmail(email?: string | null): string {
 // DATA STORE LOCAL STORAGE KEYS
 // Kurum yöneticisinin e-postası (veritabanındaki is_admin() kuralıyla aynı)
 export const ADMIN_EMAIL = 'm.bilirr@gmail.com';
+
+// Aşama 18: kurum bölümleri (genel yöneticinin kurumlara açıp kapattığı bölümler)
+export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description: string }> = [
+  { key: 'homework', title: 'Ödevler', description: 'Ödev verme ve ödev kontrolü' },
+  { key: 'etut', title: 'Etütler', description: 'Etüt planlama ve etüt yoklaması' },
+  { key: 'questions', title: 'Soru Takibi', description: 'Soru sayıları ve öğrenciye soru hedefi verme' },
+  { key: 'grades', title: 'Not & Yoklama', description: 'Sınav notu ve ders yoklaması girme' },
+  { key: 'messages', title: 'Mesajlar', description: 'Öğrenci mesajlarını cevaplama' },
+  { key: 'archive', title: 'Arşiv', description: 'Plan ve zümre evrakı yükleme' },
+  { key: 'manage_students', title: 'Öğrenci ve sınıf yönetimi', description: 'Kurum yöneticisi kendi sınıf ve öğrencilerini ekler, düzenler, siler' },
+  { key: 'manage_teachers', title: 'Öğretmen yönetimi', description: 'Kurum yöneticisi kendi öğretmenlerini ekler, siler ve onlara sınıf yetkisi verir' },
+];
+
+const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
+  homework: 'homework',
+  etuts: 'etut',
+  question_tracking: 'questions',
+  grades: 'grades',
+  messages: 'messages',
+  archive: 'archive',
+};
+
+interface MyKurumState {
+  loaded: boolean;
+  supported: boolean; // 17 numaralı SQL çalıştırıldı mı
+  head: boolean;
+  kurumId: string | null;
+  kurumName: string;
+  kurumAdmin: boolean;
+  modules: Partial<Record<KurumModule, boolean>>;
+  grantedClassIds: string[];
+}
+const EMPTY_KURUM_STATE: MyKurumState = {
+  loaded: false,
+  supported: true,
+  head: false,
+  kurumId: null,
+  kurumName: '',
+  kurumAdmin: false,
+  modules: {},
+  grantedClassIds: [],
+};
+const MY_KURUM_KEY = 'edu_my_kurum_v1';
+function loadMyKurumCache(): Partial<MyKurumState> {
+  try {
+    const raw = sessionStorage.getItem(MY_KURUM_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
 const STORAGE_KEYS = {
   DEVICE_ID: 'edu_sys_device_id_v6',
@@ -1366,6 +1420,7 @@ export class DataService {
           phone: row.phone || cur.phone,
           avatar: row.avatar || cur.avatar,
           schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
+          kurumId: 'kurum_id' in row ? row.kurum_id || null : cur.kurumId,
         };
       } else {
         const newStd: Student = {
@@ -1388,6 +1443,7 @@ export class DataService {
           status: 'active',
           createdTeacherId: 'teacher-1',
           schoolLevel: detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
+          kurumId: row.kurum_id || null,
         };
         this.students.push(newStd);
       }
@@ -1436,6 +1492,7 @@ export class DataService {
         schoolLevel: row.level && row.level >= 9 ? 'Lise' : 'Ortaokul',
         academicYear: row.academic_year || currentAcademicYear(),
         createdTeacherId: 'teacher-1',
+        kurumId: row.kurum_id || null,
       };
       if ('description' in row) mapped.description = row.description || undefined;
 
@@ -2335,6 +2392,7 @@ export class DataService {
             schoolLevel: remoteClass?.schoolLevel || existing.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
             gradeLevel: remoteClass?.gradeLevel || existing.gradeLevel,
             branch: remoteClass?.branch || existing.branch,
+            kurumId: rs.kurum_id || null,
           });
         } else {
           mergedStudentMap.set(id, {
@@ -2357,6 +2415,7 @@ export class DataService {
             schoolLevel: remoteClass?.schoolLevel || detectSchoolLevelFromGrade(rs.class_name) || 'Ortaokul',
             gradeLevel: remoteClass?.gradeLevel,
             branch: remoteClass?.branch,
+            kurumId: rs.kurum_id || null,
           });
         }
       });
@@ -3287,6 +3346,7 @@ export class DataService {
         this.syncTeachersFromSupabase(isBackground),
         this.refreshPendingApplicationCount(),
         this.syncMyTeacherAccess(),
+        this.syncMyKurum(),
       ]);
       this.lastFullSyncAt = Date.now();
       this.notify();
@@ -3330,6 +3390,216 @@ export class DataService {
     if (session.role !== 'teacher') return false;
     const currentTeacher = this.getCurrentTeacher();
     return this.isTeacherAdmin(currentTeacher) || this.isTeacherAdmin(session.user as Teacher);
+  }
+
+  // ===========================================================================
+  // Aşama 18: GENEL YÖNETİCİ VE KURUMLAR
+  //  - Genel yönetici (m.bilirr@gmail.com): her şeyi görür ve yönetir.
+  //  - Kurum yöneticisi: yalnızca kendi kurumunu yönetir (genel yöneticinin açtığı bölümlerle).
+  //  - Öğretmen: öğrenci/sınıf/öğretmen ekleyip çıkaramaz; kurumuna açık bölümleri kullanır.
+  // Veritabanı (17 numaralı SQL) aynı kuralları uygular; buradaki kontroller yalnızca ekranda
+  // gereksiz düğmeleri gizler. SQL çalıştırılmadıysa eski davranış sürer.
+  // ===========================================================================
+  private myKurum: MyKurumState = { ...EMPTY_KURUM_STATE, ...loadMyKurumCache() };
+
+  public async syncMyKurum(): Promise<void> {
+    const session = this.getAuthSession();
+    if (session?.role !== 'teacher') return;
+    try {
+      const { data, error } = await supabase.rpc('my_kurum');
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883' || /my_kurum/.test(error.message || '')) {
+          this.setMyKurum({ ...EMPTY_KURUM_STATE, loaded: true, supported: false });
+        }
+        return;
+      }
+      let d: any = data;
+      if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && 'my_kurum' in d[0] ? d[0].my_kurum : d[0];
+      d = d || {};
+      const next: MyKurumState = {
+        loaded: true,
+        supported: true,
+        head: !!d.head,
+        kurumId: d.kurum_id || null,
+        kurumName: d.kurum_name || '',
+        kurumAdmin: !!d.kurum_admin,
+        modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
+        grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
+      };
+      this.setMyKurum(next);
+      // Genel yönetici: kurum adları listelerde etiket olarak gösterilir
+      if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
+    } catch {
+      // bağlantı sorunu: bir sonraki eşitlemede tekrar denenir
+    }
+  }
+
+  private setMyKurum(next: MyKurumState) {
+    const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
+    this.myKurum = next;
+    try {
+      sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
+    } catch {}
+    if (changed) this.notify();
+  }
+
+  public getMyKurum(): Readonly<MyKurumState> {
+    return this.myKurum;
+  }
+
+  public isKurumSupported(): boolean {
+    return this.myKurum.supported;
+  }
+
+  // Genel yönetici (tam yetki)
+  public isHeadAdmin(): boolean {
+    const session = this.getAuthSession();
+    if (session?.role !== 'teacher') return false;
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    const t = this.getCurrentTeacher() || (session.user as Teacher);
+    return this.myKurum.head || this.isHeadAdminTeacher(t) || this.isHeadAdminTeacher(session.user as Teacher);
+  }
+
+  // Kurum yöneticisi (kendi kurumunu yönetir)
+  public isKurumAdmin(): boolean {
+    return this.myKurum.supported && !this.isHeadAdmin() && this.myKurum.kurumAdmin;
+  }
+
+  public getMyKurumId(): string | null {
+    if (!this.myKurum.supported || this.isHeadAdmin()) return null;
+    return this.myKurum.kurumId || null;
+  }
+
+  // Kurumuna bu bölüm açık mı? (genel yönetici ve kurumsuz öğretmenler için her zaman açık)
+  public canUseModule(module: KurumModule): boolean {
+    if (!this.myKurum.supported || this.isHeadAdmin() || !this.myKurum.kurumId) return true;
+    return this.myKurum.modules?.[module] === true;
+  }
+
+  // Öğretmen sekmesi bu kullanıcıya açık mı?
+  public canUseTab(tab: TeacherTabType): boolean {
+    const mod = TAB_MODULES[tab];
+    if (tab === 'user_management') return this.canAccessUserManagement();
+    return mod ? this.canUseModule(mod) : true;
+  }
+
+  // Öğrenci ve sınıf ekleme/çıkarma/düzenleme
+  public canManageStudents(): boolean {
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin() || this.getClasses().length > 0;
+    if (this.isHeadAdmin()) return true;
+    return this.isKurumAdmin() && this.canUseModule('manage_students');
+  }
+
+  public canManageClasses(): boolean {
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    return this.canManageStudents();
+  }
+
+  // Öğretmen ekleme/çıkarma ve sınıf yetkisi verme
+  public canManageTeachers(): boolean {
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    if (this.isHeadAdmin()) return true;
+    return this.isKurumAdmin() && this.canUseModule('manage_teachers');
+  }
+
+  public canAccessUserManagement(): boolean {
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    return this.isHeadAdmin() || (this.isKurumAdmin() && (this.canUseModule('manage_teachers') || this.canUseModule('manage_students')));
+  }
+
+  // Bu sınıf düzenlenebilir/silinebilir mi? (kurum yöneticisi: yalnızca kendi açtığı sınıflar)
+  public canManageClass(cls?: ClassGroup | null): boolean {
+    if (!cls) return false;
+    if (!this.myKurum.supported) return this.canManageStudents();
+    if (this.isHeadAdmin()) return true;
+    return this.canManageStudents() && !!cls.kurumId && cls.kurumId === this.myKurum.kurumId;
+  }
+
+  // Bu öğrenci düzenlenebilir/silinebilir mi?
+  public canManageStudent(student?: Student | null): boolean {
+    if (!student) return false;
+    if (!this.myKurum.supported) return this.canManageStudents();
+    if (this.isHeadAdmin()) return true;
+    return this.canManageStudents() && !!student.kurumId && student.kurumId === this.myKurum.kurumId;
+  }
+
+  // Bu öğretmen hesabı yönetilebilir mi? (kurum yöneticisi: kendi kurumunun yönetici olmayan öğretmenleri)
+  public canManageTeacherAccount(teacher?: { id: string; isAdmin?: boolean; kurumId?: string | null } | null): boolean {
+    if (!teacher) return false;
+    if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    if (this.isHeadAdmin()) return true;
+    const me = this.getCurrentTeacher();
+    if (me && me.id === teacher.id) return false;
+    return this.canManageTeachers() && !teacher.isAdmin && !!teacher.kurumId && teacher.kurumId === this.myKurum.kurumId;
+  }
+
+  public getKurumNameForId(kurumId?: string | null): string {
+    if (!kurumId) return '';
+    if (kurumId === this.myKurum.kurumId) return this.myKurum.kurumName || 'Kurumum';
+    return this.kurumNameCache.get(kurumId) || 'Kurum';
+  }
+
+  // --- Genel yönetici: kurum listesi, bölüm izinleri ve izinli sınıflar ---
+  private kurumNameCache = new Map<string, string>();
+
+  public async listKurumlar(): Promise<KurumInfo[]> {
+    if (!this.isHeadAdmin()) return [];
+    const [k, g] = await Promise.all([
+      supabase.from('kurumlar').select('id,name,modules,created_at').order('created_at'),
+      supabase.from('kurum_class_grants').select('kurum_id,class_id'),
+    ]);
+    if (k.error) throw new Error(k.error.message?.includes('kurumlar') ? 'Kurum tablosu bulunamadı (17 numaralı SQL çalıştırılmalı).' : k.error.message);
+    const grants = new Map<string, string[]>();
+    (g.data || []).forEach((r: any) => {
+      const list = grants.get(r.kurum_id) || [];
+      list.push(String(r.class_id));
+      grants.set(r.kurum_id, list);
+    });
+    const list: KurumInfo[] = (k.data || []).map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      modules: r.modules || {},
+      grantedClassIds: grants.get(r.id) || [],
+      createdAt: r.created_at,
+    }));
+    let namesChanged = false;
+    list.forEach((x) => {
+      if (this.kurumNameCache.get(x.id) !== x.name) namesChanged = true;
+      this.kurumNameCache.set(x.id, x.name);
+    });
+    if (namesChanged) this.notify();
+    return list;
+  }
+
+  public async saveKurum(kurum: { id: string; name: string; modules: Partial<Record<KurumModule, boolean>>; grantedClassIds: string[] }): Promise<void> {
+    if (!this.isHeadAdmin()) throw new Error('Kurum ayarlarını yalnızca genel yönetici değiştirebilir.');
+    const name = (kurum.name || '').trim();
+    if (name.length < 2) throw new Error('Kurum adı en az 2 karakter olmalıdır.');
+    const modules: Record<string, boolean> = {};
+    KURUM_MODULES.forEach((m) => (modules[m.key] = kurum.modules?.[m.key] === true));
+    const up = await supabase.from('kurumlar').update({ name, modules }).eq('id', kurum.id).select('id');
+    if (up.error) throw new Error(up.error.message);
+    if (!up.data || up.data.length === 0) throw new Error('Kurum bulunamadı veya yetkiniz yok.');
+
+    const { data: cur, error: curErr } = await supabase.from('kurum_class_grants').select('class_id').eq('kurum_id', kurum.id);
+    if (curErr) throw new Error(curErr.message);
+    const before = new Set((cur || []).map((r: any) => String(r.class_id)));
+    const after = new Set(kurum.grantedClassIds.map(String));
+    const toAdd = [...after].filter((x) => !before.has(x));
+    const toRemove = [...before].filter((x) => !after.has(x));
+    if (toAdd.length) {
+      const { error } = await supabase.from('kurum_class_grants').upsert(
+        toAdd.map((class_id) => ({ kurum_id: kurum.id, class_id })),
+        { onConflict: 'kurum_id,class_id', ignoreDuplicates: true }
+      );
+      if (error) throw new Error(error.message);
+    }
+    if (toRemove.length) {
+      const { error } = await supabase.from('kurum_class_grants').delete().eq('kurum_id', kurum.id).in('class_id', toRemove);
+      if (error) throw new Error(error.message);
+    }
+    this.kurumNameCache.set(kurum.id, name);
+    this.notify();
   }
 
   // ===========================================================================
@@ -3590,6 +3860,7 @@ export class DataService {
         isAdmin,
         assignedClassIds: t.assignedClassIds || [],
         canViewAllStudentsAndClasses: !!t.canViewAllStudentsAndClasses,
+        kurumId: t.kurumId || null,
       });
     });
 
@@ -3618,6 +3889,7 @@ export class DataService {
         gradeLevel: s.gradeLevel,
         mustChangePassword: !!s.mustChangePassword,
         authorizedTeacherIds: s.authorizedTeacherIds || [],
+        kurumId: s.kurumId || null,
       });
     });
 
@@ -3638,6 +3910,9 @@ export class DataService {
     targetRole: SystemRole,
     _options?: { branch?: string; className?: string; classId?: string }
   ): Promise<void> {
+    if (!this.isHeadAdmin()) {
+      throw new Error('Yönetici yetkisini yalnızca genel yönetici verebilir veya kaldırabilir.');
+    }
     const teacher = this.teachers.find((t) => t.id === userId);
     if (teacher) {
       if (targetRole === 'student') {
@@ -3985,6 +4260,9 @@ export class DataService {
       if (teacher.isAdmin) {
         throw new Error('Yönetici hesabı silinemez. Önce yöneticilik yetkisini kaldırınız.');
       }
+      if (!this.canManageTeacherAccount(teacher)) {
+        throw new Error('Bu öğretmeni silme yetkiniz yok.');
+      }
       // 1) Giriş hesabını sil (sunucu). Başarısızsa kayıt silinmez.
       const { failed } = await this.deleteLoginAccounts('teacher', [userId]);
       if (failed.length > 0) {
@@ -4134,9 +4412,11 @@ export class DataService {
     password: string;
     isAdmin?: boolean;
   }): Promise<{ teacher: Teacher; password: string }> {
-    if (!this.isCurrentUserAdmin()) {
-      throw new Error('Öğretmen hesabını yalnızca sistem yöneticisi açabilir.');
+    if (!this.canManageTeachers()) {
+      throw new Error('Öğretmen hesabını yalnızca yönetici açabilir.');
     }
+    // Kurum yöneticisi yönetici yetkisi veremez
+    if (data.isAdmin && !this.isHeadAdmin()) data = { ...data, isAdmin: false };
     const name = (data.name || '').trim();
     const username = (data.username || '').trim().toLowerCase();
     const password = (data.password || '').trim();
@@ -4165,6 +4445,7 @@ export class DataService {
       isAdmin: false,
       assignedClassIds: [],
       canViewAllStudentsAndClasses: false,
+      kurumId: this.getMyKurumId(),
     };
 
     const { error: insertError } = await supabase.from('teachers').insert({
@@ -4178,6 +4459,7 @@ export class DataService {
       status: 'approved',
       is_admin: false,
       created_at: teacher.createdAt,
+      ...(teacher.kurumId ? { kurum_id: teacher.kurumId } : {}),
     });
     if (insertError) {
       throw new Error(`Öğretmen kaydı oluşturulamadı: ${insertError.code === '42501' ? 'Bu işlem için yetkiniz yok' : insertError.message}`);
@@ -4439,7 +4721,28 @@ export class DataService {
   //    (kullanıcı adı, rol, yetki ve hesap durumu yalnızca yönetici tarafından değiştirilebilir).
   private async writeTeacherRow(teacher: Teacher): Promise<{ success: boolean; error?: any }> {
     try {
-      if (this.isCurrentUserAdmin()) {
+      // Aşama 18: kurum yöneticisi kendi kurumunun öğretmenini yalnızca günceller (yönetici yetkisi ve kurum değişmez)
+      const me = this.getCurrentTeacher();
+      if (this.isKurumAdmin() && (!me || me.id !== teacher.id)) {
+        const { data, error } = await supabase
+          .from('teachers')
+          .update({
+            name: teacher.name,
+            username: teacher.username || null,
+            email: teacher.email || null,
+            branch: teacher.branch || null,
+            avatar: teacher.avatar || null,
+            status: teacher.status || 'approved',
+          })
+          .eq('id', teacher.id)
+          .select('id');
+        if (error) return { success: false, error };
+        if (!data || data.length === 0) {
+          return { success: false, error: { code: '42501', message: 'Bu öğretmenin bilgilerini değiştirme yetkiniz yok' } };
+        }
+        return { success: true };
+      }
+      if (this.isHeadAdmin()) {
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const payload: any = {
           id: teacher.id,
@@ -4503,6 +4806,7 @@ export class DataService {
   }
 
   public async syncAllTeachersToCloud(): Promise<void> {
+    if (!this.isHeadAdmin()) return;
     try {
       const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -4589,6 +4893,7 @@ export class DataService {
             createdAt: row.created_at || new Date().toISOString(),
             assignedClassIds: [],
             canViewAllStudentsAndClasses: false,
+            kurumId: row.kurum_id || null,
           };
 
           this.teachers.unshift(newTeacher);
@@ -4636,6 +4941,10 @@ export class DataService {
           }
           if (localT.isAdmin !== remoteIsAdmin) {
             localT.isAdmin = remoteIsAdmin;
+            updated = true;
+          }
+          if ('kurum_id' in row && (row.kurum_id || null) !== (localT.kurumId || null)) {
+            localT.kurumId = row.kurum_id || null;
             updated = true;
           }
 
@@ -5017,6 +5326,10 @@ export class DataService {
   public logout(): void {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
+    this.myKurum = { ...EMPTY_KURUM_STATE };
+    try {
+      sessionStorage.removeItem(MY_KURUM_KEY);
+    } catch {}
     this.questionLogsFrom = null;
     this.questionLogsLoadedAt = 0;
     this.submissionsSyncedAt = '';
@@ -5332,8 +5645,11 @@ export class DataService {
     const key = normalizeClassKey(name);
     if (!key) return undefined;
     const year = normalizeAcademicYear(academicYear) || (academicYear || '').trim();
+    // Aşama 18: aynı adlı sınıf yalnızca aynı kurumda çakışır
+    const scope = excludeId ? this.classes.find((c) => c.id === excludeId)?.kurumId || null : this.getMyKurumId();
     return this.classes.find((c) => {
       if (!c || c.id === excludeId || this.deletedClassIds.has(c.id)) return false;
+      if ((c.kurumId || null) !== scope) return false;
       const cYear = normalizeAcademicYear(c.academicYear) || (c.academicYear || '').trim();
       return normalizeClassKey(c.name) === key && cYear === year;
     });
@@ -5361,8 +5677,9 @@ export class DataService {
     const newClass: ClassGroup = {
       ...classData,
       academicYear,
-      id: `class-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: newId('class'),
       createdTeacherId: currentTeacherId,
+      kurumId: this.getMyKurumId(),
     };
 
     // Rollback için önceki durumların yedeğini al
@@ -5390,6 +5707,8 @@ export class DataService {
     const UNASSIGNED_NAMES = ['', 'atanmadı', 'tanımsız', 'sınıfsız'];
     const existingClassIds = new Set(prevClasses.map((c) => c.id));
     const isWithoutClass = (s: Student) => {
+      // Aşama 18: yalnızca aynı kurumun sınıfsız öğrencileri yeni sınıfa aktarılır
+      if ((s.kurumId || null) !== (newClass.kurumId || null)) return false;
       if (!s.classId) return true;
       const cn = (s.className || '').trim().toLocaleLowerCase('tr-TR');
       return UNASSIGNED_NAMES.includes(cn) && !existingClassIds.has(s.classId);
@@ -5794,6 +6113,7 @@ export class DataService {
             // Sütun henüz yoksa (SQL çalıştırılmadıysa) yereldeki açıklama korunur
             description: 'description' in rc ? rc.description || undefined : localCopy?.description,
             createdTeacherId: 'teacher-1',
+            kurumId: rc.kurum_id || null,
           });
         });
       }
@@ -7334,7 +7654,7 @@ export class DataService {
       if (!plain || plain === 'sinif' || plain === 'sınıf' || plain === 'atanmadi' || plain === 'atanmadı' || plain === 'tanimsiz' || plain === 'tanımsız') continue;
       seenId.add(c.id);
       const year = normalizeAcademicYear(c.academicYear) || (c.academicYear || '').trim();
-      candidates.push({ cls: c, key: `${normalizeClassKey(c.name)}|${year}`, hasStudents: classIdsWithStudents.has(c.id) });
+      candidates.push({ cls: c, key: `${c.kurumId || ''}|${normalizeClassKey(c.name)}|${year}`, hasStudents: classIdsWithStudents.has(c.id) });
     }
 
     const keptForKey = new Set<string>();

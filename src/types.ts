@@ -30,6 +30,7 @@ export interface Teacher {
   isAdmin?: boolean; // Kurum Yöneticisi / Admin yetkisi (tüm sınıfları ve öğrencileri görebilir)
   assignedClassIds?: string[]; // Admin tarafından izin verilen sınıfların ID listesi
   canViewAllStudentsAndClasses?: boolean; // Yöneticinin önceden eklenmiş sınıf ve öğrenci listelerini görme izni vermesi
+  kurumId?: string | null; // Aşama 18: bağlı olduğu kurum (genel yöneticinin öğretmenleri için boş)
 }
 
 export interface AuthSession {
@@ -58,6 +59,7 @@ export interface Student {
   createdTeacherId?: string; // Bu öğrenciyi kaydeden öğretmenin ID'si
   mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
   authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
+  kurumId?: string | null; // Aşama 18: öğrencinin kurumu (genel yöneticinin öğrencileri için boş)
 }
 
 export interface UnifiedUser {
@@ -86,6 +88,7 @@ export interface UnifiedUser {
   gradeLevel?: string;
   mustChangePassword?: boolean;
   authorizedTeacherIds?: string[];
+  kurumId?: string | null;
 }
 
 export interface ClassGroup {
@@ -98,6 +101,7 @@ export interface ClassGroup {
   description?: string;
   createdTeacherId?: string; // Sınıfı oluşturan öğretmenin ID'si
   authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
+  kurumId?: string | null; // Aşama 18: sınıfı açan kurum (genel yöneticinin sınıfları için boş)
 }
 
 export type HomeworkResourceType = 'video' | 'link' | 'pdf' | 'image';
@@ -424,4 +428,23 @@ export interface StudentApplication {
   studentId?: string;
   createdAt: string;
   reviewedAt?: string;
+}
+
+// Aşama 18: genel yöneticinin kurumlara açtığı bölümler
+export type KurumModule =
+  | 'homework'
+  | 'etut'
+  | 'questions'
+  | 'grades'
+  | 'messages'
+  | 'archive'
+  | 'manage_students'
+  | 'manage_teachers';
+
+export interface KurumInfo {
+  id: string;
+  name: string;
+  modules: Partial<Record<KurumModule, boolean>>;
+  grantedClassIds: string[];
+  createdAt?: string;
 }

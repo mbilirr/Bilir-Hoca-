@@ -35,7 +35,10 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   },
 ];
 
-export const teacherNavFor = (isAdmin: boolean) => TEACHER_NAV.filter((i) => !i.adminOnly || isAdmin);
+// Aşama 18: menü, kullanıcının erişebildiği sekmelere göre süzülür (kurum bölüm izinleri ve yönetim yetkisi).
+// Eski kullanım (true/false) yönetici olup olmadığını belirtir.
+export const teacherNavFor = (access: boolean | ((tab: TeacherTabType) => boolean)) =>
+  TEACHER_NAV.filter((i) => (typeof access === 'function' ? access(i.id) : !i.adminOnly || access));
 
 export const findTeacherNav = (id: TeacherTabType) => TEACHER_NAV.find((i) => i.id === id);
 

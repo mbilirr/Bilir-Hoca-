@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal, Search, LogOut, X, Home, BookOpen, CalendarDays, HelpCircle, Award } from 'lucide-react';
 import type { TeacherTabType } from '../../types';
+import { dataService } from '../../services/dataService';
 import { teacherNavFor, BOTTOM_NAV_PRIMARY, findTeacherNav } from './navItems';
 import { IconBox, cx } from '../ui/kit';
 import { openCommandPalette } from './CommandPalette';
@@ -15,8 +16,9 @@ export const TeacherBottomNav: React.FC<{
   onLogout: () => void;
 }> = ({ activeTab, isAdmin, unreadMessages, onSelect, onLogout }) => {
   const [moreOpen, setMoreOpen] = useState(false);
-  const all = teacherNavFor(isAdmin);
-  const primary = BOTTOM_NAV_PRIMARY.map((id) => findTeacherNav(id)!).filter(Boolean);
+  const canTab = (tab: TeacherTabType) => (tab === 'user_management' ? isAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab));
+  const all = teacherNavFor(canTab);
+  const primary = BOTTOM_NAV_PRIMARY.filter(canTab).map((id) => findTeacherNav(id)!).filter(Boolean);
   const more = all.filter((i) => !BOTTOM_NAV_PRIMARY.includes(i.id));
   const moreActive = more.some((i) => i.id === activeTab);
 

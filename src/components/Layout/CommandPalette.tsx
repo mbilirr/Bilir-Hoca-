@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, User, School, BookOpen, CalendarDays, CornerDownLeft, X } from 'lucide-react';
 import type { Student, ClassGroup, Homework, Etut, TeacherTabType } from '../../types';
+import { dataService } from '../../services/dataService';
 import { teacherNavFor } from './navItems';
 import { IconBox, cx, type Tone } from '../ui/kit';
 import { setQuickFocus, type QuickFocusType } from '../../lib/quickFocus';
@@ -108,7 +109,7 @@ export const CommandPalette: React.FC<{
 
   const results: ResultItem[] = useMemo(() => {
     const q = query.trim();
-    const pages = teacherNavFor(isAdmin)
+    const pages = teacherNavFor((tab) => (tab === 'user_management' ? isAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)))
       .filter((n) => !q || matches(q, n.title, n.description, n.keywords))
       .map<ResultItem>((n) => ({
         key: 'page-' + n.id,

@@ -40,6 +40,7 @@ const EtutManagement = lazyNamed(() => import('./components/Teacher/EtutManageme
 const TeacherMessages = lazyNamed(() => import('./components/Teacher/TeacherMessages'), 'TeacherMessages');
 const TeacherHome = lazyNamed(() => import('./components/Teacher/TeacherHome'), 'TeacherHome');
 const TeacherDocumentsArchive = lazyNamed(() => import('./components/Teacher/Documents/TeacherDocumentsArchive'), 'TeacherDocumentsArchive');
+const KurumManagement = lazyNamed(() => import('./components/Admin/KurumManagement'), 'KurumManagement');
 const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttendance'), 'GradeAttendance');
 const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
@@ -397,19 +398,19 @@ export default function App() {
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
             {/* Kurum Yöneticisi Admin Onay Bildirimi Duvarı */}
-            {(activeTeacher?.isAdmin || currentTeacher?.isAdmin) && (
+            {(activeTeacher?.isAdmin || currentTeacher?.isAdmin) && dataService.isHeadAdmin() && (
               <AdminTeacherApprovalBanner
                 onOpenFullModal={() => setIsAdminApprovalModalOpen(true)}
               />
             )}
 
             {/* Yönetici: veri yedeği hatırlatması (son yedek 7 günden eskiyse) */}
-            {activeTeacher?.isAdmin && teacherTab !== 'user_management' && (
+            {activeTeacher?.isAdmin && dataService.isHeadAdmin() && teacherTab !== 'user_management' && (
               <AdminBackupReminder onOpenBackup={() => setTeacherTab('user_management')} />
             )}
 
             {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
-            {activeTeacher?.isAdmin && pendingApplications > 0 && teacherTab !== 'user_management' && (
+            {activeTeacher?.isAdmin && dataService.isHeadAdmin() && pendingApplications > 0 && teacherTab !== 'user_management' && (
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-warning-soft border border-line text-fg">
                 <div className="flex items-center gap-2.5 text-sm">
                   <Bell className="w-4 h-4 text-warning-fg shrink-0" />
@@ -453,6 +454,18 @@ export default function App() {
                   moduleName={findTeacherNav(teacherTab)?.title || 'Modül'}
                   onResetToHome={() => setTeacherTab('home')}
                 >
+                  {!dataService.canUseTab(teacherTab) ? (
+                    <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="module-locked">
+                      <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
+                      <h2 className="text-lg font-bold text-fg">Bu bölüm kurumunuz için kapalı</h2>
+                      <p className="text-sm text-muted">
+                        "{findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümünü kullanma izni genel yönetici tarafından verilmemiş.
+                      </p>
+                      <button type="button" onClick={() => setTeacherTab('home')} className="ui-btn ui-btn-secondary">
+                        Ana sayfaya dön
+                      </button>
+                    </div>
+                  ) : (
                   <Suspense fallback={<PageLoading />}>
                   {teacherTab === 'students' && (
                     <StudentManagement
@@ -504,16 +517,26 @@ export default function App() {
                     />
                   )}
 
-                  {teacherTab === 'user_management' && activeTeacher?.isAdmin && (
+                  {teacherTab === 'user_management' && dataService.isHeadAdmin() && (
                     <div className="space-y-6 mb-6">
                       <PageHeader
                         icon={ShieldCheck}
                         tone="warning"
                         title="Yönetim"
-                        description="Veri yedeği, kullanıcılar ve yetkiler"
+                        description="Veri yedeği, kurumlar, kullanıcılar ve yetkiler"
                       />
                       <AdminMaintenancePanel />
+                      {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
                     </div>
+                  )}
+
+                  {teacherTab === 'user_management' && dataService.isKurumAdmin() && (
+                    <PageHeader
+                      icon={ShieldCheck}
+                      tone="warning"
+                      title={dataService.getMyKurum().kurumName || 'Kurumum'}
+                      description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
+                    />
                   )}
 
                   {teacherTab === 'user_management' && (
@@ -523,6 +546,7 @@ export default function App() {
                     />
                   )}
                   </Suspense>
+                  )}
                 </ModuleErrorBoundary>
               </div>
             )}

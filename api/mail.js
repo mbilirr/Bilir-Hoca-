@@ -134,21 +134,48 @@ async function getCaller(req) {
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   const role = user.app_metadata && user.app_metadata.role;
-  const isAdmin = role === 'admin' || (user.email || '').toLowerCase() === 'm.bilirr@gmail.com';
-  const rows = await rest(`teachers?select=id,name,email,branch,status,is_admin&auth_user_id=eq.${user.id}`, {
-    token: 'service',
-  });
+  const isHead = (user.email || '').toLowerCase() === 'm.bilirr@gmail.com';
+  // Aşama 18: kurum bilgisi (17 numaralı SQL çalıştırılmadıysa eski davranış)
+  let kurumSupported = true;
+  let rows;
+  try {
+    rows = await rest(`teachers?select=id,name,email,branch,status,is_admin,kurum_id&auth_user_id=eq.${user.id}`, { token: 'service' });
+  } catch (err) {
+    if (!/kurum_id/i.test(String(err && err.message))) throw err;
+    kurumSupported = false;
+    rows = await rest(`teachers?select=id,name,email,branch,status,is_admin&auth_user_id=eq.${user.id}`, { token: 'service' });
+  }
   const t = rows && rows[0];
+  const legacyAdmin = role === 'admin' || isHead || !!(t && t.is_admin);
+  const isAdmin = kurumSupported ? isHead : legacyAdmin;
   if (!t && !isAdmin) throw new HttpError(403, 'Bu işlemi yalnızca öğretmenler yapabilir.');
   if (t && t.status && t.status !== 'approved' && !isAdmin) throw new HttpError(403, 'Öğretmen hesabınız onaylı değil.');
+  const kurumId = kurumSupported && t && t.kurum_id ? String(t.kurum_id) : null;
   return {
     token,
     authId: user.id,
     teacherId: t ? t.id : null,
     name: (t && t.name) || 'Öğretmen',
     email: ((t && t.email) || user.email || '').trim(),
-    isAdmin: isAdmin || !!(t && t.is_admin),
+    // Tam yetki: genel yönetici. Kurum yöneticisi yalnızca kendi kurumunun öğretmenleri adına işlem yapabilir.
+    isAdmin,
+    isKurumAdmin: !isAdmin && !!kurumId && !!(t && t.is_admin),
+    kurumId,
   };
+}
+
+// Çağıran, verilen öğretmen adına işlem yapabilir mi? (genel yönetici: herkes; kurum yöneticisi: kendi kurumu)
+async function managesTeacher(caller, { teacherId, authId }) {
+  if (caller.isAdmin) return true;
+  if (!caller.isKurumAdmin || !caller.kurumId) return false;
+  const q = teacherId ? `id=eq.${encodeURIComponent(teacherId)}` : authId ? `auth_user_id=eq.${encodeURIComponent(authId)}` : '';
+  if (!q) return false;
+  try {
+    const r = await rest(`teachers?select=kurum_id&${q}`, { token: 'service' });
+    return !!(r && r[0] && r[0].kurum_id && String(r[0].kurum_id) === caller.kurumId);
+  } catch {
+    return false;
+  }
 }
 
 // ----------------------------------------------------------------------------- Şifreleme (öğretmen Gmail uygulama şifresi)
@@ -742,7 +769,13 @@ async function actionAttendanceSave(body) {
 async function actionEtutAttendanceLink(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
-  if (etut.createdById && caller.teacherId && etut.createdById !== caller.teacherId && !caller.isAdmin && !etut.teacherIds.includes(caller.teacherId)) {
+  if (
+    etut.createdById &&
+    caller.teacherId &&
+    etut.createdById !== caller.teacherId &&
+    !etut.teacherIds.includes(caller.teacherId) &&
+    !(await managesTeacher(caller, { teacherId: etut.createdById }))
+  ) {
     throw new HttpError(403, 'Bu etüdün yoklama bağlantısını yalnızca etüdü oluşturan öğretmen gönderebilir.');
   }
   const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
@@ -1277,7 +1310,7 @@ async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
   // Etüdü yalnızca kaydeden öğretmen (veya yönetici) duyurabilir
-  if (etut.createdById && caller.teacherId && etut.createdById !== caller.teacherId && !caller.isAdmin) {
+  if (etut.createdById && caller.teacherId && etut.createdById !== caller.teacherId && !(await managesTeacher(caller, { teacherId: etut.createdById }))) {
     throw new HttpError(403, 'Bu etüdün e-postasını yalnızca etüdü oluşturan öğretmen gönderebilir.');
   }
   const students = await studentsByIds(etut.studentIds, caller.token);
@@ -1443,7 +1476,7 @@ async function actionQuestionTarget(caller, body, req, deadline) {
   const row = await fetchVisible('question_targets', body.targetId, caller.token);
   const t = questionTargetView(row);
   // Hedefin e-postasını yalnızca hedefi veren öğretmen (veya yönetici) gönderebilir
-  if (t.createdBy && t.createdBy !== caller.authId && !caller.isAdmin) {
+  if (t.createdBy && t.createdBy !== caller.authId && !(await managesTeacher(caller, { authId: t.createdBy }))) {
     throw new HttpError(403, 'Bu hedefin e-postasını yalnızca hedefi veren öğretmen gönderebilir.');
   }
   if (!t.start || !t.total) throw new HttpError(400, 'Hedef bilgisi eksik.');
@@ -1616,7 +1649,7 @@ function oldEmailNoticeMail(t, newEmail, adminName) {
 }
 
 async function actionTeacherAccount(caller, body, req, deadline) {
-  if (!caller.isAdmin) throw new HttpError(403, 'Öğretmen hesap e-postalarını yalnızca yönetici gönderebilir.');
+  if (!caller.isAdmin && !caller.isKurumAdmin) throw new HttpError(403, 'Öğretmen hesap e-postalarını yalnızca yönetici gönderebilir.');
   const kind = String(body.kind || '');
   const event = TEACHER_EVENTS[kind];
   if (!event) throw new HttpError(400, 'Geçersiz bildirim türü.');
@@ -1627,6 +1660,9 @@ async function actionTeacherAccount(caller, body, req, deadline) {
   });
   const t = rows && rows[0];
   if (!t) throw new HttpError(404, 'Öğretmen bulunamadı.');
+  if (!caller.isAdmin && (t.is_admin || !(await managesTeacher(caller, { teacherId: t.id })))) {
+    throw new HttpError(403, 'Bu öğretmenin hesap e-postasını gönderme yetkiniz yok.');
+  }
   const empty = { ok: true, total: 0, sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [] };
   // Yönetici kendi hesabını düzenliyorsa kendisine e-posta gönderilmez
   if (t.auth_user_id && t.auth_user_id === caller.authId) return { ...empty, teacher: { status: 'self', name: t.name } };

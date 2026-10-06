@@ -74,12 +74,14 @@ function classGradeBranch(c: ClassGroup): { grade?: number; branch?: string } {
 export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = ({
   isOpen,
   onClose,
-  classes,
+  classes: allClasses,
   existingStudents = [],
   onUploadSuccess,
   onAccountsCreated,
 }) => {
-  const isAdmin = dataService.isCurrentUserAdmin();
+  // Aşama 18: kurum yöneticisi yalnızca kendi açtığı sınıflara öğrenci yükleyebilir
+  const isAdmin = dataService.canManageClasses();
+  const classes = React.useMemo(() => allClasses.filter((c) => dataService.canManageClass(c)), [allClasses]);
   const [activeInputMode, setActiveInputMode] = useState<'file' | 'paste'>('file');
   const [pastedText, setPastedText] = useState('');
   const [parsedRows, setParsedRows] = useState<ParsedStudentRow[]>([]);

@@ -33,7 +33,7 @@ import {
   CheckCircle2,
   UserPlus,
 } from 'lucide-react';
-import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup } from '../../types';
+import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
@@ -71,6 +71,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | SystemRole>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all');
+  // Aşama 18: genel yönetici için kurum süzgeci ('' = tümü, 'merkez' = kurumsuz)
+  const [kurumFilter, setKurumFilter] = useState<string>('');
 
   // Modal states
   const [editModalUser, setEditModalUser] = useState<UnifiedUser | null>(null);
@@ -180,6 +182,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     return users.filter((u) => {
       // Role filter
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+      // Kurum filter
+      if (kurumFilter === 'merkez' && u.kurumId) return false;
+      if (kurumFilter && kurumFilter !== 'merkez' && u.kurumId !== kurumFilter) return false;
 
       // Status filter
       if (statusFilter !== 'all') {
@@ -205,11 +210,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       return true;
     });
-  }, [users, roleFilter, statusFilter, deferredQuery]);
-  const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}`);
+  }, [users, roleFilter, statusFilter, deferredQuery, kurumFilter]);
+  const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}|${kurumFilter}`);
+
+  // Aşama 18: genel yönetici her şeyi, kurum yöneticisi yalnızca kendi kurumunu yönetir
+  const isHead = dataService.isHeadAdmin();
+  const canManageTeachers = dataService.canManageTeachers();
+  const kurumOptions = useMemo(() => {
+    const ids = Array.from(new Set(users.map((u) => u.kurumId).filter(Boolean) as string[]));
+    return ids.map((id) => ({ id, name: dataService.getKurumNameForId(id) })).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [users]);
+  const rowManageable = (u: UnifiedUser) =>
+    u.role === 'student'
+      ? dataService.canManageStudent({ kurumId: u.kurumId } as Student)
+      : dataService.canManageTeacherAccount({ id: u.id, isAdmin: u.isAdmin, kurumId: u.kurumId });
 
   // Route Guard: Sadece yöneticiler erişebilir
-  const isSuperAdmin = Boolean(currentAdmin?.isAdmin);
+  const isSuperAdmin = Boolean(currentAdmin?.isAdmin) && dataService.canAccessUserManagement();
 
   if (!isSuperAdmin) {
     return (
@@ -482,20 +499,22 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            type="button"
-            onClick={() => setIsCreateTeacherOpen(true)}
-            className="ui-btn ui-btn-primary"
-            title="Yeni öğretmen için giriş hesabı aç"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Yeni Öğretmen Hesabı</span>
-          </button>
+          {canManageTeachers && (
+            <button
+              type="button"
+              onClick={() => setIsCreateTeacherOpen(true)}
+              className="ui-btn ui-btn-primary"
+              title="Yeni öğretmen için giriş hesabı aç"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Yeni Öğretmen Hesabı</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Öğrenci kayıt başvuruları (onay / red) */}
-      <StudentApplicationsPanel classes={classes} onToast={showToast} />
+      {isHead && <StudentApplicationsPanel classes={classes} onToast={showToast} />}
 
       {/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
@@ -680,13 +699,35 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </select>
             </div>
 
-            {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all') && (
+            {/* Kurum Filter (genel yönetici) */}
+            {isHead && kurumOptions.length > 0 && (
+              <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5">
+                <select
+                  id="users-kurum-filter"
+                  value={kurumFilter}
+                  onChange={(e) => setKurumFilter(e.target.value)}
+                  className="bg-transparent text-xs text-fg font-bold focus:outline-none cursor-pointer"
+                  aria-label="Kurum"
+                >
+                  <option value="" className="bg-surface text-fg">Tüm Kurumlar</option>
+                  <option value="merkez" className="bg-surface text-fg">Sizin (kurumsuz) kayıtlar</option>
+                  {kurumOptions.map((k) => (
+                    <option key={k.id} value={k.id} className="bg-surface text-fg">
+                      {k.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all' || kurumFilter) && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
                   setRoleFilter('all');
                   setStatusFilter('all');
+                  setKurumFilter('');
                 }}
                 className="px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-bold transition-colors cursor-pointer"
               >
@@ -817,7 +858,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               ) : (
                 pagedUsers.visible.map((u) => {
                   const isCurrentAdminSelf = u.id === currentAdmin?.id;
-                  const isProtectedAdmin = isCurrentAdminSelf || (u.role === 'admin' && stats.admins <= 1);
+                  const manageable = rowManageable(u);
+                  const isProtectedAdmin = isCurrentAdminSelf || (u.role === 'admin' && stats.admins <= 1) || !manageable;
                   const isSuspended = u.isSuspended || u.status === 'suspended';
 
                   return (
@@ -864,6 +906,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <span className="text-[11px] text-muted font-mono block">
                               @{u.username}
                             </span>
+                            {isHead && u.kurumId && (
+                              <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-info-soft text-info-fg" data-kurum-badge>
+                                {dataService.getKurumNameForId(u.kurumId)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -970,7 +1017,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       <td className="py-3.5 px-4 text-right sm:pr-6">
                         <div className="flex items-center justify-end space-x-1.5">
                           {/* Sınıf & Öğrenci Erişim Yetkilendirmesi (Erişim Matrisi) */}
-                          {u.role !== 'student' && (
+                          {u.role !== 'student' && manageable && (isHead || u.role === 'teacher') && (
                             <button
                               type="button"
                               onClick={() => handleOpenAuthModal(u)}
@@ -981,8 +1028,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             </button>
                           )}
 
-                          {/* Rol Değiştir Butonu (öğretmen <-> yönetici) */}
-                          {u.role !== 'student' && (
+                          {/* Rol Değiştir Butonu (öğretmen <-> yönetici): yalnızca genel yönetici */}
+                          {u.role !== 'student' && isHead && (
                             <button
                               type="button"
                               onClick={() => handleOpenRoleModal(u)}
@@ -996,8 +1043,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                           {/* Bilgi & Şifre Düzenle (Admin Override) */}
                           <button
                             type="button"
+                            disabled={!manageable && !isCurrentAdminSelf}
                             onClick={() => handleOpenEdit(u)}
-                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-indigo-600 dark:hover:text-indigo-300 border border-line transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-indigo-600 dark:hover:text-indigo-300 border border-line transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             title="Bilgileri ve Şifreyi Güncelle (Admin Override)"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -1167,7 +1215,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         }}
                         className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500 cursor-pointer"
                       >
-                        {classes.map((c) => (
+                        {classes.filter((c) => dataService.canManageClass(c) || c.id === editFormData.classId).map((c) => (
                           <option key={c.id} value={c.id} className="bg-surface text-fg">
                             {c.name} ({c.gradeLevel || c.branch || 'Genel'})
                           </option>
@@ -1347,7 +1395,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     {selectedTargetRole === 'admin' && <Check className="w-4 h-4 text-amber-700 dark:text-amber-400" />}
                   </div>
                   <p className="text-[11px] text-muted mt-0.5">
-                    Tüm sınıfları, öğrencileri, öğretmenleri ve ayarları görme ve düzenleme tam yetkisine sahiptir.
+                    Kendi kurumu açılır: kendi öğretmen, sınıf ve öğrencilerini ekler ve yönetir. Yalnızca sizin açtığınız bölümleri ve izin verdiğiniz sınıfları görür (Yönetim › Kurumlar).
                   </p>
                 </div>
               </div>
@@ -1370,7 +1418,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     {selectedTargetRole === 'teacher' && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
                   </div>
                   <p className="text-[11px] text-muted mt-0.5">
-                    Kendi sınıflarında ödev verme, etüt oluşturma ve soru yanıtlama yetkilerine sahiptir.
+                    Yetkili olduğu sınıflarda ödev, etüt, soru hedefi, not ve yoklama işlemlerini yapar. Öğrenci, sınıf ve öğretmen ekleyip çıkaramaz.
                   </p>
                 </div>
               </div>

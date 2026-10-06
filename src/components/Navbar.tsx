@@ -127,7 +127,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Yönetici kontrolü tek yerden yapılır (isim değil, kayıttaki yönetici yetkisi esas alınır)
   const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
-  const navItems = teacherNavFor(!!isTeacherAdmin);
+  // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
+  const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
 
   // Menü dışına tıklanınca veya Esc'e basılınca kapat
   useEffect(() => {
@@ -229,7 +230,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Yönetici: onay bekleyen öğretmen başvurusu varsa görünür */}
-            {isTeacherSession && currentTeacher?.isAdmin && pendingTeachersCount > 0 && (
+            {isTeacherSession && currentTeacher?.isAdmin && dataService.isHeadAdmin() && pendingTeachersCount > 0 && (
               <button
                 type="button"
                 onClick={() => setIsApprovalModalOpen(true)}
@@ -305,9 +306,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                             : `${activeStudent?.className || 'Öğrenci'} · No: ${activeStudent?.studentNumber || activeStudent?.id}`}
                         </p>
                         {isTeacherSession && currentTeacher?.isAdmin && (
-                          <span className="ui-chip ui-chip-warning mt-1">
-                            <Crown className="w-3 h-3" /> Yönetici
+                          <span className="ui-chip ui-chip-warning mt-1" id="role-chip">
+                            <Crown className="w-3 h-3" /> {dataService.isHeadAdmin() ? 'Genel Yönetici' : dataService.isKurumAdmin() ? 'Kurum Yöneticisi' : 'Yönetici'}
                           </span>
+                        )}
+                        {isTeacherSession && !currentTeacher?.isAdmin && dataService.getMyKurum().kurumName && (
+                          <span className="ui-chip mt-1">{dataService.getMyKurum().kurumName}</span>
                         )}
                       </div>
                     </div>
@@ -334,17 +338,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <>
                             <div className="ui-divider my-1" />
                             <p className="px-3 pt-1.5 pb-1 ui-eyebrow">Yönetici</p>
-                            <MenuItem
-                              icon={ShieldCheck}
-                              onClick={closeAnd(() => setIsApprovalModalOpen(true))}
-                              trailing={pendingTeachersCount > 0 ? <span className="ui-chip ui-chip-warning">{pendingTeachersCount}</span> : undefined}
-                            >
-                              Öğretmenler & Sınıf İzinleri
-                            </MenuItem>
-                            <MenuItem icon={Settings2} onClick={() => goTab('user_management')}>
-                              Yönetim Paneli
-                            </MenuItem>
-                            {onOpenSupabaseGuide && (
+                            {dataService.isHeadAdmin() && (
+                              <MenuItem
+                                icon={ShieldCheck}
+                                onClick={closeAnd(() => setIsApprovalModalOpen(true))}
+                                trailing={pendingTeachersCount > 0 ? <span className="ui-chip ui-chip-warning">{pendingTeachersCount}</span> : undefined}
+                              >
+                                Öğretmenler & Sınıf İzinleri
+                              </MenuItem>
+                            )}
+                            {dataService.canAccessUserManagement() && (
+                              <MenuItem icon={Settings2} onClick={() => goTab('user_management')}>
+                                Yönetim Paneli
+                              </MenuItem>
+                            )}
+                            {onOpenSupabaseGuide && dataService.isHeadAdmin() && (
                               <MenuItem icon={Database} onClick={closeAnd(onOpenSupabaseGuide)}>
                                 Veritabanı Kurulum Rehberi
                               </MenuItem>

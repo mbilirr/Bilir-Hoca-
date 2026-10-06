@@ -5,6 +5,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // Yalnızca giriş yapmış yönetici ve öğretmenler çağırabilir.
 //   - Yönetici: tüm öğrenci ve öğretmen hesapları
 //   - Öğretmen: yalnızca yetkili olduğu sınıflardaki / kendisine atanmış öğrenciler
+// Aşama 18 (kurumlar): Tam yetki yalnızca genel yöneticide. Kurum yöneticisi yalnızca kendi kurumunun
+// öğretmen ve öğrenci hesaplarını (genel yöneticinin izin verdiği ölçüde) yönetir. Öğretmenler hesap yönetemez.
 // İşlemler (body.action):
 //   upsert (varsayılan)   : hesap oluştur / şifre belirle / giriş adını güncelle
 //   bulk_upsert           : toplu öğrenci hesabı (Excel içe aktarma)
@@ -130,14 +132,42 @@ Deno.serve(async (req: Request) => {
       return reply({ error: 'Yetkilendirme başarısız: Geçersiz veya süresi dolmuş oturum. Lütfen tekrar giriş yapınız.' }, 401);
     }
     const caller = userData.user;
-    const callerIsAdmin = isAdminUser(caller);
-    const callerIsTeacher = !callerIsAdmin && caller.app_metadata?.role === 'teacher';
-    if (!callerIsAdmin && !callerIsTeacher) {
-      return reply({ error: 'Bu işlem için yetkiniz yok. Hesap işlemlerini yalnızca yönetici ve öğretmenler yapabilir.' }, 403);
+    const callerIsHead = (caller.email || '').toLowerCase() === HEAD_ADMIN_EMAIL;
+
+    // Kurum bilgisi (17 numaralı SQL çalıştırılmadıysa eski davranış sürer)
+    let kurumSupported = true;
+    let callerRow: Record<string, any> | null = null;
+    {
+      const r = await admin.from('teachers').select('id, is_admin, status, kurum_id').eq('auth_user_id', caller.id).maybeSingle();
+      if (r.error && /kurum_id/i.test(r.error.message || '')) {
+        kurumSupported = false;
+        const r2 = await admin.from('teachers').select('id, is_admin, status').eq('auth_user_id', caller.id).maybeSingle();
+        callerRow = (r2.data as Record<string, any>) || null;
+      } else {
+        callerRow = (r.data as Record<string, any>) || null;
+      }
+    }
+    const callerKurumId: string | null = kurumSupported && callerRow?.kurum_id ? String(callerRow.kurum_id) : null;
+    let callerModules: Record<string, any> = {};
+    if (callerKurumId) {
+      const { data: k } = await admin.from('kurumlar').select('modules').eq('id', callerKurumId).maybeSingle();
+      callerModules = (k && (k as any).modules) || {};
+    }
+    const callerIsAdmin = kurumSupported ? callerIsHead : isAdminUser(caller);
+    const callerIsKurumAdmin =
+      kurumSupported &&
+      !callerIsHead &&
+      !!callerRow?.is_admin &&
+      !!callerKurumId &&
+      (callerRow?.status || 'approved') === 'approved';
+    const callerRole = caller.app_metadata?.role;
+    const callerIsTeacher = !callerIsAdmin && !callerIsKurumAdmin && (callerRole === 'teacher' || callerRole === 'admin');
+    if (!callerIsAdmin && !callerIsKurumAdmin && !callerIsTeacher) {
+      return reply({ error: 'Bu işlem için yetkiniz yok. Hesap işlemlerini yalnızca yöneticiler yapabilir.' }, 403);
     }
 
     const requireAdmin = () => {
-      if (!callerIsAdmin) throw new HttpError(403, 'Bu işlemi yalnızca sistem yöneticisi yapabilir.');
+      if (!callerIsAdmin) throw new HttpError(403, 'Bu işlemi yalnızca genel yönetici yapabilir.');
     };
 
     // ---------------------------------------------------------------------
@@ -145,9 +175,9 @@ Deno.serve(async (req: Request) => {
     // ---------------------------------------------------------------------
     const loadRow = async (type: AccountType, id: string) => {
       const columns =
-        type === 'teacher'
+        (type === 'teacher'
           ? 'id, name, username, email, is_admin, status, auth_user_id'
-          : 'id, name, student_number, class_id, status, auth_user_id';
+          : 'id, name, student_number, class_id, status, auth_user_id') + (kurumSupported ? ', kurum_id' : '');
       const { data, error } = await admin.from(tableFor(type)).select(columns).eq('id', id).maybeSingle();
       if (error) throw new HttpError(500, `Kayıt okunamadı: ${error.message}`);
       if (!data) throw new HttpError(404, type === 'teacher' ? 'Öğretmen kaydı bulunamadı.' : 'Öğrenci kaydı bulunamadı.');
@@ -157,6 +187,22 @@ Deno.serve(async (req: Request) => {
     // Öğretmen yalnızca yetkili olduğu sınıftaki veya kendisine atanmış öğrenciyi yönetebilir
     const assertCanManage = async (type: AccountType, row: Record<string, any>) => {
       if (callerIsAdmin) return;
+      if (callerIsKurumAdmin) {
+        const sameKurum = !!row.kurum_id && String(row.kurum_id) === callerKurumId;
+        if (type === 'teacher') {
+          if (callerModules.manage_teachers !== true) throw new HttpError(403, 'Kurumunuza öğretmen yönetimi izni verilmemiş.');
+          if (!sameKurum || row.is_admin) throw new HttpError(403, `"${row.name}" hesabını yönetme yetkiniz yok.`);
+          return;
+        }
+        if (callerModules.manage_students !== true) throw new HttpError(403, 'Kurumunuza öğrenci yönetimi izni verilmemiş.');
+        if (!sameKurum) {
+          throw new HttpError(403, `"${row.name}" kurumunuzun öğrencisi değil. Bu öğrencinin hesabını yalnızca genel yönetici yönetebilir.`);
+        }
+        return;
+      }
+      if (kurumSupported) {
+        throw new HttpError(403, 'Öğrenci ve öğretmen hesaplarını yalnızca yöneticiler yönetebilir.');
+      }
       if (type !== 'student') {
         throw new HttpError(403, 'Öğretmen hesaplarını yalnızca sistem yöneticisi yönetebilir.');
       }
@@ -378,7 +424,10 @@ Deno.serve(async (req: Request) => {
         try {
           const { data: row } = await admin
             .from(tableFor(type))
-            .select(type === 'teacher' ? 'id, name, auth_user_id' : 'id, name, class_id, auth_user_id')
+            .select(
+              (type === 'teacher' ? 'id, name, is_admin, auth_user_id' : 'id, name, class_id, auth_user_id') +
+                (kurumSupported ? ', kurum_id' : '')
+            )
             .eq('id', id)
             .maybeSingle();
           if (!row) {
@@ -405,9 +454,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'set_suspended') {
-      requireAdmin();
       const type = parseType(body?.type);
       const row = await loadRow(type, String(body?.id || ''));
+      if (!callerIsAdmin) {
+        if (!callerIsKurumAdmin) requireAdmin();
+        await assertCanManage(type, row);
+      }
       const suspend = body?.suspended === true;
       const user = await getAuthUser(row.auth_user_id);
       if (user && isAdminUser(user) && suspend) {
