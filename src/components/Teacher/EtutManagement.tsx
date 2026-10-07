@@ -355,28 +355,29 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         />
       </div>
 
-      {/* Aşama 24: süzgeç çubuğu (ders + tarih) */}
-      <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full sm:w-auto sm:min-w-[13rem]">
-            <label htmlFor="etut-list-subject" className="block text-xs font-semibold text-muted mb-1">
-              Ders
-            </label>
-            <select
-              id="etut-list-subject"
-              value={effectiveListSubject}
-              onChange={(e) => setListSubject(e.target.value)}
-              className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[13rem]"
-            >
-              <option value="all">Tüm dersler ({activeEtuts.length})</option>
-              {listSubjects.map(([s, n]) => (
-                <option key={s} value={s}>
-                  {s} ({n})
-                </option>
-              ))}
-            </select>
-          </div>
-          {viewMode !== 'calendar' ? (
+      {/* Aşama 24: süzgeç çubuğu (ders + tarih) — Liste ve Yoklama görünümünde.
+          Haftalık Takvim'in kendi ders süzgeci ve hafta okları olduğu için orada gösterilmez. */}
+      {viewMode !== 'calendar' && (
+        <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-full sm:w-auto sm:min-w-[13rem]">
+              <label htmlFor="etut-list-subject" className="block text-xs font-semibold text-muted mb-1">
+                Ders
+              </label>
+              <select
+                id="etut-list-subject"
+                value={effectiveListSubject}
+                onChange={(e) => setListSubject(e.target.value)}
+                className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[13rem]"
+              >
+                <option value="all">Tüm dersler ({activeEtuts.length})</option>
+                {listSubjects.map(([s, n]) => (
+                  <option key={s} value={s}>
+                    {s} ({n})
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="block text-xs font-semibold text-muted mb-1">Tarih</span>
               <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tarih süzgeci">
@@ -396,39 +397,37 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 ))}
               </div>
             </div>
-          ) : (
-            <p className="text-[11px] text-muted pb-2">Takvimde haftalar arasında okla gezinin. Tarih süzgeci Liste ve Yoklama görünümünde.</p>
-          )}
-        </div>
-        {viewMode !== 'calendar' && datePreset === 'range' && (
-          <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
-            <label className="text-xs text-muted">
-              <span className="block font-semibold mb-1">Başlangıç</span>
-              <input type="date" id="etut-date-from" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
-            </label>
-            <label className="text-xs text-muted">
-              <span className="block font-semibold mb-1">Bitiş</span>
-              <input type="date" id="etut-date-to" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
-            </label>
           </div>
-        )}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-muted" id="etut-list-count">
-            {viewMode === 'calendar' ? `${subjectEtuts.length} etüt takvimde` : `${listEtuts.length} etüt listeleniyor`}
-            {!isAdminView && ' · yalnız sizin etütleriniz'}
-          </span>
-          {filtersOn && (
-            <button type="button" id="etut-filter-clear" onClick={clearFilters} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
-              Süzgeçleri temizle
-            </button>
+          {datePreset === 'range' && (
+            <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
+              <label className="text-xs text-muted">
+                <span className="block font-semibold mb-1">Başlangıç</span>
+                <input type="date" id="etut-date-from" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+              </label>
+              <label className="text-xs text-muted">
+                <span className="block font-semibold mb-1">Bitiş</span>
+                <input type="date" id="etut-date-to" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+              </label>
+            </div>
           )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted" id="etut-list-count">
+              {`${listEtuts.length} etüt listeleniyor`}
+              {!isAdminView && ' · yalnız sizin etütleriniz'}
+            </span>
+            {filtersOn && (
+              <button type="button" id="etut-filter-clear" onClick={clearFilters} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
+                Süzgeçleri temizle
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
       {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
-          etuts={subjectEtuts}
+          etuts={activeEtuts}
           students={students}
           classes={classes}
           onAddEtutForDate={handleAddEtutForDate}
@@ -441,6 +440,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           }}
           onAttendanceEtut={(etut) => {
             setSelectedAttendanceEtutId(etut.id);
+            setListSubject('all');
             setDatePreset('all');
             setViewMode('attendance');
           }}
