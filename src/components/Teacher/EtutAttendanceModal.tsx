@@ -91,10 +91,23 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
     setAttendanceMap((prev) => ({
       ...prev,
       [studentId]: {
+        ...prev[studentId],
         studentId,
         studentName,
         status,
         note: prev[studentId]?.note || '',
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  };
+
+  // Aşama 23: bu öğrenciye farklı anlatılan konu
+  const handleTopicChange = (studentId: string, topic: string) => {
+    setAttendanceMap((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        topic,
         updatedAt: new Date().toISOString(),
       },
     }));
@@ -106,6 +119,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
       [studentId]: {
         ...prev[studentId],
         note,
+        updatedAt: new Date().toISOString(),
       },
     }));
   };
@@ -115,6 +129,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
       const updated = { ...prev };
       assignedStudents.forEach((std) => {
         updated[std.id] = {
+          ...prev[std.id],
           studentId: std.id,
           studentName: std.name,
           status,
@@ -391,7 +406,19 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       type="text"
                       placeholder="Not ekle (Örn: 10 dk geç, izinli)..."
                       value={currentNote}
+                      maxLength={500}
                       onChange={(e) => handleNoteChange(std.id, e.target.value)}
+                      className="px-2.5 py-1 bg-surface border border-line rounded-lg text-fg text-xs placeholder-subtle w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
+                    />
+                    {/* Aşama 23: farklı anlatılan konu */}
+                    <input
+                      type="text"
+                      data-topic-input={std.id}
+                      placeholder="Farklı anlatılan konu"
+                      title="Bu öğrenciye etüt konusundan farklı bir konu anlatıldıysa yazın (yalnız öğretmenler görür)"
+                      value={attendanceMap[std.id]?.topic || ''}
+                      maxLength={200}
+                      onChange={(e) => handleTopicChange(std.id, e.target.value)}
                       className="px-2.5 py-1 bg-surface border border-line rounded-lg text-fg text-xs placeholder-subtle w-36 sm:w-44 focus:ring-1 focus:ring-emerald-500"
                     />
                   </div>

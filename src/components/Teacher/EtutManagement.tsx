@@ -594,6 +594,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           const note = attendanceNotes[studentId] || currentAttendanceEtut.studentAttendance?.[studentId]?.note || '';
           dataService.updateEtutAttendance(currentAttendanceEtut.id, {
             [studentId]: {
+              ...(currentAttendanceEtut.studentAttendance?.[studentId] || {}),
               studentId,
               studentName,
               status,
@@ -619,6 +620,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           assignedStudents.forEach((std) => {
             const note = attendanceNotes[std.id] || currentAttendanceEtut.studentAttendance?.[std.id]?.note || '';
             map[std.id] = {
+              ...(currentAttendanceEtut.studentAttendance?.[std.id] || {}),
               studentId: std.id,
               studentName: std.name,
               status,

@@ -259,6 +259,172 @@ export async function deleteBook(id: string): Promise<void> {
   if (res.error) fail(res.error, 'Kitap silinemedi.');
 }
 
+// ----------------------------------------------------------------------------- Aşama 23: sınıf / çoklu öğrenci planı
+// Sınıf görünümünde aynı görev (gün + ders + kitap + açıklama) birden çok öğrencide ayrı satır olarak
+// tutulur; ekranda tek kart olarak birleştirilir, düzenleme / silme hepsine birlikte uygulanır.
+const chunks = <T,>(arr: T[], n = 80): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+};
+export const planGroupKey = (i: { day: number; subject: string; book: string; note: string }) => itemKey(i);
+
+export async function loadPlansFor(studentIds: string[], weekStart: string): Promise<{ headers: Record<string, PlanHeader>; items: PlanItem[] }> {
+  const ids = Array.from(new Set(studentIds));
+  const headers: Record<string, PlanHeader> = {};
+  const items: PlanItem[] = [];
+  await Promise.all(
+    chunks(ids).map(async (part) => {
+      const [h, i] = await Promise.all([
+        supabase.from('study_plans').select('*').in('student_id', part).eq('week_start', weekStart),
+        supabase.from('study_plan_items').select('*').in('student_id', part).eq('week_start', weekStart).order('day').order('position').order('created_at'),
+      ]);
+      if (h.error) fail(h.error, 'Planlar okunamadı.');
+      if (i.error) fail(i.error, 'Plan görevleri okunamadı.');
+      for (const r of h.data || []) headers[String(r.student_id)] = headerFromRow(r);
+      for (const r of i.data || []) items.push(itemFromRow(r));
+    })
+  );
+  return { headers, items };
+}
+
+export async function listBooksFor(studentIds: string[]): Promise<StudentBook[]> {
+  const out: StudentBook[] = [];
+  await Promise.all(
+    chunks(Array.from(new Set(studentIds))).map(async (part) => {
+      const res = await supabase.from('student_books').select('*').in('student_id', part).order('title');
+      if (res.error) fail(res.error, 'Kitaplar okunamadı.');
+      for (const r of res.data || []) out.push(bookFromRow(r));
+    })
+  );
+  return out.sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+}
+
+// Birden çok öğrencinin plan başlığını (yoksa) oluşturur
+export async function ensurePlans(studentIds: string[], weekStart: string): Promise<void> {
+  const ids = Array.from(new Set(studentIds));
+  for (const part of chunks(ids)) {
+    const found = await supabase.from('study_plans').select('id').in('id', part.map((s) => planIdOf(s, weekStart)));
+    if (found.error) fail(found.error, 'Planlar okunamadı.');
+    const have = new Set((found.data || []).map((r: any) => String(r.id)));
+    const missing = part.filter((s) => !have.has(planIdOf(s, weekStart)));
+    if (!missing.length) continue;
+    const ins = await supabase.from('study_plans').insert(missing.map((s) => ({ id: planIdOf(s, weekStart), student_id: s, week_start: weekStart })));
+    if (ins.error) {
+      // Aynı anda başka biri oluşturduysa tek tek dene
+      if (String(ins.error.code) === '23505') for (const s of missing) await ensurePlan(s, weekStart);
+      else fail(ins.error, 'Plan oluşturulamadı.');
+    }
+  }
+}
+
+// Aynı görevi birden çok öğrencinin planına ekler (positions: öğrenci → o gündeki sıra)
+export async function addPlanItemsBulk(
+  studentIds: string[],
+  weekStart: string,
+  draft: PlanItemDraft,
+  positions: Record<string, number>,
+  teacherName: string
+): Promise<PlanItem[]> {
+  const subject = clean(draft.subject, 60);
+  if (!subject) throw new Error('Ders seçilmedi.');
+  if (!(draft.day >= 0 && draft.day <= 6)) throw new Error('Gün seçilmedi.');
+  const ids = Array.from(new Set(studentIds));
+  if (!ids.length) throw new Error('En az bir öğrenci seçin.');
+  await ensurePlans(ids, weekStart);
+  const out: PlanItem[] = [];
+  for (const part of chunks(ids, 100)) {
+    const rows = part.map((sid) => ({
+      id: newId('pi'),
+      plan_id: planIdOf(sid, weekStart),
+      student_id: sid,
+      week_start: weekStart,
+      day: draft.day,
+      subject,
+      book: clean(draft.book, 160) || null,
+      note: cleanNote(draft.note) || null,
+      position: positions[sid] || 0,
+      created_by_name: clean(teacherName, 120) || null,
+    }));
+    const res = await supabase.from('study_plan_items').insert(rows).select('*');
+    if (res.error) fail(res.error, 'Görev kaydedilemedi.');
+    out.push(...(res.data && res.data.length ? res.data : rows).map(itemFromRow));
+  }
+  return out;
+}
+
+// Birleştirilmiş görevin bütün satırlarını birlikte günceller / siler
+export async function updatePlanItems(ids: string[], draft: PlanItemDraft): Promise<number> {
+  const subject = clean(draft.subject, 60);
+  if (!subject) throw new Error('Ders seçilmedi.');
+  let n = 0;
+  for (const part of chunks(ids, 100)) {
+    const res = await supabase
+      .from('study_plan_items')
+      .update({ day: draft.day, subject, book: clean(draft.book, 160) || null, note: cleanNote(draft.note) || null })
+      .in('id', part)
+      .select('id');
+    if (res.error) fail(res.error, 'Görev güncellenemedi.');
+    n += (res.data || []).length;
+  }
+  if (ids.length && n === 0) throw new Error('Bu görevi değiştirme yetkiniz yok (yalnızca kendi branşınızdaki görevleri değiştirebilirsiniz).');
+  return n;
+}
+export async function deletePlanItems(ids: string[]): Promise<number> {
+  let n = 0;
+  for (const part of chunks(ids, 100)) {
+    const res = await supabase.from('study_plan_items').delete().in('id', part).select('id');
+    if (res.error) fail(res.error, 'Görev silinemedi.');
+    n += (res.data || []).length;
+  }
+  if (ids.length && n === 0) throw new Error('Bu görevi silme yetkiniz yok (yalnızca kendi branşınızdaki görevleri silebilirsiniz).');
+  return n;
+}
+export async function unsendPlans(studentIds: string[], weekStart: string): Promise<number> {
+  let n = 0;
+  for (const part of chunks(Array.from(new Set(studentIds)), 100)) {
+    const res = await supabase
+      .from('study_plans')
+      .update({ sent_at: null })
+      .in('id', part.map((s) => planIdOf(s, weekStart)))
+      .select('id');
+    if (res.error) fail(res.error, 'Plan geri çekilemedi.');
+    n += (res.data || []).length;
+  }
+  return n;
+}
+
+// Kitabı, listesinde olmayan öğrencilerin kitap listesine ekler; yeni eklenen kayıtları döndürür
+export async function addBookForStudents(studentIds: string[], title: string, subject: string, existing: StudentBook[]): Promise<StudentBook[]> {
+  const t = clean(title, 160);
+  if (!t) return [];
+  const s = clean(subject, 60);
+  const has = (sid: string) =>
+    existing.some(
+      (b) => b.studentId === sid && (bookKey(b.title, b.subject) === bookKey(t, s) || (!b.subject && b.title.toLocaleLowerCase('tr-TR') === t.toLocaleLowerCase('tr-TR')))
+    );
+  const missing = Array.from(new Set(studentIds)).filter((sid) => !has(sid));
+  const out: StudentBook[] = [];
+  for (const part of chunks(missing, 100)) {
+    const rows = part.map((sid) => ({ id: newId('bk'), student_id: sid, title: t, subject: s || null }));
+    const res = await supabase.from('student_books').insert(rows).select('*');
+    if (res.error) {
+      if (String(res.error.code) !== '23505') fail(res.error, 'Kitap kaydedilemedi.');
+      // Bazısında zaten varsa tek tek ekle
+      for (const sid of part) {
+        try {
+          out.push(await addBook(sid, t, s, existing.filter((b) => b.studentId === sid)));
+        } catch {
+          /* bu öğrencide eklenemezse görev yine kaydedilir */
+        }
+      }
+      continue;
+    }
+    out.push(...(res.data && res.data.length ? res.data : rows).map(bookFromRow));
+  }
+  return out;
+}
+
 // ----------------------------------------------------------------------------- Öğretmen: planı başkalarına uygula
 export interface ApplyResult {
   students: number;

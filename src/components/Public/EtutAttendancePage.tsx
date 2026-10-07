@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, CheckCircle2, XCircle, Clock, AlertCircle, Save, Users, MapPin, BookOpen, Info } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarCheck, CheckCircle2, XCircle, Clock, AlertCircle, Save, Users, MapPin, BookOpen, Info, StickyNote, ChevronUp } from 'lucide-react';
 import { cx } from '../ui/kit';
 
 // ============================================================================
@@ -9,12 +9,16 @@ import { cx } from '../ui/kit';
 // ============================================================================
 
 type Status = 'present' | 'absent' | 'late';
+type StudentNote = { note: string; topic: string };
+const NOTE_MAX = 500;
+const TOPIC_MAX = 200;
 
 interface AttendanceData {
   etut: { subject: string; topic: string; date: string; time: string; duration: number; location: string; teacherNames: string };
   teacherName: string;
   students: Array<{ id: string; name: string; className: string }>;
   attendance: Record<string, string>;
+  notes?: Record<string, { note: string; topic: string }>; // Aşama 23
   takenBy: { name: string; at: string | null } | null;
   canSave: boolean;
   reason: string;
@@ -59,9 +63,18 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  // Aşama 23: öğrenciye özel not ve farklı anlatılan konu (yalnız öğretmenler görür)
+  const [notes, setNotes] = useState<Record<string, StudentNote>>({});
+  const [openNote, setOpenNote] = useState<string | null>(null);
+  const focusFromLink = useRef<string | null>(null);
 
   useEffect(() => {
     document.title = 'Etüt Yoklaması';
+    try {
+      focusFromLink.current = new URLSearchParams(window.location.search).get('not');
+    } catch {
+      focusFromLink.current = null;
+    }
     call('attendance-get', { token })
       .then((d: AttendanceData) => {
         setData(d);
@@ -71,9 +84,31 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
           init[s.id] = st === 'absent' || st === 'late' ? st : 'present';
         }
         setMarks(init);
+        const n: Record<string, StudentNote> = {};
+        for (const [id, v] of Object.entries(d.notes || {})) n[id] = { note: String(v?.note || ''), topic: String(v?.topic || '') };
+        setNotes(n);
+        // E-postadaki "Not yaz" bağlantısı: o öğrencinin not alanı açık gelir
+        const want = focusFromLink.current;
+        if (want && d.students.some((s) => s.id === want)) setOpenNote(want);
       })
       .catch((e) => setError(e.message));
   }, [token]);
+
+  useEffect(() => {
+    if (!openNote || focusFromLink.current !== openNote) return;
+    focusFromLink.current = null;
+    const t = window.setTimeout(() => {
+      const el = document.querySelector(`[data-student-id="${CSS.escape(openNote)}"]`);
+      if (el) el.scrollIntoView({ block: 'center' });
+    }, 60);
+    return () => window.clearTimeout(t);
+  }, [openNote]);
+
+  const setNote = (id: string, patch: Partial<StudentNote>) => {
+    setSavedAt(null);
+    setNotes((cur) => ({ ...cur, [id]: { note: cur[id]?.note || '', topic: cur[id]?.topic || '', ...patch } }));
+  };
+  const noteCount = useMemo(() => Object.values(notes).filter((n) => n.note.trim() || n.topic.trim()).length, [notes]);
 
   const counts = useMemo(() => {
     const c = { present: 0, absent: 0, late: 0 };
@@ -86,7 +121,9 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
     setSaving(true);
     setSaveError(null);
     try {
-      const r = await call('attendance-save', { token, records: marks });
+      const payloadNotes: Record<string, StudentNote> = {};
+      for (const [id, n] of Object.entries(notes)) payloadNotes[id] = { note: n.note.trim(), topic: n.topic.trim() };
+      const r = await call('attendance-save', { token, records: marks, notes: payloadNotes });
       setSavedAt(r.at || new Date().toISOString());
     } catch (e: any) {
       setSaveError(e.message);
@@ -185,10 +222,35 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
               </div>
               <ul className="divide-y divide-line" id="att-list">
                 {data.students.map((s) => (
-                  <li key={s.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2" data-student-id={s.id}>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-fg">{s.name}</span>
-                      {s.className && <span className="block text-xs text-muted">{s.className}</span>}
+                  <li key={s.id} className="px-4 py-3 space-y-2" data-student-id={s.id}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span className="min-w-0 flex-1 flex items-start justify-between gap-2">
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-fg">{s.name}</span>
+                        {s.className && <span className="block text-xs text-muted">{s.className}</span>}
+                        {openNote !== s.id && (notes[s.id]?.topic || notes[s.id]?.note) && (
+                          <span className="block text-[11px] text-info-fg mt-0.5 truncate max-w-[16rem]" data-note-preview>
+                            {notes[s.id]?.topic ? `Konu: ${notes[s.id].topic}` : ''}
+                            {notes[s.id]?.topic && notes[s.id]?.note ? ' · ' : ''}
+                            {notes[s.id]?.note ? `Not: ${notes[s.id].note}` : ''}
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        data-note-toggle
+                        aria-expanded={openNote === s.id}
+                        disabled={!data.canSave && !(notes[s.id]?.note || notes[s.id]?.topic)}
+                        onClick={() => setOpenNote((cur) => (cur === s.id ? null : s.id))}
+                        className={cx(
+                          'shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed',
+                          notes[s.id]?.note || notes[s.id]?.topic ? 'bg-info-soft text-info-fg border-info/40' : 'bg-surface text-fg-2 border-line'
+                        )}
+                        title="Öğrenciye özel not / farklı anlatılan konu"
+                      >
+                        {openNote === s.id ? <ChevronUp className="w-3.5 h-3.5" /> : <StickyNote className="w-3.5 h-3.5" />}
+                        {notes[s.id]?.note || notes[s.id]?.topic ? 'Not var' : 'Not'}
+                      </button>
                     </span>
                     <span className="grid grid-cols-3 gap-1.5 sm:w-72" role="radiogroup" aria-label={`${s.name} yoklama`}>
                       {STATUS.map((o) => {
@@ -218,6 +280,38 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                         );
                       })}
                     </span>
+                    </div>
+                    {openNote === s.id && (
+                      <div className="rounded-xl border border-info/30 bg-info-soft/40 p-3 space-y-2" data-note-panel={s.id}>
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-fg-2 mb-1">Anlatılan konu (etüt konusundan farklıysa)</span>
+                          <input
+                            type="text"
+                            data-note-topic
+                            value={notes[s.id]?.topic || ''}
+                            maxLength={TOPIC_MAX}
+                            disabled={!data.canSave}
+                            onChange={(e) => setNote(s.id, { topic: e.target.value })}
+                            placeholder={data.etut.topic ? `Etüt konusu: ${data.etut.topic}` : 'Örn: Üslü sayılar tekrarı'}
+                            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-lg text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:opacity-70"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="block text-xs font-semibold text-fg-2 mb-1">Öğretmen notu</span>
+                          <textarea
+                            data-note-text
+                            value={notes[s.id]?.note || ''}
+                            maxLength={NOTE_MAX}
+                            rows={3}
+                            disabled={!data.canSave}
+                            onChange={(e) => setNote(s.id, { note: e.target.value })}
+                            placeholder="Örn: Konuyu iyi anladı, ek alıştırma verildi / 10 dk geç geldi"
+                            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-lg text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand resize-y disabled:opacity-70"
+                          />
+                        </label>
+                        <p className="text-[11px] text-muted">Bu notu yalnızca öğretmenler görür; öğrenci görmez. Kaydetmek için alttaki "Yoklamayı Kaydet"e basın.</p>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -243,6 +337,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
             <div className="flex items-center gap-3">
               <span className="text-xs text-muted flex-1" id="att-counts">
                 Geldi {counts.present} · Gelmedi {counts.absent} · Geç {counts.late}
+                {noteCount > 0 ? ` · ${noteCount} not` : ''}
               </span>
               <button type="button" id="att-save" onClick={save} disabled={saving} className="ui-btn ui-btn-primary">
                 <Save className="w-4 h-4" />

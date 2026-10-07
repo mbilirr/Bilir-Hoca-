@@ -17,7 +17,8 @@ export const BookPicker: React.FC<{
   onChange: (title: string) => void;
   books: StudentBook[];
   subject: string;
-}> = ({ value, onChange, books, subject }) => {
+  ownerLabel?: string; // Aşama 23: "Bu öğrenci" / "Seçilen öğrenciler"
+}> = ({ value, onChange, books, subject, ownerLabel = 'Bu öğrenci' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -135,7 +136,7 @@ export const BookPicker: React.FC<{
             )}
             {!typed && subjectBookCount === 0 && (
               <p className="px-3 py-3 text-xs text-muted" id="plan-book-empty">
-                Bu öğrenci için {subject ? `${subject} dersinde ` : ''}kayıtlı kitap yok. Yukarıya kitap adını yazarak ekleyebilirsiniz.
+                {ownerLabel} için {subject ? `${subject} dersinde ` : ''}kayıtlı kitap yok. Yukarıya kitap adını yazarak ekleyebilirsiniz.
               </p>
             )}
             {value && (
@@ -176,9 +177,13 @@ export interface TaskModalProps {
   onClose: () => void;
   // keepOpen: "Kaydet ve yeni görev ekle" (aynı gün açık kalır)
   onSave: (draft: PlanItemDraft, keepOpen: boolean) => Promise<void>;
+  // Aşama 23: sınıf planında en üstte "Kime?" (sınıf → öğrenciler) bölümü
+  targetSlot?: React.ReactNode;
+  validateTarget?: () => string | null;
+  bookOwnerLabel?: string;
 }
 
-export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekStart, initial, subjectOptions, books, studentName, onClose, onSave }) => {
+export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekStart, initial, subjectOptions, books, studentName, onClose, onSave, targetSlot, validateTarget, bookOwnerLabel }) => {
   const [day, setDay] = useState(initial.day);
   const [subject, setSubject] = useState(initial.subject || subjectOptions[0] || '');
   const [book, setBook] = useState(initial.book);
@@ -202,6 +207,8 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
 
   const submit = async (keepOpen: boolean) => {
     if (saving) return;
+    const targetError = validateTarget ? validateTarget() : null;
+    if (targetError) return setError(targetError);
     if (!subject) return setError('Lütfen bir ders seçin.');
     if (!book.trim() && !note.trim()) return setError('Kitap seçin ya da yapılacakları (sayfa / konu) yazın.');
     setSaving(true);
@@ -251,6 +258,11 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
             {savedCount} görev eklendi. Aynı güne yeni görev ekleyebilirsiniz.
           </div>
         )}
+        {targetSlot && (
+          <div className="rounded-xl border border-line bg-surface-2/40 p-3 space-y-3" id="plan-task-target">
+            {targetSlot}
+          </div>
+        )}
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
             <FieldLabel htmlFor="plan-task-day">Gün</FieldLabel>
@@ -291,7 +303,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
         </div>
         <div>
           <FieldLabel optional>Kitap</FieldLabel>
-          <BookPicker value={book} onChange={setBook} books={books} subject={subject} />
+          <BookPicker value={book} onChange={setBook} books={books} subject={subject} ownerLabel={bookOwnerLabel} />
         </div>
         <div>
           <FieldLabel htmlFor="plan-task-note" optional>

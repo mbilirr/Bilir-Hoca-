@@ -389,7 +389,11 @@ export function buildStudentReport(pes: PreparedEtut[], info: StudentInfo, today
     const status = classify(pe.etut, info.student.id, today);
     counts[status]++;
     if (pe.levelUnknown) levelUnknownCount++;
-    rows.push({ pe, status, note: (pe.etut.studentAttendance?.[info.student.id]?.note || '').trim() });
+    // Aşama 23: farklı anlatılan konu da not sütununda görünür
+    const rec = pe.etut.studentAttendance?.[info.student.id];
+    const topic = (rec?.topic || '').trim();
+    const note = (rec?.note || '').trim();
+    rows.push({ pe, status, note: [topic ? `Anlatılan konu: ${topic}` : '', note].filter(Boolean).join(' · ') });
   }
   return { rows, counts, rate: attendanceRate(counts), levelUnknownCount };
 }

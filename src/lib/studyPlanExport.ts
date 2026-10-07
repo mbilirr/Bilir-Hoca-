@@ -10,6 +10,7 @@ export interface PlanExportContext {
   weekStart: string;
   items: PlanItem[];
   showStatus?: boolean; // öğrenciye gönderilmişse "Yapıldı / Bekliyor" sütunu
+  whoLabel?: string; // Aşama 23: "Öğrenci" (varsayılan) ya da "Sınıf"
 }
 
 const safeName = (s: string) =>
@@ -25,8 +26,7 @@ const byDay = (items: PlanItem[]) =>
   Array.from({ length: 7 }, (_, d) => items.filter((i) => i.day === d).sort((a, b) => a.position - b.position || a.subject.localeCompare(b.subject, 'tr')));
 
 // ----------------------------------------------------------------------------- Excel
-export async function downloadPlanExcel(c: PlanExportContext): Promise<void> {
-  const XLSX = await import('xlsx');
+function planSheet(XLSX: any, c: PlanExportContext) {
   const head = ['Gün', 'Tarih', 'Ders', 'Kitap', 'Yapılacaklar', 'Veren öğretmen', ...(c.showStatus ? ['Durum'] : [])];
   const days = byDay(c.items);
   const rows: Array<Array<string>> = [];
@@ -46,8 +46,8 @@ export async function downloadPlanExcel(c: PlanExportContext): Promise<void> {
     );
   });
   const aoa: Array<Array<string>> = [
-    ['Öğrenci', c.studentName],
-    ['Sınıf', c.className || ''],
+    [c.whoLabel || 'Öğrenci', c.studentName],
+    ...(c.className ? [['Sınıf', c.className]] : c.whoLabel ? [] : [['Sınıf', '']]),
     ['Hafta', weekRangeLabel(c.weekStart)],
     [],
     head,
@@ -55,13 +55,34 @@ export async function downloadPlanExcel(c: PlanExportContext): Promise<void> {
   ];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = head.map((h, i) => ({ wch: Math.min(Math.max(h.length + 2, [12, 12, 18, 28, 50, 20, 12][i] || 12), 60) }));
+  return ws;
+}
+export async function downloadPlanExcel(c: PlanExportContext): Promise<void> {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Haftalık Plan');
+  XLSX.utils.book_append_sheet(wb, planSheet(XLSX, c), 'Haftalık Plan');
   XLSX.writeFile(wb, `${fileBase(c)}.xlsx`);
+}
+// Aşama 23: birden çok sınıfın planı (her sınıf ayrı sayfa)
+export async function downloadPlanSectionsExcel(sections: PlanExportContext[], fileLabel: string): Promise<void> {
+  if (!sections.length) return;
+  const XLSX = await import('xlsx');
+  const wb = XLSX.utils.book_new();
+  const used = new Set<string>();
+  sections.forEach((c, i) => {
+    let name = (c.studentName || `Sayfa ${i + 1}`).replace(/[\\/?*\[\]:]/g, ' ').slice(0, 28).trim() || `Sayfa ${i + 1}`;
+    while (used.has(name)) name = `${name.slice(0, 25)} ${i + 1}`;
+    used.add(name);
+    XLSX.utils.book_append_sheet(wb, planSheet(XLSX, c), name);
+  });
+  XLSX.writeFile(wb, `Haftalik-Plan_${safeName(fileLabel)}_${sections[0].weekStart}.xlsx`);
 }
 
 // ----------------------------------------------------------------------------- PDF
 async function buildPlanPdf(c: PlanExportContext) {
+  return buildPlanPdfSections([c]);
+}
+async function buildPlanPdfSections(sections: PlanExportContext[]) {
   const [{ jsPDF }, autoTableMod, fonts, analytics] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -77,6 +98,8 @@ async function buildPlanPdf(c: PlanExportContext) {
   const pageW = doc.internal.pageSize.getWidth();
   const M = 12;
 
+  sections.forEach((c, si) => {
+  if (si > 0) doc.addPage();
   doc.setFont(F, 'bold');
   doc.setFontSize(17);
   doc.setTextColor(30, 27, 75);
@@ -84,7 +107,7 @@ async function buildPlanPdf(c: PlanExportContext) {
   doc.setFont(F, 'normal');
   doc.setFontSize(10);
   doc.setTextColor(55, 65, 81);
-  doc.text(t(`Öğrenci: ${c.studentName}${c.className ? `   ·   Sınıf: ${c.className}` : ''}`), M, 23);
+  doc.text(t(`${c.whoLabel || 'Öğrenci'}: ${c.studentName}${c.className ? `   ·   Sınıf: ${c.className}` : ''}`), M, 23);
   doc.text(t(`Hafta: ${weekRangeLabel(c.weekStart)}`), M, 28.5);
   doc.setDrawColor(199, 210, 254);
   doc.line(M, 31.5, pageW - M, 31.5);
@@ -122,6 +145,7 @@ async function buildPlanPdf(c: PlanExportContext) {
       }
     },
   });
+  });
 
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
@@ -139,6 +163,13 @@ async function buildPlanPdf(c: PlanExportContext) {
 export async function downloadPlanPdf(c: PlanExportContext): Promise<void> {
   const doc = await buildPlanPdf(c);
   doc.save(`${fileBase(c)}.pdf`);
+}
+
+// Aşama 23: birden çok sınıfın planı tek PDF'te (her sınıf yeni sayfadan başlar)
+export async function downloadPlanSectionsPdf(sections: PlanExportContext[], fileLabel: string): Promise<void> {
+  if (!sections.length) return;
+  const doc = await buildPlanPdfSections(sections);
+  doc.save(`Haftalik-Plan_${safeName(fileLabel)}_${sections[0].weekStart}.pdf`);
 }
 
 // Aşama 22: e-posta eki için PDF (base64, işaretleme kutuları boş)

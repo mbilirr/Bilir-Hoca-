@@ -163,6 +163,8 @@ export interface EtutStudentAttendance {
   studentName?: string;
   status: AttendanceStatus;
   note?: string;
+  topic?: string; // Aşama 23: bu öğrenciye etüt konusundan farklı anlatılan konu (yalnız öğretmenler görür)
+  markedBy?: string;
   markedAt?: string;
   updatedAt?: string;
 }

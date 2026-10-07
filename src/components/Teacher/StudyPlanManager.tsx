@@ -45,12 +45,14 @@ import {
   type StudyPlan,
 } from '../../services/studyPlanService';
 import { subjectsForLevel } from '../../lib/subjects';
-import { cx, EmptyState, Modal, Panel } from '../ui/kit';
+import { cx, EmptyState, Modal, Panel, Segmented } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import type { PlanGroupKind } from '../../services/studyPlanService';
+import { StudyPlanClassView } from './StudyPlanClassView';
+import { User as UserIcon, School } from 'lucide-react';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19) — Ödevler bölümünün "Haftalık Plan" sekmesi
@@ -76,6 +78,14 @@ export const subjectTone = (subject: string) => {
 };
 
 const STORE_KEY = 'edu_plan_student_v1';
+const MODE_KEY = 'edu_plan_mode_v1';
+const readMode = (): 'student' | 'class' => {
+  try {
+    return sessionStorage.getItem(MODE_KEY) === 'class' ? 'class' : 'student';
+  } catch {
+    return 'student';
+  }
+};
 const readSaved = () => {
   try {
     return sessionStorage.getItem(STORE_KEY) || '';
@@ -104,6 +114,16 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const mySubjects = dataService.getMySubjects(); // null = tüm dersler
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
+
+  // Aşama 23: Kime? Öğrenci (tek öğrencinin planı) / Sınıf (bir ya da birden çok sınıf, seçili öğrenciler)
+  const [mode, setMode] = useState<'student' | 'class'>(readMode);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* hatırlanmaz */
+    }
+  }, [mode]);
 
   // ---- öğrenci / hafta seçimi
   const sortedStudents = useMemo(
@@ -145,7 +165,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
   const reload = useCallback(
     async (quiet = false) => {
-      if (!studentId) return;
+      if (!studentId || mode === 'class') return;
       const my = ++seq.current;
       if (!quiet) setLoading(true);
       try {
@@ -162,7 +182,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         if (my === seq.current && !quiet) setLoading(false);
       }
     },
-    [studentId, weekStart]
+    [studentId, weekStart, mode]
   );
   useEffect(() => {
     setPlan({ header: null, items: [] });
@@ -310,7 +330,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const [applyOpen, setApplyOpen] = useState(false);
   const [booksOpen, setBooksOpen] = useState(false);
 
-  const weekNav = (delta: number) => setWeekStart((w) => addDaysYmd(w, delta * 7));
+  const shiftWeek = (delta: number) => setWeekStart((w) => addDaysYmd(w, delta * 7));
   const isThisWeek = weekStart === weekStartOf(new Date());
 
   if (!students.length) {
@@ -323,10 +343,62 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
   const itemsByDay = Array.from({ length: 7 }, (_, d) => plan.items.filter((i) => i.day === d));
 
+  const weekNav = (
+    <div className="flex items-end gap-2">
+      <button type="button" id="plan-week-prev" aria-label="Önceki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => shiftWeek(-1)}>
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <div className="min-w-[10.5rem] text-center">
+        <p className="text-[11px] text-muted font-medium">{isThisWeek ? 'Bu hafta' : weekStart > weekStartOf(new Date()) ? 'Gelecek' : 'Geçmiş hafta'}</p>
+        <p id="plan-week-label" className="text-sm font-bold text-fg">
+          {weekRangeLabel(weekStart)}
+        </p>
+      </div>
+      <button type="button" id="plan-week-next" aria-label="Sonraki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => shiftWeek(1)}>
+        <ChevronRight className="w-4 h-4" />
+      </button>
+      {!isThisWeek && (
+        <button type="button" id="plan-week-today" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setWeekStart(weekStartOf(new Date()))}>
+          Bu hafta
+        </button>
+      )}
+      <input
+        type="date"
+        aria-label="Haftayı tarihle seç"
+        id="plan-week-date"
+        value={weekStart}
+        onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value))}
+        className={cx(inputCls, 'w-[9.5rem] hidden md:block')}
+      />
+    </div>
+  );
+  const modeSwitch = (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-muted">Kime:</span>
+      <Segmented
+        size="sm"
+        value={mode}
+        onChange={setMode}
+        items={[
+          { value: 'student', label: 'Öğrenci', icon: UserIcon, id: 'plan-mode-student' },
+          { value: 'class', label: 'Sınıf', icon: School, id: 'plan-mode-class' },
+        ]}
+      />
+      <span className="text-[11px] text-muted hidden sm:inline">
+        {mode === 'class' ? 'Bir ya da birden çok sınıfa, istediğiniz öğrencilere birlikte plan verin.' : 'Tek öğrencinin planı.'}
+      </span>
+    </div>
+  );
+
+  if (mode === 'class') {
+    return <StudyPlanClassView students={students} classes={classes} weekStart={weekStart} onWeekChange={setWeekStart} weekNav={weekNav} modeSwitch={modeSwitch} />;
+  }
+
   return (
     <div id="study-plan" className="space-y-4">
       {/* Üst çubuk: öğrenci + hafta */}
       <div className="ui-card ui-card-pad space-y-3">
+        {modeSwitch}
         <div className="flex flex-col lg:flex-row lg:items-end gap-3">
           <div className="grid sm:grid-cols-2 gap-3 flex-1 min-w-0">
             <div>
@@ -352,33 +424,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               </select>
             </div>
           </div>
-          <div className="flex items-end gap-2">
-            <button type="button" id="plan-week-prev" aria-label="Önceki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => weekNav(-1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="min-w-[10.5rem] text-center">
-              <p className="text-[11px] text-muted font-medium">{isThisWeek ? 'Bu hafta' : weekStart > weekStartOf(new Date()) ? 'Gelecek' : 'Geçmiş hafta'}</p>
-              <p id="plan-week-label" className="text-sm font-bold text-fg">
-                {weekRangeLabel(weekStart)}
-              </p>
-            </div>
-            <button type="button" id="plan-week-next" aria-label="Sonraki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => weekNav(1)}>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            {!isThisWeek && (
-              <button type="button" id="plan-week-today" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setWeekStart(weekStartOf(new Date()))}>
-                Bu hafta
-              </button>
-            )}
-            <input
-              type="date"
-              aria-label="Haftayı tarihle seç"
-              id="plan-week-date"
-              value={weekStart}
-              onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value))}
-              className={cx(inputCls, 'w-[9.5rem] hidden md:block')}
-            />
-          </div>
+          {weekNav}
         </div>
 
         {/* Durum ve işlemler */}
@@ -452,6 +498,19 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         </div>
         {sent && <p className="text-[11px] text-muted">Gönderilmiş planda yaptığınız değişiklikler öğrencide anında görünür.</p>}
       </div>
+
+      {/* Aşama 23: taslak planda gönder düğmesi daha görünür */}
+      {!sent && plan.items.length > 0 && !loading && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-xl border border-warning/40 bg-warning-soft px-4 py-3" id="plan-draft-callout">
+          <p className="text-sm text-warning-fg font-semibold flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            Plan taslak: öğrenci henüz görmüyor. Görmesi için "Öğrenciye ödev olarak gönder"e basın.
+          </p>
+          <button type="button" id="plan-send-callout" className="ui-btn ui-btn-primary ui-btn-sm shrink-0" disabled={busy} onClick={doSend}>
+            <Send className="w-4 h-4" /> Öğrenciye ödev olarak gönder
+          </button>
+        </div>
+      )}
 
       {notice && (
         <div

@@ -572,8 +572,37 @@ function etutStudentMail(etut, student, teacherName, url, scheduled) {
     ...body,
   };
 }
+// Aşama 23: öğretmen e-postasında her öğrencinin yanında "Not yaz" bağlantısı (yoklama sayfasında o öğrencinin
+// not penceresini açar: öğrenciye özel not ve etüt konusundan farklı anlatılan konu)
+function teacherStudentListBlock(students, attUrl) {
+  if (!attUrl || !students.length) return studentListBlock(students);
+  const shown = students.slice(0, 60);
+  const more = students.length > 60 ? `… ve ${students.length - 60} öğrenci daha` : '';
+  const rows = shown
+    .map((s, i) => {
+      const name = `${s.name}${s.class_name ? ` (${s.class_name})` : ''}`;
+      const link = `${attUrl}&not=${encodeURIComponent(s.id)}`;
+      return (
+        `<tr><td style="padding:6px 8px 6px 0;font-size:13px;color:#334155;border-bottom:1px solid #e2e8f0">${i + 1}. ${esc(name)}</td>` +
+        `<td style="padding:6px 0;text-align:right;border-bottom:1px solid #e2e8f0;white-space:nowrap">` +
+        `<a href="${esc(link)}" style="display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#4338ca;font-size:12px;font-weight:700;text-decoration:none">Not yaz</a></td></tr>`
+      );
+    })
+    .join('');
+  return {
+    html:
+      `<p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:#0f172a">Öğrenciler (${students.length})</p>` +
+      `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">${rows}</table>` +
+      `<p style="margin:6px 0 0;font-size:12px;color:#64748b">"Not yaz" ile öğrenciye özel not ya da o öğrenciye farklı anlatılan konuyu yazabilirsiniz (yalnız öğretmenler görür).</p>` +
+      (more ? `<p style="margin:4px 0 0;font-size:12px;color:#64748b">${esc(more)}</p>` : ''),
+    text: studentListBlock(students).text + '\n(Öğrenciye özel not yazmak için yoklama bağlantısını açıp öğrencinin yanındaki "Not" düğmesine dokunun.)',
+  };
+}
+
 function etutTeacherMail(kind, etut, teacher, students, creatorName, url, changes) {
-  const list = studentListBlock(students);
+  const showList = kind !== 'etut-cancelled' && kind !== 'etut-unassigned';
+  const attUrl = showList ? attendanceUrl(url, etut.id, teacher.id) : undefined;
+  const list = attUrl ? teacherStudentListBlock(students, attUrl) : studentListBlock(students);
   const titles = {
     'etut-created': ['Size yeni bir etüt atandı', `Size etüt atandı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
     'etut-scheduled': ['Etüdünüz yaklaşıyor', `Etüt hatırlatması: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`],
@@ -615,7 +644,7 @@ function etutTeacherMail(kind, etut, teacher, students, creatorName, url, change
     rows: etutRows(etut, etut.teacherIds && etut.teacherIds.length > 1 && etut.teacherName ? etut.teacherName : teacher.name),
     // Aşama 16: her öğretmene bu etüde özel, girişsiz yoklama bağlantısı
     buttonLabel: showStudents ? 'Yoklamayı al' : undefined,
-    url: showStudents ? attendanceUrl(url, etut.id, teacher.id) : undefined,
+    url: showStudents ? attUrl : undefined,
     extraText: [changesText, showStudents ? list.text : '', showStudents ? ATTENDANCE_HINT : ''].filter(Boolean).join('\n\n'),
     extraHtml:
       changesHtml +
@@ -634,6 +663,8 @@ const ATTENDANCE_HINT =
 const ATT_TOKEN_DAYS = 60;
 const ATT_SAVE_DAYS = 3;
 const ATT_STATUSES = new Set(['present', 'absent', 'late']);
+const ATT_NOTE_MAX = 500;
+const ATT_TOPIC_MAX = 200;
 function b64u(buf) {
   return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -734,6 +765,12 @@ async function actionAttendanceGet(body) {
         .filter(([, v]) => v && typeof v.status === 'string')
         .map(([k, v]) => [k, v.status])
     ),
+    // Aşama 23: öğrenciye özel not ve (etüt konusundan farklıysa) anlatılan konu
+    notes: Object.fromEntries(
+      Object.entries(att)
+        .filter(([k, v]) => v && (v.note || v.topic) && c.students.some((s) => s.id === k))
+        .map(([k, v]) => [k, { note: String(v.note || '').slice(0, ATT_NOTE_MAX), topic: String(v.topic || '').slice(0, ATT_TOPIC_MAX) }])
+    ),
     takenBy: c.meta && c.meta.attendanceTakenBy ? { name: clean(c.meta.attendanceTakenBy.name), at: c.meta.attendanceTakenBy.at || null } : null,
     canSave: c.canSave,
     reason: c.reason,
@@ -747,13 +784,37 @@ async function actionAttendanceSave(body) {
   const entries = Object.entries(records).filter(([id]) => byId.has(id));
   if (!entries.length) throw new HttpError(400, 'Yoklama boş. Öğrencilerin durumunu seçin.');
   for (const [, st] of entries) if (!ATT_STATUSES.has(st)) throw new HttpError(400, 'Geçersiz yoklama durumu.');
+  // Aşama 23: öğrenciye özel not / farklı konu (gönderilmediyse eskisi korunur)
+  const notesIn = body.notes && typeof body.notes === 'object' && !Array.isArray(body.notes) ? body.notes : null;
+  const noteOf = (id) => {
+    if (!notesIn || !Object.prototype.hasOwnProperty.call(notesIn, id)) return null;
+    const v = notesIn[id] && typeof notesIn[id] === 'object' ? notesIn[id] : {};
+    const note = String(v.note == null ? '' : v.note).replace(/\r\n?/g, '\n').trim();
+    const topic = String(v.topic == null ? '' : v.topic).replace(/\s+/g, ' ').trim();
+    if (note.length > ATT_NOTE_MAX) throw new HttpError(400, `Öğrenci notu en fazla ${ATT_NOTE_MAX} karakter olabilir.`);
+    if (topic.length > ATT_TOPIC_MAX) throw new HttpError(400, `Anlatılan konu en fazla ${ATT_TOPIC_MAX} karakter olabilir.`);
+    return { note, topic };
+  };
   const now = new Date().toISOString();
   const teacherName = (c.teacher && c.teacher.name) || 'Etüt öğretmeni';
   const prev = (c.meta && typeof c.meta.studentAttendance === 'object' && c.meta.studentAttendance) || {};
   const next = { ...prev };
   for (const [id, status] of entries) {
     const s = byId.get(id);
-    next[id] = { ...(prev[id] || {}), studentId: id, studentName: s.name, status, note: (prev[id] && prev[id].note) || '', markedAt: now, updatedAt: now, markedBy: teacherName };
+    const n = noteOf(id);
+    const old = prev[id] || {};
+    next[id] = {
+      ...old,
+      studentId: id,
+      studentName: s.name,
+      status,
+      note: n ? n.note : old.note || '',
+      topic: n ? n.topic : old.topic || '',
+      markedAt: now,
+      updatedAt: now,
+      markedBy: teacherName,
+    };
+    if (!next[id].topic) delete next[id].topic;
   }
   const meta = { ...(c.meta || {}), __etut_meta__: true, studentAttendance: next, attendanceTakenBy: { name: teacherName, at: now, via: 'link' } };
   await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
@@ -776,7 +837,7 @@ async function actionAttendanceSave(body) {
       studentId: sid,
       studentName: (v && v.studentName) || (byId.get(sid) && byId.get(sid).name) || 'Öğrenci',
       status: v && v.status,
-      note: (v && v.note) || `Etüt: ${c.etut.topic || c.etut.subject}`,
+      note: (v && v.note) || `Etüt: ${(v && v.topic) || c.etut.topic || c.etut.subject}`,
     }));
     await rest('attendance?on_conflict=id', {
       token: 'service',
