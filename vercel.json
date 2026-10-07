@@ -1,4 +1,4 @@
-vercel.json.tx{
+{
   "functions": {
     "api/mail.js": {
       "maxDuration": 60
