@@ -144,13 +144,26 @@ export function storedPathsOf(resources?: Array<{ url?: string } | null | undefi
     .filter((p): p is string => !!p);
 }
 
+// Aşama 20: kayıt içi dosyalarda yalnızca güvenli dosya türleri açılır (text/html gibi türler uygulama kaynağında çalışabilir)
+const SAFE_BLOB_MIMES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']);
+export function safeBlobMime(mime?: string | null): string {
+  const m = String(mime || '').trim().toLowerCase();
+  return SAFE_BLOB_MIMES.has(m) ? m : 'application/octet-stream';
+}
+
+// Aşama 20: yalnızca http(s) adreslerine izin verir (javascript:, data:, file: engellenir)
+export function safeHttpUrl(url?: string | null): string | null {
+  const u = String(url || '').trim();
+  return /^https?:\/\//i.test(u) ? u : null;
+}
+
 // Eski (kayıt içine gömülü, data:...) dosyayı tarayıcıda açılabilen geçici adrese çevirir
 export function dataUrlToBlobUrl(url: string): string | null {
   try {
     const comma = url.indexOf(',');
     if (!url.startsWith('data:') || comma < 0) return null;
     const header = url.slice(5, comma);
-    const mime = header.split(';')[0] || 'application/octet-stream';
+    const mime = safeBlobMime(header.split(';')[0]);
     const payload = url.slice(comma + 1);
     let bytes: Uint8Array;
     if (header.includes(';base64')) {

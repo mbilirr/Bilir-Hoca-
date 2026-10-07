@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { safeHttpUrl } from '../../lib/fileStorage';
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   MessageSquare,
@@ -234,7 +235,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         </div>
                       </div>
                       <a
-                        href={activeMessage.linkUrl}
+                        href={safeHttpUrl(activeMessage.linkUrl) || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0 ml-3"

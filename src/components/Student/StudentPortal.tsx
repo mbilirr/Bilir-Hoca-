@@ -38,7 +38,7 @@ import { createGoogleCalendarUrlForHomework, createGoogleCalendarUrlForEtut, dow
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
 import { getStudentNote } from '../Teacher/SubmissionViewModal';
-import { removeStoredFiles, storedPathsOf } from '../../lib/fileStorage';
+import { removeStoredFiles, safeHttpUrl, storedPathsOf } from '../../lib/fileStorage';
 import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
 import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
@@ -1027,9 +1027,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
                     <p className="text-xs text-fg-2 leading-relaxed">{msg.text}</p>
 
-                    {msg.linkUrl && (
+                    {safeHttpUrl(msg.linkUrl) && (
                       <a
-                        href={msg.linkUrl}
+                        href={safeHttpUrl(msg.linkUrl) as string}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center space-x-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"

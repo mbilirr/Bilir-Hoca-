@@ -61,6 +61,22 @@ export function formatEtutDateTurkish(dateStr: string): string {
   }
 }
 
+// Aşama 20: HTML önizlemesine giren değerler kaçışlanır (öğretmen/öğrenci yazısı HTML olarak yorumlanmaz)
+const escapeHtml = (v: unknown): string =>
+  String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+function escapeParams<T extends object>(params: T): T {
+  const out: any = {};
+  for (const [k, v] of Object.entries(params as Record<string, unknown>)) {
+    out[k] = typeof v === 'string' ? escapeHtml(v) : Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? escapeHtml(x) : x)) : v;
+  }
+  return out as T;
+}
+
 export function generateHomeworkEmail(params: HomeworkEmailParams): {
   subject: string;
   html: string;
@@ -86,6 +102,7 @@ ${params.teacherName}
 Eğitim & Öğrenci Takip Sistemi
 `.trim();
 
+  const hp = escapeParams(params);
   const html = `
 <!DOCTYPE html>
 <html lang="tr">
@@ -121,47 +138,47 @@ Eğitim & Öğrenci Takip Sistemi
   <div class="email-container">
     <div class="header">
       <span class="badge">📚 Yeni Ödev Ataması</span>
-      <h1>${params.subject} Ödevi</h1>
-      <p>Son Teslim: ${formattedDueDate}</p>
+      <h1>${hp.subject} Ödevi</h1>
+      <p>Son Teslim: ${escapeHtml(formattedDueDate)}</p>
     </div>
     
     <div class="content">
-      <div class="greeting">Merhaba ${params.studentName},</div>
+      <div class="greeting">Merhaba ${hp.studentName},</div>
       <div class="intro">
-        <strong>${params.teacherName}</strong> öğretmeniniz tarafından sisteme yeni bir ödev tanımlandı. Detaylar ve kazanımlar aşağıda bilgilerinize sunulmuştur:
+        <strong>${hp.teacherName}</strong> öğretmeniniz tarafından sisteme yeni bir ödev tanımlandı. Detaylar ve kazanımlar aşağıda bilgilerinize sunulmuştur:
       </div>
 
       <div class="card">
         <div class="card-row">
           <span class="card-label">Ders:</span>
-          <span class="card-value">${params.subject}</span>
+          <span class="card-value">${hp.subject}</span>
         </div>
         <div class="card-row">
           <span class="card-label">Ödev Başlığı:</span>
-          <span class="card-value">${params.title}</span>
+          <span class="card-value">${hp.title}</span>
         </div>
         <div class="card-row">
           <span class="card-label">Son Teslim:</span>
-          <span class="card-value"><span class="due-pill">⏰ ${formattedDueDate}</span></span>
+          <span class="card-value"><span class="due-pill">⏰ ${escapeHtml(formattedDueDate)}</span></span>
         </div>
         <div class="card-row">
           <span class="card-label">Öğretmen:</span>
-          <span class="card-value">${params.teacherName}</span>
+          <span class="card-value">${hp.teacherName}</span>
         </div>
       </div>
 
       <div class="description-box">
         <strong>Ödev Yönergesi:</strong>
-        <p style="margin: 6px 0 0;">${params.description}</p>
+        <p style="margin: 6px 0 0;">${hp.description}</p>
       </div>
 
       ${
-        params.outcomes && params.outcomes.length > 0
+        hp.outcomes && hp.outcomes.length > 0
           ? `
       <div style="margin-top: 16px;">
         <strong style="font-size: 13px; color: #1e293b;">İlgili Ders Kazanımları:</strong>
         <ul class="outcomes-list">
-          ${params.outcomes.map((o) => `<li>${o}</li>`).join('')}
+          ${hp.outcomes.map((o) => `<li>${o}</li>`).join('')}
         </ul>
       </div>
       `
@@ -175,7 +192,7 @@ Eğitim & Öğrenci Takip Sistemi
 
     <div class="footer">
       <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
-      <div class="teacher-sig">${params.teacherName} • Danışman / Branş Öğretmeni</div>
+      <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>
 </body>
@@ -210,6 +227,7 @@ ${params.teacherName}
 Eğitim & Öğrenci Takip Sistemi
 `.trim();
 
+  const hp = escapeParams(params);
   const html = `
 <!DOCTYPE html>
 <html lang="tr">
@@ -242,56 +260,56 @@ Eğitim & Öğrenci Takip Sistemi
   <div class="email-container">
     <div class="header">
       <span class="badge">📅 Etüt & Birebir Takip</span>
-      <h1>${params.subject} Etüdü</h1>
-      <p>${formattedDate} • Saat ${params.time}</p>
+      <h1>${hp.subject} Etüdü</h1>
+      <p>${escapeHtml(formattedDate)} • Saat ${hp.time}</p>
     </div>
     
     <div class="content">
-      <div class="greeting">Merhaba ${params.studentName},</div>
+      <div class="greeting">Merhaba ${hp.studentName},</div>
       <div class="intro">
-        <strong>${params.teacherName}</strong> öğretmeniniz ile birebir / grup etüt randevunuz başarıyla planlandı. Etüt detayları aşağıdadır:
+        <strong>${hp.teacherName}</strong> öğretmeniniz ile birebir / grup etüt randevunuz başarıyla planlandı. Etüt detayları aşağıdadır:
       </div>
 
       <div class="card">
         <div class="card-row">
           <span class="card-label">Ders:</span>
-          <span class="card-value">${params.subject}</span>
+          <span class="card-value">${hp.subject}</span>
         </div>
         <div class="card-row">
           <span class="card-label">Konu / Odak:</span>
-          <span class="card-value">${params.topic}</span>
+          <span class="card-value">${hp.topic}</span>
         </div>
         <div class="card-row">
           <span class="card-label">Tarih & Saat:</span>
-          <span class="card-value"><span class="time-pill">🕒 ${formattedDate} - ${params.time} (${params.duration} dk)</span></span>
+          <span class="card-value"><span class="time-pill">🕒 ${escapeHtml(formattedDate)} - ${hp.time} (${hp.duration} dk)</span></span>
         </div>
         <div class="card-row">
           <span class="card-label">Derslik / Konum:</span>
-          <span class="card-value">📍 ${params.location}</span>
+          <span class="card-value">📍 ${hp.location}</span>
         </div>
         <div class="card-row">
           <span class="card-label">Öğretmen:</span>
-          <span class="card-value">${params.teacherName}</span>
+          <span class="card-value">${hp.teacherName}</span>
         </div>
       </div>
 
       ${
-        params.notes
+        hp.notes
           ? `
       <div class="notes-box">
         <strong>Öğretmen Notu:</strong>
-        <p style="margin: 6px 0 0;">${params.notes}</p>
+        <p style="margin: 6px 0 0;">${hp.notes}</p>
       </div>
       `
           : ''
       }
 
       ${
-        params.teacherFeedback
+        hp.teacherFeedback
           ? `
       <div class="notes-box" style="background: #fefce8; border: 1px solid #fef08a; border-left: 4px solid #eab308; color: #854d0e;">
         <strong>💬 Öğretmen Düşünce ve Görüşleri:</strong>
-        <p style="margin: 6px 0 0; font-style: italic; color: #713f12;">"${params.teacherFeedback}"</p>
+        <p style="margin: 6px 0 0; font-style: italic; color: #713f12;">"${hp.teacherFeedback}"</p>
       </div>
       `
           : ''
@@ -306,7 +324,7 @@ Eğitim & Öğrenci Takip Sistemi
 
     <div class="footer">
       <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
-      <div class="teacher-sig">${params.teacherName} • Danışman / Branş Öğretmeni</div>
+      <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>
 </body>
@@ -367,6 +385,7 @@ ${params.teacherName}
 Eğitim Portalı Yönetimi
 `.trim();
 
+  const hp = escapeParams(params);
   const html = `
 <!DOCTYPE html>
 <html lang="tr">
@@ -407,36 +426,36 @@ Eğitim Portalı Yönetimi
     </div>
 
     <div class="body">
-      <div class="greeting">Merhaba ${params.studentName},</div>
+      <div class="greeting">Merhaba ${hp.studentName},</div>
       <div class="intro">
-        <strong>${params.teacherName}</strong> öğretmeniniz tarafından Eğitim & Öğrenci Takip Portalı sistemine kaydınız gerçekleştirildi. Portala giriş yapabilmeniz için tanımlanan hesap bilgileriniz aşağıdadır:
+        <strong>${hp.teacherName}</strong> öğretmeniniz tarafından Eğitim & Öğrenci Takip Portalı sistemine kaydınız gerçekleştirildi. Portala giriş yapabilmeniz için tanımlanan hesap bilgileriniz aşağıdadır:
       </div>
 
       <div class="creds-box">
         <div class="creds-title">🔑 GİRİŞ VE HESAP BİLGİLERİNİZ</div>
         <div class="cred-row">
           <span class="cred-label">Adı Soyadı:</span>
-          <span class="cred-value">${params.studentName}</span>
+          <span class="cred-value">${hp.studentName}</span>
         </div>
         <div class="cred-row">
           <span class="cred-label">Kullanıcı Adı:</span>
-          <span class="cred-value" style="color: #2563eb;">${params.username}</span>
+          <span class="cred-value" style="color: #2563eb;">${hp.username}</span>
         </div>
         <div class="cred-row">
           <span class="cred-label">Kayıtlı E-posta:</span>
-          <span class="cred-value">${params.studentEmail}</span>
+          <span class="cred-value">${hp.studentEmail}</span>
         </div>
         <div class="cred-row">
           <span class="cred-label">Öğrenci Numarası:</span>
-          <span class="cred-value">${params.studentNumber || '-'}</span>
+          <span class="cred-value">${hp.studentNumber || '-'}</span>
         </div>
         <div class="cred-row">
           <span class="cred-label">Sınıfı / Şubesi:</span>
-          <span class="cred-value">${params.className || '-'}</span>
+          <span class="cred-value">${hp.className || '-'}</span>
         </div>
         <div class="cred-row">
           <span class="cred-label">Giriş Şifresi:</span>
-          <span class="cred-value"><span class="password-pill">${params.password || '123456'}</span></span>
+          <span class="cred-value"><span class="password-pill">${hp.password || '123456'}</span></span>
         </div>
       </div>
 
@@ -444,8 +463,8 @@ Eğitim Portalı Yönetimi
         <h4>📱 Nasıl Giriş Yapacaksınız?</h4>
         <ol>
           <li>Uygulama giriş ekranında <strong>"Öğrenci Portalı"</strong> butonuna tıklayınız.</li>
-          <li>Kullanıcı adı veya e-posta alanına <strong>${params.username}</strong> veya <strong>${params.studentEmail}</strong> yazınız.</li>
-          <li>Şifre alanına <strong>${params.password || '123456'}</strong> yazıp Giriş Yap butonuna basınız.</li>
+          <li>Kullanıcı adı veya e-posta alanına <strong>${hp.username}</strong> veya <strong>${hp.studentEmail}</strong> yazınız.</li>
+          <li>Şifre alanına <strong>${hp.password || '123456'}</strong> yazıp Giriş Yap butonuna basınız.</li>
           <li>Giriş yaptıktan sonra şifrenizi profil menüsünden dilediğiniz zaman değiştirebilirsiniz.</li>
         </ol>
       </div>
@@ -457,7 +476,7 @@ Eğitim Portalı Yönetimi
 
     <div class="footer">
       <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
-      <div class="teacher-sig">${params.teacherName} • Danışman / Branş Öğretmeni</div>
+      <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>
 </body>

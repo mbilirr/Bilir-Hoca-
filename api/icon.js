@@ -499,7 +499,7 @@ const ICONS = {
 
 export default function handler(req, res) {
   const size = String((req.query && req.query.s) || '192');
-  const b64 = ICONS[size] || ICONS['192'];
+  const b64 = Object.prototype.hasOwnProperty.call(ICONS, size) ? ICONS[size] : ICONS['192'];
   const buf = Buffer.from(b64, 'base64');
   res.setHeader('Content-Type', 'image/png');
   res.setHeader('Content-Length', String(buf.length));

@@ -29,7 +29,7 @@ const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta 
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'question-target', 'plan-report']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'question-target']);
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -376,9 +376,8 @@ const b64lines = (s) =>
     .toString('base64')
     .replace(/.{1,76}/g, '$&\r\n');
 
-function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, text, html, attachments }) {
+function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, text, html }) {
   const boundary = 'b_' + crypto.randomBytes(12).toString('hex');
-  const files = (attachments || []).filter((a) => a && a.content && a.filename);
   const domain = (fromAddr.split('@')[1] || 'mail.local').replace(/[^\w.-]/g, '');
   const headers = [
     `From: ${addressHeader(fromName, fromAddr)}`,
@@ -388,34 +387,14 @@ function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, te
     `Date: ${new Date().toUTCString().replace('GMT', '+0000')}`,
     `Message-ID: <${crypto.randomBytes(16).toString('hex')}@${domain}>`,
     'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
   ].filter(Boolean);
-  const alternative =
-    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(text)}` +
-    `--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(html)}` +
-    `--${boundary}--\r\n`;
-  if (!files.length) {
-    return headers.join('\r\n') + `\r\nContent-Type: multipart/alternative; boundary="${boundary}"` + '\r\n\r\n' + alternative;
-  }
-  // Aşama 22: ekli dosya (ör. haftalık plan PDF'i) — multipart/mixed
-  const mixed = 'm_' + crypto.randomBytes(12).toString('hex');
-  const parts = files
-    .map((f) => {
-      const name = String(f.filename).replace(/[^\w.-]+/g, '_').slice(0, 80) || 'ek.pdf';
-      const type = /^[\w.+-]+\/[\w.+-]+$/.test(String(f.contentType || '')) ? f.contentType : 'application/octet-stream';
-      return (
-        `--${mixed}\r\nContent-Type: ${type}; name="${name}"\r\nContent-Transfer-Encoding: base64\r\n` +
-        `Content-Disposition: attachment; filename="${name}"\r\n\r\n` +
-        Buffer.from(f.content).toString('base64').replace(/.{1,76}/g, '$&\r\n')
-      );
-    })
-    .join('');
   return (
     headers.join('\r\n') +
-    `\r\nContent-Type: multipart/mixed; boundary="${mixed}"` +
     '\r\n\r\n' +
-    `--${mixed}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}` +
-    parts +
-    `--${mixed}--\r\n`
+    `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(text)}` +
+    `--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(html)}` +
+    `--${boundary}--\r\n`
   );
 }
 
@@ -996,7 +975,6 @@ async function deliver(sender, senderMeta, items, deadline) {
           subject: it.subject,
           text: it.text,
           html: it.html,
-          attachments: it.attachments,
         });
         await client.sendRaw(sender.user, it.to, msg);
         summary.sent++;
@@ -1988,457 +1966,6 @@ async function actionReminders(req, deadline) {
 }
 
 // ----------------------------------------------------------------------------- Giriş noktası
-// ============================================================================
-// HAFTALIK PLAN: E-POSTA, İŞARETLEME BAĞLANTISI VE ÖĞRETMEN RAPORU (Aşama 22)
-//  * plan-group : öğretmen planı gönderirken bir "gönderim grubu" açar (tek öğrenci / seçili öğrenciler / sınıf).
-//  * plan-mail  : öğrenciye planı e-postayla (gövdede tablo + PDF eki) gönderir; e-postada kişisel işaretleme bağlantısı vardır.
-//  * plan-get / plan-mark : giriş gerektirmeyen işaretleme sayfası (imzalı bağlantı).
-//  * Zamanlanmış görev: planın son görev günü saat 20:00'de öğretmene rapor (sınıfa verildiyse toplu karne).
-//    Öğrencilere e-posta gönderilmemiş gruplar için rapor gitmez.
-// ============================================================================
-const PLAN_DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-const PLAN_DAY_SHORT = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-const PLAN_REPORT_MINUTE = 20 * 60; // görev verilen son gün saat 20:00
-const PLAN_LINK_EXTRA_DAYS = 21; // işaretleme bağlantısı hafta bittikten sonra 3 hafta daha açılır
-const PLAN_PDF_MAX_BYTES = 3 * 1024 * 1024;
-const PLAN_MAX_STUDENTS = 80;
-
-const planIdOf = (studentId, weekStart) => `plan-${studentId}-${weekStart}`;
-const isWeekStart = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
-function planDateText(weekStart, day) {
-  const d = addDaysYmd(weekStart, day);
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
-  return m ? `${+m[3]} ${AYLAR[+m[2] - 1]}` : d;
-}
-function planWeekText(weekStart) {
-  const end = addDaysYmd(weekStart, 6);
-  const a = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekStart);
-  const b = /^(\d{4})-(\d{2})-(\d{2})$/.exec(end);
-  if (!a || !b) return weekStart;
-  return a[2] === b[2] ? `${+a[3]}–${+b[3]} ${AYLAR[+b[2] - 1]} ${b[1]}` : `${+a[3]} ${AYLAR[+a[2] - 1]} – ${+b[3]} ${AYLAR[+b[2] - 1]} ${b[1]}`;
-}
-function planKey() {
-  const e = env();
-  const base = e.secretKey || e.service;
-  if (!base) throw new HttpError(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
-  return crypto.createHash('sha256').update(`study-plan:${base}`).digest();
-}
-function makePlanToken(planId, studentId, weekStart) {
-  const end = Date.parse(`${addDaysYmd(weekStart, 7)}T00:00:00Z`) || Date.now();
-  const payload = b64u(JSON.stringify({ p: String(planId), s: String(studentId), x: Math.floor(end / 1000) + PLAN_LINK_EXTRA_DAYS * 86400 }));
-  const sig = b64u(crypto.createHmac('sha256', planKey()).update(payload).digest());
-  return `${payload}.${sig}`;
-}
-function planMarkUrl(base, planId, studentId, weekStart) {
-  if (!base) return '';
-  return `${String(base).replace(/\/+$/, '')}/?plan=${makePlanToken(planId, studentId, weekStart)}`;
-}
-function readPlanToken(token) {
-  const bad = 'Plan bağlantısı geçersiz. Bağlantıyı e-postadan eksiksiz açtığınızdan emin olun.';
-  if (typeof token !== 'string' || token.length > 800 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) throw new HttpError(400, bad);
-  const [payload, sig] = token.split('.');
-  const expected = b64u(crypto.createHmac('sha256', planKey()).update(payload).digest());
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new HttpError(400, bad);
-  let data;
-  try {
-    data = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-  } catch {
-    throw new HttpError(400, bad);
-  }
-  if (!data || typeof data.p !== 'string' || typeof data.s !== 'string') throw new HttpError(400, bad);
-  if (!(Number(data.x) > Date.now() / 1000)) throw new HttpError(410, 'Bu plan bağlantısının süresi dolmuş.');
-  return { planId: data.p, studentId: data.s };
-}
-async function planItemsFor(planIds) {
-  if (!planIds.length) return [];
-  const out = [];
-  for (let i = 0; i < planIds.length; i += 60) {
-    const rows = await rest(
-      `study_plan_items?select=id,plan_id,student_id,day,subject,book,note,position,created_by_name,done_at&plan_id=in.${inList(planIds.slice(i, i + 60))}&order=day.asc,position.asc`,
-      { token: 'service' },
-    );
-    out.push(...(rows || []));
-  }
-  return out;
-}
-const sortPlanItems = (items) =>
-  [...items].sort((x, y) => x.day - y.day || (x.position || 0) - (y.position || 0) || String(x.subject).localeCompare(String(y.subject), 'tr'));
-
-// ----------------------------------------------------------------------------- Öğrenciye giden plan e-postası
-function planTableBlock(weekStart, items, withStatus) {
-  const days = PLAN_DAY_NAMES.map((name, d) => ({ name, d, list: sortPlanItems(items.filter((i) => i.day === d)) })).filter((x) => x.list.length);
-  const html = days
-    .map(
-      (x) =>
-        `<p style="margin:16px 0 6px;font-size:13px;font-weight:700;color:#3730a3">${esc(x.name)} · ${esc(planDateText(weekStart, x.d))}</p>` +
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e3e6ef;border-radius:10px;border-collapse:separate;overflow:hidden">` +
-        x.list
-          .map(
-            (i) =>
-              `<tr><td style="padding:8px 10px;border-bottom:1px solid #eef0f5;font-size:13px;color:#0f172a;vertical-align:top;width:34%"><strong>${esc(i.subject)}</strong>${i.book ? `<br><span style="color:#64748b;font-size:12px">${esc(i.book)}</span>` : ''}</td>` +
-              `<td style="padding:8px 10px;border-bottom:1px solid #eef0f5;font-size:13px;color:#334155;vertical-align:top">${esc(i.note || '-').replace(/\n/g, '<br>')}</td>` +
-              (withStatus
-                ? `<td style="padding:8px 10px;border-bottom:1px solid #eef0f5;font-size:13px;font-weight:700;white-space:nowrap;vertical-align:top;width:92px;text-align:right;color:${i.done_at ? '#047857' : '#b91c1c'}">${i.done_at ? '✓ Yaptı' : '✗ Yapmadı'}</td>`
-                : ''),
-          )
-          .join('') +
-        `</table>`,
-    )
-    .join('');
-  const text = days
-    .map((x) => `${x.name} (${planDateText(weekStart, x.d)}):\n${x.list.map((i) => `  - ${i.subject}${i.book ? ` / ${i.book}` : ''}: ${i.note || '-'}${withStatus ? (i.done_at ? ' [YAPTI]' : ' [YAPMADI]') : ''}`).join('\n')}`)
-    .join('\n\n');
-  return { html, text };
-}
-function planStudentMail(weekStart, items, student, teacherName, markUrl) {
-  const block = planTableBlock(weekStart, items, false);
-  const { html, text } = layout({
-    heading: `Haftalık çalışma planın (${planWeekText(weekStart)})`,
-    greeting: `Merhaba ${clean(student.name)},`,
-    intro: `${teacherName} öğretmenin bu hafta için sana gün gün çalışma planı hazırladı. Planın aşağıda ve ekteki PDF dosyasında. Her görevi yaptıkça aşağıdaki düğmeden "yaptım" diye işaretle; öğretmenin hangi görevleri yaptığını görecek.`,
-    extraHtml: block.html,
-    extraText: block.text,
-    buttonLabel: 'Planımı aç ve işaretle',
-    url: markUrl,
-    footer: 'Bu bağlantı sana özeldir; başkasıyla paylaşma. Görevlerini uygulamaya girerek ana sayfandan da işaretleyebilirsin.',
-  });
-  return { subject: `Haftalık çalışma planın: ${planWeekText(weekStart)}`, html, text };
-}
-
-async function actionPlanGroup(caller, body, req) {
-  const weekStart = String(body.weekStart || '');
-  if (!isWeekStart(weekStart)) throw new HttpError(400, 'Hafta bilgisi geçersiz.');
-  const ids = uniqIds(arr(body.studentIds).map(String)).slice(0, PLAN_MAX_STUDENTS + 1);
-  if (!ids.length) throw new HttpError(400, 'Öğrenci seçilmedi.');
-  if (ids.length > PLAN_MAX_STUDENTS) throw new HttpError(400, `Bir seferde en fazla ${PLAN_MAX_STUDENTS} öğrenciye gönderilebilir.`);
-  // Öğretmen bu öğrencilerin planlarını görebiliyor mu? (veritabanı kuralları öğretmenin oturumuyla denetlenir)
-  const planIds = ids.map((sid) => planIdOf(sid, weekStart));
-  const visible = await rest(`study_plans?select=id,student_id,sent_at&id=in.${inList(planIds)}`, { token: caller.token });
-  const ok = (visible || []).filter((p) => p.sent_at);
-  if (!ok.length) throw new HttpError(404, 'Gönderilmiş plan bulunamadı. Önce planı öğrenciye gönderin.');
-  const students = await studentsByIds(ok.map((p) => p.student_id), caller.token);
-  let kind = ['student', 'students', 'class'].includes(body.kind) ? body.kind : ok.length === 1 ? 'student' : 'students';
-  if (ok.length === 1) kind = 'student';
-  let label = '';
-  let classId = null;
-  if (kind === 'class' && typeof body.classId === 'string' && body.classId) {
-    const cls = await rest(`classes?select=id,name&id=eq.${encodeURIComponent(body.classId)}`, { token: caller.token });
-    if (cls && cls[0]) {
-      classId = cls[0].id;
-      label = clean(cls[0].name).slice(0, 120);
-    } else kind = 'students';
-  } else if (kind === 'class') kind = 'students';
-  if (kind === 'student') label = clean((students[0] && students[0].name) || '').slice(0, 120);
-  if (kind === 'students') label = `Seçili öğrenciler (${ok.length})`;
-  const groupId = `pg-${crypto.randomUUID()}`;
-  await rest('study_plan_groups', {
-    token: 'service',
-    method: 'POST',
-    prefer: 'return=minimal',
-    body: {
-      id: groupId,
-      week_start: weekStart,
-      kind,
-      class_id: classId,
-      label,
-      teacher_id: caller.teacherId,
-      teacher_auth_id: caller.authId,
-      teacher_name: clean(caller.name).slice(0, 120),
-      mail_students: !!body.mailStudents,
-    },
-  });
-  await rest(`study_plans?id=in.${inList(ok.map((p) => p.id))}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { group_id: groupId } });
-  const base = appUrl(req);
-  const links = {};
-  for (const p of ok) links[p.student_id] = planMarkUrl(base, p.id, p.student_id, weekStart);
-  const byId = new Map(students.map((s) => [s.id, s]));
-  return {
-    ok: true,
-    groupId,
-    kind,
-    label,
-    links,
-    students: ok.map((p) => ({ id: p.student_id, hasEmail: isEmail((byId.get(p.student_id) || {}).email) })),
-    skipped: ids.length - ok.length,
-  };
-}
-
-async function actionPlanMail(caller, body, req, deadline) {
-  const groupId = String(body.groupId || '');
-  const studentId = String(body.studentId || '');
-  if (!/^pg-[\w-]{8,64}$/.test(groupId) || !studentId) throw new HttpError(400, 'Eksik bilgi.');
-  const groups = await rest(`study_plan_groups?select=*&id=eq.${encodeURIComponent(groupId)}`, { token: 'service' });
-  const group = groups && groups[0];
-  if (!group) throw new HttpError(404, 'Gönderim bulunamadı.');
-  if (group.teacher_auth_id !== caller.authId && !caller.isAdmin) throw new HttpError(403, 'Bu gönderimi yalnızca planı gönderen öğretmen kullanabilir.');
-  const planId = planIdOf(studentId, group.week_start);
-  // Öğretmenin bu öğrenciye erişimi hâlâ var mı? (kendi oturumuyla)
-  const vis = await rest(`study_plans?select=id,sent_at,group_id&id=eq.${encodeURIComponent(planId)}`, { token: caller.token });
-  const plan = vis && vis[0];
-  if (!plan || plan.group_id !== groupId) throw new HttpError(404, 'Bu öğrencinin planı bu gönderimde değil.');
-  if (!plan.sent_at) throw new HttpError(409, 'Plan geri çekilmiş; önce planı yeniden gönderin.');
-  const students = await studentsByIds([studentId], caller.token);
-  const student = students[0];
-  if (!student) throw new HttpError(404, 'Öğrenci bulunamadı.');
-  const items = await planItemsFor([planId]);
-  if (!items.length) throw new HttpError(409, 'Planda görev yok.');
-  let attachments;
-  if (typeof body.pdf === 'string' && body.pdf) {
-    const buf = Buffer.from(body.pdf.replace(/^data:application\/pdf;[^,]*,/, ''), 'base64');
-    if (buf.length > PLAN_PDF_MAX_BYTES) throw new HttpError(413, 'PDF dosyası çok büyük.');
-    if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'Ek bir PDF dosyası değil.');
-    const safe = clean(student.name)
-      .normalize('NFKD')
-      .replace(/[^\w ]+/g, '')
-      .trim()
-      .replace(/\s+/g, '-')
-      .slice(0, 40);
-    attachments = [{ filename: `Haftalik-Plan-${safe || 'ogrenci'}-${group.week_start}.pdf`, contentType: 'application/pdf', content: buf }];
-  }
-  const markUrl = planMarkUrl(appUrl(req), planId, studentId, group.week_start);
-  const mail = planStudentMail(group.week_start, items, student, caller.name, markUrl);
-  const sender = await resolveSender(caller);
-  const summary = await deliver(
-    sender,
-    caller,
-    [
-      {
-        event: 'plan-sent',
-        refId: planId,
-        refTitle: `Haftalık plan ${group.week_start}`,
-        to: student.email,
-        toName: student.name,
-        role: 'ogrenci',
-        repeatLimit: 3,
-        attachments,
-        ...mail,
-      },
-    ],
-    deadline,
-  );
-  if (summary.sent > 0) {
-    await rest(`study_plans?id=eq.${encodeURIComponent(planId)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { mailed_at: new Date().toISOString() } });
-  }
-  return { ok: true, markUrl, ...summary };
-}
-
-// ----------------------------------------------------------------------------- İşaretleme sayfası (giriş gerektirmez)
-async function loadPlanByToken(token) {
-  const { planId, studentId } = readPlanToken(token);
-  const rows = await rest(`study_plans?select=id,student_id,week_start,sent_at,sent_by_name&id=eq.${encodeURIComponent(planId)}`, { token: 'service' });
-  const plan = rows && rows[0];
-  if (!plan || plan.student_id !== studentId) throw new HttpError(404, 'Plan bulunamadı ya da silinmiş.');
-  if (!plan.sent_at) throw new HttpError(410, 'Öğretmenin bu planı geri çekmiş.');
-  return plan;
-}
-async function actionPlanGet(body) {
-  const plan = await loadPlanByToken(body.token);
-  const st = await rest(`students?select=name,class_name&id=eq.${encodeURIComponent(plan.student_id)}`, { token: 'service' });
-  const items = sortPlanItems(await planItemsFor([plan.id]));
-  return {
-    ok: true,
-    studentName: clean((st && st[0] && st[0].name) || ''),
-    className: clean((st && st[0] && st[0].class_name) || ''),
-    weekStart: plan.week_start,
-    weekLabel: planWeekText(plan.week_start),
-    teacherName: clean(plan.sent_by_name || ''),
-    today: istanbulNow().date,
-    items: items.map((i) => ({
-      id: i.id,
-      day: i.day,
-      date: addDaysYmd(plan.week_start, i.day),
-      subject: clean(i.subject),
-      book: clean(i.book || ''),
-      note: String(i.note || '').slice(0, 1000),
-      doneAt: i.done_at || null,
-    })),
-  };
-}
-async function actionPlanMark(body) {
-  const plan = await loadPlanByToken(body.token);
-  const itemId = String(body.itemId || '');
-  if (!itemId || itemId.length > 120) throw new HttpError(400, 'Görev bulunamadı.');
-  const doneAt = body.done ? new Date().toISOString() : null;
-  const rows = await rest(`study_plan_items?id=eq.${encodeURIComponent(itemId)}&plan_id=eq.${encodeURIComponent(plan.id)}`, {
-    token: 'service',
-    method: 'PATCH',
-    prefer: 'return=representation',
-    body: { done_at: doneAt },
-  });
-  if (!rows || !rows.length) throw new HttpError(404, 'Görev bulunamadı ya da silinmiş.');
-  return { ok: true, itemId, doneAt: rows[0].done_at || null };
-}
-
-// ----------------------------------------------------------------------------- Öğretmene rapor (son akşam 20:00)
-const pctOf = (a, b) => (b > 0 ? Math.round((a / b) * 100) : 0);
-const pctColor = (p) => (p >= 80 ? '#047857' : p >= 50 ? '#b45309' : '#b91c1c');
-function planReportMail(group, students, plans, items) {
-  const week = planWeekText(group.week_start);
-  const byPlan = new Map();
-  for (const it of items) {
-    if (!byPlan.has(it.plan_id)) byPlan.set(it.plan_id, []);
-    byPlan.get(it.plan_id).push(it);
-  }
-  const rows = plans
-    .map((p) => {
-      const s = students.find((x) => x.id === p.student_id) || { name: p.student_id, class_name: '' };
-      const list = sortPlanItems(byPlan.get(p.id) || []);
-      const done = list.filter((i) => i.done_at).length;
-      return { plan: p, student: s, list, done, total: list.length, pct: pctOf(done, list.length) };
-    })
-    .filter((r) => r.total > 0)
-    .sort((a, b) => String(a.student.name).localeCompare(String(b.student.name), 'tr'));
-  const allDone = rows.reduce((n, r) => n + r.done, 0);
-  const allTotal = rows.reduce((n, r) => n + r.total, 0);
-
-  if (group.kind === 'student' && rows.length === 1) {
-    const r = rows[0];
-    const block = planTableBlock(group.week_start, r.list, true);
-    const { html, text } = layout({
-      heading: `Haftalık plan raporu: ${clean(r.student.name)}`,
-      greeting: `Sayın ${clean(group.teacher_name || 'Öğretmenim')},`,
-      intro: `${week} haftası için gönderdiğiniz çalışma planının son durumu aşağıdadır. Öğrencinin "yaptım" işaretleri (uygulamadan ya da e-postadaki bağlantıdan) esas alınmıştır.`,
-      rows: [
-        ['Öğrenci', `${clean(r.student.name)}${r.student.class_name ? ` (${clean(r.student.class_name)})` : ''}`],
-        ['Hafta', week],
-        ['Tamamlanan', `${r.done} / ${r.total} görev (%${r.pct})`],
-        ['E-posta', r.plan.mailed_at ? 'Plan öğrenciye e-postayla gönderildi' : 'Öğrencinin e-posta adresi yok; plan yalnız uygulamada görüldü'],
-      ],
-      extraHtml: block.html,
-      extraText: block.text,
-    });
-    return { subject: `Plan raporu: ${clean(r.student.name)} – ${r.done}/${r.total} görev (%${r.pct})`, html, text };
-  }
-
-  // Toplu karne (sınıf ya da seçili öğrenciler)
-  const usedDays = PLAN_DAY_NAMES.map((_, d) => d).filter((d) => rows.some((r) => r.list.some((i) => i.day === d)));
-  const th = (t) => `<th style="padding:6px 4px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700;border-bottom:1px solid #c7d2fe;text-align:center">${esc(t)}</th>`;
-  const cell = (dn, dt) => {
-    if (!dt) return `<td style="padding:6px 4px;font-size:12px;color:#cbd5e1;text-align:center;border-bottom:1px solid #eef0f5">–</td>`;
-    const c = dn === dt ? '#047857' : dn === 0 ? '#b91c1c' : '#b45309';
-    return `<td style="padding:6px 4px;font-size:12px;font-weight:700;color:${c};text-align:center;border-bottom:1px solid #eef0f5">${dn}/${dt}</td>`;
-  };
-  const tableHtml =
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e3e6ef;border-radius:10px;border-collapse:separate;overflow:hidden">` +
-    `<tr><th style="padding:6px 8px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700;border-bottom:1px solid #c7d2fe;text-align:left">Öğrenci</th>${usedDays.map((d) => th(PLAN_DAY_SHORT[d])).join('')}${th('Toplam')}</tr>` +
-    rows
-      .map(
-        (r) =>
-          `<tr><td style="padding:6px 8px;font-size:12px;color:#0f172a;font-weight:600;border-bottom:1px solid #eef0f5">${esc(r.student.name)}</td>` +
-          usedDays
-            .map((d) => {
-              const l = r.list.filter((i) => i.day === d);
-              return cell(l.filter((i) => i.done_at).length, l.length);
-            })
-            .join('') +
-          `<td style="padding:6px 6px;font-size:12px;font-weight:800;color:${pctColor(r.pct)};text-align:center;border-bottom:1px solid #eef0f5;white-space:nowrap">${r.done}/${r.total} %${r.pct}</td></tr>`,
-      )
-      .join('') +
-    `</table>`;
-  const full = rows.filter((r) => r.done === r.total);
-  const none = rows.filter((r) => r.done === 0);
-  const missing = rows.filter((r) => r.done > 0 && r.done < r.total);
-  const missingHtml = missing.length
-    ? `<p style="margin:18px 0 6px;font-size:13px;font-weight:700;color:#0f172a">Eksik kalan görevler</p>` +
-      missing
-        .slice(0, 40)
-        .map((r) => {
-          const left = r.list.filter((i) => !i.done_at);
-          const txt = left
-            .slice(0, 6)
-            .map((i) => `${PLAN_DAY_SHORT[i.day]} ${i.subject}${i.book ? ` (${i.book})` : ''}`)
-            .join(', ');
-          return `<p style="margin:0 0 4px;font-size:12px;color:#334155"><strong>${esc(r.student.name)}:</strong> ${esc(txt)}${left.length > 6 ? ` … +${left.length - 6}` : ''}</p>`;
-        })
-        .join('')
-    : '';
-  const listLine = (title, list) => (list.length ? `<p style="margin:12px 0 0;font-size:12px;color:#334155"><strong>${esc(title)} (${list.length}):</strong> ${esc(list.map((r) => r.student.name).join(', '))}</p>` : '');
-  const heading = group.kind === 'class' ? `${clean(group.label)} haftalık plan karnesi` : `Haftalık plan karnesi: ${clean(group.label)}`;
-  const { html, text } = layout({
-    heading,
-    greeting: `Sayın ${clean(group.teacher_name || 'Öğretmenim')},`,
-    intro: `${week} haftası için gönderdiğiniz çalışma planlarının son durumu aşağıdadır. Hücrelerde "yapılan / verilen görev" sayısı yazar.`,
-    rows: [
-      [group.kind === 'class' ? 'Sınıf' : 'Grup', clean(group.label)],
-      ['Hafta', week],
-      ['Öğrenci', String(rows.length)],
-      ['Genel tamamlama', `${allDone} / ${allTotal} görev (%${pctOf(allDone, allTotal)})`],
-      ['Tamamını yapan', String(full.length)],
-      ['Hiç işaretlemeyen', String(none.length)],
-    ],
-    extraHtml: tableHtml + listLine('Tamamını yapanlar', full) + listLine('Hiç işaretlemeyenler', none) + missingHtml,
-    extraText:
-      rows.map((r) => `${r.student.name}: ${r.done}/${r.total} (%${r.pct})`).join('\n') +
-      (none.length ? `\n\nHiç işaretlemeyenler: ${none.map((r) => r.student.name).join(', ')}` : ''),
-  });
-  return { subject: `${heading} – %${pctOf(allDone, allTotal)}`, html, text };
-}
-
-async function actionPlanReports(req, deadline) {
-  const now = istanbulNow();
-  const out = { groups: 0, due: 0, sent: 0, failed: 0 };
-  let groups;
-  try {
-    groups = await rest(
-      `study_plan_groups?select=*&mail_students=is.true&report_sent_at=is.null&week_start=gte.${addDaysYmd(now.date, -21)}&week_start=lte.${now.date}&limit=200`,
-      { token: 'service' },
-    );
-  } catch (err) {
-    // 21 numaralı SQL çalıştırılmadıysa sessizce geç
-    if (/study_plan_groups|does not exist|schema cache/i.test(String(err && err.message))) return out;
-    throw err;
-  }
-  for (const g of groups || []) {
-    if (Date.now() > deadline) break;
-    out.groups++;
-    const plans = (await rest(`study_plans?select=id,student_id,sent_at,mailed_at&group_id=eq.${encodeURIComponent(g.id)}`, { token: 'service' })) || [];
-    const live = plans.filter((p) => p.sent_at);
-    if (!live.length || !live.some((p) => p.mailed_at)) continue; // öğrenciye e-posta gitmediyse rapor yok
-    const items = await planItemsFor(live.map((p) => p.id));
-    if (!items.length) continue;
-    const lastDay = Math.max(...items.map((i) => Number(i.day) || 0));
-    const lastDate = addDaysYmd(g.week_start, lastDay);
-    const due = now.date > lastDate || (now.date === lastDate && now.minutes >= PLAN_REPORT_MINUTE);
-    if (!due) continue;
-    if (now.date > addDaysYmd(lastDate, 7)) {
-      // çok eski: artık gönderilmez
-      await rest(`study_plan_groups?id=eq.${encodeURIComponent(g.id)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { report_sent_at: new Date().toISOString() } });
-      continue;
-    }
-    // Rapor için "kilit" al: aynı anda iki çağrı aynı raporu göndermesin
-    const claimed = await rest(`study_plan_groups?id=eq.${encodeURIComponent(g.id)}&report_sent_at=is.null`, {
-      token: 'service',
-      method: 'PATCH',
-      prefer: 'return=representation',
-      body: { report_sent_at: new Date().toISOString(), report_attempts: (Number(g.report_attempts) || 0) + 1 },
-    });
-    if (!claimed || !claimed.length) continue;
-    out.due++;
-    const trows = g.teacher_id ? await rest(`teachers?select=id,name,email,auth_user_id&id=eq.${encodeURIComponent(g.teacher_id)}`, { token: 'service' }) : [];
-    const teacher = (trows && trows[0]) || { name: g.teacher_name, email: '', auth_user_id: g.teacher_auth_id };
-    const students = await studentsByIds(live.map((p) => p.student_id), 'service');
-    const mail = planReportMail({ ...g, teacher_name: teacher.name || g.teacher_name }, students, live, items);
-    const owner = { authId: teacher.auth_user_id || g.teacher_auth_id || null, name: teacher.name || g.teacher_name || 'Öğretmen', email: teacher.email || '' };
-    const sender = await resolveSender(owner);
-    const summary = await deliver(
-      sender,
-      { authId: null, name: owner.name },
-      [{ event: 'plan-report', refId: g.id, refTitle: `Plan raporu ${g.week_start}`, to: owner.email, toName: owner.name, role: 'ogretmen', ...mail }],
-      deadline,
-    );
-    out.sent += summary.sent;
-    if (!summary.sent && !summary.skipped && !summary.noEmail) {
-      out.failed++;
-      // Geçici hata: 3 denemeye kadar sonraki turda yeniden dene
-      if ((Number(g.report_attempts) || 0) + 1 < 3)
-        await rest(`study_plan_groups?id=eq.${encodeURIComponent(g.id)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { report_sent_at: null } });
-    }
-  }
-  return out;
-}
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const deadline = Date.now() + TIME_BUDGET_MS;
@@ -2459,17 +1986,10 @@ export default async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Yetkisiz' });
       }
       if (!e.service) return res.status(503).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY eksik' });
-      // Aşama 19: etüt e-postaları (Supabase zamanlayıcısı her 10 dakikada çağırır); Aşama 22: plan raporları da
+      // Aşama 19: etüt e-postaları (Supabase zamanlayıcısı her 10 dakikada çağırır)
       if (task === 'etut-reminders') {
         const er = await actionEtutReminders(req, deadline);
-        // Aşama 22: haftalık plan raporları (son görev günü 20:00)
-        let pr = null;
-        try {
-          pr = await actionPlanReports(req, deadline);
-        } catch (err) {
-          console.error('[mail] plan raporu hatası', err && err.message);
-        }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0 });
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail });
       }
       const r = await actionReminders(req, deadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
@@ -2479,16 +1999,9 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] günlük etüt e-postası hatası', err && err.message);
       }
-      let pr = null;
-      try {
-        pr = await actionPlanReports(req, deadline);
-      } catch (err) {
-        console.error('[mail] günlük plan raporu hatası', err && err.message);
-      }
       // Zamanlanmış görev yanıtında kişi/ödev adı verilmez (yalnızca sayılar)
       return res.status(200).json({
         etutSent: er ? er.sent : 0,
-        planReports: pr ? pr.sent : 0,
         ok: r.ok,
         date: r.date,
         homeworks: r.homeworks.length,
@@ -2511,12 +2024,6 @@ export default async function handler(req, res) {
     }
     body = body && typeof body === 'object' ? body : {};
     // Aşama 16: e-postadaki yoklama bağlantısı (giriş gerektirmez; imzalı bağlantı denetlenir)
-    // Aşama 22: e-postadaki haftalık plan bağlantısı (giriş gerektirmez; imzalı bağlantı denetlenir)
-    if (body.action === 'plan-get' || body.action === 'plan-mark') {
-      if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
-      const r = body.action === 'plan-get' ? await actionPlanGet(body) : await actionPlanMark(body);
-      return res.status(200).json(r);
-    }
     if (body.action === 'attendance-get' || body.action === 'attendance-save') {
       if (!env().service) throw new HttpError(503, 'Sunucu ayarları eksik.');
       const r = body.action === 'attendance-get' ? await actionAttendanceGet(body) : await actionAttendanceSave(body);
@@ -2557,12 +2064,6 @@ export default async function handler(req, res) {
         break;
       case 'teacher-account':
         result = await actionTeacherAccount(caller, body, req, deadline);
-        break;
-      case 'plan-group':
-        result = await actionPlanGroup(caller, body, req);
-        break;
-      case 'plan-mail':
-        result = await actionPlanMail(caller, body, req, deadline);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

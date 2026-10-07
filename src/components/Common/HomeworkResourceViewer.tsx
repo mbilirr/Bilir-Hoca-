@@ -16,7 +16,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { HomeworkResource } from '../../types';
-import { getSignedFileUrl, isStoredFileUrl, storagePathFromUrl } from '../../lib/fileStorage';
+import { getSignedFileUrl, isStoredFileUrl, safeBlobMime, safeHttpUrl, storagePathFromUrl } from '../../lib/fileStorage';
 
 interface HomeworkResourceViewerProps {
   resources?: HomeworkResource[];
@@ -58,7 +58,7 @@ function dataUrlToBlobUrl(url: string): string | null {
     const comma = url.indexOf(',');
     if (!url.startsWith('data:') || comma < 0) return null;
     const header = url.slice(5, comma);
-    const mime = header.split(';')[0] || 'application/octet-stream';
+    const mime = safeBlobMime(header.split(';')[0]);
     const payload = url.slice(comma + 1);
     let bytes: Uint8Array;
     if (header.includes(';base64')) {
@@ -82,7 +82,7 @@ const resourceFileName = (res: HomeworkResource) =>
 // Gösterilecek adres: depo dosyası için imzalı bağlantı, kayıt içi dosya için geçici blob adresi, diğerleri için kendisi
 function useViewableUrl(url?: string): { url: string; error: string | null } {
   const [state, setState] = useState<{ url: string; error: string | null }>(() => ({
-    url: url && !isInlineFile(url) && !isStoredFileUrl(url) ? url : '',
+    url: url && !isInlineFile(url) && !isStoredFileUrl(url) ? safeHttpUrl(url) || '' : '',
     error: null,
   }));
   useEffect(() => {
@@ -106,7 +106,7 @@ function useViewableUrl(url?: string): { url: string; error: string | null } {
       };
     }
     if (!isInlineFile(url)) {
-      setState({ url, error: null });
+      setState({ url: safeHttpUrl(url) || '', error: null });
       return;
     }
     const blobUrl = dataUrlToBlobUrl(url);
@@ -141,7 +141,7 @@ async function downloadResource(res: HomeworkResource) {
     return;
   }
   if (!isInlineFile(res.url)) {
-    window.open(res.url, '_blank', 'noopener,noreferrer');
+    { const safe = safeHttpUrl(res.url); if (safe) window.open(safe, '_blank', 'noopener,noreferrer'); }
     return;
   }
   const blobUrl = dataUrlToBlobUrl(res.url);
@@ -171,7 +171,7 @@ function openResourceInNewTab(res: HomeworkResource) {
     return;
   }
   if (!isInlineFile(res.url)) {
-    window.open(res.url, '_blank', 'noopener,noreferrer');
+    { const safe = safeHttpUrl(res.url); if (safe) window.open(safe, '_blank', 'noopener,noreferrer'); }
     return;
   }
   const blobUrl = dataUrlToBlobUrl(res.url);
@@ -544,7 +544,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
 
                 {res.type === 'link' && (
                   <a
-                    href={res.url}
+                    href={safeHttpUrl(res.url) || undefined}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 py-1.5 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
