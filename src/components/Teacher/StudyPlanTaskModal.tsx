@@ -38,14 +38,16 @@ export const BookPicker: React.FC<{
 
   const q = trLower(query);
   const typed = query.trim();
-  // Bu derse ait ve her derse ait kitaplar önce; diğer derslerin kitapları sonda
-  const { mine, others } = useMemo(() => {
+  // Aşama 21: yalnızca seçilen derse ait kitaplar (ve "her ders" için kaydedilenler) listelenir
+  const { mine, general } = useMemo(() => {
     const match = (b: StudentBook) => !q || trLower(b.title).includes(q);
-    const m = books.filter((b) => (!b.subject || b.subject === subject) && match(b));
-    const o = books.filter((b) => b.subject && b.subject !== subject && match(b));
-    return { mine: m, others: o };
+    return {
+      mine: books.filter((b) => !!b.subject && b.subject === subject && match(b)),
+      general: books.filter((b) => !b.subject && match(b)),
+    };
   }, [books, subject, q]);
-  const exact = books.some((b) => trLower(b.title) === q);
+  const subjectBookCount = books.filter((b) => !b.subject || b.subject === subject).length;
+  const exact = books.some((b) => (!b.subject || b.subject === subject) && trLower(b.title) === q);
 
   const pick = (title: string) => {
     onChange(title);
@@ -94,14 +96,14 @@ export const BookPicker: React.FC<{
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (typed) pick(mine.find((b) => trLower(b.title) === q)?.title || typed);
+                    if (typed) pick([...mine, ...general].find((b) => trLower(b.title) === q)?.title || typed);
                   }
                 }}
                 placeholder="Kitap adını yazın ya da arayın…"
                 className={cx(inputCls, 'pl-8 py-1.5')}
               />
             </div>
-            <p className="text-[11px] text-muted mt-1">Kitap listede yoksa adını buraya yazıp onaylayın; öğrencinin kitap listesine eklenir.</p>
+            <p className="text-[11px] text-muted mt-1">Yalnızca <strong>{subject || 'seçilen ders'}</strong> kitapları listelenir. Kitap listede yoksa adını buraya yazıp onaylayın; bu dersin kitabı olarak eklenir.</p>
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {typed && !exact && (
@@ -115,18 +117,27 @@ export const BookPicker: React.FC<{
                 <span className="truncate">“{typed}” adını kullan ve listeye ekle</span>
               </button>
             )}
+            {mine.length > 0 && (
+              <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle" id="plan-book-subject-head">
+                {subject} kitapları
+              </p>
+            )}
             {mine.map((b) => (
               <BookRow key={b.id} book={b} active={b.title === value} onPick={() => pick(b.title)} />
             ))}
-            {others.length > 0 && (
+            {general.length > 0 && (
               <>
-                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle">Diğer derslerin kitapları</p>
-                {others.map((b) => (
+                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle">Her derste kullanılan kitaplar</p>
+                {general.map((b) => (
                   <BookRow key={b.id} book={b} active={b.title === value} onPick={() => pick(b.title)} />
                 ))}
               </>
             )}
-            {!typed && books.length === 0 && <p className="px-3 py-3 text-xs text-muted">Bu öğrenci için kayıtlı kitap yok. Yukarıya kitap adını yazarak ekleyebilirsiniz.</p>}
+            {!typed && subjectBookCount === 0 && (
+              <p className="px-3 py-3 text-xs text-muted" id="plan-book-empty">
+                Bu öğrenci için {subject ? `${subject} dersinde ` : ''}kayıtlı kitap yok. Yukarıya kitap adını yazarak ekleyebilirsiniz.
+              </p>
+            )}
             {value && (
               <button type="button" id="plan-book-clear" onClick={() => pick('')} className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-muted hover:bg-surface-2 cursor-pointer border-t border-line">
                 <X className="w-3.5 h-3.5" /> Kitap seçimini kaldır
@@ -253,7 +264,22 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
           </div>
           <div>
             <FieldLabel htmlFor="plan-task-subject">Ders</FieldLabel>
-            <select id="plan-task-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
+            <select
+              id="plan-task-subject"
+              value={subject}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Aşama 21: seçili kitap başka bir derse aitse ders değişince kitap seçimi kalkar
+                const t = trLower(book);
+                if (t) {
+                  const fitsNext = books.some((b) => (!b.subject || b.subject === next) && trLower(b.title) === t);
+                  const ofOther = books.some((b) => !!b.subject && b.subject !== next && trLower(b.title) === t);
+                  if (ofOther && !fitsNext) setBook('');
+                }
+                setSubject(next);
+              }}
+              className={inputCls}
+            >
               {subjectOptions.map((s) => (
                 <option key={s} value={s}>
                   {s}

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { newId } from '../lib/ids';
+import { callMail, type MailResult } from '../lib/mailApi';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19)
@@ -32,6 +33,7 @@ export interface PlanHeader {
   weekStart: string;
   sentAt: string | null;
   sentByName: string;
+  mailedAt?: string | null; // Aşama 22: öğrenciye e-postayla gönderildiği an
 }
 export interface StudyPlan {
   header: PlanHeader | null;
@@ -106,7 +108,14 @@ function itemFromRow(r: any): PlanItem {
   };
 }
 function headerFromRow(r: any): PlanHeader {
-  return { id: String(r.id), studentId: String(r.student_id), weekStart: String(r.week_start), sentAt: r.sent_at || null, sentByName: String(r.sent_by_name || '') };
+  return {
+    id: String(r.id),
+    studentId: String(r.student_id),
+    weekStart: String(r.week_start),
+    sentAt: r.sent_at || null,
+    sentByName: String(r.sent_by_name || ''),
+    mailedAt: r.mailed_at || null,
+  };
 }
 function bookFromRow(r: any): StudentBook {
   return { id: String(r.id), studentId: String(r.student_id), title: String(r.title || ''), subject: String(r.subject || '') };
@@ -344,4 +353,51 @@ export async function loadMyWeek(weekStart: string): Promise<{ items: PlanItem[]
 export async function setTaskDone(itemId: string, done: boolean): Promise<void> {
   const res = await supabase.rpc('student_set_plan_task_done', { p_item_id: itemId, p_done: done });
   if (res.error) fail(res.error, 'İşaret kaydedilemedi.');
+}
+
+// ----------------------------------------------------------------------------- Aşama 22: e-posta / WhatsApp ile gönderim
+export type PlanGroupKind = 'student' | 'students' | 'class';
+export interface PlanGroupResult {
+  groupId: string;
+  kind: PlanGroupKind;
+  label: string;
+  links: Record<string, string>; // öğrenci → kişisel işaretleme bağlantısı
+  students: Array<{ id: string; hasEmail: boolean }>;
+}
+// Gönderilmiş planlar için bir "gönderim grubu" açar (öğretmen raporu bu gruba göre hazırlanır)
+export async function createPlanGroup(opts: {
+  weekStart: string;
+  studentIds: string[];
+  kind: PlanGroupKind;
+  classId?: string;
+  mailStudents: boolean;
+}): Promise<PlanGroupResult> {
+  const r: MailResult = await callMail('plan-group', opts);
+  if (!r.ok) {
+    const msg = String(r.error || '');
+    if (/study_plan_groups|schema cache|does not exist/i.test(msg)) throw new Error('E-posta ile gönderim için 21 numaralı SQL dosyasının Supabase\'te çalıştırılması gerekiyor.');
+    throw new Error(msg || 'Gönderim hazırlanamadı.');
+  }
+  return { groupId: r.groupId, kind: r.kind, label: r.label, links: r.links || {}, students: r.students || [] };
+}
+// Bir öğrenciye planı e-postayla gönderir (PDF eki isteğe bağlı, base64)
+export async function mailPlanToStudent(groupId: string, studentId: string, pdfBase64?: string): Promise<MailResult> {
+  return callMail('plan-mail', { groupId, studentId, pdf: pdfBase64 || undefined });
+}
+// WhatsApp mesaj metni ve bağlantısı (tıklayınca WhatsApp açılır, öğretmen gönderir)
+export function planWhatsappText(studentName: string, weekStart: string, items: PlanItem[], markUrl?: string): string {
+  const lines: string[] = [`Merhaba ${studentName}, ${weekRangeLabel(weekStart)} haftası çalışma planın:`];
+  PLAN_DAYS.forEach((name, d) => {
+    const list = items.filter((i) => i.day === d).sort((a, b) => a.position - b.position);
+    if (!list.length) return;
+    lines.push('', `*${name}*`);
+    for (const i of list) lines.push(`- ${i.subject}${i.book ? ` (${i.book})` : ''}${i.note ? `: ${i.note}` : ''}`);
+  });
+  if (markUrl) lines.push('', `Görevlerini yaptıkça buradan işaretle: ${markUrl}`);
+  return lines.join('\n');
+}
+export function whatsappUrl(phone: string | undefined, text: string): string {
+  const digits = (phone || '').replace(/[^0-9]/g, '');
+  const intl = digits ? (digits.startsWith('90') ? digits : digits.startsWith('0') ? `9${digits}` : `90${digits}`) : '';
+  return `https://api.whatsapp.com/send?${intl ? `phone=${intl}&` : ''}text=${encodeURIComponent(text)}`;
 }

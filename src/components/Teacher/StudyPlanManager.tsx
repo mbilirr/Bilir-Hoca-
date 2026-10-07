@@ -49,6 +49,8 @@ import { cx, EmptyState, Modal, Panel } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
+import { StudyPlanSendModal } from './StudyPlanSendModal';
+import type { PlanGroupKind } from '../../services/studyPlanService';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19) — Ödevler bölümünün "Haftalık Plan" sekmesi
@@ -254,18 +256,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const sent = !!plan.header?.sentAt;
   const doneCount = plan.items.filter((i) => i.doneAt).length;
   const [busy, setBusy] = useState(false);
-  const doSend = async () => {
+  // Aşama 22: gönderme penceresi (uygulama + isteğe bağlı e-posta / WhatsApp)
+  const [sendModal, setSendModal] = useState<{ students: Student[]; kind: PlanGroupKind; classId?: string; weekStart: string; title?: string } | null>(null);
+  const doSend = () => {
     if (!student || busy) return;
-    setBusy(true);
-    try {
-      const h = await sendPlan(student.id, weekStart, teacherName);
-      setPlan((p) => ({ ...p, header: h }));
-      say({ tone: 'success', text: `Plan ${student.name} adlı öğrenciye ödev olarak gönderildi. Öğrenci ana sayfasında "Bugün yapılması gerekenler" olarak görür.` });
-    } catch (e: any) {
-      say({ tone: 'danger', text: e?.message || 'Plan gönderilemedi.' });
-    } finally {
-      setBusy(false);
-    }
+    setSendModal({ students: [student], kind: 'student', weekStart });
   };
   const doUnsend = async () => {
     if (!student || busy) return;
@@ -398,6 +393,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                 Taslak · öğrenci henüz görmüyor
               </span>
             )}
+            {sent && plan.header?.mailedAt && (
+              <span className="ui-chip ui-chip-info" id="plan-status-mailed" title="Son görev günü 20:00'de size rapor e-postası gelir">
+                E-postayla gönderildi
+              </span>
+            )}
             {sent && plan.items.length > 0 && (
               <span className="ui-chip ui-chip-info" id="plan-progress">
                 {doneCount} / {plan.items.length} görev yapıldı
@@ -412,9 +412,20 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {sent ? (
-              <button type="button" id="plan-unsend" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={doUnsend}>
-                <Undo2 className="w-4 h-4" /> Geri çek
-              </button>
+              <>
+                <button
+                  type="button"
+                  id="plan-resend"
+                  className="ui-btn ui-btn-secondary ui-btn-sm"
+                  disabled={busy}
+                  onClick={() => student && setSendModal({ students: [student], kind: 'student', weekStart, title: 'E-posta / WhatsApp ile gönder' })}
+                >
+                  <Send className="w-4 h-4" /> E-posta / WhatsApp
+                </button>
+                <button type="button" id="plan-unsend" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={doUnsend}>
+                  <Undo2 className="w-4 h-4" /> Geri çek
+                </button>
+              </>
             ) : (
               <button type="button" id="plan-send" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || plan.items.length === 0} onClick={doSend}>
                 <Send className="w-4 h-4" /> Öğrenciye ödev olarak gönder
@@ -585,6 +596,26 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             setApplyOpen(false);
             if (refresh) void reload(true);
           }}
+          onDispatch={(d) => {
+            setApplyOpen(false);
+            void reload(true);
+            setSendModal(d);
+          }}
+        />
+      )}
+      {sendModal && (
+        <StudyPlanSendModal
+          weekStart={sendModal.weekStart}
+          students={sendModal.students}
+          classes={classes}
+          kind={sendModal.kind}
+          classId={sendModal.classId}
+          teacherName={teacherName}
+          title={sendModal.title}
+          onClose={(changed) => {
+            setSendModal(null);
+            if (changed) void reload(true);
+          }}
         />
       )}
       {booksOpen && student && (
@@ -610,7 +641,8 @@ const ApplyPlanModal: React.FC<{
   canSubject: (s: string) => boolean;
   senderName: string;
   onClose: (refresh: boolean) => void;
-}> = ({ sourceStudent, sourceWeek, items, students, classes, canSubject, senderName, onClose }) => {
+  onDispatch: (d: { students: Student[]; kind: PlanGroupKind; classId?: string; weekStart: string; title?: string }) => void;
+}> = ({ sourceStudent, sourceWeek, items, students, classes, canSubject, senderName, onClose, onDispatch }) => {
   const [weekMode, setWeekMode] = useState<'same' | 'next' | 'custom'>('same');
   const [customDate, setCustomDate] = useState(sourceWeek);
   const [classIds, setClassIds] = useState<string[]>([]);
@@ -627,6 +659,27 @@ const ApplyPlanModal: React.FC<{
   // Kaynak öğrenci aynı haftada seçilemesin diye listeden çıkarılır; başka haftada seçilebilir
   const pickable = useMemo(() => (sameWeek ? students.filter((s) => s.id !== sourceStudent.id) : students), [students, sameWeek, sourceStudent.id]);
   const allowedCount = items.filter((i) => canSubject(i.subject)).length;
+
+  // Aşama 22: uygulamadan sonra e-posta / WhatsApp ile gönder (sınıfın tamamıysa toplu karne)
+  const openDispatch = () => {
+    const ids = new Set(targets);
+    let kind: PlanGroupKind = ids.size === 1 ? 'student' : 'students';
+    let classId: string | undefined;
+    if (classIds.length === 1) {
+      const cid = classIds[0];
+      const classStudents = students.filter((s) => s.classId === cid);
+      // Aynı haftada kaynak öğrenci de o sınıftaysa karneye dahil edilir
+      if (sameWeek && sourceStudent.classId === cid) ids.add(sourceStudent.id);
+      if (classStudents.length > 0 && classStudents.every((s) => ids.has(s.id))) {
+        kind = 'class';
+        classId = cid;
+      }
+    }
+    const list = students.filter((s) => ids.has(s.id));
+    if (!list.length) return;
+    if (list.length === 1) kind = 'student';
+    onDispatch({ students: list, kind, classId, weekStart: targetWeek, title: 'E-posta / WhatsApp ile gönder' });
+  };
 
   const run = async () => {
     if (running) return;
@@ -677,6 +730,17 @@ const ApplyPlanModal: React.FC<{
             {result.students} öğrenciye toplam {result.added} görev eklendi{result.skipped ? `, ${result.skipped} görev zaten vardı (atlandı)` : ''}.
             {send ? ' Planlar öğrencilere ödev olarak gönderildi.' : ''}
           </div>
+          {result.students > 0 && (
+            <div className="rounded-xl border border-line px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted">
+                Planı ayrıca e-posta (PDF ekli) veya WhatsApp ile de gönderebilirsiniz. E-postayla gönderilirse son görev günü 20:00'de size
+                {classIds.length === 1 ? ' sınıfın toplu karnesi' : ' rapor'} gelir.
+              </p>
+              <button type="button" id="plan-apply-dispatch" className="ui-btn ui-btn-primary ui-btn-sm" onClick={openDispatch}>
+                <Send className="w-4 h-4" /> E-posta / WhatsApp ile gönder
+              </button>
+            </div>
+          )}
           {result.notAllowed > 0 && <p className="text-xs text-muted">Branşınız dışındaki {result.notAllowed} görev kopyalanmadı.</p>}
           {result.failed.length > 0 && (
             <div role="alert" className="rounded-xl bg-danger-soft text-danger-fg px-4 py-3 text-xs space-y-1">

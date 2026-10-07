@@ -51,6 +51,16 @@ const attendanceToken = (() => {
 const EtutAttendancePage = lazy(() =>
   import('./components/Public/EtutAttendancePage').then((m) => ({ default: m.EtutAttendancePage }))
 );
+// Aşama 22: e-postadaki haftalık plan bağlantısı (…/?plan=…) öğrencinin giriş yapmadan görev işaretlediği sayfayı açar
+const planToken = (() => {
+  try {
+    return attendanceToken ? null : new URLSearchParams(window.location.search).get('plan');
+  } catch {
+    return null;
+  }
+})();
+const PlanMarkPage = lazy(() => import('./components/Public/PlanMarkPage').then((m) => ({ default: m.PlanMarkPage })));
+const isPublicPage = !!(attendanceToken || planToken);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -59,11 +69,15 @@ createRoot(document.getElementById('root')!).render(
         <Suspense fallback={null}>
           <EtutAttendancePage token={attendanceToken} />
         </Suspense>
+      ) : planToken ? (
+        <Suspense fallback={null}>
+          <PlanMarkPage token={planToken} />
+        </Suspense>
       ) : (
         <App />
       )}
     </ErrorBoundary>
-    {!attendanceToken && <UpdateAvailableBanner />}
+    {!isPublicPage && <UpdateAvailableBanner />}
   </StrictMode>,
 );
 

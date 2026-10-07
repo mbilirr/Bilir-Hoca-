@@ -17,6 +17,8 @@ export type MailAction =
   | 'etut-attendance-link'
   | 'question-target'
   | 'teacher-account'
+  | 'plan-group'
+  | 'plan-mail'
   | 'reminders';
 
 export interface MailResult {

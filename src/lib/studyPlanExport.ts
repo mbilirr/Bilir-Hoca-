@@ -61,7 +61,7 @@ export async function downloadPlanExcel(c: PlanExportContext): Promise<void> {
 }
 
 // ----------------------------------------------------------------------------- PDF
-export async function downloadPlanPdf(c: PlanExportContext): Promise<void> {
+async function buildPlanPdf(c: PlanExportContext) {
   const [{ jsPDF }, autoTableMod, fonts, analytics] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -133,5 +133,17 @@ export async function downloadPlanPdf(c: PlanExportContext): Promise<void> {
     doc.text(t(`${new Date().toLocaleDateString('tr-TR')} tarihinde hazırlandı`), M, h - 8);
     doc.text(t(`${p} / ${pages}`), pageW - M, h - 8, { align: 'right' });
   }
+  return doc;
+}
+
+export async function downloadPlanPdf(c: PlanExportContext): Promise<void> {
+  const doc = await buildPlanPdf(c);
   doc.save(`${fileBase(c)}.pdf`);
+}
+
+// Aşama 22: e-posta eki için PDF (base64, işaretleme kutuları boş)
+export async function planPdfBase64(c: PlanExportContext): Promise<string> {
+  const doc = await buildPlanPdf({ ...c, showStatus: false });
+  const uri = doc.output('datauristring');
+  return uri.slice(uri.indexOf(',') + 1);
 }

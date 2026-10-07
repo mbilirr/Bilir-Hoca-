@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useDeferredValue } from 'react';
+import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
 import { usePagedList, useMediaQuery, ShowMoreBar } from '../../lib/listPaging';
 import {
   Users,
@@ -82,6 +83,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'students' | 'classes'>('students');
+  const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
 
   // Hızlı arama / ana sayfa kısayolu ile gelindiyse ilgili öğrenciyi, sınıfı veya ekleme formunu aç
   useQuickFocus(['student', 'class', 'action'], (f) => {
@@ -1592,43 +1594,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="space-y-2" id="class-strips">
             {classes.map((cls) => {
               const classStudents = students.filter((s) => s.classId === cls.id);
+              const isOpen = expandedClassId === cls.id;
+              const branchText = `Şube ${cls.branch?.replace(/şube\s*/i, '').trim() || 'A'}`;
               return (
-                <div
+                <ExpandableStrip
                   key={cls.id}
-                  className="bg-surface border border-line rounded-2xl p-5 hover:border-line transition-all flex flex-col justify-between shadow-lg"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                        <School className="w-5 h-5" />
-                      </div>
-                      {canAddClasses && dataService.canManageClass(cls) && (
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => openEditClass(cls)}
-                            className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                            title="Düzenle"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setClassToDelete(cls)}
-                            className="p-1.5 text-muted hover:text-rose-600 dark:hover:text-rose-400 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                            title="Sınıfı Sil"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                  id={`class-strip-${cls.id}`}
+                  noun="Sınıf"
+                  open={isOpen}
+                  onToggle={() => setExpandedClassId(isOpen ? null : cls.id)}
+                  badges={
+                    <>
+                      {cls.schoolLevel && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300">{cls.schoolLevel}</span>
                       )}
-                    </div>
-
-                    <h3 className="text-lg font-bold text-fg mb-1">
-                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
-                    </h3>
-                    <div className="flex items-center space-x-2 mb-2">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">{branchText}</span>
                       {cls.kurumId && dataService.isHeadAdmin() && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-info-soft text-info-fg" data-kurum-badge>
                           {dataService.getKurumNameForId(cls.kurumId)}
@@ -1639,93 +1622,110 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           Genel yöneticinin izin verdiği sınıf
                         </span>
                       )}
-                      {cls.schoolLevel && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                          {cls.schoolLevel}
-                        </span>
-                      )}
-                      <span className="text-xs text-indigo-600 dark:text-indigo-300 font-medium">
-                        Şube {cls.branch?.replace(/şube\s*/i, '').trim() || 'A'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted mb-4 line-clamp-2">
-                      {cls.description || 'Akademik takip ve ders çizelgesi grubu.'}
-                    </p>
-                  </div>
-
-                  <div className="pt-4 border-t border-line flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-xs text-muted">
+                    </>
+                  }
+                  title={formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                  meta={[cls.academicYear, cls.description].filter(Boolean).join(' · ') || undefined}
+                  stats={
+                    <div className="flex items-center gap-2 text-xs text-muted">
                       <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span>
                         <strong className="text-fg">{classStudents.length}</strong> Kayıtlı Öğrenci
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-muted bg-surface-2 px-2 py-0.5 rounded">
-                      {cls.academicYear}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 pt-3 border-t border-line grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setViewingClassStudents(cls);
-                        setClassStudentSearch('');
-                      }}
-                      className="py-2 px-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
-                      title={`${cls.name} sınıfına kayıtlı öğrencilerin listesini görüntüle`}
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      <span className="truncate">Öğrenciler ({classStudents.length})</span>
-                    </button>
-
-                    {dataService.canManageClass(cls) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTransferTargetClass(cls);
-                        setTransferSelectedStudentIds([]);
-                        setTransferSearchTerm('');
-                      }}
-                      className="py-2 px-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                      title="Sistemdeki öğrencileri tek tek veya toplu bu sınıfa aktar"
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                      <span className="truncate">Öğrenci Aktar</span>
-                    </button>
+                  }
+                  actions={
+                    <>
+                      <StripAction
+                        label={`Öğrenciler (${classStudents.length})`}
+                        onClick={() => {
+                          setViewingClassStudents(cls);
+                          setClassStudentSearch('');
+                        }}
+                      >
+                        <Users className="w-4 h-4" />
+                      </StripAction>
+                      {canAddClasses && dataService.canManageClass(cls) && (
+                        <>
+                          <StripAction label="Düzenle" onClick={() => openEditClass(cls)}>
+                            <Edit2 className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="Sınıfı Sil" tone="danger" onClick={() => setClassToDelete(cls)}>
+                            <Trash2 className="w-4 h-4" />
+                          </StripAction>
+                        </>
+                      )}
+                    </>
+                  }
+                >
+                  <div className="space-y-3" data-class-detail>
+                    <p className="text-xs text-muted">{cls.description || 'Akademik takip ve ders çizelgesi grubu.'}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setViewingClassStudents(cls);
+                          setClassStudentSearch('');
+                        }}
+                        className="ui-btn ui-btn-primary ui-btn-sm"
+                        title={`${cls.name} sınıfına kayıtlı öğrencilerin listesini görüntüle`}
+                      >
+                        <Users className="w-3.5 h-3.5" /> Öğrenci Listesi ({classStudents.length})
+                      </button>
+                      {dataService.canManageClass(cls) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTransferTargetClass(cls);
+                            setTransferSelectedStudentIds([]);
+                            setTransferSearchTerm('');
+                          }}
+                          className="ui-btn ui-btn-secondary ui-btn-sm"
+                          title="Sistemdeki öğrencileri tek tek veya toplu bu sınıfa aktar"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> Öğrenci Aktar
+                        </button>
+                      )}
+                      {dataService.canManageClass(cls) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetStudentForm();
+                            setEditingStudent(null);
+                            setStudentClassId(cls.id);
+                            setIsAddStudentOpen(true);
+                          }}
+                          className="ui-btn ui-btn-secondary ui-btn-sm"
+                          title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Yeni Öğrenci
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedClassFilter(cls.id);
+                          setActiveTab('students');
+                        }}
+                        className="ui-btn ui-btn-secondary ui-btn-sm"
+                        title="Öğrenci tablosunda bu sınıfı filtrele"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-muted" /> Tabloda Gör
+                      </button>
+                    </div>
+                    {classStudents.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                        {classStudents.slice(0, 60).map((st) => (
+                          <span key={st.id} className="text-[11px] px-2 py-0.5 rounded-md bg-surface-2 border border-line text-fg-2">
+                            {st.studentNumber ? `${st.studentNumber} · ` : ''}
+                            {st.name}
+                          </span>
+                        ))}
+                        {classStudents.length > 60 && <span className="text-[11px] text-muted">+{classStudents.length - 60} öğrenci</span>}
+                      </div>
                     )}
-
-                    {dataService.canManageClass(cls) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetStudentForm();
-                        setEditingStudent(null);
-                        setStudentClassId(cls.id);
-                        setIsAddStudentOpen(true);
-                      }}
-                      className="py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line text-fg-2 hover:text-fg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                      title="Bu sınıfa sıfırdan yeni öğrenci kaydet"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span className="truncate">Yeni Öğrenci</span>
-                    </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedClassFilter(cls.id);
-                        setActiveTab('students');
-                      }}
-                      className="py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line text-fg-2 hover:text-fg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                      title="Öğrenci tablosunda bu sınıfı filtrele"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-muted" />
-                      <span className="truncate">Tabloda Gör</span>
-                    </button>
                   </div>
-                </div>
+                </ExpandableStrip>
               );
             })}
           </div>

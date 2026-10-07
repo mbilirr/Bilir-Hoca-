@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
 import { normalizeSubject } from '../../lib/subjects';
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
@@ -59,6 +60,7 @@ interface EtutManagementProps {
 
 export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students, classes }) => {
   const [viewMode, setViewMode] = useState<'calendar' | 'cards' | 'attendance'>('calendar');
+  const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null); // Aşama 21: açık etüt şeridi
   const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
@@ -343,222 +345,188 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         {listEtuts.length === 0 && (
           <div className="ui-card p-8 text-center text-sm text-muted">Bu seçimde etüt yok.</div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="etut-list-grid">
+        <div className="space-y-2" id="etut-list-grid">
           {pagedListEtuts.visible.map((etut) => {
             const assignedStudents =
               etut.assignedStudentIds === 'all'
                 ? students
                 : students.filter((s) => (etut.assignedStudentIds as string[]).includes(s.id));
+            const att = etut.studentAttendance ? Object.values(etut.studentAttendance) : [];
+            const present = att.filter((a) => a.status === 'present').length;
+            const absent = att.filter((a) => a.status === 'absent').length;
+            const late = att.filter((a) => a.status === 'late').length;
+            const isOpen = expandedEtutId === etut.id;
+            const dateText = new Date(etut.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short' });
 
             return (
-              <div
+              <ExpandableStrip
                 key={etut.id}
-                className="bg-surface border border-line rounded-2xl p-5 hover:border-line-strong hover:shadow-xl transition-all flex flex-col justify-between shadow-md relative group text-fg"
-              >
-                <div>
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
-                        {etut.subject}
+                id={`etut-strip-${etut.id}`}
+                className="bg-surface"
+                noun="Etüt"
+                open={isOpen}
+                onToggle={() => setExpandedEtutId(isOpen ? null : etut.id)}
+                accent={att.length > 0 ? 'border-l-emerald-500' : 'border-l-sky-500'}
+                badges={
+                  <>
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                      {etut.subject}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 inline-flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {dateText} · {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
+                    </span>
+                    {etut.gradeLevel && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                        {etut.gradeLevel}
                       </span>
-                      {etut.schoolLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface-2 text-fg-2 border border-line">
-                          {etut.schoolLevel === 'Ortaokul' ? '🏫 Ortaokul' : '🎓 Lise'}
-                        </span>
-                      )}
-                      {etut.gradeLevel && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30">
-                          {etut.gradeLevel}
-                        </span>
-                      )}
-                      {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30">
-                          {etut.lessonPeriod}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        id={`btn-copy-etut-${etut.id}`}
-                        onClick={() => openCopy(etut)}
-                        className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                        title="Kopyala (başka tarihe yeniden tanımla)"
-                        aria-label="Etüdü kopyala"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => openEdit(etut)}
-                        className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
-                        title="Düzenle"
-                        aria-label="Etüdü düzenle"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setEtutToDelete(etut)}
-                        className="p-1.5 text-subtle hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                        title="Etütü Sil"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    )}
+                    {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
+                    )}
+                  </>
+                }
+                title={etut.topic}
+                meta={[etut.location, etut.teacherName ? `Öğretmen: ${etut.teacherName}` : '', `${assignedStudents.length} öğrenci`].filter(Boolean).join(' · ')}
+                stats={
+                  <div className="text-[11px] font-semibold">
+                    <span className="text-muted block">Yoklama</span>
+                    {att.length > 0 ? (
+                      <span className="flex flex-wrap gap-x-2">
+                        <span className="text-emerald-700 dark:text-emerald-300">{present} Geldi</span>
+                        <span className="text-rose-600 dark:text-rose-300">{absent} Gelmedi</span>
+                        {late > 0 && <span className="text-amber-700 dark:text-amber-300">{late} Geç</span>}
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 dark:text-amber-300 font-normal">Yoklama henüz alınmadı</span>
+                    )}
                   </div>
-
-                  <h3 className="text-base font-bold text-fg mb-2 line-clamp-2">{etut.topic}</h3>
-
-                  {/* Details */}
-                  <div className="space-y-1.5 text-xs text-muted mb-4 bg-surface-2 p-3 rounded-xl border border-line">
-                    <div className="flex items-center space-x-2">
+                }
+                actions={
+                  <>
+                    <StripAction label="Yoklama Al" tone="success" onClick={() => setSelectedEtutForAttendance(etut)}>
+                      <CheckCircle2 className="w-4 h-4" />
+                    </StripAction>
+                    <StripAction label="Etüdü kopyala" id={`btn-copy-etut-${etut.id}`} title="Kopyala (başka tarihe yeniden tanımla)" onClick={() => openCopy(etut)}>
+                      <Copy className="w-4 h-4" />
+                    </StripAction>
+                    <StripAction label="Etüdü düzenle" title="Düzenle" onClick={() => openEdit(etut)}>
+                      <Edit2 className="w-4 h-4" />
+                    </StripAction>
+                    <StripAction label="Etüdü sil" title="Etütü Sil" tone="danger" onClick={() => setEtutToDelete(etut)}>
+                      <Trash2 className="w-4 h-4" />
+                    </StripAction>
+                  </>
+                }
+              >
+                <div className="grid gap-4 lg:grid-cols-2" data-etut-detail>
+                  <div className="space-y-2 text-xs text-muted min-w-0">
+                    <div className="flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
                       <span className="text-fg font-medium">
                         {new Date(etut.date).toLocaleDateString('tr-TR')} • {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center gap-2">
                       <MapPin className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
                       <span className="text-fg-2 font-medium">{etut.location}</span>
                     </div>
                     {etut.teacherName && (
-                      <div className="flex items-center space-x-2 text-indigo-900 dark:text-indigo-200 font-semibold">
+                      <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-200 font-semibold">
                         <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                        <span>Öğretmen: <strong>{etut.teacherName}</strong> {etut.teacherBranch ? `(${etut.teacherBranch})` : ''}</span>
+                        <span>
+                          Öğretmen: <strong>{etut.teacherName}</strong> {etut.teacherBranch ? `(${etut.teacherBranch})` : ''}
+                        </span>
                       </div>
                     )}
+                    {etut.schoolLevel && <div>{etut.schoolLevel}</div>}
                     {etut.notes && (
-                      <p className="text-[11px] text-muted italic pt-1 border-t border-line mt-1">
+                      <p className="text-[11px] text-muted italic pt-1 border-t border-line">
                         <span className="font-semibold text-fg-2 not-italic">Açıklama:</span> {etut.notes}
                       </p>
                     )}
                     {etut.teacherFeedback && (
-                      <div className="mt-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs space-y-1">
-                        <div className="flex items-center space-x-1.5 font-bold text-amber-800 dark:text-amber-200 text-[11px]">
-                          <MessageSquareQuote className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300 shrink-0" />
+                      <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold text-[11px]">
+                          <MessageSquareQuote className="w-3.5 h-3.5 shrink-0" />
                           <span>Öğretmen Görüş ve Düşünceleri:</span>
                         </div>
-                        <p className="italic text-fg-2 leading-relaxed font-normal">
-                          "{etut.teacherFeedback}"
-                        </p>
+                        <p className="italic text-fg-2 leading-relaxed font-normal">"{etut.teacherFeedback}"</p>
                       </div>
                     )}
-                  </div>
-
-                  {/* Attendance Summary & Button */}
-                  <div className="mb-4 p-2.5 bg-surface-2 rounded-xl border border-line flex items-center justify-between">
-                    <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-                        Yoklama / Devamsızlık
-                      </div>
-                      <div className="text-xs font-bold mt-0.5">
-                        {etut.studentAttendance && Object.keys(etut.studentAttendance).length > 0 ? (
-                          <div className="flex items-center space-x-1.5">
-                            <span className="text-emerald-700 dark:text-emerald-300 font-bold">
-                              {Object.values(etut.studentAttendance).filter((a) => a.status === 'present').length} Geldi
-                            </span>
-                            <span className="text-subtle">•</span>
-                            <span className="text-rose-600 dark:text-rose-300 font-bold">
-                              {Object.values(etut.studentAttendance).filter((a) => a.status === 'absent').length} Gelmedi
-                            </span>
-                            {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length > 0 && (
-                              <>
-                                <span className="text-subtle">•</span>
-                                <span className="text-amber-700 dark:text-amber-300 font-bold">
-                                  {Object.values(etut.studentAttendance).filter((a) => a.status === 'late').length} Geç
-                                </span>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-amber-700 dark:text-amber-300 text-[11px] font-normal">
-                            Yoklama henüz alınmadı
-                          </span>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEtutForDispatch(etut);
+                          setIsDispatchModalOpen(true);
+                        }}
+                        className="ui-btn ui-btn-secondary ui-btn-sm"
+                        title="WhatsApp ve Mail ile İlet"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" /> WhatsApp / Mail
+                      </button>
+                      <a
+                        href={createGoogleCalendarUrlForEtut(etut)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ui-btn ui-btn-secondary ui-btn-sm"
+                        title="Google Takvime Ekle"
+                      >
+                        <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" /> Google Takvim
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadIcsFile(
+                            `etut-${etut.subject}-${etut.date}`,
+                            `[ETÜT] ${etut.subject}: ${etut.topic}`,
+                            etut.notes || `${etut.location} yerinde etüt çalışması`,
+                            `${etut.date}T${etut.time || '14:00'}:00`,
+                            etut.duration,
+                            etut.location
+                          )
+                        }
+                        className="ui-btn ui-btn-secondary ui-btn-sm"
+                        title="Takvim dosyası indir"
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" /> Takvim dosyası
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setSelectedEtutForAttendance(etut)}
-                      className="px-2.5 py-1 bg-surface hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
-                      title="Etüte gelen ve gelmeyen öğrencileri işaretle"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
-                      <span>Yoklama Al</span>
-                    </button>
                   </div>
 
-                  {/* Assigned Students */}
-                  <div className="mb-4">
+                  <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2 flex items-center justify-between">
                       <span>Katılacak Öğrenciler ({assignedStudents.length})</span>
-                      {etut.assignedStudentIds === 'all' && (
-                        <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold">Tümü Dahil</span>
-                      )}
+                      {etut.assignedStudentIds === 'all' && <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold">Tümü Dahil</span>}
                     </p>
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                      {assignedStudents.map((std) => (
-                        <button
-                          type="button"
-                          key={std.id}
-                          onClick={() => {
-                            setReportSelectedStudentId(std.id);
-                            setIsReportModalOpen(true);
-                          }}
-                          className="inline-flex items-center space-x-1 text-[11px] bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 hover:text-indigo-800 dark:hover:text-indigo-200 text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
-                          title={`${std.name} için etüt analizini görüntüle`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                          <span>{std.name}</span>
-                        </button>
-                      ))}
+                    <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
+                      {assignedStudents.map((std) => {
+                        const st = etut.studentAttendance?.[std.id]?.status;
+                        return (
+                          <button
+                            type="button"
+                            key={std.id}
+                            onClick={() => {
+                              setReportSelectedStudentId(std.id);
+                              setIsReportModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-fg-2 px-2 py-0.5 rounded-md border border-line transition-colors cursor-pointer"
+                            title={`${std.name} için etüt analizini görüntüle`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                st === 'present' ? 'bg-emerald-500' : st === 'absent' ? 'bg-rose-500' : st === 'late' ? 'bg-amber-500' : 'bg-indigo-500'
+                              }`}
+                            ></span>
+                            <span>{std.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="pt-3 border-t border-line flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedEtutForDispatch(etut);
-                      setIsDispatchModalOpen(true);
-                    }}
-                    className="flex-1 flex items-center justify-center space-x-1.5 py-1.5 px-2.5 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs font-semibold transition-all cursor-pointer"
-                    title="WhatsApp ve Mail ile İlet"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
-                    <span>WhatsApp / Mail</span>
-                  </button>
-
-                  <a
-                    href={createGoogleCalendarUrlForEtut(etut)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center space-x-1 py-1.5 px-2.5 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 rounded-xl text-xs font-medium transition-all"
-                    title="Google Takvime Ekle"
-                  >
-                    <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
-                  </a>
-
-                  <button
-                    onClick={() =>
-                      downloadIcsFile(
-                        `etut-${etut.subject}-${etut.date}`,
-                        `[ETÜT] ${etut.subject}: ${etut.topic}`,
-                        etut.notes || `${etut.location} yerinde etüt çalışması`,
-                        `${etut.date}T${etut.time || '14:00'}:00`,
-                        etut.duration,
-                        etut.location
-                      )
-                    }
-                    className="p-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line rounded-xl text-xs cursor-pointer transition-colors"
-                    title="Takvim dosyası indir"
-                  >
-                    <CalendarDays className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+              </ExpandableStrip>
             );
           })}
         </div>

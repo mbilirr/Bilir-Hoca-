@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { ExpandableStrip, StripAction, StripProgress } from '../ui/ExpandableStrip';
 import {
   BookOpen,
   Plus,
@@ -140,7 +141,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     }
   });
   const [selectedHwForGrading, setSelectedHwForGrading] = useState<Homework | null>(null);
-  const [expandedHwId, setExpandedHwId] = useState<string | null>(homeworks[0]?.id || null);
+  const [expandedHwId, setExpandedHwId] = useState<string | null>(null);
   const [homeworkToDelete, setHomeworkToDelete] = useState<Homework | null>(null);
   // Öğretmenin incelediği öğrenci teslimi (ödev + öğrenci). Teslim her zaman güncel listeden okunur.
   const [viewingSubmissionKey, setViewingSubmissionKey] = useState<{ homeworkId: string; studentId: string } | null>(null);
@@ -1362,7 +1363,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+              <div className="space-y-2" id="hw-all-strips">
                 {filteredHomeworks.map((hw) => {
                   const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
                   const isExpanded = expandedHwId === hw.id;
@@ -1371,240 +1372,173 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   const assignedCount = hwStudents.length;
 
                   const isOverdue = new Date() > new Date(hw.dueDate);
-                  const submissionRate = assignedCount > 0 ? Math.round((hwSubmissions.length / assignedCount) * 100) : 0;
-
                   const targetClassNames = (hw.targetClassIds || [])
                     .map((cid) => classes.find((c) => c.id === cid)?.name)
                     .filter(Boolean);
+                  const resourceCount = (hw.resources?.length || 0) + (hw.attachmentUrl ? 1 : 0);
+                  const classText = targetClassNames.length > 0 ? targetClassNames.join(', ') : 'Tüm Sınıflar';
+                  const whoText = hw.assignedTo === 'all' ? 'Tüm Öğrenciler' : `${assignedCount} Öğrenci`;
+                  const allOutcomes = Array.from(new Set([...(hw.outcomes || []), ...(hw.learningOutcomes || [])].filter(Boolean)));
 
                   return (
-                    <div
+                    <ExpandableStrip
                       key={hw.id}
                       id={`hw-card-${hw.id}`}
-                      className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-indigo-300 dark:hover:border-indigo-500/30 transition-all flex flex-col justify-between group"
-                    >
-                      <div className="space-y-3">
-                        {/* Kart Üst Rozetleri */}
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
-                              {hw.subject}
-                            </span>
-                            {hw.schoolLevel && (
-                              <span className="px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-surface-2 text-muted">
-                                {hw.schoolLevel}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Son Teslim Tarihi */}
+                      noun="Ödev"
+                      open={isExpanded}
+                      onToggle={() => setExpandedHwId(isExpanded ? null : hw.id)}
+                      accent={isOverdue ? 'border-l-slate-300 dark:border-l-slate-600' : 'border-l-indigo-500'}
+                      badges={
+                        <>
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
+                            {hw.subject}
+                          </span>
                           <span
-                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold flex items-center space-x-1 ${
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-semibold inline-flex items-center gap-1 ${
                               isOverdue
-                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-500/30'
-                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-500/30'
+                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300'
                             }`}
                           >
                             <Clock className="w-3 h-3" />
-                            <span>
-                              {new Date(hw.dueDate).toLocaleDateString('tr-TR')}
-                            </span>
+                            {new Date(hw.dueDate).toLocaleDateString('tr-TR')}
                           </span>
-                        </div>
-
-                        {/* Ödev Başlığı */}
-                        <div>
-                          <h3 className="text-base font-bold text-fg group-hover:text-indigo-600 dark:group-hover:text-indigo-300 transition-colors line-clamp-1">
-                            {hw.title}
-                          </h3>
-                          <p className="text-xs text-muted line-clamp-2 mt-1 leading-relaxed">
-                            {hw.description || 'Ödev açıklaması bulunmuyor.'}
-                          </p>
-                        </div>
-
-                        {/* Hedef Sınıf / Öğrenci Bilgisi */}
-                        <div className="flex items-center justify-between text-[11px] text-muted pt-1 border-t border-line">
-                          <div className="flex items-center space-x-1 truncate max-w-[190px]">
-                            <School className="w-3.5 h-3.5 text-subtle shrink-0" />
-                            <span className="truncate font-medium text-fg-2">
-                              {targetClassNames.length > 0 ? targetClassNames.join(', ') : 'Tüm Sınıflar'}
+                          {resourceCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-surface-2 text-muted inline-flex items-center gap-1">
+                              <Paperclip className="w-3 h-3" />
+                              {resourceCount}
                             </span>
+                          )}
+                        </>
+                      }
+                      title={hw.title}
+                      meta={`${classText} · ${whoText}${hw.description ? ` · ${hw.description}` : ''}`}
+                      stats={<StripProgress label="Teslim" value={hwSubmissions.length} total={assignedCount} />}
+                      actions={
+                        <>
+                          <StripAction label="Ödevi görüntüle" onClick={() => setActiveViewingHomework(hw)}>
+                            <Eye className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="Kontrol Et" tone="success" onClick={() => focusHomeworkInTracker(hw)}>
+                            <CheckCircle2 className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="İndir (.doc)" onClick={() => handleDownloadHomeworkDoc(hw)}>
+                            <Download className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="Kopyala (başka sınıfa da ver)" id={`btn-copy-hw-${hw.id}`} onClick={() => openHomeworkForm('copy', hw)}>
+                            <Copy className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="Ödevi düzenle" id={`btn-edit-hw-${hw.id}`} onClick={() => openHomeworkForm('edit', hw)}>
+                            <Edit3 className="w-4 h-4" />
+                          </StripAction>
+                          <StripAction label="Ödevi sil" tone="danger" onClick={() => setHomeworkToDelete(hw)}>
+                            <Trash2 className="w-4 h-4" />
+                          </StripAction>
+                        </>
+                      }
+                    >
+                      <div className="grid gap-4 lg:grid-cols-2" data-hw-detail>
+                        <div className="space-y-3 min-w-0">
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Açıklama</p>
+                            <p className="text-sm text-fg-2 whitespace-pre-wrap break-words mt-1">
+                              {hw.description || 'Ödev açıklaması bulunmuyor.'}
+                            </p>
                           </div>
-                          <span className="font-medium text-muted shrink-0">
-                            {hw.assignedTo === 'all' ? 'Tüm Öğrenciler' : `${assignedCount} Öğrenci`}
-                          </span>
-                        </div>
-
-                        {/* Teslim İlerleme Çubuğu */}
-                        <div className="space-y-1.5 pt-0.5">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-semibold text-fg-2">Teslim Durumu</span>
-                            <span className="font-bold text-indigo-600 dark:text-indigo-300">
-                              {hwSubmissions.length} / {assignedCount} ({submissionRate}%)
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                            <span className="inline-flex items-center gap-1">
+                              <School className="w-3.5 h-3.5" /> <strong className="text-fg-2">{classText}</strong>
                             </span>
+                            <span>{whoText}</span>
+                            <span>Son teslim: {formatDueDateTurkish(hw.dueDate)}</span>
+                            {hw.schoolLevel && <span>{hw.schoolLevel}</span>}
                           </div>
-                          <div className="w-full h-2 bg-surface-2 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                              style={{ width: `${Math.min(100, submissionRate)}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Ekli Materyaller ve Kazanımlar Rozeti */}
-                        {((hw.resources && hw.resources.length > 0) || hw.attachmentUrl) && (
-                          <div className="pt-2 border-t border-line">
-                            <HomeworkResourceViewer
-                              resources={hw.resources}
-                              legacyAttachmentUrl={hw.attachmentUrl}
-                              isCompact
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Kart Aksiyon Butonları (Açıklamasız, Sade ve Profesyonel) */}
-                      <div className="pt-4 mt-4 border-t border-line space-y-2">
-                        {/* Üst Sıra Ana Butonlar: Görüntüle, Kontrol Et, İndir */}
-                        <div className="grid grid-cols-3 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setActiveViewingHomework(hw)}
-                            className="w-full py-2 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-colors cursor-pointer shadow-sm"
-                            title="Ödev detayını tam sayfa görüntüle"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Görüntüle</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => focusHomeworkInTracker(hw)}
-                            className="w-full py-2 px-2 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
-                            title="Ödev kontrol çizelgesini aç"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Kontrol Et</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadHomeworkDoc(hw)}
-                            className="w-full py-2 px-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1 transition-colors cursor-pointer"
-                            title="Ödev belgesini indir (.doc)"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>İndir</span>
-                          </button>
-                        </div>
-
-                        {/* Alt Sıra Yardımcı Butonlar: Materyaller, Düzenle, Sil, Teslimler */}
-                        <div className="flex items-center justify-between pt-1 text-xs">
-                          <div className="flex items-center space-x-1.5">
+                          {allOutcomes.length > 0 && (
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Kazanımlar</p>
+                              <ul className="mt-1 space-y-0.5 text-xs text-fg-2 list-disc pl-4">
+                                {allOutcomes.map((o, i) => (
+                                  <li key={i}>{o}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {resourceCount > 0 && (
+                            <HomeworkResourceViewer resources={hw.resources} legacyAttachmentUrl={hw.attachmentUrl} isCompact />
+                          )}
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setActiveViewingHomework(hw)}
+                              className="ui-btn ui-btn-primary ui-btn-sm"
+                              title="Ödev detayını tam sayfa görüntüle"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Görüntüle
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => focusHomeworkInTracker(hw)}
+                              className="ui-btn ui-btn-secondary ui-btn-sm"
+                              title="Ödev kontrol çizelgesini aç"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Kontrol Et
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleOpenEditResources(hw)}
-                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
+                              className="ui-btn ui-btn-secondary ui-btn-sm"
                               title="Materyalleri yönet"
                             >
-                              <Paperclip className="w-3 h-3" />
-                              <span>Materyal</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              id={`btn-copy-hw-${hw.id}`}
-                              onClick={() => openHomeworkForm('copy', hw)}
-                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                              title="Bu ödevi kopyalayıp başka sınıfa da ver"
-                            >
-                              <Copy className="w-3 h-3" />
-                              <span>Kopyala</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              id={`btn-edit-hw-${hw.id}`}
-                              onClick={() => openHomeworkForm('edit', hw)}
-                              className="px-2.5 py-1.5 rounded-lg bg-surface-2 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 border border-line text-[11px] font-medium flex items-center space-x-1 transition-colors cursor-pointer"
-                              title="Ödevi düzenle"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>Düzenle</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setHomeworkToDelete(hw)}
-                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-subtle hover:text-rose-600 dark:hover:text-rose-300 border border-line transition-colors cursor-pointer"
-                              title="Ödevi sil"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Paperclip className="w-3.5 h-3.5" /> Materyal
                             </button>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setExpandedHwId(isExpanded ? null : hw.id)}
-                            className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 flex items-center space-x-1 cursor-pointer py-1 px-1.5 rounded hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
-                          >
-                            <span>Teslimler ({hwSubmissions.length})</span>
-                            {isExpanded ? (
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            ) : (
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            )}
-                          </button>
                         </div>
 
-                        {/* Açılır Teslim Listesi */}
-                        {isExpanded && (
-                          <div className="pt-3 border-t border-line space-y-2 mt-2">
-                            <h4 className="text-[11px] font-bold text-fg-2">Öğrenci Teslim Listesi</h4>
-                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                              {hwStudents
-                                .map((student) => {
-                                  const sub = hwSubmissions.find((s) => s.studentId === student.id);
-                                  return (
-                                    <div
-                                      key={student.id}
-                                      className={`flex items-center justify-between p-2 rounded-xl text-xs border ${
-                                        sub
-                                          ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
-                                          : 'bg-surface-2 border-line text-muted'
-                                      }`}
-                                    >
-                                      <span className="font-semibold truncate max-w-[150px]">
-                                        {student.name}
-                                      </span>
-                                      <span className="flex items-center gap-2 shrink-0">
-                                        <span className="text-[11px] font-bold">
-                                          {sub
-                                            ? sub.status === 'late'
-                                              ? '⚠️ Geç Teslim'
-                                              : sub.status === 'not_submitted'
-                                              ? 'Teslim Edilmedi'
-                                              : '✓ Teslim Edildi'
-                                            : 'Teslim Edilmedi'}
-                                        </span>
-                                        {sub && submissionHasContent(sub) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
-                                            className="px-2 py-0.5 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-[11px] font-bold cursor-pointer"
-                                          >
-                                            Gör
-                                          </button>
-                                        )}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                            </div>
+                        <div className="min-w-0">
+                          <h4 className="text-[11px] font-bold uppercase tracking-wide text-muted mb-1.5">
+                            Öğrenci Teslim Listesi ({hwSubmissions.length}/{assignedCount})
+                          </h4>
+                          <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+                            {hwStudents.length === 0 && <p className="text-xs text-muted">Bu ödeve atanmış öğrenci yok.</p>}
+                            {hwStudents.map((student) => {
+                              const sub = hwSubmissions.find((s) => s.studentId === student.id);
+                              return (
+                                <div
+                                  key={student.id}
+                                  className={`flex items-center justify-between p-2 rounded-xl text-xs border ${
+                                    sub
+                                      ? 'bg-emerald-50/60 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-200'
+                                      : 'bg-surface-2 border-line text-muted'
+                                  }`}
+                                >
+                                  <span className="font-semibold truncate">{student.name}</span>
+                                  <span className="flex items-center gap-2 shrink-0">
+                                    <span className="text-[11px] font-bold">
+                                      {sub
+                                        ? sub.status === 'late'
+                                          ? '⚠️ Geç Teslim'
+                                          : sub.status === 'not_submitted'
+                                            ? 'Teslim Edilmedi'
+                                            : '✓ Teslim Edildi'
+                                        : 'Teslim Edilmedi'}
+                                    </span>
+                                    {sub && submissionHasContent(sub) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setViewingSubmissionKey({ homeworkId: hw.id, studentId: student.id })}
+                                        className="px-2 py-0.5 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-[11px] font-bold cursor-pointer"
+                                      >
+                                        Gör
+                                      </button>
+                                    )}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    </ExpandableStrip>
                   );
                 })}
               </div>
