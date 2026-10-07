@@ -52,6 +52,37 @@ import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
 
+// Aşama 24: tarih süzgeci
+type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
+const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
+  { value: 'all', label: 'Tümü' },
+  { value: 'today', label: 'Bugün' },
+  { value: 'week', label: 'Bu hafta' },
+  { value: 'month', label: 'Bu ay' },
+  { value: 'upcoming', label: 'Gelecek' },
+  { value: 'past', label: 'Geçmiş' },
+  { value: 'range', label: 'Tarih aralığı' },
+];
+const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function presetBounds(p: DatePreset, from: string, to: string): [string, string] {
+  const now = new Date();
+  const today = ymdLocal(now);
+  if (p === 'today') return [today, today];
+  if (p === 'week') {
+    const m = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    const s = new Date(m.getFullYear(), m.getMonth(), m.getDate() + 6);
+    return [ymdLocal(m), ymdLocal(s)];
+  }
+  if (p === 'month') return [ymdLocal(new Date(now.getFullYear(), now.getMonth(), 1)), ymdLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+  if (p === 'upcoming') return [today, ''];
+  if (p === 'past') {
+    const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    return ['', ymdLocal(y)];
+  }
+  if (p === 'range') return from && to && from > to ? [to, from] : [from, to];
+  return ['', ''];
+}
+
 interface EtutManagementProps {
   etuts: Etut[];
   students: Student[];
@@ -88,27 +119,29 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const session = dataService.getAuthSession();
   const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
 
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>('all');
+  // Aşama 24: "Tüm Okul" yalnız yöneticilere (genel yönetici + kurum yöneticisi). Yönetici olmayan öğretmen
+  // Etütler sayfasında yalnız kendi etütlerini görür: oluşturduğu ya da etüt öğretmeni olarak atandığı etütler.
+  const isAdminView = dataService.isCurrentUserAdmin() || dataService.isKurumAdmin();
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>(isAdminView ? 'all' : 'mine');
+  const scope: 'all' | 'mine' = isAdminView ? scopeFilter : 'mine';
 
   const myEtuts = useMemo(() => {
     if (!currentTeacher) return etuts;
-    const tName = (currentTeacher.name || '').trim().toLowerCase();
-    const tUser = (currentTeacher.username || '').trim().toLowerCase();
-    const tBranch = (currentTeacher.branch || '').trim().toLowerCase();
-
+    const tName = (currentTeacher.name || '').trim().toLocaleLowerCase('tr-TR');
     return etuts.filter((e) => {
+      if (e.createdById && e.createdById === currentTeacher.id) return true;
       if (e.teacherId && e.teacherId === currentTeacher.id) return true;
       if (e.teacherIds && e.teacherIds.includes(currentTeacher.id)) return true;
-      if (e.teacherName && e.teacherName.trim().toLowerCase() === tName) return true;
-      if (e.teacherName && e.teacherName.trim().toLowerCase() === tUser) return true;
-      if (tBranch && (e.teacherBranch?.toLowerCase() === tBranch || e.subject?.toLowerCase() === tBranch)) return true;
+      // Eski kayıtlar (kimlik yok): etüt öğretmeni adı ya da kaydeden adı aynıysa
+      if (!e.teacherId && !(e.teacherIds && e.teacherIds.length) && tName && (e.teacherName || '').trim().toLocaleLowerCase('tr-TR') === tName) return true;
+      if (!e.createdById && tName && (e.createdByName || '').trim().toLocaleLowerCase('tr-TR') === tName) return true;
       return false;
     });
   }, [etuts, currentTeacher]);
 
-  const activeEtuts = scopeFilter === 'mine' ? myEtuts : etuts;
+  const activeEtuts = scope === 'mine' ? myEtuts : etuts;
 
-  // Aşama 16: Liste görünümünde ders süzgeci (Tüm dersler / tek ders) ve parça parça çizim
+  // Aşama 24: tüm görünümler için ders süzgeci (açılır liste) ve tarih süzgeci (hazır seçim + aralık)
   const [listSubject, setListSubject] = useState<string>('all');
   const listSubjects = useMemo(() => {
     const m = new Map<string, number>();
@@ -119,14 +152,33 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr'));
   }, [activeEtuts]);
   const effectiveListSubject = listSubject !== 'all' && listSubjects.some(([s]) => s === listSubject) ? listSubject : 'all';
-  const listEtuts = useMemo(
+  const subjectEtuts = useMemo(
     () =>
       effectiveListSubject === 'all'
         ? activeEtuts
         : activeEtuts.filter((e) => (normalizeSubject(e.subject) || 'Belirtilmemiş') === effectiveListSubject),
     [activeEtuts, effectiveListSubject]
   );
-  const pagedListEtuts = usePagedList(listEtuts, `${effectiveListSubject}|${scopeFilter}`, 30);
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
+  const dateBounds = useMemo(() => presetBounds(datePreset, rangeFrom, rangeTo), [datePreset, rangeFrom, rangeTo]);
+  const listEtuts = useMemo(() => {
+    const [from, to] = dateBounds;
+    if (!from && !to) return subjectEtuts;
+    return subjectEtuts.filter((e) => {
+      const d = String(e.date || '').slice(0, 10);
+      return (!from || d >= from) && (!to || d <= to);
+    });
+  }, [subjectEtuts, dateBounds]);
+  const filtersOn = effectiveListSubject !== 'all' || datePreset !== 'all';
+  const clearFilters = () => {
+    setListSubject('all');
+    setDatePreset('all');
+    setRangeFrom('');
+    setRangeTo('');
+  };
+  const pagedListEtuts = usePagedList(listEtuts, `${effectiveListSubject}|${scope}|${dateBounds.join('~')}`, 30);
 
   // Etüt oluştur / düzenle penceresi (Aşama 9)
   const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null } | null>(null);
@@ -278,14 +330,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         />
       )}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <Segmented
-          value={scopeFilter}
-          onChange={(v) => setScopeFilter(v)}
-          items={[
-            { value: 'all', label: `Tüm Okul (${etuts.length})` },
-            { value: 'mine', label: `Benim Etütlerim (${myEtuts.length})` },
-          ]}
-        />
+        {isAdminView ? (
+          <Segmented
+            value={scopeFilter}
+            onChange={(v) => setScopeFilter(v)}
+            items={[
+              { value: 'all', label: `Tüm Okul (${etuts.length})`, id: 'etut-scope-all' },
+              { value: 'mine', label: `Benim Etütlerim (${myEtuts.length})`, id: 'etut-scope-mine' },
+            ]}
+          />
+        ) : (
+          <span className="ui-chip ui-chip-neutral" id="etut-scope-mine-only" title="Oluşturduğunuz ve etüt öğretmeni olarak atandığınız etütler">
+            Etütlerim ({myEtuts.length})
+          </span>
+        )}
         <Segmented
           value={viewMode}
           onChange={(v) => setViewMode(v)}
@@ -297,10 +355,80 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         />
       </div>
 
+      {/* Aşama 24: süzgeç çubuğu (ders + tarih) */}
+      <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-auto sm:min-w-[13rem]">
+            <label htmlFor="etut-list-subject" className="block text-xs font-semibold text-muted mb-1">
+              Ders
+            </label>
+            <select
+              id="etut-list-subject"
+              value={effectiveListSubject}
+              onChange={(e) => setListSubject(e.target.value)}
+              className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[13rem]"
+            >
+              <option value="all">Tüm dersler ({activeEtuts.length})</option>
+              {listSubjects.map(([s, n]) => (
+                <option key={s} value={s}>
+                  {s} ({n})
+                </option>
+              ))}
+            </select>
+          </div>
+          {viewMode !== 'calendar' ? (
+            <div className="w-full sm:w-auto sm:flex-1 min-w-0">
+              <span className="block text-xs font-semibold text-muted mb-1">Tarih</span>
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tarih süzgeci">
+                {DATE_PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    id={`etut-date-${p.value}`}
+                    aria-pressed={datePreset === p.value}
+                    onClick={() => setDatePreset(p.value)}
+                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-colors ${
+                      datePreset === p.value ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted pb-2">Takvimde haftalar arasında okla gezinin. Tarih süzgeci Liste ve Yoklama görünümünde.</p>
+          )}
+        </div>
+        {viewMode !== 'calendar' && datePreset === 'range' && (
+          <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
+            <label className="text-xs text-muted">
+              <span className="block font-semibold mb-1">Başlangıç</span>
+              <input type="date" id="etut-date-from" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+            </label>
+            <label className="text-xs text-muted">
+              <span className="block font-semibold mb-1">Bitiş</span>
+              <input type="date" id="etut-date-to" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} className="bg-surface border border-line rounded-xl px-3 py-1.5 text-sm text-fg" />
+            </label>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-muted" id="etut-list-count">
+            {viewMode === 'calendar' ? `${subjectEtuts.length} etüt takvimde` : `${listEtuts.length} etüt listeleniyor`}
+            {!isAdminView && ' · yalnız sizin etütleriniz'}
+          </span>
+          {filtersOn && (
+            <button type="button" id="etut-filter-clear" onClick={clearFilters} className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer">
+              Süzgeçleri temizle
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
       {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
-          etuts={activeEtuts}
+          etuts={subjectEtuts}
           students={students}
           classes={classes}
           onAddEtutForDate={handleAddEtutForDate}
@@ -313,6 +441,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           }}
           onAttendanceEtut={(etut) => {
             setSelectedAttendanceEtutId(etut.id);
+            setDatePreset('all');
             setViewMode('attendance');
           }}
         />
@@ -321,27 +450,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {viewMode === 'cards' && (
         /* Etüt List */
         <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2" id="etut-list-filter">
-          <label htmlFor="etut-list-subject" className="text-xs font-semibold text-muted">
-            Ders
-          </label>
-          <select
-            id="etut-list-subject"
-            value={effectiveListSubject}
-            onChange={(e) => setListSubject(e.target.value)}
-            className="bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand min-w-[12rem]"
-          >
-            <option value="all">Tüm dersler ({activeEtuts.length})</option>
-            {listSubjects.map(([s, n]) => (
-              <option key={s} value={s}>
-                {s} ({n})
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-muted" id="etut-list-count">
-            {listEtuts.length} etüt listeleniyor
-          </span>
-        </div>
         {listEtuts.length === 0 && (
           <div className="ui-card p-8 text-center text-sm text-muted">Bu seçimde etüt yok.</div>
         )}
@@ -544,8 +652,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
       {/* DEDICATED SIMPLE ETÜT DEVAMSIZLIK ARAYÜZÜ */}
       {viewMode === 'attendance' && (() => {
+        const attEtuts = listEtuts;
         const currentAttendanceEtut =
-          etuts.find((e) => e.id === selectedAttendanceEtutId) || etuts[0] || null;
+          attEtuts.find((e) => e.id === selectedAttendanceEtutId) || attEtuts[0] || null;
 
         // Atanan öğrenciler listesi
         const assignedStudents = (() => {
@@ -634,7 +743,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           setTimeout(() => setAttendanceFeedback(null), 3000);
         };
 
-        if (etuts.length === 0) {
+        if (attEtuts.length === 0 && activeEtuts.length > 0) {
+          return (
+            <div className="ui-card p-8 text-center text-sm text-muted" id="etut-attendance-empty-filter">
+              Bu süzgeçte yoklaması alınacak etüt yok.{' '}
+              <button type="button" onClick={clearFilters} className="font-semibold text-brand-fg hover:underline cursor-pointer">
+                Süzgeçleri temizle
+              </button>
+            </div>
+          );
+        }
+        if (attEtuts.length === 0) {
           return (
             <div className="bg-surface border border-line rounded-2xl p-12 text-center shadow-lg">
               <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
@@ -683,7 +802,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
                 </div>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border border-indigo-500/20 self-start sm:self-auto">
-                  {etuts.length} Planlı Etüt
+                  {attEtuts.length} Planlı Etüt
                 </span>
               </div>
 
@@ -694,7 +813,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   onChange={(e) => setSelectedAttendanceEtutId(e.target.value)}
                   className="w-full bg-canvas border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
                 >
-                  {etuts.map((e) => {
+                  {attEtuts.map((e) => {
                     let formattedDate = e.date;
                     try {
                       const parts = (e.date || '').trim().split('T')[0].split('-');
@@ -970,7 +1089,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           students={students}
           classes={classes}
           preselectedStudentId={reportSelectedStudentId}
-          defaultScope={scopeFilter}
+          defaultScope={scope}
         />
       )}
 
