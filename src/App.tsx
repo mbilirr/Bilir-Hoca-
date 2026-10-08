@@ -172,7 +172,7 @@ export default function App() {
 
   const lastActivityRef = useRef<number>(Date.now());
 
-  // 5 Dakika Kullanılmadığında Oturumu Otomatik Sonlandırma
+  // Kullanılmadığında Oturumu Otomatik Sonlandırma (süre role göre değişir, aşağıya bakın)
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('edu_sys_last_activity_ts');
@@ -197,13 +197,22 @@ export default function App() {
       }
     };
 
+    // Aşama 26: hareketsizlik süresi role göre belirlenir
+    //  - genel yönetici: 1 gün (24 saat)
+    //  - kurum yöneticisi: 30 dakika
+    //  - öğretmen ve öğrenci: 15 dakika
+    const getIdleLimitMs = () => {
+      if (dataService.isHeadAdmin()) return 24 * 60 * 60 * 1000;
+      if (dataService.isKurumAdmin() || dataService.isCurrentUserAdmin()) return 30 * 60 * 1000;
+      return 15 * 60 * 1000;
+    };
+
     const performInactivityCheck = () => {
       const activeSession = dataService.getAuthSession();
       if (activeSession) {
         const now = Date.now();
         const diff = now - lastActivityRef.current;
-        // 5 dakika = 5 * 60 * 1000 = 300,000 ms
-        if (diff >= 5 * 60 * 1000) {
+        if (diff >= getIdleLimitMs()) {
           dataService.logout();
           setAuthSession(null);
           setCurrentStudent(null);
