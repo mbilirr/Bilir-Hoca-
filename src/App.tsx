@@ -9,6 +9,7 @@ import { AuthPortal } from './components/Auth/AuthPortal';
 import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
+import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
 import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
@@ -407,6 +408,11 @@ export default function App() {
             {/* Yönetici: veri yedeği hatırlatması (son yedek 7 günden eskiyse) */}
             {activeTeacher?.isAdmin && dataService.isHeadAdmin() && teacherTab !== 'user_management' && (
               <AdminBackupReminder onOpenBackup={() => setTeacherTab('user_management')} />
+            )}
+
+            {/* Yönetici (genel ve kurum): etüdü bitmiş ama yoklaması alınmamış etütler */}
+            {(dataService.isHeadAdmin() || dataService.isKurumAdmin()) && dataService.canUseTab('etuts') && teacherTab !== 'etuts' && (
+              <UnattendedEtutBanner onOpenEtuts={() => setTeacherTab('etuts')} />
             )}
 
             {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}

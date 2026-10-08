@@ -29,7 +29,7 @@ const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta 
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'question-target', 'plan-report']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report']);
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -1517,6 +1517,129 @@ async function actionEtutReminders(req, deadline) {
   return { ...out, sent: t.sent || 0, failed: t.failed || 0, skipped: t.skipped || 0, noEmail: t.noEmail || 0, errors: t.errors || [], total: undefined };
 }
 
+// ----------------------------------------------------------------------------- Yoklaması alınmayan etüt uyarısı (Aşama 24)
+// Etüt bittikten NOATT_GRACE_MIN dakika sonra hâlâ yoklama kaydı yoksa, etüdün kurum yöneticilerine
+// (kurum yöneticisi yoksa genel yöneticiye) e-posta gider. Her etüt için her yöneticiye en fazla bir kez gider.
+// Bugün ve dün (gece yarısını geçen etütler için) bakılır; bu görev 10 dakikalık zamanlayıcıyla birlikte çalışır.
+const NOATT_GRACE_MIN = 60;
+const NOATT_LOOKBACK_DAYS = 1;
+const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
+
+function etutHasAttendanceRow(row) {
+  const att = parseEtutMeta(row).studentAttendance;
+  return !!att && typeof att === 'object' && Object.keys(att).length > 0;
+}
+// Öğrencisi olmayan etütte yoklama alınamaz; bu etütler için uyarı gitmez
+function etutExpectsAttendanceRow(row) {
+  if (arr(row.assigned_student_ids).length > 0) return true;
+  const a = parseEtutMeta(row).assignedStudentIds;
+  return a === 'all' || (Array.isArray(a) && a.length > 0);
+}
+// Tarih + dakika -> mutlak dakika (Türkiye saatine göre karşılaştırmak için)
+function absMinutes(dateStr, minute) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ''));
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 60000 + minute : null;
+}
+function addDaysStr(dateStr, delta) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + delta)).toISOString().slice(0, 10);
+}
+function etutNoAttendanceMail(etut, admin, teacherName, url) {
+  const subject = `Yoklama alınmadı: ${clean(etut.subject)} – ${trDate(etut.date, etut.time)}`;
+  const body = layout({
+    heading: 'Etüt yoklaması alınmadı',
+    greeting: `Merhaba ${clean(admin.name)},`,
+    intro: 'Aşağıdaki etüt sona erdi ancak yoklaması henüz alınmadı. Etüt öğretmeninden yoklamayı almasını isteyebilirsiniz.',
+    rows: etutRows(etut, teacherName),
+    buttonLabel: 'Etütleri görüntüle',
+    url,
+  });
+  return { subject, ...body };
+}
+// Etüdün kurumu: etüdü kaydeden (yoksa atanan sistem) öğretmenin kurumu. Alıcılar: o kurumun yöneticileri;
+// kurum ya da kurum yöneticisi yoksa genel yönetici.
+async function noAttendanceRecipients(etut, cache) {
+  let kurumId = null;
+  const probeIds = [etut.createdById, ...etut.teacherIds].filter((x) => x && !String(x).startsWith('ext-'));
+  for (const id of probeIds) {
+    if (!cache.teacherKurum.has(id)) {
+      let k = null;
+      try {
+        const r = await rest(`teachers?select=kurum_id&id=eq.${encodeURIComponent(id)}`, { token: 'service' });
+        k = r && r[0] && r[0].kurum_id ? String(r[0].kurum_id) : null;
+      } catch {
+        k = null; // kurum sütunu yoksa (17 numaralı SQL çalışmamışsa)
+      }
+      cache.teacherKurum.set(id, k);
+    }
+    kurumId = cache.teacherKurum.get(id);
+    if (kurumId) break;
+  }
+  const key = kurumId || '-';
+  if (!cache.admins.has(key)) {
+    let list = [];
+    if (kurumId) {
+      try {
+        const r = await rest(`teachers?select=name,email,status&is_admin=eq.true&kurum_id=eq.${encodeURIComponent(kurumId)}`, { token: 'service' });
+        list = (r || [])
+          .filter((a) => isEmail(a.email) && (!a.status || a.status === 'approved'))
+          .map((a) => ({ name: a.name, email: a.email.trim() }));
+      } catch {}
+    }
+    if (!list.length) list = [{ name: 'Genel Yönetici', email: HEAD_ADMIN_EMAIL }];
+    cache.admins.set(key, list);
+  }
+  return cache.admins.get(key);
+}
+async function actionNoAttendanceAlerts(req, deadline) {
+  const now = istanbulNow();
+  const nowAbs = Date.UTC(+now.date.slice(0, 4), +now.date.slice(5, 7) - 1, +now.date.slice(8, 10)) / 60000 + now.minutes;
+  const from = addDaysStr(now.date, -NOATT_LOOKBACK_DAYS);
+  const to = addDaysStr(now.date, 1);
+  const out = { checked: 0, due: 0, sent: 0, failed: 0, skipped: 0, noEmail: 0 };
+  const rows = await rest(`etuts?select=*&date=gte.${from}&date=lt.${to}`, { token: 'service' });
+  const url = appUrl(req);
+  const cache = { teacherKurum: new Map(), admins: new Map() };
+  const items = [];
+  for (const row of rows || []) {
+    if (!row || typeof row.id !== 'string' || row.id.startsWith('__')) continue;
+    out.checked++;
+    if (etutHasAttendanceRow(row) || !etutExpectsAttendanceRow(row)) continue;
+    const etut = etutView(row);
+    const st = etutStartMinute(etut);
+    // Saat girilmemişse etüt günün sonunda bitmiş sayılır
+    const endMin = st === null ? 24 * 60 - 1 : st + (Number(etut.duration) || 45);
+    const endAbs = absMinutes(etut.date, endMin);
+    if (endAbs === null || nowAbs < endAbs + NOATT_GRACE_MIN) continue;
+    out.due++;
+    const admins = await noAttendanceRecipients(etut, cache);
+    const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
+    const teacherName = teachers.length ? teachers.map((t) => t.name).join(', ') : etut.teacherName || 'Öğretmen';
+    for (const a of admins) {
+      items.push({
+        event: 'etut-no-attendance',
+        refId: etut.id,
+        refTitle: `${etut.subject} – ${etut.topic}`,
+        to: a.email,
+        toName: a.name,
+        role: 'ogretmen',
+        ...etutNoAttendanceMail(etut, a, teacherName, url),
+      });
+    }
+  }
+  if (!items.length) return out;
+  const owner = { authId: null, name: '', email: '' };
+  const sender = await resolveSender(owner);
+  const summary = await deliver(sender, owner, items, deadline);
+  if (summary) {
+    out.sent = summary.sent || 0;
+    out.failed = summary.failed || 0;
+    out.skipped = summary.skipped || 0;
+    out.noEmail = summary.noEmail || 0;
+  }
+  return out;
+}
+
 async function actionEtutCreated(caller, body, req, deadline) {
   const row = await fetchVisible('etuts', body.etutId, caller.token);
   const etut = etutView(row);
@@ -2530,7 +2653,14 @@ export default async function handler(req, res) {
         } catch (err) {
           console.error('[mail] plan raporu hatası', err && err.message);
         }
-        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0 });
+        // Aşama 24: etüdü bitmiş ama yoklaması alınmamış etütler için yöneticiye uyarı
+        let na = null;
+        try {
+          na = await actionNoAttendanceAlerts(req, deadline);
+        } catch (err) {
+          console.error('[mail] yoklama uyarısı hatası', err && err.message);
+        }
+        return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0 });
       }
       const r = await actionReminders(req, deadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
@@ -2546,8 +2676,15 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] günlük plan raporu hatası', err && err.message);
       }
+      let na = null;
+      try {
+        na = await actionNoAttendanceAlerts(req, deadline);
+      } catch (err) {
+        console.error('[mail] günlük yoklama uyarısı hatası', err && err.message);
+      }
       // Zamanlanmış görev yanıtında kişi/ödev adı verilmez (yalnızca sayılar)
       return res.status(200).json({
+        noAttendance: na ? na.sent : 0,
         etutSent: er ? er.sent : 0,
         planReports: pr ? pr.sent : 0,
         ok: r.ok,

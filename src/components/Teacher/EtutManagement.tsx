@@ -51,6 +51,7 @@ import { MailNoticeBar } from './FormParts';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
+import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib/etutTiming';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -240,13 +241,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     const etut = etutToDelete;
     if (!etut) return;
     setEtutToDelete(null);
-    const todayStr = (() => {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    })();
     let mailText = '';
-    // Yapılmamış (bugün veya ileri tarihli) etüt iptal edilirse etüt öğretmenine haber ver
-    if (etut.date >= todayStr && etut.teacherId) {
+    // Aşama 24: iptal e-postası yalnızca etüt başlamadan önce ya da etüt sürerken gider.
+    // Saati geçmiş (bitmiş) bir etüt silinirse öğretmene iptal e-postası gönderilmez.
+    if (!isEtutEnded(etut) && etut.teacherId) {
       const res = await callMail('etut-cancelled', { etutId: etut.id });
       if (res.ok && res.sent) mailText = res.sent > 1 ? ` Etüt öğretmenlerine (${res.sent}) iptal e-postası gönderildi.` : ' Etüt öğretmenine iptal e-postası gönderildi.';
       else if (res.ok && res.teachers && res.teachers[0]?.status === 'no-email') mailText = ' Etüt öğretmeninin e-postası kayıtlı olmadığı için bildirim gitmedi.';
@@ -464,6 +462,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             const absent = att.filter((a) => a.status === 'absent').length;
             const late = att.filter((a) => a.status === 'late').length;
             const isOpen = expandedEtutId === etut.id;
+            // Aşama 24: etüt bitti mi, bittiyse yoklaması alınmış mı
+            const ended = isEtutEnded(etut);
+            const missingAtt = ended && etutExpectsAttendance(etut) && !hasEtutAttendance(etut);
             const dateText = new Date(etut.date).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', weekday: 'short' });
 
             return (
@@ -474,7 +475,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 noun="Etüt"
                 open={isOpen}
                 onToggle={() => setExpandedEtutId(isOpen ? null : etut.id)}
-                accent={att.length > 0 ? 'border-l-emerald-500' : 'border-l-sky-500'}
+                accent={att.length > 0 ? 'border-l-emerald-500' : missingAtt ? 'border-l-rose-500' : 'border-l-sky-500'}
                 badges={
                   <>
                     <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300">
@@ -484,6 +485,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <Clock className="w-3 h-3" />
                       {dateText} · {etut.time ? `${etut.time} (${etut.duration} dk)` : 'Saat belirtilmedi'}
                     </span>
+                    {ended && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-surface-2 text-muted">Etüt bitti</span>
+                    )}
+                    {missingAtt && (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 inline-flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Yoklama alınmadı
+                      </span>
+                    )}
                     {etut.gradeLevel && (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300">
                         {etut.gradeLevel}
@@ -506,7 +516,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                         {late > 0 && <span className="text-amber-700 dark:text-amber-300">{late} Geç</span>}
                       </span>
                     ) : (
-                      <span className="text-amber-700 dark:text-amber-300 font-normal">Yoklama henüz alınmadı</span>
+                      missingAtt ? (
+                        <span className="text-rose-700 dark:text-rose-300 font-bold">Alınmadı</span>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-300 font-normal">Yoklama henüz alınmadı</span>
+                      )
                     )}
                   </div>
                 }
