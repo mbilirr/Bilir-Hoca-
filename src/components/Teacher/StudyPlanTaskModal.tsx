@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, Plus, Search, X, CalendarRange } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import { FieldLabel, inputCls } from './FormParts';
-import { PLAN_DAYS, dateOfDay, shortDayLabel, type PlanItemDraft, type StudentBook } from '../../services/studyPlanService';
+import { PLAN_DAYS, dateOfDay, planDayName, shortDayLabel, type PlanItemDraft, type StudentBook } from '../../services/studyPlanService';
 
 // ============================================================================
 // Haftalık plan: görev penceresi (Aşama 19)
@@ -269,7 +269,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
             <select id="plan-task-day" value={day} onChange={(e) => setDay(Number(e.target.value))} className={inputCls}>
               {PLAN_DAYS.map((n, i) => (
                 <option key={n} value={i}>
-                  {n} · {shortDayLabel(dateOfDay(weekStart, i))}
+                  {planDayName(weekStart, i)} · {shortDayLabel(dateOfDay(weekStart, i))}
                 </option>
               ))}
             </select>

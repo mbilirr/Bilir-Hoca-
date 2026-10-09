@@ -9,7 +9,12 @@ import { cx } from '../ui/kit';
 // Bağlantı yalnızca o öğrencinin o haftaki planını açar; sunucu her istekte imzayı denetler.
 // ============================================================================
 
-const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+// Gün adı gerçek tarihten hesaplanır (plan Pazartesi dışında bir günde de başlayabilir)
+const JS_DAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+const dayNameOf = (ymd: string, fallbackDay: number): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+  return m ? JS_DAYS[new Date(+m[1], +m[2] - 1, +m[3]).getDay()] : JS_DAYS[(fallbackDay + 1) % 7];
+};
 
 interface PlanData {
   studentName: string;
@@ -57,7 +62,10 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
 
   const days = useMemo(() => {
     if (!data) return [];
-    return DAYS.map((name, d) => ({ name, d, list: data.items.filter((i) => i.day === d) })).filter((x) => x.list.length);
+    return Array.from({ length: 7 }, (_, d) => {
+      const list = data.items.filter((i) => i.day === d);
+      return { name: dayNameOf(list[0]?.date || '', d), d, list };
+    }).filter((x) => x.list.length);
   }, [data]);
   const done = data ? data.items.filter((i) => i.doneAt).length : 0;
   const total = data ? data.items.length : 0;

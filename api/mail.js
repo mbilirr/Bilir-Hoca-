@@ -2182,6 +2182,15 @@ async function actionReminders(req, deadline) {
 // ============================================================================
 const PLAN_DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const PLAN_DAY_SHORT = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+// Esnek hafta başlangıcı: plan Pazartesi dışında bir günde başlayabilir; gün adı gerçek tarihten hesaplanır.
+// "day" = planın başlangıcından itibaren gün sırası (Pazartesi başlayan eski planlarda 0 = Pazartesi).
+function planDowIndex(weekStart, day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(addDaysYmd(weekStart, day));
+  if (!m) return ((Number(day) % 7) + 7) % 7;
+  return (new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay() + 6) % 7; // Pazartesi = 0 … Pazar = 6
+}
+const planDayName = (weekStart, day) => PLAN_DAY_NAMES[planDowIndex(weekStart, day)];
+const planDayShort = (weekStart, day) => PLAN_DAY_SHORT[planDowIndex(weekStart, day)];
 const PLAN_REPORT_MINUTE = 20 * 60; // görev verilen son gün saat 20:00
 const PLAN_LINK_EXTRA_DAYS = 21; // işaretleme bağlantısı hafta bittikten sonra 3 hafta daha açılır
 const PLAN_PDF_MAX_BYTES = 3 * 1024 * 1024;
@@ -2252,7 +2261,7 @@ const sortPlanItems = (items) =>
 
 // ----------------------------------------------------------------------------- Öğrenciye giden plan e-postası
 function planTableBlock(weekStart, items, withStatus) {
-  const days = PLAN_DAY_NAMES.map((name, d) => ({ name, d, list: sortPlanItems(items.filter((i) => i.day === d)) })).filter((x) => x.list.length);
+  const days = PLAN_DAY_NAMES.map((_, d) => ({ name: planDayName(weekStart, d), d, list: sortPlanItems(items.filter((i) => i.day === d)) })).filter((x) => x.list.length);
   const html = days
     .map(
       (x) =>
@@ -2506,7 +2515,7 @@ function planReportMail(group, students, plans, items) {
   };
   const tableHtml =
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border:1px solid #e3e6ef;border-radius:10px;border-collapse:separate;overflow:hidden">` +
-    `<tr><th style="padding:6px 8px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700;border-bottom:1px solid #c7d2fe;text-align:left">Öğrenci</th>${usedDays.map((d) => th(PLAN_DAY_SHORT[d])).join('')}${th('Toplam')}</tr>` +
+    `<tr><th style="padding:6px 8px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:700;border-bottom:1px solid #c7d2fe;text-align:left">Öğrenci</th>${usedDays.map((d) => th(planDayShort(group.week_start, d))).join('')}${th('Toplam')}</tr>` +
     rows
       .map(
         (r) =>
@@ -2532,7 +2541,7 @@ function planReportMail(group, students, plans, items) {
           const left = r.list.filter((i) => !i.done_at);
           const txt = left
             .slice(0, 6)
-            .map((i) => `${PLAN_DAY_SHORT[i.day]} ${i.subject}${i.book ? ` (${i.book})` : ''}`)
+            .map((i) => `${planDayShort(group.week_start, i.day)} ${i.subject}${i.book ? ` (${i.book})` : ''}`)
             .join(', ');
           return `<p style="margin:0 0 4px;font-size:12px;color:#334155"><strong>${esc(r.student.name)}:</strong> ${esc(txt)}${left.length > 6 ? ` … +${left.length - 6}` : ''}</p>`;
         })

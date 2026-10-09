@@ -6,7 +6,8 @@ import {
   PLAN_DAYS,
   dateOfDay,
   dayIndexOf,
-  loadMyWeek,
+  loadMyCurrentWeek,
+  planDayName,
   setTaskDone,
   shortDayLabel,
   weekRangeLabel,
@@ -30,10 +31,10 @@ export const StudentTodayPlan: React.FC = () => {
   const pending = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
-    const ws = weekStartOf(new Date());
-    setWeekStart((prev) => (prev === ws ? prev : ws));
     try {
-      const r = await loadMyWeek(ws);
+      // Bugünü kapsayan gönderilmiş plan (hangi gün başlarsa başlasın); yoksa Pazartesi başlayan hafta
+      const r = await loadMyCurrentWeek(new Date());
+      setWeekStart((prev) => (prev === r.weekStart ? prev : r.weekStart));
       // Sunucudan gelen veri, bu sırada işaretlenmekte olan görevlerin yerel durumunu ezmesin
       setItems((cur) => r.items.map((i) => (pending.current.has(i.id) ? cur.find((c) => c.id === i.id) || i : i)));
       setSentBy(r.sentByName);
@@ -56,7 +57,7 @@ export const StudentTodayPlan: React.FC = () => {
   }, [refresh]);
 
   const today = new Date();
-  const todayIdx = dayIndexOf(today);
+  const todayIdx = dayIndexOf(today, weekStart);
   const todayStr = ymd(today);
   const todayItems = useMemo(() => items.filter((i) => i.day === todayIdx), [items, todayIdx]);
   const overdue = useMemo(() => items.filter((i) => i.day < todayIdx && !i.doneAt), [items, todayIdx]);
@@ -204,7 +205,8 @@ export const StudentTodayPlan: React.FC = () => {
           </button>
           {showWeek && (
             <div id="student-plan-week" className="mt-3 space-y-3">
-              {PLAN_DAYS.map((name, d) => {
+              {PLAN_DAYS.map((_, d) => {
+                const name = planDayName(weekStart, d);
                 const list = items.filter((i) => i.day === d);
                 if (!list.length) return null;
                 const date = dateOfDay(weekStart, d);

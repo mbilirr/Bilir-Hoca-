@@ -20,7 +20,6 @@ import {
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
-  PLAN_DAYS,
   addBook,
   addDaysYmd,
   addPlanItem,
@@ -29,6 +28,7 @@ import {
   deleteBook,
   deletePlan,
   deletePlanItem,
+  findOverlappingPlans,
   listBooks,
   loadPlan,
   sendPlan,
@@ -37,8 +37,15 @@ import {
   updatePlanItem,
   weekRangeLabel,
   weekStartOf,
+  weekStartDayOf,
+  planDayName,
+  normalizeWeekStartDay,
+  DEFAULT_WEEK_START_DAY,
+  WEEK_START_DAY_OPTIONS,
   ymd,
   type ApplyResult,
+  type PlanHeader,
+  type WeekStartDay,
   type PlanItem,
   type PlanItemDraft,
   type StudentBook,
@@ -101,6 +108,24 @@ const writeSaved = (id: string) => {
   }
 };
 
+// Esnek hafta başlangıcı: öğretmenin son seçtiği başlangıç günü bu cihazda hatırlanır
+const START_DAY_KEY = 'edu_plan_week_start_day_v1';
+const readStartDay = (): WeekStartDay => {
+  try {
+    const v = localStorage.getItem(START_DAY_KEY);
+    return v === null ? DEFAULT_WEEK_START_DAY : normalizeWeekStartDay(v);
+  } catch {
+    return DEFAULT_WEEK_START_DAY;
+  }
+};
+const writeStartDay = (v: WeekStartDay) => {
+  try {
+    localStorage.setItem(START_DAY_KEY, String(v));
+  } catch {
+    /* localStorage yoksa seçim hatırlanmaz */
+  }
+};
+
 type Notice = { tone: 'success' | 'warning' | 'danger' | 'info'; text: string };
 
 interface Props {
@@ -154,7 +179,24 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const studentClass = student ? classes.find((c) => c.id === student.classId) : undefined;
 
   const todayStr = ymd(new Date());
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date()));
+  const [startDay, setStartDay] = useState<WeekStartDay>(readStartDay);
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date(), readStartDay()));
+  // Başlangıç günü değişince: gösterilen hafta bugünü içeriyorsa bugünden, yoksa mevcut başlangıçtan yeniden hesapla
+  const changeStartDay = (v: WeekStartDay) => {
+    setStartDay(v);
+    writeStartDay(v);
+    setWeekStart((ws) => {
+      const anchor = todayStr >= ws && todayStr <= addDaysYmd(ws, 6) ? todayStr : ws;
+      return weekStartOf(anchor, v);
+    });
+  };
+  // Kayıtlı bir plana geç (başlangıç günü planınkine ayarlanır)
+  const openWeek = (ws: string) => {
+    const sd = weekStartDayOf(ws);
+    setStartDay(sd);
+    writeStartDay(sd);
+    setWeekStart(ws);
+  };
 
   // ---- plan ve kitaplar
   const [plan, setPlan] = useState<StudyPlan>({ header: null, items: [] });
@@ -188,6 +230,19 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     setPlan({ header: null, items: [] });
     void reload();
   }, [reload]);
+  // Seçili tarih aralığıyla çakışan, farklı günde başlayan kayıtlı planlar (ör. eski Pazartesi planları)
+  const [overlaps, setOverlaps] = useState<PlanHeader[]>([]);
+  useEffect(() => {
+    let alive = true;
+    setOverlaps([]);
+    if (!studentId || mode === 'class') return;
+    findOverlappingPlans([studentId], weekStart)
+      .then((list) => alive && setOverlaps(list))
+      .catch(() => alive && setOverlaps([]));
+    return () => {
+      alive = false;
+    };
+  }, [studentId, weekStart, mode]);
   // Başka sekmeden dönünce (öğrenci "yaptım" işaretlemiş olabilir) tazele
   useEffect(() => {
     const onVis = () => {
@@ -250,7 +305,10 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     }
     const position = plan.items.filter((i) => i.day === draft.day).reduce((m, i) => Math.max(m, i.position + 1), 0);
     const created = await addPlanItem(student.id, weekStart, draft, position, teacherName);
-    setPlan((p) => ({ header: p.header || { id: `plan-${student.id}-${weekStart}`, studentId: student.id, weekStart, sentAt: null, sentByName: '' }, items: [...p.items, created] }));
+    setPlan((p) => ({
+      header: p.header || { id: `plan-${student.id}-${weekStart}`, studentId: student.id, weekStart, sentAt: null, sentByName: '', weekStartDay: weekStartDayOf(weekStart) },
+      items: [...p.items, created],
+    }));
     if (keepOpen) setTaskModal((m) => (m ? { ...m, day: draft.day } : m));
     else {
       setTaskModal(null);
@@ -331,7 +389,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const [booksOpen, setBooksOpen] = useState(false);
 
   const shiftWeek = (delta: number) => setWeekStart((w) => addDaysYmd(w, delta * 7));
-  const isThisWeek = weekStart === weekStartOf(new Date());
+  const thisWeek = weekStartOf(new Date(), startDay);
+  const isThisWeek = weekStart === thisWeek;
 
   if (!students.length) {
     return (
@@ -349,16 +408,19 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         <ChevronLeft className="w-4 h-4" />
       </button>
       <div className="min-w-[10.5rem] text-center">
-        <p className="text-[11px] text-muted font-medium">{isThisWeek ? 'Bu hafta' : weekStart > weekStartOf(new Date()) ? 'Gelecek' : 'Geçmiş hafta'}</p>
+        <p className="text-[11px] text-muted font-medium">{isThisWeek ? 'Bu hafta' : weekStart > thisWeek ? 'Gelecek' : 'Geçmiş hafta'}</p>
         <p id="plan-week-label" className="text-sm font-bold text-fg">
           {weekRangeLabel(weekStart)}
+        </p>
+        <p id="plan-week-days" className="text-[10px] text-muted">
+          {planDayName(weekStart, 0)} – {planDayName(weekStart, 6)}
         </p>
       </div>
       <button type="button" id="plan-week-next" aria-label="Sonraki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => shiftWeek(1)}>
         <ChevronRight className="w-4 h-4" />
       </button>
       {!isThisWeek && (
-        <button type="button" id="plan-week-today" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setWeekStart(weekStartOf(new Date()))}>
+        <button type="button" id="plan-week-today" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setWeekStart(weekStartOf(new Date(), startDay))}>
           Bu hafta
         </button>
       )}
@@ -367,9 +429,28 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         aria-label="Haftayı tarihle seç"
         id="plan-week-date"
         value={weekStart}
-        onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value))}
+        onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value, startDay))}
         className={cx(inputCls, 'w-[9.5rem] hidden md:block')}
       />
+      <div className="flex flex-col">
+        <label htmlFor="plan-week-start-day" className="text-[11px] text-muted font-medium mb-0.5">
+          Hafta başlangıç günü
+        </label>
+        <select
+          id="plan-week-start-day"
+          aria-label="Hafta başlangıç günü"
+          title="Haftalık plan hangi gün başlasın? (varsayılan: Pazartesi)"
+          value={startDay}
+          onChange={(e) => changeStartDay(normalizeWeekStartDay(e.target.value))}
+          className={cx(inputCls, 'w-[8.5rem]')}
+        >
+          {WEEK_START_DAY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
   const modeSwitch = (
@@ -426,6 +507,24 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           </div>
           {weekNav}
         </div>
+        {overlaps.length > 0 && (
+          <div id="plan-overlaps" className="flex flex-wrap items-center gap-2 text-xs rounded-xl bg-info-soft text-info-fg px-3 py-2">
+            <CalendarRange className="w-4 h-4 shrink-0" />
+            <span className="font-semibold">Bu tarihlerle çakışan kayıtlı plan:</span>
+            {overlaps.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                data-overlap-week={h.weekStart}
+                className="ui-btn ui-btn-secondary ui-btn-sm"
+                onClick={() => openWeek(h.weekStart)}
+                title="Bu plana geç"
+              >
+                {weekRangeLabel(h.weekStart)} · {planDayName(h.weekStart, 0)} başlangıçlı{h.sentAt ? ' · gönderildi' : ''}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Durum ve işlemler */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-1 border-t border-line">
@@ -546,12 +645,12 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               key={d}
               data-day={d}
               className={cx('ui-card flex flex-col min-h-[9rem]', isToday && 'ring-2 ring-brand/50 border-brand/50')}
-              aria-label={`${PLAN_DAYS[d]} görevleri`}
+              aria-label={`${planDayName(weekStart, d)} görevleri`}
             >
               <header className={cx('flex items-center justify-between gap-2 px-3 py-2 border-b border-line rounded-t-2xl', isToday ? 'bg-brand-soft' : 'bg-surface-2/60')}>
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-fg leading-tight">
-                    {PLAN_DAYS[d]}
+                    {planDayName(weekStart, d)}
                     {isToday && <span className="ml-1.5 text-[10px] font-bold text-brand-fg uppercase">bugün</span>}
                   </p>
                   <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
@@ -559,7 +658,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                 <button
                   type="button"
                   id={`plan-add-${d}`}
-                  aria-label={`${PLAN_DAYS[d]} gününe görev ekle`}
+                  aria-label={`${planDayName(weekStart, d)} gününe görev ekle`}
                   title="Görev ekle"
                   className="ui-btn ui-btn-primary ui-btn-icon ui-btn-sm"
                   onClick={() => setTaskModal({ mode: 'add', day: d })}
@@ -711,7 +810,7 @@ const ApplyPlanModal: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplyResult | null>(null);
 
-  const targetWeek = weekMode === 'same' ? sourceWeek : weekMode === 'next' ? addDaysYmd(sourceWeek, 7) : weekStartOf(customDate || sourceWeek);
+  const targetWeek = weekMode === 'same' ? sourceWeek : weekMode === 'next' ? addDaysYmd(sourceWeek, 7) : weekStartOf(customDate || sourceWeek, weekStartDayOf(sourceWeek));
   const sameWeek = targetWeek === sourceWeek;
   // Aynı haftaya uygularken kaynak öğrenci hedef olamaz
   const targets = selectedIds.filter((id) => !(sameWeek && id === sourceStudent.id));

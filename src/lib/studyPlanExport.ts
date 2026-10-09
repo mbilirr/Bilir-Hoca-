@@ -1,4 +1,4 @@
-import { PLAN_DAYS, dateOfDay, shortDayLabel, weekRangeLabel, type PlanItem } from '../services/studyPlanService';
+import { planDayName, dateOfDay, shortDayLabel, weekRangeLabel, type PlanItem } from '../services/studyPlanService';
 
 // ============================================================================
 // Haftalık çalışma planı: PDF ve Excel çıktısı (Aşama 19)
@@ -32,10 +32,10 @@ function planSheet(XLSX: any, c: PlanExportContext) {
   const rows: Array<Array<string>> = [];
   days.forEach((list, d) => {
     const date = shortDayLabel(dateOfDay(c.weekStart, d));
-    if (!list.length) rows.push([PLAN_DAYS[d], date, '', '', '', '', ...(c.showStatus ? [''] : [])]);
+    if (!list.length) rows.push([planDayName(c.weekStart, d), date, '', '', '', '', ...(c.showStatus ? [''] : [])]);
     list.forEach((i, idx) =>
       rows.push([
-        idx === 0 ? PLAN_DAYS[d] : '',
+        idx === 0 ? planDayName(c.weekStart, d) : '',
         idx === 0 ? date : '',
         i.subject,
         i.book,
@@ -115,7 +115,7 @@ async function buildPlanPdfSections(sections: PlanExportContext[]) {
   const days = byDay(c.items);
   const body: any[] = [];
   days.forEach((list, d) => {
-    const dayCell = { content: t(`${PLAN_DAYS[d]}\n${shortDayLabel(dateOfDay(c.weekStart, d))}`), rowSpan: Math.max(1, list.length), styles: { fontStyle: 'bold', fillColor: [238, 242, 255], valign: 'top' } };
+    const dayCell = { content: t(`${planDayName(c.weekStart, d)}\n${shortDayLabel(dateOfDay(c.weekStart, d))}`), rowSpan: Math.max(1, list.length), styles: { fontStyle: 'bold', fillColor: [238, 242, 255], valign: 'top' } };
     if (!list.length) {
       body.push([dayCell, { content: t('Görev yok'), colSpan: 5, styles: { textColor: [156, 163, 175] } }]);
       return;

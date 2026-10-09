@@ -3,7 +3,7 @@ import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, P
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
-  PLAN_DAYS,
+  planDayName,
   addBookForStudents,
   addDaysYmd,
   addPlanItemsBulk,
@@ -18,6 +18,7 @@ import {
   updatePlanItems,
   weekRangeLabel,
   weekStartOf,
+  weekStartDayOf,
   ymd,
   type PlanGroupKind,
   type PlanHeader,
@@ -611,11 +612,11 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
             const date = dateOfDay(weekStart, d);
             const isToday = date === todayStr;
             return (
-              <section key={d} data-day={d} className={cx('ui-card flex flex-col min-h-[9rem]', isToday && 'ring-2 ring-brand/50 border-brand/50')} aria-label={`${PLAN_DAYS[d]} görevleri`}>
+              <section key={d} data-day={d} className={cx('ui-card flex flex-col min-h-[9rem]', isToday && 'ring-2 ring-brand/50 border-brand/50')} aria-label={`${planDayName(weekStart, d)} görevleri`}>
                 <header className={cx('flex items-center justify-between gap-2 px-3 py-2 border-b border-line rounded-t-2xl', isToday ? 'bg-brand-soft' : 'bg-surface-2/60')}>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-fg leading-tight">
-                      {PLAN_DAYS[d]}
+                      {planDayName(weekStart, d)}
                       {isToday && <span className="ml-1.5 text-[10px] font-bold text-brand-fg uppercase">bugün</span>}
                     </p>
                     <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
@@ -623,7 +624,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                   <button
                     type="button"
                     id={`plan-add-${d}`}
-                    aria-label={`${PLAN_DAYS[d]} gününe görev ekle`}
+                    aria-label={`${planDayName(weekStart, d)} gününe görev ekle`}
                     title="Görev ekle"
                     className="ui-btn ui-btn-primary ui-btn-icon ui-btn-sm"
                     onClick={() => openAdd(d)}
@@ -729,7 +730,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           icon={Users}
           tone="info"
           title={`${detailGroup.subject}${detailGroup.book ? ` · ${detailGroup.book}` : ''}`}
-          description={`${PLAN_DAYS[detailGroup.day]} · ${detailGroup.items.length} öğrenci`}
+          description={`${planDayName(weekStart, detailGroup.day)} · ${detailGroup.items.length} öğrenci`}
           footer={
             <button type="button" className="ui-btn ui-btn-primary" onClick={() => setDetailGroup(null)}>
               Kapat
@@ -807,7 +808,7 @@ const CopyWeekModal: React.FC<{
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ students: number; added: number; skipped: number; failed: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const target = mode === 'next' ? addDaysYmd(weekStart, 7) : weekStartOf(date || weekStart);
+  const target = mode === 'next' ? addDaysYmd(weekStart, 7) : weekStartOf(date || weekStart, weekStartDayOf(weekStart));
   const run = async () => {
     if (running) return;
     if (target === weekStart) return setError('Hedef hafta bu haftadan farklı olmalı.');

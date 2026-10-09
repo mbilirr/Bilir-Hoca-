@@ -12,6 +12,19 @@ import { callMail, type MailResult } from '../lib/mailApi';
 // ============================================================================
 
 export const PLAN_DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'] as const;
+// Esnek hafta başlangıcı: JS Date.getDay() düzeni (0 = Pazar, 1 = Pazartesi … 6 = Cumartesi)
+export type WeekStartDay = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export const DEFAULT_WEEK_START_DAY: WeekStartDay = 1; // Pazartesi (eski davranış)
+const JS_DAY_NAMES = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'] as const;
+// Açılır listede gösterim sırası: Pazartesi … Pazar
+export const WEEK_START_DAY_OPTIONS: ReadonlyArray<{ value: WeekStartDay; label: string }> = [1, 2, 3, 4, 5, 6, 0].map((v) => ({
+  value: v as WeekStartDay,
+  label: JS_DAY_NAMES[v],
+}));
+export const normalizeWeekStartDay = (v: unknown): WeekStartDay => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= 6 ? (n as WeekStartDay) : DEFAULT_WEEK_START_DAY;
+};
 const TR_MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
 export interface PlanItem {
@@ -19,7 +32,9 @@ export interface PlanItem {
   planId: string;
   studentId: string;
   weekStart: string;
-  day: number; // 0 = Pazartesi … 6 = Pazar
+  // Planın başlangıç gününden itibaren gün sırası (0 = planın ilk günü … 6 = son günü).
+  // Pazartesi başlayan (eski) planlarda 0 = Pazartesi … 6 = Pazar anlamına gelir.
+  day: number;
   subject: string;
   book: string;
   note: string;
@@ -34,6 +49,7 @@ export interface PlanHeader {
   sentAt: string | null;
   sentByName: string;
   mailedAt?: string | null; // Aşama 22: öğrenciye e-postayla gönderildiği an
+  weekStartDay: WeekStartDay; // planın başladığı gün (kolon yoksa / boşsa week_start tarihinden çıkarılır)
 }
 export interface StudyPlan {
   header: PlanHeader | null;
@@ -64,16 +80,31 @@ export function addDaysYmd(s: string, days: number): string {
   d.setDate(d.getDate() + days);
   return ymd(d);
 }
-// Verilen günün haftasının Pazartesi'si
-export function weekStartOf(s: string | Date): string {
+// Verilen günü içeren haftanın ilk günü. startDay: 0 = Pazar, 1 = Pazartesi (varsayılan) … 5 = Cuma, 6 = Cumartesi
+export function weekStartOf(s: string | Date, startDay: number = DEFAULT_WEEK_START_DAY): string {
+  const sd = normalizeWeekStartDay(startDay);
   const d = typeof s === 'string' ? parseYmd(s) : new Date(s.getFullYear(), s.getMonth(), s.getDate());
-  const back = (d.getDay() + 6) % 7;
+  const back = (d.getDay() - sd + 7) % 7;
   d.setDate(d.getDate() - back);
   return ymd(d);
 }
-// Pazartesi = 0 … Pazar = 6
-export const dayIndexOf = (d: Date) => (d.getDay() + 6) % 7;
+// Haftanın son günü (başlangıç + 6 gün)
+export function weekEndOf(s: string | Date, startDay: number = DEFAULT_WEEK_START_DAY): string {
+  return addDaysYmd(weekStartOf(s, startDay), 6);
+}
+// Bir planın başlangıç tarihinden başlangıç gününü bulur (0 = Pazar … 6 = Cumartesi)
+export const weekStartDayOf = (weekStart: string): WeekStartDay => parseYmd(weekStart).getDay() as WeekStartDay;
+// Pazartesi = 0 … Pazar = 6 (eski davranış). weekStart verilirse o planın kaçıncı günü olduğunu döndürür.
+export function dayIndexOf(d: Date, weekStart?: string): number {
+  if (!weekStart) return (d.getDay() + 6) % 7;
+  const a = parseYmd(weekStart);
+  const b = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
 export const dateOfDay = (weekStart: string, day: number) => addDaysYmd(weekStart, day);
+// Planın d. gününün adı (gerçek tarihten hesaplanır: Cuma başlayan planda 0 → "Cuma")
+export const planDayName = (weekStart: string, day: number): string => JS_DAY_NAMES[parseYmd(dateOfDay(weekStart, day)).getDay()];
+export const dayNameOfDate = (dateStr: string): string => JS_DAY_NAMES[parseYmd(dateStr).getDay()];
 export function shortDayLabel(dateStr: string): string {
   const d = parseYmd(dateStr);
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]}`;
@@ -115,7 +146,21 @@ function headerFromRow(r: any): PlanHeader {
     sentAt: r.sent_at || null,
     sentByName: String(r.sent_by_name || ''),
     mailedAt: r.mailed_at || null,
+    weekStartDay:
+      r.week_start_day === null || r.week_start_day === undefined ? weekStartDayOf(String(r.week_start)) : normalizeWeekStartDay(r.week_start_day),
   };
+}
+
+// week_start_day kolonu henüz eklenmemişse (migration çalıştırılmadıysa) bu hata gelir
+const isMissingWeekStartDayColumn = (error: any) =>
+  String(error?.code || '') === '42703' || String(error?.code || '') === 'PGRST204' || /week_start_day/i.test(String(error?.message || ''));
+// study_plans'a satır ekler; week_start_day kolonu yoksa onsuz tekrar dener (geriye dönük uyumluluk)
+async function insertPlanRows(rows: Array<{ id: string; student_id: string; week_start: string }>, returnRow: boolean) {
+  const withDay = rows.map((r) => ({ ...r, week_start_day: weekStartDayOf(r.week_start) }));
+  const run = (data: object[]) => (returnRow ? supabase.from('study_plans').insert(data).select('*').maybeSingle() : supabase.from('study_plans').insert(data));
+  const first = await run(withDay);
+  if (first.error && isMissingWeekStartDayColumn(first.error)) return run(rows);
+  return first;
 }
 function bookFromRow(r: any): StudentBook {
   return { id: String(r.id), studentId: String(r.student_id), title: String(r.title || ''), subject: String(r.subject || '') };
@@ -152,7 +197,7 @@ export async function ensurePlan(studentId: string, weekStart: string): Promise<
   const found = await supabase.from('study_plans').select('*').eq('id', id).maybeSingle();
   if (found.error) fail(found.error, 'Plan okunamadı.');
   if (found.data) return headerFromRow(found.data);
-  const ins = await supabase.from('study_plans').insert({ id, student_id: studentId, week_start: weekStart }).select('*').maybeSingle();
+  const ins: any = await insertPlanRows([{ id, student_id: studentId, week_start: weekStart }], true);
   if (ins.error) {
     if (String(ins.error.code) === '23505') {
       const again = await supabase.from('study_plans').select('*').eq('id', id).maybeSingle();
@@ -227,6 +272,28 @@ export async function unsendPlan(studentId: string, weekStart: string): Promise<
   if (res.error) fail(res.error, 'Plan geri çekilemedi.');
   if (!res.data || res.data.length === 0) throw new Error('Plan geri çekilemedi (yetki yok).');
   return headerFromRow(res.data[0]);
+}
+
+// Seçili haftayla çakışan (farklı başlangıç günlü) kayıtlı planları bulur; öğretmen bunlara tek tıkla geçebilir
+export async function findOverlappingPlans(studentIds: string[], weekStart: string): Promise<PlanHeader[]> {
+  const ids = Array.from(new Set(studentIds));
+  if (!ids.length) return [];
+  const from = addDaysYmd(weekStart, -6);
+  const to = addDaysYmd(weekStart, 6);
+  const out: PlanHeader[] = [];
+  for (const part of chunks(ids)) {
+    const res = await supabase
+      .from('study_plans')
+      .select('*')
+      .in('student_id', part)
+      .gte('week_start', from)
+      .lte('week_start', to)
+      .neq('week_start', weekStart)
+      .order('week_start');
+    if (res.error) return []; // yardımcı bilgi; okunamazsa sessizce boş döner
+    out.push(...(res.data || []).map(headerFromRow));
+  }
+  return out;
 }
 
 // ----------------------------------------------------------------------------- Öğretmen: kitaplar
@@ -309,7 +376,10 @@ export async function ensurePlans(studentIds: string[], weekStart: string): Prom
     const have = new Set((found.data || []).map((r: any) => String(r.id)));
     const missing = part.filter((s) => !have.has(planIdOf(s, weekStart)));
     if (!missing.length) continue;
-    const ins = await supabase.from('study_plans').insert(missing.map((s) => ({ id: planIdOf(s, weekStart), student_id: s, week_start: weekStart })));
+    const ins = await insertPlanRows(
+      missing.map((s) => ({ id: planIdOf(s, weekStart), student_id: s, week_start: weekStart })),
+      false
+    );
     if (ins.error) {
       // Aynı anda başka biri oluşturduysa tek tek dene
       if (String(ins.error.code) === '23505') for (const s of missing) await ensurePlan(s, weekStart);
@@ -516,6 +586,29 @@ export async function loadMyWeek(weekStart: string): Promise<{ items: PlanItem[]
   if (i.error) return { items: [], sentByName: '' };
   return { items: (i.data || []).map(itemFromRow), sentByName: h.data ? String(h.data.sent_by_name || '') : '' };
 }
+// Bugünü kapsayan, öğrenciye gönderilmiş planı bulur (plan hangi gün başlarsa başlasın).
+// Bulunamazsa ya da sorgu başarısız olursa eski davranışa (Pazartesi başlayan hafta) döner.
+export async function loadMyCurrentWeek(today: Date = new Date()): Promise<{ weekStart: string; items: PlanItem[]; sentByName: string }> {
+  const todayStr = ymd(today);
+  const fallback = weekStartOf(today);
+  const h = await supabase
+    .from('study_plans')
+    .select('*')
+    .gte('week_start', addDaysYmd(todayStr, -6))
+    .lte('week_start', todayStr)
+    .not('sent_at', 'is', null)
+    .order('week_start', { ascending: false });
+  if (!h.error && h.data && h.data.length) {
+    // En son başlayan ve içinde görev olan planı seç
+    for (const row of h.data) {
+      const ws = String(row.week_start);
+      const i = await supabase.from('study_plan_items').select('*').eq('week_start', ws).order('day').order('position').order('created_at');
+      if (!i.error && i.data && i.data.length) return { weekStart: ws, items: i.data.map(itemFromRow), sentByName: String(row.sent_by_name || '') };
+    }
+  }
+  const r = await loadMyWeek(fallback);
+  return { weekStart: fallback, ...r };
+}
 export async function setTaskDone(itemId: string, done: boolean): Promise<void> {
   const res = await supabase.rpc('student_set_plan_task_done', { p_item_id: itemId, p_done: done });
   if (res.error) fail(res.error, 'İşaret kaydedilemedi.');
@@ -553,10 +646,10 @@ export async function mailPlanToStudent(groupId: string, studentId: string, pdfB
 // WhatsApp mesaj metni ve bağlantısı (tıklayınca WhatsApp açılır, öğretmen gönderir)
 export function planWhatsappText(studentName: string, weekStart: string, items: PlanItem[], markUrl?: string): string {
   const lines: string[] = [`Merhaba ${studentName}, ${weekRangeLabel(weekStart)} haftası çalışma planın:`];
-  PLAN_DAYS.forEach((name, d) => {
+  PLAN_DAYS.forEach((_, d) => {
     const list = items.filter((i) => i.day === d).sort((a, b) => a.position - b.position);
     if (!list.length) return;
-    lines.push('', `*${name}*`);
+    lines.push('', `*${planDayName(weekStart, d)}*`);
     for (const i of list) lines.push(`- ${i.subject}${i.book ? ` (${i.book})` : ''}${i.note ? `: ${i.note}` : ''}`);
   });
   if (markUrl) lines.push('', `Görevlerini yaptıkça buradan işaretle: ${markUrl}`);
