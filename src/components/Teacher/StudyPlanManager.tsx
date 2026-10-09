@@ -3,8 +3,6 @@ import {
   BookOpen,
   CalendarRange,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Edit3,
   FileSpreadsheet,
@@ -25,7 +23,6 @@ import {
   addPlanItem,
   applyPlan,
   dateOfDay,
-  deleteBook,
   deletePlan,
   deletePlanItem,
   findOverlappingPlans,
@@ -41,7 +38,6 @@ import {
   planDayName,
   normalizeWeekStartDay,
   DEFAULT_WEEK_START_DAY,
-  WEEK_START_DAY_OPTIONS,
   ymd,
   type ApplyResult,
   type PlanHeader,
@@ -59,6 +55,8 @@ import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import type { PlanGroupKind } from '../../services/studyPlanService';
 import { StudyPlanClassView } from './StudyPlanClassView';
+import { StudyPlanBooksModal } from './StudyPlanBooksModal';
+import { StudyPlanWeekBar } from './StudyPlanWeekBar';
 import { User as UserIcon, School } from 'lucide-react';
 
 // ============================================================================
@@ -390,7 +388,6 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
   const shiftWeek = (delta: number) => setWeekStart((w) => addDaysYmd(w, delta * 7));
   const thisWeek = weekStartOf(new Date(), startDay);
-  const isThisWeek = weekStart === thisWeek;
 
   if (!students.length) {
     return (
@@ -403,55 +400,15 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const itemsByDay = Array.from({ length: 7 }, (_, d) => plan.items.filter((i) => i.day === d));
 
   const weekNav = (
-    <div className="flex items-end gap-2">
-      <button type="button" id="plan-week-prev" aria-label="Önceki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => shiftWeek(-1)}>
-        <ChevronLeft className="w-4 h-4" />
-      </button>
-      <div className="min-w-[10.5rem] text-center">
-        <p className="text-[11px] text-muted font-medium">{isThisWeek ? 'Bu hafta' : weekStart > thisWeek ? 'Gelecek' : 'Geçmiş hafta'}</p>
-        <p id="plan-week-label" className="text-sm font-bold text-fg">
-          {weekRangeLabel(weekStart)}
-        </p>
-        <p id="plan-week-days" className="text-[10px] text-muted">
-          {planDayName(weekStart, 0)} – {planDayName(weekStart, 6)}
-        </p>
-      </div>
-      <button type="button" id="plan-week-next" aria-label="Sonraki hafta" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={() => shiftWeek(1)}>
-        <ChevronRight className="w-4 h-4" />
-      </button>
-      {!isThisWeek && (
-        <button type="button" id="plan-week-today" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setWeekStart(weekStartOf(new Date(), startDay))}>
-          Bu hafta
-        </button>
-      )}
-      <input
-        type="date"
-        aria-label="Haftayı tarihle seç"
-        id="plan-week-date"
-        value={weekStart}
-        onChange={(e) => e.target.value && setWeekStart(weekStartOf(e.target.value, startDay))}
-        className={cx(inputCls, 'w-[9.5rem] hidden md:block')}
-      />
-      <div className="flex flex-col">
-        <label htmlFor="plan-week-start-day" className="text-[11px] text-muted font-medium mb-0.5">
-          Hafta başlangıç günü
-        </label>
-        <select
-          id="plan-week-start-day"
-          aria-label="Hafta başlangıç günü"
-          title="Haftalık plan hangi gün başlasın? (varsayılan: Pazartesi)"
-          value={startDay}
-          onChange={(e) => changeStartDay(normalizeWeekStartDay(e.target.value))}
-          className={cx(inputCls, 'w-[8.5rem]')}
-        >
-          {WEEK_START_DAY_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
+    <StudyPlanWeekBar
+      weekStart={weekStart}
+      thisWeek={thisWeek}
+      startDay={startDay}
+      onShift={shiftWeek}
+      onToday={() => setWeekStart(weekStartOf(new Date(), startDay))}
+      onPickDate={(d) => setWeekStart(weekStartOf(d, startDay))}
+      onStartDayChange={changeStartDay}
+    />
   );
   const modeSwitch = (
     <div className="flex flex-wrap items-center gap-2">
@@ -478,35 +435,33 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   return (
     <div id="study-plan" className="space-y-4">
       {/* Üst çubuk: öğrenci + hafta */}
-      <div className="ui-card ui-card-pad space-y-3">
+      <div className="ui-card ui-card-pad space-y-4">
         {modeSwitch}
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3">
-          <div className="grid sm:grid-cols-2 gap-3 flex-1 min-w-0">
-            <div>
-              <FieldLabel htmlFor="plan-class-filter">Sınıf</FieldLabel>
-              <select id="plan-class-filter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={inputCls}>
-                <option value="all">Tüm sınıflar</option>
-                {classOptions.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <FieldLabel htmlFor="plan-student">Öğrenci</FieldLabel>
-              <select id="plan-student" value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
-                {listed.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                    {classFilter === 'all' && s.className ? ` · ${s.className}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <FieldLabel htmlFor="plan-class-filter">Sınıf</FieldLabel>
+            <select id="plan-class-filter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={inputCls}>
+              <option value="all">Tüm sınıflar</option>
+              {classOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
-          {weekNav}
+          <div>
+            <FieldLabel htmlFor="plan-student">Öğrenci</FieldLabel>
+            <select id="plan-student" value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              {listed.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {classFilter === 'all' && s.className ? ` · ${s.className}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+        {weekNav}
         {overlaps.length > 0 && (
           <div id="plan-overlaps" className="flex flex-wrap items-center gap-2 text-xs rounded-xl bg-info-soft text-info-fg px-3 py-2">
             <CalendarRange className="w-4 h-4 shrink-0" />
@@ -527,8 +482,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         )}
 
         {/* Durum ve işlemler */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-1 border-t border-line">
-          <div className="flex flex-wrap items-center gap-2 pt-2" id="plan-status">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-line">
+          <div className="flex flex-wrap items-center gap-2" id="plan-status">
             {sent ? (
               <span className="ui-chip ui-chip-success" id="plan-status-sent">
                 <Check className="w-3.5 h-3.5" /> Öğrenciye gönderildi
@@ -777,8 +732,10 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         />
       )}
       {booksOpen && student && (
-        <BooksModal
-          student={student}
+        <StudyPlanBooksModal
+          title="Öğrencinin kitapları"
+          description={student.name}
+          studentIds={[student.id]}
           books={books}
           subjectOptions={subjectOptions}
           onChange={setBooks}
@@ -963,110 +920,6 @@ const ApplyPlanModal: React.FC<{
           )}
         </div>
       )}
-    </Modal>
-  );
-};
-
-// ============================================================================ Kitaplar
-const BooksModal: React.FC<{
-  student: Student;
-  books: StudentBook[];
-  subjectOptions: string[];
-  onChange: (b: StudentBook[]) => void;
-  onClose: () => void;
-}> = ({ student, books, subjectOptions, onChange, onClose }) => {
-  const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const add = async () => {
-    if (!title.trim() || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const b = await addBook(student.id, title, subject, books);
-      onChange(books.some((x) => x.id === b.id) ? books : [...books, b].sort((x, y) => x.title.localeCompare(y.title, 'tr')));
-      setTitle('');
-    } catch (e: any) {
-      setError(e?.message || 'Kitap eklenemedi.');
-    } finally {
-      setBusy(false);
-    }
-  };
-  const remove = async (b: StudentBook) => {
-    try {
-      await deleteBook(b.id);
-      onChange(books.filter((x) => x.id !== b.id));
-    } catch (e: any) {
-      setError(e?.message || 'Kitap silinemedi.');
-    }
-  };
-  const groups = useMemo(() => {
-    const m = new Map<string, StudentBook[]>();
-    for (const b of books) m.set(b.subject || 'Her ders', [...(m.get(b.subject || 'Her ders') || []), b]);
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'));
-  }, [books]);
-  return (
-    <Modal open onClose={onClose} id="plan-books-modal" icon={Library} tone="info" title="Öğrencinin kitapları" description={student.name} footer={<button type="button" className="ui-btn ui-btn-primary" onClick={onClose}>Kapat</button>}>
-      <div className="space-y-4">
-        <div className="grid sm:grid-cols-[1fr_12rem_auto] gap-2 items-end">
-          <div>
-            <FieldLabel htmlFor="book-title">Kitap adı</FieldLabel>
-            <input
-              id="book-title"
-              type="text"
-              value={title}
-              maxLength={160}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), void add())}
-              placeholder="Örn: Palme 8. Sınıf Matematik Soru Bankası"
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <FieldLabel htmlFor="book-subject" optional>
-              Ders
-            </FieldLabel>
-            <select id="book-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
-              <option value="">Her ders</option>
-              {subjectOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="button" id="book-add" className="ui-btn ui-btn-primary" disabled={busy || !title.trim()} onClick={add}>
-            <Plus className="w-4 h-4" /> Ekle
-          </button>
-        </div>
-        {error && (
-          <div role="alert" className="rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">
-            {error}
-          </div>
-        )}
-        {books.length === 0 ? (
-          <p className="text-xs text-muted">Henüz kitap yok. Görev eklerken yazdığınız kitap adları da buraya kaydedilir.</p>
-        ) : (
-          <div className="space-y-3" id="plan-books-list">
-            {groups.map(([group, list]) => (
-              <div key={group}>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-subtle mb-1">{group}</p>
-                <ul className="divide-y divide-line rounded-xl border border-line">
-                  {list.map((b) => (
-                    <li key={b.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm" data-book={b.title}>
-                      <span className="min-w-0 break-words">{b.title}</span>
-                      <button type="button" aria-label={`${b.title} kitabını sil`} className="p-1 rounded-md text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => remove(b)}>
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </Modal>
   );
 };

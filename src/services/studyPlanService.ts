@@ -495,6 +495,89 @@ export async function addBookForStudents(studentIds: string[], title: string, su
   return out;
 }
 
+// Birden çok kitap kaydını siler (sınıf görünümü: aynı kitap seçili öğrencilerin hepsinden kalkar)
+export async function deleteBooks(ids: string[]): Promise<number> {
+  let n = 0;
+  for (const part of chunks(Array.from(new Set(ids)), 100)) {
+    const res = await supabase.from('student_books').delete().in('id', part).select('id');
+    if (res.error) fail(res.error, 'Kitap silinemedi.');
+    n += (res.data || []).length;
+  }
+  return n;
+}
+
+// Kitap adını düzenler. rows: aynı kitabın (bir ya da birden çok öğrencideki) kayıtları.
+//  * Öğrencide yeni adla aynı kitap zaten varsa eski kayıt silinir (iki kayıt birleşir).
+//  * Önce doğrudan güncellenir; veritabanı güncellemeye izin vermiyorsa (RLS) eski kayıt silinip yeni adla eklenir.
+//  * Plana daha önce eklenmiş görevlerdeki kitap adı değişmez (görevler adı metin olarak saklar).
+export interface BookRenameResult {
+  books: StudentBook[]; // yeni adla kayıtlar (güncellenen ya da yeniden eklenen)
+  removedIds: string[]; // listeden çıkarılacak eski kayıtlar
+}
+const isPermissionError = (e: any) => String(e?.code || '') === '42501' || /row-level security|permission denied/i.test(String(e?.message || ''));
+export async function renameBooks(rows: StudentBook[], newTitle: string, existing: StudentBook[] = []): Promise<BookRenameResult> {
+  const t = clean(newTitle, 160);
+  if (!t) throw new Error('Kitap adı boş olamaz.');
+  const books: StudentBook[] = [];
+  const removedIds: string[] = [];
+  const merge: StudentBook[] = [];
+  const change: StudentBook[] = [];
+  for (const b of rows) {
+    if (b.title === t) {
+      books.push(b); // ad aynı, değişiklik yok
+      continue;
+    }
+    const twin = existing.find((x) => x.id !== b.id && x.studentId === b.studentId && bookKey(x.title, x.subject) === bookKey(t, b.subject));
+    (twin ? merge : change).push(b);
+  }
+  if (merge.length) {
+    await deleteBooks(merge.map((b) => b.id));
+    removedIds.push(...merge.map((b) => b.id));
+  }
+
+  // 1) Doğrudan güncelleme
+  const pending: StudentBook[] = [];
+  for (const part of chunks(change, 100)) {
+    const res = await supabase.from('student_books').update({ title: t }).in('id', part.map((b) => b.id)).select('*');
+    if (res.error) {
+      if (!isPermissionError(res.error) && String(res.error.code) !== '23505') fail(res.error, 'Kitap adı güncellenemedi.');
+      pending.push(...part);
+      continue;
+    }
+    const got = new Map((res.data || []).map((r: any) => [String(r.id), bookFromRow(r)]));
+    for (const b of part) {
+      const u = got.get(b.id);
+      if (u) books.push(u);
+      else pending.push(b); // güncelleme izni yok (RLS satırı sessizce atladı)
+    }
+  }
+
+  // 2) Güncelleme izni yoksa: önce eski kayıt silinir (silme izni yoksa hiçbir şey değişmez), sonra yeni adla eklenir.
+  //    Ekleme başarısız olursa eski kayıt geri konur; böylece çift kayıt ya da kayıp oluşmaz.
+  for (const b of pending) {
+    const oldRow = { id: b.id, student_id: b.studentId, title: b.title, subject: b.subject || null };
+    const row = { id: newId('bk'), student_id: b.studentId, title: t, subject: b.subject || null };
+    const del = await supabase.from('student_books').delete().eq('id', b.id).select('id');
+    if (del.error) fail(del.error, 'Kitap adı güncellenemedi.');
+    if (!(del.data || []).length) throw new Error('Bu kitabın adını değiştirme yetkiniz yok.');
+    const ins = await supabase.from('student_books').insert(row).select('*').maybeSingle();
+    if (ins.error) {
+      if (String(ins.error.code) === '23505') {
+        // Yeni adla kayıt veritabanında zaten var: iki kayıt birleşir, var olan kayıt listeye alınır
+        removedIds.push(b.id);
+        const found = (await listBooks(b.studentId)).find((x) => bookKey(x.title, x.subject) === bookKey(t, b.subject));
+        if (found) books.push(found);
+        continue;
+      }
+      await supabase.from('student_books').insert(oldRow); // eski kaydı geri koy
+      fail(ins.error, 'Kitap adı güncellenemedi.');
+    }
+    removedIds.push(b.id);
+    books.push(bookFromRow(ins.data || row));
+  }
+  return { books, removedIds };
+}
+
 // ----------------------------------------------------------------------------- Öğretmen: planı başkalarına uygula
 export interface ApplyResult {
   students: number;

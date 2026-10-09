@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Plus, Send, Trash2, Undo2, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, Send, Trash2, Undo2, Users } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
@@ -34,6 +34,7 @@ import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone } from './StudyPlanManager';
+import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 
 // ============================================================================
 // Haftalık plan — SINIF görünümü (Aşama 23)
@@ -467,48 +468,58 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const [copyOpen, setCopyOpen] = useState(false);
   const todayStr = ymd(new Date());
 
+  // ---- kitaplar (görünen öğrencilerin ortak kitap listesi)
+  const [booksOpen, setBooksOpen] = useState(false);
+  const bookCount = useMemo(() => {
+    const ids = new Set(viewIds);
+    return new Set(books.filter((b) => ids.has(b.studentId)).map((b) => `${b.title.toLocaleLowerCase('tr-TR')}|${b.subject}`)).size;
+  }, [books, viewIds]);
+  const booksDescription = useMemo(() => {
+    const names = classIds.map((cid) => className(cid)).filter(Boolean);
+    const shown = names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', ');
+    return `${shown ? `${shown} · ` : ''}${viewStudents.length} öğrenci`;
+  }, [classIds, className, viewStudents.length]);
+
   // ---------------------------------------------------------------- çizim
   return (
     <div id="study-plan" data-mode="class" className="space-y-4">
-      <div className="ui-card ui-card-pad space-y-3">
+      <div className="ui-card ui-card-pad space-y-4">
         {modeSwitch}
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3">
-          <div className="grid sm:grid-cols-2 gap-3 flex-1 min-w-0">
-            <div>
-              <FieldLabel htmlFor="plan-classes">Sınıf</FieldLabel>
-              <MultiCheckSelect
-                id="plan-classes"
-                options={classOptions}
-                selected={classIds}
-                onChange={onClassesChange}
-                placeholder="Sınıf seçin"
-                allLabel="Tüm sınıflar"
-                unit="sınıf"
-                emptyText="Size tanımlı sınıf yok."
-              />
-            </div>
-            <div>
-              <FieldLabel htmlFor="plan-students">Öğrenci</FieldLabel>
-              <MultiCheckSelect
-                id="plan-students"
-                options={studentOptions}
-                selected={viewIds}
-                onChange={onStudentsChange}
-                placeholder={classIds.length ? 'Öğrenci seçin' : 'Önce sınıf seçin'}
-                allLabel="Tüm öğrenciler"
-                unit="öğrenci"
-                searchable
-                disabled={!classIds.length}
-                emptyText="Önce sınıf seçin."
-              />
-            </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <FieldLabel htmlFor="plan-classes">Sınıf</FieldLabel>
+            <MultiCheckSelect
+              id="plan-classes"
+              options={classOptions}
+              selected={classIds}
+              onChange={onClassesChange}
+              placeholder="Sınıf seçin"
+              allLabel="Tüm sınıflar"
+              unit="sınıf"
+              emptyText="Size tanımlı sınıf yok."
+            />
           </div>
-          {weekNav}
+          <div>
+            <FieldLabel htmlFor="plan-students">Öğrenci</FieldLabel>
+            <MultiCheckSelect
+              id="plan-students"
+              options={studentOptions}
+              selected={viewIds}
+              onChange={onStudentsChange}
+              placeholder={classIds.length ? 'Öğrenci seçin' : 'Önce sınıf seçin'}
+              allLabel="Tüm öğrenciler"
+              unit="öğrenci"
+              searchable
+              disabled={!classIds.length}
+              emptyText="Önce sınıf seçin."
+            />
+          </div>
         </div>
+        {weekNav}
 
         {viewStudents.length > 0 && (
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-1 border-t border-line">
-            <div className="flex flex-wrap items-center gap-2 pt-2" id="plan-status">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-line">
+            <div className="flex flex-wrap items-center gap-2" id="plan-status">
               {withItems.length === 0 ? (
                 <span className="ui-chip ui-chip-neutral">Bu hafta görev yok</span>
               ) : allSent ? (
@@ -549,6 +560,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               </button>
               <button type="button" id="plan-copy-week" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
                 <Copy className="w-4 h-4" /> Başka haftaya kopyala
+              </button>
+              <button type="button" id="plan-books" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setBooksOpen(true)}>
+                <Library className="w-4 h-4" /> Kitaplar ({bookCount})
               </button>
               {clearable.length > 0 && (
                 <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
@@ -787,6 +801,17 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           canSubject={canSubject}
           senderName={teacherName}
           onClose={() => setCopyOpen(false)}
+        />
+      )}
+      {booksOpen && viewStudents.length > 0 && (
+        <StudyPlanBooksModal
+          title="Sınıfın kitapları"
+          description={booksDescription}
+          studentIds={viewIds}
+          books={books}
+          subjectOptions={subjectOptions}
+          onChange={setBooks}
+          onClose={() => setBooksOpen(false)}
         />
       )}
     </div>
