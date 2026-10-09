@@ -22,6 +22,7 @@ import {
   GraduationCap,
   Filter,
   BarChart3,
+  ListChecks,
   FileText,
   MessageCircle,
   UserPlus,
@@ -52,6 +53,7 @@ import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
 import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib/etutTiming';
+import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -99,6 +101,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isScheduleExportOpen, setIsScheduleExportOpen] = useState(false); // Aşama 27: etüt listesi (Excel/PDF)
   const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
 
   // Ana sayfa kısayolu: yeni etüt penceresini aç
@@ -268,6 +271,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         description="Etüt ve birebir çalışma planı, yoklama ve analiz"
         actions={
           <>
+            <button
+              type="button"
+              onClick={() => setIsScheduleExportOpen(true)}
+              id="btn-etut-schedule-export"
+              className="ui-btn ui-btn-secondary"
+              title="Sınıfa göre günlük / haftalık etüt listesini Excel veya PDF olarak indir"
+            >
+              <ListChecks className="w-4 h-4" />
+              <span>Etüt Listesi</span>
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1091,6 +1104,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         isOpen={isSentCommunicationsOpen}
         onClose={() => setIsSentCommunicationsOpen(false)}
       />
+
+      {/* Etüt listesi indirme penceresi (Aşama 27; yalnızca açıkken çizilir) */}
+      {isScheduleExportOpen && (
+        <EtutScheduleExportModal onClose={() => setIsScheduleExportOpen(false)} etuts={activeEtuts} students={students} classes={classes} />
+      )}
 
       {/* Etüt Analizi (yalnızca açıkken çizilir; her açılışta durum sıfırlanır) */}
       {isReportModalOpen && (
