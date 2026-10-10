@@ -9,7 +9,7 @@ import { FieldLabel, inputCls } from './FormParts';
 //  * Tek öğrenci: öğrencinin kitap kayıtları listelenir.
 //  * Sınıf (birden çok öğrenci): aynı kitap (ad + ders) tek satırda birleşir, kaç öğrencide olduğu gösterilir;
 //    ekleme / düzenleme / silme görünen öğrencilerin hepsine birlikte uygulanır.
-//  * Her kitabın yanındaki kalem ile kitap adı yerinde düzenlenir ve kaydedilir.
+//  * Her kitabın yanındaki kalem ile kitap adı yerinde düzenlenir; yanındaki "Ders" listesiyle kitabın dersi değiştirilir.
 // ============================================================================
 
 const ALL_SUBJECTS = 'Her ders';
@@ -39,6 +39,7 @@ export const StudyPlanBooksModal: React.FC<{
   const [busy, setBusy] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const [draftSubject, setDraftSubject] = useState('');
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
 
   const ids = useMemo(() => Array.from(new Set(studentIds)), [studentIds]);
@@ -114,10 +115,38 @@ export const StudyPlanBooksModal: React.FC<{
     setConfirmKey(null);
     setEditKey(entry.key);
     setDraft(entry.title);
+    setDraftSubject(entry.subject || '');
   };
   const cancelEdit = () => {
     setEditKey(null);
     setDraft('');
+    setDraftSubject('');
+  };
+  // Ders listesi: tanımlı dersler + kitabın mevcut dersi (listede yoksa kaybolmasın)
+  const subjectsFor = (current: string) => (current && !subjectOptions.includes(current) ? [current, ...subjectOptions] : subjectOptions);
+
+  // Kitap adını ve/veya dersini kaydeder (sınıfta görünen öğrencilerin hepsine uygulanır)
+  const applyChange = async (entry: BookEntry, nextTitle: string, nextSubject: string): Promise<boolean> => {
+    setBusy(true);
+    reset();
+    try {
+      const res = await renameBooks(entry.rows, nextTitle, books, nextSubject);
+      const drop = new Set([...res.removedIds, ...res.books.map((b) => b.id)]);
+      const merged = [...books.filter((x) => !drop.has(x.id)), ...res.books];
+      const seen = new Set<string>();
+      onChange(merged.filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true))).sort(byTitle));
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Kitap güncellenemedi.');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeSubject = async (entry: BookEntry, nextSubject: string) => {
+    if (busy || nextSubject === (entry.subject || '')) return;
+    if (await applyChange(entry, entry.title, nextSubject)) setNotice(`“${entry.title}” dersi ${nextSubject || ALL_SUBJECTS.toLocaleLowerCase('tr-TR')} olarak kaydedildi.`);
   };
 
   const saveEdit = async (entry: BookEntry) => {
@@ -127,24 +156,11 @@ export const StudyPlanBooksModal: React.FC<{
       setError('Kitap adı boş olamaz.');
       return;
     }
-    if (next === entry.title) {
+    if (next === entry.title && draftSubject === (entry.subject || '')) {
       cancelEdit();
       return;
     }
-    setBusy(true);
-    reset();
-    try {
-      const res = await renameBooks(entry.rows, next, books);
-      const drop = new Set([...res.removedIds, ...res.books.map((b) => b.id)]);
-      const merged = [...books.filter((x) => !drop.has(x.id)), ...res.books];
-      const seen = new Set<string>();
-      onChange(merged.filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true))).sort(byTitle));
-      cancelEdit();
-    } catch (e: any) {
-      setError(e?.message || 'Kitap adı güncellenemedi.');
-    } finally {
-      setBusy(false);
-    }
+    if (await applyChange(entry, next, draftSubject)) cancelEdit();
   };
 
   const iconBtn = 'inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed';
@@ -258,6 +274,23 @@ export const StudyPlanBooksModal: React.FC<{
                               }}
                               className={cx(inputCls, 'flex-1 min-w-[12rem] py-1.5')}
                             />
+                            <label htmlFor="book-edit-subject" className="sr-only">
+                              Kitabın dersi
+                            </label>
+                            <select
+                              id="book-edit-subject"
+                              value={draftSubject}
+                              disabled={busy}
+                              onChange={(e) => setDraftSubject(e.target.value)}
+                              className={cx(inputCls, 'w-auto sm:w-40 py-1.5')}
+                            >
+                              <option value="">{ALL_SUBJECTS}</option>
+                              {subjectsFor(entry.subject).map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
                             <div className="flex items-center gap-1.5 ml-auto">
                               <button
                                 type="button"
@@ -303,18 +336,33 @@ export const StudyPlanBooksModal: React.FC<{
                                 {count}/{ids.length} öğrenci
                               </span>
                             )}
-                            <span className="flex items-center gap-0.5 shrink-0">
+                            <span className="flex items-center gap-1 shrink-0">
+                              <select
+                                aria-label={`${entry.title} kitabının dersi`}
+                                title="Ders"
+                                data-book-subject
+                                value={entry.subject || ''}
+                                disabled={busy}
+                                onChange={(e) => void changeSubject(entry, e.target.value)}
+                                className="h-8 max-w-[7.5rem] sm:max-w-[10rem] rounded-lg border border-line bg-surface px-1.5 text-xs font-medium text-fg-2 cursor-pointer hover:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <option value="">{ALL_SUBJECTS}</option>
+                                {subjectsFor(entry.subject).map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
                               <button
                                 type="button"
                                 aria-label={`${entry.title} kitabının adını düzenle`}
                                 title="Adı düzenle"
                                 data-book-edit
                                 disabled={busy}
-                                className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-brand-fg transition-colors cursor-pointer hover:bg-brand-soft disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-brand-fg transition-colors cursor-pointer hover:bg-brand-soft disabled:opacity-40 disabled:cursor-not-allowed"
                                 onClick={() => startEdit(entry)}
                               >
                                 <Pencil className="w-4 h-4" />
-                                <span className="hidden sm:inline text-xs font-semibold">Düzenle</span>
                               </button>
                               <button
                                 type="button"

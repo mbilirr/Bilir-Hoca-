@@ -8,6 +8,25 @@ import { etutEndTime, isEtutAttendanceMissing } from '../../lib/etutTiming';
 // Liste, yöneticinin görebildiği etütlerden canlı hesaplanır; yoklama alınınca etüt kendiliğinden listeden düşer.
 const LOOKBACK_DAYS = 14; // çok eski etütler uyarıyı kalabalıklaştırmasın
 const PREVIEW_COUNT = 5;
+// Kapatma / "Etütlere git" sonrası uyarı, sekme değişip bileşen yeniden yüklense de oturum boyunca gizli kalır.
+// Kayıt, o anki eksik etüt kimliklerini içerir; yeni bir eksik etüt eklenirse uyarı yeniden görünür.
+const DISMISS_KEY = 'bh_unattended_etut_dismissed';
+const readDismissed = (): Set<string> => {
+  try {
+    const raw = window.sessionStorage.getItem(DISMISS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+};
+const writeDismissed = (ids: string[]) => {
+  try {
+    window.sessionStorage.setItem(DISMISS_KEY, JSON.stringify(ids));
+  } catch {
+    /* sessionStorage kullanılamıyorsa yalnızca bellek içi durum geçerli olur */
+  }
+};
 
 const shortDate = (e: Etut): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(e.date || ''));
@@ -19,7 +38,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
   const [etuts, setEtuts] = useState<Etut[]>(() => dataService.getEtuts());
   const [tick, setTick] = useState(0);
   const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(readDismissed);
 
   useEffect(() => {
     const unsubscribe = dataService.subscribe(() => setEtuts(dataService.getEtuts()));
@@ -44,8 +63,19 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [etuts, tick]);
 
-  if (dismissed || missing.length === 0) return null;
+  const hasNew = missing.some((e) => !dismissedIds.has(String(e.id)));
+  if (missing.length === 0 || !hasNew) return null;
   const shown = open ? missing.slice(0, 30) : missing.slice(0, PREVIEW_COUNT);
+
+  const dismiss = () => {
+    const ids = missing.map((e) => String(e.id));
+    writeDismissed(ids);
+    setDismissedIds(new Set(ids));
+  };
+  const goToEtuts = () => {
+    dismiss();
+    onOpenEtuts();
+  };
 
   return (
     <div
@@ -63,14 +93,14 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onOpenEtuts}
+            onClick={goToEtuts}
             className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-500 cursor-pointer"
           >
             Etütlere git
           </button>
           <button
             type="button"
-            onClick={() => setDismissed(true)}
+            onClick={dismiss}
             aria-label="Uyarıyı kapat"
             className="p-1.5 rounded-lg hover:bg-rose-500/20 cursor-pointer"
           >

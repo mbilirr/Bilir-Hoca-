@@ -515,19 +515,23 @@ export interface BookRenameResult {
   removedIds: string[]; // listeden çıkarılacak eski kayıtlar
 }
 const isPermissionError = (e: any) => String(e?.code || '') === '42501' || /row-level security|permission denied/i.test(String(e?.message || ''));
-export async function renameBooks(rows: StudentBook[], newTitle: string, existing: StudentBook[] = []): Promise<BookRenameResult> {
+// newSubject verilirse kitabın dersi de değiştirilir ('' = her ders); verilmezse ders olduğu gibi kalır.
+export async function renameBooks(rows: StudentBook[], newTitle: string, existing: StudentBook[] = [], newSubject?: string): Promise<BookRenameResult> {
   const t = clean(newTitle, 160);
   if (!t) throw new Error('Kitap adı boş olamaz.');
+  const subjectChange = newSubject !== undefined;
+  const ns = subjectChange ? clean(newSubject, 80) : '';
+  const subj = (b: StudentBook) => (subjectChange ? ns : b.subject || '');
   const books: StudentBook[] = [];
   const removedIds: string[] = [];
   const merge: StudentBook[] = [];
   const change: StudentBook[] = [];
   for (const b of rows) {
-    if (b.title === t) {
-      books.push(b); // ad aynı, değişiklik yok
+    if (b.title === t && (b.subject || '') === subj(b)) {
+      books.push(b); // ad ve ders aynı, değişiklik yok
       continue;
     }
-    const twin = existing.find((x) => x.id !== b.id && x.studentId === b.studentId && bookKey(x.title, x.subject) === bookKey(t, b.subject));
+    const twin = existing.find((x) => x.id !== b.id && x.studentId === b.studentId && bookKey(x.title, x.subject) === bookKey(t, subj(b)));
     (twin ? merge : change).push(b);
   }
   if (merge.length) {
@@ -538,7 +542,7 @@ export async function renameBooks(rows: StudentBook[], newTitle: string, existin
   // 1) Doğrudan güncelleme
   const pending: StudentBook[] = [];
   for (const part of chunks(change, 100)) {
-    const res = await supabase.from('student_books').update({ title: t }).in('id', part.map((b) => b.id)).select('*');
+    const res = await supabase.from('student_books').update(subjectChange ? { title: t, subject: ns || null } : { title: t }).in('id', part.map((b) => b.id)).select('*');
     if (res.error) {
       if (!isPermissionError(res.error) && String(res.error.code) !== '23505') fail(res.error, 'Kitap adı güncellenemedi.');
       pending.push(...part);
@@ -556,7 +560,7 @@ export async function renameBooks(rows: StudentBook[], newTitle: string, existin
   //    Ekleme başarısız olursa eski kayıt geri konur; böylece çift kayıt ya da kayıp oluşmaz.
   for (const b of pending) {
     const oldRow = { id: b.id, student_id: b.studentId, title: b.title, subject: b.subject || null };
-    const row = { id: newId('bk'), student_id: b.studentId, title: t, subject: b.subject || null };
+    const row = { id: newId('bk'), student_id: b.studentId, title: t, subject: subj(b) || null };
     const del = await supabase.from('student_books').delete().eq('id', b.id).select('id');
     if (del.error) fail(del.error, 'Kitap adı güncellenemedi.');
     if (!(del.data || []).length) throw new Error('Bu kitabın adını değiştirme yetkiniz yok.');
@@ -565,7 +569,7 @@ export async function renameBooks(rows: StudentBook[], newTitle: string, existin
       if (String(ins.error.code) === '23505') {
         // Yeni adla kayıt veritabanında zaten var: iki kayıt birleşir, var olan kayıt listeye alınır
         removedIds.push(b.id);
-        const found = (await listBooks(b.studentId)).find((x) => bookKey(x.title, x.subject) === bookKey(t, b.subject));
+        const found = (await listBooks(b.studentId)).find((x) => bookKey(x.title, x.subject) === bookKey(t, subj(b)));
         if (found) books.push(found);
         continue;
       }
