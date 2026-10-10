@@ -35,6 +35,7 @@ import { StudyPlanSendModal } from './StudyPlanSendModal';
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
+import { planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 
 // ============================================================================
 // Haftalık plan — SINIF görünümü (Aşama 23)
@@ -82,7 +83,8 @@ interface Props {
   classes: ClassGroup[];
   weekStart: string;
   onWeekChange: (w: string) => void;
-  weekNav: React.ReactNode;
+  /** Hafta + işlem panelini çizer; sağ sütuna bu görünümün durum/işlem düğmeleri verilir. */
+  weekNav: (slots: PlanWeekBarSlots) => React.ReactNode;
   modeSwitch: React.ReactNode;
 }
 
@@ -515,12 +517,14 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
             />
           </div>
         </div>
-        {weekNav}
-
-        {viewStudents.length > 0 && (
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-line">
+        {weekNav({
+          status: (
             <div className="flex flex-wrap items-center gap-2" id="plan-status">
-              {withItems.length === 0 ? (
+              {viewStudents.length === 0 ? (
+                <span className="ui-chip ui-chip-neutral" id="plan-status-empty">
+                  Önce sınıf ve öğrenci seçin
+                </span>
+              ) : withItems.length === 0 ? (
                 <span className="ui-chip ui-chip-neutral">Bu hafta görev yok</span>
               ) : allSent ? (
                 <span className="ui-chip ui-chip-success" id="plan-status-sent">
@@ -532,46 +536,64 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                 </span>
               )}
               {mailedCount > 0 && <span className="ui-chip ui-chip-info">{mailedCount} öğrenciye e-postayla gitti</span>}
-              <span className="text-xs text-muted" id="plan-class-count">
-                {viewStudents.length} öğrenci seçili · {groupsByDay.flat().length} görev
-              </span>
+              {viewStudents.length > 0 && (
+                <span className="text-xs text-muted" id="plan-class-count">
+                  {viewStudents.length} öğrenci seçili · {groupsByDay.flat().length} görev
+                </span>
+              )}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+          ),
+          statusEnd:
+            clearable.length > 0 ? (
+              <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
+                <Trash2 className="w-4 h-4" /> Planı temizle
+              </button>
+            ) : null,
+          primary: (
+            <>
               {!allSent && (
-                <button type="button" id="plan-send" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || withItems.length === 0} onClick={() => openSend()}>
-                  <Send className="w-4 h-4" /> Ödev olarak gönder{withItems.length ? ` (${withItems.length})` : ''}
+                <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || withItems.length === 0} onClick={() => openSend()}>
+                  <Send className="w-4 h-4 shrink-0" /> Ödev olarak gönder{withItems.length ? ` (${withItems.length})` : ''}
                 </button>
               )}
               {anySent && (
                 <>
-                  <button type="button" id="plan-resend" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || withItems.length === 0} onClick={() => openSend('E-posta / WhatsApp ile gönder')}>
-                    <Send className="w-4 h-4" /> E-posta / WhatsApp
+                  <button type="button" id="plan-resend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy || withItems.length === 0} onClick={() => openSend('E-posta / WhatsApp ile gönder')}>
+                    <Send className="w-4 h-4 shrink-0" /> E-posta / WhatsApp
                   </button>
-                  <button type="button" id="plan-unsend" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={doUnsend}>
-                    <Undo2 className="w-4 h-4" /> Geri çek
+                  <button type="button" id="plan-unsend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy} onClick={doUnsend}>
+                    <Undo2 className="w-4 h-4 shrink-0" /> Geri çek
                   </button>
                 </>
               )}
-              <button type="button" id="plan-pdf" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || withItems.length === 0} onClick={() => doExport('pdf')}>
-                <FileText className="w-4 h-4" /> PDF
+            </>
+          ),
+          actions: (
+            <>
+              <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('pdf')}>
+                <FileText className="w-5 h-5 text-danger-fg" /> PDF
               </button>
-              <button type="button" id="plan-excel" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || withItems.length === 0} onClick={() => doExport('excel')}>
-                <FileSpreadsheet className="w-4 h-4" /> Excel
+              <button type="button" id="plan-excel" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('excel')}>
+                <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
               </button>
-              <button type="button" id="plan-copy-week" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
-                <Copy className="w-4 h-4" /> Başka haftaya kopyala
+              <button type="button" id="plan-copy-week" className={planTileCls} disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
+                <Copy className="w-5 h-5 text-info-fg" /> Başka haftaya kopyala
               </button>
-              <button type="button" id="plan-books" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setBooksOpen(true)}>
-                <Library className="w-4 h-4" /> Kitaplar ({bookCount})
+              <button
+                type="button"
+                id="plan-books"
+                className={planTileCls}
+                disabled={viewStudents.length === 0}
+                title={viewStudents.length === 0 ? 'Önce sınıf ve öğrenci seçin' : 'Seçili öğrencilerin kitaplarını tanımla ve düzenle'}
+                aria-label={`Kitaplar (${bookCount})`}
+                onClick={() => setBooksOpen(true)}
+              >
+                <Library className="w-5 h-5 text-brand-fg" /> Kitaplar
+                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{bookCount}</span>
               </button>
-              {clearable.length > 0 && (
-                <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
-                  <Trash2 className="w-4 h-4" /> Planı temizle
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+            </>
+          ),
+        })}
       </div>
 
       {withItems.length > 0 && !allSent && (

@@ -310,10 +310,11 @@ export const StudyPlanBooksModal: React.FC<{
                                 title="Adı düzenle"
                                 data-book-edit
                                 disabled={busy}
-                                className={cx(iconBtn, 'hover:text-brand-fg hover:bg-brand-soft')}
+                                className="inline-flex h-8 min-w-8 items-center justify-center gap-1 rounded-lg px-2 text-brand-fg transition-colors cursor-pointer hover:bg-brand-soft disabled:opacity-40 disabled:cursor-not-allowed"
                                 onClick={() => startEdit(entry)}
                               >
                                 <Pencil className="w-4 h-4" />
+                                <span className="hidden sm:inline text-xs font-semibold">Düzenle</span>
                               </button>
                               <button
                                 type="button"

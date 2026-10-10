@@ -56,7 +56,7 @@ import { StudyPlanSendModal } from './StudyPlanSendModal';
 import type { PlanGroupKind } from '../../services/studyPlanService';
 import { StudyPlanClassView } from './StudyPlanClassView';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
-import { StudyPlanWeekBar } from './StudyPlanWeekBar';
+import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { User as UserIcon, School } from 'lucide-react';
 
 // ============================================================================
@@ -399,7 +399,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
   const itemsByDay = Array.from({ length: 7 }, (_, d) => plan.items.filter((i) => i.day === d));
 
-  const weekNav = (
+  // Hafta + işlem paneli: öğrenci ve sınıf görünümü sağ sütuna kendi durum/işlem düğmelerini verir.
+  const renderWeekNav = (slots: PlanWeekBarSlots = {}) => (
     <StudyPlanWeekBar
       weekStart={weekStart}
       thisWeek={thisWeek}
@@ -408,6 +409,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       onToday={() => setWeekStart(weekStartOf(new Date(), startDay))}
       onPickDate={(d) => setWeekStart(weekStartOf(d, startDay))}
       onStartDayChange={changeStartDay}
+      {...slots}
     />
   );
   const modeSwitch = (
@@ -429,7 +431,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   );
 
   if (mode === 'class') {
-    return <StudyPlanClassView students={students} classes={classes} weekStart={weekStart} onWeekChange={setWeekStart} weekNav={weekNav} modeSwitch={modeSwitch} />;
+    return <StudyPlanClassView students={students} classes={classes} weekStart={weekStart} onWeekChange={setWeekStart} weekNav={renderWeekNav} modeSwitch={modeSwitch} />;
   }
 
   return (
@@ -461,7 +463,86 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             </select>
           </div>
         </div>
-        {weekNav}
+        {renderWeekNav({
+          status: (
+            <div className="flex flex-wrap items-center gap-2" id="plan-status">
+              {sent ? (
+                <span className="ui-chip ui-chip-success" id="plan-status-sent">
+                  <Check className="w-3.5 h-3.5" /> Öğrenciye gönderildi
+                </span>
+              ) : (
+                <span className="ui-chip ui-chip-neutral" id="plan-status-draft">
+                  Taslak · öğrenci henüz görmüyor
+                </span>
+              )}
+              {sent && plan.header?.mailedAt && (
+                <span className="ui-chip ui-chip-info" id="plan-status-mailed" title="Son görev günü 20:00'de size rapor e-postası gelir">
+                  E-postayla gönderildi
+                </span>
+              )}
+              {sent && plan.items.length > 0 && (
+                <span className="ui-chip ui-chip-info" id="plan-progress">
+                  {doneCount} / {plan.items.length} görev yapıldı
+                </span>
+              )}
+              <span className="text-xs text-muted">{plan.items.length} görev</span>
+            </div>
+          ),
+          statusEnd:
+            plan.items.length > 0 ? (
+              <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
+                <Trash2 className="w-4 h-4" /> Planı temizle
+              </button>
+            ) : null,
+          primary: sent ? (
+            <>
+              <button
+                type="button"
+                id="plan-resend"
+                className={cx(planMainBtnCls, 'ui-btn-secondary')}
+                disabled={busy}
+                onClick={() => student && setSendModal({ students: [student], kind: 'student', weekStart, title: 'E-posta / WhatsApp ile gönder' })}
+              >
+                <Send className="w-4 h-4 shrink-0" /> E-posta / WhatsApp
+              </button>
+              <button type="button" id="plan-unsend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy} onClick={doUnsend}>
+                <Undo2 className="w-4 h-4 shrink-0" /> Geri çek
+              </button>
+            </>
+          ) : (
+            <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || plan.items.length === 0} onClick={doSend}>
+              <Send className="w-4 h-4 shrink-0" /> Öğrenciye ödev olarak gönder
+            </button>
+          ),
+          actions: (
+            <>
+              <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || plan.items.length === 0} onClick={() => doExport('pdf')}>
+                <FileText className="w-5 h-5 text-danger-fg" /> PDF
+              </button>
+              <button type="button" id="plan-excel" className={planTileCls} disabled={busy || plan.items.length === 0} onClick={() => doExport('excel')}>
+                <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
+              </button>
+              <button type="button" id="plan-apply" className={planTileCls} disabled={plan.items.length === 0} onClick={() => setApplyOpen(true)}>
+                <Copy className="w-5 h-5 text-info-fg" /> Başkalarına / başka haftaya uygula
+              </button>
+              <button type="button" id="plan-books" className={planTileCls} onClick={() => setBooksOpen(true)} aria-label={`Kitaplar (${books.length})`}>
+                <Library className="w-5 h-5 text-brand-fg" /> Kitaplar
+                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{books.length}</span>
+              </button>
+            </>
+          ),
+          footer:
+            (student && !student.auth_user_id) || sent ? (
+              <div className="space-y-1">
+                {student && !student.auth_user_id && (
+                  <p className="flex items-start gap-1 text-[11px] text-warning-fg font-semibold" id="plan-no-account">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" /> Bu öğrencinin giriş hesabı görünmüyor; PDF/Excel ile verebilirsiniz.
+                  </p>
+                )}
+                {sent && <p className="text-[11px] text-muted">Gönderilmiş planda yaptığınız değişiklikler öğrencide anında görünür.</p>}
+              </div>
+            ) : null,
+        })}
         {overlaps.length > 0 && (
           <div id="plan-overlaps" className="flex flex-wrap items-center gap-2 text-xs rounded-xl bg-info-soft text-info-fg px-3 py-2">
             <CalendarRange className="w-4 h-4 shrink-0" />
@@ -481,76 +562,6 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           </div>
         )}
 
-        {/* Durum ve işlemler */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 pt-3 border-t border-line">
-          <div className="flex flex-wrap items-center gap-2" id="plan-status">
-            {sent ? (
-              <span className="ui-chip ui-chip-success" id="plan-status-sent">
-                <Check className="w-3.5 h-3.5" /> Öğrenciye gönderildi
-              </span>
-            ) : (
-              <span className="ui-chip ui-chip-neutral" id="plan-status-draft">
-                Taslak · öğrenci henüz görmüyor
-              </span>
-            )}
-            {sent && plan.header?.mailedAt && (
-              <span className="ui-chip ui-chip-info" id="plan-status-mailed" title="Son görev günü 20:00'de size rapor e-postası gelir">
-                E-postayla gönderildi
-              </span>
-            )}
-            {sent && plan.items.length > 0 && (
-              <span className="ui-chip ui-chip-info" id="plan-progress">
-                {doneCount} / {plan.items.length} görev yapıldı
-              </span>
-            )}
-            <span className="text-xs text-muted">{plan.items.length} görev</span>
-            {student && !student.auth_user_id && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-warning-fg font-semibold" id="plan-no-account">
-                <AlertCircle className="w-3.5 h-3.5" /> Bu öğrencinin giriş hesabı görünmüyor; PDF/Excel ile verebilirsiniz.
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {sent ? (
-              <>
-                <button
-                  type="button"
-                  id="plan-resend"
-                  className="ui-btn ui-btn-secondary ui-btn-sm"
-                  disabled={busy}
-                  onClick={() => student && setSendModal({ students: [student], kind: 'student', weekStart, title: 'E-posta / WhatsApp ile gönder' })}
-                >
-                  <Send className="w-4 h-4" /> E-posta / WhatsApp
-                </button>
-                <button type="button" id="plan-unsend" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={doUnsend}>
-                  <Undo2 className="w-4 h-4" /> Geri çek
-                </button>
-              </>
-            ) : (
-              <button type="button" id="plan-send" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || plan.items.length === 0} onClick={doSend}>
-                <Send className="w-4 h-4" /> Öğrenciye ödev olarak gönder
-              </button>
-            )}
-            <button type="button" id="plan-pdf" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || plan.items.length === 0} onClick={() => doExport('pdf')}>
-              <FileText className="w-4 h-4" /> PDF
-            </button>
-            <button type="button" id="plan-excel" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || plan.items.length === 0} onClick={() => doExport('excel')}>
-              <FileSpreadsheet className="w-4 h-4" /> Excel
-            </button>
-            <button type="button" id="plan-apply" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={plan.items.length === 0} onClick={() => setApplyOpen(true)}>
-              <Copy className="w-4 h-4" /> Başkalarına / başka haftaya uygula
-            </button>
-            <button type="button" id="plan-books" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setBooksOpen(true)}>
-              <Library className="w-4 h-4" /> Kitaplar ({books.length})
-            </button>
-            {plan.items.length > 0 && (
-              <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
-                <Trash2 className="w-4 h-4" /> Planı temizle
-              </button>
-            )}
-          </div>
-        </div>
-        {sent && <p className="text-[11px] text-muted">Gönderilmiş planda yaptığınız değişiklikler öğrencide anında görünür.</p>}
       </div>
 
       {/* Aşama 23: taslak planda gönder düğmesi daha görünür */}
