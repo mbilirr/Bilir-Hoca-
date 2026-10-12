@@ -114,6 +114,17 @@ export function cleanStudentEmail(email?: string | null): string {
 // Kurum yöneticisinin e-postası (veritabanındaki is_admin() kuralıyla aynı)
 export const ADMIN_EMAIL = 'm.bilirr@gmail.com';
 
+// Aşama 25: yöneticinin verdiği ilk giriş şifresi (09c numaralı SQL ile gelen tablo)
+export interface InitialCredentialInfo {
+  type: 'student' | 'teacher';
+  recordId: string;
+  loginId: string;
+  password: string; // kullanıcı şifresini değiştirdiyse boş
+  mustChange: boolean;
+  setAt: string;
+  changedAt: string | null;
+}
+
 // Aşama 18: kurum bölümleri (genel yöneticinin kurumlara açıp kapattığı bölümler)
 export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description: string }> = [
   { key: 'homework', title: 'Ödevler', description: 'Ödev verme ve ödev kontrolü' },
@@ -4670,6 +4681,51 @@ export class DataService {
     if (updateError) {
       throw new Error(this.translatePasswordError(updateError.message));
     }
+    await this.markMyInitialPasswordChanged();
+  }
+
+  // Aşama 25: Kullanıcı kendi şifresini belirleyince yöneticinin listesindeki ilk şifre silinir
+  private async markMyInitialPasswordChanged(): Promise<void> {
+    try {
+      await supabase.rpc('mark_my_initial_password_changed');
+    } catch {
+      /* 09c numaralı SQL çalıştırılmadıysa önemli değil */
+    }
+  }
+
+  // Aşama 25: Yönetici için öğrenci/öğretmen ilk giriş şifreleri (Excel listesi).
+  // Anahtar: "student:<kayıt id>" veya "teacher:<kayıt id>"
+  public async getInitialCredentials(): Promise<Map<string, InitialCredentialInfo>> {
+    if (!this.isHeadAdmin() && !this.isKurumAdmin()) {
+      throw new Error('Bu listeyi yalnızca yöneticiler alabilir.');
+    }
+    const map = new Map<string, InitialCredentialInfo>();
+    const PAGE = 1000;
+    for (let from = 0; from < 100000; from += PAGE) {
+      const { data, error } = await supabase
+        .from('initial_credentials')
+        .select('account_type,record_id,login_id,password,must_change,set_at,changed_at')
+        .range(from, from + PAGE - 1);
+      if (error) {
+        if (/initial_credentials/i.test(error.message || '') || error.code === '42P01' || error.code === 'PGRST205') {
+          throw new Error('İlk şifre tablosu bulunamadı. Supabase\'de 09c_ilk_giris_sifreleri.sql dosyasını çalıştırın.');
+        }
+        throw new Error(error.message);
+      }
+      (data || []).forEach((r: any) => {
+        map.set(`${r.account_type}:${r.record_id}`, {
+          type: r.account_type,
+          recordId: String(r.record_id),
+          loginId: r.login_id || '',
+          password: r.password || '',
+          mustChange: r.must_change !== false,
+          setAt: r.set_at || '',
+          changedAt: r.changed_at || null,
+        });
+      });
+      if (!data || data.length < PAGE) break;
+    }
+    return map;
   }
 
   // Öğrencinin "ilk girişte şifre değiştir" zorunluluğunu yerelde kaldırır (şifre yerelde saklanmaz)
@@ -4712,6 +4768,7 @@ export class DataService {
     if (error) {
       throw new Error(this.translatePasswordError(error.message));
     }
+    await this.markMyInitialPasswordChanged();
     clearPasswordRecovery();
     await supabase.auth.signOut().catch(() => {});
   }

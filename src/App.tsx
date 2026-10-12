@@ -46,6 +46,7 @@ const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttend
 const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
+const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const StudentPortal = lazyNamed(() => import('./components/Student/StudentPortal'), 'StudentPortal');
 
 // URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
@@ -541,17 +542,21 @@ export default function App() {
                         description="Veri yedeği, kurumlar, kullanıcılar ve yetkiler"
                       />
                       <AdminMaintenancePanel />
+                      <UserCredentialsExport classes={classes} />
                       {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
                     </div>
                   )}
 
                   {teacherTab === 'user_management' && dataService.isKurumAdmin() && (
-                    <PageHeader
-                      icon={ShieldCheck}
-                      tone="warning"
-                      title={dataService.getMyKurum().kurumName || 'Kurumum'}
-                      description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
-                    />
+                    <div className="space-y-6 mb-6">
+                      <PageHeader
+                        icon={ShieldCheck}
+                        tone="warning"
+                        title={dataService.getMyKurum().kurumName || 'Kurumum'}
+                        description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
+                      />
+                      <UserCredentialsExport classes={classes} />
+                    </div>
                   )}
 
                   {teacherTab === 'user_management' && (

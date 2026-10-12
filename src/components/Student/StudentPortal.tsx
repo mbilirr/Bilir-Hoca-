@@ -525,11 +525,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           {/* Aşama 19: öğretmenin ödev olarak gönderdiği haftalık planın bugünkü görevleri */}
           <StudentTodayPlan />
 
-          {/* Wall 1: Öğrenci Karşılama ve Güncel Ayı Gösteren İnteraktif Ajanda Duvarı */}
+          {/* Wall 1: Duyurular (bugünün etüdü, ödevi, soru hedefi, notları) + kompakt takvim */}
           <StudentHeroBanner
             student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
             homeworks={myHomeworks}
             etuts={myEtuts}
+            submissions={getSubmissionsList()}
+            grades={myGrades}
             onNavigateTab={(tab) => setActiveTab(tab)}
             onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
             onOpenProfileModal={() => setIsProfileModalOpen(true)}

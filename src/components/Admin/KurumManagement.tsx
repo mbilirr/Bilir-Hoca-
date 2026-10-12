@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
-import type { ClassGroup, KurumInfo, KurumModule, Teacher } from '../../types';
+import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
 import { Panel, cx } from '../ui/kit';
 
@@ -34,8 +34,16 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
   const [msg, setMsg] = useState<{ id: string; tone: 'ok' | 'err'; text: string } | null>(null);
   const [classSearch, setClassSearch] = useState('');
   const [teachers, setTeachers] = useState<Teacher[]>(() => dataService.getAllTeachersInternal());
+  const [students, setStudents] = useState<Student[]>(() => dataService.getAllStudents());
 
-  useEffect(() => dataService.subscribe(() => setTeachers(dataService.getAllTeachersInternal())), []);
+  useEffect(
+    () =>
+      dataService.subscribe(() => {
+        setTeachers(dataService.getAllTeachersInternal());
+        setStudents(dataService.getAllStudents());
+      }),
+    []
+  );
 
   // Öğretmenlerin kurum dağılımı değişince (yeni kurum yöneticisi vb.) liste yenilenir
   const teacherKurumKey = useMemo(
@@ -76,6 +84,68 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
     () => classes.filter((c) => !c.kurumId).sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })),
     [classes]
   );
+
+  // Aşama 25: Aynı kişiye/aynı ada ait yinelenen kurum kayıtları.
+  // Hiç öğretmeni, sınıfı, öğrencisi ve izinli sınıfı olmayan, aynı adda başka bir kurumu bulunan kayıt
+  // "boş kopya" sayılır ve listede gösterilmez. Kalıcı temizlik için 09 numaralı SQL çalıştırılır.
+  const { visibleKurumlar, hiddenCount, duplicateNames } = useMemo(() => {
+    const list = kurumlar || [];
+    const norm = (s: string) => (s || '').trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
+    const usage = (k: KurumInfo) =>
+      teachers.filter((t) => t.kurumId === k.id).length +
+      classes.filter((c) => c.kurumId === k.id).length +
+      students.filter((s) => s.kurumId === k.id).length +
+      k.grantedClassIds.length;
+    // Kurumları "aynı kişi" anahtarlarıyla grupla: aynı kurum adı veya aynı yönetici
+    // (aynı ad, kullanıcı adı, e-posta ya da giriş hesabı — yinelenen öğretmen kaydı durumunu da yakalar)
+    const parent = new Map<string, string>();
+    const find = (x: string): string => {
+      while (parent.get(x) !== x) x = parent.get(x)!;
+      return x;
+    };
+    const union = (a: string, b: string) => parent.set(find(a), find(b));
+    list.forEach((k) => parent.set(k.id, k.id));
+    const firstByKey = new Map<string, string>();
+    const link = (key: string, kurumId: string) => {
+      if (!key) return;
+      const other = firstByKey.get(key);
+      if (other) union(other, kurumId);
+      else firstByKey.set(key, kurumId);
+    };
+    list.forEach((k) => {
+      link('ad:' + norm(k.name), k.id);
+      teachers
+        .filter((t) => t.kurumId === k.id && t.isAdmin)
+        .forEach((t) => {
+          link('yon:' + norm(t.name), k.id);
+          if (t.username) link('kad:' + norm(t.username), k.id);
+          if (t.email) link('ep:' + norm(t.email), k.id);
+          if (t.auth_user_id) link('auth:' + t.auth_user_id, k.id);
+        });
+    });
+    const byGroup = new Map<string, KurumInfo[]>();
+    list.forEach((k) => {
+      const g = find(k.id);
+      byGroup.set(g, [...(byGroup.get(g) || []), k]);
+    });
+    const hidden = new Set<string>();
+    const dupNames: string[] = [];
+    byGroup.forEach((group) => {
+      if (group.length < 2) return;
+      const used = group.filter((k) => usage(k) > 0);
+      // En az bir dolu kopya varsa boş kopyalar gizlenir; hepsi boşsa en eskisi kalır
+      const keep = used.length > 0 ? used : [group[0]];
+      group.forEach((k) => {
+        if (!keep.includes(k)) hidden.add(k.id);
+      });
+      if (keep.length > 1) dupNames.push(keep.map((k) => k.name).filter((v, i, a) => a.indexOf(v) === i).join(' / '));
+    });
+    return {
+      visibleKurumlar: list.filter((k) => !hidden.has(k.id)),
+      hiddenCount: hidden.size,
+      duplicateNames: dupNames,
+    };
+  }, [kurumlar, teachers, classes, students]);
 
   const save = async (k: KurumInfo) => {
     const d = drafts[k.id];
@@ -132,8 +202,24 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
         </p>
       )}
 
+      {(hiddenCount > 0 || duplicateNames.length > 0) && (
+        <div className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning-fg px-3 py-2.5 text-xs mb-4" id="kurum-duplicate-note">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            {hiddenCount > 0 && <>Aynı kişiye ait {hiddenCount} boş (yinelenen) kurum kaydı listede gizlendi. </>}
+            {duplicateNames.length > 0 && (
+              <>
+                Aynı kişiye ait birden fazla dolu kurum kaydı var: <strong>{duplicateNames.join(', ')}</strong>.{' '}
+              </>
+            )}
+            Kalıcı olarak birleştirmek için Supabase'de önce <strong>09a_kurum_rapor.sql</strong>, sonra{' '}
+            <strong>09b_kurum_birlestir.sql</strong> dosyasını çalıştırın.
+          </span>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {(kurumlar || []).map((k) => {
+        {visibleKurumlar.map((k) => {
           const d = drafts[k.id] || { name: k.name, modules: k.modules, grantedClassIds: k.grantedClassIds };
           const members = teachers.filter((t) => t.kurumId === k.id);
           const admins = members.filter((t) => t.isAdmin);

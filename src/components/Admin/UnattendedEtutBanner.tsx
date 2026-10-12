@@ -6,6 +6,7 @@ import { etutEndTime, isEtutAttendanceMissing } from '../../lib/etutTiming';
 
 // Aşama 24: Yöneticiye (genel yönetici ve kurum yöneticisi) — etüdü bitmiş ama yoklaması alınmamış etütler.
 // Liste, yöneticinin görebildiği etütlerden canlı hesaplanır; yoklama alınınca etüt kendiliğinden listeden düşer.
+// Aşama 25: Her yönetici yalnızca KENDİ hazırladığı etütlerin uyarısını görür (bütün yöneticilere gitmez).
 const LOOKBACK_DAYS = 14; // çok eski etütler uyarıyı kalabalıklaştırmasın
 const PREVIEW_COUNT = 5;
 // Kapatma / "Etütlere git" sonrası uyarı, sekme değişip bileşen yeniden yüklense de oturum boyunca gizli kalır.
@@ -26,6 +27,19 @@ const writeDismissed = (ids: string[]) => {
   } catch {
     /* sessionStorage kullanılamıyorsa yalnızca bellek içi durum geçerli olur */
   }
+};
+
+// Bu etüdü oturumdaki yönetici mi hazırladı?
+// - Etütte "hazırlayan" kimliği varsa yalnızca o kişiye düşer.
+// - Kimlik yoksa (eski kayıtlar) hazırlayan adına bakılır.
+// - Hiçbir hazırlayan bilgisi olmayan eski etütler yalnızca genel yöneticiye düşer.
+const isPreparedByMe = (e: Etut, me: { id: string; name?: string } | null, isHead: boolean): boolean => {
+  if (!me) return false;
+  if (e.createdById) return e.createdById === me.id;
+  const myName = (me.name || '').trim().toLocaleLowerCase('tr-TR');
+  const creatorName = (e.createdByName || '').trim().toLocaleLowerCase('tr-TR');
+  if (creatorName) return !!myName && creatorName === myName;
+  return isHead;
 };
 
 const shortDate = (e: Etut): string => {
@@ -53,9 +67,13 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
   const missing = useMemo(() => {
     const now = new Date();
     const cutoff = now.getTime() - LOOKBACK_DAYS * 86400000;
+    const me = dataService.getCurrentTeacher();
+    const isHead = dataService.isHeadAdmin();
     return etuts
       .filter((e) => {
         if (!e || String(e.id).startsWith('__')) return false;
+        // Bildirim yalnızca etüdü hazırlayan yöneticiye gider
+        if (!isPreparedByMe(e, me, isHead)) return false;
         const end = etutEndTime(e);
         return !!end && end.getTime() >= cutoff && isEtutAttendanceMissing(e, now);
       })
