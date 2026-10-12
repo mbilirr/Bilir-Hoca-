@@ -25,6 +25,29 @@ import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/kit';
+import {
+  isBiometricAvailable,
+  getBiometricProfile,
+  removeBiometricProfile,
+  enableBiometricLogin,
+  unlockBiometricLogin,
+  type BiometricProfile,
+} from '../../lib/biometricLogin';
+
+// Parmak izi simgesi (lucide "fingerprint" çizimi; simge adının sürüme göre değişmesinden etkilenmesin diye burada)
+const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+    <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+    <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+    <path d="M2 12a10 10 0 0 1 18-6" />
+    <path d="M2 16h.01" />
+    <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+    <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" />
+    <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+    <path d="M9 6.8a6 6 0 0 1 9 5.2v2" />
+  </svg>
+);
 
 interface AuthPortalProps {
   onAuthSuccess: (session: AuthSession) => void;
@@ -78,6 +101,25 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     return rem?.identifier || '';
   });
   const [loginPassword, setLoginPassword] = useState('');
+
+  // --- PARMAK İZİ İLE GİRİŞ (WebAuthn) ---
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioProfiles, setBioProfiles] = useState<{ teacher: BiometricProfile | null; student: BiometricProfile | null }>(() => ({
+    teacher: getBiometricProfile('teacher'),
+    student: getBiometricProfile('student'),
+  }));
+  const [enableBio, setEnableBio] = useState(false);
+  // Şifreyle giriş başarılı ve parmak izi açılmak isteniyor: kayıt adımı (tarayıcı kuralı gereği ayrı düğmeyle)
+  const [pendingBio, setPendingBio] = useState<{ session: AuthSession; identifier: string; name: string; password: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    isBiometricAvailable().then((ok) => alive && setBioAvailable(ok));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const refreshBioProfiles = () => setBioProfiles({ teacher: getBiometricProfile('teacher'), student: getBiometricProfile('student') });
+  const activeBioProfile = selectedRole === 'teacher' ? bioProfiles.teacher : bioProfiles.student;
 
   // --- ÖĞRENCİ KAYIT BAŞVURUSU (yönetici onayından sonra hesap açılır) ---
   const [aName, setAName] = useState('');
@@ -187,6 +229,56 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     }
   };
 
+  // Oturumu açar ve panele geçer
+  const finishLogin = (session: AuthSession, greeting: string) => {
+    dataService.setAuthSession(session);
+    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+    setSuccessMsg(greeting);
+    setTimeout(() => onAuthSuccess(session), 400);
+  };
+  const greetingOf = (session: AuthSession) =>
+    session.role === 'teacher'
+      ? `Hoş geldiniz Sn. ${session.user.name}! Panele yönlendiriliyorsunuz...`
+      : `Hoş geldin ${session.user.name}! Öğrenci paneline yönlendiriliyorsunuz...`;
+
+  // Kullanıcı adı + şifreyle doğrular. Başarılıysa oturum nesnesi, hatalı bilgide null döner.
+  const authenticate = async (role: UserRole, cleanUser: string, cleanPass: string): Promise<AuthSession | null> => {
+    if (role === 'teacher') {
+      const teacher = await dataService.authenticateTeacher(cleanUser, cleanPass);
+      if (!teacher) return null;
+      if (rememberMe) {
+        dataService.setRememberedUser({
+          role: 'teacher',
+          identifier: teacher.username,
+          name: teacher.name,
+          avatar: teacher.avatar,
+          branch: teacher.branch,
+        });
+        setRememberedTeacher(dataService.getRememberedUser('teacher'));
+      } else {
+        dataService.setRememberedUser(null, 'teacher');
+        setRememberedTeacher(null);
+      }
+      return { role: 'teacher', user: teacher };
+    }
+    const student = await dataService.authenticateStudent(cleanUser, cleanPass);
+    if (!student) return null;
+    if (rememberMe) {
+      dataService.setRememberedUser({
+        role: 'student',
+        identifier: student.studentNumber || student.username,
+        name: student.name,
+        avatar: student.avatar,
+        className: student.className,
+      });
+      setRememberedStudent(dataService.getRememberedUser('student'));
+    } else {
+      dataService.setRememberedUser(null, 'student');
+      setRememberedStudent(null);
+    }
+    return { role: 'student', user: student };
+  };
+
   // --- SUBMIT LOGIN ---
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -204,62 +296,83 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setIsLoading(true);
 
     try {
-      if (selectedRole === 'teacher') {
-        const teacher = await dataService.authenticateTeacher(cleanUser, cleanPass);
-        if (teacher) {
-          if (rememberMe) {
-            dataService.setRememberedUser({
-              role: 'teacher',
-              identifier: teacher.username,
-              name: teacher.name,
-              avatar: teacher.avatar,
-              branch: teacher.branch,
-            });
-            setRememberedTeacher(dataService.getRememberedUser('teacher'));
-          } else {
-            dataService.setRememberedUser(null, 'teacher');
-            setRememberedTeacher(null);
-          }
-
-          const session: AuthSession = { role: 'teacher', user: teacher };
-          dataService.setAuthSession(session);
-          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-          setSuccessMsg(`Hoş geldiniz Sn. ${teacher.name}! Panele yönlendiriliyorsunuz...`);
-          setTimeout(() => onAuthSuccess(session), 400);
-        } else {
-          setError('Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.');
-        }
-      } else {
-        const student = await dataService.authenticateStudent(cleanUser, cleanPass);
-        if (student) {
-          if (rememberMe) {
-            dataService.setRememberedUser({
-              role: 'student',
-              identifier: student.studentNumber || student.username,
-              name: student.name,
-              avatar: student.avatar,
-              className: student.className,
-            });
-            setRememberedStudent(dataService.getRememberedUser('student'));
-          } else {
-            dataService.setRememberedUser(null, 'student');
-            setRememberedStudent(null);
-          }
-
-          const session: AuthSession = { role: 'student', user: student };
-          dataService.setAuthSession(session);
-          confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
-          setSuccessMsg(`Hoş geldin ${student.name}! Öğrenci paneline yönlendiriliyorsunuz...`);
-          setTimeout(() => onAuthSuccess(session), 400);
-        } else {
-          setError('Öğrenci numarası veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurunuz.');
-        }
+      const session = await authenticate(selectedRole, cleanUser, cleanPass);
+      if (!session) {
+        setError(
+          selectedRole === 'teacher'
+            ? 'Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.'
+            : 'Öğrenci numarası veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurunuz.'
+        );
+        return;
       }
+      if (enableBio && bioAvailable) {
+        // Parmak izi kaydı için ayrı bir onay adımı gösterilir (oturum bu adımdan sonra açılır)
+        setPendingBio({ session, identifier: cleanUser, name: session.user.name, password: cleanPass });
+        setLoginPassword('');
+        return;
+      }
+      finishLogin(session, greetingOf(session));
     } catch (err: any) {
       setError(err.message || 'Giriş yapılamadı.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // --- PARMAK İZİ KAYDI (şifreyle girişten hemen sonra) ---
+  const handleEnableBiometric = async () => {
+    if (!pendingBio) return;
+    setError(null);
+    setIsLoading(true);
+    const { session, identifier, name, password } = pendingBio;
+    try {
+      await enableBiometricLogin({ role: session.role as 'teacher' | 'student', identifier, name, password });
+      refreshBioProfiles();
+      setPendingBio(null);
+      setEnableBio(false);
+      finishLogin(session, `Parmak izi girişi açıldı. ${greetingOf(session)}`);
+    } catch (err: any) {
+      setError(`${err?.message || 'Parmak izi girişi açılamadı.'} İsterseniz "Şimdi değil" ile devam edebilirsiniz.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const handleSkipBiometric = () => {
+    if (!pendingBio) return;
+    const { session } = pendingBio;
+    setPendingBio(null);
+    setEnableBio(false);
+    finishLogin(session, greetingOf(session));
+  };
+
+  // --- PARMAK İZİ İLE GİRİŞ ---
+  const handleBiometricLogin = async () => {
+    const role = selectedRole as 'teacher' | 'student';
+    setError(null);
+    setSuccessMsg(null);
+    setIsLoading(true);
+    try {
+      const cred = await unlockBiometricLogin(role);
+      const session = await authenticate(role, cred.identifier, cred.password);
+      if (!session) {
+        // Şifre değişmiş: eski kayıt artık işe yaramaz
+        removeBiometricProfile(role);
+        refreshBioProfiles();
+        setLoginUsername(cred.identifier);
+        setError('Şifreniz değiştiği için parmak izi girişi kapatıldı. Lütfen yeni şifrenizle girip "Parmak izi ile girişi aç" kutusunu yeniden işaretleyin.');
+        return;
+      }
+      finishLogin(session, greetingOf(session));
+    } catch (err: any) {
+      setError(err?.message || 'Parmak izi ile giriş yapılamadı.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const handleRemoveBiometric = () => {
+    removeBiometricProfile(selectedRole as 'teacher' | 'student');
+    refreshBioProfiles();
+    setSuccessMsg('Bu cihazdaki parmak izi girişi kaldırıldı.');
   };
 
   // --- ÖĞRENCİ KAYIT BAŞVURUSU GÖNDER ---
@@ -440,8 +553,67 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           )}
 
           {/* ================= MODE 1: LOGIN ================= */}
-          {authMode === 'login' && (
+          {/* ================= PARMAK İZİ KAYIT ADIMI ================= */}
+          {authMode === 'login' && pendingBio && (
+            <div id="biometric-enroll" className="space-y-4 p-5 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                  <Fingerprint className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-fg">Parmak izinizi kaydedin</h3>
+                  <p className="text-xs text-muted leading-relaxed mt-1">
+                    Şifreniz doğrulandı. Aşağıdaki düğmeye basınca cihazınız parmak izinizi (veya yüz tanımayı) isteyecek.
+                    Bundan sonra bu cihazda şifre yazmadan, parmak izinizle giriş yapabilirsiniz. Parmak iziniz cihazınızdan çıkmaz.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleEnableBiometric}
+                  disabled={isLoading}
+                  isLoading={isLoading}
+                  loadingText="Parmak izi bekleniyor..."
+                  leftIcon={<Fingerprint className="w-4 h-4" />}
+                  className="flex-1"
+                >
+                  Parmak izimi kaydet
+                </Button>
+                <Button type="button" variant="ghost" onClick={handleSkipBiometric} disabled={isLoading} className="sm:w-40">
+                  Şimdi değil
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {authMode === 'login' && !pendingBio && (
             <div className="space-y-5">
+              {/* PARMAK İZİ İLE GİRİŞ (bu cihazda bu rol için açılmışsa) */}
+              {bioAvailable && activeBioProfile && (
+                <div id="biometric-login" className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-surface space-y-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleBiometricLogin}
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                    loadingText="Parmak izi bekleniyor..."
+                    leftIcon={<Fingerprint className="w-5 h-5" />}
+                    className="w-full py-3"
+                  >
+                    Parmak İzi ile Giriş · {activeBioProfile.name || activeBioProfile.identifier}
+                  </Button>
+                  <div className="flex items-center justify-between text-[11px] text-muted">
+                    <span>Bu cihazda kayıtlı · şifre yazmanız gerekmez</span>
+                    <button type="button" onClick={handleRemoveBiometric} className="font-semibold hover:text-red-600 dark:hover:text-red-300 cursor-pointer">
+                      Parmak izini kaldır
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
               {activeRememberedUser && (
                 <div className="p-4 rounded-2xl border transition-all bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30">
@@ -550,7 +722,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 />
 
                 {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                   <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-muted select-none">
                     <input
                       type="checkbox"
@@ -560,6 +732,18 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     />
                     <span>Beni Hatırla</span>
                   </label>
+                  {bioAvailable && !activeBioProfile && (
+                    <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-muted select-none" id="biometric-optin">
+                      <input
+                        type="checkbox"
+                        checked={enableBio}
+                        onChange={(e) => setEnableBio(e.target.checked)}
+                        className="w-4 h-4 rounded border-line-strong accent-indigo-600 cursor-pointer"
+                      />
+                      <Fingerprint className="w-4 h-4 text-indigo-600 dark:text-indigo-300" />
+                      <span>Parmak izi ile girişi aç</span>
+                    </label>
+                  )}
                   <button
                     type="button"
                     onClick={handleForgotPassword}

@@ -706,6 +706,42 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     window.setTimeout(() => setPlanInfo(''), 4000);
   };
 
+  // ---------------------------------------------------------------------------
+  // Öğretmenin "Soru takibine aktar" düğmesiyle gönderdiği konular: seçilen günün konuları
+  // ilgili dersin "Çalışılan Konu / Test" kutusuna kendiliğinden yazılır (kutu boşsa; yazılanın üstüne yazılmaz).
+  // ---------------------------------------------------------------------------
+  const teacherTopics = useMemo(
+    () => (parseIsoDate(entryDate) ? dataService.getPlanTopicsForStudentDay(activeStudent.id, entryDate) : []),
+    // allLogs: veri servisi her değiştiğinde (hedef eklenince/değişince de) yeniden hesaplanır
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeStudent.id, entryDate, allLogs]
+  );
+  const teacherTopicsSig = teacherTopics.map((x) => `${x.subject}:${x.topic}`).join('|');
+  const teacherTopicsAppliedRef = useRef<string>('');
+  useEffect(() => {
+    if (!teacherTopics.length || dateError) return;
+    const sig = `${activeStudent.id}|${entryDate}|${teacherTopicsSig}`;
+    if (teacherTopicsAppliedRef.current === sig) return;
+    teacherTopicsAppliedRef.current = sig;
+    setListRows((prev) => {
+      const next = [...prev];
+      for (const { subject, topic } of teacherTopics) {
+        const idx = next.findIndex((r) => sameSubject(r.subject, subject));
+        if (idx >= 0) {
+          if (!next[idx].topic.trim()) next[idx] = { ...next[idx], topic: topic.slice(0, 120) };
+        } else {
+          // Ders öğrencinin listesinde yoksa yeni satır olarak eklenir (soru sayısını öğrenci yazar)
+          next.push({ ...emptyEntryRow(normalizeSubject(subject)), topic: topic.slice(0, 120) });
+        }
+      }
+      return next;
+    });
+    // Tek tek giriş modunda: seçili dersin konu kutusu boşsa doldurulur
+    const singleMatch = teacherTopics.find((x) => sameSubject(x.subject, singleSubject));
+    if (singleMatch) setSingleTopic((cur) => (cur.trim() ? cur : singleMatch.topic.slice(0, 120)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStudent.id, entryDate, teacherTopicsSig, dateError]);
+
   const clearMessages = () => {
     setFormError('');
     if (saveSuccessMsg) setSaveSuccessMsg('');
@@ -2117,6 +2153,28 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   Sayıları değiştirebilir veya yeni ders ekleyebilirsin.
                 </p>
               </div>
+            </div>
+          )}
+
+          {/* Öğretmenin günlük plandan aktardığı konular (konu kutularına kendiliğinden yazıldı) */}
+          {teacherTopics.length > 0 && !dateError && (
+            <div
+              id="qe-teacher-topics"
+              role="note"
+              className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 text-xs text-emerald-800 dark:text-emerald-200 space-y-1"
+            >
+              <p className="font-bold flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4" />
+                Öğretmenin bu gün için aktardığı konular “Çalışılan Konu / Test” kutusuna yazıldı
+              </p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                {teacherTopics.map((x) => (
+                  <li key={x.subject}>
+                    <strong>{x.subject}:</strong> {x.topic}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] opacity-90">Sen yalnızca çözdüğün soru, doğru ve yanlış sayılarını gir.</p>
             </div>
           )}
 

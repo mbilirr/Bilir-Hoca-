@@ -53,6 +53,15 @@ export function isFlexibleTarget(t: WeeklyQuestionTarget): boolean {
   return !!t.dailyTargets && typeof t.dailyTargets === 'object' && Object.keys(t.dailyTargets).length > 0;
 }
 
+/**
+ * Günlük plandan aktarılmış ama öğretmenin henüz soru sayılarını girmediği hedef.
+ * Bu hedef öğrenciye gösterilmez ve ilerleme hesaplarına katılmaz; öğretmen ekranında "soru sayıları bekleniyor" görünür.
+ */
+export function isPendingPlanTarget(t: WeeklyQuestionTarget | null | undefined): boolean {
+  if (!t || !t.fromPlan) return false;
+  return !(Number(t.targetQuestions ?? t.weeklyTarget) > 0);
+}
+
 /** Eşit dağıtımdaki günlük hedef (gün gün dağıtımda ortalama) */
 export function baseDailyTarget(t: WeeklyQuestionTarget): number {
   const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);

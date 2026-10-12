@@ -222,6 +222,11 @@ export interface WeeklyQuestionTarget {
   notes?: string;
   subject?: string; // Aşama 10: yalnızca bu dersin soruları sayılır (boş = tüm dersler)
   createdBy?: string; // Aşama 10: hedefi kaydeden hesabın (auth) kimliği — veritabanındaki created_by
+  // Günlük plandan aktarılan hedef: öğretmen plandaki görevleri soru takibine aktardığında açılır.
+  // Soru sayıları öğretmen girene kadar 0'dır (öğrenci bu süre içinde hedefi görmez, yalnız konular aktarılır).
+  fromPlan?: boolean;
+  // Gün → "Çalışılan Konu / Test" metni (plandaki kitap + açıklama). Öğrencinin soru kaydet formuna otomatik yazılır.
+  dailyTopics?: Record<string, string>;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';

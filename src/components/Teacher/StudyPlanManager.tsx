@@ -14,8 +14,9 @@ import {
   Users,
   AlertCircle,
   FileText,
+  Target,
 } from 'lucide-react';
-import type { ClassGroup, Student } from '../../types';
+import type { ClassGroup, Student, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
   addBook,
@@ -58,6 +59,10 @@ import { StudyPlanClassView } from './StudyPlanClassView';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { User as UserIcon, School } from 'lucide-react';
+import { WeeklyTargetModal, type TargetFormSaved } from './WeeklyTargetModal';
+import { transferPlanToQuestionTargets } from '../../lib/planToTarget';
+import { isPendingPlanTarget } from '../../utils/targetDays';
+import { callMail, describeMailResult } from '../../lib/mailApi';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19) — Ödevler bölümünün "Haftalık Plan" sekmesi
@@ -382,6 +387,58 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     }
   };
 
+  // ---- Soru takibine aktar: plandaki görevler öğrencinin "Soru Kaydet" formundaki "Çalışılan Konu / Test"
+  //      kutusuna gider ve planla aynı tarihlerde ders başına bir soru hedefi açılır (sayıları öğretmen girer).
+  const [planTargets, setPlanTargets] = useState<WeeklyQuestionTarget[]>([]);
+  const [targetEdit, setTargetEdit] = useState<{ target: WeeklyQuestionTarget; wasPending: boolean } | null>(null);
+  // Hafta / öğrenci değişince önceki aktarımın kartı kapanır
+  useEffect(() => setPlanTargets([]), [studentId, weekStart]);
+  const transferableCount = plan.items.filter((i) => canSubject(i.subject) && (i.book.trim() || i.note.trim())).length;
+  const doTransferToQuestions = async () => {
+    if (!student || busy) return;
+    setBusy(true);
+    try {
+      const r = await transferPlanToQuestionTargets({ student, weekStart, items: plan.items, canSubject });
+      if (!r.targets.length) {
+        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap veya açıklama yazılı olmalı (ve kendi branşınızdan olmalı).' });
+        return;
+      }
+      setPlanTargets(r.targets);
+      const extra = [
+        r.skippedSubjects.length ? `Yetkiniz olmayan dersler aktarılmadı: ${r.skippedSubjects.join(', ')}.` : '',
+        r.emptySubjects.length ? `Kitap/açıklaması boş görevler atlandı: ${r.emptySubjects.join(', ')}.` : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      say(
+        {
+          tone: 'success',
+          text: `Görevler öğrencinin "Çalışılan Konu / Test" kutusuna aktarıldı ve ${r.targets.length} soru hedefi açıldı. Şimdi her hedefin soru sayılarını girin. ${extra}`.trim(),
+        },
+        10000
+      );
+      // Tek hedef açıldıysa soru sayısı penceresi hemen açılır
+      if (r.targets.length === 1) setTargetEdit({ target: r.targets[0], wasPending: isPendingPlanTarget(r.targets[0]) });
+    } catch (e: any) {
+      say({ tone: 'danger', text: e?.message || 'Görevler soru takibine aktarılamadı.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const onPlanTargetSaved = (r: TargetFormSaved) => {
+    const wasPending = !!targetEdit?.wasPending;
+    setTargetEdit(null);
+    setPlanTargets((list) => list.map((t) => (t.id === r.target.id ? r.target : t)));
+    if (r.sendMail && r.changed && r.target.id) {
+      say({ tone: 'info', text: 'Soru sayıları kaydedildi; öğrenciye e-posta gönderiliyor…' });
+      callMail('question-target', { targetId: r.target.id, mode: wasPending || r.isNew ? 'new' : 'updated' }).then((res) =>
+        say(describeMailResult(res))
+      );
+    } else {
+      say({ tone: 'success', text: 'Soru sayıları kaydedildi. Öğrenci hedefi artık görüyor.' }, 4000);
+    }
+  };
+
   // ---- başkalarına uygula
   const [applyOpen, setApplyOpen] = useState(false);
   const [booksOpen, setBooksOpen] = useState(false);
@@ -522,6 +579,16 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || plan.items.length === 0} onClick={() => doExport('excel')}>
                 <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
               </button>
+              <button
+                type="button"
+                id="plan-to-questions"
+                className={planTileCls}
+                disabled={busy || transferableCount === 0}
+                onClick={doTransferToQuestions}
+                title="Görevleri öğrencinin Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır ve aynı tarihlerde soru hedefi açar"
+              >
+                <Target className="w-5 h-5 text-warning-fg" /> Soru takibine aktar
+              </button>
               <button type="button" id="plan-apply" className={planTileCls} disabled={plan.items.length === 0} onClick={() => setApplyOpen(true)}>
                 <Copy className="w-5 h-5 text-info-fg" /> Başkalarına / başka haftaya uygula
               </button>
@@ -593,6 +660,33 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           <button type="button" aria-label="Kapat" className="px-1 cursor-pointer" onClick={() => setNotice(null)}>
             ×
           </button>
+        </div>
+      )}
+      {planTargets.length > 0 && (
+        <div id="plan-question-targets" className="rounded-xl border border-warning/40 bg-warning-soft/60 px-4 py-3 space-y-2">
+          <p className="text-sm font-bold text-fg flex items-center gap-2">
+            <Target className="w-4 h-4 text-warning-fg" /> Plandan açılan soru hedefleri · {weekRangeLabel(weekStart)}
+          </p>
+          <p className="text-[11px] text-muted">
+            Konular öğrencinin soru kaydet formuna aktarıldı. Her derste yalnızca gün gün soru sayılarını girin; sayıları girilen hedef öğrenciye görünür.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {planTargets.map((t) => {
+              const pending = isPendingPlanTarget(t);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  data-plan-target={t.id}
+                  className={cx('ui-btn ui-btn-sm', pending ? 'ui-btn-primary' : 'ui-btn-secondary')}
+                  onClick={() => setTargetEdit({ target: t, wasPending: pending })}
+                >
+                  {pending ? <Edit3 className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                  {t.subject || 'Tüm dersler'} · {pending ? 'Soru sayılarını gir' : `${t.targetQuestions} soru (düzenle)`}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       {loadError && (
@@ -740,6 +834,18 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             setSendModal(null);
             if (changed) void reload(true);
           }}
+        />
+      )}
+      {targetEdit && (
+        <WeeklyTargetModal
+          open
+          onClose={() => setTargetEdit(null)}
+          students={students}
+          classes={classes}
+          editTarget={targetEdit.target}
+          defaultStart={weekStart}
+          defaultEnd={addDaysYmd(weekStart, 6)}
+          onSaved={onPlanTargetSaved}
         />
       )}
       {booksOpen && student && (

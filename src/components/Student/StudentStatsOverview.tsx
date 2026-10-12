@@ -1,25 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Award, BookOpen, CalendarDays, Target } from 'lucide-react';
+import { ArrowRight, Award, Target } from 'lucide-react';
 import type { Etut, GradeRecord, Homework, HomeworkSubmission, Student, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
 import { dataService } from '../../services/dataService';
-import { formatDateISO, getMondayOfWeek, TURKISH_DAYS_SHORT, TURKISH_MONTHS } from '../../utils/questionAnalytics';
+import { formatDateISO, getMondayOfWeek, TURKISH_DAYS_SHORT } from '../../utils/questionAnalytics';
 import { IconBox, cx, type Tone } from '../ui/kit';
-import { etutEnd, etutStart, homeworkStateFor, parseLocalDateTime } from './StudentHomeUtils';
 
 // ============================================================================
 // ÖĞRENCİ ANA SAYFASI — "Durumum"
-// Dört sakin özet kart: Ödevlerim, Etütlerim, Soru Çözümüm, Notlarım.
+// Özet kartlar: Notlarım (en solda) ve Soru Çözümüm. Ödevler ve etütler yukarıdaki
+// "Duyurular" panosunda gösterildiği için burada ayrıca kart olarak yer almaz.
 // Her kartta tek bir ana sayı, kısa bir açıklama ve ilgili sekmeye geçiş.
 // ============================================================================
 
 interface StudentStatsOverviewProps {
   student: Student;
-  /** Bu öğrenciye atanmış ödevler */
-  homeworks: Homework[];
-  submissions: HomeworkSubmission[];
-  /** Bu öğrenciye ait etütler */
-  etuts: Etut[];
+  /** Artık kullanılmıyor (ödevler/etütler Duyurular panosunda). Eski çağrılar bozulmasın diye isteğe bağlı. */
+  homeworks?: Homework[];
+  submissions?: HomeworkSubmission[];
+  etuts?: Etut[];
   /** Bu öğrencinin notları */
   grades: GradeRecord[];
   onNavigateTab: (tab: StudentTabType) => void;
@@ -33,26 +32,11 @@ const addDays = (d: Date, n: number) => {
   return x;
 };
 
-const dayIndexMonFirst = (d: Date) => (d.getDay() + 6) % 7;
-
-/** "bugün", "yarın" veya "8 Ekim Per" */
-const relativeDay = (d: Date, now: Date) => {
-  const key = formatDateISO(d);
-  if (key === formatDateISO(now)) return 'bugün';
-  if (key === formatDateISO(addDays(now, 1))) return 'yarın';
-  return `${d.getDate()} ${TURKISH_MONTHS[d.getMonth()]} ${TURKISH_DAYS_SHORT[dayIndexMonFirst(d)]}`;
-};
-
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-
 const fmtNumber = (n: number) => n.toLocaleString('tr-TR');
 const fmtAverage = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
 
 export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   student,
-  homeworks,
-  submissions,
-  etuts,
   grades,
   onNavigateTab,
   sidePanel,
@@ -78,70 +62,6 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
 
   const todayYmd = formatDateISO(now);
   const monday = useMemo(() => getMondayOfWeek(now), [now]);
-
-  // ------------------------------------------------------------------ Ödevler
-  const hw = useMemo(() => {
-    const nowMs = now.getTime();
-    const byHw = new Map<string, HomeworkSubmission>();
-    submissions.forEach((s) => {
-      if (s.studentId === student.id && !byHw.has(s.homeworkId)) byHw.set(s.homeworkId, s);
-    });
-    let done = 0;
-    let excused = 0;
-    let overdue = 0;
-    const open: Array<{ hw: Homework; due: Date | null }> = [];
-    homeworks.forEach((h) => {
-      const sub = byHw.get(h.id) || (Array.isArray(h.submissions) ? h.submissions.find((s) => s.studentId === student.id) : undefined);
-      const state = homeworkStateFor(h, sub, nowMs);
-      if (state === 'done') done++;
-      else if (state === 'excused') excused++;
-      else if (state === 'overdue') overdue++;
-      else open.push({ hw: h, due: parseLocalDateTime(h.dueDate) });
-    });
-    open.sort((a, b) => (a.due?.getTime() ?? Infinity) - (b.due?.getTime() ?? Infinity));
-    const counted = homeworks.length - excused; // izinli ödevler orana katılmaz
-    return {
-      total: homeworks.length,
-      done,
-      overdue,
-      openCount: open.length,
-      next: open[0],
-      counted,
-      percent: counted > 0 ? Math.round((done / counted) * 100) : 0,
-    };
-  }, [homeworks, submissions, student.id, now]);
-
-  // ------------------------------------------------------------------ Etütler
-  const et = useMemo(() => {
-    const nowMs = now.getTime();
-    const weekEnd = addDays(monday, 7).getTime(); // Pazar 24:00
-    const upcoming = etuts
-      .map((e) => ({ e, start: etutStart(e), end: etutEnd(e) }))
-      .filter((x): x is { e: Etut; start: Date; end: Date } => !!x.start && !!x.end && x.end.getTime() > nowMs)
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
-    const thisWeek = upcoming.filter((x) => x.start.getTime() < weekEnd).length;
-
-    // Kendi katılımın: yalnızca yoklaması alınmış etütler (izinli sayılmaz)
-    let attended = 0;
-    let marked = 0;
-    etuts.forEach((e) => {
-      const st = e.studentAttendance?.[student.id]?.status;
-      if (st === 'present' || st === 'late') {
-        attended++;
-        marked++;
-      } else if (st === 'absent') {
-        marked++;
-      }
-    });
-    return {
-      total: etuts.length,
-      thisWeek,
-      next: upcoming[0],
-      attended,
-      marked,
-      rate: marked > 0 ? Math.round((attended / marked) * 100) : null,
-    };
-  }, [etuts, student.id, monday, now]);
 
   // ------------------------------------------------------------------ Sorular
   const q = useMemo(() => {
@@ -195,22 +115,6 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   };
 
   // ------------------------------------------------------------------ Görünüm
-  const nextDueLabel = (() => {
-    const n = hw.next;
-    if (!n) return null;
-    if (!n.due) return `Sıradaki: ${n.hw.subject || n.hw.title}`;
-    const hasTime = /T\d{2}:\d{2}/.test(n.hw.dueDate);
-    return `En yakın teslim: ${relativeDay(n.due, now)}${hasTime ? ` ${hhmm(n.due)}` : ''} · ${n.hw.subject || n.hw.title}`;
-  })();
-
-  const nextEtutLabel = (() => {
-    const n = et.next;
-    if (!n) return null;
-    const live = n.start.getTime() <= now.getTime();
-    const when = live ? 'Şu an' : `Sıradaki: ${relativeDay(n.start, now)} ${hhmm(n.start)}`;
-    return [when, n.e.subject, n.e.teacherName].filter(Boolean).join(' · ');
-  })();
-
   return (
     <section id="student-home-stats" aria-labelledby="student-home-stats-title" className="space-y-3">
       <div className="flex items-end justify-between gap-3">
@@ -218,81 +122,39 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
           <h2 id="student-home-stats-title" className="text-base sm:text-lg font-semibold text-fg">
             Durumum
           </h2>
-          <p className="text-xs text-muted mt-0.5">Ödevlerin, etütlerin, soru çözümün ve notların bir bakışta</p>
+          <p className="text-xs text-muted mt-0.5">Notların ve soru çözümün bir bakışta</p>
         </div>
       </div>
 
-      {/* Yerleşim: 1. sütun Ödevlerim + Etütlerim (alt alta), 2. sütun Soru Çözümüm + Notlarım (alt alta),
+      {/* Yerleşim: 1. sütun Notlarım (en solda), 2. sütun Soru Çözümüm,
           3. sütun küçültülmüş "Bugün yapılması gerekenler". Telefonda tek sütun; plan en üstte. */}
       <div
         id="student-home-stats-grid"
         className={cx('grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start', sidePanel ? 'xl:grid-cols-3' : '')}
       >
         <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-1">
-        {/* ---------------- Ödevlerim ---------------- */}
+        {/* ---------------- Notlarım ---------------- */}
         <SummaryCard
-          id="student-home-stat-homework"
-          label="Ödevlerim"
-          icon={BookOpen}
-          tone="success"
-          goLabel="Ödevlerime git"
-          onClick={() => go('homework')}
+          id="student-home-stat-grades"
+          label="Notlarım"
+          icon={Award}
+          tone="brand"
+          goLabel="Notlarıma git"
+          onClick={() => go('grades')}
         >
-          {hw.total === 0 ? (
-            <CardEmpty title="Şu an ödevin yok" hint="Yeni ödev verildiğinde burada göreceksin." />
+          {gr === null ? (
+            <CardEmpty title="Henüz notun girilmedi" hint="Sınav ve performans notların burada görünecek." />
           ) : (
             <>
-              <MainValue value={hw.openCount} unit="bekleyen ödev" />
+              <MainValue value={fmtAverage(gr.average)} unit="/ 100 ortalama" />
               <ContextLine>
-                {nextDueLabel ?? (hw.overdue > 0 ? 'Yeni bekleyen ödevin yok' : 'Bütün ödevlerin tamam, tebrikler')}
+                Son not: {gr.last.g.subject}
+                {gr.last.g.examType ? ` · ${gr.last.g.examType}` : ''} ·{' '}
+                <span className="tabular-nums">
+                  {fmtAverage(Number(gr.last.g.score))}/{fmtAverage(gr.last.max)}
+                </span>
               </ContextLine>
-              <div className="mt-3 space-y-1.5">
-                <ProgressBar percent={hw.percent} tone="success" label={`Ödev tamamlama oranı %${hw.percent}`} />
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                  <span className="tabular-nums">
-                    {hw.done}/{hw.counted} tamamlandı
-                  </span>
-                  {hw.overdue > 0 && (
-                    <span id="student-home-stat-homework-overdue" className="ui-chip ui-chip-danger">
-                      {hw.overdue} ödevin süresi geçti
-                    </span>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </SummaryCard>
-
-        {/* ---------------- Etütlerim ---------------- */}
-        <SummaryCard
-          id="student-home-stat-etuts"
-          label="Etütlerim"
-          icon={CalendarDays}
-          tone="info"
-          goLabel="Etütlerime git"
-          onClick={() => go('etuts')}
-        >
-          {et.total === 0 ? (
-            <CardEmpty title="Henüz etüdün yok" hint="Öğretmenin etüt planladığında burada görünecek." />
-          ) : (
-            <>
-              <MainValue value={et.thisWeek} unit="etüt bu hafta" />
-              <ContextLine>{nextEtutLabel ?? 'Planlanmış yeni etüdün yok'}</ContextLine>
-              <div className="mt-3 text-xs text-muted">
-                Katılımın:{' '}
-                {et.rate === null ? (
-                  <span className="text-fg-2 font-semibold" title="Henüz yoklama girilmedi">
-                    —
-                  </span>
-                ) : (
-                  <>
-                    <span className="text-fg font-semibold tabular-nums">%{et.rate}</span>{' '}
-                    <span className="tabular-nums">
-                      ({et.attended}/{et.marked} etüt)
-                    </span>
-                  </>
-                )}
-              </div>
+              <div className="mt-3 text-xs text-muted tabular-nums">{gr.count} not kaydı</div>
             </>
           )}
         </SummaryCard>
@@ -330,32 +192,6 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
             <ContextLine>{q.week > 0 ? `Bugün ${fmtNumber(q.today)} soru` : 'Bu hafta henüz soru girmedin'}</ContextLine>
           )}
           <WeekBars days={q.days} max={q.max} todayYmd={todayYmd} />
-        </SummaryCard>
-
-        {/* ---------------- Notlarım ---------------- */}
-        <SummaryCard
-          id="student-home-stat-grades"
-          label="Notlarım"
-          icon={Award}
-          tone="brand"
-          goLabel="Notlarıma git"
-          onClick={() => go('grades')}
-        >
-          {gr === null ? (
-            <CardEmpty title="Henüz notun girilmedi" hint="Sınav ve performans notların burada görünecek." />
-          ) : (
-            <>
-              <MainValue value={fmtAverage(gr.average)} unit="/ 100 ortalama" />
-              <ContextLine>
-                Son not: {gr.last.g.subject}
-                {gr.last.g.examType ? ` · ${gr.last.g.examType}` : ''} ·{' '}
-                <span className="tabular-nums">
-                  {fmtAverage(Number(gr.last.g.score))}/{fmtAverage(gr.last.max)}
-                </span>
-              </ContextLine>
-              <div className="mt-3 text-xs text-muted tabular-nums">{gr.count} not kaydı</div>
-            </>
-          )}
         </SummaryCard>
         </div>
 

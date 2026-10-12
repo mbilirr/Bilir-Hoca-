@@ -6,6 +6,7 @@ import { Modal, Segmented } from '../ui/kit';
 import { normalizeSubject, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
+import { isPendingPlanTarget } from '../../utils/targetDays';
 
 // ============================================================================
 // Soru hedefi ver / düzenle penceresi (Aşama 10)
@@ -81,6 +82,10 @@ const TargetFormContent: React.FC<Props> = ({
   onSaved,
 }) => {
   const isEdit = !!editTarget;
+  // Günlük plandan aktarılan hedef: konular hazır, öğretmen yalnızca gün gün soru sayılarını girer
+  const planTopics = editTarget?.dailyTopics || {};
+  const fromPlan = !!editTarget?.fromPlan;
+  const pendingPlan = isPendingPlanTarget(editTarget);
   const canEdit = !editTarget || dataService.canEditQuestionTarget(editTarget);
   const mySubjects = dataService.getMySubjects(); // null = yönetici
 
@@ -108,7 +113,10 @@ const TargetFormContent: React.FC<Props> = ({
       notes: t?.notes || '',
       // Gün gün dağıtım (eski kayıtlarda yok → eşit dağıtım)
       distMode: (t?.dailyTargets && Object.keys(t.dailyTargets).length ? 'custom' : 'even') as 'even' | 'custom',
-      dayRows: Object.fromEntries(Object.entries(t?.dailyTargets || {}).map(([k, v]) => [k, String(Number(v) || 0)])) as Record<string, string>,
+      // Plandan gelen ve sayısı henüz girilmemiş hedefte kutular boş başlar (öğretmen doldurur)
+      dayRows: Object.fromEntries(
+        Object.entries(t?.dailyTargets || {}).map(([k, v]) => [k, isPendingPlanTarget(t) ? '' : String(Number(v) || 0)])
+      ) as Record<string, string>,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -455,7 +463,7 @@ const TargetFormContent: React.FC<Props> = ({
       icon={Target}
       tone="warning"
       size="lg"
-      title={isEdit ? 'Soru Hedefini Düzenle' : 'Soru Hedefi Ver'}
+      title={pendingPlan ? 'Plandan Açılan Hedef · Soru Sayılarını Girin' : isEdit ? 'Soru Hedefini Düzenle' : 'Soru Hedefi Ver'}
       description={isEdit ? `${who}${editTarget?.assignedByTeacherName ? ` · Veren: ${editTarget.assignedByTeacherName}` : ''}` : 'Öğrenciye ya da sınıfa belirli tarihler için soru hedefi'}
       footer={
         confirmDiscard ? (
@@ -501,6 +509,17 @@ const TargetFormContent: React.FC<Props> = ({
       }
     >
       <div className="space-y-6">
+        {fromPlan && (
+          <div id="qt-from-plan" className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2 text-xs font-semibold">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>
+              Bu hedef günlük plandan aktarıldı; konular öğrencinin “Çalışılan Konu / Test” kutusuna yazıldı.
+              {pendingPlan
+                ? ' Aşağıdaki “4. Soru hedefi” bölümünde her gün için yalnızca soru sayısını girip kaydedin. Kaydedince öğrenci hedefi görür.'
+                : ' Soru sayılarını aşağıdan değiştirebilirsiniz.'}
+            </span>
+          </div>
+        )}
         {!canEdit && (
           <div className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning-fg px-3 py-2 text-xs font-semibold">
             <Info className="w-4 h-4 shrink-0" />
@@ -741,14 +760,21 @@ const TargetFormContent: React.FC<Props> = ({
                         {shortTrDate(d)}
                         <span className="block text-muted font-normal">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
                       </span>
-                      <input
-                        aria-label={`${shortTrDate(d)} soru sayısı`}
-                        inputMode="numeric"
-                        value={dayRows[d] ?? ''}
-                        placeholder="0"
-                        onChange={(e) => setDayRow(d, e.target.value)}
-                        className={`${inputCls} text-center px-1`}
-                      />
+                      <span className="flex-1 min-w-0">
+                        <input
+                          aria-label={`${shortTrDate(d)} soru sayısı`}
+                          inputMode="numeric"
+                          value={dayRows[d] ?? ''}
+                          placeholder="0"
+                          onChange={(e) => setDayRow(d, e.target.value)}
+                          className={`${inputCls} text-center px-1 ${planTopics[d] && !(dayRows[d] ?? '').trim() ? 'ring-2 ring-warning/50' : ''}`}
+                        />
+                        {planTopics[d] && (
+                          <span className="block mt-1 text-[10px] leading-tight text-muted break-words" title={planTopics[d]} data-testid="qt-day-topic">
+                            {planTopics[d]}
+                          </span>
+                        )}
+                      </span>
                     </label>
                   );
                 })}

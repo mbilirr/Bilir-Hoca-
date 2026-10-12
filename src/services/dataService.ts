@@ -52,6 +52,7 @@ import {
   currentAcademicYear,
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
+import { isPendingPlanTarget } from '../utils/targetDays';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -8956,8 +8957,9 @@ export class DataService {
     if (session?.role === 'student') {
       const myId = session.user.id;
       const myClassId = this.students.find((s) => s.id === myId)?.classId || (session.user as any).classId;
-      return this.weeklyQuestionTargets.filter((t) =>
-        this.isClassQuestionTarget(t) ? !!myClassId && t.classId === myClassId : t.studentId === myId
+      // Günlük plandan aktarılıp soru sayısı henüz girilmemiş hedefler öğrenciye gösterilmez
+      return this.weeklyQuestionTargets.filter(
+        (t) => !isPendingPlanTarget(t) && (this.isClassQuestionTarget(t) ? !!myClassId && t.classId === myClassId : t.studentId === myId)
       );
     }
     if (session?.role === 'teacher') {
@@ -9094,7 +9096,19 @@ export class DataService {
     const total = dailyTargets
       ? Object.values(dailyTargets).reduce((a, b) => a + b, 0)
       : Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
-    if (total < 1) throw new Error('Toplam soru hedefi en az 1 olmalı.');
+    // Günlük plandan aktarılan hedef soru sayıları girilmeden (0) kaydedilebilir; öğretmen sayıları sonra girer
+    if (total < 1 && !draft.fromPlan) throw new Error('Toplam soru hedefi en az 1 olmalı.');
+    // Plandan gelen gün gün konular: yalnızca hedefin tarihleri içindeki günler, en fazla 120 karakter
+    let dailyTopics: Record<string, string> | undefined;
+    if (draft.dailyTopics && typeof draft.dailyTopics === 'object') {
+      const tp: Record<string, string> = {};
+      for (const [k, v] of Object.entries(draft.dailyTopics)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < (draft.weekStartDate || '') || k > rangeEnd) continue;
+        const text = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        if (text) tp[k] = text;
+      }
+      if (Object.keys(tp).length) dailyTopics = tp;
+    }
     const daily = dailyTargets
       ? Math.max(1, Math.round(total / days))
       : Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
@@ -9123,6 +9137,7 @@ export class DataService {
       weeklyTarget: total,
       dailyTarget: daily,
       dailyTargets,
+      dailyTopics: dailyTopics || (draft.dailyTopics === undefined ? existing?.dailyTopics : undefined),
       weekEndDate: rangeEnd,
       subject: targetSubjectList(draft.subject).join(', ') || undefined,
       subjectTargets: subjectTargets && Object.keys(subjectTargets).length ? subjectTargets : undefined,
@@ -9199,6 +9214,30 @@ export class DataService {
       },
       userMessage
     );
+  }
+
+  // Öğretmenin günlük plandan aktardığı konular: verilen gün için ders → "Çalışılan Konu / Test" metni.
+  // Öğrencinin soru kaydet formu bu metni ilgili dersin konu kutusuna yazar. Soru sayısı henüz girilmemiş
+  // (öğrenciye gizli) hedeflerin konuları da gelir; böylece konu öğretmen sayıları girmeden de aktarılmış olur.
+  public getPlanTopicsForStudentDay(studentId: string, ymd: string): Array<{ subject: string; topic: string }> {
+    if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
+    const session = this.getAuthSession();
+    if (session?.role === 'student' && session.user.id !== studentId) return [];
+    const classId = this.students.find((s) => s.id === studentId)?.classId || (session?.role === 'student' ? (session.user as any).classId : undefined);
+    const out: Array<{ subject: string; topic: string }> = [];
+    for (const t of this.weeklyQuestionTargets) {
+      const mine = this.isClassQuestionTarget(t) ? !!classId && t.classId === classId : t.studentId === studentId;
+      if (!mine || !t.dailyTopics || !this.questionTargetOverlaps(t, ymd, ymd)) continue;
+      const topic = String(t.dailyTopics[ymd] || '').trim();
+      if (!topic) continue;
+      for (const subject of targetSubjectList(t.subject)) {
+        const name = normalizeSubject(subject);
+        const cur = out.find((x) => x.subject === name);
+        if (!cur) out.push({ subject: name, topic });
+        else if (!cur.topic.includes(topic)) cur.topic = `${cur.topic}, ${topic}`.slice(0, 120);
+      }
+    }
+    return out;
   }
 
   // Hedefin ilerlemesi: yalnızca hedefin kendi tarihleri (ve dersi seçildiyse o ders) sayılır

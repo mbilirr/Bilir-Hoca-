@@ -543,13 +543,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
           />
 
-          {/* Wall 2: "Durumum" — Ödevlerim/Etütlerim alt alta, Soru Çözümüm/Notlarım alt alta;
-              yanında küçültülmüş "Bugün yapılması gerekenler" paneli (Aşama 19 planı) */}
+          {/* Wall 2: "Durumum" — en solda Notlarım, yanında Soru Çözümüm ve küçültülmüş
+              "Bugün yapılması gerekenler" paneli. Ödevler ve etütler Duyurular panosunda gösterilir. */}
           <StudentStatsOverview
             student={currentStudent}
-            homeworks={myHomeworks}
-            submissions={getSubmissionsList()}
-            etuts={myEtuts}
             grades={myGrades}
             onNavigateTab={(tab) => setActiveTab(tab)}
             sidePanel={<StudentTodayPlan compact />}
