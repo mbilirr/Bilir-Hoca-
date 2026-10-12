@@ -47,6 +47,7 @@ const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/Questi
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
+const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(() => import('./components/Student/StudentPortal'), 'StudentPortal');
 
 // URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
@@ -88,6 +89,7 @@ export default function App() {
   // Modals
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
+  const [isAsama25GuideOpen, setIsAsama25GuideOpen] = useState(false);
 
   // Teacher active navigation tab — sayfa yenilenirse URL hash'inden geri yüklenir, yoksa 'home'
   const [teacherTab, setTeacherTab] = useState<TeacherTabType>(() => parseRouteHash().tab);
@@ -540,6 +542,11 @@ export default function App() {
                         tone="warning"
                         title="Yönetim"
                         description="Veri yedeği, kurumlar, kullanıcılar ve yetkiler"
+                        actions={
+                          <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setIsAsama25GuideOpen(true)}>
+                            Aşama 25 Rehberi
+                          </button>
+                        }
                       />
                       <AdminMaintenancePanel />
                       <UserCredentialsExport classes={classes} />
@@ -646,6 +653,13 @@ export default function App() {
         isOpen={isAdminApprovalModalOpen}
         onClose={() => setIsAdminApprovalModalOpen(false)}
       />
+
+      {/* Aşama 25 rehberi (yalnızca genel yönetici, Yönetim sayfasındaki düğmeyle açılır) */}
+      {isAsama25GuideOpen && (
+        <Suspense fallback={null}>
+          <Asama25Rehberi isOpen={isAsama25GuideOpen} onClose={() => setIsAsama25GuideOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Şifre sıfırlama bağlantısıyla gelindiyse yeni şifre penceresi */}
       <PasswordRecoveryModal />
