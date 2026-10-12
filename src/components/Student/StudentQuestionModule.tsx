@@ -28,6 +28,8 @@ import {
   ChevronDown,
   RotateCcw,
   X,
+  ClipboardList,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -62,6 +64,17 @@ import {
   getStudentSchoolLevel,
   getStudentQuestionSubjects,
 } from '../../utils/questionAnalytics';
+import {
+  computeTargetDays,
+  isFlexibleTarget,
+  subjectTargetForDay,
+  targetDayStatusText,
+  targetForDay,
+  type TargetDayRow,
+} from '../../utils/targetDays';
+import { readQuestionSubTab, readStudentTab, pushQuestionSubTab, type QuestionSubTab } from '../../lib/studentRoute';
+import { dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
+import { normalizeSubject } from '../../lib/subjects';
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -132,6 +145,12 @@ export function computeMonthlyTargetPlan(studentId: string, year: number, month:
         weekCache.set(monStr, generalDailyTarget(dataService.getQuestionTargetsForStudent(studentId, monStr, formatDateISO(sun))));
       }
       daily = weekCache.get(monStr) as number;
+      // Öğretmen genel hedefi gün gün farklı dağıttıysa o günün kendi sayısı kullanılır
+      const iso = formatDateISO(d);
+      const flex = monthTargets.find(
+        (t) => !t.subject && isFlexibleTarget(t) && (t.weekStartDate || '') <= iso && dataService.questionTargetEnd(t) >= iso
+      );
+      if (flex) daily = targetForDay(flex, iso);
     }
     perDay[formatDateISO(d)] = daily;
     total += daily;
@@ -433,7 +452,19 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   }, [students, selectedClassId]);
 
   // Görünüm sekmeleri: 'entry' (Soru Girişi) | 'weekly' (Haftalık Analiz) | 'monthly' (Aylık Analiz) | 'history' (Geçmiş Kayıtlar)
-  const [activeTab, setActiveTab] = useState<'entry' | 'weekly' | 'monthly' | 'history'>('weekly');
+  // Alt sekme adreste tutulur (#/student/questions/entry): "Geri" tuşu önceki alt sekmeye döner
+  const [activeTab, setActiveTabState] = useState<QuestionSubTab>(() => readQuestionSubTab() || 'weekly');
+  const setActiveTab = (tab: QuestionSubTab) => {
+    setActiveTabState(tab);
+    pushQuestionSubTab(tab);
+  };
+  useEffect(() => {
+    const onPop = () => {
+      if (readStudentTab() === 'questions') setActiveTabState(readQuestionSubTab() || 'weekly');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // Grafik görselleştirme tipi: 'bar' (Sütun) | 'area' (Trend & Alan)
   const [chartVisualType, setChartVisualType] = useState<'bar' | 'area'>('bar');
@@ -587,6 +618,93 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const listTotal = useMemo(() => rowChecks.reduce((s, c) => s + (c.count || 0), 0), [rowChecks]);
   const singleTotal = useMemo(() => singleEntries.reduce((s, e) => s + (e.questionCount || 0), 0), [singleEntries]);
   const formTotal = inputMode === 'list' ? listTotal : singleTotal;
+
+  // ---------------------------------------------------------------------------
+  // Seçilen günün soru hedefleri: her ders satırında "bugün girmen gereken" sayı gösterilir,
+  // girilen sayı hedefin altındaysa satırda yanıp sönen uyarı çıkar.
+  // ---------------------------------------------------------------------------
+  const entryDayTargets = useMemo(
+    () => (parseIsoDate(entryDate) ? dataService.getQuestionTargetsForStudent(activeStudent.id, entryDate, entryDate) : []),
+    // allLogs: veri servisi her değiştiğinde (hedef eklenince/değişince de) yeniden hesaplanır
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeStudent.id, entryDate, allLogs]
+  );
+  /** Bir dersin seçilen gündeki hedefi (o derse ayrı hedef yoksa null). Birden çok öğretmen hedef verdiyse en büyüğü. */
+  const subjectDayTarget = (subject: string): number | null => {
+    let best: number | null = null;
+    for (const t of entryDayTargets) {
+      const n = subjectTargetForDay(t, subject, entryDate);
+      if (n !== null && (best === null || n > best)) best = n;
+    }
+    return best;
+  };
+  /** Seçilen günün genel (tüm dersler) hedefi; yoksa null */
+  const generalDayTarget = useMemo(() => {
+    let best: number | null = null;
+    for (const t of entryDayTargets) {
+      if (t.subject) continue;
+      const n = targetForDay(t, entryDate);
+      if (n > 0 && (best === null || n > best)) best = n;
+    }
+    return best;
+  }, [entryDayTargets, entryDate]);
+
+  // ---------------------------------------------------------------------------
+  // Günlük plan (öğretmenin gönderdiği çalışma planı): seçilen günün görevleri.
+  // Öğrenci isterse görevi küçük bir butonla "Çalışılan Konu / Test" kutusuna aktarır.
+  // ---------------------------------------------------------------------------
+  const [planTasks, setPlanTasks] = useState<PlanItem[]>([]);
+  useEffect(() => {
+    if (activeTab !== 'entry') return;
+    const day = parseIsoDate(entryDate);
+    if (!day) {
+      setPlanTasks([]);
+      return;
+    }
+    let cancelled = false;
+    loadMyCurrentWeek(day)
+      .then((r) => {
+        if (cancelled) return;
+        setPlanTasks(r.items.filter((i) => dateOfDay(r.weekStart, i.day) === entryDate));
+      })
+      .catch(() => {
+        if (!cancelled) setPlanTasks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, entryDate]);
+
+  const sameSubject = (a: string, b: string) =>
+    normalizeSubject(a).toLocaleLowerCase('tr-TR') === normalizeSubject(b).toLocaleLowerCase('tr-TR');
+  const planTaskText = (it: PlanItem) => [it.book, it.note].map((s) => (s || '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' – ');
+  const planTasksFor = (subject: string) => planTasks.filter((it) => sameSubject(it.subject, subject) && planTaskText(it));
+  /** Konu kutusuna görev metnini ekler (kutuda yazı varsa sonuna virgülle eklenir, aynısı tekrar eklenmez) */
+  const appendTopic = (current: string, text: string) => {
+    const cur = current.trim();
+    if (!text || cur.includes(text)) return cur;
+    return (cur ? `${cur}, ${text}` : text).slice(0, 120);
+  };
+  const [planInfo, setPlanInfo] = useState('');
+  const transferPlanTasks = (subject: string, tasks: PlanItem[]) => {
+    const text = tasks.map(planTaskText).filter(Boolean).join(', ');
+    if (!text) return;
+    clearMessages();
+    if (inputMode === 'list') {
+      setListRows((prev) => {
+        const idx = prev.findIndex((r) => sameSubject(r.subject, subject));
+        if (idx >= 0) return prev.map((r, i) => (i === idx ? { ...r, topic: appendTopic(r.topic, text) } : r));
+        // Ders listede yoksa yeni satır olarak eklenir (soru sayısını öğrenci yazar)
+        return [...prev, { ...emptyEntryRow(normalizeSubject(subject)), topic: text.slice(0, 120) }];
+      });
+    } else {
+      const match = activeSubjects.find((s) => sameSubject(s, subject));
+      if (match) setSingleSubject(match);
+      setSingleTopic((cur) => appendTopic(match && sameSubject(singleSubject, match) ? cur : '', text));
+    }
+    setPlanInfo(`${normalizeSubject(subject)}: plandaki görev konu kutusuna aktarıldı.`);
+    window.setTimeout(() => setPlanInfo(''), 4000);
+  };
 
   const clearMessages = () => {
     setFormError('');
@@ -1044,6 +1162,20 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   // Öğretmen ekranı da aynı kuralı kullanır (generalDailyTarget).
   const dailyQuestionTarget = generalDailyTarget(activeTargets);
 
+  // Hedeflerin gün gün hesabı (birleşik günlük tablo, grafik renkleri ve ipucu bunu kullanır).
+  // Genel hedef gün gün farklı dağıtıldıysa her günün kendi hedefi geçerlidir.
+  const weeklyTargetRows = useMemo(
+    () => activeTargets.map((t) => ({ t, res: computeTargetDays(t, activeStudent.id, allLogs, todayIso) })),
+    [activeTargets, activeStudent.id, allLogs, todayIso]
+  );
+  const generalTargetRes = weeklyTargetRows.find((x) => !x.t.subject)?.res || null;
+  const subjectTargetRows = weeklyTargetRows.filter((x) => !!x.t.subject);
+  const dayGoalRow = (ymd: string): TargetDayRow | null => generalTargetRes?.rows.find((r) => r.ymd === ymd) || null;
+  const dayGoal = (ymd: string): number => {
+    const r = dayGoalRow(ymd);
+    return r ? r.target : dailyQuestionTarget;
+  };
+
   // Aylık hedef: seçilen ayın her günü için o haftanın genel hedefi (yoksa 50) toplanır
   const monthlyPlan = useMemo(
     () => computeMonthlyTargetPlan(activeStudent.id, monthDate.year, monthDate.month),
@@ -1059,6 +1191,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const renderLookerTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const goal = data.dateStr ? dayGoal(data.dateStr) : dailyQuestionTarget;
       return (
         <div className="bg-surface border border-line shadow-xl rounded-xl p-3.5 text-xs text-fg space-y-1.5 z-50 min-w-[210px]">
           <div className="flex items-center justify-between border-b border-line pb-1.5">
@@ -1094,14 +1227,18 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
             )}
 
-            {data.totalQuestions >= dailyQuestionTarget ? (
+            {data.totalQuestions >= goal ? (
               <div className="text-[11px] text-emerald-600 dark:text-emerald-300 font-semibold flex items-center gap-1 pt-1 border-t border-line">
                 <CheckCircle2 className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-                <span>Günlük Hedefe Ulaşıldı (%{Math.round((data.totalQuestions / dailyQuestionTarget) * 100)})</span>
+                <span>
+                  {goal > 0
+                    ? `Günlük Hedefe Ulaşıldı (%${Math.round((data.totalQuestions / goal) * 100)})`
+                    : 'Bu gün hedef yok'}
+                </span>
               </div>
             ) : data.totalQuestions > 0 ? (
               <div className="text-[11px] text-orange-600 dark:text-orange-300 font-medium pt-1 border-t border-line">
-                Hedefe {dailyQuestionTarget - data.totalQuestions} soru kaldı
+                Hedefe {goal - data.totalQuestions} soru kaldı (günün hedefi {goal})
               </div>
             ) : (
               <div className="text-[11px] text-rose-600 dark:text-rose-300 font-medium flex items-center gap-1 pt-1 border-t border-line">
@@ -1325,7 +1462,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           </div>
 
           {/* Öğretmenlerin verdiği soru hedefleri */}
-          <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={allLogs} />
+          {/* Gün gün döküm kartların içinde değil, aşağıdaki birleşik günlük tabloda gösterilir */}
+          <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={allLogs} hideDailyBreakdown />
 
           {/* Ana Grafik */}
           <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-sm" id="student-weekly-chart">
@@ -1412,7 +1550,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       />
                       {weeklyAnalytics.days.map((entry, index) => {
                         const isZero = entry.totalQuestions === 0;
-                        const isAboveTarget = entry.totalQuestions >= dailyQuestionTarget;
+                        const isAboveTarget = entry.totalQuestions >= dayGoal(entry.dateStr);
                         return (
                           <Cell
                             key={`cell-student-${index}`}
@@ -1487,63 +1625,134 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           {/* Günlük Veri Tablosu ve Ders Dağılımı */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 shadow-sm">
-              <h4 className="text-sm font-bold text-fg mb-4 pb-2 border-b border-line">
-                Günlük Soru Çözüm ve Başarı Tablosu
-              </h4>
+              {/* Birleşik tablo: eski "Günlük Soru Çözüm ve Başarı Tablosu" + soru hedefi kartlarındaki "Gün gün durum" tablosu */}
+              <h4 className="text-sm font-bold text-fg mb-1">Günlük Soru Çözüm, Hedef ve Başarı Tablosu</h4>
+              <p className="text-[11px] text-muted mb-4 pb-2 border-b border-line" id="merged-daily-table-summary">
+                {generalTargetRes
+                  ? `${generalTargetRes.elapsedDays ? `${generalTargetRes.metDays}/${generalTargetRes.elapsedDays} günde genel hedef tuttu` : 'Henüz geçen gün yok'}${
+                      generalTargetRes.flexible ? ' · Öğretmen soruları günlere farklı dağıttı' : ''
+                    }`
+                  : activeTargets.length
+                    ? 'Ders hedeflerinin günlük durumu "Günlük Hedef" sütunundadır.'
+                    : `Genel hedef verilmedi; günlük ${dailyQuestionTarget} soru varsayılan hedeftir.`}
+              </p>
               <p className="sm:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">Tabloyu yana kaydırabilirsin →</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs" id="merged-daily-table">
                   <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
                     <tr>
-                      <th className="px-3.5 py-2.5">Gün</th>
-                      <th className="px-3.5 py-2.5">Tarih</th>
-                      <th className="px-3.5 py-2.5 text-center">Çözülen Soru</th>
-                      <th className="px-3.5 py-2.5">Ders Dağılımı</th>
-                      <th className="px-3.5 py-2.5 text-center">Hedef Durumu</th>
-                      <th className="px-3.5 py-2.5 text-center">Durum</th>
+                      <th className="px-3 py-2.5">Gün</th>
+                      <th className="px-3 py-2.5 text-center">Çözülen</th>
+                      <th className="px-3 py-2.5 text-center">D / Y</th>
+                      <th className="px-3 py-2.5">Ders Dağılımı</th>
+                      <th className="px-3 py-2.5 text-center">Günlük Hedef</th>
+                      <th className="px-3 py-2.5 text-center">Hedef Durumu</th>
+                      <th className="px-3 py-2.5 text-center">Durum</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
                     {weeklyAnalytics.days.map((d) => {
-                      const metTarget = d.totalQuestions >= dailyQuestionTarget;
-                      const completionRate = Math.min(100, Math.round((d.totalQuestions / dailyQuestionTarget) * 100));
+                      const goalRow = dayGoalRow(d.dateStr);
+                      const goal = dayGoal(d.dateStr);
+                      const isFuture = d.dateStr > todayIso;
+                      const isToday = d.dateStr === todayIso;
+                      const metTarget = d.totalQuestions >= goal;
+                      const completionRate = goal > 0 ? Math.min(100, Math.round((d.totalQuestions / goal) * 100)) : 100;
+                      // Ders hedefleri (ör. yalnızca Matematik) — o güne denk gelenler
+                      const subjectLines = subjectTargetRows
+                        .map(({ t, res }) => {
+                          const r = res.rows.find((x) => x.ymd === d.dateStr);
+                          return r ? { label: t.subject as string, r } : null;
+                        })
+                        .filter((x): x is { label: string; r: TargetDayRow } => !!x && x.r.target > 0);
+                      // Durum: genel hedef varsa onun gün durumu, yoksa çözülen soruya göre
+                      let statusText: string;
+                      let statusCls: string;
+                      if (goalRow) {
+                        statusText = targetDayStatusText(goalRow, generalTargetRes?.daily || dailyQuestionTarget);
+                        statusCls =
+                          goalRow.status === 'met'
+                            ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
+                            : goalRow.status === 'partial'
+                              ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30'
+                              : goalRow.status === 'none'
+                                ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30'
+                                : 'bg-surface-2 text-muted border-line';
+                      } else if (isFuture) {
+                        statusText = 'Henüz gelmedi';
+                        statusCls = 'bg-surface-2 text-muted border-line';
+                      } else if (d.hasSolved) {
+                        statusText = metTarget ? 'Hedef Tamamlandı' : isToday ? `Bugün · ${goal - d.totalQuestions} kaldı` : 'Kısmi Çözüm';
+                        statusCls = metTarget
+                          ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30'
+                          : 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-500/30';
+                      } else {
+                        statusText = isToday ? 'Bugün · henüz girilmedi' : '0 Soru ⚠️';
+                        statusCls = isToday
+                          ? 'bg-surface-2 text-muted border-line'
+                          : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30';
+                      }
                       return (
-                        <tr key={d.dateStr} className="hover:bg-surface-2 transition-colors">
-                          <td className="px-3.5 py-2.5 font-bold text-fg">{d.dayName}</td>
-                          <td className="px-3.5 py-2.5 text-muted whitespace-nowrap">{shortTurkishDate(d.dateStr)}</td>
-                          <td className="px-3.5 py-2.5 text-center">
-                            <span className="font-extrabold text-fg text-sm">{d.totalQuestions}</span>
+                        <tr
+                          key={d.dateStr}
+                          data-testid="merged-daily-row"
+                          className={`hover:bg-surface-2 transition-colors ${isToday ? 'bg-orange-50/40 dark:bg-orange-500/5' : ''}`}
+                        >
+                          <td className="px-3 py-2.5 whitespace-nowrap">
+                            <span className="font-bold text-fg">{d.dayName}</span>
+                            <span className="block text-[11px] text-muted">
+                              {shortTurkishDate(d.dateStr)}
+                              {isToday ? ' · bugün' : ''}
+                            </span>
                           </td>
-                          <td className="px-3.5 py-2.5 text-muted min-w-[140px] max-w-[260px] whitespace-normal">
+                          <td className="px-3 py-2.5 text-center">
+                            <span className="font-extrabold text-fg text-sm">{isFuture && !d.hasSolved ? '—' : d.totalQuestions}</span>
+                          </td>
+                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                            {d.totalCorrect || d.totalWrong ? (
+                              <>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-300">{d.totalCorrect}</span>
+                                <span className="text-muted"> / </span>
+                                <span className="font-bold text-rose-700 dark:text-rose-300">{d.totalWrong}</span>
+                              </>
+                            ) : (
+                              <span className="text-subtle">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-muted min-w-[130px] max-w-[240px] whitespace-normal">
                             {d.subjectsText || <span className="text-subtle italic">Ders kaydı yok</span>}
                           </td>
-                          <td className="px-3.5 py-2.5 text-center">
+                          <td className="px-3 py-2.5 text-center min-w-[110px]">
+                            <span className="font-extrabold text-fg">{goal > 0 ? goal : '—'}</span>
+                            {goal <= 0 && <span className="block text-[10px] text-muted">hedef yok</span>}
+                            {subjectLines.map(({ label, r }) => (
+                              <span
+                                key={label}
+                                className={`block text-[10px] font-semibold whitespace-nowrap ${
+                                  r.status === 'met' ? 'text-emerald-700 dark:text-emerald-300' : r.status === 'future' ? 'text-muted' : 'text-orange-700 dark:text-orange-300'
+                                }`}
+                                title={`${label} hedefi`}
+                              >
+                                {label}: {r.status === 'future' ? '—' : r.solved}/{r.target}
+                                {r.status === 'met' ? ' ✓' : ''}
+                              </span>
+                            ))}
+                          </td>
+                          <td className="px-3 py-2.5 text-center">
                             <div className="inline-flex items-center gap-1.5">
                               <div className="w-12 bg-surface-3 rounded-full h-1.5 overflow-hidden">
                                 <div
                                   className={`h-1.5 rounded-full ${metTarget ? 'bg-emerald-500' : 'bg-orange-500'}`}
-                                  style={{ width: `${completionRate}%` }}
+                                  style={{ width: `${isFuture && !d.hasSolved ? 0 : completionRate}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] font-bold text-muted">%{completionRate}</span>
+                              <span className="text-[10px] font-bold text-muted">%{isFuture && !d.hasSolved ? 0 : completionRate}</span>
                             </div>
                           </td>
-                          <td className="px-3.5 py-2.5 text-center">
-                            {d.hasSolved ? (
-                              metTarget ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
-                                  Hedef Tamamlandı
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30">
-                                  Kısmi Çözüm
-                                </span>
-                              )
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30">
-                                0 Soru ⚠️
-                              </span>
-                            )}
+                          <td className="px-3 py-2.5 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${statusCls}`}>
+                              {statusText}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -1911,6 +2120,73 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           )}
 
+          {/* Günlük plandaki görevler: isteğe bağlı olarak "Çalışılan Konu / Test" kutusuna aktarılır */}
+          {planTasks.length > 0 && !dateError && (
+            <div
+              id="qe-plan-tasks"
+              className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 space-y-2"
+            >
+              <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-1.5">
+                <ClipboardList className="w-4 h-4" />
+                {formatTurkishDate(entryDate)} günlük planındaki görevler
+                <span className="font-medium text-indigo-700/80 dark:text-indigo-300/80">(isteğe bağlı · tıklayınca konu kutusuna aktarılır)</span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {planTasks.map((it) => {
+                  const text = planTaskText(it);
+                  return (
+                    <button
+                      key={it.id}
+                      type="button"
+                      data-testid="qe-plan-chip"
+                      disabled={!text}
+                      onClick={() => transferPlanTasks(it.subject, [it])}
+                      title={text ? 'Konu / Test kutusuna aktar' : 'Bu görevde aktarılacak yazı yok'}
+                      className="inline-flex items-center gap-1 max-w-full px-2 py-1 rounded-lg bg-surface border border-indigo-200 dark:border-indigo-500/30 text-[11px] text-fg hover:border-indigo-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="font-bold text-indigo-700 dark:text-indigo-300 shrink-0">{it.subject}</span>
+                      <span className="truncate">{text || '—'}</span>
+                      {it.doneAt && <Check className="w-3 h-3 text-emerald-600 shrink-0" aria-label="yapıldı" />}
+                      <Plus className="w-3 h-3 text-indigo-600 dark:text-indigo-300 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+              {planInfo && (
+                <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300" role="status">
+                  {planInfo}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Seçilen günün genel (tüm dersler) soru hedefi */}
+          {generalDayTarget !== null && !dateError && (
+            <div
+              id="qe-general-target"
+              className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-orange-200 dark:border-orange-500/30 bg-orange-50/60 dark:bg-orange-500/10 text-xs"
+            >
+              <Target className="w-4 h-4 text-orange-600 dark:text-orange-300" />
+              <span className="font-bold text-fg">
+                {formatTurkishDate(entryDate)} için toplam girmen gereken: {generalDayTarget} soru
+              </span>
+              <span className="text-muted">· Formdaki toplam: {formTotal}</span>
+              {formTotal > 0 && formTotal < generalDayTarget ? (
+                <span
+                  role="alert"
+                  data-testid="qe-general-below-target"
+                  className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold"
+                >
+                  <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({generalDayTarget - formTotal} eksik)
+                </span>
+              ) : formTotal >= generalDayTarget ? (
+                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Günlük hedef tamam
+                </span>
+              ) : null}
+            </div>
+          )}
+
           {/* Input Mode: Ders listesi (masaüstünde tablo, telefonda her ders bir kart) */}
           {inputMode === 'list' && (
             <div className="border border-line rounded-xl overflow-hidden" id="qe-list">
@@ -1926,6 +2202,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 {listRows.map((row, idx) => {
                   const check = rowChecks[idx];
                   const hasError = check.errors.length > 0;
+                  const rowTarget = subjectDayTarget(row.subject);
+                  const rowEntered = row.questionCount.trim() !== '' && check.count !== null && !hasError;
+                  const rowBelow = rowTarget !== null && rowEntered && (check.count || 0) < rowTarget;
+                  const rowMet = rowTarget !== null && rowEntered && (check.count || 0) >= rowTarget;
+                  const rowPlanTasks = planTasksFor(row.subject);
                   const inputBase =
                     'w-full bg-surface border rounded-lg px-2 py-1.5 sm:py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20';
                   return (
@@ -2005,19 +2286,55 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           {check.empty !== null && check.count ? check.empty : '—'}
                         </div>
                       </div>
-                      <label className="block col-span-2 sm:col-span-1">
+                      <div className="block col-span-2 sm:col-span-1">
                         <span className="sm:hidden block text-[11px] font-semibold text-muted mb-1">Konu / Test</span>
-                        <input
-                          type="text"
-                          maxLength={120}
-                          placeholder="Konu adı..."
-                          aria-label={`${row.subject} konu`}
-                          data-testid="qe-topic"
-                          value={row.topic}
-                          onChange={(e) => updateListRow(idx, 'topic', e.target.value)}
-                          className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 sm:py-1 text-xs text-fg focus:border-orange-500 focus:outline-none"
-                        />
-                      </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            maxLength={120}
+                            placeholder="Konu adı..."
+                            aria-label={`${row.subject} konu`}
+                            data-testid="qe-topic"
+                            value={row.topic}
+                            onChange={(e) => updateListRow(idx, 'topic', e.target.value)}
+                            className="w-full min-w-0 bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 sm:py-1 text-xs text-fg focus:border-orange-500 focus:outline-none"
+                          />
+                          {rowPlanTasks.length > 0 && (
+                            <button
+                              type="button"
+                              data-testid="qe-plan-transfer"
+                              onClick={() => transferPlanTasks(row.subject, rowPlanTasks)}
+                              title={`Günlük plandaki görevi aktar: ${rowPlanTasks.map(planTaskText).join(', ')}`}
+                              aria-label={`${row.subject} için günlük plandaki görevi konu kutusuna aktar`}
+                              className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold hover:bg-indigo-100 dark:hover:bg-indigo-500/20 cursor-pointer"
+                            >
+                              <ClipboardList className="w-3 h-3" />
+                              Plan
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {rowTarget !== null && (
+                        <div className="col-span-2 sm:col-span-6 -mt-1 flex flex-wrap items-center gap-2 text-[11px]" data-testid="qe-row-target">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 font-bold">
+                            <Target className="w-3 h-3" /> Bugün girmen gereken: {rowTarget} soru
+                          </span>
+                          {rowBelow && (
+                            <span
+                              role="alert"
+                              data-testid="qe-row-below-target"
+                              className="qe-blink inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold"
+                            >
+                              <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({rowTarget - (check.count || 0)} eksik)
+                            </span>
+                          )}
+                          {rowMet && (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold">
+                              <CheckCircle2 className="w-3 h-3" /> Hedef tamam
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {hasError && (
                         <p
                           data-testid="qe-row-error"
@@ -2075,6 +2392,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     }}
                     className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs font-bold text-fg"
                   />
+                  {subjectDayTarget(singleSubject) !== null && (
+                    <span className="block mt-1 text-[10px] font-bold text-orange-700 dark:text-orange-300" id="qe-single-target-hint">
+                      Hedef: {subjectDayTarget(singleSubject)} soru
+                    </span>
+                  )}
                 </div>
 
                 <div>
@@ -2121,15 +2443,30 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
                 <div className="col-span-2 sm:col-span-1">
                   <label htmlFor="qe-single-topic" className="block text-[11px] font-bold text-fg-2 mb-1">Konu / Test</label>
-                  <input
-                    id="qe-single-topic"
-                    type="text"
-                    maxLength={120}
-                    placeholder="Konu adı..."
-                    value={singleTopic}
-                    onChange={(e) => setSingleTopic(e.target.value)}
-                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-fg"
-                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      id="qe-single-topic"
+                      type="text"
+                      maxLength={120}
+                      placeholder="Konu adı..."
+                      value={singleTopic}
+                      onChange={(e) => setSingleTopic(e.target.value)}
+                      className="w-full min-w-0 bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-fg"
+                    />
+                    {planTasksFor(singleSubject).length > 0 && (
+                      <button
+                        type="button"
+                        id="qe-single-plan-transfer"
+                        onClick={() => transferPlanTasks(singleSubject, planTasksFor(singleSubject))}
+                        title="Günlük plandaki görevi aktar"
+                        aria-label="Günlük plandaki görevi konu kutusuna aktar"
+                        className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1.5 rounded-md border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold cursor-pointer"
+                      >
+                        <ClipboardList className="w-3 h-3" />
+                        Plan
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-end col-span-2 sm:col-span-1">
@@ -2159,6 +2496,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   {singleEntries.map((item, idx) => {
                     const c = item.correctCount ?? 0;
                     const w = item.wrongCount ?? 0;
+                    const tgt = subjectDayTarget(item.subject);
+                    const below = tgt !== null && item.questionCount < tgt;
                     return (
                       <div key={`${item.subject}-${idx}`} data-testid="qe-single-row" className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 text-xs hover:bg-surface-2">
                         <div className="min-w-0">
@@ -2167,6 +2506,21 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           <span className="ml-2 text-muted">
                             D {c} · Y {w} · B {Math.max(0, item.questionCount - c - w)}
                           </span>
+                          {tgt !== null && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 font-bold text-[11px]" data-testid="qe-single-row-target">
+                              <Target className="w-3 h-3" /> Girmen gereken: {tgt}
+                            </span>
+                          )}
+                          {below && (
+                            <span role="alert" className="qe-blink ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-600 text-white font-bold text-[11px]" data-testid="qe-single-row-below">
+                              <AlertTriangle className="w-3 h-3" /> Soru hedefinin altında kaldın ({(tgt as number) - item.questionCount} eksik)
+                            </span>
+                          )}
+                          {tgt !== null && !below && (
+                            <span className="ml-2 inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-bold text-[11px]">
+                              <CheckCircle2 className="w-3 h-3" /> Hedef tamam
+                            </span>
+                          )}
                           {item.topic && <span className="block text-[11px] text-muted truncate">Konu: {item.topic}</span>}
                         </div>
                         <button

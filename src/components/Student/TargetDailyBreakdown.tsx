@@ -24,7 +24,7 @@ export const TargetDailyBreakdown: React.FC<{
   const [open, setOpen] = useState<boolean>(defaultOpen ?? rows.length <= 14);
   if (!rows.length) return null;
 
-  const max = Math.max(daily, ...rows.map((r) => r.solved), 1);
+  const max = Math.max(daily, ...rows.map((r) => Math.max(r.solved, r.target)), 1);
   const targetLinePx = Math.round((daily / max) * BAR_PX);
   const statusText = (r: TargetDayRow) => targetDayStatusText(r, daily);
 
@@ -100,7 +100,7 @@ export const TargetDailyBreakdown: React.FC<{
                       {r.label} <span className="text-muted">{r.weekday}</span>
                     </td>
                     <td className="px-2.5 py-1.5 text-right font-semibold text-fg tabular-nums">{r.status === 'future' ? '—' : r.solved}</td>
-                    <td className="px-2.5 py-1.5 text-right text-muted tabular-nums">{daily}</td>
+                    <td className="px-2.5 py-1.5 text-right text-muted tabular-nums">{r.target}</td>
                     <td className="px-2.5 py-1.5">
                       <span
                         className={cx(
@@ -123,6 +123,7 @@ export const TargetDailyBreakdown: React.FC<{
               </tbody>
             </table>
           </div>
+          {res.flexible && <p className="text-[11px] text-muted">Öğretmen soruları günlere farklı sayılarla dağıttı; kesikli çizgi günlük ortalamadır.</p>}
           {subj && <p className="text-[11px] text-muted">Yalnızca {subj} soruları sayılır.</p>}
         </div>
       )}

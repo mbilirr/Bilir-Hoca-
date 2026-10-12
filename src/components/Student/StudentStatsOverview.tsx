@@ -23,6 +23,8 @@ interface StudentStatsOverviewProps {
   /** Bu öğrencinin notları */
   grades: GradeRecord[];
   onNavigateTab: (tab: StudentTabType) => void;
+  /** Kartların yanına yerleştirilen panel (öğrenci ana sayfasında küçük "Bugün yapılması gerekenler") */
+  sidePanel?: React.ReactNode;
 }
 
 const addDays = (d: Date, n: number) => {
@@ -53,6 +55,7 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   etuts,
   grades,
   onNavigateTab,
+  sidePanel,
 }) => {
   // Saat ilerledikçe (ör. gece yarısı, ödev saati geçince) değerler güncel kalsın
   const [now, setNow] = useState(() => new Date());
@@ -219,7 +222,13 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* Yerleşim: 1. sütun Ödevlerim + Etütlerim (alt alta), 2. sütun Soru Çözümüm + Notlarım (alt alta),
+          3. sütun küçültülmüş "Bugün yapılması gerekenler". Telefonda tek sütun; plan en üstte. */}
+      <div
+        id="student-home-stats-grid"
+        className={cx('grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start', sidePanel ? 'xl:grid-cols-3' : '')}
+      >
+        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-1">
         {/* ---------------- Ödevlerim ---------------- */}
         <SummaryCard
           id="student-home-stat-homework"
@@ -287,7 +296,9 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
             </>
           )}
         </SummaryCard>
+        </div>
 
+        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-2">
         {/* ---------------- Soru Çözümüm ---------------- */}
         <SummaryCard
           id="student-home-stat-questions"
@@ -346,6 +357,13 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
             </>
           )}
         </SummaryCard>
+        </div>
+
+        {sidePanel && (
+          <div className="min-w-0 order-first md:col-span-2 xl:order-none xl:col-span-1" id="student-home-stats-side">
+            {sidePanel}
+          </div>
+        )}
       </div>
     </section>
   );

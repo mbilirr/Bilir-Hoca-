@@ -209,6 +209,9 @@ export interface WeeklyQuestionTarget {
   weeklyTarget?: number; // Toplam soru hedefi (Örn: 500)
   targetQuestions?: number; // Soru sayısı hedefi
   dailyTarget?: number; // Günlük ortalama (Örn: 70)
+  // Gün gün farklı dağıtım (isteğe bağlı): { '2026-10-12': 40, '2026-10-13': 60, ... }
+  // Boşsa sorular günlere eşit dağıtılmış sayılır (her gün = dailyTarget). Veritabanında JSON "data" alanında saklanır.
+  dailyTargets?: Record<string, number>;
   assignedByTeacherId?: string;
   assignedByTeacherName?: string;
   assignedBy?: string;

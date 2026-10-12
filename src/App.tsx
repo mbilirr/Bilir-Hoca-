@@ -142,7 +142,11 @@ export default function App() {
   useEffect(() => {
     if (!authSession) return;
     const hash = `#/${role}${role === 'teacher' ? '/' + teacherTab : ''}`;
-    if (window.location.hash !== hash) {
+    const current = window.location.hash;
+    // Öğrenci portalı kendi bölümünü adrese ekler (#/student/homework gibi); bu adresi ezme,
+    // yoksa "Geri" tuşu öğrencinin önceki bölümüne değil başka bir sayfaya gider.
+    const alreadyThere = role === 'student' ? current === hash || current.startsWith(hash + '/') : current === hash;
+    if (!alreadyThere) {
       window.history.pushState(null, '', hash);
     }
   }, [role, teacherTab, authSession]);

@@ -1028,7 +1028,7 @@ function drawTargetsSection(
     const span3 = (content: string) => ({ content: k.t(content), colSpan: 3 });
     const body: any[] = [
       ['Veren öğretmen', teacher, 'Ders', subjectLabel].map(k.t),
-      ['Tarih aralığı', `${formatTurkishRange(res.start, res.end)} (${res.rows.length} gün)`, 'Günlük hedef', `${res.daily} soru`].map(k.t),
+      ['Tarih aralığı', `${formatTurkishRange(res.start, res.end)} (${res.rows.length} gün)`, 'Günlük hedef', res.flexible ? `Gün gün farklı (ort. ${res.daily} soru)` : `${res.daily} soru`].map(k.t),
       ['Toplam hedef', `${res.total} soru`, 'Çözülen', `${res.solved} soru (%${res.percent})`].map(k.t),
     ];
     const st = subjectTargetsText(tg.subjectTargets);
@@ -1053,7 +1053,7 @@ function drawTargetsSection(
     // Gün gün tablo: 4 satırdan uzunsa iki sütun grubu yan yana (yer kazanmak için)
     const rows = res.rows;
     if (rows.length) {
-      const cells = (r: TargetDayRow) => [`${r.weekday} ${r.label}`, String(r.solved), String(res.daily), targetDayStatusText(r, res.daily)];
+      const cells = (r: TargetDayRow) => [`${r.weekday} ${r.label}`, String(r.solved), String(r.target), targetDayStatusText(r, res.daily)];
       const split = rows.length > 4;
       const half = Math.ceil(rows.length / 2);
       const left = split ? rows.slice(0, half) : rows;
@@ -1379,7 +1379,7 @@ function buildWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, op
     );
 
     // Grafik
-    const dailyTargets = analytics.days.map((d) => (generalRow(d.dateStr) ? generalRes!.daily : null));
+    const dailyTargets = analytics.days.map((d) => generalRow(d.dateStr)?.target ?? null);
     drawChartImage(k, generateWeeklyChartCanvas(analytics, dailyTargets), CHART_RATIO);
 
     // Değerlendirme
@@ -1417,7 +1417,7 @@ function buildWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, op
     pdfTable(
       k,
       {
-        head: [['Gün', 'Soru', 'D', 'Y', 'B', 'Doğruluk', 'Dersler', general ? `Durum (hedef ${generalRes!.daily})` : 'Durum'].map(k.t)],
+        head: [['Gün', 'Soru', 'D', 'Y', 'B', 'Doğruluk', 'Dersler', general ? (generalRes!.flexible ? 'Durum (günün hedefi)' : `Durum (hedef ${generalRes!.daily})`) : 'Durum'].map(k.t)],
         body: analytics.days.map((d, i) =>
           [
             `${d.dayShortName} ${targetDayLabel(d.dateStr).label}`,

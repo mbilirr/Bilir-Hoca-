@@ -22,7 +22,10 @@ import {
 // Öğrenci her görevi "yaptım" diye işaretleyebilir; geçen günlerden kalanlar ayrıca uyarılır.
 // ============================================================================
 
-export const StudentTodayPlan: React.FC = () => {
+export const StudentTodayPlan: React.FC<{
+  /** Küçük (yarı boyut) görünüm: ana sayfada "Durumum" kartlarının yanında kullanılır */
+  compact?: boolean;
+}> = ({ compact = false }) => {
   const [weekStart, setWeekStart] = useState(() => weekStartOf(new Date()));
   const [items, setItems] = useState<PlanItem[]>([]);
   const [sentBy, setSentBy] = useState('');
@@ -83,8 +86,35 @@ export const StudentTodayPlan: React.FC = () => {
     }
   };
 
-  // Plan hiç gönderilmemişse (ya da bu hafta görev yoksa) kart hiç görünmez
-  if (items.length === 0) return null;
+  const dateText = today.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // Plan hiç gönderilmemişse (ya da bu hafta görev yoksa): normal görünümde kart hiç görünmez,
+  // küçük görünümde (ana sayfa yan paneli) yerleşim bozulmasın diye sade bir bilgi kartı gösterilir
+  if (items.length === 0) {
+    if (!compact) return null;
+    return (
+      <section
+        id="student-today-plan"
+        aria-label="Bugün yapılması gerekenler"
+        className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white p-3 shadow-md border border-indigo-300/40"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
+            <CalendarCheck className="w-4 h-4" />
+          </span>
+          <div className="min-w-0">
+            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black bg-white text-indigo-800 uppercase tracking-wider">
+              Bugün yapılması gerekenler
+            </span>
+            <p className="text-[11px] font-bold mt-0.5 capitalize">{dateText}</p>
+          </div>
+        </div>
+        <p className="text-xs font-semibold text-indigo-50 mt-2" id="student-today-empty">
+          Bu hafta için gönderilmiş çalışma planın yok.
+        </p>
+      </section>
+    );
+  }
 
   const renderRow = (it: PlanItem) => {
     const done = !!it.doneAt;
@@ -93,7 +123,11 @@ export const StudentTodayPlan: React.FC = () => {
         key={it.id}
         data-today-task={it.id}
         data-done={done ? '1' : '0'}
-        className={cx('flex items-start gap-3 rounded-xl px-3 py-3 border transition-colors', done ? 'bg-white/8 border-white/15' : 'bg-white/15 border-white/30')}
+        className={cx(
+          'flex items-start rounded-xl border transition-colors',
+          compact ? 'gap-2 px-2 py-1.5' : 'gap-3 px-3 py-3',
+          done ? 'bg-white/8 border-white/15' : 'bg-white/15 border-white/30'
+        )}
       >
         <button
           type="button"
@@ -102,53 +136,69 @@ export const StudentTodayPlan: React.FC = () => {
           aria-label={done ? 'Yapıldı işaretini kaldır' : 'Yaptım olarak işaretle'}
           onClick={() => toggle(it)}
           className={cx(
-            'mt-0.5 w-8 h-8 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all active:scale-90',
+            'mt-0.5 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all active:scale-90',
+            compact ? 'w-6 h-6' : 'w-8 h-8',
             done ? 'bg-white border-white text-indigo-700' : 'border-white/80 text-transparent hover:bg-white/20'
           )}
         >
-          <Check className="w-5 h-5" strokeWidth={3} />
+          <Check className={compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} strokeWidth={3} />
         </button>
-        <div className={cx('min-w-0 flex-1 space-y-1', done && 'opacity-70')}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex px-2 py-0.5 rounded-full bg-white/25 text-[11px] font-black tracking-wide">{it.subject}</span>
+        <div className={cx('min-w-0 flex-1', compact ? 'space-y-0.5' : 'space-y-1', done && 'opacity-70')}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={cx('inline-flex px-2 py-0.5 rounded-full bg-white/25 font-black tracking-wide', compact ? 'text-[10px]' : 'text-[11px]')}>{it.subject}</span>
             {it.book && (
-              <span className="inline-flex items-center gap-1 text-xs font-bold">
-                <BookOpen className="w-3.5 h-3.5" /> {it.book}
+              <span className={cx('inline-flex items-center gap-1 font-bold', compact ? 'text-[11px]' : 'text-xs')}>
+                <BookOpen className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} /> {it.book}
               </span>
             )}
           </div>
-          {it.note && <p className={cx('text-sm font-medium whitespace-pre-wrap break-words', done && 'line-through')}>{it.note}</p>}
+          {it.note && (
+            <p className={cx('font-medium whitespace-pre-wrap break-words', compact ? 'text-xs' : 'text-sm', done && 'line-through')}>{it.note}</p>
+          )}
         </div>
       </li>
     );
   };
 
-  const dateText = today.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
-
   return (
     <section
       id="student-today-plan"
       aria-label="Bugün yapılması gerekenler"
-      className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white p-4 sm:p-6 shadow-xl shadow-indigo-500/25 border-2 border-indigo-300/40"
+      className={cx(
+        'relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white border-indigo-300/40',
+        compact ? 'p-3 shadow-md border' : 'p-4 sm:p-6 shadow-xl shadow-indigo-500/25 border-2'
+      )}
     >
-      <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-      <div className="relative z-10 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="w-11 h-11 rounded-2xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
-              <CalendarCheck className="w-6 h-6" />
+      <div className={cx('absolute bg-white/10 rounded-full blur-2xl pointer-events-none', compact ? '-right-6 -top-6 w-20 h-20' : '-right-8 -top-8 w-40 h-40')} />
+      <div className={cx('relative z-10', compact ? 'space-y-2.5' : 'space-y-4')}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className={cx(
+                'bg-white/20 border border-white/30 flex items-center justify-center shrink-0',
+                compact ? 'w-8 h-8 rounded-xl' : 'w-11 h-11 rounded-2xl'
+              )}
+            >
+              <CalendarCheck className={compact ? 'w-4 h-4' : 'w-6 h-6'} />
             </span>
             <div className="min-w-0">
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black bg-white text-indigo-800 uppercase tracking-wider">Bugün yapılması gerekenler</span>
-              <p className="text-sm font-bold mt-1 capitalize">{dateText}</p>
+              <span
+                className={cx(
+                  'inline-block rounded-full font-black bg-white text-indigo-800 uppercase tracking-wider',
+                  compact ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-0.5 text-[10px]'
+                )}
+              >
+                Bugün yapılması gerekenler
+              </span>
+              <p className={cx('font-bold capitalize', compact ? 'text-[11px] mt-0.5' : 'text-sm mt-1')}>{dateText}</p>
             </div>
           </div>
           {todayItems.length > 0 && (
             <div className="text-right" id="student-today-count">
-              <p className="text-2xl font-black leading-none tabular-nums">
+              <p className={cx('font-black leading-none tabular-nums', compact ? 'text-base' : 'text-2xl')}>
                 {doneToday}/{todayItems.length}
               </p>
-              <p className="text-[11px] font-semibold text-indigo-100">görev tamamlandı</p>
+              <p className={cx('font-semibold text-indigo-100', compact ? 'text-[10px]' : 'text-[11px]')}>görev tamamlandı</p>
             </div>
           )}
         </div>
@@ -160,13 +210,13 @@ export const StudentTodayPlan: React.FC = () => {
         )}
 
         {allDone && (
-          <div id="student-today-alldone" className="flex items-center gap-2 rounded-xl bg-white/20 px-3 py-2 text-sm font-bold">
+          <div id="student-today-alldone" className={cx('flex items-center gap-2 rounded-xl bg-white/20 font-bold', compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm')}>
             <PartyPopper className="w-4 h-4" /> Harika! Bugünkü görevlerin tamam.
           </div>
         )}
 
         {todayItems.length > 0 ? (
-          <ul className="space-y-2" id="student-today-list">
+          <ul className={cx('space-y-2', compact && 'space-y-1.5 max-h-80 overflow-y-auto pr-0.5')} id="student-today-list">
             {todayItems.map((it) => renderRow(it))}
           </ul>
         ) : (

@@ -1,7 +1,8 @@
 import type { WeeklyQuestionTarget, StudentQuestionLog } from '../types';
-import { normalizeSubject, targetSubjectMatcher } from '../lib/subjects';
+import { normalizeSubject, targetSubjectMatcher, targetSubjectList } from '../lib/subjects';
 
 // Bir soru hedefinin gün gün hesabı (Aşama 10b). Ekrandaki "Gün gün durum" tablosu ve PDF raporu aynı sonucu kullanır.
+// Yeni: öğretmen hedefin sorularını günlere farklı sayılarla dağıtabilir (dailyTargets). Dağıtmadıysa her gün eşittir.
 
 export type TargetDayStatus = 'met' | 'partial' | 'none' | 'today' | 'future';
 export interface TargetDayRow {
@@ -9,12 +10,15 @@ export interface TargetDayRow {
   label: string; // "5 Eki"
   weekday: string; // "Pzt"
   solved: number;
+  /** O günün hedefi (gün gün dağıtılmışsa o günün sayısı, değilse günlük hedef). 0 = o gün hedef yok */
+  target: number;
   status: TargetDayStatus;
 }
 export interface TargetDaysResult {
   start: string;
   end: string;
-  daily: number;
+  daily: number; // eşit dağıtımda günlük hedef, gün gün dağıtımda günlük ortalama
+  flexible: boolean; // true = öğretmen soruları günlere farklı sayılarla dağıttı
   subject: string; // '' = tüm dersler
   rows: TargetDayRow[];
   metDays: number;
@@ -44,6 +48,53 @@ export function targetEndDate(t: WeeklyQuestionTarget): string {
   return formatDateISO(s0);
 }
 
+/** Hedef gün gün farklı sayılarla mı dağıtılmış? */
+export function isFlexibleTarget(t: WeeklyQuestionTarget): boolean {
+  return !!t.dailyTargets && typeof t.dailyTargets === 'object' && Object.keys(t.dailyTargets).length > 0;
+}
+
+/** Eşit dağıtımdaki günlük hedef (gün gün dağıtımda ortalama) */
+export function baseDailyTarget(t: WeeklyQuestionTarget): number {
+  const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
+  return Math.max(1, Number(t.dailyTarget) || Math.round(total / Math.max(1, t.targetDays || 7)) || 1);
+}
+
+/**
+ * Hedefin verilen gündeki soru sayısı. Öğretmen günlere farklı sayılar yazdıysa o günün sayısı,
+ * yazmadıysa eşit dağıtımdaki günlük hedef. Tarih hedefin aralığı dışındaysa 0.
+ */
+export function targetForDay(t: WeeklyQuestionTarget, ymd: string): number {
+  const start = t.weekStartDate || '';
+  if (!start || ymd < start || ymd > targetEndDate(t)) return 0;
+  if (isFlexibleTarget(t)) {
+    const v = Number((t.dailyTargets as Record<string, number>)[ymd]);
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+  }
+  return baseDailyTarget(t);
+}
+
+/**
+ * Bir dersin verilen gündeki hedefi (o ders için ayrı hedef yoksa null).
+ * - Hedef tek ders içinse (ör. yalnızca Matematik): o günün hedefinin tamamı.
+ * - Ders dağılımı yazılmışsa (ör. Matematik 140 / toplam 350): o günün hedefinden dersin payı.
+ */
+export function subjectTargetForDay(t: WeeklyQuestionTarget, subject: string, ymd: string): number | null {
+  const day = targetForDay(t, ymd);
+  if (day <= 0) return null;
+  const want = normalizeSubject(subject);
+  const list = targetSubjectList(t.subject).map((s) => normalizeSubject(s));
+  if (list.length === 1) return list[0] === want ? day : null;
+  const st = t.subjectTargets;
+  let share = 0;
+  if (Array.isArray(st)) share = Number(st.find((x) => x && normalizeSubject(x.subject) === want)?.target) || 0;
+  else if (st && typeof st === 'object') {
+    for (const [k, v] of Object.entries(st)) if (normalizeSubject(k) === want) share = Number(v) || 0;
+  }
+  if (share <= 0) return null;
+  const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
+  return Math.max(1, Math.round((share * day) / total));
+}
+
 export function targetDayLabel(ymd: string): { label: string; weekday: string } {
   const d = parseYmd(ymd);
   return d ? { label: `${d.getDate()} ${AY[d.getMonth()]}`, weekday: GUN[d.getDay()] } : { label: ymd, weekday: '' };
@@ -58,7 +109,8 @@ export function computeTargetDays(
   const start = t.weekStartDate || '';
   const end = targetEndDate(t);
   const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
-  const daily = Math.max(1, Number(t.dailyTarget) || Math.round(total / Math.max(1, t.targetDays || 7)) || 1);
+  const daily = baseDailyTarget(t);
+  const flexible = isFlexibleTarget(t);
   const subject = t.subject ? normalizeSubject(t.subject) : '';
   const counts = targetSubjectMatcher(t.subject);
   const perDay = new Map<string, number>();
@@ -78,12 +130,13 @@ export function computeTargetDays(
     for (let d = new Date(s0); d <= e0 && rows.length < 366; d.setDate(d.getDate() + 1)) {
       const ymd = formatDateISO(d);
       const solvedDay = perDay.get(ymd) || 0;
+      const dayTarget = targetForDay(t, ymd);
       let status: TargetDayStatus;
       if (ymd > today) status = 'future';
-      else if (solvedDay >= daily) status = 'met';
+      else if (solvedDay >= dayTarget) status = 'met'; // hedefi 0 olan gün (dinlenme) de tamam sayılır
       else if (ymd === today) status = 'today';
       else status = solvedDay > 0 ? 'partial' : 'none';
-      rows.push({ ymd, label: `${d.getDate()} ${AY[d.getMonth()]}`, weekday: GUN[d.getDay()], solved: solvedDay, status });
+      rows.push({ ymd, label: `${d.getDate()} ${AY[d.getMonth()]}`, weekday: GUN[d.getDay()], solved: solvedDay, target: dayTarget, status });
     }
   }
   const solved = rows.reduce((a, r) => a + r.solved, 0);
@@ -91,6 +144,7 @@ export function computeTargetDays(
     start,
     end,
     daily,
+    flexible,
     subject,
     rows,
     metDays: rows.filter((r) => r.status === 'met').length,
@@ -102,15 +156,17 @@ export function computeTargetDays(
 }
 
 export function targetDayStatusText(r: TargetDayRow, daily: number): string {
+  const goal = typeof r.target === 'number' ? r.target : daily;
+  if (goal <= 0 && r.status !== 'future') return r.solved > 0 ? 'Hedef yok · ekstra çalışma' : 'Bu gün hedef yok';
   switch (r.status) {
     case 'met':
       return 'Hedef tamam';
     case 'partial':
-      return `Eksik (${daily - r.solved} soru)`;
+      return `Eksik (${goal - r.solved} soru)`;
     case 'none':
       return 'Soru girilmedi';
     case 'today':
-      return r.solved > 0 ? `Bugün · ${daily - r.solved} kaldı` : 'Bugün · henüz girilmedi';
+      return r.solved > 0 ? `Bugün · ${goal - r.solved} kaldı` : 'Bugün · henüz girilmedi';
     default:
       return 'Henüz gelmedi';
   }

@@ -9080,9 +9080,24 @@ export class DataService {
     if (isClass ? !draft.classId : !draft.studentId) throw new Error(isClass ? 'Sınıf seçilmedi.' : 'Öğrenci seçilmedi.');
     if (!draft.weekStartDate || !/^\d{4}-\d{2}-\d{2}$/.test(draft.weekStartDate)) throw new Error('Başlangıç tarihi geçersiz.');
     const days = Math.max(1, Math.min(366, Math.round(draft.targetDays || 7)));
-    const total = Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
+    // Gün gün farklı dağıtım: yalnızca hedefin tarihleri içindeki günler, 0..2000 arası tam sayılar tutulur
+    const rangeEnd = this.questionTargetEnd({ ...draft, targetDays: days });
+    let dailyTargets: Record<string, number> | undefined;
+    if (draft.dailyTargets && typeof draft.dailyTargets === 'object') {
+      const dt: Record<string, number> = {};
+      for (const [k, v] of Object.entries(draft.dailyTargets)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < (draft.weekStartDate || '') || k > rangeEnd) continue;
+        dt[k] = Math.max(0, Math.min(2000, Math.round(Number(v) || 0)));
+      }
+      if (Object.keys(dt).length) dailyTargets = dt;
+    }
+    const total = dailyTargets
+      ? Object.values(dailyTargets).reduce((a, b) => a + b, 0)
+      : Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
     if (total < 1) throw new Error('Toplam soru hedefi en az 1 olmalı.');
-    const daily = Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
+    const daily = dailyTargets
+      ? Math.max(1, Math.round(total / days))
+      : Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
     const me = this.getCurrentTeacher();
     const existing = draft.id ? this.weeklyQuestionTargets.find((t) => t.id === draft.id) : undefined;
     if (existing && !this.canEditQuestionTarget(existing)) throw new Error('Bu hedefi yalnızca hedefi veren öğretmen değiştirebilir.');
@@ -9107,7 +9122,8 @@ export class DataService {
       targetQuestions: total,
       weeklyTarget: total,
       dailyTarget: daily,
-      weekEndDate: this.questionTargetEnd({ ...draft, targetDays: days }),
+      dailyTargets,
+      weekEndDate: rangeEnd,
       subject: targetSubjectList(draft.subject).join(', ') || undefined,
       subjectTargets: subjectTargets && Object.keys(subjectTargets).length ? subjectTargets : undefined,
       notes: (draft.notes || '').trim().slice(0, 400) || undefined,

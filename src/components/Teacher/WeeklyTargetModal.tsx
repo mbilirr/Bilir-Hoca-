@@ -37,6 +37,8 @@ interface Props {
 const NON_QUESTION_SUBJECTS = new Set(['Görsel Sanatlar', 'Müzik', 'Beden Eğitimi', 'Rehberlik', 'Teknoloji ve Tasarım', 'Bilişim Teknolojileri', 'Genel']);
 const MAX_DAILY = 2000;
 const MAX_TOTAL = 100000;
+const MAX_CUSTOM_DAYS = 62; // gün gün dağıtım en fazla 62 günlük hedeflerde
+const DAY_NAMES = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 
 const parseYmd = (s: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
@@ -104,6 +106,9 @@ const TargetFormContent: React.FC<Props> = ({
       total: String(total),
       subjectRows: subjectTargetsOf(t),
       notes: t?.notes || '',
+      // Gün gün dağıtım (eski kayıtlarda yok → eşit dağıtım)
+      distMode: (t?.dailyTargets && Object.keys(t.dailyTargets).length ? 'custom' : 'even') as 'even' | 'custom',
+      dayRows: Object.fromEntries(Object.entries(t?.dailyTargets || {}).map(([k, v]) => [k, String(Number(v) || 0)])) as Record<string, string>,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,6 +131,9 @@ const TargetFormContent: React.FC<Props> = ({
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [daysDraft, setDaysDraft] = useState<string | null>(null); // gün sayısı kutusuna yazılırken
+  // Soruların günlere dağılımı: 'even' = her gün eşit, 'custom' = her güne ayrı sayı
+  const [distMode, setDistMode] = useState<'even' | 'custom'>(initial.distMode);
+  const [dayRows, setDayRows] = useState<Record<string, string>>(initial.dayRows);
 
   useEffect(() => {
     if (errorText) document.getElementById('qt-form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -175,7 +183,7 @@ const TargetFormContent: React.FC<Props> = ({
     breakdownRows.filter(([, v]) => v.trim() !== '').map(([k, v]) => [k, toInt(v) || 0])
   );
   const distributeEvenly = () => {
-    const tn = toInt(total);
+    const tn = toInt(shownTotal);
     const names = breakdownRows.map(([k]) => k);
     if (!(tn >= 1) || names.length === 0) return;
     const base = Math.floor(tn / names.length);
@@ -222,6 +230,67 @@ const TargetFormContent: React.FC<Props> = ({
     const n = toInt(clean);
     if (n >= 1 && days >= 1) setDaily(String(Math.max(1, Math.round(n / days))));
   };
+  // ---- gün gün dağıtım
+  const rangeDates = useMemo(() => {
+    const s0 = parseYmd(start);
+    if (!s0 || days < 1 || days > MAX_CUSTOM_DAYS) return [] as string[];
+    return Array.from({ length: days }, (_, i) => localDateStr(addDays(s0, i)));
+  }, [start, days]);
+  const customAllowed = rangeDates.length > 0;
+  const isCustom = distMode === 'custom' && customAllowed;
+  const customTotal = rangeDates.reduce((a, d) => a + (toInt(dayRows[d] ?? '') || 0), 0);
+  // Gün gün modunda toplam = günlerin toplamı, günlük = ortalama (kutular kilitli, otomatik)
+  const shownTotal = isCustom ? String(customTotal) : total;
+  const shownDaily = isCustom ? String(days >= 1 ? Math.max(1, Math.round(customTotal / days)) : 0) : daily;
+  // Toplamı günlere eşit böler (artan sorular ilk günlere birer birer eklenir)
+  const spreadEvenly = (sum: number): Record<string, string> => {
+    const out: Record<string, string> = {};
+    if (!rangeDates.length) return out;
+    const base = Math.floor(sum / rangeDates.length);
+    let rest = sum - base * rangeDates.length;
+    for (const d of rangeDates) {
+      out[d] = String(base + (rest > 0 ? 1 : 0));
+      if (rest > 0) rest--;
+    }
+    return out;
+  };
+  const switchDistMode = (mode: 'even' | 'custom') => {
+    if (mode === distMode) return;
+    if (mode === 'custom') {
+      // Önceki dağıtımda olmayan günler mevcut toplamdan eşit doldurulur
+      const filled = spreadEvenly(toInt(total) || 0);
+      setDayRows((cur) => {
+        const next: Record<string, string> = {};
+        for (const d of rangeDates) next[d] = cur[d] ?? filled[d] ?? '0';
+        return next;
+      });
+    } else {
+      // Eşit dağıtıma dönerken gün gün yazılan toplam korunur
+      if (customTotal >= 1) {
+        setTotal(String(customTotal));
+        if (days >= 1) setDaily(String(Math.max(1, Math.round(customTotal / days))));
+      }
+    }
+    setDistMode(mode);
+  };
+  // Gün gün modunda tarih aralığı değişirse yeni eklenen günler günlük ortalamayla doldurulur
+  useEffect(() => {
+    if (distMode !== 'custom' || !rangeDates.length) return;
+    setDayRows((cur) => {
+      let changed = false;
+      const next = { ...cur };
+      for (const d of rangeDates) {
+        if (next[d] === undefined) {
+          next[d] = daily || '0';
+          changed = true;
+        }
+      }
+      return changed ? next : cur;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rangeDates, distMode]);
+  const setDayRow = (d: string, v: string) => setDayRows((r) => ({ ...r, [d]: v.replace(/[^\d]/g, '').slice(0, 4) }));
+
   const today = new Date();
   const presets: Array<{ id: string; label: string; s: string; e: string }> = useMemo(() => {
     const mon = mondayOf(today);
@@ -252,8 +321,10 @@ const TargetFormContent: React.FC<Props> = ({
     weekStartDate: start,
     weekEndDate: end,
     targetDays: days,
-    targetQuestions: toInt(total),
-    dailyTarget: toInt(daily),
+    targetQuestions: toInt(shownTotal),
+    dailyTarget: toInt(shownDaily),
+    // Eşit dağıtımda açıkça boş gönderilir (önceden gün gün dağıtılmış hedef eşite çevrilebilsin)
+    dailyTargets: isCustom ? Object.fromEntries(rangeDates.map((d) => [d, toInt(dayRows[d] ?? '') || 0])) : undefined,
     subject: effectiveSubject || undefined,
     subjectTargets: showBreakdown ? breakdownTargets : undefined,
     notes,
@@ -268,8 +339,10 @@ const TargetFormContent: React.FC<Props> = ({
     studentId !== initial.studentId ||
     start !== initial.start ||
     end !== initial.end ||
-    total !== initial.total ||
-    daily !== initial.daily ||
+    shownTotal !== initial.total ||
+    shownDaily !== initial.daily ||
+    (isCustom ? 'custom' : 'even') !== initial.distMode ||
+    (isCustom && JSON.stringify(draft.dailyTargets) !== JSON.stringify(Object.fromEntries(Object.entries(initial.dayRows).map(([k, v]) => [k, toInt(v) || 0])))) ||
     effectiveSubject !== initial.subjects.join(', ') ||
     notes !== initial.notes ||
     JSON.stringify(showBreakdown ? breakdownTargets : {}) !==
@@ -291,8 +364,16 @@ const TargetFormContent: React.FC<Props> = ({
     if (!parseYmd(start) || !parseYmd(end)) return 'Başlangıç ve bitiş tarihini seçin.';
     if (end < start) return 'Bitiş tarihi başlangıçtan önce olamaz.';
     if (days > 366) return 'Hedef süresi en fazla 1 yıl olabilir.';
-    const dn = toInt(daily);
-    const tn = toInt(total);
+    const dn = toInt(shownDaily);
+    const tn = toInt(shownTotal);
+    if (isCustom) {
+      for (const d of rangeDates) {
+        const raw = (dayRows[d] ?? '').trim();
+        const n = raw === '' ? 0 : toInt(raw);
+        if (!(n >= 0 && n <= MAX_DAILY)) return `${shortTrDate(d)} için soru sayısı 0 ile ${MAX_DAILY} arasında olmalı.`;
+      }
+      if (customTotal < 1) return 'Gün gün dağıtımda en az bir güne soru yazın.';
+    }
     if (!(dn >= 1 && dn <= MAX_DAILY)) return `Günlük hedef 1 ile ${MAX_DAILY} arasında tam sayı olmalı.`;
     if (!(tn >= 1 && tn <= MAX_TOTAL)) return `Toplam hedef 1 ile ${MAX_TOTAL.toLocaleString('tr-TR')} arasında tam sayı olmalı.`;
     if (selectedSubjects.length === 0 && !allowGeneral) return 'En az bir ders seçin.';
@@ -333,6 +414,7 @@ const TargetFormContent: React.FC<Props> = ({
               Number(t.dailyTarget) || 0,
               normalizeSubject(t.subject || ''),
               subjectTargetsOf(t),
+              t.dailyTargets || null,
               (t.notes || '').trim(),
             ])
           : '';
@@ -574,23 +656,108 @@ const TargetFormContent: React.FC<Props> = ({
         </FormSection>
 
         <FormSection title="4. Soru hedefi">
+          {/* Günlere dağıtım: eşit ya da gün gün farklı */}
+          <div className="flex flex-wrap items-center gap-2" id="qt-dist-mode">
+            <span className="text-xs font-semibold text-fg">Günlere dağıtım:</span>
+            <button
+              type="button"
+              id="qt-dist-even"
+              className={chipCls(!isCustom)}
+              onClick={() => switchDistMode('even')}
+            >
+              Her gün eşit
+            </button>
+            <button
+              type="button"
+              id="qt-dist-custom"
+              className={chipCls(isCustom)}
+              disabled={!customAllowed}
+              title={customAllowed ? 'Her güne ayrı soru sayısı yazın' : `Gün gün dağıtım en fazla ${MAX_CUSTOM_DAYS} günlük hedeflerde kullanılabilir`}
+              onClick={() => switchDistMode('custom')}
+            >
+              Gün gün farklı
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <FieldLabel htmlFor="qt-daily">Günlük</FieldLabel>
+              <FieldLabel htmlFor="qt-daily">{isCustom ? 'Günlük (ortalama)' : 'Günlük'}</FieldLabel>
               <div className="relative">
-                <input id="qt-daily" inputMode="numeric" value={daily} onChange={(e) => onDailyChange(e.target.value)} className={`${inputCls} pr-16`} placeholder="50" />
+                <input
+                  id="qt-daily"
+                  inputMode="numeric"
+                  value={shownDaily}
+                  readOnly={isCustom}
+                  onChange={(e) => onDailyChange(e.target.value)}
+                  className={`${inputCls} pr-16 ${isCustom ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  placeholder="50"
+                />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru/gün</span>
               </div>
             </div>
             <div>
               <FieldLabel htmlFor="qt-total">Toplam ({days >= 1 ? days : '-'} gün)</FieldLabel>
               <div className="relative">
-                <input id="qt-total" inputMode="numeric" value={total} onChange={(e) => onTotalChange(e.target.value)} className={`${inputCls} pr-12`} placeholder="350" />
+                <input
+                  id="qt-total"
+                  inputMode="numeric"
+                  value={shownTotal}
+                  readOnly={isCustom}
+                  onChange={(e) => onTotalChange(e.target.value)}
+                  className={`${inputCls} pr-12 ${isCustom ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  placeholder="350"
+                />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru</span>
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-muted">Birini değiştirince diğeri gün sayısına göre otomatik hesaplanır.</p>
+          <p className="text-[11px] text-muted">
+            {isCustom
+              ? 'Gün gün modunda toplam, aşağıdaki günlerin toplamıdır; günlük kutusu ortalamayı gösterir.'
+              : 'Birini değiştirince diğeri gün sayısına göre otomatik hesaplanır.'}
+          </p>
+
+          {isCustom && (
+            <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2" id="qt-day-rows">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-fg">Gün gün soru sayısı</div>
+                <button
+                  type="button"
+                  id="qt-day-even"
+                  onClick={() => setDayRows(spreadEvenly(customTotal >= 1 ? customTotal : toInt(total) || 0))}
+                  className="ui-btn ui-btn-ghost ui-btn-sm"
+                  title="Toplamı günlere eşit böl"
+                >
+                  <Divide className="w-3.5 h-3.5" /> Eşit dağıt
+                </button>
+              </div>
+              <p className="text-[11px] text-muted">Her güne istediğiniz sayıyı yazın. 0 yazılan gün dinlenme günü sayılır.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
+                {rangeDates.map((d) => {
+                  const dt = parseYmd(d);
+                  return (
+                    <label key={d} className="flex items-center gap-2 rounded-lg bg-surface border border-line px-2 py-1.5" data-testid="qt-day-row">
+                      <span className="text-[11px] font-semibold text-fg w-14 shrink-0 leading-tight">
+                        {shortTrDate(d)}
+                        <span className="block text-muted font-normal">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
+                      </span>
+                      <input
+                        aria-label={`${shortTrDate(d)} soru sayısı`}
+                        inputMode="numeric"
+                        value={dayRows[d] ?? ''}
+                        placeholder="0"
+                        onChange={(e) => setDayRow(d, e.target.value)}
+                        className={`${inputCls} text-center px-1`}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] font-semibold text-fg" id="qt-day-sum">
+                Toplam: {customTotal} soru · ortalama günde {days >= 1 ? Math.round(customTotal / days) : 0}
+              </p>
+            </div>
+          )}
 
           {showBreakdown && (
             <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2" id="qt-breakdown">
@@ -641,7 +808,7 @@ const TargetFormContent: React.FC<Props> = ({
               ))}
               {breakdownRows.length > 0 && (
                 <p className="text-[11px] text-muted" id="qt-breakdown-sum">
-                  Dağıtılan: {Object.values(breakdownTargets).reduce((a, b) => a + b, 0)} / {toInt(total) || 0} soru
+                  Dağıtılan: {Object.values(breakdownTargets).reduce((a, b) => a + b, 0)} / {toInt(shownTotal) || 0} soru
                 </p>
               )}
               {!multi && breakdownSubjects.length > 0 && (

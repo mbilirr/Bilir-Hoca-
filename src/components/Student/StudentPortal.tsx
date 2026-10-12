@@ -50,6 +50,7 @@ import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileM
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
+import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
@@ -73,7 +74,18 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   messages,
   submissions: propSubmissions,
 }) => {
-  const [activeTab, setActiveTab] = useState<StudentTabType>('home');
+  // Aktif bölüm adreste tutulur (#/student/homework gibi): böylece tarayıcının / telefonun
+  // "Geri" tuşu bir önceki bölüme döner, sayfa yenilenince de aynı bölümde kalınır.
+  const [activeTab, setActiveTabState] = useState<StudentTabType>(() => readStudentTab());
+  const setActiveTab = React.useCallback((tab: StudentTabType) => {
+    setActiveTabState(tab);
+    pushStudentTab(tab);
+  }, []);
+  useEffect(() => {
+    const onPop = () => setActiveTabState(readStudentTab());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const selfList = useMemo(() => [currentStudent], [currentStudent]);
 
   // Profile and Avatar Modals state
@@ -116,10 +128,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       .getStudentNotifications(currentStudent.id)
       .filter((n) => n.type === 'praise' && !n.read);
   }, [currentStudent.id, unreadNotifsCount, notificationTrigger]);
-
-  useEffect(() => {
-    setActiveTab('home');
-  }, [currentStudent.id]);
 
   useEffect(() => {
     const updateUnread = () => {
@@ -522,9 +530,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             {timeGreeting()} {firstNameOf(currentStudent.name, '')}
           </h1>
 
-          {/* Aşama 19: öğretmenin ödev olarak gönderdiği haftalık planın bugünkü görevleri */}
-          <StudentTodayPlan />
-
           {/* Wall 1: Duyurular (bugünün etüdü, ödevi, soru hedefi, notları) + kompakt takvim */}
           <StudentHeroBanner
             student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
@@ -538,7 +543,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
           />
 
-          {/* Wall 2: "Durumum" — ödev, etüt, soru ve not özeti */}
+          {/* Wall 2: "Durumum" — Ödevlerim/Etütlerim alt alta, Soru Çözümüm/Notlarım alt alta;
+              yanında küçültülmüş "Bugün yapılması gerekenler" paneli (Aşama 19 planı) */}
           <StudentStatsOverview
             student={currentStudent}
             homeworks={myHomeworks}
@@ -546,6 +552,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             etuts={myEtuts}
             grades={myGrades}
             onNavigateTab={(tab) => setActiveTab(tab)}
+            sidePanel={<StudentTodayPlan compact />}
           />
         </div>
       )}

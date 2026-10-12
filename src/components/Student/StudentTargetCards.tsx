@@ -5,6 +5,7 @@ import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatTurkishDate } from '../../utils/questionAnalytics';
 import { TargetDailyBreakdown } from './TargetDailyBreakdown';
+import { isFlexibleTarget } from '../../utils/targetDays';
 
 // Öğrencinin bu haftaya denk gelen soru hedefleri (Aşama 10)
 // Her öğretmenin hedefi ayrı kartta, kendi tarihleri ve (seçildiyse) kendi dersiyle gösterilir.
@@ -16,11 +17,13 @@ const subjectEntries = (t: WeeklyQuestionTarget): Array<[string, number]> => {
   return Object.entries(st).map(([k, v]) => [normalizeSubject(k), Number(v) || 0]);
 };
 
-export const StudentTargetCards: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: string; logs: StudentQuestionLog[] }> = ({
-  targets,
-  studentId,
-  logs,
-}) => {
+export const StudentTargetCards: React.FC<{
+  targets: WeeklyQuestionTarget[];
+  studentId: string;
+  logs: StudentQuestionLog[];
+  /** true: kartın içindeki "Gün gün durum" tablosu gösterilmez (öğrenci ekranında bu bilgi birleşik günlük tabloda) */
+  hideDailyBreakdown?: boolean;
+}> = ({ targets, studentId, logs, hideDailyBreakdown }) => {
   if (!targets.length) return null;
   return (
     <div className="space-y-3" id="student-target-cards">
@@ -38,7 +41,11 @@ export const StudentTargetCards: React.FC<{ targets: WeeklyQuestionTarget[]; stu
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-fg">
                     {t.subject ? `${t.subject} soru hedefi` : 'Soru hedefi'}: <span className="text-warning-fg">{p.total} soru</span>
-                    <span className="text-xs font-semibold text-muted"> (günde {t.dailyTarget || Math.round(p.total / (t.targetDays || 7))})</span>
+                    <span className="text-xs font-semibold text-muted">
+                      {isFlexibleTarget(t)
+                        ? ' (gün gün farklı dağıtıldı)'
+                        : ` (günde ${t.dailyTarget || Math.round(p.total / (t.targetDays || 7))})`}
+                    </span>
                   </h4>
                   <p className="text-xs text-muted">
                     {formatTurkishDate(t.weekStartDate || '')} – {formatTurkishDate(dataService.questionTargetEnd(t))} · Veren: {teacher}
@@ -73,7 +80,7 @@ export const StudentTargetCards: React.FC<{ targets: WeeklyQuestionTarget[]; stu
                 </span>
               </div>
             )}
-            <TargetDailyBreakdown target={t} studentId={studentId} logs={logs} idPrefix={`tdb-${t.id}`} />
+            {!hideDailyBreakdown && <TargetDailyBreakdown target={t} studentId={studentId} logs={logs} idPrefix={`tdb-${t.id}`} />}
             {subs.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {subs.map(([subj, n]) => {
