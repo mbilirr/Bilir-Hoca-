@@ -8,7 +8,7 @@ import { IconBox, cx, type Tone } from '../ui/kit';
 
 // ============================================================================
 // ÖĞRENCİ ANA SAYFASI — "Durumum"
-// Özet kartlar: Notlarım (en solda) ve Soru Çözümüm. Ödevler ve etütler yukarıdaki
+// Özet kartlar: Soru Çözümüm ve Notlarım (en sağda); en solda "Bugün yapılması gerekenler" paneli. Ödevler ve etütler yukarıdaki
 // "Duyurular" panosunda gösterildiği için burada ayrıca kart olarak yer almaz.
 // Her kartta tek bir ana sayı, kısa bir açıklama ve ilgili sekmeye geçiş.
 // ============================================================================
@@ -126,41 +126,20 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
         </div>
       </div>
 
-      {/* Yerleşim: 1. sütun Notlarım (en solda), 2. sütun Soru Çözümüm,
-          3. sütun küçültülmüş "Bugün yapılması gerekenler". Telefonda tek sütun; plan en üstte. */}
+      {/* Yerleşim: 1. sütun küçültülmüş "Bugün yapılması gerekenler" (en solda), 2. sütun Soru Çözümüm,
+          3. sütun Notlarım (en sağda). Telefonda tek sütun; plan en üstte. */}
       <div
         id="student-home-stats-grid"
         className={cx('grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start', sidePanel ? 'xl:grid-cols-3' : '')}
       >
-        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-1">
-        {/* ---------------- Notlarım ---------------- */}
-        <SummaryCard
-          id="student-home-stat-grades"
-          label="Notlarım"
-          icon={Award}
-          tone="brand"
-          goLabel="Notlarıma git"
-          onClick={() => go('grades')}
-        >
-          {gr === null ? (
-            <CardEmpty title="Henüz notun girilmedi" hint="Sınav ve performans notların burada görünecek." />
-          ) : (
-            <>
-              <MainValue value={fmtAverage(gr.average)} unit="/ 100 ortalama" />
-              <ContextLine>
-                Son not: {gr.last.g.subject}
-                {gr.last.g.examType ? ` · ${gr.last.g.examType}` : ''} ·{' '}
-                <span className="tabular-nums">
-                  {fmtAverage(Number(gr.last.g.score))}/{fmtAverage(gr.last.max)}
-                </span>
-              </ContextLine>
-              <div className="mt-3 text-xs text-muted tabular-nums">{gr.count} not kaydı</div>
-            </>
-          )}
-        </SummaryCard>
-        </div>
+        {/* Sol: küçültülmüş "Bugün yapılması gerekenler" (telefonda da en üstte) */}
+        {sidePanel && (
+          <div className="min-w-0 md:col-span-2 xl:col-span-1" id="student-home-stats-side">
+            {sidePanel}
+          </div>
+        )}
 
-        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-2">
+        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-questions">
         {/* ---------------- Soru Çözümüm ---------------- */}
         <SummaryCard
           id="student-home-stat-questions"
@@ -195,11 +174,33 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
         </SummaryCard>
         </div>
 
-        {sidePanel && (
-          <div className="min-w-0 order-first md:col-span-2 xl:order-none xl:col-span-1" id="student-home-stats-side">
-            {sidePanel}
-          </div>
-        )}
+        <div className="flex flex-col gap-3 sm:gap-4 min-w-0" id="student-home-stats-col-grades">
+        {/* ---------------- Notlarım ---------------- */}
+        <SummaryCard
+          id="student-home-stat-grades"
+          label="Notlarım"
+          icon={Award}
+          tone="brand"
+          goLabel="Notlarıma git"
+          onClick={() => go('grades')}
+        >
+          {gr === null ? (
+            <CardEmpty title="Henüz notun girilmedi" hint="Sınav ve performans notların burada görünecek." />
+          ) : (
+            <>
+              <MainValue value={fmtAverage(gr.average)} unit="/ 100 ortalama" />
+              <ContextLine>
+                Son not: {gr.last.g.subject}
+                {gr.last.g.examType ? ` · ${gr.last.g.examType}` : ''} ·{' '}
+                <span className="tabular-nums">
+                  {fmtAverage(Number(gr.last.g.score))}/{fmtAverage(gr.last.max)}
+                </span>
+              </ContextLine>
+              <div className="mt-3 text-xs text-muted tabular-nums">{gr.count} not kaydı</div>
+            </>
+          )}
+        </SummaryCard>
+        </div>
       </div>
     </section>
   );

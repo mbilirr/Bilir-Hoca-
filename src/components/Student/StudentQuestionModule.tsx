@@ -34,6 +34,7 @@ import {
 import {
   ResponsiveContainer,
   BarChart,
+  ComposedChart,
   Bar,
   LineChart,
   Line,
@@ -45,7 +46,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  ReferenceLine,
   LabelList,
 } from 'recharts';
 import { Student, ClassGroup, StudentQuestionLog, QuestionLogSubjectEntry, WeeklyQuestionTarget } from '../../types';
@@ -70,6 +70,8 @@ import {
   subjectTargetForDay,
   targetDayStatusText,
   targetForDay,
+  weekDayGoal,
+  weekGoalLegendText,
   type TargetDayRow,
 } from '../../utils/targetDays';
 import { readQuestionSubTab, readStudentTab, pushQuestionSubTab, type QuestionSubTab } from '../../lib/studentRoute';
@@ -230,10 +232,15 @@ export const CHART_COLORS = {
   below: '#3b82f6',
   zero: '#f43f5e',
   target: '#ea580c',
+  noTarget: '#94a3b8', // hedef verilmeyen günde çözülen sorular
 };
 
-/** Haftalık grafiğin açıklaması (iki ekranda aynı) */
-export const WeeklyChartLegend: React.FC<{ dailyTarget: number; mode: 'bar' | 'area' }> = ({ dailyTarget, mode }) => (
+/** Haftalık grafiğin açıklaması (iki ekranda aynı). targetText: "Günlük hedef (50)" vb. */
+export const WeeklyChartLegend: React.FC<{ targetText: string; mode: 'bar' | 'area'; showNoTarget?: boolean }> = ({
+  targetText,
+  mode,
+  showNoTarget,
+}) => (
   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold text-muted" data-testid="weekly-chart-legend">
     {mode === 'bar' ? (
       <>
@@ -246,6 +253,11 @@ export const WeeklyChartLegend: React.FC<{ dailyTarget: number; mode: 'bar' | 'a
         <span className="flex items-center gap-1.5 text-rose-600 dark:text-rose-300">
           <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.zero }} /> 0 Soru
         </span>
+        {showNoTarget && (
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded inline-block" style={{ background: CHART_COLORS.noTarget }} /> Hedef verilmeyen gün
+          </span>
+        )}
       </>
     ) : (
       <span className="flex items-center gap-1.5">
@@ -253,7 +265,7 @@ export const WeeklyChartLegend: React.FC<{ dailyTarget: number; mode: 'bar' | 'a
       </span>
     )}
     <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-300">
-      <span className="w-4 border-t-2 border-dashed border-orange-500 inline-block" /> Günlük hedef ({dailyTarget})
+      <span className="w-4 border-t-2 border-dashed border-orange-500 inline-block" /> {targetText}
     </span>
   </div>
 );
@@ -1206,11 +1218,10 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   );
   const generalTargetRes = weeklyTargetRows.find((x) => !x.t.subject)?.res || null;
   const subjectTargetRows = weeklyTargetRows.filter((x) => !!x.t.subject);
-  const dayGoalRow = (ymd: string): TargetDayRow | null => generalTargetRes?.rows.find((r) => r.ymd === ymd) || null;
-  const dayGoal = (ymd: string): number => {
-    const r = dayGoalRow(ymd);
-    return r ? r.target : dailyQuestionTarget;
-  };
+  // Günün hedefi: genel hedef → o günkü sayısı; yoksa o güne denk gelen ders hedeflerinin toplamı; hiçbiri yoksa 0 (hedef yok).
+  // Hedef verilmeyen güne varsayılan bir sayı yazılmaz (grafik ve tablo öğretmenin verdiği hedeflerle birebir aynı).
+  const dayGoalRow = (ymdStr: string): TargetDayRow | null => weekDayGoal(ymdStr, weeklyTargetRows).generalRow;
+  const dayGoal = (ymdStr: string): number => weekDayGoal(ymdStr, weeklyTargetRows).goal;
 
   // Aylık hedef: seçilen ayın her günü için o haftanın genel hedefi (yoksa 50) toplanır
   const monthlyPlan = useMemo(
@@ -1223,11 +1234,24 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     return Math.min(100, Math.round((monthlyAnalytics.totalQuestions / monthlyTargetTotal) * 100));
   }, [monthlyAnalytics, monthlyTargetTotal]);
 
+  // Haftalık grafik verisi: her günün kendi hedefi (hedef verilmeyen günde boş → hedef çizgisi/noktası çizilmez)
+  const chartDays = useMemo(
+    () =>
+      weeklyAnalytics
+        ? weeklyAnalytics.days.map((d) => {
+            const g = weekDayGoal(d.dateStr, weeklyTargetRows).goal;
+            return { ...d, dayTarget: g > 0 ? g : null };
+          })
+        : [],
+    [weeklyAnalytics, weeklyTargetRows]
+  );
+  const maxDayGoal = chartDays.reduce((m, d) => Math.max(m, d.dayTarget || 0), 0);
+
   // Looker Studio Custom Popover Tooltip
   const renderLookerTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
-      const goal = data.dateStr ? dayGoal(data.dateStr) : dailyQuestionTarget;
+      const goal = data.dateStr ? dayGoal(data.dateStr) : 0;
       return (
         <div className="bg-surface border border-line shadow-xl rounded-xl p-3.5 text-xs text-fg space-y-1.5 z-50 min-w-[210px]">
           <div className="flex items-center justify-between border-b border-line pb-1.5">
@@ -1269,7 +1293,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span>
                   {goal > 0
                     ? `Günlük Hedefe Ulaşıldı (%${Math.round((data.totalQuestions / goal) * 100)})`
-                    : 'Bu gün hedef yok'}
+                    : 'Bu güne soru hedefi verilmedi'}
                 </span>
               </div>
             ) : data.totalQuestions > 0 ? (
@@ -1511,7 +1535,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <WeeklyChartLegend dailyTarget={dailyQuestionTarget} mode={chartVisualType} />
+                <WeeklyChartLegend
+                  targetText={weekGoalLegendText(chartDays.map((d) => d.dayTarget || 0))}
+                  mode={chartVisualType}
+                  showNoTarget={chartDays.some((d) => !d.dayTarget && d.totalQuestions > 0)}
+                />
 
                 <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
                   <button
@@ -1543,8 +1571,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
               <ResponsiveContainer width="100%" height="100%">
                 {chartVisualType === 'bar' ? (
-                  <BarChart
-                    data={weeklyAnalytics.days}
+                  <ComposedChart
+                    data={chartDays}
                     margin={{ top: 28, right: isNarrow ? 4 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
@@ -1563,17 +1591,10 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
-                      domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                      domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
                       allowDecimals={false}
                     />
                     <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
-                    <ReferenceLine
-                      y={dailyQuestionTarget}
-                      stroke={CHART_COLORS.target}
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
-                    />
                     <Bar dataKey="totalQuestions" radius={[6, 6, 0, 0]} maxBarSize={55} minPointSize={4}>
                       <LabelList
                         dataKey="totalQuestions"
@@ -1586,19 +1607,35 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       />
                       {weeklyAnalytics.days.map((entry, index) => {
                         const isZero = entry.totalQuestions === 0;
-                        const isAboveTarget = entry.totalQuestions >= dayGoal(entry.dateStr);
+                        const g = dayGoal(entry.dateStr);
+                        const noTarget = g <= 0; // öğretmen bu güne hedef vermedi
+                        const isAboveTarget = !noTarget && entry.totalQuestions >= g;
                         return (
                           <Cell
                             key={`cell-student-${index}`}
-                            fill={isZero ? CHART_COLORS.zero : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
+                            fill={isZero ? CHART_COLORS.zero : noTarget ? CHART_COLORS.noTarget : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
                           />
                         );
                       })}
                     </Bar>
-                  </BarChart>
+                    {/* Günlük hedef: yalnızca hedef verilen günlerde (gün gün farklı olabilir) */}
+                    <Line
+                      type="linear"
+                      dataKey="dayTarget"
+                      name="Günlük hedef"
+                      stroke={CHART_COLORS.target}
+                      strokeWidth={2}
+                      strokeDasharray="5 4"
+                      connectNulls={false}
+                      dot={{ r: 4, fill: CHART_COLORS.target, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
+                      activeDot={{ r: 5, fill: CHART_COLORS.target }}
+                      isAnimationActive={false}
+                      legendType="none"
+                    />
+                  </ComposedChart>
                 ) : (
-                  <AreaChart
-                    data={weeklyAnalytics.days}
+                  <ComposedChart
+                    data={chartDays}
                     margin={{ top: 28, right: isNarrow ? 8 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                   >
                     <defs>
@@ -1623,17 +1660,10 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       fontWeight={600}
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
-                      domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                      domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
                       allowDecimals={false}
                     />
                     <Tooltip content={renderLookerTooltip} cursor={CHART_LINE_CURSOR} />
-                    <ReferenceLine
-                      y={dailyQuestionTarget}
-                      stroke={CHART_COLORS.target}
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
-                    />
                     <Area
                       type="monotone"
                       dataKey="totalQuestions"
@@ -1641,7 +1671,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#studentNavyGradient)"
-                      dot={{ r: 5, fill: '#ea580c', stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                      dot={{ r: 5, fill: 'var(--chart-1)', stroke: 'var(--color-surface)', strokeWidth: 2 }}
                     >
                       <LabelList
                         dataKey="totalQuestions"
@@ -1652,7 +1682,21 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         offset={8}
                       />
                     </Area>
-                  </AreaChart>
+                    {/* Günlük hedef: yalnızca hedef verilen günlerde (gün gün farklı olabilir) */}
+                    <Line
+                      type="linear"
+                      dataKey="dayTarget"
+                      name="Günlük hedef"
+                      stroke={CHART_COLORS.target}
+                      strokeWidth={2}
+                      strokeDasharray="5 4"
+                      connectNulls={false}
+                      dot={{ r: 4, fill: CHART_COLORS.target, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
+                      activeDot={{ r: 5, fill: CHART_COLORS.target }}
+                      isAnimationActive={false}
+                      legendType="none"
+                    />
+                  </ComposedChart>
                 )}
               </ResponsiveContainer>
             </div>
@@ -1670,7 +1714,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     }`
                   : activeTargets.length
                     ? 'Ders hedeflerinin günlük durumu "Günlük Hedef" sütunundadır.'
-                    : `Genel hedef verilmedi; günlük ${dailyQuestionTarget} soru varsayılan hedeftir.`}
+                    : 'Bu hafta soru hedefi verilmedi; hedef sütunları boş görünür.'}
               </p>
               <p className="sm:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">Tabloyu yana kaydırabilirsin →</p>
               <div className="overflow-x-auto">
@@ -1692,8 +1736,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       const goal = dayGoal(d.dateStr);
                       const isFuture = d.dateStr > todayIso;
                       const isToday = d.dateStr === todayIso;
-                      const metTarget = d.totalQuestions >= goal;
-                      const completionRate = goal > 0 ? Math.min(100, Math.round((d.totalQuestions / goal) * 100)) : 100;
+                      const hasGoal = goal > 0; // bu güne hedef verilmiş mi
+                      const metTarget = hasGoal && d.totalQuestions >= goal;
+                      const completionRate = hasGoal ? Math.min(100, Math.round((d.totalQuestions / goal) * 100)) : 0;
                       // Ders hedefleri (ör. yalnızca Matematik) — o güne denk gelenler
                       const subjectLines = subjectTargetRows
                         .map(({ t, res }) => {
@@ -1714,6 +1759,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               : goalRow.status === 'none'
                                 ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30'
                                 : 'bg-surface-2 text-muted border-line';
+                      } else if (!hasGoal) {
+                        statusText = isFuture ? 'Henüz gelmedi' : d.hasSolved ? `Hedef yok · ${d.totalQuestions} soru` : 'Hedef verilmedi';
+                        statusCls = 'bg-surface-2 text-muted border-line';
                       } else if (isFuture) {
                         statusText = 'Henüz gelmedi';
                         statusCls = 'bg-surface-2 text-muted border-line';
@@ -1782,7 +1830,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                                   style={{ width: `${isFuture && !d.hasSolved ? 0 : completionRate}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] font-bold text-muted">%{isFuture && !d.hasSolved ? 0 : completionRate}</span>
+                              <span className="text-[10px] font-bold text-muted">{hasGoal ? `%${isFuture && !d.hasSolved ? 0 : completionRate}` : '—'}</span>
                             </div>
                           </td>
                           <td className="px-3 py-2.5 text-center">

@@ -5,7 +5,7 @@ import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatTurkishDate } from '../../utils/questionAnalytics';
 import { TargetDailyBreakdown } from './TargetDailyBreakdown';
-import { isFlexibleTarget, isPendingPlanTarget } from '../../utils/targetDays';
+import { isFlexibleTarget } from '../../utils/targetDays';
 
 // Öğrencinin bu haftaya denk gelen soru hedefleri (Aşama 10)
 // Her öğretmenin hedefi ayrı kartta, kendi tarihleri ve (seçildiyse) kendi dersiyle gösterilir.
@@ -23,31 +23,11 @@ export const StudentTargetCards: React.FC<{
   logs: StudentQuestionLog[];
   /** true: kartın içindeki "Gün gün durum" tablosu gösterilmez (bu bilgi birleşik günlük tabloda) */
   hideDailyBreakdown?: boolean;
-  /** Öğretmen ekranı: plandan açılıp soru sayısı girilmemiş hedefte "Soru sayılarını gir" düğmesi */
-  onEditTarget?: (t: WeeklyQuestionTarget) => void;
-}> = ({ targets, studentId, logs, hideDailyBreakdown, onEditTarget }) => {
+}> = ({ targets, studentId, logs, hideDailyBreakdown }) => {
   if (!targets.length) return null;
   return (
     <div className="space-y-3" id="student-target-cards">
       {targets.map((t) => {
-        if (isPendingPlanTarget(t)) {
-          // Günlük plandan aktarıldı, soru sayıları henüz girilmedi (yalnızca öğretmen görür)
-          return (
-            <div key={t.id} className="rounded-2xl border border-dashed border-warning/50 bg-surface p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2" data-testid="pending-plan-target">
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-fg">{t.subject || 'Tüm dersler'} · plandan açılan hedef</h4>
-                <p className="text-xs text-muted">
-                  {formatTurkishDate(t.weekStartDate || '')} – {formatTurkishDate(dataService.questionTargetEnd(t))} · Soru sayıları henüz girilmedi, öğrenci bu hedefi görmüyor.
-                </p>
-              </div>
-              {onEditTarget && (
-                <button type="button" onClick={() => onEditTarget(t)} className="ui-btn ui-btn-primary ui-btn-sm shrink-0">
-                  <Target className="w-4 h-4" /> Soru sayılarını gir
-                </button>
-              )}
-            </div>
-          );
-        }
         const p = dataService.questionTargetProgress(t, studentId, logs);
         const teacher = t.assignedByTeacherName || (t.assignedBy && t.assignedBy !== 'Öğretmen' ? t.assignedBy : 'Öğretmenin');
         const subs = targetSubjectList(t.subject).length === 1 ? [] : subjectEntries(t).filter(([, n]) => n > 0);

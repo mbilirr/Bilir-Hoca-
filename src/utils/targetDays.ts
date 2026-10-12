@@ -54,8 +54,8 @@ export function isFlexibleTarget(t: WeeklyQuestionTarget): boolean {
 }
 
 /**
- * Günlük plandan aktarılmış ama öğretmenin henüz soru sayılarını girmediği hedef.
- * Bu hedef öğrenciye gösterilmez ve ilerleme hesaplarına katılmaz; öğretmen ekranında "soru sayıları bekleniyor" görünür.
+ * Günlük plandan "Soru Kaydet'e aktar" ile oluşan konu kaydı (soru sayısı 0). Hedef değildir:
+ * öğretmen ve öğrenci ekranlarında hedef olarak gösterilmez, hesaplara katılmaz; yalnızca konuları taşır.
  */
 export function isPendingPlanTarget(t: WeeklyQuestionTarget | null | undefined): boolean {
   if (!t || !t.fromPlan) return false;
@@ -162,6 +162,41 @@ export function computeTargetDays(
     total,
     percent: Math.min(100, Math.round((solved / total) * 100)),
   };
+}
+
+/**
+ * Haftalık grafik ve birleşik günlük tablo için bir günün hedefi (öğretmen ve öğrenci ekranı aynı kuralı kullanır):
+ *  1. O güne denk gelen GENEL (ders seçilmemiş) hedef varsa onun o günkü sayısı (0 = dinlenme günü, hedef yok).
+ *  2. Genel hedef yoksa o güne denk gelen DERS hedeflerinin o günkü sayılarının toplamı.
+ *  3. Hiçbir hedef o güne denk gelmiyorsa 0 (hedef yok). Varsayılan bir sayı UYDURULMAZ;
+ *     böylece öğretmenin hedef vermediği günde grafikte hedef çizgisi/noktası görünmez.
+ */
+export function weekDayGoal(
+  ymd: string,
+  rows: Array<{ t: WeeklyQuestionTarget; res: TargetDaysResult }>
+): { goal: number; generalRow: TargetDayRow | null } {
+  let generalRow: TargetDayRow | null = null;
+  for (const x of rows) {
+    if (x.t.subject) continue;
+    const r = x.res.rows.find((row) => row.ymd === ymd);
+    if (r && (!generalRow || r.target > generalRow.target)) generalRow = r;
+  }
+  if (generalRow) return { goal: Math.max(0, generalRow.target), generalRow };
+  let sum = 0;
+  for (const x of rows) {
+    if (!x.t.subject) continue;
+    const r = x.res.rows.find((row) => row.ymd === ymd);
+    if (r && r.target > 0) sum += r.target;
+  }
+  return { goal: sum, generalRow: null };
+}
+
+/** Grafik açıklamasındaki hedef yazısı: "Günlük hedef (50)", "Günlük hedef (güne göre değişir)" ya da "Bu hafta hedef yok" */
+export function weekGoalLegendText(goals: number[]): string {
+  const set = Array.from(new Set(goals.filter((g) => g > 0)));
+  if (set.length === 0) return 'Bu hafta hedef verilmedi';
+  if (set.length === 1 && goals.every((g) => g > 0)) return `Günlük hedef (${set[0]})`;
+  return set.length === 1 ? `Günlük hedef (${set[0]}, yalnızca hedef verilen günler)` : 'Günlük hedef (güne göre değişir)';
 }
 
 export function targetDayStatusText(r: TargetDayRow, daily: number): string {

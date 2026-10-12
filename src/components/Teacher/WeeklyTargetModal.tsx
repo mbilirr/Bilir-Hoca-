@@ -6,7 +6,6 @@ import { Modal, Segmented } from '../ui/kit';
 import { normalizeSubject, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
-import { isPendingPlanTarget } from '../../utils/targetDays';
 
 // ============================================================================
 // Soru hedefi ver / düzenle penceresi (Aşama 10)
@@ -82,10 +81,8 @@ const TargetFormContent: React.FC<Props> = ({
   onSaved,
 }) => {
   const isEdit = !!editTarget;
-  // Günlük plandan aktarılan hedef: konular hazır, öğretmen yalnızca gün gün soru sayılarını girer
+  // Günlük plandan bu hedefe aktarılmış konular varsa gün kutularının altında gösterilir
   const planTopics = editTarget?.dailyTopics || {};
-  const fromPlan = !!editTarget?.fromPlan;
-  const pendingPlan = isPendingPlanTarget(editTarget);
   const canEdit = !editTarget || dataService.canEditQuestionTarget(editTarget);
   const mySubjects = dataService.getMySubjects(); // null = yönetici
 
@@ -113,10 +110,7 @@ const TargetFormContent: React.FC<Props> = ({
       notes: t?.notes || '',
       // Gün gün dağıtım (eski kayıtlarda yok → eşit dağıtım)
       distMode: (t?.dailyTargets && Object.keys(t.dailyTargets).length ? 'custom' : 'even') as 'even' | 'custom',
-      // Plandan gelen ve sayısı henüz girilmemiş hedefte kutular boş başlar (öğretmen doldurur)
-      dayRows: Object.fromEntries(
-        Object.entries(t?.dailyTargets || {}).map(([k, v]) => [k, isPendingPlanTarget(t) ? '' : String(Number(v) || 0)])
-      ) as Record<string, string>,
+      dayRows: Object.fromEntries(Object.entries(t?.dailyTargets || {}).map(([k, v]) => [k, String(Number(v) || 0)])) as Record<string, string>,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -463,7 +457,7 @@ const TargetFormContent: React.FC<Props> = ({
       icon={Target}
       tone="warning"
       size="lg"
-      title={pendingPlan ? 'Plandan Açılan Hedef · Soru Sayılarını Girin' : isEdit ? 'Soru Hedefini Düzenle' : 'Soru Hedefi Ver'}
+      title={isEdit ? 'Soru Hedefini Düzenle' : 'Soru Hedefi Ver'}
       description={isEdit ? `${who}${editTarget?.assignedByTeacherName ? ` · Veren: ${editTarget.assignedByTeacherName}` : ''}` : 'Öğrenciye ya da sınıfa belirli tarihler için soru hedefi'}
       footer={
         confirmDiscard ? (
@@ -509,17 +503,6 @@ const TargetFormContent: React.FC<Props> = ({
       }
     >
       <div className="space-y-6">
-        {fromPlan && (
-          <div id="qt-from-plan" className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2 text-xs font-semibold">
-            <Info className="w-4 h-4 shrink-0" />
-            <span>
-              Bu hedef günlük plandan aktarıldı; konular öğrencinin “Çalışılan Konu / Test” kutusuna yazıldı.
-              {pendingPlan
-                ? ' Aşağıdaki “4. Soru hedefi” bölümünde her gün için yalnızca soru sayısını girip kaydedin. Kaydedince öğrenci hedefi görür.'
-                : ' Soru sayılarını aşağıdan değiştirebilirsiniz.'}
-            </span>
-          </div>
-        )}
         {!canEdit && (
           <div className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning-fg px-3 py-2 text-xs font-semibold">
             <Info className="w-4 h-4 shrink-0" />

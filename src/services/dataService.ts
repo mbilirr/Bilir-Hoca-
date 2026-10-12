@@ -8952,14 +8952,19 @@ export class DataService {
     return this.isMyQuestionTarget(t);
   }
 
+  // Görünen soru hedefleri. Günlük plandan "Soru Kaydet'e aktar" ile oluşan konu kayıtları (soru sayısı 0 olan
+  // fromPlan kayıtları) hedef DEĞİLDİR: hiçbir listede, grafikte veya hesapta gösterilmez; yalnızca konuları taşır.
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
+    return this.visibleQuestionTargetRecords().filter((t) => !isPendingPlanTarget(t));
+  }
+
+  private visibleQuestionTargetRecords(): WeeklyQuestionTarget[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
       const myId = session.user.id;
       const myClassId = this.students.find((s) => s.id === myId)?.classId || (session.user as any).classId;
-      // Günlük plandan aktarılıp soru sayısı henüz girilmemiş hedefler öğrenciye gösterilmez
-      return this.weeklyQuestionTargets.filter(
-        (t) => !isPendingPlanTarget(t) && (this.isClassQuestionTarget(t) ? !!myClassId && t.classId === myClassId : t.studentId === myId)
+      return this.weeklyQuestionTargets.filter((t) =>
+        this.isClassQuestionTarget(t) ? !!myClassId && t.classId === myClassId : t.studentId === myId
       );
     }
     if (session?.role === 'teacher') {
@@ -9051,6 +9056,8 @@ export class DataService {
           this.isClassQuestionTarget(t) === isClass &&
           (isClass ? t.classId === draft.classId : t.studentId === draft.studentId) &&
           ownerKeys.has(this.questionTargetOwnerKey(t)) &&
+          // Plandan aktarılan konu kayıtları yalnızca yeni bir plan aktarımıyla eşleşir (öğretmenin hedef penceresinde görünmez)
+          (!!draft.fromPlan || !isPendingPlanTarget(t)) &&
           sameTargetSubjects(t.subject, draft.subject) &&
           (t.weekStartDate || '') <= end &&
           this.questionTargetEnd(t) >= start
@@ -9217,8 +9224,8 @@ export class DataService {
   }
 
   // Öğretmenin günlük plandan aktardığı konular: verilen gün için ders → "Çalışılan Konu / Test" metni.
-  // Öğrencinin soru kaydet formu bu metni ilgili dersin konu kutusuna yazar. Soru sayısı henüz girilmemiş
-  // (öğrenciye gizli) hedeflerin konuları da gelir; böylece konu öğretmen sayıları girmeden de aktarılmış olur.
+  // Öğrencinin soru kaydet formu bu metni ilgili dersin konu kutusuna yazar. Konu kayıtları (gizli, soru sayısı 0)
+  // ve konusu eklenmiş gerçek hedefler birlikte okunur.
   public getPlanTopicsForStudentDay(studentId: string, ymd: string): Array<{ subject: string; topic: string }> {
     if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
     const session = this.getAuthSession();
@@ -9238,6 +9245,20 @@ export class DataService {
       }
     }
     return out;
+  }
+
+  // Bu öğretmenin, bir öğrencinin verilen haftası için daha önce plandan oluşturduğu konu kayıtları
+  // (yeniden aktarımda plandan çıkarılmış derslerin eski konularını temizlemek için)
+  public getMyPlanTopicRecords(studentId: string, weekStart: string, weekEnd: string): WeeklyQuestionTarget[] {
+    const owners = this.myQuestionTargetOwnerKeys();
+    return this.visibleQuestionTargetRecords().filter(
+      (t) =>
+        isPendingPlanTarget(t) &&
+        !this.isClassQuestionTarget(t) &&
+        t.studentId === studentId &&
+        owners.has(this.questionTargetOwnerKey(t)) &&
+        this.questionTargetOverlaps(t, weekStart, weekEnd)
+    );
   }
 
   // Hedefin ilerlemesi: yalnızca hedefin kendi tarihleri (ve dersi seçildiyse o ders) sayılır

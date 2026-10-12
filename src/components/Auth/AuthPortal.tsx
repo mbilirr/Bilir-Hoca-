@@ -26,7 +26,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { ThemeToggle } from '../ui/kit';
 import {
-  isBiometricAvailable,
+  getBiometricSupport,
   getBiometricProfile,
   removeBiometricProfile,
   enableBiometricLogin,
@@ -103,7 +103,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
 
   // --- PARMAK İZİ İLE GİRİŞ (WebAuthn) ---
-  const [bioAvailable, setBioAvailable] = useState(false);
+  // Cihaz/tarayıcı desteği: denetlenene kadar "checked: false"; desteklenmiyorsa nedeni ekranda yazılır
+  const [bioSupport, setBioSupport] = useState<{ checked: boolean; ok: boolean; reason: string }>({ checked: false, ok: false, reason: '' });
+  const bioAvailable = bioSupport.ok;
   const [bioProfiles, setBioProfiles] = useState<{ teacher: BiometricProfile | null; student: BiometricProfile | null }>(() => ({
     teacher: getBiometricProfile('teacher'),
     student: getBiometricProfile('student'),
@@ -113,7 +115,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   const [pendingBio, setPendingBio] = useState<{ session: AuthSession; identifier: string; name: string; password: string } | null>(null);
   useEffect(() => {
     let alive = true;
-    isBiometricAvailable().then((ok) => alive && setBioAvailable(ok));
+    getBiometricSupport().then((r) => alive && setBioSupport({ checked: true, ...r }));
     return () => {
       alive = false;
     };
@@ -590,8 +592,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {authMode === 'login' && !pendingBio && (
             <div className="space-y-5">
-              {/* PARMAK İZİ İLE GİRİŞ (bu cihazda bu rol için açılmışsa) */}
-              {bioAvailable && activeBioProfile && (
+              {/* PARMAK İZİ İLE GİRİŞ — her zaman görünür: açıksa giriş düğmesi, değilse nasıl açılacağı / neden kullanılamadığı */}
+              {bioAvailable && activeBioProfile ? (
                 <div id="biometric-login" className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-surface space-y-2">
                   <Button
                     type="button"
@@ -610,6 +612,34 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     <button type="button" onClick={handleRemoveBiometric} className="font-semibold hover:text-red-600 dark:hover:text-red-300 cursor-pointer">
                       Parmak izini kaldır
                     </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  id="biometric-info"
+                  className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
+                    bioSupport.checked && !bioSupport.ok
+                      ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10'
+                      : 'border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-500/10'
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                    <Fingerprint className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0 text-xs leading-relaxed">
+                    <p className="font-bold text-fg text-sm">Parmak izi ile giriş</p>
+                    {!bioSupport.checked ? (
+                      <p className="text-muted">Cihazınız denetleniyor…</p>
+                    ) : !bioSupport.ok ? (
+                      <p className="text-amber-800 dark:text-amber-200" id="biometric-unsupported">
+                        Bu cihazda şu an kullanılamıyor: {bioSupport.reason}
+                      </p>
+                    ) : (
+                      <p className="text-muted">
+                        Bu cihazda henüz açılmadı. Aşağıda şifrenizle girerken <strong>“Parmak izi ile girişi aç”</strong> kutusunu işaretleyin;
+                        sonraki girişlerinizde buradan şifresiz, parmak izinizle girersiniz.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -732,11 +762,16 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     />
                     <span>Beni Hatırla</span>
                   </label>
-                  {bioAvailable && !activeBioProfile && (
-                    <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-muted select-none" id="biometric-optin">
+                  {!activeBioProfile && (
+                    <label
+                      className={`flex items-center space-x-2.5 text-xs font-semibold select-none ${bioAvailable ? 'cursor-pointer text-muted' : 'cursor-not-allowed text-subtle'}`}
+                      id="biometric-optin"
+                      title={bioAvailable ? 'Girişten sonra parmak izinizi kaydedersiniz' : bioSupport.reason || 'Cihaz denetleniyor'}
+                    >
                       <input
                         type="checkbox"
-                        checked={enableBio}
+                        checked={enableBio && bioAvailable}
+                        disabled={!bioAvailable}
                         onChange={(e) => setEnableBio(e.target.checked)}
                         className="w-4 h-4 rounded border-line-strong accent-indigo-600 cursor-pointer"
                       />

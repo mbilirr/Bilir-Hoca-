@@ -68,17 +68,52 @@ const friendlyError = (e: any, fallback: string): Error => {
 };
 
 // ---------------------------------------------------------------------------- destek
-/** Cihazda parmak izi / yüz tanıma doğrulayıcısı var mı? (PRF desteği ancak kayıt sırasında kesinleşir) */
-export async function isBiometricAvailable(): Promise<boolean> {
+/**
+ * Cihaz ve tarayıcı parmak izi ile girişe uygun mu? Uygun değilse kullanıcıya gösterilecek nedeni döndürür.
+ * (PRF desteği ancak kayıt sırasında kesinleşir.)
+ */
+export async function getBiometricSupport(): Promise<{ ok: boolean; reason: string }> {
   try {
-    if (typeof window === 'undefined' || !window.isSecureContext) return false;
-    if (!window.PublicKeyCredential || !navigator.credentials || !crypto?.subtle) return false;
+    if (typeof window === 'undefined') return { ok: false, reason: 'Tarayıcı ortamı bulunamadı.' };
+    let inFrame = false;
+    try {
+      inFrame = window.self !== window.top;
+    } catch {
+      inFrame = true;
+    }
+    if (inFrame) {
+      return {
+        ok: false,
+        reason: 'Site bir önizleme penceresi (ör. Google AI Studio önizlemesi) içinde açık. Parmak izi için siteyi kendi adresinde, ayrı bir sekmede açın.',
+      };
+    }
+    if (!window.isSecureContext) {
+      return { ok: false, reason: 'Parmak izi yalnızca güvenli bağlantıda (https://… ya da bilgisayarda http://localhost) çalışır.' };
+    }
+    if (!window.PublicKeyCredential || !navigator.credentials || !crypto?.subtle) {
+      return { ok: false, reason: 'Bu tarayıcı parmak izi ile girişi desteklemiyor. Chrome, Edge veya Safari\'nin güncel sürümünü kullanın.' };
+    }
     const PKC: any = window.PublicKeyCredential;
-    if (typeof PKC.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') return false;
-    return !!(await PKC.isUserVerifyingPlatformAuthenticatorAvailable());
+    if (typeof PKC.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
+      return { ok: false, reason: 'Bu tarayıcı parmak izi ile girişi desteklemiyor. Chrome, Edge veya Safari\'nin güncel sürümünü kullanın.' };
+    }
+    const has = !!(await PKC.isUserVerifyingPlatformAuthenticatorAvailable());
+    if (!has) {
+      return {
+        ok: false,
+        reason:
+          'Bu cihazda parmak izi / yüz tanıma kurulu değil. Telefonda ekran kilidi ve parmak izini, Windows\'ta "Windows Hello"yu, Mac\'te Touch ID\'yi açın.',
+      };
+    }
+    return { ok: true, reason: '' };
   } catch {
-    return false;
+    return { ok: false, reason: 'Parmak izi desteği denetlenemedi.' };
   }
+}
+
+/** Cihazda parmak izi / yüz tanıma doğrulayıcısı var mı? */
+export async function isBiometricAvailable(): Promise<boolean> {
+  return (await getBiometricSupport()).ok;
 }
 
 // ---------------------------------------------------------------------------- saklama

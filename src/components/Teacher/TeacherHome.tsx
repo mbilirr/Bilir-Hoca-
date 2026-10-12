@@ -236,11 +236,13 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+      {/* Bugün ve Ajanda (takvim) yan yana, eşit genişlik ve eşit yükseklikte (telefonda alt alta) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch" id="home-today-agenda-row">
         {/* ===== BUGÜN ===== */}
         <Panel
           id="home-today-panel"
-          className="lg:col-span-7"
+          className="h-full flex flex-col min-w-0"
+          bodyClassName="flex-1"
           icon={Sun}
           tone="warning"
           title="Bugün"
@@ -398,7 +400,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         </Panel>
 
         {/* ===== AJANDA ===== */}
-        <AgendaCalendar className="lg:col-span-5" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
+        <AgendaCalendar className="h-full flex flex-col min-w-0" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
       </div>
 
       {classes.length === 0 && (
@@ -451,6 +453,7 @@ const AgendaCalendar: React.FC<{
     <Panel
       id="home-agenda"
       className={className}
+      bodyClassName="flex-1 flex flex-col"
       icon={CalendarDays}
       tone="brand"
       title={`${MONTHS[viewMonth]} ${viewYear}`}
@@ -524,7 +527,7 @@ const AgendaCalendar: React.FC<{
         </span>
       </div>
 
-      <div className="ui-divider mt-3 pt-3">
+      <div className="ui-divider mt-3 pt-3 flex-1">
         <p className="text-xs font-semibold text-fg-2 mb-2">
           {longDate(selected)}
           {selected === todayStr && <span className="ui-chip ui-chip-brand ml-2">Bugün</span>}

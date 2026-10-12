@@ -2,19 +2,22 @@ import type { Student, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
 import { addDaysYmd, dateOfDay, type PlanItem } from '../services/studyPlanService';
 import { normalizeSubject } from './subjects';
-import { isFlexibleTarget } from '../utils/targetDays';
+import { isFlexibleTarget, isPendingPlanTarget } from '../utils/targetDays';
 
 // ============================================================================
-// Günlük plan → Soru takibi aktarımı
+// Günlük plan → Öğrencinin "Soru Kaydet" formu
 //  * Öğretmen plandaki görevleri tek düğmeyle öğrencinin "Soru Kaydet" formundaki
-//    "Çalışılan Konu / Test" kutusuna aktarır.
-//  * Aynı anda, planla aynı tarihlerde her ders için bir soru hedefi açılır. Hedefin soru
-//    sayıları 0'dır; öğretmen hedefi açıp yalnızca soru sayılarını girer.
-//  * Soru sayıları girilene kadar hedef öğrenciye gösterilmez (konular ise hemen görünür).
+//    "Çalışılan Konu / Test" kutusuna aktarır (görevin gününe, görevin dersine).
+//  * Konular, her ders için bir "konu kaydında" saklanır (question_targets tablosu, soru sayısı 0,
+//    fromPlan = true). Bu kayıt bir soru hedefi DEĞİLDİR: öğretmen ve öğrenci ekranlarında hiçbir listede,
+//    grafikte ya da hesapta görünmez; yalnızca konuları taşır. Veritabanı değişikliği gerekmez.
+//  * Aynı hafta yeniden aktarılırsa o haftanın konuları plandaki güncel görevlerle değiştirilir.
+//  * Öğretmenin aynı ders ve tarihlerde gerçek bir soru hedefi varsa konular o hedefe eklenir (sayıları korunur).
 // ============================================================================
 
 export interface PlanTransferResult {
-  targets: WeeklyQuestionTarget[]; // açılan / güncellenen hedefler (ders başına bir tane)
+  subjects: string[]; // konuları aktarılan dersler
+  days: number; // konu yazılan gün sayısı (ders × gün)
   skippedSubjects: string[]; // öğretmenin yetkisi olmayan dersler
   emptySubjects: string[]; // kitap/açıklama yazılmamış görevlerin dersleri (aktarılacak metin yok)
 }
@@ -32,7 +35,7 @@ const joinTopics = (list: string[]) => {
   return uniq.join(', ').slice(0, 120);
 };
 
-export async function transferPlanToQuestionTargets(opts: {
+export async function transferPlanTopicsToQuestionEntry(opts: {
   student: Student;
   weekStart: string;
   items: PlanItem[];
@@ -40,7 +43,8 @@ export async function transferPlanToQuestionTargets(opts: {
 }): Promise<PlanTransferResult> {
   const { student, weekStart, items, canSubject } = opts;
   const weekEnd = addDaysYmd(weekStart, 6);
-  const result: PlanTransferResult = { targets: [], skippedSubjects: [], emptySubjects: [] };
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDaysYmd(weekStart, i));
+  const result: PlanTransferResult = { subjects: [], days: 0, skippedSubjects: [], emptySubjects: [] };
 
   // Ders → gün → konu listesi
   const bySubject = new Map<string, Map<string, string[]>>();
@@ -61,15 +65,17 @@ export async function transferPlanToQuestionTargets(opts: {
     days.set(date, [...(days.get(date) || []), text]);
     bySubject.set(subject, days);
   }
-  if (bySubject.size === 0) return result;
+
+  // Plandan çıkarılmış derslerin bu haftaya ait eski konu kayıtları silinir
+  const oldRecords = dataService.getMyPlanTopicRecords(student.id, weekStart, weekEnd);
+  for (const rec of oldRecords) {
+    const subj = normalizeSubject(rec.subject || '');
+    if (!bySubject.has(subj) && rec.id) await dataService.deleteQuestionTargetById(rec.id);
+  }
 
   for (const [subject, days] of bySubject) {
-    const dailyTopics: Record<string, string> = {};
-    for (const [date, list] of days) dailyTopics[date] = joinTopics(list);
-
-    // Planın 7 günü: görevi olan günler sayı bekler, diğerleri 0 (dinlenme)
-    const zeroDays: Record<string, number> = {};
-    for (let i = 0; i < 7; i++) zeroDays[addDaysYmd(weekStart, i)] = 0;
+    const weekTopics: Record<string, string> = {};
+    for (const [date, list] of days) weekTopics[date] = joinTopics(list);
 
     const draft: WeeklyQuestionTarget = {
       targetType: 'student',
@@ -81,31 +87,34 @@ export async function transferPlanToQuestionTargets(opts: {
       weekEndDate: weekEnd,
       targetDays: 7,
       subject,
-      dailyTargets: zeroDays,
       targetQuestions: 0,
-      dailyTopics,
+      dailyTopics: weekTopics,
       fromPlan: true,
-      notes: 'Günlük plandaki görevlere göre soru hedefi.',
+      notes: 'Günlük plandan aktarılan konular (soru hedefi değildir).',
     };
 
-    // Aynı öğretmenin aynı ders ve tarihlerde zaten hedefi varsa o hedef güncellenir (sayılar korunur, konular eklenir)
-    const conflict = dataService.findQuestionTargetConflict(draft);
+    // Bu öğretmenin aynı ders ve tarihlerde kaydı varsa (konu kaydı ya da gerçek hedef) o kayıt güncellenir:
+    // bu haftanın günlerindeki konular plandaki güncel görevlerle değiştirilir, diğer günler ve soru sayıları korunur.
+    const existing = dataService.findQuestionTargetConflict(draft);
     let toSave: WeeklyQuestionTarget;
-    if (conflict) {
-      const mergedTopics: Record<string, string> = { ...(conflict.dailyTopics || {}) };
-      for (const [d, t] of Object.entries(dailyTopics)) mergedTopics[d] = joinTopics([...(mergedTopics[d] || '').split(', '), t]);
-      toSave = {
-        ...conflict,
-        dailyTopics: mergedTopics,
-        fromPlan: true,
-        // Eşit dağıtımlı eski hedefin günlük sayıları korunsun diye dailyTargets'e dokunulmaz
-        dailyTargets: isFlexibleTarget(conflict) ? conflict.dailyTargets : undefined,
-      };
+    if (existing) {
+      const merged: Record<string, string> = {};
+      for (const [d, t] of Object.entries(existing.dailyTopics || {})) if (!weekDates.includes(d)) merged[d] = t;
+      Object.assign(merged, weekTopics);
+      toSave = isPendingPlanTarget(existing)
+        ? { ...draft, id: existing.id }
+        : {
+            ...existing,
+            dailyTopics: merged,
+            // Eşit dağıtımlı hedefin sayıları korunsun diye dailyTargets'e dokunulmaz
+            dailyTargets: isFlexibleTarget(existing) ? existing.dailyTargets : undefined,
+          };
     } else {
       toSave = draft;
     }
-    const saved = await dataService.saveQuestionTarget(toSave);
-    result.targets.push(saved);
+    await dataService.saveQuestionTarget(toSave);
+    result.subjects.push(subject);
+    result.days += Object.keys(weekTopics).length;
   }
   return result;
 }

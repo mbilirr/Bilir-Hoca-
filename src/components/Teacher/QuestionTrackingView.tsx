@@ -36,6 +36,7 @@ import {
 import {
   ResponsiveContainer,
   BarChart,
+  ComposedChart,
   Bar,
   LineChart,
   Line,
@@ -47,7 +48,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  ReferenceLine,
   LabelList,
 } from 'recharts';
 import { Student, ClassGroup, StudentQuestionLog, WeeklyQuestionTarget, StudentNotification } from '../../types';
@@ -64,7 +64,6 @@ import {
   useIsNarrowScreen,
   shortTurkishDate,
   parseIsoDate,
-  TargetLineLabel,
   WeeklyChartLegend,
   MonthlyBucketTooltip,
   CHART_BAR_CURSOR,
@@ -84,7 +83,7 @@ import {
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
-import { computeTargetDays, targetDayStatusText, isPendingPlanTarget, type TargetDayRow } from '../../utils/targetDays';
+import { computeTargetDays, targetDayStatusText, weekDayGoal, weekGoalLegendText, type TargetDayRow } from '../../utils/targetDays';
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -375,13 +374,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   }, [targetWeekDate]);
 
   // Bu haftaya denk gelen hedefler (önce benim verdiğim). Başka haftanın hedefi gösterilmez.
-  const allWeekTargets = useMemo(() => {
+  // (Günlük plandan aktarılan konu kayıtları hedef sayılmaz; veri servisi bunları zaten göstermez.)
+  const activeTargets = useMemo(() => {
     if (!activeStudent) return [] as WeeklyQuestionTarget[];
     return dataService.getQuestionTargetsForStudent(activeStudent.id, currentWeekStartDate, currentWeekEndDate);
   }, [activeStudent, currentWeekStartDate, currentWeekEndDate, targetUpdateTrigger, allLogs]);
-  // Günlük plandan açılıp soru sayısı henüz girilmemiş hedefler ilerleme hesaplarına katılmaz (ayrı kartta gösterilir)
-  const activeTargets = useMemo(() => allWeekTargets.filter((t) => !isPendingPlanTarget(t)), [allWeekTargets]);
-  const pendingPlanTargets = useMemo(() => allWeekTargets.filter((t) => isPendingPlanTarget(t)), [allWeekTargets]);
   const activeWeeklyTarget = activeTargets[0] || null;
   const myActiveTarget = activeTargets.find((t) => dataService.isMyQuestionTarget(t) && dataService.canEditQuestionTarget(t)) || null;
   // Günlük hedef çizgisi: bu haftanın GENEL (ders seçilmemiş) hedefinin günlük sayısı, yoksa 50.
@@ -396,14 +393,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   );
   const generalTargetRes = weeklyTargetRows.find((x) => !x.t.subject)?.res || null;
   const subjectTargetRows = weeklyTargetRows.filter((x) => !!x.t.subject);
-  const dayGoalRow = (ymdStr: string): TargetDayRow | null => generalTargetRes?.rows.find((r) => r.ymd === ymdStr) || null;
-  const dayGoal = (ymdStr: string): number => {
-    const r = dayGoalRow(ymdStr);
-    return r ? r.target : dailyQuestionTarget;
-  };
-  // PDF raporlarına soru sayısı girilmemiş (plandan açılan) hedefler katılmaz
-  const targetsForPdf = (a: string, b: string) =>
-    activeStudent ? dataService.getQuestionTargetsForStudent(activeStudent.id, a, b).filter((t) => !isPendingPlanTarget(t)) : [];
+  // Günün hedefi: genel hedef → o günkü sayısı; yoksa o güne denk gelen ders hedeflerinin toplamı; hiçbiri yoksa 0 (hedef yok).
+  // Hedef verilmeyen güne varsayılan bir sayı yazılmaz (grafik ve tablo öğretmenin verdiği hedeflerle birebir aynı).
+  const dayGoalRow = (ymdStr: string): TargetDayRow | null => weekDayGoal(ymdStr, weeklyTargetRows).generalRow;
+  const dayGoal = (ymdStr: string): number => weekDayGoal(ymdStr, weeklyTargetRows).goal;
+  const targetsForPdf = (a: string, b: string) => (activeStudent ? dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) : []);
   const activeTargetProgress = useMemo(
     () => (activeStudent && activeWeeklyTarget ? dataService.questionTargetProgress(activeWeeklyTarget, activeStudent.id, activeLogs) : null),
     [activeStudent, activeWeeklyTarget, activeLogs]
@@ -733,8 +727,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   }, [classStudents, classOverviewData, todayCountByStudent]);
 
   // Haftalık Hedef Tamamlama Oranı Hesabı (Öğretmenin atadığı hedef öncelikli)
-  // Hedef varsa kendi tarihleri (ve dersi) içindeki çözümler sayılır; yoksa bu hafta / varsayılan 50×7
-  const weeklyTargetTotal = activeTargetProgress ? activeTargetProgress.total : dailyQuestionTarget * 7;
+  // Hedef varsa kendi tarihleri (ve dersi) içindeki çözümler sayılır; hedef yoksa varsayılan sayı uydurulmaz (0 = hedef yok)
+  const weeklyTargetTotal = activeTargetProgress ? activeTargetProgress.total : 0;
   const weeklyTargetSolved = activeTargetProgress ? activeTargetProgress.solved : weeklyAnalytics?.totalQuestions || 0;
   const weeklyTargetCompletionRate = useMemo(() => {
     if (weeklyTargetTotal <= 0) return 0;
@@ -752,10 +746,24 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return Math.min(100, Math.round((monthlyAnalytics.totalQuestions / monthlyTargetTotal) * 100));
   }, [monthlyAnalytics, monthlyTargetTotal]);
 
+  // Haftalık grafik verisi: her günün kendi hedefi (hedef verilmeyen günde boş → hedef çizgisi/noktası çizilmez)
+  const chartDays = useMemo(
+    () =>
+      weeklyAnalytics
+        ? weeklyAnalytics.days.map((d) => {
+            const g = weekDayGoal(d.dateStr, weeklyTargetRows).goal;
+            return { ...d, dayTarget: g > 0 ? g : null };
+          })
+        : [],
+    [weeklyAnalytics, weeklyTargetRows]
+  );
+  const maxDayGoal = chartDays.reduce((m, d) => Math.max(m, d.dayTarget || 0), 0);
+
   // Looker Studio Custom Tooltip Component (Temiz Beyaz Arka Plan & Koyu Gri Metinler & Canlı Turuncu)
   const renderLookerTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
+      const goal = data.dateStr ? dayGoal(data.dateStr) : 0;
       return (
         <div className="bg-surface border border-line shadow-xl rounded-xl p-3.5 text-xs text-fg space-y-1.5 z-50 min-w-[210px]">
           <div className="flex items-center justify-between border-b border-line pb-1.5">
@@ -791,14 +799,16 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               </div>
             )}
 
-            {data.totalQuestions >= dailyQuestionTarget ? (
+            {goal <= 0 ? (
+              <div className="text-[11px] text-muted font-medium pt-1 border-t border-line">Bu güne soru hedefi verilmedi</div>
+            ) : data.totalQuestions >= goal ? (
               <div className="text-[11px] text-emerald-600 dark:text-emerald-300 font-semibold flex items-center gap-1 pt-1 border-t border-line">
                 <CheckCircle2 className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-                <span>Günlük Hedefe Ulaşıldı (%{Math.round((data.totalQuestions / dailyQuestionTarget) * 100)})</span>
+                <span>Günlük Hedefe Ulaşıldı (%{Math.round((data.totalQuestions / goal) * 100)})</span>
               </div>
             ) : data.totalQuestions > 0 ? (
               <div className="text-[11px] text-orange-600 dark:text-orange-300 font-medium pt-1 border-t border-line">
-                Hedefe {dailyQuestionTarget - data.totalQuestions} soru kaldı
+                Hedefe {goal - data.totalQuestions} soru kaldı (günün hedefi {goal})
               </div>
             ) : (
               <div className="text-[11px] text-rose-600 dark:text-rose-300 font-medium flex items-center gap-1 pt-1 border-t border-line">
@@ -1725,7 +1735,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="flex items-baseline gap-2 mt-2">
                     <span className="text-3xl font-black text-warning-fg tracking-tight">%{weeklyTargetCompletionRate}</span>
                     <span className="text-xs font-semibold text-muted">
-                      {weeklyTargetSolved} / {weeklyTargetTotal} Soru
+                      {weeklyTargetTotal > 0 ? `${weeklyTargetSolved} / ${weeklyTargetTotal} Soru` : `${weeklyTargetSolved} soru · hedef yok`}
                     </span>
                   </div>
                   <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
@@ -1756,7 +1766,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </>
                     ) : (
                       <div className="flex justify-between items-center">
-                        <span>Bu hafta hedef yok (varsayılan: günde 50 soru)</span>
+                        <span>Bu hafta soru hedefi verilmedi</span>
                         <button type="button" onClick={() => handleOpenStudentTargetModal(activeStudent)} className="text-[10px] font-bold text-warning-fg underline cursor-pointer">
                           Hedef ver
                         </button>
@@ -1833,14 +1843,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               </div>
 
               {/* Bu haftaya denk gelen hedefler: her hedefin gün gün tablosu ve grafiği (Aşama 10b) */}
-              {activeStudent && allWeekTargets.length > 0 && (
-                <StudentTargetCards
-                  targets={[...activeTargets, ...pendingPlanTargets]}
-                  studentId={activeStudent.id}
-                  logs={activeLogs}
-                  hideDailyBreakdown
-                  onEditTarget={openEditTarget}
-                />
+              {activeStudent && activeTargets.length > 0 && (
+                <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={activeLogs} hideDailyBreakdown />
               )}
 
               {/* ========================================================================= */}
@@ -1866,7 +1870,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   {/* Chart Type & Legend Switcher */}
                   <div className="flex flex-wrap items-center gap-3">
                     {/* Legend */}
-                    <WeeklyChartLegend dailyTarget={dailyQuestionTarget} mode={chartVisualType} />
+                    <WeeklyChartLegend
+                  targetText={weekGoalLegendText(chartDays.map((d) => d.dayTarget || 0))}
+                  mode={chartVisualType}
+                  showNoTarget={chartDays.some((d) => !d.dayTarget && d.totalQuestions > 0)}
+                />
 
                     {/* Chart Mode Buttons */}
                     <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">
@@ -1900,8 +1908,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <div className="h-80 w-full bg-surface-2 rounded-xl p-3 border border-line">
                   <ResponsiveContainer width="100%" height="100%">
                     {chartVisualType === 'bar' ? (
-                      <BarChart
-                        data={weeklyAnalytics.days}
+                      <ComposedChart
+                        data={chartDays}
                         margin={{ top: 28, right: isNarrow ? 6 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
@@ -1920,19 +1928,10 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
-                          domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                          domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
                           allowDecimals={false}
                         />
                         <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
-
-                        {/* Canlı Turuncu Hedef Referans Çizgisi */}
-                        <ReferenceLine
-                          y={dailyQuestionTarget}
-                          stroke={CHART_COLORS.target}
-                          strokeWidth={2}
-                          strokeDasharray="4 4"
-                          label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
-                        />
 
                         {/* Sütun Çizimi ve Tepede Net Değerler (LabelList) */}
                         <Bar
@@ -1954,19 +1953,35 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           {weeklyAnalytics.days.map((entry, index) => {
                             // Gece mavisi (#1e3a8a), hedefe ulaştıysa lacivert, 0 ise belirgin turuncu/rose
                             const isZero = entry.totalQuestions === 0;
-                            const isAboveTarget = entry.totalQuestions >= dayGoal(entry.dateStr);
+                            const g = dayGoal(entry.dateStr);
+                            const noTarget = g <= 0; // öğretmen bu güne hedef vermedi
+                            const isAboveTarget = !noTarget && entry.totalQuestions >= g;
                             return (
                               <Cell
                                 key={`cell-looker-${index}`}
-                                fill={isZero ? CHART_COLORS.zero : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
+                                fill={isZero ? CHART_COLORS.zero : noTarget ? CHART_COLORS.noTarget : isAboveTarget ? CHART_COLORS.met : CHART_COLORS.below}
                               />
                             );
                           })}
                         </Bar>
-                      </BarChart>
+                        {/* Günlük hedef: yalnızca hedef verilen günlerde (gün gün farklı olabilir) */}
+                        <Line
+                          type="linear"
+                          dataKey="dayTarget"
+                          name="Günlük hedef"
+                          stroke={CHART_COLORS.target}
+                          strokeWidth={2}
+                          strokeDasharray="5 4"
+                          connectNulls={false}
+                          dot={{ r: 4, fill: CHART_COLORS.target, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
+                          activeDot={{ r: 5, fill: CHART_COLORS.target }}
+                          isAnimationActive={false}
+                          legendType="none"
+                        />
+                      </ComposedChart>
                     ) : (
-                      <AreaChart
-                        data={weeklyAnalytics.days}
+                      <ComposedChart
+                        data={chartDays}
                         margin={{ top: 28, right: isNarrow ? 6 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
                       >
                         <defs>
@@ -1991,18 +2006,10 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           fontWeight={600}
                           tickLine={false}
                           axisLine={{ stroke: 'var(--color-line-strong)' }}
-                          domain={[0, (max: number) => Math.max(max, dailyQuestionTarget) + Math.ceil(dailyQuestionTarget * 0.25)]}
+                          domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
                           allowDecimals={false}
                         />
                         <Tooltip content={renderLookerTooltip} cursor={CHART_LINE_CURSOR} />
-
-                        <ReferenceLine
-                          y={dailyQuestionTarget}
-                          stroke={CHART_COLORS.target}
-                          strokeWidth={2}
-                          strokeDasharray="4 4"
-                          label={<TargetLineLabel text={`Hedef: ${dailyQuestionTarget} Soru`} />}
-                        />
 
                         <Area
                           type="monotone"
@@ -2011,8 +2018,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           strokeWidth={3}
                           fillOpacity={1}
                           fill="url(#lookerNavyGradient)"
-                          dot={{ r: 5, fill: '#ea580c', stroke: 'var(--color-surface)', strokeWidth: 2 }}
-                          activeDot={{ r: 7, fill: '#ea580c' }}
+                          dot={{ r: 5, fill: 'var(--chart-1)', stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                          activeDot={{ r: 7, fill: 'var(--chart-1)' }}
                         >
                           <LabelList
                             dataKey="totalQuestions"
@@ -2023,7 +2030,21 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             offset={8}
                           />
                         </Area>
-                      </AreaChart>
+                        {/* Günlük hedef: yalnızca hedef verilen günlerde (gün gün farklı olabilir) */}
+                        <Line
+                          type="linear"
+                          dataKey="dayTarget"
+                          name="Günlük hedef"
+                          stroke={CHART_COLORS.target}
+                          strokeWidth={2}
+                          strokeDasharray="5 4"
+                          connectNulls={false}
+                          dot={{ r: 4, fill: CHART_COLORS.target, stroke: 'var(--color-surface)', strokeWidth: 1.5 }}
+                          activeDot={{ r: 5, fill: CHART_COLORS.target }}
+                          isAnimationActive={false}
+                          legendType="none"
+                        />
+                      </ComposedChart>
                     )}
                   </ResponsiveContainer>
                 </div>
@@ -2050,7 +2071,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                             }`
                           : subjectTargetRows.length
                             ? 'Ders hedeflerinin günlük durumu "Günlük Hedef" sütunundadır.'
-                            : `Genel hedef verilmedi; günlük ${dailyQuestionTarget} soru varsayılan hedeftir.`}
+                            : 'Bu hafta soru hedefi verilmedi; hedef sütunları boş görünür.'}
                       </p>
                     </div>
                     <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-surface-2 text-fg-2 border border-line shrink-0">
@@ -2081,8 +2102,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           const goal = dayGoal(d.dateStr);
                           const isFuture = d.dateStr > todayIsoStr;
                           const isToday = d.dateStr === todayIsoStr;
-                          const metTarget = d.totalQuestions >= goal;
-                          const completionRate = goal > 0 ? Math.min(100, Math.round((d.totalQuestions / goal) * 100)) : 100;
+                          const hasGoal = goal > 0; // bu güne hedef verilmiş mi
+                          const metTarget = hasGoal && d.totalQuestions >= goal;
+                          const completionRate = hasGoal ? Math.min(100, Math.round((d.totalQuestions / goal) * 100)) : 0;
                           const praised = isPraisedForDate(d.dateStr);
                           // O güne denk gelen ders hedefleri (ör. yalnızca Matematik)
                           const subjectLines = subjectTargetRows
@@ -2104,6 +2126,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                   : goalRow.status === 'none'
                                     ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/30'
                                     : 'bg-surface-2 text-muted border-line';
+                          } else if (!hasGoal) {
+                            statusText = isFuture ? 'Henüz gelmedi' : d.hasSolved ? `Hedef yok · ${d.totalQuestions} soru` : 'Hedef verilmedi';
+                            statusCls = 'bg-surface-2 text-muted border-line';
                           } else if (isFuture) {
                             statusText = 'Henüz gelmedi';
                             statusCls = 'bg-surface-2 text-muted border-line';
@@ -2173,7 +2198,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                                       style={{ width: `${isFuture && !d.hasSolved ? 0 : completionRate}%` }}
                                     />
                                   </div>
-                                  <span className="text-[10px] font-bold text-muted">%{isFuture && !d.hasSolved ? 0 : completionRate}</span>
+                                  <span className="text-[10px] font-bold text-muted">{hasGoal ? `%${isFuture && !d.hasSolved ? 0 : completionRate}` : '—'}</span>
                                 </div>
                               </td>
                               <td className="px-2.5 py-2.5 text-center">
