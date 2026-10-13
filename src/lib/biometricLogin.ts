@@ -63,7 +63,7 @@ const friendlyError = (e: any, fallback: string): Error => {
   if (name === 'NotAllowedError') return new Error('Parmak izi doğrulaması iptal edildi ya da süresi doldu. Tekrar deneyin.');
   if (name === 'InvalidStateError') return new Error('Bu cihazda bu hesap için zaten bir parmak izi kaydı var. Önce "Parmak izini kaldır" deyip yeniden açın.');
   if (name === 'SecurityError') return new Error('Parmak izi girişi yalnızca güvenli bağlantıda (https) çalışır.');
-  if (name === 'NotSupportedError') return new Error('Bu cihaz veya tarayıcı parmak izi ile girişi desteklemiyor.');
+  if (name === 'NotSupportedError') return new Error('Bu cihaz veya tarayıcı parmak izi ile girişi desteklemiyor. Safari veya Chrome\'un güncel sürümünü deneyin (Firefox desteklemeyebilir).');
   return new Error(e?.message && !/^\w+Error$/.test(e.message) ? e.message : fallback);
 };
 
@@ -97,13 +97,12 @@ export async function getBiometricSupport(): Promise<{ ok: boolean; reason: stri
     if (typeof PKC.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
       return { ok: false, reason: 'Bu tarayıcı parmak izi ile girişi desteklemiyor. Chrome, Edge veya Safari\'nin güncel sürümünü kullanın.' };
     }
-    const has = !!(await PKC.isUserVerifyingPlatformAuthenticatorAvailable());
-    if (!has) {
-      return {
-        ok: false,
-        reason:
-          'Bu cihazda parmak izi / yüz tanıma kurulu değil. Telefonda ekran kilidi ve parmak izini, Windows\'ta "Windows Hello"yu, Mac\'te Touch ID\'yi açın.',
-      };
+    // Bu kontrol bazı tarayıcılarda (ör. Touch ID açık olsa bile) yanlışlıkla "false" dönebiliyor.
+    // Bu yüzden artık engellemiyoruz: sonucu sadece deniyoruz, gerçek hata kayıt sırasında gösterilir.
+    try {
+      await PKC.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch {
+      /* yok sayılır */
     }
     return { ok: true, reason: '' };
   } catch {
