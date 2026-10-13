@@ -222,11 +222,6 @@ export interface WeeklyQuestionTarget {
   notes?: string;
   subject?: string; // Aşama 10: yalnızca bu dersin soruları sayılır (boş = tüm dersler)
   createdBy?: string; // Aşama 10: hedefi kaydeden hesabın (auth) kimliği — veritabanındaki created_by
-  // Günlük plandan "Soru Kaydet'e aktar" ile oluşan konu kaydı. Soru sayısı 0 olan böyle bir kayıt hedef değildir:
-  // hiçbir ekranda hedef olarak görünmez, yalnızca dailyTopics'i (konuları) taşır.
-  fromPlan?: boolean;
-  // Gün → "Çalışılan Konu / Test" metni (plandaki kitap + açıklama). Öğrencinin soru kaydet formuna otomatik yazılır.
-  dailyTopics?: Record<string, string>;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';
@@ -270,6 +265,30 @@ export interface StudentMessage {
   read: boolean;
   teacherReply?: string;
   repliedAt?: string;
+  /**
+   * Aşama 28: boşsa ya da 'student' ise öğrencinin öğretmene yazdığı mesajdır.
+   * 'announcement' = öğretmenin öğrenci ana sayfasındaki Duyurular bölümüne gönderdiği duyuru,
+   * 'note' = öğretmenin öğrenciye yazdığı kısa not. Bu iki türde subject = başlık, text = metin.
+   */
+  kind?: 'student' | 'announcement' | 'note';
+  senderId?: string; // duyuruyu/notu gönderen öğretmen
+  senderName?: string;
+  groupId?: string; // aynı anda birden çok öğrenciye giden duyurunun ortak kimliği
+}
+
+// Öğretmenin gönderdiği bir duyuru/not (alıcıları tek satırda toplanmış hali)
+export interface AnnouncementGroup {
+  groupId: string;
+  kind: 'announcement' | 'note';
+  title: string;
+  text: string;
+  senderId?: string;
+  senderName?: string;
+  createdAt: string;
+  studentIds: string[];
+  studentNames: string[];
+  classNames: string[];
+  messageIds: string[];
 }
 
 export interface NotificationItem {

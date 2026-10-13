@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
   ChevronLeft,
@@ -10,15 +10,31 @@ import {
   Edit2,
   Trash2,
   CalendarCheck,
-  Sparkles,
-  Filter,
   Calendar as CalendarIcon,
   MessageCircle,
   CheckCircle2,
   Copy,
+  Search,
+  X,
+  AlertCircle,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
+import { isEtutAttendanceMissing } from '../../lib/etutTiming';
+import { ETUT_STATUS_STYLE, etutTeacherNames, getEtutStatus, subjectDot } from '../../lib/etutStatus';
+import { EtutStatusLegend } from './EtutStatusLegend';
+
+// ============================================================================
+// HAFTALIK PLAN (Aşama 28)
+// Çok etüt girildiğinde sayfa aşağı uzamasın diye yeniden tasarlandı:
+//  • "Hafta" görünümü: 7 gün yan yana, her etüt TEK KÜÇÜK satır; gün sütunu kendi içinde kayar.
+//  • "Gün" görünümü: seçilen günün tüm etütleri geniş kartlarla (telefonda varsayılan).
+//  • Etüde tıklayınca ayrıntı penceresi açılır (yoklama, bildir, düzenle, kopyala, sil…).
+//  • Ders / öğretmen süzgeci Etütler sayfasındaki ortak süzgeç çubuğundan gelir; burada arama kutusu var.
+//  • Renkler: Yaklaşan (mavi), Devam eden (sarı), Yapıldı (yeşil), Geçmiş (gri).
+// ============================================================================
 
 interface WeeklyEtutCalendarProps {
   etuts: Etut[];
@@ -33,7 +49,6 @@ interface WeeklyEtutCalendarProps {
   readOnly?: boolean;
 }
 
-// Helper to get Monday of the week
 function getMonday(d: Date): Date {
   const date = new Date(d);
   const day = date.getDay();
@@ -44,95 +59,35 @@ function getMonday(d: Date): Date {
 }
 
 function formatDateKey(d: Date): string {
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const DAY_NAMES = [
-  'Pazartesi',
-  'Salı',
-  'Çarşamba',
-  'Perşembe',
-  'Cuma',
-  'Cumartesi',
-  'Pazar',
-];
+// Farklı yazılmış tarihleri (2026-10-05, 5.10.2026, 05/10/2026…) YYYY-MM-DD yapar
+function normalizeDateKey(raw: string): string {
+  let dKey = String(raw || '').trim().split('T')[0].replace(/\//g, '-').replace(/\./g, '-');
+  const parts = dKey.split('-');
+  if (parts.length === 3) {
+    if (parts[0].length === 4) dKey = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+    else if (parts[2].length === 4) dKey = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+  }
+  return dKey;
+}
 
-const SUBJECT_COLORS: Record<string, { bg: string; text: string; border: string; badge: string }> = {
-  Matematik: {
-    bg: 'bg-indigo-50 dark:bg-indigo-950/40',
-    text: 'text-indigo-600 dark:text-indigo-300',
-    border: 'border-indigo-500/30',
-    badge: 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
-  },
-  Fizik: {
-    bg: 'bg-cyan-50 dark:bg-cyan-950/40',
-    text: 'text-cyan-700 dark:text-cyan-300',
-    border: 'border-cyan-500/30',
-    badge: 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30',
-  },
-  Kimya: {
-    bg: 'bg-amber-50 dark:bg-amber-950/40',
-    text: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-500/30',
-    badge: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30',
-  },
-  Biyoloji: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    border: 'border-emerald-500/30',
-    badge: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  },
-  Türkçe: {
-    bg: 'bg-rose-50 dark:bg-rose-950/40',
-    text: 'text-rose-600 dark:text-rose-300',
-    border: 'border-rose-500/30',
-    badge: 'bg-rose-500/20 text-rose-600 dark:text-rose-300 border-rose-500/30',
-  },
-  Tarih: {
-    bg: 'bg-orange-50 dark:bg-orange-950/40',
-    text: 'text-orange-700 dark:text-orange-300',
-    border: 'border-orange-500/30',
-    badge: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30',
-  },
-  Coğrafya: {
-    bg: 'bg-teal-50 dark:bg-teal-950/40',
-    text: 'text-teal-700 dark:text-teal-300',
-    border: 'border-teal-500/30',
-    badge: 'bg-teal-500/20 text-teal-700 dark:text-teal-300 border-teal-500/30',
-  },
-  'Fen Bilgisi': {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    border: 'border-emerald-500/30',
-    badge: 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
-  },
-  'Sosyal Bilgiler': {
-    bg: 'bg-yellow-50 dark:bg-yellow-950/40',
-    text: 'text-yellow-700 dark:text-yellow-300',
-    border: 'border-yellow-500/30',
-    badge: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-yellow-500/30',
-  },
-  İngilizce: {
-    bg: 'bg-sky-50 dark:bg-sky-950/40',
-    text: 'text-sky-700 dark:text-sky-300',
-    border: 'border-sky-500/30',
-    badge: 'bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30',
-  },
-  Edebiyat: {
-    bg: 'bg-purple-50 dark:bg-purple-950/40',
-    text: 'text-purple-600 dark:text-purple-300',
-    border: 'border-purple-500/30',
-    badge: 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border-purple-500/30',
-  },
-};
+const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+
+// Dakikada bir güncellenen "şimdi": renkler (yaklaşan → devam ediyor → geçmiş) kendiliğinden değişir
+function useNow(intervalMs = 60000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), intervalMs);
+    return () => window.clearInterval(t);
+  }, [intervalMs]);
+  return now;
+}
 
 export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   etuts,
   students,
-  classes,
   onAddEtutForDate,
   onEditEtut,
   onCopyEtut,
@@ -141,600 +96,596 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   onAttendanceEtut,
   readOnly = false,
 }) => {
+  const now = useNow();
+  const todayKey = formatDateKey(now);
+
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
-  const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
+  const [mode, setMode] = useState<'week' | 'day'>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+  );
+  const [selectedKey, setSelectedKey] = useState<string>(() => formatDateKey(new Date()));
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const todayKey = formatDateKey(new Date());
+  const weekDays = useMemo(
+    () =>
+      Array.from({ length: 7 }).map((_, index) => {
+        const dayDate = new Date(currentWeekStart);
+        dayDate.setDate(currentWeekStart.getDate() + index);
+        const dateKey = formatDateKey(dayDate);
+        return { date: dayDate, dateKey, dayName: DAY_NAMES[index], isToday: dateKey === todayKey };
+      }),
+    [currentWeekStart, todayKey]
+  );
 
-  // Generate 7 days for current week
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, index) => {
-      const dayDate = new Date(currentWeekStart);
-      dayDate.setDate(currentWeekStart.getDate() + index);
-      const dateKey = formatDateKey(dayDate);
-      return {
-        date: dayDate,
-        dateKey,
-        dayName: DAY_NAMES[index],
-        isToday: dateKey === todayKey,
-      };
-    });
-  }, [currentWeekStart, todayKey]);
+  // Seçili gün bu haftada değilse haftanın ilk günü (ya da bugün) gösterilir
+  const effectiveSelectedKey = weekDays.some((d) => d.dateKey === selectedKey)
+    ? selectedKey
+    : weekDays.find((d) => d.isToday)?.dateKey || weekDays[0].dateKey;
 
-  // Mobile active day index (0..6)
-  const [mobileActiveIndex, setMobileActiveIndex] = useState<number>(() => {
-    const today = formatDateKey(new Date());
-    const mon = getMonday(new Date());
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(mon);
-      d.setDate(mon.getDate() + i);
-      if (formatDateKey(d) === today) return i;
-    }
-    return 0;
-  });
-
-  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
-
-  const scrollToDay = (index: number) => {
-    setMobileActiveIndex(index);
-    if (scrollContainerRef.current) {
-      const container = scrollContainerRef.current;
-      const child = container.children[index] as HTMLElement;
-      if (child) {
-        child.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-      }
-    }
-  };
-
-  const handleMobileScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const container = scrollContainerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const itemWidth = container.clientWidth * 0.88;
-    if (itemWidth > 0) {
-      const idx = Math.round(scrollLeft / itemWidth);
-      if (idx >= 0 && idx < 7 && idx !== mobileActiveIndex) {
-        setMobileActiveIndex(idx);
-      }
-    }
-  };
-
-  // Navigate weeks
   const goToPreviousWeek = () => {
     const prev = new Date(currentWeekStart);
     prev.setDate(prev.getDate() - 7);
     setCurrentWeekStart(prev);
   };
-
   const goToNextWeek = () => {
     const next = new Date(currentWeekStart);
     next.setDate(next.getDate() + 7);
     setCurrentWeekStart(next);
   };
-
-  const goToCurrentWeek = () => {
+  const goToToday = () => {
     setCurrentWeekStart(getMonday(new Date()));
+    setSelectedKey(formatDateKey(new Date()));
   };
 
-  // Filter etuts by subject
-  const filteredEtuts = useMemo(() => {
-    if (selectedSubjectFilter === 'all') return etuts;
-    return etuts.filter((e) => e.subject === selectedSubjectFilter);
-  }, [etuts, selectedSubjectFilter]);
+  const studentNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    students.forEach((s) => m.set(s.id, s.name));
+    return m;
+  }, [students]);
 
-  // Map etuts by dateKey
+  // Arama: ders, konu, yer, öğretmen, öğrenci adı
+  const searchedEtuts = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr-TR');
+    if (!q) return etuts;
+    return etuts.filter((e) => {
+      const names = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.map((id) => studentNameById.get(id) || '') : [];
+      const hay = [e.subject, e.topic, e.location, e.notes, ...etutTeacherNames(e), ...names].join(' ').toLocaleLowerCase('tr-TR');
+      return hay.includes(q);
+    });
+  }, [etuts, query, studentNameById]);
+
   const etutsByDay = useMemo(() => {
     const map: Record<string, Etut[]> = {};
     weekDays.forEach((day) => {
       map[day.dateKey] = [];
     });
-
-    filteredEtuts.forEach((etut) => {
+    searchedEtuts.forEach((etut) => {
       if (!etut.date) return;
-      let dKey = etut.date.trim().split('T')[0].replace(/\//g, '-').replace(/\./g, '-');
-      const parts = dKey.split('-');
-      if (parts.length === 3) {
-        if (parts[0].length === 4) {
-          dKey = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-        } else if (parts[2].length === 4) {
-          dKey = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        }
-      }
-      if (map[dKey]) {
-        map[dKey].push(etut);
-      }
+      const k = normalizeDateKey(etut.date);
+      if (map[k]) map[k].push(etut);
     });
-
-    // Sort etuts in each day chronologically by time
-    Object.keys(map).forEach((dateKey) => {
-      map[dateKey].sort((a, b) => (a?.time || '').localeCompare(b?.time || ''));
-    });
-
+    Object.keys(map).forEach((k) => map[k].sort((a, b) => (a?.time || '').localeCompare(b?.time || '')));
     return map;
-  }, [weekDays, filteredEtuts]);
+  }, [weekDays, searchedEtuts]);
 
-  // Calculate week stats
-  const totalEtutsThisWeek = weekDays.reduce(
-    (count, day) => count + (etutsByDay[day.dateKey]?.length || 0),
+  const totalEtutsThisWeek = weekDays.reduce((c, d) => c + (etutsByDay[d.dateKey]?.length || 0), 0);
+  const totalMinutesThisWeek = weekDays.reduce(
+    (mins, d) => mins + (etutsByDay[d.dateKey] || []).reduce((s, e) => s + (e.duration || 45), 0),
+    0
+  );
+  const totalHoursStr = (totalMinutesThisWeek / 60).toFixed(1);
+  const missingThisWeek = weekDays.reduce(
+    (c, d) => c + (etutsByDay[d.dateKey] || []).filter((e) => isEtutAttendanceMissing(e, now)).length,
     0
   );
 
-  const totalMinutesThisWeek = weekDays.reduce((mins, day) => {
-    const dayEtuts = etutsByDay[day.dateKey] || [];
-    return mins + dayEtuts.reduce((sub, e) => sub + (e.duration || 45), 0);
-  }, 0);
-
-  const totalHoursStr = (totalMinutesThisWeek / 60).toFixed(1);
-
-  // Available subjects for filter
-  const subjects = Array.from(new Set(etuts.map((e) => e.subject)));
-
-  // Week range label (e.g. "8 - 14 Eylül 2026")
   const weekEnd = weekDays[6].date;
-  const startDay = currentWeekStart.getDate();
-  const startMonth = currentWeekStart.toLocaleDateString('tr-TR', { month: 'short' });
-  const endDay = weekEnd.getDate();
-  const endMonth = weekEnd.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' });
-  const weekLabel = `${startDay} ${startMonth} - ${endDay} ${endMonth}`;
+  const weekLabel = `${currentWeekStart.getDate()} ${currentWeekStart.toLocaleDateString('tr-TR', { month: 'short' })} - ${weekEnd.getDate()} ${weekEnd.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' })}`;
 
-  // Helper for student chips
-  const getAssignedStudentsSummary = (assignedStudentIds: 'all' | string[]) => {
-    if (assignedStudentIds === 'all') return 'Tüm Sınıf & Grup';
-    if (assignedStudentIds.length === 1) {
-      const s = students.find((std) => std.id === assignedStudentIds[0]);
-      return s ? s.name : '1 Öğrenci';
-    }
-    const names = assignedStudentIds
-      .map((id) => students.find((s) => s.id === id)?.name?.split(' ')[0])
-      .filter(Boolean);
-    if (names.length > 2) {
-      return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
-    }
-    return names.join(', ');
+  const studentsSummary = (assigned: 'all' | string[], short = false) => {
+    if (assigned === 'all') return 'Tüm sınıf / grup';
+    if (!Array.isArray(assigned) || assigned.length === 0) return 'Öğrenci yok';
+    if (assigned.length === 1) return studentNameById.get(assigned[0]) || '1 öğrenci';
+    if (short) return `${assigned.length} öğrenci`;
+    const names = assigned.map((id) => studentNameById.get(id)?.split(' ')[0]).filter(Boolean) as string[];
+    return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ') || `${assigned.length} öğrenci`;
   };
 
+  const openEtut = openId ? etuts.find((e) => e.id === openId) || null : null;
+  // Etüt silinir / filtrelenirse açık pencere kapanır
+  useEffect(() => {
+    if (openId && !openEtut) setOpenId(null);
+  }, [openId, openEtut]);
+  // Esc tuşu ayrıntı penceresini kapatır
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenId(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openId]);
+
+  // ---------------------------------------------------------------------
+  // Etüt işlem düğmeleri (kart altı ve ayrıntı penceresi ortak)
+  // ---------------------------------------------------------------------
+  const ActionBar: React.FC<{ etut: Etut; afterAction?: () => void; labels?: boolean }> = ({ etut, afterAction, labels }) => {
+    const base = 'inline-flex items-center gap-1 rounded-lg transition-colors cursor-pointer text-[11px] font-semibold';
+    const pad = labels ? 'px-2.5 py-1.5 border border-line bg-surface hover:bg-surface-2 text-fg-2' : 'p-1.5 hover:bg-surface-2 text-muted';
+    const run = (fn?: (e: Etut) => void) => (ev: React.MouseEvent) => {
+      ev.stopPropagation();
+      fn?.(etut);
+      afterAction?.();
+    };
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        {!readOnly && onAttendanceEtut && (
+          <button type="button" onClick={run(onAttendanceEtut)} className={`${base} ${pad}`} title="Yoklama al / devamsızlık">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
+            {labels && 'Yoklama'}
+          </button>
+        )}
+        {!readOnly && onNotifyEtut && (
+          <button type="button" onClick={run(onNotifyEtut)} className={`${base} ${pad}`} title="WhatsApp ve mail ile ilet">
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
+            {labels && 'Bildir'}
+          </button>
+        )}
+        <a
+          href={createGoogleCalendarUrlForEtut(etut)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className={`${base} ${pad}`}
+          title="Google Takvime ekle"
+        >
+          <CalendarCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
+          {labels && 'Google Takvim'}
+        </a>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            downloadIcsFile(
+              `etut-${etut.id}`,
+              `[ETÜT] ${etut.subject}: ${etut.topic}`,
+              etut.notes || `${etut.location || 'Derslik'}`,
+              `${etut.date}T${etut.time || '14:00'}:00`,
+              etut.duration || 45,
+              etut.location || 'Okul'
+            );
+          }}
+          className={`${base} ${pad}`}
+          title="iCal / Outlook takvim dosyası (.ics)"
+        >
+          <CalendarIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
+          {labels && '.ics'}
+        </button>
+        {!readOnly && onCopyEtut && (
+          <button type="button" onClick={run(onCopyEtut)} className={`${base} ${pad}`} title="Kopyala (başka tarihe yeniden tanımla)">
+            <Copy className="w-3.5 h-3.5" />
+            {labels && 'Kopyala'}
+          </button>
+        )}
+        {!readOnly && onEditEtut && (
+          <button type="button" onClick={run(onEditEtut)} className={`${base} ${pad}`} title="Düzenle">
+            <Edit2 className="w-3.5 h-3.5" />
+            {labels && 'Düzenle'}
+          </button>
+        )}
+        {!readOnly && onDeleteEtut && (
+          <button type="button" onClick={run(onDeleteEtut)} className={`${base} ${pad}`} title="Sil">
+            <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+            {labels && 'Sil'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // ---------------------------------------------------------------------
+  // Küçük (tek satırlı) etüt kartı — Hafta görünümü
+  // ---------------------------------------------------------------------
+  const renderCompact = (etut: Etut) => {
+    const status = getEtutStatus(etut, now);
+    const st = ETUT_STATUS_STYLE[status];
+    const missing = isEtutAttendanceMissing(etut, now);
+    const teachers = etutTeacherNames(etut);
+    return (
+      <button
+        key={etut.id}
+        type="button"
+        data-etut-status={status}
+        onClick={() => setOpenId(etut.id)}
+        title={`${st.label} · ${etut.subject}: ${etut.topic}`}
+        className={`w-full text-left rounded-lg border border-l-4 px-2 py-1.5 transition-shadow hover:shadow-md cursor-pointer ${st.card} ${st.accent}`}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2 shrink-0">{etut.time || '--:--'}</span>
+          <span className={`w-2 h-2 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
+          <span className="text-[11px] font-bold text-fg truncate flex-1">{etut.subject}</span>
+          {missing && (
+            <span title="Yoklama alınmadı" className="shrink-0">
+              <AlertCircle className="w-3 h-3 text-rose-500" />
+            </span>
+          )}
+          {status === 'done' && (
+            <span title="Yoklaması alındı" className="shrink-0">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            </span>
+          )}
+        </div>
+        {etut.topic && <div className="text-[10px] text-fg-2 truncate leading-tight mt-0.5">{etut.topic}</div>}
+        <div className="text-[10px] text-muted truncate leading-tight">
+          {[teachers[0] ? teachers[0].split(' ')[0] + (teachers.length > 1 ? ` +${teachers.length - 1}` : '') : '', studentsSummary(etut.assignedStudentIds, true)]
+            .filter(Boolean)
+            .join(' · ')}
+        </div>
+      </button>
+    );
+  };
+
+  // ---------------------------------------------------------------------
+  // Geniş etüt kartı — Gün görünümü
+  // ---------------------------------------------------------------------
+  const renderDetailed = (etut: Etut) => {
+    const status = getEtutStatus(etut, now);
+    const st = ETUT_STATUS_STYLE[status];
+    const missing = isEtutAttendanceMissing(etut, now);
+    const teachers = etutTeacherNames(etut);
+    return (
+      <div
+        key={etut.id}
+        data-etut-status={status}
+        onClick={() => setOpenId(etut.id)}
+        className={`rounded-xl border border-l-4 p-3 text-xs cursor-pointer hover:shadow-md transition-shadow ${st.card} ${st.accent}`}
+      >
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
+            <span className="font-bold text-fg truncate">{etut.subject}</span>
+            {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-2 text-fg-2">{etut.lessonPeriod}</span>
+            )}
+          </div>
+          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-fg-2">
+            <Clock className="w-3 h-3" />
+            {etut.time || 'Saat yok'} · {etut.duration || 45} dk
+          </span>
+        </div>
+        {etut.topic && <h5 className="font-semibold text-fg text-[12px] leading-snug mb-1.5 line-clamp-2">{etut.topic}</h5>}
+        <div className="space-y-0.5 text-[11px] text-muted">
+          {teachers.length > 0 && <div className="truncate">👨‍🏫 {teachers.join(', ')}</div>}
+          {etut.location && (
+            <div className="flex items-center gap-1 truncate">
+              <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+              <span className="truncate">{etut.location}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1 truncate">
+            <Users className="w-3 h-3 text-indigo-500 shrink-0" />
+            <span className="truncate">{studentsSummary(etut.assignedStudentIds)}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-2 flex-wrap mt-2 pt-2 border-t border-black/5 dark:border-white/10">
+          <span className="flex items-center gap-1">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+            {missing && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">Yoklama yok</span>}
+          </span>
+          <ActionBar etut={etut} />
+        </div>
+      </div>
+    );
+  };
+
+  const selectedDay = weekDays.find((d) => d.dateKey === effectiveSelectedKey) || weekDays[0];
+  const selectedEtuts = etutsByDay[selectedDay.dateKey] || [];
+
   return (
-    <div className="space-y-4">
-      {/* Calendar Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-surface border border-line p-4 rounded-2xl shadow-lg">
-        {/* Left: Navigation and Week Label */}
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1 bg-canvas p-1 rounded-xl border border-line">
-            <button
-              onClick={goToPreviousWeek}
-              className="p-1.5 hover:bg-surface-2 text-fg-2 hover:text-fg rounded-lg transition-colors"
-              title="Önceki Hafta"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={goToCurrentWeek}
-              className="px-2.5 py-1 text-xs font-semibold hover:bg-surface-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 rounded-lg transition-colors"
-            >
-              Bu Hafta
-            </button>
-            <button
-              onClick={goToNextWeek}
-              className="p-1.5 hover:bg-surface-2 text-fg-2 hover:text-fg rounded-lg transition-colors"
-              title="Sonraki Hafta"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+    <div className="space-y-3" id="weekly-etut-calendar">
+      {/* ===== Üst çubuk: hafta gezinmesi, görünüm, arama, istatistik ===== */}
+      <div className="bg-surface border border-line p-3 sm:p-4 rounded-2xl shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1 bg-canvas p-1 rounded-xl border border-line">
+              <button type="button" onClick={goToPreviousWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Önceki hafta" aria-label="Önceki hafta">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={goToToday} className="px-2.5 py-1 text-xs font-semibold hover:bg-surface-2 text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer">
+                Bugün
+              </button>
+              <button type="button" onClick={goToNextWeek} className="p-1.5 hover:bg-surface-2 text-fg-2 rounded-lg cursor-pointer" title="Sonraki hafta" aria-label="Sonraki hafta">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-sm font-bold text-fg tracking-tight">{weekLabel}</span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="text-sm font-bold text-fg tracking-tight">{weekLabel}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Görünüm: Hafta / Gün */}
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-canvas border border-line" role="tablist" aria-label="Takvim görünümü">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'week'}
+                id="etut-cal-mode-week"
+                onClick={() => setMode('week')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${mode === 'week' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Hafta
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'day'}
+                id="etut-cal-mode-day"
+                onClick={() => setMode('day')}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer ${mode === 'day' ? 'bg-indigo-600 text-white' : 'text-fg-2 hover:bg-surface-2'}`}
+              >
+                <List className="w-3.5 h-3.5" /> Gün
+              </button>
+            </div>
+
+            {/* Arama */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="etut-cal-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Konu, öğretmen, öğrenci ara…"
+                className="w-full sm:w-56 pl-8 pr-7 py-1.5 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 text-muted hover:text-fg cursor-pointer" aria-label="Aramayı temizle">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right: Quick Stats & Subject Filter */}
-        <div className="flex flex-wrap items-center gap-2.5 text-xs">
-          {/* Stats Badge */}
-          <div className="flex items-center space-x-2 bg-canvas/80 px-3 py-1.5 rounded-xl border border-line text-fg-2">
-            <span>Bu Hafta:</span>
-            <strong className="text-indigo-600 dark:text-indigo-400">{totalEtutsThisWeek} Etüt</strong>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <EtutStatusLegend />
+          <div className="flex items-center gap-2 text-xs text-fg-2">
+            <strong className="text-indigo-600 dark:text-indigo-400">{totalEtutsThisWeek} etüt</strong>
             <span className="text-subtle">•</span>
-            <strong className="text-amber-700 dark:text-amber-400">{totalHoursStr} Saat</strong>
-          </div>
-
-          {/* Subject Filter */}
-          <div className="flex items-center space-x-1 bg-canvas px-2.5 py-1.5 rounded-xl border border-line text-fg-2">
-            <Filter className="w-3.5 h-3.5 text-muted" />
-            <select
-              value={selectedSubjectFilter}
-              onChange={(e) => setSelectedSubjectFilter(e.target.value)}
-              className="bg-transparent text-xs text-fg outline-none cursor-pointer"
-            >
-              <option value="all" className="bg-surface text-fg">
-                Tüm Dersler
-              </option>
-              {subjects.map((sub) => (
-                <option key={sub} value={sub} className="bg-surface text-fg">
-                  {sub}
-                </option>
-              ))}
-            </select>
+            <strong className="text-amber-700 dark:text-amber-400">{totalHoursStr} saat</strong>
+            {missingThisWeek > 0 && (
+              <>
+                <span className="text-subtle">•</span>
+                <strong className="text-rose-600 dark:text-rose-400">{missingThisWeek} yoklama eksik</strong>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* MOBİL: 7 Gün Yatay Sekmeler (Hızlı Geçiş) */}
-      <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-        {weekDays.map((day, idx) => {
-          const dayEtuts = etutsByDay[day.dateKey] || [];
-          const isSelected = idx === mobileActiveIndex;
-          return (
-            <button
-              key={day.dateKey}
-              type="button"
-              onClick={() => scrollToDay(idx)}
-              className={`flex-1 min-w-[44px] py-1.5 px-1 rounded-xl text-center flex flex-col items-center justify-center transition-all cursor-pointer ${
-                isSelected
-                  ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.03]'
-                  : day.isToday
-                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-500/40'
-                  : 'bg-surface/90 text-muted border border-line'
-              }`}
-            >
-              <span className="text-[10px] uppercase font-semibold">
-                {day.dayName.slice(0, 3)}
-              </span>
-              <span className="text-xs font-bold mt-0.5">
-                {day.date.getDate()}
-              </span>
-              {dayEtuts.length > 0 && (
-                <span
-                  className={`text-[9px] px-1 rounded-full font-bold mt-0.5 ${
-                    isSelected ? 'bg-surface-2 text-fg' : 'bg-indigo-500/30 text-indigo-600 dark:text-indigo-300'
+      {/* ===== Gün sekmeleri (Gün görünümünde) ===== */}
+      {mode === 'day' && (
+        <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {weekDays.map((day) => {
+            const count = (etutsByDay[day.dateKey] || []).length;
+            const sel = day.dateKey === selectedDay.dateKey;
+            return (
+              <button
+                key={day.dateKey}
+                type="button"
+                onClick={() => setSelectedKey(day.dateKey)}
+                className={`flex-1 min-w-[56px] py-1.5 px-1 rounded-xl text-center flex flex-col items-center cursor-pointer transition-all ${
+                  sel
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : day.isToday
+                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40'
+                    : 'bg-surface text-muted border border-line hover:bg-surface-2'
+                }`}
+              >
+                <span className="text-[10px] uppercase font-semibold">{day.dayName.slice(0, 3)}</span>
+                <span className="text-sm font-bold">{day.date.getDate()}</span>
+                <span className={`text-[9px] px-1.5 rounded-full font-bold ${sel ? 'bg-white/25' : count ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300' : 'text-subtle'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ===== HAFTA GÖRÜNÜMÜ: 7 sütun, her sütun kendi içinde kayar ===== */}
+      {mode === 'week' && (
+        <div className="grid grid-cols-7 gap-2 overflow-x-auto" style={{ minWidth: 0 }}>
+          {weekDays.map((day) => {
+            const dayEtuts = etutsByDay[day.dateKey] || [];
+            return (
+              <div
+                key={day.dateKey}
+                className={`min-w-[132px] flex flex-col rounded-xl border ${
+                  day.isToday ? 'bg-surface border-indigo-500/60 ring-1 ring-indigo-500/30' : 'bg-surface/60 border-line'
+                }`}
+              >
+                <div
+                  className={`px-2 py-1.5 border-b flex items-center justify-between rounded-t-xl ${
+                    day.isToday ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500/30' : 'bg-canvas/60 border-line'
                   }`}
                 >
-                  {dayEtuts.length}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* MOBİL: Yan Yana Sayfa Geçiş Kontrolleri (< Gün Seçici >) */}
-      <div className="md:hidden flex items-center justify-between px-3 py-2 bg-canvas/80 border border-line rounded-2xl text-xs">
-        <button
-          type="button"
-          onClick={() => scrollToDay(Math.max(0, mobileActiveIndex - 1))}
-          disabled={mobileActiveIndex === 0}
-          className="flex items-center space-x-1 text-fg-2 hover:text-fg disabled:opacity-30 disabled:hover:text-fg-2 px-2.5 py-1 rounded-lg bg-surface border border-line font-semibold cursor-pointer"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-          <span>Önceki Gün</span>
-        </button>
-
-        <div className="text-center">
-          <span className="text-fg font-bold block text-xs">
-            {weekDays[mobileActiveIndex]?.dayName}
-          </span>
-          <span className="text-[10px] text-indigo-600 dark:text-indigo-300">
-            {weekDays[mobileActiveIndex]?.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })} (Gün {mobileActiveIndex + 1}/7)
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => scrollToDay(Math.min(6, mobileActiveIndex + 1))}
-          disabled={mobileActiveIndex === 6}
-          className="flex items-center space-x-1 text-fg-2 hover:text-fg disabled:opacity-30 disabled:hover:text-fg-2 px-2.5 py-1 rounded-lg bg-surface border border-line font-semibold cursor-pointer"
-        >
-          <span>Sonraki Gün</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* 7-Day Grid on Desktop / Side-by-Side Sliding Carousel on Mobile */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleMobileScroll}
-        className="flex md:grid md:grid-cols-7 gap-3 overflow-x-auto md:overflow-x-visible snap-x snap-mandatory pb-3 md:pb-0 scroll-smooth"
-        style={{ scrollbarWidth: 'none' }}
-      >
-        {weekDays.map((day) => {
-          const dayEtuts = etutsByDay[day.dateKey] || [];
-          const hasEtuts = dayEtuts.length > 0;
-
-          return (
-            <div
-              key={day.dateKey}
-              className={`w-[88vw] sm:w-[75vw] md:w-auto shrink-0 snap-center md:snap-align-none flex flex-col rounded-2xl border transition-all duration-200 min-h-[380px] md:min-h-[360px] ${
-                day.isToday
-                  ? 'bg-surface/90 border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-indigo-500/10 shadow-lg'
-                  : 'bg-surface/50 border-line hover:border-line'
-              }`}
-            >
-              {/* Day Header */}
-              <div
-                className={`p-3 border-b flex items-center justify-between ${
-                  day.isToday
-                    ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500/30'
-                    : 'bg-canvas/50 border-line'
-                } rounded-t-2xl`}
-              >
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span
-                      className={`text-xs font-bold ${
-                        day.isToday ? 'text-indigo-600 dark:text-indigo-300' : 'text-fg-2'
-                      }`}
-                    >
-                      {day.dayName}
-                    </span>
-                    {day.isToday && (
-                      <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
-                    )}
-                  </div>
-                  <span className="text-[11px] text-muted">
-                    {day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
-                  </span>
-                </div>
-
-                <div className="flex items-center space-x-1">
-                  <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
-                      hasEtuts
-                        ? day.isToday
-                          ? 'bg-indigo-500 text-white'
-                          : 'bg-surface-2 text-fg-2'
-                        : 'bg-surface text-muted'
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedKey(day.dateKey);
+                      setMode('day');
+                    }}
+                    className="text-left cursor-pointer"
+                    title="Bu günü ayrıntılı göster"
                   >
-                    {dayEtuts.length}
-                  </span>
-                  {!readOnly && onAddEtutForDate && (
-                    <button
-                      type="button"
-                      onClick={() => onAddEtutForDate(day.dateKey)}
-                      className="p-1 hover:bg-surface-2 text-muted hover:text-indigo-600 dark:hover:text-indigo-300 rounded-md transition-colors cursor-pointer"
-                      title={`${day.dayName} gününe etüt ekle`}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Day Body / Etüt Cards */}
-              <div className="flex-1 p-2 space-y-2 overflow-y-auto">
-                {dayEtuts.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center py-8 text-center px-2">
-                    <CalendarIcon className="w-6 h-6 text-subtle mb-1.5" />
-                    <p className="text-[11px] text-muted font-medium">Bu günde planlı etüt yok</p>
-                    {totalEtutsThisWeek > 0 && (
-                      <div className="mt-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-300 max-w-[220px]">
-                        Bu hafta toplam <strong className="text-fg">{totalEtutsThisWeek} etüt</strong> var. Yukarıdaki gün sekmelerinden etüt olan günleri seçebilirsiniz.
-                      </div>
-                    )}
+                    <span className={`block text-[11px] font-bold ${day.isToday ? 'text-indigo-700 dark:text-indigo-300' : 'text-fg-2'}`}>{day.dayName}</span>
+                    <span className="block text-[10px] text-muted">{day.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+                  </button>
+                  <div className="flex items-center gap-1">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${dayEtuts.length ? (day.isToday ? 'bg-indigo-500 text-white' : 'bg-surface-2 text-fg-2') : 'text-subtle'}`}>
+                      {dayEtuts.length}
+                    </span>
                     {!readOnly && onAddEtutForDate && (
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="mt-2 text-[10px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 font-semibold px-2.5 py-1 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors flex items-center space-x-1 cursor-pointer"
+                        className="p-1 hover:bg-surface-2 text-muted hover:text-indigo-600 rounded-md cursor-pointer"
+                        title={`${day.dayName} gününe etüt ekle`}
+                        aria-label={`${day.dayName} gününe etüt ekle`}
                       >
-                        <Plus className="w-3 h-3" />
-                        <span>Etüt Ekle</span>
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
-                ) : (
-                  dayEtuts.map((etut) => {
-                    return (
-                      <div
-                        key={etut.id}
-                        onClick={() => !readOnly && onEditEtut && onEditEtut(etut)}
-                        className="p-2.5 rounded-xl border bg-surface border-line hover:border-indigo-400 hover:ring-2 hover:ring-indigo-100 dark:hover:ring-indigo-500/30 hover:shadow-md transition-all text-xs group relative shadow-xs text-fg cursor-pointer overflow-hidden"
-                      >
-                        {/* Subject & Time & Period */}
-                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
-                          <div className="flex items-center space-x-1">
-                            <span
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30"
-                            >
-                              {etut.subject}
-                            </span>
-                            {etut.lessonPeriod && etut.lessonPeriod !== 'Ders' && (
-                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-500/30">
-                                {etut.lessonPeriod}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] font-mono text-amber-700 dark:text-amber-300 font-semibold flex items-center space-x-1">
-                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-300" />
-                            <span>{etut.time || 'Saat yok'}</span>
-                          </span>
-                        </div>
+                </div>
+                {/* Sabit yükseklik: çok etüt olsa da sayfa uzamaz, sütun içinde kayar */}
+                <div className="p-1.5 space-y-1.5 overflow-y-auto max-h-[62vh] min-h-[120px]">
+                  {dayEtuts.length === 0 ? (
+                    <p className="text-[10px] text-subtle text-center py-6">Etüt yok</p>
+                  ) : (
+                    dayEtuts.map(renderCompact)
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-                        {/* Topic */}
-                        <h5 className="font-bold text-fg text-[11px] leading-tight mb-1 line-clamp-2">
-                          {etut.topic}
-                        </h5>
+      {/* ===== GÜN GÖRÜNÜMÜ ===== */}
+      {mode === 'day' && (
+        <div className="bg-surface/60 border border-line rounded-2xl p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-bold text-fg">
+              {selectedDay.dayName}, {selectedDay.date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
+              {selectedDay.isToday && <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-600 text-white align-middle">Bugün</span>}
+              <span className="ml-2 text-xs font-normal text-muted">{selectedEtuts.length} etüt</span>
+            </h3>
+            {!readOnly && onAddEtutForDate && (
+              <button
+                type="button"
+                onClick={() => onAddEtutForDate(selectedDay.dateKey)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg border border-dashed border-indigo-500/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Etüt ekle
+              </button>
+            )}
+          </div>
+          {selectedEtuts.length === 0 ? (
+            <div className="py-10 text-center text-xs text-muted">
+              <CalendarIcon className="w-6 h-6 mx-auto mb-2 text-subtle" />
+              Bu günde planlı etüt yok{query ? ' (aramaya uyan)' : ''}.
+            </div>
+          ) : (
+            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">{selectedEtuts.map(renderDetailed)}</div>
+          )}
+        </div>
+      )}
 
-                        {/* Teacher */}
-                        {etut.teacherName && (
-                          <div className="flex items-center space-x-1 text-[10px] text-indigo-800 dark:text-indigo-200 mb-1 truncate font-semibold">
-                            <span className="truncate">👨‍🏫 {etut.teacherName}</span>
-                          </div>
-                        )}
+      {/* ===== Etüt ayrıntı penceresi ===== */}
+      {openEtut && (() => {
+        const status = getEtutStatus(openEtut, now);
+        const st = ETUT_STATUS_STYLE[status];
+        const missing = isEtutAttendanceMissing(openEtut, now);
+        const teachers = etutTeacherNames(openEtut);
+        const assignedList =
+          openEtut.assignedStudentIds === 'all'
+            ? null
+            : (openEtut.assignedStudentIds as string[]).map((id) => ({ id, name: studentNameById.get(id) || 'Öğrenci', att: openEtut.studentAttendance?.[id]?.status }));
+        const dateText = (() => {
+          const [y, m, d] = normalizeDateKey(openEtut.date).split('-').map(Number);
+          return y && m && d ? new Date(y, m - 1, d).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' }) : openEtut.date;
+        })();
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm"
+            onClick={() => setOpenId(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Etüt ayrıntısı"
+          >
+            <div
+              className={`w-full sm:max-w-lg max-h-[88vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-l-4 bg-surface shadow-2xl ${st.accent} border-line`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3 p-4 border-b border-line">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`w-2.5 h-2.5 rounded-full ${subjectDot(openEtut.subject)}`} />
+                    <h3 className="text-base font-bold text-fg">{openEtut.subject}</h3>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+                    {missing && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300">Yoklama alınmadı</span>}
+                  </div>
+                  {openEtut.topic && <p className="text-sm text-fg-2 mt-1">{openEtut.topic}</p>}
+                </div>
+                <button type="button" onClick={() => setOpenId(null)} className="p-1.5 rounded-lg hover:bg-surface-2 text-muted cursor-pointer" aria-label="Kapat" autoFocus>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-                        {/* Location */}
-                        {etut.location && (
-                          <div className="flex items-center space-x-1 text-[10px] text-muted mb-1 truncate">
-                            <MapPin className="w-2.5 h-2.5 text-rose-600 dark:text-rose-400 flex-shrink-0" />
-                            <span className="truncate">{etut.location}</span>
-                          </div>
-                        )}
-
-                        {/* Students */}
-                        <div className="flex items-center space-x-1 text-[10px] text-muted mb-1.5 truncate">
-                          <Users className="w-2.5 h-2.5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-                          <span className="truncate font-medium">
-                            {getAssignedStudentsSummary(etut.assignedStudentIds)}
-                          </span>
-                        </div>
-
-                        {/* Teacher Feedback / Notes indicator */}
-                        {etut.teacherFeedback && (
-                          <div
-                            className="mb-1.5 p-1 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded text-[9px] text-amber-900 dark:text-amber-200 flex items-center space-x-1"
-                            title={`Öğretmen Görüşü: ${etut.teacherFeedback}`}
-                          >
-                            <span className="shrink-0 font-bold">💬</span>
-                            <span className="italic truncate font-normal">{etut.teacherFeedback}</span>
-                          </div>
-                        )}
-
-                        {/* Quick Action Footer */}
-                        <div className="flex items-center justify-between pt-1.5 border-t border-line text-[10px] gap-1 flex-wrap">
-                          <span className="text-subtle font-mono shrink-0">{etut.duration} dk</span>
-
-                          <div className="flex items-center gap-0.5 shrink-0 flex-wrap justify-end">
-                            {/* Attendance / Yoklama */}
-                            {!readOnly && onAttendanceEtut && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onAttendanceEtut(etut);
-                                }}
-                                className="p-1 text-subtle hover:text-emerald-600 dark:hover:text-emerald-300 rounded hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
-                                title="Etüt Yoklaması & Devamsızlık Al"
-                              >
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
-                              </button>
-                            )}
-
-                            {/* WhatsApp / Mail Bilgilendirme */}
-                            {!readOnly && onNotifyEtut && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onNotifyEtut(etut);
-                                }}
-                                className="p-1 text-subtle hover:text-emerald-600 dark:hover:text-emerald-300 rounded hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
-                                title="WhatsApp ve Mail ile İlet"
-                              >
-                                <MessageCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-300" />
-                              </button>
-                            )}
-
-                            {/* Google Calendar */}
-                            <a
-                              href={createGoogleCalendarUrlForEtut(etut)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-1 text-subtle hover:text-blue-600 dark:hover:text-blue-300 rounded hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-                              title="Google Takvime Ekle"
-                            >
-                              <CalendarCheck className="w-3 h-3 text-blue-600 dark:text-blue-300" />
-                            </a>
-
-                            {/* .ics Download */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                downloadIcsFile(
-                                  `etut-${etut.id}`,
-                                  `[ETÜT] ${etut.subject}: ${etut.topic}`,
-                                  etut.notes || `${etut.location || 'Derslik'}`,
-                                  `${etut.date}T${etut.time || '14:00'}:00`,
-                                  etut.duration || 45,
-                                  etut.location || 'Okul'
-                                );
-                              }}
-                              className="p-1 text-subtle hover:text-amber-600 dark:hover:text-amber-300 rounded hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
-                              title="iCal / Outlook Takvim İndir (.ics)"
-                            >
-                              <CalendarIcon className="w-3 h-3 text-amber-600 dark:text-amber-300" />
-                            </button>
-
-                            {/* Copy */}
-                            {!readOnly && onCopyEtut && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onCopyEtut(etut);
-                                }}
-                                className="p-1 text-subtle hover:text-fg rounded hover:bg-surface-2 transition-colors cursor-pointer"
-                                title="Kopyala (başka tarihe yeniden tanımla)"
-                                aria-label="Etüdü kopyala"
-                              >
-                                <Copy className="w-3 h-3 text-muted" />
-                              </button>
-                            )}
-
-                            {/* Edit */}
-                            {!readOnly && onEditEtut && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onEditEtut(etut);
-                                }}
-                                className="p-1 text-subtle hover:text-fg rounded hover:bg-surface-2 transition-colors cursor-pointer"
-                                title="Düzenle"
-                              >
-                                <Edit2 className="w-3 h-3 text-muted" />
-                              </button>
-                            )}
-
-                            {/* Delete */}
-                            {!readOnly && onDeleteEtut && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteEtut(etut);
-                                }}
-                                className="p-1 text-subtle hover:text-rose-600 dark:hover:text-rose-300 rounded hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
-                                title="Sil"
-                              >
-                                <Trash2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+              <div className="p-4 space-y-3 text-xs text-fg-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300 shrink-0" />
+                  <span>
+                    {dateText} · {openEtut.time ? `${openEtut.time} (${openEtut.duration || 45} dk)` : 'Saat belirtilmedi'}
+                    {openEtut.lessonPeriod && openEtut.lessonPeriod !== 'Ders' ? ` · ${openEtut.lessonPeriod}` : ''}
+                  </span>
+                </div>
+                {openEtut.location && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                    <span>{openEtut.location}</span>
+                  </div>
                 )}
+                {teachers.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span>
+                      Öğretmen: <strong className="text-fg">{teachers.join(', ')}</strong>
+                      {openEtut.teacherBranch ? ` (${openEtut.teacherBranch})` : ''}
+                    </span>
+                  </div>
+                )}
+                {openEtut.notes && (
+                  <p className="italic text-muted">
+                    <span className="font-semibold not-italic text-fg-2">Açıklama:</span> {openEtut.notes}
+                  </p>
+                )}
+                {openEtut.teacherFeedback && (
+                  <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200">
+                    💬 {openEtut.teacherFeedback}
+                  </div>
+                )}
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5">
+                    Katılacak öğrenciler {assignedList ? `(${assignedList.length})` : ''}
+                  </p>
+                  {assignedList === null ? (
+                    <p className="text-fg">Tüm sınıf / grup</p>
+                  ) : assignedList.length === 0 ? (
+                    <p className="text-muted">Öğrenci seçilmemiş</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                      {assignedList.map((s) => (
+                        <span key={s.id} className="inline-flex items-center gap-1 text-[11px] bg-surface-2 border border-line rounded-md px-2 py-0.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${s.att === 'present' ? 'bg-emerald-500' : s.att === 'absent' ? 'bg-rose-500' : s.att === 'late' ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-line">
+                <ActionBar etut={openEtut} labels afterAction={() => setOpenId(null)} />
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* MOBİL: 7 Sayfa Nokta Göstergeleri (Swipe Dots) */}
-      <div className="md:hidden flex flex-col items-center justify-center space-y-1.5 pt-1 pb-2">
-        <div className="flex items-center space-x-1.5">
-          {weekDays.map((_, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => scrollToDay(idx)}
-              aria-label={`Gün ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                idx === mobileActiveIndex
-                  ? 'w-6 bg-indigo-500'
-                  : 'w-1.5 bg-surface-3 hover:bg-slate-500'
-              }`}
-            />
-          ))}
-        </div>
-        <span className="text-[10px] text-muted flex items-center space-x-1 font-medium">
-          <span>↔</span>
-          <span>Günler arasında geçiş yapmak için sağa / sola kaydırın</span>
-        </span>
-      </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

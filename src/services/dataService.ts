@@ -13,6 +13,7 @@ import {
   AttendanceStatus,
   GradeRecord,
   StudentMessage,
+  AnnouncementGroup,
   TeacherDocument,
   DocumentCategory,
   StudentNotification,
@@ -52,7 +53,6 @@ import {
   currentAcademicYear,
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
-import { isPendingPlanTarget } from '../utils/targetDays';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -1886,20 +1886,7 @@ export class DataService {
       const row = payload.new;
       if (!row || !row.id) return;
 
-      const msg: StudentMessage = {
-        id: row.id,
-        studentId: row.student_id,
-        studentName: row.student_name,
-        studentClass: row.student_class,
-        studentAvatar: row.student_avatar,
-        subject: row.subject,
-        text: row.text,
-        linkUrl: row.link_url,
-        createdAt: row.created_at || new Date().toISOString(),
-        read: Boolean(row.read),
-        teacherReply: row.teacher_reply,
-        repliedAt: row.replied_at,
-      };
+      const msg: StudentMessage = this.rowToMessage(row);
 
       const exIdx = this.messages.findIndex((m) => m.id === row.id);
       if (exIdx !== -1) {
@@ -2630,20 +2617,7 @@ export class DataService {
       }
 
       if (remoteMsgs && Array.isArray(remoteMsgs)) {
-        this.messages = remoteMsgs.map((rm: any) => ({
-          id: rm.id,
-          studentId: rm.student_id,
-          studentName: rm.student_name,
-          studentClass: rm.student_class,
-          studentAvatar: rm.student_avatar,
-          subject: rm.subject,
-          text: rm.text,
-          linkUrl: rm.link_url,
-          createdAt: rm.created_at || new Date().toISOString(),
-          read: Boolean(rm.read),
-          teacherReply: rm.teacher_reply,
-          repliedAt: rm.replied_at,
-        }));
+        this.messages = remoteMsgs.map((rm: any) => this.rowToMessage(rm));
 
         this.messages.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -3271,6 +3245,30 @@ export class DataService {
       link_url: m.linkUrl || null,
       created_at: m.createdAt,
       read: m.read,
+      // Aşama 28: yalnızca duyuru/not satırlarında eklenir. Böylece öğrenci mesajları
+      // (eski tablo yapısıyla da) aynen çalışmaya devam eder.
+      ...(m.kind === 'announcement' || m.kind === 'note'
+        ? { kind: m.kind, sender_id: m.senderId || null, sender_name: m.senderName || null, group_id: m.groupId || null }
+        : {}),
+    };
+  }
+
+  private rowToMessage(rm: any): StudentMessage {
+    const kind = rm.kind === 'announcement' || rm.kind === 'note' ? (rm.kind as 'announcement' | 'note') : undefined;
+    return {
+      id: rm.id,
+      studentId: rm.student_id,
+      studentName: rm.student_name,
+      studentClass: rm.student_class,
+      studentAvatar: rm.student_avatar,
+      subject: rm.subject,
+      text: rm.text,
+      linkUrl: rm.link_url,
+      createdAt: rm.created_at || new Date().toISOString(),
+      read: Boolean(rm.read),
+      teacherReply: rm.teacher_reply,
+      repliedAt: rm.replied_at,
+      ...(kind ? { kind, senderId: rm.sender_id || undefined, senderName: rm.sender_name || undefined, groupId: rm.group_id || undefined } : {}),
     };
   }
 
@@ -8085,10 +8083,11 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       const teacherId = forTeacherId || session?.user.id;
       const teacher = this.teachers.find((t) => t.id === teacherId);
-      if (teacher?.isAdmin) return [...this.messages];
+      // Aşama 28: öğretmenin kendi gönderdiği duyuru/notlar gelen kutusuna karışmaz (Gönderilenler'de görünür)
+      if (teacher?.isAdmin) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m));
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
-      return this.messages.filter((m) => visibleStudents.has(m.studentId));
+      return this.messages.filter((m) => visibleStudents.has(m.studentId) && !this.isTeacherAuthoredMessage(m));
     }
 
     if (session?.role === 'student') {
@@ -8096,6 +8095,167 @@ export class DataService {
     }
 
     return [...this.messages];
+  }
+
+  private isTeacherAuthoredMessage(m: StudentMessage): boolean {
+    return m.kind === 'announcement' || m.kind === 'note';
+  }
+
+  // ---------------------------------------------------------------------------
+  // DUYURU / NOT (Aşama 28)
+  // Öğretmen, Mesajlar sayfasından seçtiği öğrencilere duyuru ya da kısa not gönderir.
+  // Her alıcı için `messages` tablosunda bir satır (kind = 'announcement' | 'note') açılır;
+  // öğrenci bunu ana sayfadaki Duyurular bölümünde görür.
+  // ---------------------------------------------------------------------------
+  public async sendAnnouncement(input: {
+    kind: 'announcement' | 'note';
+    title: string;
+    text: string;
+    studentIds: string[];
+  }): Promise<AnnouncementGroup> {
+    const session = this.getAuthSession();
+    if (!session || session.role !== 'teacher') throw new Error('Duyuru yalnızca öğretmen hesabıyla gönderilebilir.');
+    const sender = session.user as Teacher;
+
+    const title = String(input.title || '').trim();
+    const text = String(input.text || '').trim();
+    if (!title) throw new Error('Başlık boş olamaz.');
+    if (title.length > 80) throw new Error('Başlık en fazla 80 karakter olabilir.');
+    if (!text) throw new Error('Mesaj metni boş olamaz.');
+    if (text.length > 1500) throw new Error('Mesaj en fazla 1500 karakter olabilir.');
+
+    // Yalnızca öğretmenin erişebildiği öğrencilere gönderilir
+    const allowed = new Map(this.getStudents().map((s) => [s.id, s] as const));
+    const targets = Array.from(new Set(input.studentIds || []))
+      .map((id) => allowed.get(id))
+      .filter((s): s is Student => !!s);
+    if (targets.length === 0) throw new Error('En az bir öğrenci seçmelisin.');
+    if (targets.length > 600) throw new Error('Tek seferde en fazla 600 öğrenciye gönderilebilir.');
+
+    const groupId = newId('ann');
+    const createdAt = new Date().toISOString();
+    const rows: StudentMessage[] = targets.map((s) => ({
+      id: newId('msg'),
+      studentId: s.id,
+      studentName: s.name,
+      studentClass: s.className || 'Genel',
+      // Profil resmi (büyük olabilir) her satıra yazılmaz
+      subject: title,
+      text,
+      createdAt,
+      read: false,
+      kind: input.kind,
+      senderId: sender.id,
+      senderName: sender.name,
+      groupId,
+    }));
+
+    const prevMessages = this.messages;
+    this.messages = [...rows, ...this.messages].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    saveData(STORAGE_KEYS.MESSAGES, this.messages);
+    this.notify();
+
+    await this.runCloudWrite(
+      async () => {
+        const dbRows = rows.map((r) => this.messageToRow(r));
+        for (let i = 0; i < dbRows.length; i += 100) {
+          const res = await supabase.from('messages').insert(dbRows.slice(i, i + 100));
+          if (res.error) {
+            // Yarım kalan gönderim varsa temizlenir (hata olursa kimse yarım duyuru görmesin)
+            try {
+              await supabase.from('messages').delete().eq('group_id', groupId);
+            } catch {
+              /* temizlik başarısızsa sonraki eşitlemede görünür */
+            }
+            return res;
+          }
+        }
+        return { error: null };
+      },
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Duyuru gönderilemedi'
+    );
+
+    return this.buildAnnouncementGroups(rows)[0];
+  }
+
+  private buildAnnouncementGroups(list: StudentMessage[]): AnnouncementGroup[] {
+    const map = new Map<string, AnnouncementGroup>();
+    for (const m of list) {
+      if (m.kind !== 'announcement' && m.kind !== 'note') continue;
+      const key = m.groupId || m.id;
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          groupId: key,
+          kind: m.kind,
+          title: m.subject,
+          text: m.text,
+          senderId: m.senderId,
+          senderName: m.senderName,
+          createdAt: m.createdAt,
+          studentIds: [],
+          studentNames: [],
+          classNames: [],
+          messageIds: [],
+        };
+        map.set(key, g);
+      }
+      g.studentIds.push(m.studentId);
+      g.studentNames.push(m.studentName);
+      if (m.studentClass && !g.classNames.includes(m.studentClass)) g.classNames.push(m.studentClass);
+      g.messageIds.push(m.id);
+    }
+    return Array.from(map.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  // Öğretmenin gönderdiği duyuru/notlar (yönetici hepsini görür)
+  public getSentAnnouncements(): AnnouncementGroup[] {
+    const session = this.getAuthSession();
+    if (!session || session.role !== 'teacher') return [];
+    const me = session.user as Teacher;
+    const isAdmin = !!this.teachers.find((t) => t.id === me.id)?.isAdmin || !!(me as Teacher).isAdmin;
+    const visible = new Set(this.getStudents().map((s) => s.id));
+    return this.buildAnnouncementGroups(
+      this.messages.filter((m) => this.isTeacherAuthoredMessage(m) && visible.has(m.studentId) && (isAdmin || m.senderId === me.id))
+    );
+  }
+
+  public async deleteAnnouncementGroup(groupId: string): Promise<void> {
+    const ids = this.messages.filter((m) => this.isTeacherAuthoredMessage(m) && (m.groupId || m.id) === groupId).map((m) => m.id);
+    if (ids.length === 0) return;
+    const prevMessages = this.messages;
+    const gone = new Set(ids);
+    this.messages = this.messages.filter((m) => !gone.has(m.id));
+    saveData(STORAGE_KEYS.MESSAGES, this.messages);
+    this.notify();
+
+    await this.runCloudWrite(
+      async () => {
+        for (let i = 0; i < ids.length; i += 50) {
+          const res = await this.deleteRowsVerified('messages', ids.slice(i, i + 50));
+          if (res.error) return res;
+        }
+        return { error: null };
+      },
+      () => {
+        this.messages = prevMessages;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+      },
+      'Duyuru buluttan silinemedi'
+    );
+  }
+
+  // Öğrencinin ana sayfasında gösterilecek duyuru ve notlar (en yeni önce)
+  public getAnnouncementsForStudent(studentId: string): StudentMessage[] {
+    return this.messages
+      .filter((m) => m.studentId === studentId && this.isTeacherAuthoredMessage(m))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   public getSubmissions(forTeacherId?: string): HomeworkSubmission[] {
@@ -8952,13 +9112,7 @@ export class DataService {
     return this.isMyQuestionTarget(t);
   }
 
-  // Görünen soru hedefleri. Günlük plandan "Soru Kaydet'e aktar" ile oluşan konu kayıtları (soru sayısı 0 olan
-  // fromPlan kayıtları) hedef DEĞİLDİR: hiçbir listede, grafikte veya hesapta gösterilmez; yalnızca konuları taşır.
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
-    return this.visibleQuestionTargetRecords().filter((t) => !isPendingPlanTarget(t));
-  }
-
-  private visibleQuestionTargetRecords(): WeeklyQuestionTarget[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
       const myId = session.user.id;
@@ -9056,8 +9210,6 @@ export class DataService {
           this.isClassQuestionTarget(t) === isClass &&
           (isClass ? t.classId === draft.classId : t.studentId === draft.studentId) &&
           ownerKeys.has(this.questionTargetOwnerKey(t)) &&
-          // Plandan aktarılan konu kayıtları yalnızca yeni bir plan aktarımıyla eşleşir (öğretmenin hedef penceresinde görünmez)
-          (!!draft.fromPlan || !isPendingPlanTarget(t)) &&
           sameTargetSubjects(t.subject, draft.subject) &&
           (t.weekStartDate || '') <= end &&
           this.questionTargetEnd(t) >= start
@@ -9103,19 +9255,7 @@ export class DataService {
     const total = dailyTargets
       ? Object.values(dailyTargets).reduce((a, b) => a + b, 0)
       : Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
-    // Günlük plandan aktarılan hedef soru sayıları girilmeden (0) kaydedilebilir; öğretmen sayıları sonra girer
-    if (total < 1 && !draft.fromPlan) throw new Error('Toplam soru hedefi en az 1 olmalı.');
-    // Plandan gelen gün gün konular: yalnızca hedefin tarihleri içindeki günler, en fazla 120 karakter
-    let dailyTopics: Record<string, string> | undefined;
-    if (draft.dailyTopics && typeof draft.dailyTopics === 'object') {
-      const tp: Record<string, string> = {};
-      for (const [k, v] of Object.entries(draft.dailyTopics)) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < (draft.weekStartDate || '') || k > rangeEnd) continue;
-        const text = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
-        if (text) tp[k] = text;
-      }
-      if (Object.keys(tp).length) dailyTopics = tp;
-    }
+    if (total < 1) throw new Error('Toplam soru hedefi en az 1 olmalı.');
     const daily = dailyTargets
       ? Math.max(1, Math.round(total / days))
       : Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
@@ -9144,7 +9284,6 @@ export class DataService {
       weeklyTarget: total,
       dailyTarget: daily,
       dailyTargets,
-      dailyTopics: dailyTopics || (draft.dailyTopics === undefined ? existing?.dailyTopics : undefined),
       weekEndDate: rangeEnd,
       subject: targetSubjectList(draft.subject).join(', ') || undefined,
       subjectTargets: subjectTargets && Object.keys(subjectTargets).length ? subjectTargets : undefined,
@@ -9220,44 +9359,6 @@ export class DataService {
         saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
       },
       userMessage
-    );
-  }
-
-  // Öğretmenin günlük plandan aktardığı konular: verilen gün için ders → "Çalışılan Konu / Test" metni.
-  // Öğrencinin soru kaydet formu bu metni ilgili dersin konu kutusuna yazar. Konu kayıtları (gizli, soru sayısı 0)
-  // ve konusu eklenmiş gerçek hedefler birlikte okunur.
-  public getPlanTopicsForStudentDay(studentId: string, ymd: string): Array<{ subject: string; topic: string }> {
-    if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
-    const session = this.getAuthSession();
-    if (session?.role === 'student' && session.user.id !== studentId) return [];
-    const classId = this.students.find((s) => s.id === studentId)?.classId || (session?.role === 'student' ? (session.user as any).classId : undefined);
-    const out: Array<{ subject: string; topic: string }> = [];
-    for (const t of this.weeklyQuestionTargets) {
-      const mine = this.isClassQuestionTarget(t) ? !!classId && t.classId === classId : t.studentId === studentId;
-      if (!mine || !t.dailyTopics || !this.questionTargetOverlaps(t, ymd, ymd)) continue;
-      const topic = String(t.dailyTopics[ymd] || '').trim();
-      if (!topic) continue;
-      for (const subject of targetSubjectList(t.subject)) {
-        const name = normalizeSubject(subject);
-        const cur = out.find((x) => x.subject === name);
-        if (!cur) out.push({ subject: name, topic });
-        else if (!cur.topic.includes(topic)) cur.topic = `${cur.topic}, ${topic}`.slice(0, 120);
-      }
-    }
-    return out;
-  }
-
-  // Bu öğretmenin, bir öğrencinin verilen haftası için daha önce plandan oluşturduğu konu kayıtları
-  // (yeniden aktarımda plandan çıkarılmış derslerin eski konularını temizlemek için)
-  public getMyPlanTopicRecords(studentId: string, weekStart: string, weekEnd: string): WeeklyQuestionTarget[] {
-    const owners = this.myQuestionTargetOwnerKeys();
-    return this.visibleQuestionTargetRecords().filter(
-      (t) =>
-        isPendingPlanTarget(t) &&
-        !this.isClassQuestionTarget(t) &&
-        t.studentId === studentId &&
-        owners.has(this.questionTargetOwnerKey(t)) &&
-        this.questionTargetOverlaps(t, weekStart, weekEnd)
     );
   }
 

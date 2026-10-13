@@ -7,12 +7,13 @@ import {
   CalendarDays,
   Bookmark,
   Megaphone,
+  StickyNote,
   Target,
   Award,
   Sparkles,
   CheckCircle2,
 } from 'lucide-react';
-import { Student, Etut, Homework, HomeworkSubmission, GradeRecord } from '../../types';
+import { Student, Etut, Homework, HomeworkSubmission, GradeRecord, StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 import { homeworkStateFor } from './StudentHomeUtils';
 
@@ -25,6 +26,8 @@ interface StudentHeroBannerProps {
   submissions?: HomeworkSubmission[];
   /** Aşama 25: "Duyurular" duvarında son notları göstermek için */
   grades?: GradeRecord[];
+  /** Aşama 28: öğretmenin gönderdiği duyuru ve notlar */
+  announcements?: StudentMessage[];
   onNavigateTab: (tab: StudentTabType) => void;
   onOpenAvatarModal: () => void;
   onOpenProfileModal?: () => void;
@@ -53,8 +56,10 @@ const ymdOf = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(
 
 // Son kaç günün notları duyuru olarak gösterilsin
 const GRADE_DAYS = 7;
+// Öğretmenin duyuru / notu kaç gün boyunca ana sayfada kalsın
+const TEACHER_ANNOUNCEMENT_DAYS = 14;
 
-type DuyuruKind = 'etut' | 'odev' | 'yeni_odev' | 'hedef' | 'not';
+type DuyuruKind = 'etut' | 'odev' | 'yeni_odev' | 'hedef' | 'not' | 'duyuru' | 'ogretmen_notu';
 
 interface Duyuru {
   id: string;
@@ -62,6 +67,10 @@ interface Duyuru {
   title: string;
   detail?: string;
   tab: StudentTabType;
+  /** Öğretmenin yazdığı uzun metin: tıklayınca sayfa değiştirmek yerine altında açılır */
+  body?: string;
+  by?: string;
+  at?: string;
 }
 
 const KIND_STYLE: Record<DuyuruKind, { icon: React.ComponentType<{ className?: string }>; box: string; label: string }> = {
@@ -70,6 +79,8 @@ const KIND_STYLE: Record<DuyuruKind, { icon: React.ComponentType<{ className?: s
   yeni_odev: { icon: BookOpen, box: 'bg-amber-500/15 text-amber-700 dark:text-amber-300', label: 'Yeni ödev' },
   hedef: { icon: Target, box: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', label: 'Soru hedefi' },
   not: { icon: Award, box: 'bg-purple-500/15 text-purple-700 dark:text-purple-300', label: 'Not' },
+  duyuru: { icon: Megaphone, box: 'bg-rose-500/15 text-rose-700 dark:text-rose-300', label: 'Öğretmen duyurusu' },
+  ogretmen_notu: { icon: StickyNote, box: 'bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300', label: 'Öğretmen notu' },
 };
 
 export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
@@ -78,9 +89,11 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
   homeworks,
   submissions,
   grades,
+  announcements,
   onNavigateTab,
   onOpenAvatarModal,
 }) => {
+  const [openDuyuruId, setOpenDuyuruId] = useState<string | null>(null);
   const today = useMemo(() => new Date(), []);
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth(); // 0-11
@@ -193,6 +206,24 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
     const subOf = (hw: Homework) =>
       activeSubmissions.find((s) => s.homeworkId === hw.id && s.studentId === student.id) ||
       (Array.isArray(hw.submissions) ? hw.submissions.find((s) => s.studentId === student.id) : undefined);
+
+    // 0) Öğretmenin gönderdiği duyuru ve notlar (en yeni üstte, son 14 gün)
+    const annCutoff = nowMs - TEACHER_ANNOUNCEMENT_DAYS * 86400000;
+    (announcements || [])
+      .filter((a) => (a.kind === 'announcement' || a.kind === 'note') && new Date(a.createdAt).getTime() >= annCutoff)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .forEach((a) => {
+        list.push({
+          id: `ann-${a.id}`,
+          kind: a.kind === 'note' ? 'ogretmen_notu' : 'duyuru',
+          title: a.subject,
+          detail: `${a.senderName ? `${a.senderName} · ` : ''}${new Date(a.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}`,
+          tab: 'home',
+          body: a.text,
+          by: a.senderName,
+          at: a.createdAt,
+        });
+      });
 
     // 1) Bugünkü etütler (saat sırasıyla)
     etuts
@@ -331,28 +362,39 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           {duyurular.length > 0 ? (
-            <ul className="space-y-1.5 max-h-[176px] overflow-y-auto pr-1" id="student-announcement-list">
+            <ul className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1" id="student-announcement-list">
               {duyurular.map((d) => {
                 const st = KIND_STYLE[d.kind];
                 const Icon = d.kind === 'hedef' && d.title.includes('tamam') ? CheckCircle2 : st.icon;
+                const expandable = !!d.body;
+                const isOpen = expandable && openDuyuruId === d.id;
                 return (
                   <li key={d.id}>
                     <button
                       type="button"
                       data-duyuru={d.kind}
-                      onClick={() => onNavigateTab(d.tab)}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg bg-surface/80 border border-line hover:border-orange-500/50 hover:bg-surface transition-all flex items-center gap-2 cursor-pointer group"
+                      aria-expanded={expandable ? isOpen : undefined}
+                      onClick={() => (expandable ? setOpenDuyuruId(isOpen ? null : d.id) : onNavigateTab(d.tab))}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg bg-surface/80 border hover:bg-surface transition-all flex items-center gap-2 cursor-pointer group ${
+                        expandable ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-line hover:border-orange-500/50'
+                      }`}
                     >
                       <span className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${st.box}`} title={st.label}>
                         <Icon className="w-3.5 h-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-bold text-fg truncate group-hover:text-orange-700 dark:group-hover:text-orange-300">
+                        <span className={`block text-xs font-bold text-fg group-hover:text-orange-700 dark:group-hover:text-orange-300 ${isOpen ? '' : 'truncate'}`}>
                           {d.title}
                         </span>
                         {d.detail && <span className="block text-[10px] text-muted truncate">{d.detail}</span>}
                       </span>
+                      {expandable && <ChevronRight className={`w-3.5 h-3.5 text-muted shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} />}
                     </button>
+                    {isOpen && (
+                      <div className="mt-1 ml-8 mr-1 px-2.5 py-2 rounded-lg bg-surface border border-line text-xs text-fg-2 leading-relaxed whitespace-pre-wrap break-words">
+                        {d.body}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -361,7 +403,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
             <div className="py-4 text-center bg-surface/50 rounded-xl border border-line flex flex-col items-center gap-1" id="student-announcement-empty">
               <Sparkles className="w-5 h-5 text-amber-700 dark:text-amber-400" />
               <p className="text-xs font-bold text-fg">Bugün için yeni duyuru yok.</p>
-              <p className="text-[10px] text-muted">Etüt, ödev, soru hedefi veya yeni bir not olduğunda burada görünür.</p>
+              <p className="text-[10px] text-muted">Öğretmeninin duyuruları, etüt, ödev, soru hedefi veya yeni bir not olduğunda burada görünür.</p>
             </div>
           )}
         </div>

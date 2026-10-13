@@ -16,6 +16,7 @@ import {
   Users,
   CheckCircle2,
   ArrowRight,
+  HelpCircle,
 } from 'lucide-react';
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -71,6 +72,29 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
 }) => {
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
   useEffect(() => dataService.subscribe(() => setQuestionLogs(dataService.getQuestionLogs())), []);
+
+  // --- Aşama 28: öğrencilerin son soru girişleri (isimli bildirim) ---
+  // Görülen girişler bu tarayıcıda hatırlanır; yeni girişler kalın + noktalı görünür.
+  const seenKey = `tchr_qlog_seen_${currentTeacher?.id || 'x'}`;
+  const [seenQLogIds, setSeenQLogIds] = useState<Set<string>>(() => {
+    try {
+      return new Set<string>(JSON.parse(localStorage.getItem(seenKey) || '[]'));
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const markQLogsSeen = (ids: string[]) =>
+    setSeenQLogIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      const arr = Array.from(next).slice(-400);
+      try {
+        localStorage.setItem(seenKey, JSON.stringify(arr));
+      } catch {
+        /* tarayıcı kaydı kapalıysa yalnızca bu oturumda hatırlanır */
+      }
+      return new Set(arr);
+    });
 
   const now = new Date();
   const todayStr = ymd(now);
@@ -128,6 +152,35 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     () => messages.filter((m) => !m.read).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')),
     [messages]
   );
+  // Son 3 günde girilen soru kayıtları (en yeni üstte); öğrenci adı + toplam soru sayısı
+  const recentQuestionEntries = useMemo(() => {
+    const cutoff = Date.now() - 3 * 86400000;
+    const byId = new Map(students.map((st) => [st.id, st] as const));
+    return questionLogs
+      .filter((l) => (l.totalQuestions || 0) > 0 && byId.has(l.studentId) && new Date(l.createdAt || 0).getTime() >= cutoff)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .map((l) => ({
+        id: l.id,
+        studentId: l.studentId,
+        name: byId.get(l.studentId)?.name || l.studentName,
+        className: byId.get(l.studentId)?.className || l.className,
+        total: l.totalQuestions || 0,
+        date: l.date,
+        createdAt: l.createdAt,
+        subjects: Array.from(new Set((l.entries || []).filter((e) => (e.questionCount || 0) > 0).map((e) => e.subject))),
+      }));
+  }, [questionLogs, students]);
+  const unseenQuestionEntries = recentQuestionEntries.filter((e) => !seenQLogIds.has(e.id));
+  const whenText = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const hm = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const day = ymd(d);
+    if (day === todayStr) return `bugün ${hm}`;
+    if (day === ymd(addDays(now, -1))) return `dün ${hm}`;
+    return `${d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} ${hm}`;
+  };
+
   const etutStudentCount = (e: Etut) => (e.assignedStudentIds === 'all' ? 'Tüm öğrenciler' : `${e.assignedStudentIds.length} öğrenci`);
 
   // --- Özet kartları ---
@@ -236,13 +289,11 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         />
       </div>
 
-      {/* Bugün ve Ajanda (takvim) yan yana, eşit genişlik ve eşit yükseklikte (telefonda alt alta) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch" id="home-today-agenda-row">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
         {/* ===== BUGÜN ===== */}
+        <div className="lg:col-span-7 space-y-4 sm:space-y-6 min-w-0">
         <Panel
           id="home-today-panel"
-          className="h-full flex flex-col min-w-0"
-          bodyClassName="flex-1"
           icon={Sun}
           tone="warning"
           title="Bugün"
@@ -399,8 +450,80 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           )}
         </Panel>
 
+        {/* ===== SORU GİRİŞLERİ (Aşama 28): hangi öğrenci kaç soru girdi — ada tıklayınca öğrencinin Soru Takibi sayfası ===== */}
+        <Panel
+          id="home-question-entries"
+          icon={HelpCircle}
+          tone="warning"
+          title="Öğrenci soru girişleri"
+          description={
+            recentQuestionEntries.length === 0
+              ? 'Son 3 günde soru girişi yok'
+              : unseenQuestionEntries.length > 0
+              ? `${unseenQuestionEntries.length} yeni giriş`
+              : 'Yeni giriş yok'
+          }
+          actions={
+            unseenQuestionEntries.length > 0 ? (
+              <button
+                type="button"
+                id="home-qentries-mark-all"
+                className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                onClick={() => markQLogsSeen(recentQuestionEntries.map((e) => e.id))}
+              >
+                Tümünü okundu yap
+              </button>
+            ) : undefined
+          }
+        >
+          {recentQuestionEntries.length === 0 ? (
+            <p className="text-sm text-muted">Öğrenciler soru sayısı girdiğinde burada adlarıyla görünür.</p>
+          ) : (
+            <ul className="space-y-2">
+              {recentQuestionEntries.slice(0, 8).map((e) => {
+                const isNew = !seenQLogIds.has(e.id);
+                return (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      data-qentry={e.studentId}
+                      onClick={() => {
+                        markQLogsSeen([e.id]);
+                        go('question_tracking', ['student', e.studentId, e.name]);
+                      }}
+                      title={`${e.name} — Soru Takibi sayfasını aç`}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
+                    >
+                      <span className={cx('w-2 h-2 rounded-full shrink-0', isNew ? 'bg-warning' : 'bg-transparent')} aria-hidden />
+                      <span className="flex-1 min-w-0">
+                        <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
+                          <span className="underline decoration-dotted underline-offset-2">{e.name}</span> {e.total} soru girdi
+                          {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
+                        </span>
+                        <span className="block text-xs text-muted truncate">
+                          {whenText(e.createdAt)}
+                          {e.subjects.length ? ` · ${e.subjects.slice(0, 3).join(', ')}${e.subjects.length > 3 ? ` +${e.subjects.length - 3}` : ''}` : ''}
+                        </span>
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
+                    </button>
+                  </li>
+                );
+              })}
+              {recentQuestionEntries.length > 8 && (
+                <li className="text-xs pl-1">
+                  <button type="button" className="font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('question_tracking')}>
+                    ve {recentQuestionEntries.length - 8} giriş daha — Soru Takibi'ne git
+                  </button>
+                </li>
+              )}
+            </ul>
+          )}
+        </Panel>
+        </div>
+
         {/* ===== AJANDA ===== */}
-        <AgendaCalendar className="h-full flex flex-col min-w-0" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
+        <AgendaCalendar className="lg:col-span-5" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
       </div>
 
       {classes.length === 0 && (
@@ -453,7 +576,6 @@ const AgendaCalendar: React.FC<{
     <Panel
       id="home-agenda"
       className={className}
-      bodyClassName="flex-1 flex flex-col"
       icon={CalendarDays}
       tone="brand"
       title={`${MONTHS[viewMonth]} ${viewYear}`}
@@ -527,7 +649,7 @@ const AgendaCalendar: React.FC<{
         </span>
       </div>
 
-      <div className="ui-divider mt-3 pt-3 flex-1">
+      <div className="ui-divider mt-3 pt-3">
         <p className="text-xs font-semibold text-fg-2 mb-2">
           {longDate(selected)}
           {selected === todayStr && <span className="ui-chip ui-chip-brand ml-2">Bugün</span>}

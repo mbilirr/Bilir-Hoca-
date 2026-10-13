@@ -189,7 +189,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   });
 
   // Filter messages sent by this student
-  const myMessages = messages.filter((m) => m.studentId === currentStudent.id);
+  // Aşama 28: öğretmenin gönderdiği duyuru/notlar "Öğretmene Soru Sor" geçmişine değil, ana sayfadaki Duyurular'a gider
+  const ownMessages = messages.filter((m) => m.studentId === currentStudent.id);
+  const myMessages = ownMessages.filter((m) => m.kind !== 'announcement' && m.kind !== 'note');
+  const myAnnouncements = ownMessages.filter((m) => m.kind === 'announcement' || m.kind === 'note');
 
   // Upcoming notifications: Homeworks due within 48h and not submitted
   const now = new Date();
@@ -537,16 +540,20 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             etuts={myEtuts}
             submissions={getSubmissionsList()}
             grades={myGrades}
+            announcements={myAnnouncements}
             onNavigateTab={(tab) => setActiveTab(tab)}
             onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
             onOpenProfileModal={() => setIsProfileModalOpen(true)}
             onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
           />
 
-          {/* Wall 2: "Durumum" — en solda Notlarım, yanında Soru Çözümüm ve küçültülmüş
-              "Bugün yapılması gerekenler" paneli. Ödevler ve etütler Duyurular panosunda gösterilir. */}
+          {/* Wall 2: "Durumum" — Ödevlerim/Etütlerim alt alta, Soru Çözümüm/Notlarım alt alta;
+              yanında küçültülmüş "Bugün yapılması gerekenler" paneli (Aşama 19 planı) */}
           <StudentStatsOverview
             student={currentStudent}
+            homeworks={myHomeworks}
+            submissions={getSubmissionsList()}
+            etuts={myEtuts}
             grades={myGrades}
             onNavigateTab={(tab) => setActiveTab(tab)}
             sidePanel={<StudentTodayPlan compact />}

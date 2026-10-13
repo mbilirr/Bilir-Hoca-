@@ -11,8 +11,11 @@ import {
   User,
   School,
   Sparkles,
+  Inbox,
+  Megaphone,
 } from 'lucide-react';
-import { PageHeader } from '../ui/kit';
+import { PageHeader, Segmented } from '../ui/kit';
+import { TeacherAnnouncements } from './TeacherAnnouncements';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 
@@ -27,6 +30,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   );
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
+  // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
+  const [section, setSection] = useState<'inbox' | 'announce'>('inbox');
 
   const filteredMessages = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -78,7 +83,19 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         }
       />
 
+      <Segmented
+        value={section}
+        onChange={setSection}
+        items={[
+          { value: 'inbox', label: `Gelen Mesajlar${messages.filter((m) => !m.read).length ? ` (${messages.filter((m) => !m.read).length})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
+          { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
+        ]}
+      />
+
+      {section === 'announce' && <TeacherAnnouncements />}
+
       {/* Main Split Inbox View */}
+      {section === 'inbox' && (
       <div className="grid grid-cols-1 lg:grid-cols-12 bg-surface border border-line rounded-2xl overflow-hidden shadow-card min-h-[550px]">
         {/* Left List Column */}
         <div className="lg:col-span-5 border-r border-line flex flex-col bg-surface/50">
@@ -300,6 +317,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };
