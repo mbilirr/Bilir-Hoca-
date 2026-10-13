@@ -460,8 +460,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Süzgeç çubuğu: Ders + Öğretmen açılır listeleri (Aşama 28) her görünümde; tarih süzgeci yalnız Liste ve Yoklama'da.
           Haftalık Takvim'in kendi hafta okları olduğu için orada tarih süzgeci gösterilmez. */}
       <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
-        {/* Aşama 33: Ders, Öğretmen ve Ders saati eşit genişlikte, aynı yükseklikte, simetrik ızgarada; Tarih altta tam genişlikte */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${timeFilterOn ? 'lg:grid-cols-3' : ''} gap-3 items-end`} id="etut-filter-grid">
+        {/* Aşama 33: Ders, Öğretmen ve Ders saati aynı yükseklikte, simetrik ızgarada; Tarih altta tam genişlikte.
+            Aşama 33b: geniş ekranda kutular sayfayı doldurmaz; hepsi EŞİT genişlikte ve bu genişlik EN UZUN yazı kadardır
+            (width: max-content + eşit 1fr sütunlar: her sütun en geniş içeriğe göre ölçülür; sığmazsa eşit küçülür). Telefon/tablette tam genişlik. */}
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end w-full lg:w-max lg:max-w-full lg:grid-cols-none lg:grid-flow-col lg:[grid-auto-columns:1fr]"
+          id="etut-filter-grid"
+        >
           <div className="min-w-0">
             <label htmlFor="etut-list-subject" className="block text-xs font-semibold text-muted mb-1">
               Ders
@@ -1362,7 +1367,15 @@ const TeacherPicker: React.FC<{
           triggerBlink ? 'notify-blink notify-blink-rose' : ''
         }`}
       >
-        <span className="truncate">{current}</span>
+        {/* Görünmeyen ölçü yazıları: düğme, listedeki EN UZUN seçenek kadar geniş olur (diğer kutularla eşitlenebilsin) */}
+        <span className="grid min-w-0">
+          <span className="truncate [grid-area:1/1]">{current}</span>
+          {[allLabel, ...options.map(([t, n]) => `${t} (${n})`)].map((label) => (
+            <span key={label} aria-hidden className="invisible h-0 overflow-hidden whitespace-nowrap [grid-area:1/1]">
+              {label}
+            </span>
+          ))}
+        </span>
         <span className="flex items-center gap-1.5 shrink-0">
           {blink && totalMissing > 0 && (
             <span className="text-[10px] font-black text-rose-600 dark:text-rose-300" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
