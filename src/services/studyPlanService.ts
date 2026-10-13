@@ -663,6 +663,44 @@ export async function applyPlan(opts: {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Öğretmen: soru takibi
+/** Görev + görevin takvim tarihi (YYYY-MM-DD) */
+export type DatedPlanItem = PlanItem & { date: string };
+
+/**
+ * Aşama 31: Öğrencinin GÖNDERİLMİŞ planlarından verilen tarih aralığına düşen görevler.
+ * Planlar haftanın herhangi bir gününde başlayabildiği için aralığın 6 gün öncesinden başlayan planlar da okunur;
+ * her görevin gerçek tarihi (planın başlangıcı + gün) hesaplanır ve aralık dışındakiler atılır.
+ * Soru Takibi'ndeki "Çözülen (tüm dersler)" özet kartı bunu kullanır. Hata olursa boş liste döner.
+ */
+export async function loadSentPlanItemsInRange(studentId: string, from: string, to: string): Promise<DatedPlanItem[]> {
+  if (!studentId || !from || !to) return [];
+  const h = await supabase
+    .from('study_plans')
+    .select('week_start')
+    .eq('student_id', studentId)
+    .gte('week_start', addDaysYmd(from, -6))
+    .lte('week_start', to)
+    .not('sent_at', 'is', null);
+  if (h.error || !h.data || !h.data.length) return [];
+  const starts = Array.from(new Set(h.data.map((r: any) => String(r.week_start))));
+  const i = await supabase
+    .from('study_plan_items')
+    .select('*')
+    .eq('student_id', studentId)
+    .in('week_start', starts)
+    .order('day')
+    .order('position')
+    .order('created_at');
+  if (i.error || !i.data) return [];
+  return i.data
+    .map((r: any) => {
+      const it = itemFromRow(r);
+      return { ...it, date: dateOfDay(it.weekStart, it.day) };
+    })
+    .filter((it: DatedPlanItem) => it.date >= from && it.date <= to);
+}
+
 // ----------------------------------------------------------------------------- Öğrenci
 // Öğrenci yalnızca kendisine GÖNDERİLMİŞ planı görebilir (veritabanı denetler)
 export async function loadMyWeek(weekStart: string): Promise<{ items: PlanItem[]; sentByName: string }> {

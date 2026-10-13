@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react';
-import { Target, Check, StickyNote, Pencil } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Target, Check, StickyNote, Pencil, X } from 'lucide-react';
 import type { WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatDateISO } from '../../utils/questionAnalytics';
 import { computeTargetDays, isFlexibleTarget, weekDayGoal, type TargetDayRow, type TargetDaysResult } from '../../utils/targetDays';
 import { cx } from '../ui/kit';
+import { loadSentPlanItemsInRange, type DatedPlanItem } from '../../services/studyPlanService';
 
 // ============================================================================
 // SORU HEDEFLERİ — TEK TABLO (Aşama 30)
@@ -91,6 +93,104 @@ export const TargetSummaryTable: React.FC<{
     }
     return m;
   }, [logs, studentId]);
+
+  // Aşama 31: bu haftaya düşen, öğrenciye GÖNDERİLMİŞ plan görevleri ("Çözülen" satırındaki özet kartı için)
+  const [planItems, setPlanItems] = useState<DatedPlanItem[]>([]);
+  const rangeFrom = days[0] || '';
+  const rangeTo = days[6] || '';
+  useEffect(() => {
+    let cancelled = false;
+    setPlanItems([]);
+    if (!studentId || !rangeFrom || !rangeTo) return;
+    loadSentPlanItemsInRange(studentId, rangeFrom, rangeTo)
+      .then((items) => {
+        if (!cancelled) setPlanItems(items);
+      })
+      .catch(() => {
+        /* plan okunamazsa kart yalnızca çözülen dersleri gösterir */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, rangeFrom, rangeTo]);
+
+  // Gün → ders → çözülen soru (ders girilmemiş eski kayıtlar "belirsiz" sayılır)
+  const solvedBySubjectDay = useMemo(() => {
+    const m = new Map<string, { bySubject: Map<string, number>; unknown: number }>();
+    for (const l of logs) {
+      if (l.studentId !== studentId) continue;
+      const d = (l.date || '').slice(0, 10);
+      const rec = m.get(d) || { bySubject: new Map<string, number>(), unknown: 0 };
+      const entries = Array.isArray(l.entries) ? l.entries : [];
+      if (entries.length) {
+        for (const e of entries) {
+          const n = Number(e.questionCount) || 0;
+          if (n <= 0) continue;
+          const subj = normalizeSubject(e.subject || '');
+          rec.bySubject.set(subj, (rec.bySubject.get(subj) || 0) + n);
+        }
+      } else {
+        rec.unknown += Number(l.totalQuestions) || 0;
+      }
+      m.set(d, rec);
+    }
+    return m;
+  }, [logs, studentId]);
+
+  /** "Çözülen" hücresinin özet kartı: plandaki dersler (yeşil/kırmızı) + plan dışı çözülenler (siyah) */
+  const daySummary = (d: string) => {
+    const rec = solvedBySubjectDay.get(d);
+    const total = solvedByDay.get(d) || 0;
+    const plan = planItems.filter((it) => it.date === d);
+    const planSubjects = new Set(plan.map((it) => normalizeSubject(it.subject)));
+    const offPlan = rec ? Array.from(rec.bySubject.entries()).filter(([s]) => !planSubjects.has(s)) : [];
+    const dayIdx = days.indexOf(d);
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-line">
+          <span className="font-bold text-fg">
+            {GUN[dayIdx] || ''} {shortDate(d)}
+          </span>
+          <span className="font-semibold text-muted tabular-nums">{total} soru</span>
+        </div>
+        {plan.length > 0 ? (
+          <ul className="space-y-1">
+            {plan.map((it) => {
+              const n = rec?.bySubject.get(normalizeSubject(it.subject)) || 0;
+              const task = planTaskShort(it);
+              return (
+                <li key={it.id} className={cx('flex items-start gap-1.5 leading-snug', n > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
+                  {n > 0 ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
+                  <span className="min-w-0">
+                    <strong className="font-bold">{normalizeSubject(it.subject)}</strong>
+                    {task ? ` – ${task}` : ''}
+                    <span className="opacity-80">{n > 0 ? ` · ${n} soru` : d > today ? ' · henüz gelmedi' : ' · çözülmedi'}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-muted">Bu gün için plan görevi yok.</p>
+        )}
+        {(offPlan.length > 0 || (rec?.unknown || 0) > 0) && (
+          <ul className="space-y-0.5 pt-1.5 border-t border-line text-fg">
+            {offPlan.map(([s, n]) => (
+              <li key={s}>
+                <strong className="font-bold">{s}</strong> · {n} soru <span className="text-muted">(plan dışı)</span>
+              </li>
+            ))}
+            {(rec?.unknown || 0) > 0 && (
+              <li>
+                Ders belirtilmeden · {rec?.unknown} soru
+              </li>
+            )}
+          </ul>
+        )}
+        {total === 0 && plan.length === 0 && <p className="text-muted">{d > today ? 'Henüz gelmedi.' : 'Soru girilmedi.'}</p>}
+      </div>
+    );
+  };
 
   if (!targets.length) return null;
 
@@ -282,7 +382,13 @@ export const TargetSummaryTable: React.FC<{
                       future ? 'text-muted' : g > 0 && n >= g ? 'text-emerald-700 dark:text-emerald-300' : g > 0 && d < today ? 'text-rose-700 dark:text-rose-300' : 'text-fg'
                     )}
                   >
-                    {future && n === 0 ? '—' : n}
+                    {future && n === 0 && !planItems.some((it) => it.date === d) ? (
+                      '—'
+                    ) : (
+                      <GhostTip label={`${shortDate(d)} özeti: ${n} soru`} content={() => daySummary(d)}>
+                        {future && n === 0 ? '—' : n}
+                      </GhostTip>
+                    )}
                   </td>
                 );
               })}
@@ -294,7 +400,9 @@ export const TargetSummaryTable: React.FC<{
       </div>
       <p className="px-4 sm:px-5 py-2 text-[11px] text-muted border-t border-line">
         Hücrelerde <strong className="text-fg-2">çözülen / o günün hedefi</strong> yazar. Ders hedeflerinde yalnızca o dersin soruları sayılır.
-        "Dönem toplamı" hedefin tüm tarihlerini kapsar.
+        "Dönem toplamı" hedefin tüm tarihlerini kapsar. "Çözülen" satırındaki sayının üzerine gelin (telefonda dokunun):
+        haftalık plandaki dersler <span className="text-emerald-700 dark:text-emerald-300 font-semibold">çözüldüyse yeşil</span>,{' '}
+        <span className="text-rose-700 dark:text-rose-300 font-semibold">çözülmediyse kırmızı</span>, plan dışı çözülen dersler siyah görünür.
       </p>
     </section>
   );
@@ -306,3 +414,78 @@ const Legend: React.FC<{ cls: string; text: string }> = ({ cls, text }) => (
     {text}
   </span>
 );
+
+/** Plan görevinin kısa yazısı: "Orjinal – Sayfa 100-110" (açıklamanın ilk satırı, en çok 60 karakter) */
+const planTaskShort = (it: { book: string; note: string }) => {
+  const note = (it.note || '').split('\n')[0];
+  const text = [it.book, note]
+    .map((x) => (x || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' – ');
+  return text.length > 60 ? `${text.slice(0, 59)}…` : text;
+};
+
+// ---------------------------------------------------------------------------
+// Hayalet özet kartı (Aşama 31): fare üzerine gelince (telefonda dokununca) yarı saydam küçük kart açılır.
+// Kart sayfanın en üstünde (portal) çizilir; tablo kaydırma kutusunun içinde kesilmez.
+// ---------------------------------------------------------------------------
+const GHOST_HALF_WIDTH = 170;
+
+const GhostTip: React.FC<{ label: string; content: () => React.ReactNode; children: React.ReactNode }> = ({ label, content, children }) => {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number; below: boolean } | null>(null);
+
+  const show = () => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = r.top < 260; // üstte yer yoksa altta aç
+    const x = Math.min(Math.max(r.left + r.width / 2, GHOST_HALF_WIDTH + 8), window.innerWidth - GHOST_HALF_WIDTH - 8);
+    setPos({ x, y: below ? r.bottom + 8 : r.top - 8, below });
+  };
+  const hide = () => setPos(null);
+
+  // Sayfa kaydırılınca / boyut değişince kart kapanır (yanlış yerde asılı kalmasın)
+  useEffect(() => {
+    if (!pos) return;
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+    };
+  }, [pos]);
+
+  return (
+    <span
+      ref={ref}
+      tabIndex={0}
+      role="button"
+      aria-label={label}
+      aria-expanded={!!pos}
+      onPointerEnter={(e) => {
+        if (e.pointerType === 'mouse') show();
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === 'mouse') hide();
+      }}
+      onFocus={show}
+      onBlur={hide}
+      onClick={() => (pos ? hide() : show())}
+      className="cursor-help underline decoration-dotted decoration-2 underline-offset-4 rounded px-1 outline-none focus-visible:ring-2 focus-visible:ring-brand"
+    >
+      {children}
+      {pos &&
+        createPortal(
+          <div
+            role="tooltip"
+            style={{ position: 'fixed', left: pos.x, top: pos.y, transform: pos.below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)' }}
+            className="z-[90] pointer-events-none w-[21rem] max-w-[calc(100vw-1rem)] rounded-xl border border-line bg-surface/90 backdrop-blur-md shadow-pop p-3 text-xs text-left font-normal"
+          >
+            {content()}
+          </div>,
+          document.body
+        )}
+    </span>
+  );
+};

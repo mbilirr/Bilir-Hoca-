@@ -213,12 +213,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       return (!from || d >= from) && (!to || d <= to);
     });
   }, [subjectEtuts, dateBounds]);
-  // Aşama 30: Liste görünümünde ders saati süzgeci (açılır liste). Seçenekler, diğer süzgeçlerden geçen
-  // etütlerin saatlerinden oluşur (ör. "15:00 – 15:45 (4)"); saat girilmemiş etütler ayrı seçenektir.
+  // Aşama 30/31: Liste ve Haftalık Takvim görünümlerinde ders saati süzgeci (açılır liste). Seçenekler, diğer
+  // süzgeçlerden geçen etütlerin saatlerinden oluşur (ör. "15:00 – 15:45 (4)"); saat girilmemiş etütler ayrı seçenektir.
+  // Takvimde tarih süzgeci olmadığı için seçenekler ders/öğretmen süzgecinden geçen tüm etütlerden gelir.
   const [listTime, setListTime] = useState<string>('all');
+  const timeFilterOn = viewMode === 'cards' || viewMode === 'calendar';
+  const timeSource = viewMode === 'calendar' ? subjectEtuts : listEtuts;
   const listTimes = useMemo(() => {
     const m = new Map<string, { label: string; count: number }>();
-    for (const e of listEtuts) {
+    for (const e of timeSource) {
       const key = etutTimeKey(e);
       const cur = m.get(key);
       if (cur) cur.count += 1;
@@ -226,11 +229,15 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     }
     // Saate göre sıralı; "saat belirtilmemiş" en sonda
     return Array.from(m.entries()).sort((a, b) => (a[0] === NO_TIME ? 1 : b[0] === NO_TIME ? -1 : a[0].localeCompare(b[0])));
-  }, [listEtuts]);
-  const effectiveListTime = viewMode === 'cards' && listTime !== 'all' && listTimes.some(([k]) => k === listTime) ? listTime : 'all';
+  }, [timeSource]);
+  const effectiveListTime = timeFilterOn && listTime !== 'all' && listTimes.some(([k]) => k === listTime) ? listTime : 'all';
   const cardEtuts = useMemo(
     () => (effectiveListTime === 'all' ? listEtuts : listEtuts.filter((e) => etutTimeKey(e) === effectiveListTime)),
     [listEtuts, effectiveListTime]
+  );
+  const calendarEtuts = useMemo(
+    () => (effectiveListTime === 'all' ? subjectEtuts : subjectEtuts.filter((e) => etutTimeKey(e) === effectiveListTime)),
+    [subjectEtuts, effectiveListTime]
   );
   const filtersOn =
     effectiveListSubject !== 'all' ||
@@ -469,7 +476,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               ))}
             </select>
           </div>
-          {viewMode === 'cards' && (
+          {timeFilterOn && (
             <div className="w-full sm:w-auto sm:min-w-[11rem]">
               <label htmlFor="etut-list-time" className="block text-xs font-semibold text-muted mb-1">
                 Ders saati
@@ -480,7 +487,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 onChange={(e) => setListTime(e.target.value)}
                 className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[11rem]"
               >
-                <option value="all">Tüm saatler ({listEtuts.length})</option>
+                <option value="all">Tüm saatler ({timeSource.length})</option>
                 {listTimes.map(([k, v]) => (
                   <option key={k} value={k}>
                     {v.label} ({v.count})
@@ -525,7 +532,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted" id="etut-list-count">
-            {`${viewMode === 'calendar' ? subjectEtuts.length : viewMode === 'cards' ? cardEtuts.length : listEtuts.length} etüt listeleniyor`}
+            {`${viewMode === 'calendar' ? calendarEtuts.length : viewMode === 'cards' ? cardEtuts.length : listEtuts.length} etüt listeleniyor`}
             {!isAdminView && ' · yalnız sizin etütleriniz'}
           </span>
           <div className="flex items-center gap-3 flex-wrap">
@@ -542,7 +549,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
       {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
-          etuts={subjectEtuts}
+          etuts={calendarEtuts}
           students={students}
           classes={classes}
           onAddEtutForDate={handleAddEtutForDate}
@@ -557,6 +564,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             setSelectedAttendanceEtutId(etut.id);
             setListSubject('all');
             setListTeacher('all');
+            setListTime('all');
             setDatePreset('all');
             setViewMode('attendance');
           }}
