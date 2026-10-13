@@ -471,6 +471,19 @@ export function buildTeacherPages(rows: ScheduleRow[]): SubjectDayPage[] {
 export const teacherListFileBase = (m: ScheduleMeta) =>
   `Etut-Ogretmen-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
 
+// Aşama 32c: her ders/gün listesi TEK A4 sayfaya sığdırılır.
+// Sırasıyla denenir: tek sütun 10 pt → ... → 7 pt, sonra iki sütun 10 pt → ... → 5.5 pt.
+// Her deneme ayrı bir taslak PDF'e gerçekten çizilir; sayfa taşmadıysa o ayar kullanılır.
+// Hiçbiri sığmazsa (çok kalabalık liste) tek sütun 7 pt ile basılır ve liste sonraki sayfada devam eder (hiçbir öğrenci kaybolmaz).
+export interface TeacherPdfFit {
+  cols: 1 | 2;
+  fontSize: number;
+}
+export const TEACHER_PDF_FITS: TeacherPdfFit[] = [
+  ...[10, 9.5, 9, 8.5, 8, 7.5, 7].map((fontSize) => ({ cols: 1 as const, fontSize })),
+  ...[10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5].map((fontSize) => ({ cols: 2 as const, fontSize })),
+];
+
 export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], meta: ScheduleMeta): Promise<void> {
   const [{ jsPDF }, autoTableMod, fonts, analytics] = await Promise.all([
     import('jspdf'),
@@ -479,58 +492,71 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     import('../utils/questionAnalytics'),
   ]);
   const autoTable = autoTableMod.default;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const fontOk = fonts.registerTurkishPdfFont(doc);
-  const F = fontOk ? fonts.PDF_FONT : 'helvetica';
-  const t = (s: unknown) => (fontOk ? analytics.cleanForPdfFont(s) : String(s ?? '').replace(/[^\x20-\x7E]/g, ''));
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const M = 14;
-  const pages = buildTeacherPages(rows);
-
-  const drawTitle = (p: SubjectDayPage) => {
-    doc.setFont(F, 'bold');
-    doc.setFontSize(17);
-    doc.setTextColor(30, 27, 75);
-    doc.text(t(p.title), pageW / 2, 18, { align: 'center' });
-    doc.setFont(F, 'normal');
-    doc.setFontSize(11.5);
-    doc.setTextColor(55, 65, 81);
-    doc.text(t(p.dateLabel), pageW / 2, 25, { align: 'center' });
-    if (!meta.allClasses) {
-      doc.setFontSize(9);
-      doc.setTextColor(107, 114, 128);
-      doc.text(t(`Sınıf: ${meta.classLabel}`), pageW / 2, 30.5, { align: 'center' });
-    }
-    doc.setDrawColor(199, 210, 254);
-    doc.line(M, 33, pageW - M, 33);
+  const newDoc = () => {
+    const d = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const ok = fonts.registerTurkishPdfFont(d);
+    return { d, ok };
   };
+  const pages = buildTeacherPages(rows);
+  const M = 12;
 
-  if (!pages.length) {
+  // Bir ders/gün sayfasını verilen ayarla `doc`un SON sayfasına çizer. Taşma olduysa false döner.
+  // trial = true: taslak denemesi, taşınca hemen durur. trial = false: gerçek çizim, taşsa da bütün bloklar çizilir.
+  const drawPage = (doc: any, fontOk: boolean, p: SubjectDayPage, fit: TeacherPdfFit, trial: boolean): boolean => {
+    const F = fontOk ? fonts.PDF_FONT : 'helvetica';
+    const t = (v: unknown) => (fontOk ? analytics.cleanForPdfFont(v) : String(v ?? '').replace(/[^\x20-\x7E]/g, ''));
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const startPages = doc.getNumberOfPages();
+    const fs = fit.fontSize;
+    const k = fs / 10; // başlık ve boşluklar puntoyla orantılı küçülür
+
+    // Başlık: ders adı, tarih ve gün
+    doc.setFont(F, 'bold');
+    doc.setFontSize(Math.max(12, 17 * k));
+    doc.setTextColor(30, 27, 75);
+    doc.text(t(p.title), pageW / 2, 14 + 2 * k, { align: 'center' });
     doc.setFont(F, 'normal');
-    doc.setFontSize(12);
-    doc.text(t('Bu seçimde etüt yok.'), pageW / 2, 30, { align: 'center' });
-  }
+    doc.setFontSize(Math.max(9, 11.5 * k));
+    doc.setTextColor(55, 65, 81);
+    let top = 20 + 3 * k;
+    doc.text(t(p.dateLabel), pageW / 2, top, { align: 'center' });
+    if (!meta.allClasses) {
+      top += 4.5 * k + 1;
+      doc.setFontSize(Math.max(7.5, 9 * k));
+      doc.setTextColor(107, 114, 128);
+      doc.text(t(`Sınıf: ${meta.classLabel}`), pageW / 2, top, { align: 'center' });
+    }
+    top += 3;
+    doc.setDrawColor(199, 210, 254);
+    doc.line(M, top, pageW - M, top);
+    top += 4;
 
-  pages.forEach((p, pi) => {
-    if (pi > 0) doc.addPage();
-    drawTitle(p);
-    let y = 38;
-    p.blocks.forEach((b) => {
-      // Bloğun başlığı + en az 3 öğrenci satırı sığmıyorsa yeni sayfaya geç (başlık sayfa sonunda yalnız kalmasın)
-      if (y > pageH - 14 - 40) {
-        doc.addPage();
-        y = 16;
-      }
+    const gap = 6;
+    const colW = fit.cols === 2 ? (pageW - 2 * M - gap) / 2 : pageW - 2 * M;
+    const colX = fit.cols === 2 ? [M, M + colW + gap] : [M];
+    const colY = colX.map(() => top);
+    const pad = Math.max(0.8, 2 * k);
+    const blockGap = Math.max(3, 7 * k);
+
+    for (const b of p.blocks) {
+      // Bloğu en kısa sütuna koy
+      const ci = colY.length === 2 && colY[1] < colY[0] ? 1 : 0;
+      const x = colX[ci];
       const info = (label: string, value: string): any[] => [
-        { content: t(`${label}: ${value || '-'}`), colSpan: 3, styles: { halign: 'left', fontStyle: 'bold', fillColor: [238, 242, 255], textColor: [30, 27, 75], fontSize: 10 } },
+        {
+          content: t(`${label}: ${value || '-'}`),
+          colSpan: 3,
+          styles: { halign: 'left', fontStyle: 'bold', fillColor: [238, 242, 255], textColor: [30, 27, 75], fontSize: fs },
+        },
       ];
       const body: any[] = b.students.length
-        ? b.students.map((s, i) => [String(i + 1), t(s.name), t(s.className || '-')])
+        ? b.students.map((st, i) => [String(i + 1), t(st.name), t(st.className || '-')])
         : [[{ content: t('Bu etüde öğrenci atanmamış.'), colSpan: 3, styles: { textColor: [156, 163, 175] } }]];
       autoTable(doc, {
-        startY: y,
-        margin: { left: M, right: M, top: 16, bottom: 14 },
+        startY: colY[ci],
+        margin: { left: x, right: pageW - x - colW, top: 12, bottom: 12 },
+        tableWidth: colW,
         head: <any[]>[
           info('Öğretmen', b.teacher),
           info('Etüt saati ve yeri', [b.time, b.place].filter(Boolean).join('  ·  ')),
@@ -540,23 +566,69 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
         body,
         theme: 'grid',
         showHead: 'everyPage',
-        styles: { font: F, fontSize: 10, cellPadding: 2, textColor: [31, 41, 55], lineColor: [209, 213, 219], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
+        pageBreak: 'auto',
+        styles: { font: F, fontSize: fs, cellPadding: pad, textColor: [31, 41, 55], lineColor: [209, 213, 219], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
         headStyles: { font: F, fillColor: [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 14, halign: 'center' }, 1: { cellWidth: 'auto', fontStyle: 'bold' }, 2: { cellWidth: 28, halign: 'center' } },
+        columnStyles: {
+          0: { cellWidth: Math.max(7, 12 * k), halign: 'center' },
+          1: { cellWidth: 'auto', fontStyle: 'bold' },
+          2: { cellWidth: Math.max(14, (fit.cols === 2 ? 20 : 28) * k), halign: 'center' },
+        },
         rowPageBreak: 'avoid',
       });
-      y = ((doc as any).lastAutoTable?.finalY || y) + 8;
-    });
+      if (trial && doc.getNumberOfPages() > startPages) return false; // taştı
+      colY[ci] = (doc.lastAutoTable?.finalY || colY[ci]) + blockGap;
+    }
+    if (doc.getNumberOfPages() > startPages) return false;
+    // Alt bilgi için yer kalsın
+    return Math.max(...colY) - blockGap <= pageH - 10;
+  };
+
+  // Her sayfa için sığan EN BÜYÜK ayarı bul (taslak PDF'lerde dene). Liste büyükten küçüğe sıralı olduğu için
+  // önce ilk ayar denenir (çoğu liste ilk denemede sığar), sığmazsa ikili arama ile birkaç denemede bulunur.
+  const tryFit = (p: SubjectDayPage, fit: TeacherPdfFit) => {
+    const { d, ok } = newDoc();
+    return drawPage(d, ok, p, fit, true);
+  };
+  const SINGLE_FALLBACK: TeacherPdfFit = { cols: 1, fontSize: 7 };
+  const fitFor = (p: SubjectDayPage): { fit: TeacherPdfFit; fits: boolean } => {
+    if (tryFit(p, TEACHER_PDF_FITS[0])) return { fit: TEACHER_PDF_FITS[0], fits: true };
+    let lo = 1;
+    let hi = TEACHER_PDF_FITS.length - 1;
+    if (!tryFit(p, TEACHER_PDF_FITS[hi])) return { fit: SINGLE_FALLBACK, fits: false };
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (tryFit(p, TEACHER_PDF_FITS[mid])) hi = mid;
+      else lo = mid + 1;
+    }
+    return { fit: TEACHER_PDF_FITS[hi], fits: true };
+  };
+
+  const { d: doc, ok: fontOk } = newDoc();
+  const F = fontOk ? fonts.PDF_FONT : 'helvetica';
+  const t = (v: unknown) => (fontOk ? analytics.cleanForPdfFont(v) : String(v ?? '').replace(/[^\x20-\x7E]/g, ''));
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  if (!pages.length) {
+    doc.setFont(F, 'normal');
+    doc.setFontSize(12);
+    doc.text(t('Bu seçimde etüt yok.'), pageW / 2, 30, { align: 'center' });
+  }
+  pages.forEach((p, pi) => {
+    if (pi > 0) doc.addPage();
+    const { fit } = fitFor(p);
+    drawPage(doc, fontOk, p, fit, false);
   });
 
   const total = doc.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
     doc.setPage(i);
     doc.setFont(F, 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(156, 163, 175);
-    doc.text(t(`${new Date().toLocaleDateString('tr-TR')} tarihinde hazırlandı`), M, pageH - 6);
-    doc.text(t(`${i} / ${total}`), pageW - M, pageH - 6, { align: 'right' });
+    doc.text(t(`${new Date().toLocaleDateString('tr-TR')} tarihinde hazırlandı`), M, pageH - 5);
+    doc.text(t(`${i} / ${total}`), pageW - M, pageH - 5, { align: 'right' });
   }
   doc.save(`${teacherListFileBase(meta)}.pdf`);
 }

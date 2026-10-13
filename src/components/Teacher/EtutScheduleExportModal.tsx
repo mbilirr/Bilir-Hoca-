@@ -128,7 +128,8 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
           {layout === 'teacher' && (
             <p className="text-[11px] text-muted mt-1.5">
               Her ders ve gün ayrı sayfa olur: en üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo
-              (öğretmen, etüt saati ve yeri, etüt konusu ve öğrencilerin adı soyadı). Yazdırmaya uygun A4 PDF.
+              (öğretmen, etüt saati ve yeri, etüt konusu ve öğrencilerin adı soyadı). Yazdırmaya uygun A4 PDF; her ders/gün listesi
+              tek sayfaya sığdırılır (gerekirse yazı küçültülür ve tablolar iki sütuna dizilir).
             </p>
           )}
         </div>
