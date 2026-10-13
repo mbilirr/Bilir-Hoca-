@@ -53,13 +53,31 @@ export function isFlexibleTarget(t: WeeklyQuestionTarget): boolean {
   return !!t.dailyTargets && typeof t.dailyTargets === 'object' && Object.keys(t.dailyTargets).length > 0;
 }
 
+/** Günlük plandan aktarılan konu kayıtlarının not metni (lib/planToTarget.ts bu metinle kaydeder) */
+export const PLAN_TOPIC_NOTE_PREFIX = 'Günlük plandan aktarılan konular';
+
+/** Kayıt günlük plandan mı geldi? (yeni kayıtlarda fromPlan, eskilerde not metni) */
+export function isPlanTopicRecord(t: WeeklyQuestionTarget | null | undefined): boolean {
+  if (!t) return false;
+  return !!t.fromPlan || (t.notes || '').startsWith(PLAN_TOPIC_NOTE_PREFIX);
+}
+
 /**
  * Günlük plandan "Soru Kaydet'e aktar" ile oluşan konu kaydı (soru sayısı 0). Hedef değildir:
  * öğretmen ve öğrenci ekranlarında hedef olarak gösterilmez, hesaplara katılmaz; yalnızca konuları taşır.
+ *
+ * Aşama 30: Önceki bir sürüm bu kayıtları "1 soru" ve "gün gün farklı dağıtıldı" olarak kaydedebildiği için
+ * ekranda "Matematik soru hedefi: 1 soru" gibi sahte hedefler görünüyordu. Toplamı 1 soru ya da daha az olan
+ * ve plandan geldiği (ya da konu taşıdığı, ya da günlere dağıtıldığı) anlaşılan kayıtlar da konu kaydı sayılır.
+ * Gerçek bir öğretmen hedefi en az birkaç sorudur; 1 soruluk hedef pratikte verilmez.
  */
 export function isPendingPlanTarget(t: WeeklyQuestionTarget | null | undefined): boolean {
-  if (!t || !t.fromPlan) return false;
-  return !(Number(t.targetQuestions ?? t.weeklyTarget) > 0);
+  if (!t) return false;
+  const total = Number(t.targetQuestions ?? t.weeklyTarget) || 0;
+  if (total > 1) return false;
+  if (isPlanTopicRecord(t)) return true;
+  const hasTopics = !!t.dailyTopics && typeof t.dailyTopics === 'object' && Object.keys(t.dailyTopics).length > 0;
+  return hasTopics || isFlexibleTarget(t) || total <= 0;
 }
 
 /** Eşit dağıtımdaki günlük hedef (gün gün dağıtımda ortalama) */

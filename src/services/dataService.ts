@@ -53,6 +53,7 @@ import {
   currentAcademicYear,
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
+import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -9112,7 +9113,14 @@ export class DataService {
     return this.isMyQuestionTarget(t);
   }
 
+  // Aşama 30: günlük plandan aktarılan KONU kayıtları (soru sayısı 0/1) hedef değildir; hiçbir hedef
+  // listesinde, tabloda, grafikte ya da hesapta görünmez. Konular getPlanTopicsForStudentDay ile okunur.
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
+    return this.visibleQuestionTargetRecords().filter((t) => !isPendingPlanTarget(t));
+  }
+
+  // Oturumdaki kullanıcının görebildiği TÜM kayıtlar (hedefler + plan konu kayıtları)
+  private visibleQuestionTargetRecords(): WeeklyQuestionTarget[] {
     const session = this.getAuthSession();
     if (session?.role === 'student') {
       const myId = session.user.id;
@@ -9133,6 +9141,47 @@ export class DataService {
       );
     }
     return [...this.weeklyQuestionTargets];
+  }
+
+  /**
+   * Aşama 30 (eksikti — öğrenci "Soru Sayısı" sayfası bu yüzden hata veriyordu):
+   * Öğretmenin "Soru takibine aktar" ile gönderdiği konular: verilen gün için ders → konu listesi.
+   * Hem plan konu kayıtlarından hem de konu eklenmiş gerçek hedeflerden okunur (öğrenci + sınıf kayıtları).
+   */
+  public getPlanTopicsForStudentDay(studentId: string, ymd: string): Array<{ subject: string; topic: string }> {
+    if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(ymd || '')) return [];
+    const classId = this.students.find((s) => s.id === studentId)?.classId;
+    const bySubject = new Map<string, string[]>();
+    for (const t of this.visibleQuestionTargetRecords()) {
+      const mine = this.isClassQuestionTarget(t) ? !!classId && t.classId === classId : t.studentId === studentId;
+      if (!mine) continue;
+      const topic = String((t.dailyTopics || {})[ymd] || '').replace(/\s+/g, ' ').trim();
+      if (!topic) continue;
+      if ((t.weekStartDate || '') > ymd || this.questionTargetEnd(t) < ymd) continue;
+      for (const subject of targetSubjectList(t.subject)) {
+        const list = bySubject.get(subject) || [];
+        if (!list.includes(topic)) list.push(topic);
+        bySubject.set(subject, list);
+      }
+    }
+    return Array.from(bySubject.entries()).map(([subject, list]) => ({ subject, topic: list.join(', ').slice(0, 120) }));
+  }
+
+  /**
+   * Aşama 30 (eksikti — "Soru takibine aktar" düğmesi bu yüzden hata veriyordu):
+   * Bu öğretmenin, öğrenci için verilen tarih aralığına denk gelen plan KONU kayıtları (gerçek hedefler değil).
+   */
+  public getMyPlanTopicRecords(studentId: string, rangeStart: string, rangeEnd: string): WeeklyQuestionTarget[] {
+    const mine = this.myQuestionTargetOwnerKeys();
+    return this.weeklyQuestionTargets.filter(
+      (t) =>
+        !this.isClassQuestionTarget(t) &&
+        t.studentId === studentId &&
+        isPlanTopicRecord(t) &&
+        isPendingPlanTarget(t) &&
+        mine.has(this.questionTargetOwnerKey(t)) &&
+        this.questionTargetOverlaps(t, rangeStart, rangeEnd)
+    );
   }
 
   public getStudentQuestionTargets(): WeeklyQuestionTarget[] {
@@ -9255,8 +9304,12 @@ export class DataService {
     const total = dailyTargets
       ? Object.values(dailyTargets).reduce((a, b) => a + b, 0)
       : Math.round(Number(draft.targetQuestions ?? draft.weeklyTarget) || 0);
-    if (total < 1) throw new Error('Toplam soru hedefi en az 1 olmalı.');
-    const daily = dailyTargets
+    // Aşama 30: günlük plandan gelen KONU kaydı soru sayısı taşımaz (0); hedef değildir, yalnızca konuları taşır
+    const isTopicRecord = !!draft.fromPlan && !dailyTargets && total <= 0;
+    if (total < 1 && !isTopicRecord) throw new Error('Toplam soru hedefi en az 1 olmalı.');
+    const daily = isTopicRecord
+      ? 0
+      : dailyTargets
       ? Math.max(1, Math.round(total / days))
       : Math.max(1, Math.round(Number(draft.dailyTarget) || total / days));
     const me = this.getCurrentTeacher();

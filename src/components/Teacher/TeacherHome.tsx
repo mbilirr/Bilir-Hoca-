@@ -18,6 +18,8 @@ import {
   ArrowRight,
   HelpCircle,
   ClipboardCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -346,10 +348,13 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                     {nextEtut && ` Sıradaki: ${longDate(nextEtut.date)} ${nextEtut.time || ''}, ${nextEtut.subject}.`}
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {todayEtuts.map((e) => (
-                      <li key={e.id}>
+                  <StackGroup
+                    id="home-stack-etuts"
+                    noun="etüt"
+                    tone="info"
+                    items={todayEtuts.map((e) => (
                         <button
+                          key={e.id}
                           type="button"
                           onClick={() => go('etuts')}
                           className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
@@ -377,9 +382,8 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                             </span>
                           </span>
                         </button>
-                      </li>
                     ))}
-                  </ul>
+                  />
                 )}
               </section>
 
@@ -394,15 +398,18 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                 {dueSoon.length === 0 ? (
                   <p className="text-sm text-muted">Bugün ve yarın teslim edilecek ödev yok.</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {dueSoon.map((h) => {
+                  <StackGroup
+                    id="home-stack-due"
+                    noun="ödev teslimi"
+                    tone="success"
+                    items={dueSoon.map((h) => {
                       const exp = expectedFor(h);
                       const done = doneFor(h.id);
                       const pct = exp ? Math.round((done / exp) * 100) : 0;
                       const isToday = h.dueDate.slice(0, 10) === todayStr;
                       return (
-                        <li key={h.id}>
                           <button
+                            key={h.id}
                             type="button"
                             onClick={() => go('homework', ['homework', h.id, h.title])}
                             className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
@@ -424,10 +431,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                               </span>
                             </span>
                           </button>
-                        </li>
                       );
                     })}
-                  </ul>
+                  />
                 )}
               </section>
 
@@ -442,10 +448,13 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                 {unread.length === 0 ? (
                   <p className="text-sm text-muted">Okunmamış mesaj yok.</p>
                 ) : (
-                  <ul className="space-y-2">
-                    {unread.slice(0, 3).map((m) => (
-                      <li key={m.id}>
+                  <StackGroup
+                    id="home-stack-messages"
+                    noun="okunmamış mesaj"
+                    tone="danger"
+                    items={unread.slice(0, 30).map((m) => (
                         <button
+                          key={m.id}
                           type="button"
                           onClick={() => go('messages')}
                           className="notify-blink notify-blink-rose w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
@@ -460,10 +469,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                           </span>
                           <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
                         </button>
-                      </li>
                     ))}
-                    {unread.length > 3 && <li className="text-xs text-muted pl-1">ve {unread.length - 3} mesaj daha</li>}
-                  </ul>
+                    moreText={unread.length > 30 ? `ve ${unread.length - 30} mesaj daha — Mesajlar'a gidin` : undefined}
+                  />
                 )}
               </section>
             </div>
@@ -636,6 +644,98 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           Henüz size tanımlı sınıf yok. Yöneticiniz sınıf izni verdiğinde öğrencileriniz burada görünecek.
         </p>
       )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// İç içe bildirim yığını (Aşama 30)
+// Aynı bölümde 3'ten fazla bildirim varsa kartlar üst üste (iç içe) gösterilir: en üstte listenin ilk
+// bildirimi (etütte en erken saat, ödevde en yakın teslim, mesajda en yeni mesaj), arkasında katmanlar ve "+N" rozeti. Yığına tıklayınca hepsi açılır, istenen seçilir.
+// 3 ya da daha az bildirim normal liste olarak görünür.
+// ---------------------------------------------------------------------------
+const STACK_LIMIT = 3;
+const STACK_TONE: Record<'info' | 'success' | 'danger', string> = {
+  info: 'bg-sky-600',
+  success: 'bg-emerald-600',
+  danger: 'bg-rose-600',
+};
+
+const StackGroup: React.FC<{
+  id: string;
+  /** "etüt", "ödev teslimi", "okunmamış mesaj" */
+  noun: string;
+  tone: 'info' | 'success' | 'danger';
+  items: React.ReactElement[];
+  moreText?: string;
+}> = ({ id, noun, tone, items, moreText }) => {
+  const [open, setOpen] = useState(false);
+  const count = items.length;
+
+  if (count <= STACK_LIMIT || open) {
+    return (
+      <div id={id} data-stack={count > STACK_LIMIT ? 'open' : 'list'}>
+        <ul className="space-y-2">
+          {items.map((node) => (
+            <li key={String(node.key)}>{node}</li>
+          ))}
+          {moreText && <li className="text-xs text-muted pl-1">{moreText}</li>}
+        </ul>
+        {count > STACK_LIMIT && (
+          <button
+            type="button"
+            id={`${id}-collapse`}
+            onClick={() => setOpen(false)}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+          >
+            <ChevronUp className="w-3.5 h-3.5" /> Daralt
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const expand = () => setOpen(true);
+  return (
+    <div id={id} data-stack="closed" className="pb-3">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={false}
+        aria-label={`${count} ${noun} — tümünü göstermek için tıklayın`}
+        onClick={expand}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            expand();
+          }
+        }}
+        className="relative block cursor-pointer group rounded-xl focus-visible:outline-2 focus-visible:outline-brand"
+      >
+        {/* Arkadaki katmanlar: iç içe geçmiş kartlar görünümü */}
+        <span aria-hidden className="absolute inset-x-4 -bottom-3 h-full rounded-xl bg-surface-3 border border-line shadow-sm" />
+        <span aria-hidden className="absolute inset-x-2 -bottom-1.5 h-full rounded-xl bg-surface-2 border border-line shadow-sm" />
+        {/* En üstteki (ilk) bildirim — yığın kapalıyken yalnızca önizleme, tıklama yığını açar */}
+        <div className="relative transition-transform group-hover:-translate-y-0.5" inert>
+          {items[0]}
+        </div>
+        <span
+          className={cx(
+            'absolute -top-2 -right-2 z-10 min-w-[1.75rem] h-7 px-2 rounded-full text-white text-xs font-black flex items-center justify-center shadow-md ring-2 ring-surface',
+            STACK_TONE[tone]
+          )}
+        >
+          +{count - 1}
+        </span>
+      </div>
+      <button
+        type="button"
+        id={`${id}-expand`}
+        onClick={expand}
+        className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+      >
+        <ChevronDown className="w-3.5 h-3.5" /> {count} {noun} — tümünü göster
+      </button>
     </div>
   );
 };

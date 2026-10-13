@@ -57,7 +57,7 @@ import { WeeklyTargetModal, TargetFormSaved } from './WeeklyTargetModal';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailNoticeBar } from './FormParts';
 import { periodOf, targetPeriodText, ownerText } from './TargetListParts';
-import { StudentTargetCards } from '../Student/StudentTargetCards';
+import { TargetSummaryTable } from '../Student/TargetSummaryTable';
 import {
   generalDailyTarget,
   computeMonthlyTargetPlan,
@@ -1822,9 +1822,16 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </div>
               </div>
 
-              {/* Bu haftaya denk gelen hedefler: her hedefin gün gün tablosu ve grafiği (Aşama 10b) */}
+              {/* Aşama 30: bu haftaya denk gelen BÜTÜN hedefler (öğrenci + sınıf) tek tabloda.
+                  Eskiden her hedef ayrı kart + ayrı gün gün tablo olarak gösteriliyordu. */}
               {activeStudent && activeTargets.length > 0 && (
-                <StudentTargetCards targets={activeTargets} studentId={activeStudent.id} logs={activeLogs} />
+                <TargetSummaryTable
+                  targets={activeTargets}
+                  studentId={activeStudent.id}
+                  logs={activeLogs}
+                  weekStart={currentWeekStartDate}
+                  onEditTarget={openEditTarget}
+                />
               )}
 
               {/* ========================================================================= */}

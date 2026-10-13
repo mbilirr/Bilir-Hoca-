@@ -68,6 +68,26 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
   { value: 'past', label: 'Geçmiş' },
   { value: 'range', label: 'Tarih aralığı' },
 ];
+// Aşama 30: ders saati süzgeci için yardımcılar
+const NO_TIME = 'none';
+/** Etüdün başlangıç saati anahtarı ("09:05" biçiminde); saat yoksa NO_TIME */
+function etutTimeKey(e: Etut): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec((e.time || '').trim());
+  return m ? `${m[1].padStart(2, '0')}:${m[2]}` : NO_TIME;
+}
+/** Açılır listede görünen yazı: "15:00 – 15:45" (süre yoksa yalnız başlangıç) */
+function etutTimeLabel(e: Etut): string {
+  const key = etutTimeKey(e);
+  if (key === NO_TIME) return 'Saat belirtilmemiş';
+  const dur = Number(e.duration) || 0;
+  if (dur <= 0) return key;
+  const [h, m] = key.split(':').map(Number);
+  const end = h * 60 + m + dur;
+  const eh = Math.floor(end / 60) % 24;
+  const em = end % 60;
+  return `${key} – ${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+}
+
 const ymdLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 function presetBounds(p: DatePreset, from: string, to: string): [string, string] {
   const now = new Date();
@@ -193,15 +213,39 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       return (!from || d >= from) && (!to || d <= to);
     });
   }, [subjectEtuts, dateBounds]);
-  const filtersOn = effectiveListSubject !== 'all' || effectiveListTeacher !== 'all' || (viewMode !== 'calendar' && datePreset !== 'all');
+  // Aşama 30: Liste görünümünde ders saati süzgeci (açılır liste). Seçenekler, diğer süzgeçlerden geçen
+  // etütlerin saatlerinden oluşur (ör. "15:00 – 15:45 (4)"); saat girilmemiş etütler ayrı seçenektir.
+  const [listTime, setListTime] = useState<string>('all');
+  const listTimes = useMemo(() => {
+    const m = new Map<string, { label: string; count: number }>();
+    for (const e of listEtuts) {
+      const key = etutTimeKey(e);
+      const cur = m.get(key);
+      if (cur) cur.count += 1;
+      else m.set(key, { label: etutTimeLabel(e), count: 1 });
+    }
+    // Saate göre sıralı; "saat belirtilmemiş" en sonda
+    return Array.from(m.entries()).sort((a, b) => (a[0] === NO_TIME ? 1 : b[0] === NO_TIME ? -1 : a[0].localeCompare(b[0])));
+  }, [listEtuts]);
+  const effectiveListTime = viewMode === 'cards' && listTime !== 'all' && listTimes.some(([k]) => k === listTime) ? listTime : 'all';
+  const cardEtuts = useMemo(
+    () => (effectiveListTime === 'all' ? listEtuts : listEtuts.filter((e) => etutTimeKey(e) === effectiveListTime)),
+    [listEtuts, effectiveListTime]
+  );
+  const filtersOn =
+    effectiveListSubject !== 'all' ||
+    effectiveListTeacher !== 'all' ||
+    effectiveListTime !== 'all' ||
+    (viewMode !== 'calendar' && datePreset !== 'all');
   const clearFilters = () => {
     setListSubject('all');
     setListTeacher('all');
+    setListTime('all');
     setDatePreset('all');
     setRangeFrom('');
     setRangeTo('');
   };
-  const pagedListEtuts = usePagedList(listEtuts, `${effectiveListSubject}|${effectiveListTeacher}|${scope}|${dateBounds.join('~')}`, 30);
+  const pagedListEtuts = usePagedList(cardEtuts, `${effectiveListSubject}|${effectiveListTeacher}|${effectiveListTime}|${scope}|${dateBounds.join('~')}`, 30);
 
   // Etüt oluştur / düzenle penceresi (Aşama 9)
   const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null } | null>(null);
@@ -425,6 +469,26 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               ))}
             </select>
           </div>
+          {viewMode === 'cards' && (
+            <div className="w-full sm:w-auto sm:min-w-[11rem]">
+              <label htmlFor="etut-list-time" className="block text-xs font-semibold text-muted mb-1">
+                Ders saati
+              </label>
+              <select
+                id="etut-list-time"
+                value={effectiveListTime}
+                onChange={(e) => setListTime(e.target.value)}
+                className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[11rem]"
+              >
+                <option value="all">Tüm saatler ({listEtuts.length})</option>
+                {listTimes.map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v.label} ({v.count})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           {viewMode !== 'calendar' && (
             <div className="w-full sm:w-auto sm:flex-1 min-w-0">
               <span className="block text-xs font-semibold text-muted mb-1">Tarih</span>
@@ -461,7 +525,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted" id="etut-list-count">
-            {`${viewMode === 'calendar' ? subjectEtuts.length : listEtuts.length} etüt listeleniyor`}
+            {`${viewMode === 'calendar' ? subjectEtuts.length : viewMode === 'cards' ? cardEtuts.length : listEtuts.length} etüt listeleniyor`}
             {!isAdminView && ' · yalnız sizin etütleriniz'}
           </span>
           <div className="flex items-center gap-3 flex-wrap">
@@ -502,7 +566,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {viewMode === 'cards' && (
         /* Etüt List */
         <div className="space-y-3">
-        {listEtuts.length === 0 && (
+        {cardEtuts.length === 0 && (
           <div className="ui-card p-8 text-center text-sm text-muted">Bu seçimde etüt yok.</div>
         )}
         <div className="space-y-2" id="etut-list-grid">
