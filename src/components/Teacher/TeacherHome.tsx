@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ArrowRight,
   HelpCircle,
+  ClipboardCheck,
 } from 'lucide-react';
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -24,6 +25,8 @@ import { setQuickFocus } from '../../lib/quickFocus';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { Panel, StatCard, EmptyState, IconBox, cx } from '../ui/kit';
 import { TeacherEtutBell } from './TeacherEtutBell';
+import { useSeenIds } from '../../lib/useSeenIds';
+import { useArrivalFlash } from '../../lib/useArrivalFlash';
 
 // ============================================================================
 // ÖĞRETMEN ANA SAYFASI (Aşama 8)
@@ -73,28 +76,11 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
   useEffect(() => dataService.subscribe(() => setQuestionLogs(dataService.getQuestionLogs())), []);
 
-  // --- Aşama 28: öğrencilerin son soru girişleri (isimli bildirim) ---
-  // Görülen girişler bu tarayıcıda hatırlanır; yeni girişler kalın + noktalı görünür.
-  const seenKey = `tchr_qlog_seen_${currentTeacher?.id || 'x'}`;
-  const [seenQLogIds, setSeenQLogIds] = useState<Set<string>>(() => {
-    try {
-      return new Set<string>(JSON.parse(localStorage.getItem(seenKey) || '[]'));
-    } catch {
-      return new Set<string>();
-    }
-  });
-  const markQLogsSeen = (ids: string[]) =>
-    setSeenQLogIds((prev) => {
-      const next = new Set(prev);
-      ids.forEach((id) => next.add(id));
-      const arr = Array.from(next).slice(-400);
-      try {
-        localStorage.setItem(seenKey, JSON.stringify(arr));
-      } catch {
-        /* tarayıcı kaydı kapalıysa yalnızca bu oturumda hatırlanır */
-      }
-      return new Set(arr);
-    });
+  // --- Aşama 28/29: yeni gelen bilgiler (soru girişi, ödev teslimi) ---
+  // Görülen kayıtlar bu tarayıcıda hatırlanır; görülmemişler renkli yan-sön ile yanıp söner.
+  const teacherKey = currentTeacher?.id || 'x';
+  const [seenQLogIds, markQLogsSeen] = useSeenIds(`tchr_qlog_seen_${teacherKey}`);
+  const [seenSubIds, markSubsSeen] = useSeenIds(`tchr_sub_seen_${teacherKey}`);
 
   const now = new Date();
   const todayStr = ymd(now);
@@ -171,6 +157,38 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
       }));
   }, [questionLogs, students]);
   const unseenQuestionEntries = recentQuestionEntries.filter((e) => !seenQLogIds.has(e.id));
+
+  // Son 3 günde teslim edilen ödevler (en yeni üstte)
+  const recentSubmissions = useMemo(() => {
+    const cutoff = Date.now() - 3 * 86400000;
+    const sById = new Map(students.map((st) => [st.id, st] as const));
+    const hwById = new Map(homeworks.map((h) => [h.id, h] as const));
+    return submissions
+      .filter(
+        (sub) =>
+          (sub.status === 'on_time' || sub.status === 'late') &&
+          sById.has(sub.studentId) &&
+          hwById.has(sub.homeworkId) &&
+          new Date(sub.submittedAt || 0).getTime() >= cutoff
+      )
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''))
+      .map((sub) => ({
+        // Teslim güncellenirse (yeniden teslim) yeni bir bilgi sayılır ve yeniden yanıp söner
+        id: `${sub.id}@${sub.submittedAt || ''}`,
+        homeworkId: sub.homeworkId,
+        title: hwById.get(sub.homeworkId)?.title || 'Ödev',
+        name: sById.get(sub.studentId)?.name || sub.studentName,
+        className: sById.get(sub.studentId)?.className || '',
+        late: sub.status === 'late',
+        submittedAt: sub.submittedAt,
+      }));
+  }, [submissions, students, homeworks]);
+  const unseenSubmissions = recentSubmissions.filter((e) => !seenSubIds.has(e.id));
+
+  // Sayfa açıkken yeni bir bilgi gelirse ilgili kutu birkaç saniye güçlü parlar
+  const flashQuestions = useArrivalFlash(unseenQuestionEntries.length);
+  const flashMessages = useArrivalFlash(unread.length);
+  const flashSubmissions = useArrivalFlash(unseenSubmissions.length);
   const whenText = (iso: string) => {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
@@ -213,9 +231,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
   ].filter(Boolean);
 
   return (
-    <div className="space-y-6" id="teacher-home">
+    <div className="space-y-6 @container" id="teacher-home">
       {/* ===== Selamlama ve hızlı işlemler ===== */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+      <div className="flex flex-col @3xl:flex-row @3xl:items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm text-muted">{longDate(todayStr)} · {branch}</p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg mt-1">
@@ -250,7 +268,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
       </div>
 
       {/* ===== Özet kartları ===== */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           id="home-stat-homework"
           label="Aktif Ödev"
@@ -289,15 +307,17 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+      <div className="grid grid-cols-1 @4xl:grid-cols-12 gap-4 sm:gap-6 items-start">
         {/* ===== BUGÜN ===== */}
-        <div className="lg:col-span-7 space-y-4 sm:space-y-6 min-w-0">
+        <div className="@4xl:col-span-7 space-y-4 sm:space-y-6 min-w-0">
         <Panel
           id="home-today-panel"
+          className={flashMessages ? 'notify-flash notify-blink-rose' : undefined}
           icon={Sun}
           tone="warning"
           title="Bugün"
           description={summaryParts.length ? summaryParts.join(' · ') : 'Planlanmış bir iş yok'}
+          actions={unread.length > 0 ? <span className="notify-badge notify-blink-rose">{unread.length} yeni mesaj</span> : undefined}
         >
           {todayEtuts.length === 0 && dueSoon.length === 0 && unread.length === 0 ? (
             <EmptyState
@@ -428,7 +448,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                         <button
                           type="button"
                           onClick={() => go('messages')}
-                          className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
+                          className="notify-blink notify-blink-rose w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
                         >
                           <IconBox icon={MessageSquare} tone="danger" size="sm" />
                           <span className="flex-1 min-w-0">
@@ -453,6 +473,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         {/* ===== SORU GİRİŞLERİ (Aşama 28): hangi öğrenci kaç soru girdi — ada tıklayınca öğrencinin Soru Takibi sayfası ===== */}
         <Panel
           id="home-question-entries"
+          className={flashQuestions ? 'notify-flash notify-blink-amber' : undefined}
           icon={HelpCircle}
           tone="warning"
           title="Öğrenci soru girişleri"
@@ -465,14 +486,17 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           }
           actions={
             unseenQuestionEntries.length > 0 ? (
-              <button
-                type="button"
-                id="home-qentries-mark-all"
-                className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
-                onClick={() => markQLogsSeen(recentQuestionEntries.map((e) => e.id))}
-              >
-                Tümünü okundu yap
-              </button>
+              <span className="flex items-center gap-2">
+                <span className="notify-badge notify-blink-amber">{unseenQuestionEntries.length} yeni</span>
+                <button
+                  type="button"
+                  id="home-qentries-mark-all"
+                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                  onClick={() => markQLogsSeen(recentQuestionEntries.map((e) => e.id))}
+                >
+                  Tümünü okundu yap
+                </button>
+              </span>
             ) : undefined
           }
         >
@@ -492,9 +516,12 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                         go('question_tracking', ['student', e.studentId, e.name]);
                       }}
                       title={`${e.name} — Soru Takibi sayfasını aç`}
-                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors"
+                      className={cx(
+                        'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
+                        isNew && 'notify-blink notify-blink-amber'
+                      )}
                     >
-                      <span className={cx('w-2 h-2 rounded-full shrink-0', isNew ? 'bg-warning' : 'bg-transparent')} aria-hidden />
+                      <span className={cx('w-2.5 h-2.5 rounded-full shrink-0', isNew ? 'bg-amber-500' : 'bg-transparent')} aria-hidden />
                       <span className="flex-1 min-w-0">
                         <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
                           <span className="underline decoration-dotted underline-offset-2">{e.name}</span> {e.total} soru girdi
@@ -520,10 +547,88 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
             </ul>
           )}
         </Panel>
+
+        {/* ===== YENİ ÖDEV TESLİMLERİ (Aşama 29): son 3 gün; görülmemişler yeşil yan-sön ile yanıp söner ===== */}
+        <Panel
+          id="home-new-submissions"
+          className={flashSubmissions ? 'notify-flash notify-blink-emerald' : undefined}
+          icon={ClipboardCheck}
+          tone="success"
+          title="Yeni ödev teslimleri"
+          description={
+            recentSubmissions.length === 0
+              ? 'Son 3 günde teslim yok'
+              : unseenSubmissions.length > 0
+              ? `${unseenSubmissions.length} yeni teslim`
+              : 'Yeni teslim yok'
+          }
+          actions={
+            unseenSubmissions.length > 0 ? (
+              <span className="flex items-center gap-2">
+                <span className="notify-badge notify-blink-emerald">{unseenSubmissions.length} yeni</span>
+                <button
+                  type="button"
+                  id="home-submissions-mark-all"
+                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                  onClick={() => markSubsSeen(recentSubmissions.map((e) => e.id))}
+                >
+                  Tümünü okundu yap
+                </button>
+              </span>
+            ) : undefined
+          }
+        >
+          {recentSubmissions.length === 0 ? (
+            <p className="text-sm text-muted">Öğrenciler ödev teslim ettiğinde burada adlarıyla görünür.</p>
+          ) : (
+            <ul className="space-y-2">
+              {recentSubmissions.slice(0, 6).map((e) => {
+                const isNew = !seenSubIds.has(e.id);
+                return (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      data-submission={e.id}
+                      onClick={() => {
+                        markSubsSeen([e.id]);
+                        go('homework', ['homework', e.homeworkId, e.title]);
+                      }}
+                      title={`${e.name} — ${e.title}`}
+                      className={cx(
+                        'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
+                        isNew && 'notify-blink notify-blink-emerald'
+                      )}
+                    >
+                      <span className={cx('w-2.5 h-2.5 rounded-full shrink-0', isNew ? 'bg-emerald-500' : 'bg-transparent')} aria-hidden />
+                      <span className="flex-1 min-w-0">
+                        <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
+                          {e.name} <span className="font-normal text-muted">teslim etti</span>
+                          {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
+                        </span>
+                        <span className="block text-xs text-muted truncate">
+                          {e.title} · {whenText(e.submittedAt)}
+                          {e.late ? ' · geç teslim' : ''}
+                        </span>
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
+                    </button>
+                  </li>
+                );
+              })}
+              {recentSubmissions.length > 6 && (
+                <li className="text-xs pl-1">
+                  <button type="button" className="font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('homework')}>
+                    ve {recentSubmissions.length - 6} teslim daha — Ödevler'e git
+                  </button>
+                </li>
+              )}
+            </ul>
+          )}
+        </Panel>
         </div>
 
         {/* ===== AJANDA ===== */}
-        <AgendaCalendar className="lg:col-span-5" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
+        <AgendaCalendar className="@4xl:col-span-5 min-w-0" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
       </div>
 
       {classes.length === 0 && (

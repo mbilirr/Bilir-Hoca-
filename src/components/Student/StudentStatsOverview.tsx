@@ -3,7 +3,8 @@ import { ArrowRight, Award, Target } from 'lucide-react';
 import type { Etut, GradeRecord, Homework, HomeworkSubmission, Student, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
 import { dataService } from '../../services/dataService';
-import { formatDateISO, getMondayOfWeek, TURKISH_DAYS_SHORT } from '../../utils/questionAnalytics';
+import { buildStudentQuestionSummary, isTargetDone } from '../../utils/studentQuestionSummary';
+import { useLiveNow } from '../../lib/useLiveNow';
 import { IconBox, cx, type Tone } from '../ui/kit';
 
 // ============================================================================
@@ -26,12 +27,6 @@ interface StudentStatsOverviewProps {
   sidePanel?: React.ReactNode;
 }
 
-const addDays = (d: Date, n: number) => {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-};
-
 const fmtNumber = (n: number) => n.toLocaleString('tr-TR');
 const fmtAverage = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 1 });
 
@@ -41,12 +36,8 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
   onNavigateTab,
   sidePanel,
 }) => {
-  // Saat ilerledikçe (ör. gece yarısı, ödev saati geçince) değerler güncel kalsın
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  // Saat ilerledikçe (gece yarısı, sekmeye dönüş vb.) "bugün" güncel kalır
+  const now = useLiveNow();
 
   // Soru kayıtları ve hedefler veri servisinden gelir; değiştiğinde yeniden oku
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
@@ -60,40 +51,28 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
     []
   );
 
-  const todayYmd = formatDateISO(now);
-  const monday = useMemo(() => getMondayOfWeek(now), [now]);
-
   // ------------------------------------------------------------------ Sorular
+  // "Duyurular" ve Soru Takibi ile AYNI hesap (utils/studentQuestionSummary.ts)
   const q = useMemo(() => {
-    const mine = questionLogs.filter((l) => l.studentId === student.id);
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = addDays(monday, i);
-      return { ymd: formatDateISO(d), label: TURKISH_DAYS_SHORT[i], count: 0 };
-    });
-    const index = new Map(days.map((d, i) => [d.ymd, i]));
-    mine.forEach((l) => {
-      const i = index.get((l.date || '').slice(0, 10));
-      if (i !== undefined) days[i].count += Number(l.totalQuestions) || 0;
-    });
-    const week = days.reduce((s, d) => s + d.count, 0);
-    const today = days.find((d) => d.ymd === todayYmd)?.count ?? 0;
-
-    // Bugün geçerli olan hedefler; en anlamlısı: henüz bitmemiş ve bitiş tarihi en yakın olan
-    const targets = dataService
-      .getQuestionTargetsForStudent(student.id, todayYmd, todayYmd)
-      .map((t) => ({ t, p: dataService.questionTargetProgress(t, student.id, mine), end: dataService.questionTargetEnd(t) }))
-      .sort((a, b) => Number(a.p.done) - Number(b.p.done) || a.end.localeCompare(b.end));
-    const top = targets[0];
-    const teacher = top ? top.t.assignedByTeacherName || (top.t.assignedBy && top.t.assignedBy !== 'Öğretmen' ? top.t.assignedBy : '') : '';
+    const s = buildStudentQuestionSummary(student.id, now, questionLogs);
     return {
-      days,
-      week,
-      today,
-      max: Math.max(1, ...days.map((d) => d.count)),
-      target: top ? { ...top, teacher, subject: top.t.subject || 'Tüm dersler' } : null,
-      otherTargets: Math.max(0, targets.length - 1),
+      days: s.weekDays,
+      week: s.week,
+      today: s.today,
+      todayYmd: s.todayYmd,
+      todayGoal: s.todayGoal,
+      todayGoalSolved: s.todayGoalSolved,
+      max: Math.max(1, ...s.weekDays.map((d) => d.count)),
+      target: s.primary
+        ? {
+            ...s.primary,
+            p: { solved: s.primary.res.solved, total: s.primary.res.total, percent: s.primary.res.percent, done: isTargetDone(s.primary.res) },
+          }
+        : null,
+      otherTargets: s.otherTargets,
     };
-  }, [questionLogs, student.id, monday, todayYmd, dataVersion]);
+  }, [questionLogs, student.id, now, dataVersion]);
+  const todayYmd = q.todayYmd;
 
   // ------------------------------------------------------------------ Notlar
   const gr = useMemo(() => {
@@ -116,7 +95,7 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
 
   // ------------------------------------------------------------------ Görünüm
   return (
-    <section id="student-home-stats" aria-labelledby="student-home-stats-title" className="space-y-3">
+    <section id="student-home-stats" aria-labelledby="student-home-stats-title" className="space-y-3 @container">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 id="student-home-stats-title" className="text-base sm:text-lg font-semibold text-fg">
@@ -130,11 +109,11 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
           3. sütun Notlarım (en sağda). Telefonda tek sütun; plan en üstte. */}
       <div
         id="student-home-stats-grid"
-        className={cx('grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 items-start', sidePanel ? 'xl:grid-cols-3' : '')}
+        className={cx('grid grid-cols-1 @2xl:grid-cols-2 gap-3 sm:gap-4 items-start', sidePanel ? '@5xl:grid-cols-3' : '')}
       >
         {/* Sol: küçültülmüş "Bugün yapılması gerekenler" (telefonda da en üstte) */}
         {sidePanel && (
-          <div className="min-w-0 md:col-span-2 xl:col-span-1" id="student-home-stats-side">
+          <div className="min-w-0 @2xl:col-span-2 @5xl:col-span-1" id="student-home-stats-side">
             {sidePanel}
           </div>
         )}
@@ -169,6 +148,15 @@ export const StudentStatsOverview: React.FC<StudentStatsOverviewProps> = ({
             </div>
           ) : (
             <ContextLine>{q.week > 0 ? `Bugün ${fmtNumber(q.today)} soru` : 'Bu hafta henüz soru girmedin'}</ContextLine>
+          )}
+          {q.todayGoal > 0 && (
+            <ContextLine>
+              Bugünkü hedef:{' '}
+              <span className="text-fg font-semibold tabular-nums">
+                {fmtNumber(q.todayGoalSolved)}/{fmtNumber(q.todayGoal)}
+              </span>
+              {q.todayGoalSolved >= q.todayGoal ? ' · tamam' : ` · ${fmtNumber(q.todayGoal - q.todayGoalSolved)} soru kaldı`}
+            </ContextLine>
           )}
           <WeekBars days={q.days} max={q.max} todayYmd={todayYmd} />
         </SummaryCard>

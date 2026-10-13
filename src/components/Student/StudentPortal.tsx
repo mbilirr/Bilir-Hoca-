@@ -275,11 +275,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full min-w-0">
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
-      <div id="student-top-navigation-wall" className="static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
+      <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
-        <div id="student-action-cards-grid" className="hidden md:grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div id="student-action-cards-grid" className="hidden md:grid grid-cols-2 @3xl:grid-cols-4 gap-2.5 sm:gap-3">
           {/* 1. Ödevlerim */}
           <button
             id="student-nav-homework-card-btn"
@@ -402,7 +402,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         </div>
 
         {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
-        <div id="student-bottom-nav-row" className="flex items-center justify-between pt-2 border-t border-line">
+        <div id="student-bottom-nav-row" className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line">
           <div className="flex items-center space-x-2 flex-wrap gap-y-2">
             {/* Küçültülmüş Ana Sayfa Butonu */}
             <button

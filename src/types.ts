@@ -222,6 +222,9 @@ export interface WeeklyQuestionTarget {
   notes?: string;
   subject?: string; // Aşama 10: yalnızca bu dersin soruları sayılır (boş = tüm dersler)
   createdBy?: string; // Aşama 10: hedefi kaydeden hesabın (auth) kimliği — veritabanındaki created_by
+  // Günlük plandan aktarılan konu kaydı (soru hedefi değildir) — lib/planToTarget.ts ve utils/targetDays.ts kullanır
+  fromPlan?: boolean;
+  dailyTopics?: Record<string, string>; // { 'YYYY-MM-DD': 'Kitap – konu' }
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';

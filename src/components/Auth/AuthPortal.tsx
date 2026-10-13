@@ -439,7 +439,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       <div className="absolute -bottom-24 left-1/4 w-72 h-72 md:w-96 md:h-96 bg-emerald-100/40 dark:bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Brand Bar */}
-      <header className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-center justify-between">
+      <header className="relative z-10 w-full app-container py-5 flex items-center justify-between">
         <div className="flex items-center space-x-3.5">
           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-surface to-indigo-50 dark:to-indigo-500/10 border border-line p-1.5 flex items-center justify-center shadow-xs overflow-hidden">
             <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />

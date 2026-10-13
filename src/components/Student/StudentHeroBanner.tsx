@@ -16,6 +16,9 @@ import {
 import { Student, Etut, Homework, HomeworkSubmission, GradeRecord, StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 import { homeworkStateFor } from './StudentHomeUtils';
+import { buildStudentQuestionSummary } from '../../utils/studentQuestionSummary';
+import { useLiveNow } from '../../lib/useLiveNow';
+import { useDataVersion } from '../../lib/useDataVersion';
 
 export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
 
@@ -94,7 +97,10 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
   onOpenAvatarModal,
 }) => {
   const [openDuyuruId, setOpenDuyuruId] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
+  // Canlı tarih: gece yarısı geçince / sekmeye dönünce "bugün" kendiliğinden güncellenir.
+  const today = useLiveNow();
+  // Veri (soru kaydı, ödev, etüt, mesaj...) değişince bu duvar da anında yenilenir.
+  const dataVersion = useDataVersion();
   const todayYear = today.getFullYear();
   const todayMonth = today.getMonth(); // 0-11
   const todayStr = useMemo(() => ymdOf(today), [today]);
@@ -276,30 +282,23 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         });
       });
 
-    // 4) Günlük soru hedefi
+    // 4) Günlük soru hedefi — "Durumum" ve Soru Takibi ile AYNI hesap (utils/studentQuestionSummary.ts):
+    //    günlere özel hedef, hedefin dersi ve tarih aralığı hesaba katılır.
     try {
-      const targets = dataService.getQuestionTargetsForStudent(student.id, todayStr, todayStr);
-      if (targets.length > 0) {
-        const t = targets[0];
-        const total = Number(t.targetQuestions || t.weeklyTarget || 0);
-        const days = Math.max(1, Number(t.targetDays || 7));
-        const daily = Number(t.dailyTarget) > 0 ? Number(t.dailyTarget) : Math.ceil(total / days);
-        if (daily > 0) {
-          const solvedToday = dataService
-            .getQuestionLogs()
-            .filter((l) => l.studentId === student.id && (l.date || '').slice(0, 10) === todayStr)
-            .reduce((sum, l) => sum + (Number(l.totalQuestions) || 0), 0);
-          const done = solvedToday >= daily;
-          list.push({
-            id: `hedef-${t.id || 'gunluk'}`,
-            kind: 'hedef',
-            title: done ? `Bugünkü soru hedefin tamam (${daily} soru)` : `Bugünkü soru hedefin: ${daily} soru`,
-            detail: `Bugün ${solvedToday} soru çözdün${t.subject ? ` · ${t.subject}` : ''}${
-              !done ? ` · ${daily - solvedToday} soru kaldı` : ''
-            }`,
-            tab: 'questions',
-          });
-        }
+      const qs = buildStudentQuestionSummary(student.id, today, dataService.getQuestionLogs());
+      if (qs.todayGoal > 0) {
+        const daily = qs.todayGoal;
+        const solvedToday = qs.todayGoalSolved;
+        const done = solvedToday >= daily;
+        // Ders yazısı yalnızca bugünün hedefi derse bağlıysa gösterilir (genel hedefte "tüm dersler")
+        const subjectText = qs.todayGoalSubjects.length ? ` · ${qs.todayGoalSubjects.join(', ')}` : '';
+        list.push({
+          id: `hedef-${qs.todayYmd}`,
+          kind: 'hedef',
+          title: done ? `Bugünkü soru hedefin tamam (${daily} soru)` : `Bugünkü soru hedefin: ${daily} soru`,
+          detail: `Bugün ${solvedToday} soru çözdün${subjectText}${!done ? ` · ${daily - solvedToday} soru kaldı` : ''} · bu hafta ${qs.week} soru`,
+          tab: 'questions',
+        });
       }
     } catch {
       /* hedef okunamazsa duyuru gösterilmez */
@@ -329,15 +328,15 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
     student.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
 
   return (
-    <div id="student-agenda-wall" className="w-full bg-surface border border-line rounded-2xl p-3 sm:p-4 shadow-xl relative overflow-hidden">
+    <div id="student-agenda-wall" data-v={dataVersion} className="@container w-full bg-surface border border-line rounded-2xl p-3 sm:p-4 shadow-xl relative overflow-hidden">
       <div className="absolute top-0 -left-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch relative z-10">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-3 items-stretch relative z-10">
         {/* =========================================================================
             SOL SÜTUN: DUYURULAR (bugünün etüdü, ödevi, soru hedefi, notlar) — kompakt
            ========================================================================= */}
-        <div id="student-announcements" className="lg:col-span-6 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col shadow-lg">
+        <div id="student-announcements" className="min-w-0 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col shadow-lg">
           <div className="flex items-center justify-between pb-2 border-b border-line mb-2">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-orange-500/15 border border-orange-500/30 flex items-center justify-center text-orange-700 dark:text-orange-400">
@@ -362,7 +361,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
           </div>
 
           {duyurular.length > 0 ? (
-            <ul className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1" id="student-announcement-list">
+            <ul className="space-y-1.5 max-h-[16rem] overflow-y-auto pr-1" id="student-announcement-list">
               {duyurular.map((d) => {
                 const st = KIND_STYLE[d.kind];
                 const Icon = d.kind === 'hedef' && d.title.includes('tamam') ? CheckCircle2 : st.icon;
@@ -411,7 +410,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
         {/* =========================================================================
             SAĞ SÜTUN: KOMPAKT AYLIK TAKVİM
            ========================================================================= */}
-        <div className="lg:col-span-6 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col justify-between shadow-lg">
+        <div className="min-w-0 bg-canvas/70 border border-line rounded-2xl p-3 flex flex-col justify-between shadow-lg">
           <div className="flex items-center justify-between pb-1.5 border-b border-line">
             <div className="flex items-center space-x-2">
               <CalendarDays className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />

@@ -388,7 +388,7 @@ export default function App() {
       {/* Teacher Viewing Student Portal Notice Banner */}
       {authSession.role === 'teacher' && role === 'student' && (
         <div className="bg-warning-soft border-b border-line px-3 sm:px-6 lg:px-8 py-2.5 text-xs text-warning-fg">
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="max-w-[120rem] mx-auto flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 shrink-0" />
               <span>
@@ -410,7 +410,7 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="flex-1 app-container py-4 sm:py-6">
         {role === 'teacher' ? (
           /* ================= TEACHER DASHBOARD ================= */
           <div className="space-y-6">
@@ -619,7 +619,7 @@ export default function App() {
 
       {/* Alt bilgi */}
       <footer className="mt-10 border-t border-line py-5 text-center text-xs text-subtle">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center gap-2">
+        <div className="max-w-[120rem] mx-auto px-4 flex items-center justify-center gap-2">
           <GraduationCap className="w-4 h-4" />
           <span>Eğitim Takip · {new Date().getFullYear()}</span>
         </div>
