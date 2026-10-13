@@ -21,6 +21,7 @@ import {
   createGmailComposeLink,
   createMailtoLink,
 } from '../../lib/emailTemplates';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface EtutNotificationModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const EtutNotificationModal: React.FC<EtutNotificationModalProps> = ({
 }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [dispatchFeedback, setDispatchFeedback] = useState<string | null>(null);
+  useAutoDismiss(dispatchFeedback, () => setDispatchFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
 
   if (!isOpen || !etut) return null;
 
@@ -102,7 +104,6 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
     }
     window.open(url, '_blank');
     setDispatchFeedback(`${std.name} için WhatsApp mesajı açıldı.`);
-    setTimeout(() => setDispatchFeedback(null), 3500);
   };
 
   const handleManualEmailClient = (std: Student) => {
@@ -123,7 +124,6 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
     const gmailUrl = createGmailComposeLink(std.email, emailData.subject, emailData.text);
     window.open(gmailUrl, '_blank');
     setDispatchFeedback(`${std.name} için Gmail gönderme penceresi açıldı.`);
-    setTimeout(() => setDispatchFeedback(null), 3500);
   };
 
   return (

@@ -409,3 +409,154 @@ export async function downloadSchedulePdf(rows: ScheduleResult['rows'], meta: Sc
   }
   doc.save(`${scheduleFileBase(meta)}.pdf`);
 }
+
+// ============================================================================
+// Aşama 32b: ÖĞRETMENE GÖRE GRUPLU ETÜT LİSTESİ (PDF, A4 dikey)
+// Her ders + gün ayrı sayfa: en üstte "FEN BİLİMLERİ DERSİ ETÜTÜ", altında tarih ve gün.
+// Sonra her etüt (öğretmen) için ayrı tablo: Öğretmen, etüt saati ve yeri, etüt konusu ve altında öğrenciler.
+// Öğrencilerin karşısına konu yazılmaz. Satırlar ekrandaki önizleme ve diğer listelerle aynı kaynaktan gelir.
+// ============================================================================
+export interface TeacherBlock {
+  etutId: string;
+  teacher: string; // "Ayşe Yılmaz" ya da birden çok öğretmen "A, B"
+  time: string; // "10:20 – 11:00"
+  startKey: string;
+  place: string;
+  topic: string;
+  students: Array<{ id: string; name: string; className: string }>;
+}
+export interface SubjectDayPage {
+  key: string;
+  subject: string;
+  dateYmd: string;
+  title: string; // "FEN BİLİMLERİ DERSİ ETÜTÜ"
+  dateLabel: string; // "13 Ekim 2026 Salı"
+  blocks: TeacherBlock[];
+}
+
+/** Ders adından sayfa başlığı: "Fen Bilimleri" → "FEN BİLİMLERİ DERSİ ETÜTÜ" */
+export function subjectTitle(subject: string): string {
+  const s = String(subject || '').trim();
+  if (!s) return 'ETÜT LİSTESİ';
+  const up = s.toLocaleUpperCase('tr-TR');
+  return /DERS[İI]$/.test(up) ? `${up} ETÜTÜ` : `${up} DERSİ ETÜTÜ`;
+}
+
+export function buildTeacherPages(rows: ScheduleRow[]): SubjectDayPage[] {
+  const pages = new Map<string, SubjectDayPage>();
+  const blocks = new Map<string, TeacherBlock>();
+  for (const r of rows) {
+    const pk = `${r.dateYmd}|${r.subject.toLocaleLowerCase('tr-TR')}`;
+    let page = pages.get(pk);
+    if (!page) {
+      page = { key: pk, subject: r.subject, dateYmd: r.dateYmd, title: subjectTitle(r.subject), dateLabel: longDate(r.dateYmd), blocks: [] };
+      pages.set(pk, page);
+    }
+    let block = blocks.get(r.etutId);
+    if (!block) {
+      block = { etutId: r.etutId, teacher: r.teacher || '-', time: r.time, startKey: r.startKey, place: r.place, topic: r.topic, students: [] };
+      blocks.set(r.etutId, block);
+      page.blocks.push(block);
+    }
+    if (!block.students.some((s) => s.id === r.studentId)) block.students.push({ id: r.studentId, name: r.student, className: r.className });
+  }
+  const list = Array.from(pages.values());
+  for (const p of list) {
+    p.blocks.sort((a, b) => cs(a.startKey, b.startKey) || tr(a.teacher, b.teacher) || cs(a.etutId, b.etutId));
+    for (const b of p.blocks) b.students.sort((x, y) => tr(x.className, y.className) || tr(x.name, y.name) || cs(x.id, y.id));
+  }
+  return list.sort((a, b) => cs(a.dateYmd, b.dateYmd) || tr(a.subject, b.subject));
+}
+
+export const teacherListFileBase = (m: ScheduleMeta) =>
+  `Etut-Ogretmen-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
+
+export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], meta: ScheduleMeta): Promise<void> {
+  const [{ jsPDF }, autoTableMod, fonts, analytics] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+    import('./pdfFonts'),
+    import('../utils/questionAnalytics'),
+  ]);
+  const autoTable = autoTableMod.default;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const fontOk = fonts.registerTurkishPdfFont(doc);
+  const F = fontOk ? fonts.PDF_FONT : 'helvetica';
+  const t = (s: unknown) => (fontOk ? analytics.cleanForPdfFont(s) : String(s ?? '').replace(/[^\x20-\x7E]/g, ''));
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const M = 14;
+  const pages = buildTeacherPages(rows);
+
+  const drawTitle = (p: SubjectDayPage) => {
+    doc.setFont(F, 'bold');
+    doc.setFontSize(17);
+    doc.setTextColor(30, 27, 75);
+    doc.text(t(p.title), pageW / 2, 18, { align: 'center' });
+    doc.setFont(F, 'normal');
+    doc.setFontSize(11.5);
+    doc.setTextColor(55, 65, 81);
+    doc.text(t(p.dateLabel), pageW / 2, 25, { align: 'center' });
+    if (!meta.allClasses) {
+      doc.setFontSize(9);
+      doc.setTextColor(107, 114, 128);
+      doc.text(t(`Sınıf: ${meta.classLabel}`), pageW / 2, 30.5, { align: 'center' });
+    }
+    doc.setDrawColor(199, 210, 254);
+    doc.line(M, 33, pageW - M, 33);
+  };
+
+  if (!pages.length) {
+    doc.setFont(F, 'normal');
+    doc.setFontSize(12);
+    doc.text(t('Bu seçimde etüt yok.'), pageW / 2, 30, { align: 'center' });
+  }
+
+  pages.forEach((p, pi) => {
+    if (pi > 0) doc.addPage();
+    drawTitle(p);
+    let y = 38;
+    p.blocks.forEach((b) => {
+      // Bloğun başlığı + en az 3 öğrenci satırı sığmıyorsa yeni sayfaya geç (başlık sayfa sonunda yalnız kalmasın)
+      if (y > pageH - 14 - 40) {
+        doc.addPage();
+        y = 16;
+      }
+      const info = (label: string, value: string): any[] => [
+        { content: t(`${label}: ${value || '-'}`), colSpan: 3, styles: { halign: 'left', fontStyle: 'bold', fillColor: [238, 242, 255], textColor: [30, 27, 75], fontSize: 10 } },
+      ];
+      const body: any[] = b.students.length
+        ? b.students.map((s, i) => [String(i + 1), t(s.name), t(s.className || '-')])
+        : [[{ content: t('Bu etüde öğrenci atanmamış.'), colSpan: 3, styles: { textColor: [156, 163, 175] } }]];
+      autoTable(doc, {
+        startY: y,
+        margin: { left: M, right: M, top: 16, bottom: 14 },
+        head: <any[]>[
+          info('Öğretmen', b.teacher),
+          info('Etüt saati ve yeri', [b.time, b.place].filter(Boolean).join('  ·  ')),
+          info('Etüt konusu', b.topic),
+          [t('Sıra'), t('Öğrenci (Ad Soyad)'), t('Sınıf')],
+        ],
+        body,
+        theme: 'grid',
+        showHead: 'everyPage',
+        styles: { font: F, fontSize: 10, cellPadding: 2, textColor: [31, 41, 55], lineColor: [209, 213, 219], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
+        headStyles: { font: F, fillColor: [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: 14, halign: 'center' }, 1: { cellWidth: 'auto', fontStyle: 'bold' }, 2: { cellWidth: 28, halign: 'center' } },
+        rowPageBreak: 'avoid',
+      });
+      y = ((doc as any).lastAutoTable?.finalY || y) + 8;
+    });
+  });
+
+  const total = doc.getNumberOfPages();
+  for (let i = 1; i <= total; i++) {
+    doc.setPage(i);
+    doc.setFont(F, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(156, 163, 175);
+    doc.text(t(`${new Date().toLocaleDateString('tr-TR')} tarihinde hazırlandı`), M, pageH - 6);
+    doc.text(t(`${i} / ${total}`), pageW - M, pageH - 6, { align: 'right' });
+  }
+  doc.save(`${teacherListFileBase(meta)}.pdf`);
+}

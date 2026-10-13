@@ -5656,7 +5656,7 @@ export class DataService {
         'fixed top-5 right-5 z-[120] max-w-md bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl border border-emerald-500 text-xs font-semibold';
       toast.textContent = message;
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3500);
+      setTimeout(() => toast.remove(), 15_000); // Aşama 32: genel bildirimler 15 sn görünür
     } catch {
       // bildirim gösterilemezse işlem yine de tamamdır
     }
@@ -5695,7 +5695,7 @@ export class DataService {
       document.body.appendChild(toast);
       setTimeout(() => {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 5000);
+      }, 15_000); // Aşama 32: genel bildirimler 15 sn görünür
     } catch {}
   }
 

@@ -16,6 +16,7 @@ import {
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { Etut, Student, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface EtutAttendanceModalProps {
   isOpen: boolean;
@@ -68,6 +69,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
   // Aşama 16: etüt öğretmenine girişsiz yoklama bağlantısı
   const [linkSending, setLinkSending] = useState(false);
   const [linkNotice, setLinkNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  useAutoDismiss(linkNotice, () => setLinkNotice(null)); // Aşama 32: 15 sn sonra kaybolur
   const me = dataService.getCurrentTeacher();
   const etutTeacherIds = etut.teacherIds && etut.teacherIds.length ? etut.teacherIds : etut.teacherId ? [etut.teacherId] : [];
   const hasOtherTeacher = etutTeacherIds.some((id) => !me || id !== me.id);

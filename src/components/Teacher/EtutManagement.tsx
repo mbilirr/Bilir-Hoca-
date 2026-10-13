@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
 import { normalizeSubject } from '../../lib/subjects';
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
@@ -56,6 +56,7 @@ import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib
 import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 import { ETUT_STATUS_STYLE, NO_TEACHER_LABEL, etutTeacherNames, getEtutStatus } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -120,6 +121,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
+  useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [attendanceNotes, setAttendanceNotes] = useState<Record<string, string>>({});
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -189,6 +191,16 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr'));
   }, [activeEtuts]);
   const effectiveListTeacher = listTeacher !== 'all' && listTeachers.some(([t]) => t === listTeacher) ? listTeacher : 'all';
+  // Aşama 32: biten ama yoklaması alınmamış etütler öğretmen başına (Yoklama görünümünde öğretmen listesinde yanıp söner)
+  const missingAttendanceByTeacher = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of activeEtuts) {
+      if (!(isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e))) continue;
+      const names = etutTeacherNames(e);
+      for (const n of names.length ? names : [NO_TEACHER_LABEL]) m.set(n, (m.get(n) || 0) + 1);
+    }
+    return m;
+  }, [activeEtuts]);
   const subjectEtuts = useMemo(
     () =>
       activeEtuts.filter((e) => {
@@ -264,6 +276,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [isTeacherManagerOpen, setIsTeacherManagerOpen] = useState(false);
   const [teacherListVersion, setTeacherListVersion] = useState(0);
   const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
+  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
   const [lastCreatedEtut, setLastCreatedEtut] = useState<Etut | null>(null);
 
   const handleEtutSaved = async (r: EtutFormSaved) => {
@@ -459,22 +472,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             </select>
           </div>
           <div className="w-full sm:w-auto sm:min-w-[13rem]">
-            <label htmlFor="etut-list-teacher" className="block text-xs font-semibold text-muted mb-1">
+            <span id="etut-list-teacher-label" className="block text-xs font-semibold text-muted mb-1">
               Öğretmen
-            </label>
-            <select
-              id="etut-list-teacher"
+            </span>
+            {/* Aşama 32: düz <select> yanıp sönemediği için özel açılır liste. Yoklama görünümünde yoklama almayan
+                öğretmenler kırmızı yan-sön ile ve "N yoklama eksik" yazısıyla gösterilir. */}
+            <TeacherPicker
               value={effectiveListTeacher}
-              onChange={(e) => setListTeacher(e.target.value)}
-              className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[13rem]"
-            >
-              <option value="all">Tüm öğretmenler ({activeEtuts.length})</option>
-              {listTeachers.map(([t, n]) => (
-                <option key={t} value={t}>
-                  {t} ({n})
-                </option>
-              ))}
-            </select>
+              onChange={setListTeacher}
+              allLabel={`Tüm öğretmenler (${activeEtuts.length})`}
+              options={listTeachers}
+              missing={missingAttendanceByTeacher}
+              blink={viewMode === 'attendance'}
+            />
           </div>
           {timeFilterOn && (
             <div className="w-full sm:w-auto sm:min-w-[11rem]">
@@ -861,7 +871,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               ? 'Geç Kaldı'
               : 'İzinli';
           setAttendanceFeedback(`✓ ${studentName}: "${label}" olarak kaydedildi.`);
-          setTimeout(() => setAttendanceFeedback(null), 2500);
         };
 
         const handleBulkEtutAttendance = (status: 'present' | 'absent' | 'excused') => {
@@ -881,7 +890,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           dataService.updateEtutAttendance(currentAttendanceEtut.id, map);
           const label = status === 'present' ? 'Geldi' : status === 'absent' ? 'Gelmedi' : 'İzinli';
           setAttendanceFeedback(`✓ Tüm öğrenciler "${label}" olarak güncellendi.`);
-          setTimeout(() => setAttendanceFeedback(null), 3000);
         };
 
         if (attEtuts.length === 0 && activeEtuts.length > 0) {
@@ -963,6 +971,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     } catch {}
                     return (
                       <option key={e.id} value={e.id} className="bg-surface text-fg py-2">
+                        {isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e) ? '⚠ YOKLAMA ALINMADI · ' : ''}
                         [{formattedDate} • {e.time}] [{e.subject}] {e.topic} — {e.location} {e.teacherName ? `(Öğr: ${e.teacherName})` : ''}
                       </option>
                     );
@@ -1281,6 +1290,117 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         onClose={() => setIsTeacherManagerOpen(false)}
         onChanged={() => setTeacherListVersion((v) => v + 1)}
       />
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Öğretmen süzgeci — özel açılır liste (Aşama 32)
+// Yoklama görünümünde, biten etüdünün yoklamasını almamış öğretmenler kırmızı yanıp söner.
+// ---------------------------------------------------------------------------
+const TeacherPicker: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  options: Array<[string, number]>;
+  missing: Map<string, number>;
+  blink: boolean;
+}> = ({ value, onChange, allLabel, options, missing, blink }) => {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const totalMissing = Array.from(missing.values()).reduce((a, b) => a + b, 0);
+  const missingTeachers = options.filter(([t]) => (missing.get(t) || 0) > 0).length;
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const current = value === 'all' ? allLabel : `${value} (${options.find(([t]) => t === value)?.[1] ?? 0})`;
+  const currentMissing = value !== 'all' ? missing.get(value) || 0 : 0;
+  const triggerBlink = blink && (value === 'all' ? totalMissing > 0 : currentMissing > 0);
+
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button
+        type="button"
+        id="etut-list-teacher"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-labelledby="etut-list-teacher-label etut-list-teacher"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center justify-between gap-2 bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg text-left cursor-pointer focus:outline-none focus:border-brand sm:min-w-[13rem] ${
+          triggerBlink ? 'notify-blink notify-blink-rose' : ''
+        }`}
+      >
+        <span className="truncate">{current}</span>
+        <span className="flex items-center gap-1.5 shrink-0">
+          {blink && totalMissing > 0 && (
+            <span className="text-[10px] font-black text-rose-600 dark:text-rose-300" title={`${missingTeachers} öğretmen, ${totalMissing} etüt yoklaması eksik`}>
+              ⚠ {missingTeachers}
+            </span>
+          )}
+          <ChevronDown className={`w-4 h-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-labelledby="etut-list-teacher-label"
+          className="absolute z-40 mt-1.5 left-0 right-0 sm:right-auto sm:min-w-[18rem] max-h-72 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1.5 space-y-1"
+        >
+          <li>
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === 'all'}
+              onClick={() => pick('all')}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${value === 'all' ? 'bg-brand-soft text-brand-fg font-semibold' : 'hover:bg-surface-2 text-fg'}`}
+            >
+              {allLabel}
+            </button>
+          </li>
+          {options.map(([t, n]) => {
+            const miss = missing.get(t) || 0;
+            const flag = blink && miss > 0;
+            return (
+              <li key={t}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={value === t}
+                  data-missing-attendance={miss || undefined}
+                  onClick={() => pick(t)}
+                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg text-sm cursor-pointer border border-transparent ${
+                    flag ? 'notify-blink notify-blink-rose font-semibold text-fg' : value === t ? 'bg-brand-soft text-brand-fg font-semibold' : 'hover:bg-surface-2 text-fg'
+                  }`}
+                >
+                  <span className="truncate">
+                    {t} ({n})
+                  </span>
+                  {flag && <span className="shrink-0 text-[11px] font-black text-rose-700 dark:text-rose-300">{miss} yoklama eksik</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 };

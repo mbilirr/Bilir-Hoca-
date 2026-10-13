@@ -27,6 +27,7 @@ import confetti from 'canvas-confetti';
 import { GradeRecord, AttendanceRecord, Student, ClassGroup, AttendanceStatus } from '../../types';
 import { dataService } from '../../services/dataService';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -66,6 +67,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   const [batchExamType, setBatchExamType] = useState<string>('1. Yazılı');
   const [batchGradesMap, setBatchGradesMap] = useState<Record<string, { score: string; remarks: string }>>({});
   const [batchSaveFeedback, setBatchSaveFeedback] = useState<string | null>(null);
+  useAutoDismiss(batchSaveFeedback, () => setBatchSaveFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
 
   // Grade Modal State
   const [isAddGradeOpen, setIsAddGradeOpen] = useState(false);
@@ -86,6 +88,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     Record<string, { status: AttendanceStatus; note: string }>
   >({});
   const [saveFeedback, setSaveFeedback] = useState(false);
+  useAutoDismiss(saveFeedback, () => setSaveFeedback(false)); // Aşama 32: 15 sn sonra kaybolur
   // Aşama 17: kaydederken düğme kilitlenir, hata ekranda gösterilir (tarayıcı uyarı penceresi yok)
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -165,7 +168,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     });
 
     setSaveFeedback(true);
-    setTimeout(() => setSaveFeedback(false), 2500);
   });
 
   const handleDeleteCurrentAttendance = async () => {
@@ -249,7 +251,6 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
     setBatchSaveFeedback(`✓ ${enteredStudentIds.length} öğrencinin notu başarıyla sisteme kaydedildi!`);
     setBatchGradesMap({});
-    setTimeout(() => setBatchSaveFeedback(null), 3500);
   });
 
   const batchEnteredCount = Object.keys(batchGradesMap).filter((id) => {

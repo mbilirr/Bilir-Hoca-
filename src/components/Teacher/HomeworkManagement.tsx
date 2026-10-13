@@ -63,6 +63,7 @@ import {
 import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
 import { StudyPlanManager } from './StudyPlanManager';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -92,6 +93,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [selectedStudentIdForCheck, setSelectedStudentIdForCheck] = useState<string>('');
   const [studentSearchInput, setStudentSearchInput] = useState<string>('');
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  useAutoDismiss(saveFeedback, () => setSaveFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSavingChecks, setIsSavingChecks] = useState(false);
   const showSaveError = (err: any, fallback: string) => {
@@ -293,7 +295,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     URL.revokeObjectURL(url);
 
     setSaveFeedback(`"${hw.title}" ödev belgesi başarıyla indirildi.`);
-    setTimeout(() => setSaveFeedback(null), 3000);
   };
 
   // Materyal düzenleme penceresi durumları
@@ -304,15 +305,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   // Ödev oluştur / kopyala / düzenle penceresi (Aşama 9)
   const [homeworkForm, setHomeworkForm] = useState<{ mode: HomeworkFormMode; source: Homework | null } | null>(null);
   const openHomeworkForm = (mode: HomeworkFormMode, source: Homework | null = null) => setHomeworkForm({ mode, source });
-  // Otomatik e-posta sonucu (kapatılana kadar görünür)
+  // Otomatik e-posta sonucu (Aşama 32: 15 sn sonra kendiliğinden kaybolur ya da kapatılır)
   const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
+  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
 
   const handleHomeworkSaved = ({ homework: hw, mode, sendMail }: HomeworkFormSaved) => {
     setHomeworkForm(null);
     setSaveError(null);
     if (mode === 'edit') {
       setSaveFeedback('Ödev güncellendi.');
-      setTimeout(() => setSaveFeedback(null), 3500);
       return;
     }
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 } });
@@ -320,7 +321,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     setExpandedHwId(hw.id);
     focusHomeworkInTracker(hw, false);
     setSaveFeedback(`"${hw.title}" ödevi kaydedildi.`);
-    setTimeout(() => setSaveFeedback(null), 3500);
     if (sendMail) {
       setMailNotice({ tone: 'info', text: 'Öğrencilere e-posta gönderiliyor…' });
       callMail('homework-created', { homeworkId: hw.id }).then((r) => setMailNotice(describeMailResult(r)));
@@ -358,7 +358,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       setEditingPendingResource(null);
       setSaveError(null);
       setSaveFeedback('Ödev materyalleri kaydedildi.');
-      setTimeout(() => setSaveFeedback(null), 3000);
     } catch (err: any) {
       showSaveError(err, 'Materyaller kaydedilemedi.');
     } finally {
@@ -498,7 +497,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     const modifiedStudentIds = Object.keys(draftCheckStatuses);
     if (modifiedStudentIds.length === 0) {
       setSaveFeedback('Kaydedilecek yeni bir değişiklik bulunmuyor.');
-      setTimeout(() => setSaveFeedback(null), 2500);
       return;
     }
 
@@ -513,7 +511,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       setDraftCheckStatuses({});
       setSaveError(null);
       setSaveFeedback(`✓ ${count} öğrencinin ödev kontrol durumu başarıyla sisteme kaydedildi!`);
-      setTimeout(() => setSaveFeedback(null), 3500);
     } catch (err: any) {
       showSaveError(err, 'Ödev kontrol durumları kaydedilemedi.');
     } finally {
@@ -524,7 +521,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const handleResetDraftChecks = () => {
     setDraftCheckStatuses({});
     setSaveFeedback('Kaydedilmemiş değişiklikler sıfırlandı.');
-    setTimeout(() => setSaveFeedback(null), 2500);
   };
 
   const unsavedCount = Object.keys(draftCheckStatuses).length;
@@ -724,7 +720,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
             gelmedi: 'Gelmedi',
           };
           setSaveFeedback(`✓ ${currentClass?.name || 'Sınıf'} için tüm öğrenciler "${labels[status]}" olarak kaydedildi.`);
-          setTimeout(() => setSaveFeedback(null), 3000);
         };
 
         const toggleStrip = (hw: Homework) => {
@@ -1634,7 +1629,6 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               }
               setSaveError(null);
               setSaveFeedback('Ödev başarıyla silindi.');
-              setTimeout(() => setSaveFeedback(null), 4000);
             } catch (err: any) {
               showSaveError(err, 'Ödev silinemedi.');
             }

@@ -20,6 +20,7 @@ import {
   ClipboardCheck,
   ChevronDown,
   ChevronUp,
+  User,
 } from 'lucide-react';
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -29,6 +30,7 @@ import { Panel, StatCard, EmptyState, IconBox, cx } from '../ui/kit';
 import { TeacherEtutBell } from './TeacherEtutBell';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { useArrivalFlash } from '../../lib/useArrivalFlash';
+import { etutTeacherNames } from '../../lib/etutStatus';
 
 // ============================================================================
 // ÖĞRETMEN ANA SAYFASI (Aşama 8)
@@ -242,7 +244,8 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
             {timeGreeting()} {firstName ? `${firstName} öğretmenim` : 'öğretmenim'}
           </h1>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 [scrollbar-width:none]">
+        {/* Aşama 32: yatay kaydırma kutusu zilin rozetini ve açılır listesini kesiyordu; artık satır sarar */}
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" id="home-action-homework" className="ui-btn ui-btn-primary shrink-0" onClick={() => go('homework', ['action', 'homework-create', ''])}>
             <Plus className="w-4 h-4" /> Ödev Oluştur
           </button>
@@ -365,7 +368,13 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                               {e.subject}
                               {e.topic ? ` – ${e.topic}` : ''}
                             </span>
-                            <span className="flex items-center gap-3 text-xs text-muted mt-0.5">
+                            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted mt-0.5">
+                              {/* Aşama 32: etüt öğretmeni */}
+                              {etutTeacherNames(e).length > 0 && (
+                                <span className="inline-flex items-center gap-1 font-semibold text-fg-2" data-etut-teacher>
+                                  <User className="w-3.5 h-3.5" /> {etutTeacherNames(e).join(', ')}
+                                </span>
+                              )}
                               <span className="inline-flex items-center gap-1">
                                 <Users className="w-3.5 h-3.5" /> {etutStudentCount(e)}
                               </span>

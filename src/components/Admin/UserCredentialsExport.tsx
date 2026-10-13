@@ -3,6 +3,7 @@ import { FileSpreadsheet, Download, Info, CheckCircle2, AlertTriangle, KeyRound 
 import { dataService, ADMIN_EMAIL, type InitialCredentialInfo } from '../../services/dataService';
 import type { ClassGroup, Student, Teacher } from '../../types';
 import { Panel, cx } from '../ui/kit';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
 // Aşama 25: ÖĞRENCİ VE ÖĞRETMEN LİSTESİ (EXCEL) — ilk giriş şifreleri dahil
@@ -56,6 +57,7 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  useAutoDismiss(msg, () => setMsg(null)); // Aşama 32: 15 sn sonra kaybolur
 
   // Görebileceği kişiler
   const myStudents = useMemo(

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Teacher, ClassGroup } from '../../types';
 import { dataService, ADMIN_EMAIL } from '../../services/dataService';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
   const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  useAutoDismiss(actionMsg, () => setActionMsg(null)); // Aşama 32: 15 sn sonra kaybolur
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const refreshData = () => {
@@ -45,7 +47,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     refreshData();
     setIsSyncing(false);
     setActionMsg('✓ Bulut sunucusundaki güncel öğretmen kayıtları senkronize edildi.');
-    setTimeout(() => setActionMsg(null), 3000);
   };
 
   useEffect(() => {
@@ -69,7 +70,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setActionMsg(`✓ ${name} isimli öğretmen hesabı onaylandı. Artık sisteme giriş yapabilir.`);
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 3000);
   };
 
   const handleReject = async (teacherId: string, name: string) => {
@@ -77,14 +77,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setActionMsg(`✗ ${name} isimli öğretmen hesabı reddedildi.`);
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 3000);
   };
 
   const handleDelete = async (teacherId: string, name: string) => {
     const target = allTeachers.find((t) => t.id === teacherId);
     if (target && (target.email || '').trim().toLowerCase() === ADMIN_EMAIL) {
       setActionMsg('Kurum yöneticisinin hesabı silinemez.');
-      setTimeout(() => setActionMsg(null), 3500);
       return;
     }
     if (window.confirm(`${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?`)) {
@@ -92,7 +90,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       setActionMsg(`${name} kaydı silindi.`);
       refreshData();
       await dataService.syncAllTeachersToCloud();
-      setTimeout(() => setActionMsg(null), 3000);
     }
   };
 
@@ -108,7 +105,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri güncellendi.`);
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 2500);
   };
 
   const handleAssignAllClasses = async (teacher: Teacher) => {
@@ -117,7 +113,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setActionMsg(`✓ ${teacher.name} için tüm sınıflara erişim izni verildi.`);
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 2500);
   };
 
   const handleClearClasses = async (teacher: Teacher) => {
@@ -125,7 +120,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri temizlendi (yalnızca kendi eklediği öğrencileri görebilir).`);
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 2500);
   };
 
   const handleToggleCanViewAll = async (teacher: Teacher) => {
@@ -138,7 +132,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     );
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 3000);
   };
 
   const handleToggleAdmin = async (teacher: Teacher) => {
@@ -146,13 +139,11 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     if (!newStatus) {
       if ((teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL) {
         setActionMsg('Kurum yöneticisinin yönetici yetkisi kaldırılamaz.');
-        setTimeout(() => setActionMsg(null), 3500);
         return;
       }
       const adminCount = allTeachers.filter((t) => t.isAdmin).length;
       if (adminCount <= 1) {
         setActionMsg('Sistemde en az 1 yönetici bulunmalıdır. Bu öğretmenden yöneticilik yetkisi alınamaz.');
-        setTimeout(() => setActionMsg(null), 3500);
         return;
       }
     }
@@ -164,7 +155,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     );
     refreshData();
     await dataService.syncAllTeachersToCloud();
-    setTimeout(() => setActionMsg(null), 3000);
   };
 
   const modalContent = (

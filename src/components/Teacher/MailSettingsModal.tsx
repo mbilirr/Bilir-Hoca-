@@ -3,6 +3,7 @@ import { MailCheck, School, User, Send, Unlink, Link2, AlertCircle, CheckCircle2
 import { Modal } from '../ui/kit';
 import { callMail, describeMailResult, type MailResult } from '../../lib/mailApi';
 import { inputCls, FieldLabel, invalidateMailStatus } from './FormParts';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
 // E-posta Ayarları (Aşama 9)
@@ -17,6 +18,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
   const [appPassword, setAppPassword] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'success' | 'danger' | 'warning'; text: string } | null>(null);
+  useAutoDismiss(message, () => setMessage(null)); // Aşama 32: 15 sn sonra kaybolur
 
   const refresh = async () => {
     const r = await callMail('status');

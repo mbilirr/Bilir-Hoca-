@@ -38,6 +38,7 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
+import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -125,7 +126,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     setToastMsg({ text, type });
     setTimeout(() => {
       setToastMsg((prev) => (prev?.text === text ? null : prev));
-    }, 3500);
+    }, NOTICE_HIDE_MS); // Aşama 32: 15 sn
   };
 
   const sendTeacherMail = async (teacherId: string, kind: TeacherMailKind, extra?: Parameters<typeof notifyTeacherByMail>[2]) => {
@@ -1842,6 +1843,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [sendMail, setSendMail] = useState(true);
   const [mailNotice, setMailNotice] = useState<{ tone: string; text: string } | null>(null);
+  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

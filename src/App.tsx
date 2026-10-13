@@ -14,6 +14,7 @@ import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal'
 import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
+import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading } from './lib/lazyLoad';
 import { supabase } from './lib/supabase';
@@ -330,7 +331,9 @@ export default function App() {
     setTeacherTab('home');
   };
 
-  const unreadMessagesCount = messages.filter((m) => !m.read).length;
+  // Aşama 32: Mesajlar sayacına görülmemiş etüt notları (yoklamada yazılan farklı konu / öğrenci notu) da eklenir
+  const { unseen: etutNoteUnseen } = useEtutNotes();
+  const unreadMessagesCount = messages.filter((m) => !m.read).length + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens

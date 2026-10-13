@@ -140,7 +140,7 @@ export const TargetSummaryTable: React.FC<{
   /**
    * "Çözülen" hücresinin özet kartı (Aşama 31b): yalnızca renkli yazılar —
    * planda olup o dersten soru çözüldüyse YEŞİL ✓, çözülmediyse KIRMIZI ✗, plan dışı çözülen ders SİYAH.
-   * "çözüldü / çözülmedi" gibi açıklama ya da soru sayısı yazılmaz.
+   * "çözüldü / çözülmedi" gibi açıklama yazılmaz; soru çözüldüyse yanına sayısı yazılır (çözülmediyse sıfır yazılmaz).
    */
   const daySummary = (d: string) => {
     const rec = solvedBySubjectDay.get(d);
@@ -158,7 +158,8 @@ export const TargetSummaryTable: React.FC<{
         ) : (
           <ul className="space-y-0.5 leading-snug">
             {plan.map((it) => {
-              const solved = (rec?.bySubject.get(normalizeSubject(it.subject)) || 0) > 0;
+              const count = rec?.bySubject.get(normalizeSubject(it.subject)) || 0;
+              const solved = count > 0;
               const task = planTaskShort(it);
               return (
                 <li
@@ -169,6 +170,7 @@ export const TargetSummaryTable: React.FC<{
                   <span className="min-w-0">
                     {normalizeSubject(it.subject)}
                     {task ? ` – ${task}` : ''}
+                    {solved && <span className="ml-1 font-black tabular-nums">· {count}</span>}
                   </span>
                 </li>
               );
@@ -176,6 +178,7 @@ export const TargetSummaryTable: React.FC<{
             {offPlan.map((s) => (
               <li key={`x-${s}`} className="font-semibold text-fg pl-5">
                 {s}
+                <span className="ml-1 font-black tabular-nums">· {rec?.bySubject.get(s) || 0}</span>
               </li>
             ))}
           </ul>

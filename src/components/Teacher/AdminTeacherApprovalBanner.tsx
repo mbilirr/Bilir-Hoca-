@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface AdminTeacherApprovalBannerProps {
   onOpenFullModal: () => void;
@@ -24,6 +25,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
 }) => {
   const [pendingTeachers, setPendingTeachers] = useState<Teacher[]>([]);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  useAutoDismiss(actionFeedback, () => setActionFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const refreshPending = () => {
@@ -36,7 +38,6 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
     refreshPending();
     setIsSyncing(false);
     setActionFeedback('✓ Bulut sunucusu kontrol edildi. Güncel öğretmen başvuruları yenilendi.');
-    setTimeout(() => setActionFeedback(null), 3000);
   };
 
   useEffect(() => {
@@ -55,14 +56,12 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
   const handleQuickApprove = (teacherId: string, name: string) => {
     dataService.approveTeacher(teacherId);
     setActionFeedback(`✓ ${name} hesabı başarıyla onaylandı. Artık giriş yapabilir.`);
-    setTimeout(() => setActionFeedback(null), 3500);
   };
 
   const handleQuickReject = (teacherId: string, name: string) => {
     if (window.confirm(`${name} isimli öğretmenin kayıt başvurusunu reddetmek istediğinizden emin misiniz?`)) {
       dataService.rejectTeacher(teacherId);
       setActionFeedback(`✗ ${name} başvurusu reddedildi.`);
-      setTimeout(() => setActionFeedback(null), 3500);
     }
   };
 

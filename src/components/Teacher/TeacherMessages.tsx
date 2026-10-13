@@ -13,9 +13,11 @@ import {
   Sparkles,
   Inbox,
   Megaphone,
+  NotebookPen,
 } from 'lucide-react';
 import { PageHeader, Segmented } from '../ui/kit';
 import { TeacherAnnouncements } from './TeacherAnnouncements';
+import { EtutNotesInbox, useEtutNotes } from './EtutNotesInbox';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 
@@ -31,7 +33,9 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
-  const [section, setSection] = useState<'inbox' | 'announce'>('inbox');
+  // Aşama 32: 'etutNotes' = etüt yoklamasında öğrenciye anlatılan farklı konu ve öğrenci notları
+  const [section, setSection] = useState<'inbox' | 'announce' | 'etutNotes'>('inbox');
+  const etutNotes = useEtutNotes();
 
   const filteredMessages = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -88,11 +92,18 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         onChange={setSection}
         items={[
           { value: 'inbox', label: `Gelen Mesajlar${messages.filter((m) => !m.read).length ? ` (${messages.filter((m) => !m.read).length})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
+          {
+            value: 'etutNotes',
+            label: `Etüt Notları${etutNotes.unseen ? ` (${etutNotes.unseen} yeni)` : ''}`,
+            icon: NotebookPen,
+            id: 'messages-section-etut-notes',
+          },
           { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
         ]}
       />
 
       {section === 'announce' && <TeacherAnnouncements />}
+      {section === 'etutNotes' && <EtutNotesInbox notes={etutNotes} />}
 
       {/* Main Split Inbox View */}
       {section === 'inbox' && (

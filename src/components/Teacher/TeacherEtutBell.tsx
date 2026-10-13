@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell,
   Calendar,
@@ -26,33 +27,56 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  // Aşama 32: açılır liste sayfanın en üstünde (portal) çizilir; hiçbir kaydırma kutusu onu kesemez
+  const [popPos, setPopPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  // Close dropdown on click outside
+  const placePopover = () => {
+    const btn = containerRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const width = Math.min(384, window.innerWidth - 16);
+    // Zilin sağ kenarına hizala; ekrandan taşacaksa içeri al
+    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+    setPopPos({ top: r.bottom + 10, left, width });
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) placePopover();
+  }, [isOpen]);
+
+  // Dışarı tıklayınca, Esc'e basınca, sayfa kayınca / boyut değişince kapan
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
+      const t = event.target as Node;
+      if (containerRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      setIsOpen(false);
     };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    const onMove = (e: Event) => {
+      if (popRef.current && e.target instanceof Node && popRef.current.contains(e.target)) return; // liste içinde kaydırma
+      placePopover();
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onMove, true);
+    window.addEventListener('resize', onMove);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
     };
   }, [isOpen]);
 
-  // Today string YYYY-MM-DD
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // Filter today and upcoming etuts (up to 7 days ahead)
+  // Aşama 32: tarihler YEREL saatle (toISOString UTC verdiği için gece 00:00–03:00 arası bir önceki günü sayıyordu)
+  const localYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const now = new Date();
-  const maxUpcomingDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const maxUpcomingStr = maxUpcomingDate.toISOString().slice(0, 10);
+  const todayStr = localYmd(now);
+  const maxUpcomingStr = localYmd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7));
 
   // Sort upcoming etuts by date and time
   const safeEtuts = Array.isArray(etuts) ? etuts : [];
@@ -91,7 +115,7 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
 
   const formatEtutDate = (dateStr: string) => {
     if (dateStr === todayStr) return 'Bugün';
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const tomorrow = localYmd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
     if (dateStr === tomorrow) return 'Yarın';
 
     try {
@@ -127,37 +151,36 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
         }`}
         title={
           hasTodayEtut
-            ? `Bugün ${todayEtuts.length} adet planlı etütünüz var!`
+            ? `Bugün ${todayEtuts.length} etüt var — listeyi açmak için tıklayın`
             : totalCount > 0
-            ? `${totalCount} yaklaşan etüt planlandı`
-            : 'Yaklaşan etüt bildirimi yok'
+            ? `Önümüzdeki 7 günde ${totalCount} etüt — listeyi açmak için tıklayın`
+            : 'Önümüzdeki 7 günde etüt yok'
         }
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
       >
-        <Bell className="w-4 h-4" />
+        <Bell className="w-5 h-5" />
 
-        {/* Pulse beacon if today has an etut */}
+        {/* Aşama 32: rozet yalnızca BUGÜNKÜ etüt sayısını gösterir (eskiden 7 günün toplamıydı ve anlaşılmıyordu) */}
         {hasTodayEtut && (
-          <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
-          </span>
-        )}
-
-        {/* Badge counter */}
-        {totalCount > 0 && (
-          <span
-            className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white shadow-md ${
-              hasTodayEtut ? 'bg-rose-500 ring-2 ring-surface' : 'bg-indigo-600 ring-2 ring-surface'
-            }`}
-          >
-            {totalCount}
+          <span className="absolute -top-2 -right-2 flex min-w-[20px] h-5" title={`Bugün ${todayEtuts.length} etüt`}>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-60" />
+            <span className="relative inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold ring-2 ring-surface shadow-md">
+              {todayEtuts.length}
+            </span>
           </span>
         )}
       </button>
 
       {/* Dropdown Popover */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-80 sm:w-96 bg-surface border border-line rounded-2xl shadow-2xl z-50 overflow-hidden text-fg animate-in fade-in slide-in-from-top-2 duration-150">
+      {isOpen && popPos && createPortal(
+        <div
+          ref={popRef}
+          role="dialog"
+          aria-label="Yaklaşan etütler"
+          style={{ position: 'fixed', top: popPos.top, left: popPos.left, width: popPos.width }}
+          className="bg-surface border border-line rounded-2xl shadow-2xl z-[70] overflow-hidden text-fg animate-in fade-in slide-in-from-top-2 duration-150"
+        >
           {/* Header */}
           <div className="px-4 py-3.5 bg-canvas/80 border-b border-line flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -274,7 +297,8 @@ export const TeacherEtutBell: React.FC<TeacherEtutBellProps> = ({
               <span>Tüm Etüt & Birebir Yönetimini Aç</span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

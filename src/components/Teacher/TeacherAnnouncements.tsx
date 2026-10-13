@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Megaphone, StickyNote, Send, Search, Trash2, Users, CheckCircle2, AlertCircle, School } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { AnnouncementGroup } from '../../types';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
 // DUYURU / NOT GÖNDER (Aşama 28)
@@ -35,6 +36,7 @@ export const TeacherAnnouncements: React.FC = () => {
   const [studentClassFilter, setStudentClassFilter] = useState('all');
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  useAutoDismiss(feedback, () => setFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const classSize = useMemo(() => {

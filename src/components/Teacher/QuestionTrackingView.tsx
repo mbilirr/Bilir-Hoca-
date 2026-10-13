@@ -85,6 +85,7 @@ import {
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -224,6 +225,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   }>({ open: false });
   const [targetUpdateTrigger, setTargetUpdateTrigger] = useState<number>(0);
   const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
+  useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
 
   // Tarih ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);

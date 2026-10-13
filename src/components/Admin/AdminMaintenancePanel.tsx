@@ -12,6 +12,7 @@ import {
 } from '../../services/maintenanceService';
 
 import { BACKUP_REMINDER_DAYS } from '../../services/maintenanceService';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 export { BACKUP_REMINDER_DAYS };
 
 const daysSince = (d: Date) => Math.floor((Date.now() - d.getTime()) / (24 * 60 * 60 * 1000));
@@ -28,6 +29,7 @@ export const AdminMaintenancePanel: React.FC = () => {
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupProgress, setBackupProgress] = useState<string>('');
   const [backupMsg, setBackupMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  useAutoDismiss(backupMsg, () => setBackupMsg(null)); // Aşama 32: 15 sn sonra kaybolur
 
   useEffect(() => {
     getLastBackupDate().then(setLastBackup).catch(() => setLastBackup('unavailable'));

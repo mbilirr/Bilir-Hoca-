@@ -65,6 +65,7 @@ import {
   currentAcademicYear,
   normalizeAcademicYear,
 } from '../../lib/importNormalize';
+import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 interface StudentManagementProps {
   students: Student[];
@@ -150,6 +151,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentPassword, setStudentPassword] = useState('');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
+  useAutoDismiss(studentSuccessFeedback, () => setStudentSuccessFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
@@ -159,6 +161,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
   const [studentPhoneError, setStudentPhoneError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
+  useAutoDismiss(quickClassChangeFeedback, () => setQuickClassChangeFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Hızlı Sınıf Değiştirme / Aktarma İşleyicisi
@@ -167,7 +170,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       const updated = await dataService.updateStudentClass(student.id, targetClassId);
       const targetClassName = updated.className || 'Atanmadı';
       setQuickClassChangeFeedback(`✓ ${student.name} başarıyla "${targetClassName}" sınıfına aktarıldı.`);
-      setTimeout(() => setQuickClassChangeFeedback(null), 3500);
     } catch (e: any) {
       dataService.showToast((e?.message || 'Sınıf aktarılırken bir hata oluştu.').replace(/^\[\w+\]\s*/, ''), 'error');
     }
@@ -573,7 +575,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           setCredentialsResult({ credentials: [{ student: fresh, password: payload.password }], failures: [], title: 'Yeni Giriş Bilgileri' });
         }
         setStudentSuccessFeedback(`Öğrenci "${payload.name}" başarıyla güncellendi.`);
-        setTimeout(() => setStudentSuccessFeedback(null), 4000);
         setEditingStudent(null);
         setIsAddStudentOpen(false);
       } else {
@@ -589,7 +590,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         setIsAddStudentOpen(false);
         setCredentialsResult({ credentials: [credential], failures: [], title: 'Öğrenci Eklendi' });
         setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.`);
-        setTimeout(() => setStudentSuccessFeedback(null), 5000);
       }
       resetStudentForm();
     } catch (err: any) {
@@ -624,7 +624,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setEditingStudent(null);
       resetStudentForm();
       setStudentSuccessFeedback(`✅ Kayıtlı öğrenci "${newStudentPayload.name}" yeni bilgilerle güncellendi.`);
-      setTimeout(() => setStudentSuccessFeedback(null), 5000);
     } catch (err: any) {
       setDuplicateWarning(null);
       setStudentFormError(err.message || 'Öğrenci güncellenirken bir hata oluştu.');
