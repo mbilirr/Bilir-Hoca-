@@ -137,57 +137,49 @@ export const TargetSummaryTable: React.FC<{
     return m;
   }, [logs, studentId]);
 
-  /** "Çözülen" hücresinin özet kartı: plandaki dersler (yeşil/kırmızı) + plan dışı çözülenler (siyah) */
+  /**
+   * "Çözülen" hücresinin özet kartı (Aşama 31b): yalnızca renkli yazılar —
+   * planda olup o dersten soru çözüldüyse YEŞİL ✓, çözülmediyse KIRMIZI ✗, plan dışı çözülen ders SİYAH.
+   * "çözüldü / çözülmedi" gibi açıklama ya da soru sayısı yazılmaz.
+   */
   const daySummary = (d: string) => {
     const rec = solvedBySubjectDay.get(d);
-    const total = solvedByDay.get(d) || 0;
     const plan = planItems.filter((it) => it.date === d);
     const planSubjects = new Set(plan.map((it) => normalizeSubject(it.subject)));
-    const offPlan = rec ? Array.from(rec.bySubject.entries()).filter(([s]) => !planSubjects.has(s)) : [];
+    const offPlan = rec ? Array.from(rec.bySubject.keys()).filter((s) => s && !planSubjects.has(s)) : [];
     const dayIdx = days.indexOf(d);
     return (
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-3 pb-1.5 border-b border-line">
-          <span className="font-bold text-fg">
-            {GUN[dayIdx] || ''} {shortDate(d)}
-          </span>
-          <span className="font-semibold text-muted tabular-nums">{total} soru</span>
+      <div className="space-y-1">
+        <div className="text-[11px] font-semibold text-muted pb-1 border-b border-line">
+          {GUN[dayIdx] || ''} {shortDate(d)}
         </div>
-        {plan.length > 0 ? (
-          <ul className="space-y-1">
+        {plan.length === 0 && offPlan.length === 0 ? (
+          <p className="text-muted">Plan yok</p>
+        ) : (
+          <ul className="space-y-0.5 leading-snug">
             {plan.map((it) => {
-              const n = rec?.bySubject.get(normalizeSubject(it.subject)) || 0;
+              const solved = (rec?.bySubject.get(normalizeSubject(it.subject)) || 0) > 0;
               const task = planTaskShort(it);
               return (
-                <li key={it.id} className={cx('flex items-start gap-1.5 leading-snug', n > 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
-                  {n > 0 ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
+                <li
+                  key={it.id}
+                  className={cx('flex items-start gap-1.5 font-semibold', solved ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}
+                >
+                  {solved ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
                   <span className="min-w-0">
-                    <strong className="font-bold">{normalizeSubject(it.subject)}</strong>
+                    {normalizeSubject(it.subject)}
                     {task ? ` – ${task}` : ''}
-                    <span className="opacity-80">{n > 0 ? ` · ${n} soru` : d > today ? ' · henüz gelmedi' : ' · çözülmedi'}</span>
                   </span>
                 </li>
               );
             })}
-          </ul>
-        ) : (
-          <p className="text-muted">Bu gün için plan görevi yok.</p>
-        )}
-        {(offPlan.length > 0 || (rec?.unknown || 0) > 0) && (
-          <ul className="space-y-0.5 pt-1.5 border-t border-line text-fg">
-            {offPlan.map(([s, n]) => (
-              <li key={s}>
-                <strong className="font-bold">{s}</strong> · {n} soru <span className="text-muted">(plan dışı)</span>
+            {offPlan.map((s) => (
+              <li key={`x-${s}`} className="font-semibold text-fg pl-5">
+                {s}
               </li>
             ))}
-            {(rec?.unknown || 0) > 0 && (
-              <li>
-                Ders belirtilmeden · {rec?.unknown} soru
-              </li>
-            )}
           </ul>
         )}
-        {total === 0 && plan.length === 0 && <p className="text-muted">{d > today ? 'Henüz gelmedi.' : 'Soru girilmedi.'}</p>}
       </div>
     );
   };
@@ -401,8 +393,8 @@ export const TargetSummaryTable: React.FC<{
       <p className="px-4 sm:px-5 py-2 text-[11px] text-muted border-t border-line">
         Hücrelerde <strong className="text-fg-2">çözülen / o günün hedefi</strong> yazar. Ders hedeflerinde yalnızca o dersin soruları sayılır.
         "Dönem toplamı" hedefin tüm tarihlerini kapsar. "Çözülen" satırındaki sayının üzerine gelin (telefonda dokunun):
-        haftalık plandaki dersler <span className="text-emerald-700 dark:text-emerald-300 font-semibold">çözüldüyse yeşil</span>,{' '}
-        <span className="text-rose-700 dark:text-rose-300 font-semibold">çözülmediyse kırmızı</span>, plan dışı çözülen dersler siyah görünür.
+        plandaki dersler <span className="text-emerald-600 dark:text-emerald-400 font-semibold">yeşil</span> (çözüldü) ya da{' '}
+        <span className="text-rose-600 dark:text-rose-400 font-semibold">kırmızı</span> (çözülmedi), plan dışı çözülen dersler siyah görünür.
       </p>
     </section>
   );
