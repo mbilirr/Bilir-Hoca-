@@ -57,6 +57,7 @@ import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 import { ETUT_STATUS_STYLE, NO_TEACHER_LABEL, etutTeacherNames, getEtutStatus } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useSeenIds } from '../../lib/useSeenIds';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -200,15 +201,30 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   }, [subjectScopedEtuts]);
   const effectiveListTeacher = listTeacher !== 'all' && listTeachers.some(([t]) => t === listTeacher) ? listTeacher : 'all';
   // Aşama 32: biten ama yoklaması alınmamış etütler öğretmen başına (Yoklama görünümünde öğretmen listesinde yanıp söner)
-  const missingAttendanceByTeacher = useMemo(() => {
-    const m = new Map<string, number>();
+  const missingEtutIdsByTeacher = useMemo(() => {
+    const m = new Map<string, string[]>();
     for (const e of subjectScopedEtuts) {
       if (!(isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e))) continue;
       const names = etutTeacherNames(e);
-      for (const n of names.length ? names : [NO_TEACHER_LABEL]) m.set(n, (m.get(n) || 0) + 1);
+      for (const n of names.length ? names : [NO_TEACHER_LABEL]) m.set(n, [...(m.get(n) || []), e.id]);
     }
     return m;
   }, [subjectScopedEtuts]);
+  const missingAttendanceByTeacher = useMemo(
+    () => new Map(Array.from(missingEtutIdsByTeacher.entries()).map(([n, ids]) => [n, ids.length] as [string, number])),
+    [missingEtutIdsByTeacher]
+  );
+  // Aşama 33d: yanıp sönen öğretmene (ya da yoklaması eksik etüde) tıklanınca o etütler "görüldü" sayılır ve yanıp sönme durur.
+  // "N yoklama eksik" yazısı yoklama alınana kadar sabit kırmızı kalır. Yeni bir etüdün yoklaması eksik kalırsa yeniden yanıp söner.
+  // "Görüldü" bilgisi bu tarayıcıda tutulur.
+  const [ackMissingIds, ackMissing] = useSeenIds(`etut_missatt_ack_${currentTeacher?.id || 'x'}`);
+  const blinkingTeachers = useMemo(() => {
+    const set = new Set<string>();
+    missingEtutIdsByTeacher.forEach((ids, n) => {
+      if (ids.some((id) => !ackMissingIds.has(id))) set.add(n);
+    });
+    return set;
+  }, [missingEtutIdsByTeacher, ackMissingIds]);
   const subjectEtuts = useMemo(
     () =>
       activeEtuts.filter((e) => {
@@ -460,7 +476,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Süzgeç çubuğu: Ders + Öğretmen açılır listeleri (Aşama 28) her görünümde; tarih süzgeci yalnız Liste ve Yoklama'da.
           Haftalık Takvim'in kendi hafta okları olduğu için orada tarih süzgeci gösterilmez. */}
       <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
-        {/* Aşama 33: Ders, Öğretmen ve Ders saati aynı yükseklikte, simetrik ızgarada; Tarih altta tam genişlikte.
+        {/* Aşama 33: Ders, Öğretmen, Ders saati ve Tarih aynı yükseklikte, aynı sırada, simetrik ızgarada.
             Aşama 33b: geniş ekranda kutular sayfayı doldurmaz; hepsi EŞİT genişlikte ve bu genişlik EN UZUN yazı kadardır
             (width: max-content + eşit 1fr sütunlar: her sütun en geniş içeriğe göre ölçülür; sığmazsa eşit küçülür). Telefon/tablette tam genişlik. */}
         <div
@@ -501,11 +517,13 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               }
               options={listTeachers}
               missing={missingAttendanceByTeacher}
+              blinking={blinkingTeachers}
+              onAcknowledge={(t) => ackMissing(missingEtutIdsByTeacher.get(t) || [])}
               blink={viewMode === 'attendance'}
             />
           </div>
           {timeFilterOn && (
-            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+            <div className={`min-w-0 ${viewMode === 'calendar' ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
               <label htmlFor="etut-list-time" className="block text-xs font-semibold text-muted mb-1">
                 Ders saati
               </label>
@@ -524,28 +542,27 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </select>
             </div>
           )}
-        </div>
-        {viewMode !== 'calendar' && (
-            <div className="min-w-0 pt-1 border-t border-line">
-              <span className="block text-xs font-semibold text-muted mb-1 mt-2">Tarih</span>
-              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tarih süzgeci">
+          {/* Aşama 33c: Tarih süzgeci de aynı sırada, aynı biçimde (açılır liste). Haftalık Takvim'in kendi hafta okları var. */}
+          {viewMode !== 'calendar' && (
+            <div className="min-w-0">
+              <label htmlFor="etut-list-date" className="block text-xs font-semibold text-muted mb-1">
+                Tarih
+              </label>
+              <select
+                id="etut-list-date"
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+                className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
+              >
                 {DATE_PRESETS.map((p) => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    id={`etut-date-${p.value}`}
-                    aria-pressed={datePreset === p.value}
-                    onClick={() => setDatePreset(p.value)}
-                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-xs font-semibold cursor-pointer transition-colors ${
-                      datePreset === p.value ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
-                    }`}
-                  >
+                  <option key={p.value} value={p.value}>
                     {p.label}
-                  </button>
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
-        )}
+          )}
+        </div>
         {viewMode !== 'calendar' && datePreset === 'range' && (
           <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
             <label className="text-xs text-muted">
@@ -977,7 +994,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               <div className="relative">
                 <select
                   value={currentAttendanceEtut?.id || ''}
-                  onChange={(e) => setSelectedAttendanceEtutId(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedAttendanceEtutId(e.target.value);
+                    ackMissing([e.target.value]); // Aşama 33d: eksik etüt seçilince yanıp sönme durur
+                  }}
                   className="w-full bg-canvas border-2 border-indigo-500/50 hover:border-indigo-400 rounded-xl px-4 py-3 text-sm font-bold text-fg focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-inner"
                 >
                   {attEtuts.map((e) => {
@@ -1322,8 +1342,12 @@ const TeacherPicker: React.FC<{
   allLabel: string;
   options: Array<[string, number]>;
   missing: Map<string, number>;
+  /** Yanıp sönmesi gereken öğretmenler (eksik yoklaması olup henüz tıklanmamış) */
+  blinking: Set<string>;
+  /** Yanıp sönen öğretmen seçilince çağrılır (o öğretmenin eksik etütleri "görüldü" sayılır) */
+  onAcknowledge: (teacher: string) => void;
   blink: boolean;
-}> = ({ value, onChange, allLabel, options, missing, blink }) => {
+}> = ({ value, onChange, allLabel, options, missing, blinking, onAcknowledge, blink }) => {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const totalMissing = Array.from(missing.values()).reduce((a, b) => a + b, 0);
@@ -1347,9 +1371,10 @@ const TeacherPicker: React.FC<{
 
   const current = value === 'all' ? allLabel : `${value} (${options.find(([t]) => t === value)?.[1] ?? 0})`;
   const currentMissing = value !== 'all' ? missing.get(value) || 0 : 0;
-  const triggerBlink = blink && (value === 'all' ? totalMissing > 0 : currentMissing > 0);
+  const triggerBlink = blink && (value === 'all' ? blinking.size > 0 : blinking.has(value) && currentMissing > 0);
 
   const pick = (v: string) => {
+    if (v !== 'all' && blinking.has(v)) onAcknowledge(v);
     onChange(v);
     setOpen(false);
   };
@@ -1404,7 +1429,8 @@ const TeacherPicker: React.FC<{
           </li>
           {options.map(([t, n]) => {
             const miss = missing.get(t) || 0;
-            const flag = blink && miss > 0;
+            const flag = blink && miss > 0 && blinking.has(t); // yanıp sönme (tıklanınca durur)
+            const showMiss = blink && miss > 0; // "N yoklama eksik" yazısı yoklama alınana kadar kalır
             return (
               <li key={t}>
                 <button
@@ -1420,7 +1446,7 @@ const TeacherPicker: React.FC<{
                   <span className="truncate">
                     {t} ({n})
                   </span>
-                  {flag && <span className="shrink-0 text-[11px] font-black text-rose-700 dark:text-rose-300">{miss} yoklama eksik</span>}
+                  {showMiss && <span className="shrink-0 text-[11px] font-black text-rose-700 dark:text-rose-300">{miss} yoklama eksik</span>}
                 </button>
               </li>
             );
