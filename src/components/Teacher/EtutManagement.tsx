@@ -181,26 +181,34 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   }, [activeEtuts]);
   const effectiveListSubject = listSubject !== 'all' && listSubjects.some(([s]) => s === listSubject) ? listSubject : 'all';
   // Aşama 28: öğretmen süzgeci (açılır liste). Çoklu öğretmenli etütte her öğretmen ayrı sayılır.
+  // Aşama 33: bir ders seçiliyse öğretmen listesinde yalnızca O DERSİN etütlerini veren öğretmenler (ve o dersteki etüt sayıları) görünür.
   const [listTeacher, setListTeacher] = useState<string>('all');
+  const subjectScopedEtuts = useMemo(
+    () =>
+      effectiveListSubject === 'all'
+        ? activeEtuts
+        : activeEtuts.filter((e) => (normalizeSubject(e.subject) || 'Belirtilmemiş') === effectiveListSubject),
+    [activeEtuts, effectiveListSubject]
+  );
   const listTeachers = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of activeEtuts) {
+    for (const e of subjectScopedEtuts) {
       const names = etutTeacherNames(e);
       for (const n of names.length ? names : [NO_TEACHER_LABEL]) m.set(n, (m.get(n) || 0) + 1);
     }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr'));
-  }, [activeEtuts]);
+  }, [subjectScopedEtuts]);
   const effectiveListTeacher = listTeacher !== 'all' && listTeachers.some(([t]) => t === listTeacher) ? listTeacher : 'all';
   // Aşama 32: biten ama yoklaması alınmamış etütler öğretmen başına (Yoklama görünümünde öğretmen listesinde yanıp söner)
   const missingAttendanceByTeacher = useMemo(() => {
     const m = new Map<string, number>();
-    for (const e of activeEtuts) {
+    for (const e of subjectScopedEtuts) {
       if (!(isEtutEnded(e) && etutExpectsAttendance(e) && !hasEtutAttendance(e))) continue;
       const names = etutTeacherNames(e);
       for (const n of names.length ? names : [NO_TEACHER_LABEL]) m.set(n, (m.get(n) || 0) + 1);
     }
     return m;
-  }, [activeEtuts]);
+  }, [subjectScopedEtuts]);
   const subjectEtuts = useMemo(
     () =>
       activeEtuts.filter((e) => {
@@ -452,8 +460,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Süzgeç çubuğu: Ders + Öğretmen açılır listeleri (Aşama 28) her görünümde; tarih süzgeci yalnız Liste ve Yoklama'da.
           Haftalık Takvim'in kendi hafta okları olduğu için orada tarih süzgeci gösterilmez. */}
       <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full sm:w-auto sm:min-w-[13rem]">
+        {/* Aşama 33: Ders, Öğretmen ve Ders saati eşit genişlikte, aynı yükseklikte, simetrik ızgarada; Tarih altta tam genişlikte */}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${timeFilterOn ? 'lg:grid-cols-3' : ''} gap-3 items-end`} id="etut-filter-grid">
+          <div className="min-w-0">
             <label htmlFor="etut-list-subject" className="block text-xs font-semibold text-muted mb-1">
               Ders
             </label>
@@ -461,7 +470,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               id="etut-list-subject"
               value={effectiveListSubject}
               onChange={(e) => setListSubject(e.target.value)}
-              className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[13rem]"
+              className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
             >
               <option value="all">Tüm dersler ({activeEtuts.length})</option>
               {listSubjects.map(([s, n]) => (
@@ -471,7 +480,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               ))}
             </select>
           </div>
-          <div className="w-full sm:w-auto sm:min-w-[13rem]">
+          <div className="min-w-0">
             <span id="etut-list-teacher-label" className="block text-xs font-semibold text-muted mb-1">
               Öğretmen
             </span>
@@ -480,14 +489,18 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             <TeacherPicker
               value={effectiveListTeacher}
               onChange={setListTeacher}
-              allLabel={`Tüm öğretmenler (${activeEtuts.length})`}
+              allLabel={
+                effectiveListSubject === 'all'
+                  ? `Tüm öğretmenler (${activeEtuts.length})`
+                  : `${effectiveListSubject} öğretmenleri (${subjectScopedEtuts.length})`
+              }
               options={listTeachers}
               missing={missingAttendanceByTeacher}
               blink={viewMode === 'attendance'}
             />
           </div>
           {timeFilterOn && (
-            <div className="w-full sm:w-auto sm:min-w-[11rem]">
+            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
               <label htmlFor="etut-list-time" className="block text-xs font-semibold text-muted mb-1">
                 Ders saati
               </label>
@@ -495,7 +508,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 id="etut-list-time"
                 value={effectiveListTime}
                 onChange={(e) => setListTime(e.target.value)}
-                className="w-full bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-brand sm:min-w-[11rem]"
+                className="w-full h-10 bg-surface border border-line rounded-xl px-3 text-sm text-fg focus:outline-none focus:border-brand"
               >
                 <option value="all">Tüm saatler ({timeSource.length})</option>
                 {listTimes.map(([k, v]) => (
@@ -506,9 +519,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
               </select>
             </div>
           )}
-          {viewMode !== 'calendar' && (
-            <div className="w-full sm:w-auto sm:flex-1 min-w-0">
-              <span className="block text-xs font-semibold text-muted mb-1">Tarih</span>
+        </div>
+        {viewMode !== 'calendar' && (
+            <div className="min-w-0 pt-1 border-t border-line">
+              <span className="block text-xs font-semibold text-muted mb-1 mt-2">Tarih</span>
               <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Tarih süzgeci">
                 {DATE_PRESETS.map((p) => (
                   <button
@@ -526,8 +540,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 ))}
               </div>
             </div>
-          )}
-        </div>
+        )}
         {viewMode !== 'calendar' && datePreset === 'range' && (
           <div className="flex flex-wrap items-end gap-2" id="etut-date-range-fields">
             <label className="text-xs text-muted">
@@ -1345,7 +1358,7 @@ const TeacherPicker: React.FC<{
         aria-expanded={open}
         aria-labelledby="etut-list-teacher-label etut-list-teacher"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center justify-between gap-2 bg-surface border border-line rounded-xl px-3 py-2 text-sm text-fg text-left cursor-pointer focus:outline-none focus:border-brand sm:min-w-[13rem] ${
+        className={`w-full h-10 flex items-center justify-between gap-2 bg-surface border border-line rounded-xl px-3 text-sm text-fg text-left cursor-pointer focus:outline-none focus:border-brand ${
           triggerBlink ? 'notify-blink notify-blink-rose' : ''
         }`}
       >
@@ -1363,7 +1376,7 @@ const TeacherPicker: React.FC<{
         <ul
           role="listbox"
           aria-labelledby="etut-list-teacher-label"
-          className="absolute z-40 mt-1.5 left-0 right-0 sm:right-auto sm:min-w-[18rem] max-h-72 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1.5 space-y-1"
+          className="absolute z-40 mt-1.5 left-0 right-0 max-h-72 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1.5 space-y-1"
         >
           <li>
             <button
