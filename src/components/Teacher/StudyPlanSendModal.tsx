@@ -14,6 +14,7 @@ import {
   type PlanItem,
 } from '../../services/studyPlanService';
 import { planPdfBase64 } from '../../lib/studyPlanExport';
+import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
 
 // ============================================================================
 // Haftalık planı gönder (Aşama 22)
@@ -43,10 +44,12 @@ export interface StudyPlanSendModalProps {
   classId?: string;
   teacherName: string;
   title?: string;
+  /** Aşama 35: verilirse gönderimden sonra görevler öğrencinin Soru Kaydet formuna da aktarılır (öğretmenin yetkili olduğu dersler) */
+  canSubject?: (subject: string) => boolean;
   onClose: (changed: boolean) => void;
 }
 
-export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStart, students, classes, kind, classId, teacherName, title, onClose }) => {
+export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStart, students, classes, kind, classId, teacherName, title, canSubject, onClose }) => {
   const withEmail = useMemo(() => students.filter((s) => isEmail(s.email)).length, [students]);
   const [mail, setMail] = useState(false);
   const [wa, setWa] = useState(false);
@@ -55,6 +58,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
   const [rows, setRows] = useState<RowState[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
+  const [transferred, setTransferred] = useState(0);
 
   const single = students.length === 1;
   const groupLabel =
@@ -96,10 +100,19 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
       // 3) Her öğrenci: plan görevleri (WhatsApp metni ve PDF için) ve e-posta
       for (let i = 0; i < list.length; i++) {
         const st = list[i].student;
-        setProgress(mail ? `E-posta gönderiliyor (${i + 1}/${list.length})…` : `Hazırlanıyor (${i + 1}/${list.length})…`);
+        setProgress(mail ? `E-posta gönderiliyor (${i + 1}/${list.length})…` : `Soru Kaydet'e aktarılıyor (${i + 1}/${list.length})…`);
         const p = await loadPlan(st.id, weekStart).catch(() => ({ header: null, items: [] as PlanItem[] }));
         patchRow(st.id, { items: p.items, link: links[st.id] });
         list[i] = { ...list[i], items: p.items, link: links[st.id] };
+        // Aşama 35: görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna da aktarılır (hata gönderimi durdurmaz)
+        if (canSubject && p.items.length) {
+          try {
+            const t = await transferPlanTopicsToQuestionEntry({ student: st, weekStart, items: p.items, canSubject });
+            if (t.subjects.length) setTransferred((n) => n + 1);
+          } catch {
+            /* aktarılamazsa öğretmen "Soru Kaydet'e aktar" düğmesiyle tekrar deneyebilir */
+          }
+        }
         if (mail && groupId && isEmail(st.email)) {
           patchRow(st.id, { mail: 'sending' });
           try {
@@ -220,6 +233,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
           {phase === 'done' && !error && (
             <div className="rounded-xl bg-success-soft text-success-fg px-3 py-2 text-sm font-semibold" id="plan-send-summary">
               Plan {single ? 'öğrenciye' : `${students.length} öğrenciye`} gönderildi; uygulamada görünüyor.
+              {transferred > 0 ? ` Görevler ${transferred} öğrencinin Soru Kaydet bölümüne de aktarıldı.` : ''}
               {mail ? ` ${sentCount} öğrenciye e-posta gitti.` : ''}
               {mail && sentCount > 0 ? ' Rapor, planın son görev günü 20:00\'de size gelecek.' : ''}
             </div>

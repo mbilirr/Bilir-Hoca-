@@ -780,6 +780,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           classId={sendModal.classId}
           teacherName={teacherName}
           title={sendModal.title}
+          canSubject={canSubject}
           onClose={(changed) => {
             setSendModal(null);
             if (changed) void reload(true);

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, Send, Trash2, Undo2, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, Send, Target, Trash2, Undo2, Users } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
@@ -32,6 +32,7 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, chipCls, classLevel, inputCls } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
+import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
@@ -275,6 +276,43 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       say({ tone: 'info', text: `${n} öğrencinin planı geri çekildi; artık görmüyorlar.` });
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Plan geri çekilemedi.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ---- Aşama 35: Soru Kaydet'e aktar (seçili öğrencilerin hepsi): plandaki görevlerin metni öğrencinin
+  //      "Soru Kaydet → Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır. Soru hedefi açılmaz.
+  const transferable = withItems.filter((s) => viewItems.some((i) => i.studentId === s.id && canSubject(i.subject) && (i.book.trim() || i.note.trim())));
+  const doTransferToQuestions = async () => {
+    if (busy || !transferable.length) return;
+    setBusy(true);
+    let ok = 0;
+    const failed: string[] = [];
+    const subjects = new Set<string>();
+    try {
+      for (const s of transferable) {
+        try {
+          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: viewItems.filter((i) => i.studentId === s.id), canSubject });
+          if (r.subjects.length) {
+            ok++;
+            r.subjects.forEach((x) => subjects.add(x));
+          }
+        } catch {
+          failed.push(s.name);
+        }
+      }
+      if (ok) {
+        say(
+          {
+            tone: failed.length ? 'warning' : 'success',
+            text: `${[...subjects].join(', ')} görevleri ${ok} öğrencinin "Soru Kaydet → Çalışılan Konu / Test" kutusuna aktarıldı.${failed.length ? ` Aktarılamayan: ${failed.join(', ')}.` : ''}`,
+          },
+          8000
+        );
+      } else {
+        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap veya açıklama yazılı olmalı (ve kendi branşınızdan olmalı).' });
+      }
     } finally {
       setBusy(false);
     }
@@ -576,6 +614,16 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('excel')}>
                 <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
               </button>
+              <button
+                type="button"
+                id="plan-to-questions"
+                className={planTileCls}
+                disabled={busy || transferable.length === 0}
+                onClick={doTransferToQuestions}
+                title="Seçili öğrencilerin görevlerini Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır"
+              >
+                <Target className="w-5 h-5 text-warning-fg" /> Soru Kaydet'e aktar
+              </button>
               <button type="button" id="plan-copy-week" className={planTileCls} disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
                 <Copy className="w-5 h-5 text-info-fg" /> Başka haftaya kopyala
               </button>
@@ -809,6 +857,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           classId={sendModal.classId}
           teacherName={teacherName}
           title={sendModal.title || 'Planı öğrencilere gönder'}
+          canSubject={canSubject}
           onClose={(changed) => {
             setSendModal(null);
             if (changed) void reload(true);
