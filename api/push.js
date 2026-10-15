@@ -218,13 +218,17 @@ async function claim(key) {
  * dedupe: verilirse her kullanıcı için `${dedupe}:${kullanıcı}` anahtarıyla en fazla bir kez gönderilir.
  */
 export async function sendToUsers(userIds, payload, { dedupe, deadline } = {}) {
-  const out = { users: 0, sent: 0, failed: 0, removed: 0 };
-  if (!ensureVapid()) return out;
+  const out = { users: 0, devices: 0, sent: 0, failed: 0, removed: 0, lastError: '' };
+  if (!ensureVapid()) {
+    out.lastError = 'VAPID anahtarları okunamadı';
+    return out;
+  }
   const ids = uniq(userIds);
   if (!ids.length) return out;
   const subs = await chunked(ids, 100, (part) =>
     rest(`push_subscriptions?select=endpoint,p256dh,auth,user_id&user_id=in.${inList(part)}`, { token: 'service' })
   );
+  out.devices = subs.length;
   if (!subs.length) return out;
   const byUser = new Map();
   for (const s of subs) byUser.set(s.user_id, [...(byUser.get(s.user_id) || []), s]);
@@ -248,11 +252,13 @@ export async function sendToUsers(userIds, payload, { dedupe, deadline } = {}) {
           if (code === 404 || code === 410) {
             // Cihaz aboneliği bitmiş (uygulama silinmiş / izin kaldırılmış): kaydı sil
             out.removed++;
+            out.lastError = `abonelik geçersiz (${code})`;
             try {
               await rest(`push_subscriptions?endpoint=eq.${encodeURIComponent(s.endpoint)}`, { token: 'service', method: 'DELETE' });
             } catch {}
           } else {
             out.failed++;
+            out.lastError = `${code || 'ağ'} ${err && err.body ? String(err.body).slice(0, 120) : (err && err.message) || ''}`.trim();
             console.error('[push] gönderilemedi', code, err && err.body ? String(err.body).slice(0, 200) : err && err.message);
           }
         }
@@ -783,7 +789,13 @@ export default async function handler(req, res) {
           url: caller.role === 'teacher' ? '/#/teacher/home' : '/#/student',
           tag: 'test',
         });
-        result = { ok: r.sent > 0, ...r };
+        let why = '';
+        if (r.sent === 0) {
+          if (!r.devices) why = 'Bu hesaba kayıtlı cihaz bulunamadı. Kapat\'a basıp Bildirimleri aç\'a yeniden dokunun.';
+          else if (r.removed && !r.failed) why = 'Cihaz aboneliği geçersiz çıktı ve silindi. Bildirimleri aç\'a yeniden dokunun.';
+          else why = `Bildirim servisi reddetti: ${r.lastError || 'bilinmeyen neden'}`;
+        }
+        result = { ok: r.sent > 0, ...r, ...(why ? { error: why } : {}) };
         break;
       }
       case 'notify': {
