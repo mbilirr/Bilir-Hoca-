@@ -711,7 +711,11 @@ export async function loadMyWeek(weekStart: string): Promise<{ items: PlanItem[]
   if (i.error) return { items: [], sentByName: '' };
   return { items: (i.data || []).map(itemFromRow), sentByName: h.data ? String(h.data.sent_by_name || '') : '' };
 }
-// Bugünü kapsayan, öğrenciye gönderilmiş planı bulur (plan hangi gün başlarsa başlasın).
+// Bugünü kapsayan, öğrenciye gönderilmiş planları bulur (plan hangi gün başlarsa başlasın).
+// Aşama 35: Öğretmenler haftayı farklı günlerde başlatabildiği için aynı öğrencinin aynı haftasında
+// birden çok plan olabilir (ör. fen Pazartesi, matematik Cumartesi başlatmış). Eskiden yalnızca en son
+// başlayan plan okunuyordu; artık bugünü kapsayan BÜTÜN gönderilmiş planların görevleri birleştirilir.
+// Görevlerin günü, dönen haftanın başlangıcına göre yeniden hesaplanır (gerçek tarih değişmez).
 // Bulunamazsa ya da sorgu başarısız olursa eski davranışa (Pazartesi başlayan hafta) döner.
 export async function loadMyCurrentWeek(today: Date = new Date()): Promise<{ weekStart: string; items: PlanItem[]; sentByName: string }> {
   const todayStr = ymd(today);
@@ -724,11 +728,31 @@ export async function loadMyCurrentWeek(today: Date = new Date()): Promise<{ wee
     .not('sent_at', 'is', null)
     .order('week_start', { ascending: false });
   if (!h.error && h.data && h.data.length) {
-    // En son başlayan ve içinde görev olan planı seç
-    for (const row of h.data) {
-      const ws = String(row.week_start);
-      const i = await supabase.from('study_plan_items').select('*').eq('week_start', ws).order('day').order('position').order('created_at');
-      if (!i.error && i.data && i.data.length) return { weekStart: ws, items: i.data.map(itemFromRow), sentByName: String(row.sent_by_name || '') };
+    const starts: string[] = Array.from(new Set<string>(h.data.map((row: any) => String(row.week_start))));
+    const i = await supabase
+      .from('study_plan_items')
+      .select('*')
+      .in('week_start', starts)
+      .order('day')
+      .order('position')
+      .order('created_at');
+    if (!i.error && i.data && i.data.length) {
+      const raw: PlanItem[] = (i.data as any[]).map(itemFromRow);
+      // Görevi olan en son başlayan plan, haftanın başlangıcı olarak kullanılır (tek plan varsa eski davranışla aynı)
+      const base = starts.find((ws) => raw.some((it) => it.weekStart === ws)) || starts[0];
+      const items = raw
+        .map((it): PlanItem => {
+          const date = dateOfDay(it.weekStart, it.day);
+          return { ...it, weekStart: base, day: dayIndexOf(parseYmd(date), base) };
+        })
+        .sort((a: PlanItem, b: PlanItem) => a.day - b.day || a.position - b.position);
+      const usedStarts = new Set(raw.map((it) => it.weekStart));
+      const names: string[] = [];
+      for (const row of h.data as any[]) {
+        const n = String(row.sent_by_name || '').trim();
+        if (n && usedStarts.has(String(row.week_start)) && !names.includes(n)) names.push(n);
+      }
+      return { weekStart: base, items, sentByName: names.join(', ') };
     }
   }
   const r = await loadMyWeek(fallback);
