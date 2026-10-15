@@ -2051,10 +2051,28 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
     try {
-      const { data: remoteEtuts, error: errEtuts } = await this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'));
+      const { data: ownEtuts, error: errEtuts } = await this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'));
       if (errEtuts) {
         if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
         return;
+      }
+      // Aşama 41 (mahremiyet, 32 numaralı SQL): öğretmen etüt tablosundan yalnızca KENDİ etütlerini okur.
+      // Ortak öğrencili diğer etütlerin yalnızca gün / saat / öğretmen / sınıf bilgisi ayrı fonksiyonla gelir.
+      // SQL henüz çalıştırılmadıysa fonksiyon yoktur; o zaman eski davranış sürer.
+      let remoteEtuts: any[] | null = ownEtuts as any[] | null;
+      if (remoteEtuts && this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
+        try {
+          const shared = await supabase.rpc('etut_shared_schedule');
+          if (!shared.error && Array.isArray(shared.data) && shared.data.length) {
+            const own = new Set(remoteEtuts.map((r: any) => r.id));
+            const extra = (shared.data as any[])
+              .filter((r) => r && r.id && !own.has(r.id))
+              .map((r) => ({ ...r, topic: '', notes: JSON.stringify({ ...(r.meta || {}), __etut_meta__: true, __redacted__: true }) }));
+            remoteEtuts = [...remoteEtuts, ...extra];
+          }
+        } catch {
+          /* fonksiyon yoksa ya da ağ hatası: yalnızca kendi etütleri */
+        }
       }
       if (remoteEtuts) {
         let etutsChanged = false;
@@ -2106,10 +2124,17 @@ export class DataService {
             createdByName: parsedMeta.createdByName || undefined,
             recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
         mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
+            privacyRedacted: parsedMeta.__redacted__ === true ? true : undefined,
           };
 
           const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
-          if (existingIdx !== -1) {
+          if (existingIdx !== -1 && incomingEtut.privacyRedacted) {
+            // Aşama 41: başka öğretmenin etüdü — önbellekte kalmış eski ayrıntılar (yorum, yoklama) silinir
+            if (JSON.stringify(this.etuts[existingIdx]) !== JSON.stringify(incomingEtut)) {
+              this.etuts[existingIdx] = incomingEtut;
+              etutsChanged = true;
+            }
+          } else if (existingIdx !== -1) {
             const current = this.etuts[existingIdx];
             const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
 
@@ -3534,7 +3559,7 @@ export class DataService {
   }
   private assertEtutEditable(id: string): void {
     const e = this.etuts.find((x) => x.id === id);
-    if (e && this.getAuthSession()?.role === 'teacher' && !this.canSeeEtutDetails(e)) {
+    if (e && this.getAuthSession()?.role === 'teacher' && (e.privacyRedacted || !this.canSeeEtutDetails(e))) {
       throw new Error('Bu etüt başka bir öğretmene ait; yalnızca etüdü veren öğretmen ve yönetici değiştirebilir.');
     }
   }
@@ -8084,7 +8109,7 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       // Aşama 40: başka öğretmenin etüdünde yalnızca gün / saat / öğretmen / sınıf bilgisi görünür
       if (session?.role === 'teacher' && !this.isHeadAdmin()) {
-        return this.etuts.map((e) => (this.canSeeEtutDetails(e) ? e : this.redactEtut(e)));
+        return this.etuts.map((e) => (!e.privacyRedacted && this.canSeeEtutDetails(e) ? e : e.privacyRedacted ? e : this.redactEtut(e)));
       }
       return [...this.etuts];
     }
