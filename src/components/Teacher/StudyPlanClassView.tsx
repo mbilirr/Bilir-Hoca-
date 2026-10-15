@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, Send, Target, Trash2, Undo2, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Target, Trash2, Undo2, Users } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
@@ -13,6 +13,7 @@ import {
   listBooksFor,
   loadPlansFor,
   planGroupKey,
+  sendPlan,
   shortDayLabel,
   unsendPlans,
   updatePlanItems,
@@ -318,6 +319,37 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     }
   };
 
+  // ---- Aşama 36: Planı yenile — gönderildikten SONRA görev eklendi / değiştirildi / silindiyse:
+  //      plan seçili öğrencilere yeniden gönderilir (yeni eklenen öğrenciler de görür) ve
+  //      görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna yeniden aktarılır.
+  const doRefresh = async () => {
+    if (busy || !withItems.length) return;
+    setBusy(true);
+    const failed: string[] = [];
+    let topics = 0;
+    try {
+      for (const s of withItems) {
+        try {
+          await sendPlan(s.id, weekStart, teacherName);
+          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: viewItems.filter((i) => i.studentId === s.id), canSubject });
+          if (r.subjects.length) topics++;
+        } catch {
+          failed.push(s.name);
+        }
+      }
+      await reload(true);
+      say(
+        {
+          tone: failed.length ? 'warning' : 'success',
+          text: `Plan ${withItems.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
+        },
+        8000
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ---- görev ekle / düzenle
   const subjectOptions = useMemo(() => {
     if (!isAdmin && mySubjects) return Array.from(new Set(mySubjects));
@@ -596,6 +628,16 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               )}
               {anySent && (
                 <>
+                  <button
+                    type="button"
+                    id="plan-refresh"
+                    className={cx(planMainBtnCls, 'ui-btn-secondary')}
+                    disabled={busy || withItems.length === 0}
+                    onClick={doRefresh}
+                    title="Gönderdikten sonra yaptığınız değişiklikleri öğrencilere ve Soru Kaydet bölümüne yeniden gönderir"
+                  >
+                    <RefreshCw className={cx('w-4 h-4 shrink-0', busy && 'animate-spin')} /> Planı yenile
+                  </button>
                   <button type="button" id="plan-resend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy || withItems.length === 0} onClick={() => openSend('E-posta / WhatsApp ile gönder')}>
                     <Send className="w-4 h-4 shrink-0" /> E-posta / WhatsApp
                   </button>

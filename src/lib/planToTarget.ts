@@ -70,7 +70,8 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
   const oldRecords = dataService.getMyPlanTopicRecords(student.id, weekStart, weekEnd);
   for (const rec of oldRecords) {
     const subj = normalizeSubject(rec.subject || '');
-    if (!bySubject.has(subj) && rec.id) await dataService.deleteQuestionTargetById(rec.id);
+    // Aşama 36: yalnızca BU haftanın kaydı silinir (farklı günde başlayan komşu haftanın konuları korunur)
+    if (!bySubject.has(subj) && rec.id && rec.weekStartDate === weekStart) await dataService.deleteQuestionTargetById(rec.id);
   }
 
   for (const [subject, days] of bySubject) {
@@ -95,7 +96,10 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
 
     // Bu öğretmenin aynı ders ve tarihlerde kaydı varsa (konu kaydı ya da gerçek hedef) o kayıt güncellenir:
     // bu haftanın günlerindeki konular plandaki güncel görevlerle değiştirilir, diğer günler ve soru sayıları korunur.
-    const existing = dataService.findQuestionTargetConflict(draft);
+    const found = dataService.findQuestionTargetConflict(draft);
+    // Aşama 36: BAŞKA haftanın konu kaydı (tarihleri çakışıyor) bu haftanınkiyle değiştirilmez; yoksa o haftanın
+    // konuları silinirdi. Bu hafta için ayrı konu kaydı açılır.
+    const existing = found && isPendingPlanTarget(found) && found.weekStartDate !== weekStart ? null : found;
     let toSave: WeeklyQuestionTarget;
     if (existing) {
       const merged: Record<string, string> = {};

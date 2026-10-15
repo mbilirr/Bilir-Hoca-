@@ -15,6 +15,7 @@ import {
   AlertCircle,
   FileText,
   Target,
+  RefreshCw,
 } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -416,6 +417,28 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     }
   };
 
+  // ---- Aşama 36: Planı yenile — gönderildikten sonra yapılan değişiklikler öğrenciye ve Soru Kaydet'e yeniden gider
+  const doRefresh = async () => {
+    if (!student || busy) return;
+    setBusy(true);
+    try {
+      const h = await sendPlan(student.id, weekStart, teacherName);
+      setPlan((p) => ({ ...p, header: h }));
+      const r = await transferPlanTopicsToQuestionEntry({ student, weekStart, items: plan.items, canSubject });
+      say(
+        {
+          tone: 'success',
+          text: `Plan ${student.name} adlı öğrenciye yeniden gönderildi${r.subjects.length ? `; ${r.subjects.join(', ')} görevleri Soru Kaydet'e aktarıldı` : ''}.`,
+        },
+        6000
+      );
+    } catch (e: any) {
+      say({ tone: 'danger', text: e?.message || 'Plan yenilenemedi.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // ---- başkalarına uygula
   const [applyOpen, setApplyOpen] = useState(false);
   const [booksOpen, setBooksOpen] = useState(false);
@@ -530,6 +553,16 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             ) : null,
           primary: sent ? (
             <>
+              <button
+                type="button"
+                id="plan-refresh"
+                className={cx(planMainBtnCls, 'ui-btn-secondary')}
+                disabled={busy || plan.items.length === 0}
+                onClick={doRefresh}
+                title="Gönderdikten sonra yaptığınız değişiklikleri öğrenciye ve Soru Kaydet bölümüne yeniden gönderir"
+              >
+                <RefreshCw className={cx('w-4 h-4 shrink-0', busy && 'animate-spin')} /> Planı yenile
+              </button>
               <button
                 type="button"
                 id="plan-resend"
