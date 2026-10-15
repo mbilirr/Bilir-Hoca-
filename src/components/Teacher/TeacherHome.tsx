@@ -31,6 +31,7 @@ import { TeacherEtutBell } from './TeacherEtutBell';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { useArrivalFlash } from '../../lib/useArrivalFlash';
 import { etutTeacherNames } from '../../lib/etutStatus';
+import { PushOptInCard } from '../Common/PushOptInCard';
 
 // ============================================================================
 // ÖĞRETMEN ANA SAYFASI (Aşama 8)
@@ -271,6 +272,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           )}
         </div>
       </div>
+
+      {/* Aşama 34: telefon bildirimleri (kapalıysa açma kartı, açıksa tek satır) */}
+      <PushOptInCard role="teacher" />
 
       {/* ===== Özet kartları ===== */}
       <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-3 sm:gap-4">

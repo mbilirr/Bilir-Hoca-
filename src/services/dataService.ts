@@ -54,6 +54,7 @@ import {
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
+import { notifyPush } from '../lib/push';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -6785,6 +6786,8 @@ export class DataService {
 
     // Bildirimler yalnızca ödev gerçekten kaydedildikten sonra hazırlanır
     this.dispatchHomeworkNotificationsAndEmails(newHw);
+    // Aşama 34: öğrencilerin telefonuna "Yeni ödev" bildirimi (alıcıları sunucu bulur)
+    notifyPush('homework-created', { homeworkId: newHw.id });
     this.notify();
     return newHw;
   }
@@ -7538,6 +7541,8 @@ export class DataService {
       },
       'Mesaj gönderilemedi'
     );
+    // Aşama 34: öğretmenlerin telefonuna "Yeni öğrenci mesajı" bildirimi
+    notifyPush('message-new', { messageId: newMsg.id });
 
     return newMsg;
   }
@@ -7588,6 +7593,8 @@ export class DataService {
       },
       'Cevap buluta kaydedilemedi'
     );
+    // Aşama 34: öğrencinin telefonuna "Sorunuza cevap geldi" bildirimi
+    notifyPush('message-reply', { messageId: id });
   }
 
   public async deleteMessage(id: string): Promise<void> {
@@ -8181,6 +8188,8 @@ export class DataService {
       },
       'Duyuru gönderilemedi'
     );
+    // Aşama 34: öğrencilerin telefonuna duyuru / özel mesaj bildirimi
+    notifyPush('announcement', { groupId });
 
     return this.buildAnnouncementGroups(rows)[0];
   }
@@ -8304,6 +8313,8 @@ export class DataService {
       },
       'Mesaj gönderilemedi'
     );
+    // Aşama 34: öğrencinin öğretmene yazdığı mesaj -> öğretmenlerin telefonuna bildirim
+    if (newMsg.kind !== 'announcement' && newMsg.kind !== 'note') notifyPush('message-new', { messageId: newMsg.id });
 
     return newMsg;
   }

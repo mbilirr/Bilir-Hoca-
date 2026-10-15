@@ -51,6 +51,7 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
+import { PushOptInCard } from '../Common/PushOptInCard';
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
@@ -532,6 +533,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           <h1 id="student-home-greeting" className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
             {timeGreeting()} {firstNameOf(currentStudent.name, '')}
           </h1>
+
+          {/* Aşama 34: telefon bildirimleri (kapalıysa açma kartı, açıksa tek satır) */}
+          <PushOptInCard role="student" />
 
           {/* Wall 1: Duyurular (bugünün etüdü, ödevi, soru hedefi, notları) + kompakt takvim */}
           <StudentHeroBanner

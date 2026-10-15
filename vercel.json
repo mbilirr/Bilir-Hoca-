@@ -5,6 +5,9 @@
     },
     "api/icon.js": {
       "maxDuration": 10
+    },
+    "api/push.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
