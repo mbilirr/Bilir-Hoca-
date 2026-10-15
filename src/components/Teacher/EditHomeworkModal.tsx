@@ -414,7 +414,7 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
               <button
                 type="submit"
                 disabled={isSaving || isUploadBusy}
-                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[0.8125rem] font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 <span>{isSaving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}</span>

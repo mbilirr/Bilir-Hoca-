@@ -2681,7 +2681,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               id="qe-save"
               onClick={handleSaveQuestionLog}
               disabled={isSaving}
-              className="px-6 py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+              className="px-3.5 py-1.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
               <Check className="w-4 h-4 text-orange-400" />
               <span>{isSaving ? 'Kaydediliyor…' : isEditMode ? 'Kaydı Güncelle' : 'Soru Kaydını Tamamla ve Gönder'}</span>

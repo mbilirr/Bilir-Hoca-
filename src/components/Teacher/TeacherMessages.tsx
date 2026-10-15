@@ -168,6 +168,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                       </div>
 
                       <p className="text-xs font-medium text-fg truncate mb-1">
+                        {msg.toTeacherId && (
+                          <span className="mr-1 rounded bg-indigo-50 dark:bg-indigo-950/40 px-1 py-px text-[9px] font-bold text-indigo-700 dark:text-indigo-300" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
+                            Özel{msg.toTeacherName ? ` → ${msg.toTeacherName}` : ''}
+                          </span>
+                        )}
                         {msg.subject}
                       </p>
 
@@ -277,7 +282,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   {activeMessage.teacherReply && (
                     <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-2xl space-y-2">
                       <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400 font-bold">
-                        <span>✓ Sizin Gönderdiğiniz Yanıt:</span>
+                        <span>✓ {activeMessage.repliedByName ? `${activeMessage.repliedByName} yanıtı:` : 'Sizin Gönderdiğiniz Yanıt:'}</span>
                         {activeMessage.repliedAt && (
                           <span className="text-muted font-normal">
                             {new Date(activeMessage.repliedAt).toLocaleTimeString('tr-TR', {
@@ -313,7 +318,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     type="submit"
                     id="teacher-reply-send"
                     disabled={isSendingReply}
-                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <Send className="w-3.5 h-3.5" />
                     <span>{isSendingReply ? 'Gönderiliyor…' : 'Gönder'}</span>

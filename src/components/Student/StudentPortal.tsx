@@ -113,6 +113,17 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [messageLink, setMessageLink] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageSentFeedback, setMessageSentFeedback] = useState(false);
+  // Aşama 45: soru belirli bir öğretmene yazılabilir (yalnızca o öğretmen görür); boş = bütün öğretmenlerim
+  const [messageTo, setMessageTo] = useState('');
+  const [myTeachers, setMyTeachers] = useState<Array<{ id: string; name: string; branch: string }>>([]);
+  useEffect(() => {
+    if (activeTab !== 'messages') return;
+    let alive = true;
+    dataService.getMyTeachersAsStudent().then((list) => alive && setMyTeachers(list));
+    return () => {
+      alive = false;
+    };
+  }, [activeTab]);
 
   // Notification center modal state
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
@@ -260,6 +271,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         subject: messageSubject.trim(),
         text: messageText.trim(),
         linkUrl: messageLink.trim() || undefined,
+        ...(messageTo && myTeachers.some((t) => t.id === messageTo)
+          ? { toTeacherId: messageTo, toTeacherName: myTeachers.find((t) => t.id === messageTo)?.name }
+          : {}),
       });
     } catch {
       // Hata uyarısı zaten gösterildi; yazılan mesaj kaybolmasın diye form temizlenmez
@@ -964,6 +978,30 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             )}
 
             <form onSubmit={handleSendMessage} className="space-y-4">
+              {myTeachers.length > 0 && (
+                <div>
+                  <label htmlFor="student-message-to" className="block text-xs font-semibold text-fg-2 mb-1">
+                    Kime
+                  </label>
+                  <select
+                    id="student-message-to"
+                    value={messageTo}
+                    onChange={(e) => setMessageTo(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">Bütün öğretmenlerim</option>
+                    {myTeachers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                        {t.branch ? ` (${t.branch})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-muted">
+                    {messageTo ? 'Mesajını yalnızca seçtiğin öğretmen görür.' : 'Bir öğretmen cevapladığında soru yalnızca o öğretmende kalır.'}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-fg-2 mb-1">
                   Konu / Ders Başlığı *
@@ -1012,7 +1050,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 type="submit"
                 id="student-message-send"
                 disabled={isSendingMessage}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isSendingMessage ? 'Gönderiliyor…' : 'Öğretmene İlet'}</span>
@@ -1036,7 +1074,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     className="p-4 bg-surface-2/60 border border-line rounded-2xl space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-fg">{msg.subject}</span>
+                      <span className="font-bold text-xs text-fg">
+                        {msg.subject}
+                        {msg.toTeacherName && <span className="ml-1.5 font-normal text-[10px] text-muted">→ {msg.toTeacherName}</span>}
+                      </span>
                       <span className="text-[10px] text-muted font-mono">
                         {new Date(msg.createdAt).toLocaleDateString('tr-TR')}
                       </span>
@@ -1060,7 +1101,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     {msg.teacherReply ? (
                       <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1">
                         <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block">
-                          ✓ Öğretmeninizin Yanıtı:
+                          ✓ {msg.repliedByName ? `${msg.repliedByName} yanıtladı:` : 'Öğretmeninizin Yanıtı:'}
                         </span>
                         <p className="text-xs text-fg">{msg.teacherReply}</p>
                       </div>
@@ -1156,7 +1197,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmittingHw || isSubmissionUploadBusy}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60"
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60"
                 >
                   {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
                 </button>

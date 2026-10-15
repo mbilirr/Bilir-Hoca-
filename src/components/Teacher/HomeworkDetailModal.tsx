@@ -373,7 +373,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
               type="button"
               onClick={handleDownloadHomeworkDoc}
               id="btn-download-homework-modal"
-              className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer hover:scale-105 active:scale-95"
+              className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all cursor-pointer hover:scale-105 active:scale-95"
               title="Ödev Belgesini Bilgisayara İndir"
             >
               <Download className="w-4 h-4" />
@@ -383,7 +383,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-medium transition-colors cursor-pointer"
+              className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl text-xs font-medium transition-colors cursor-pointer"
             >
               Pencereyi Kapat
             </button>

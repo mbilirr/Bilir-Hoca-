@@ -279,6 +279,12 @@ export interface StudentMessage {
   senderId?: string; // duyuruyu/notu gönderen öğretmen
   senderName?: string;
   groupId?: string; // aynı anda birden çok öğrenciye giden duyurunun ortak kimliği
+  /** Aşama 45: öğrenci sorusunu belirli bir öğretmene yazdıysa (boşsa: bütün öğretmenleri) */
+  toTeacherId?: string;
+  toTeacherName?: string;
+  /** Aşama 45: soruyu cevaplayan öğretmen (cevaplandıktan sonra soru yalnızca onda görünür) */
+  repliedById?: string;
+  repliedByName?: string;
 }
 
 // Öğretmenin gönderdiği bir duyuru/not (alıcıları tek satırda toplanmış hali)
@@ -318,6 +324,8 @@ export interface StudentNotification {
   createdAt: string;
   read: boolean;
   linkTab?: 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
+  /** Aşama 45: bildirim bulutta da kayıtlı (37 numaralı SQL); okundu / silme bilgisi bütün cihazlara yansır */
+  cloud?: boolean;
   emailSent?: boolean;
   emailRecipient?: string;
   emailDetails?: {

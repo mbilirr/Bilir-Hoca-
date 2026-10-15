@@ -644,6 +644,21 @@ export async function notifyMessageReply(caller, body, deadline) {
   );
 }
 
+// Aşama 45: öğretmenin tebrik mesajı -> öğrencinin telefonuna (kayıt, öğretmenin kendi oturumuyla okunur)
+export async function notifyPraise(caller, body, deadline) {
+  if (caller.role !== 'teacher') throw new HttpError(403, 'Yalnızca öğretmen.');
+  const id = String(body.notificationId || '');
+  if (!id || id.length > 120) throw new HttpError(400, 'Geçersiz bildirim.');
+  const n = await visibleRow('student_notifications', `id=eq.${encodeURIComponent(id)}`, caller.token);
+  if (!n || n.type !== 'praise') throw new HttpError(404, 'Bildirim bulunamadı.');
+  const users = await studentAuthIds([n.student_id]);
+  return sendToUsers(
+    users,
+    { title: `👏 ${n.teacher_name || 'Öğretmenin'} seni tebrik etti`, body: n.message || '', url: '/#/student', tag: `praise-${id}` },
+    { dedupe: `praise:${id}`, deadline }
+  );
+}
+
 export async function notifyMessageNew(caller, body, deadline) {
   if (caller.role !== 'student') throw new HttpError(403, 'Yalnızca öğrenci.');
   const id = String(body.messageId || '');
@@ -659,6 +674,14 @@ export async function notifyMessageNew(caller, body, deadline) {
     rest(`teacher_student_access?select=teacher_auth_id&student_id=eq.${encodeURIComponent(caller.studentId)}`, { token: 'service' }).catch(() => []),
   ]);
   let users = uniq([...(byClass || []), ...(byStudent || [])].map((r) => r.teacher_auth_id));
+  // Aşama 45: öğrenci soruyu belirli bir öğretmene yazdıysa yalnızca o öğretmene gider (öğrenciye erişimi varsa)
+  if (m.to_teacher_id) {
+    try {
+      const tt = await rest(`teachers?select=auth_user_id&id=eq.${encodeURIComponent(String(m.to_teacher_id))}`, { token: 'service' });
+      const target = tt && tt[0] ? tt[0].auth_user_id : null;
+      if (target && users.includes(target)) users = [target];
+    } catch {}
+  }
   if (!users.length) {
     try {
       const admins = await rest(`teachers?select=auth_user_id,email,status&is_admin=eq.true`, { token: 'service' });
@@ -826,6 +849,9 @@ export default async function handler(req, res) {
             break;
           case 'message-new':
             result = await notifyMessageNew(caller, body, deadline);
+            break;
+          case 'praise':
+            result = await notifyPraise(caller, body, deadline);
             break;
           default:
             throw new HttpError(400, 'Bilinmeyen bildirim türü.');

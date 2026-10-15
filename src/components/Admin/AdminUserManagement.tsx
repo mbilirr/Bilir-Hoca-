@@ -243,7 +243,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <button
             type="button"
             onClick={onNavigateHome}
-            className="px-5 py-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold transition-all border border-line cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold transition-all border border-line cursor-pointer"
           >
             Öğretmen Paneline Dön
           </button>
@@ -1336,7 +1336,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 cursor-pointer"
                 >
                   Değişiklikleri Kaydet
                 </button>
@@ -1453,7 +1453,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={handleSaveRoleChange}
-                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md cursor-pointer"
               >
                 Yetkiyi Kaydet
               </button>
@@ -1511,7 +1511,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmToggleSuspension}
-                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer ${
                   suspendModalUser.isSuspended || suspendModalUser.status === 'suspended'
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     : 'bg-rose-600 hover:bg-rose-500 text-white'
@@ -1558,7 +1558,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-950 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-950 cursor-pointer"
               >
                 Evet, Kalıcı Olarak Sil
               </button>
@@ -1785,7 +1785,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={handleSaveAuthModal}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 flex items-center space-x-1.5 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 flex items-center space-x-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>Yetkileri Kaydet ve Uygula</span>
@@ -2029,7 +2029,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-bold"
+                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-xs font-bold"
               >
                 {isSaving ? 'Hesap açılıyor...' : 'Hesabı Aç'}
               </button>

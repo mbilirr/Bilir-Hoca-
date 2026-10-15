@@ -513,7 +513,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
             <button
               type="submit"
               disabled={isProcessing || !selectedFile}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               {isProcessing ? (
                 <>

@@ -435,7 +435,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             <button
               type="submit"
               disabled={isSavingProfile}
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSavingProfile ? 'Kaydediliyor...' : 'Bilgileri Kaydet'}</span>
@@ -646,7 +646,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
             >
               <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kontrol ediliyor...' : 'Şifreyi Güncelle'}</span>

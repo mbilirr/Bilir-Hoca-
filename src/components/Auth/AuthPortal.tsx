@@ -192,20 +192,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setLoginPassword('');
   };
 
-  // --- KAYITLI PROFİLLE DEVAM ---
-  // Güvenlik gereği oturum sekme kapanınca biter; kayıtlı profil yalnızca giriş adını hatırlar.
-  const handleQuickRememberedLogin = () => {
-    const targetUser = selectedRole === 'teacher' ? rememberedTeacher : rememberedStudent;
-    if (!targetUser || targetUser.role !== selectedRole) {
-      setError('Kayıtlı profil bulunamadı. Lütfen kullanıcı adı ve şifrenizle giriş yapınız.');
-      return;
-    }
-    setError(null);
-    setLoginUsername(targetUser.identifier);
-    setSuccessMsg(`Merhaba ${targetUser.name}! Güvenliğiniz için şifrenizi girip "Giriş Yap" düğmesine basınız.`);
-    setTimeout(() => passwordInputRef.current?.focus(), 50);
-  };
-
   const handleForgetRememberedUser = () => {
     dataService.setRememberedUser(null, selectedRole);
     if (selectedRole === 'teacher') {
@@ -701,17 +687,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-2 ml-auto">
-                      <Button
-                        type="button"
-                        variant="primary"
-                        onClick={handleQuickRememberedLogin}
-                        disabled={isLoading}
-                        size="sm"
-                        leftIcon={<Zap className="w-4 h-4" />}
-                      >
-                        Bu Hesapla Devam Et
-                      </Button>
-
+                      {/* Aşama 45: "Bu Hesapla Devam Et" kaldırıldı; kullanıcı adı zaten dolu, yalnızca şifre girilip "Giriş Yap"a basılır */}
                       <Button
                         type="button"
                         variant="ghost"
@@ -726,7 +702,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   </div>
 
                   <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-between text-[11px] text-muted">
-                    <span>Farklı hesap bilgileriyle girmek için aşağıdaki formu kullanınız:</span>
+                    <span>Şifrenizi girip “Giriş Yap”a basın. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
                   </div>
                 </div>
               )}

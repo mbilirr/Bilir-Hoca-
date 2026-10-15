@@ -693,7 +693,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-1.5 cursor-pointer hover:scale-102"
+            className="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all flex items-center space-x-1.5 cursor-pointer hover:scale-102"
           >
             <Check className="w-4 h-4" />
             <span>Fotoğrafı / Emojiyi Kaydet</span>

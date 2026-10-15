@@ -204,7 +204,7 @@ CREATE POLICY "Public Read/Write All" ON public.messages FOR ALL USING (true);
           <div className="flex justify-end pt-2">
             <button
               onClick={onClose}
-              className="px-5 py-2 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold"
+              className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold"
             >
               Kapat
             </button>

@@ -3514,7 +3514,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={handleSendPraise}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
               >
                 <Award className="w-4 h-4" />
                 <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>

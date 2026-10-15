@@ -83,7 +83,7 @@ export const PasswordRecoveryModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold cursor-pointer"
+                className="w-full px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[0.8125rem] font-semibold cursor-pointer"
               >
                 Giriş ekranına dön
               </button>

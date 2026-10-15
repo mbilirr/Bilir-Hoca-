@@ -67,9 +67,17 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
   useEffect(() => {
     if (isOpen) {
       refreshData();
+      // Aşama 45: açılışta buluttaki bildirimler (tebrikler, okundu bilgisi) yeniden okunur
+      let alive = true;
+      void dataService.syncStudentNotifications(true).then(() => alive && refreshData());
+      const unsub = dataService.subscribe(() => alive && refreshData());
       if (typeof window !== 'undefined' && 'Notification' in window) {
         setNotificationPermission(Notification.permission);
       }
+      return () => {
+        alive = false;
+        unsub();
+      };
     }
   }, [isOpen, currentStudent.id]);
 

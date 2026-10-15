@@ -530,7 +530,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-semibold transition-colors cursor-pointer"
           >
             Kapat
           </button>

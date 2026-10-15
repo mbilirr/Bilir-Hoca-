@@ -231,7 +231,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
             >
               <Check className="w-4 h-4" />
               <span>{isSaving ? 'Kaydediliyor...' : 'Bilgileri Güncelle'}</span>
@@ -463,7 +463,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             <button
               type="submit"
               disabled={isSaving}
-              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-xl shadow-lg shadow-amber-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-xl shadow-lg shadow-amber-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
             >
               <Check className="w-4 h-4" />
               <span>{isSaving ? 'Güncelleniyor...' : 'Şifreyi Değiştir'}</span>

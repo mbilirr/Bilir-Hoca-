@@ -99,6 +99,25 @@ async function withQuestionFallback<R extends { error: any }>(run: (withCount: b
 /** Soru sayısı veritabanında saklanabiliyor mu (bilinmiyorsa null) */
 export const planQuestionColumnStatus = () => questionColumnOk;
 
+// Aşama 45: 36 numaralı SQL ile gelen özet fonksiyonları (başka öğretmenlerin görevlerinin İÇERİĞİNİ vermez,
+// yalnızca çakışma tarihlerini ve soru sayılarını verir). SQL çalıştırılmadıysa eski yoldan (doğrudan tablo) okunur.
+const rpcMissing = new Set<string>();
+const isMissingRpc = (error: any) =>
+  !!error && (['PGRST202', '42883', '404'].includes(String(error?.code || '')) || /could not find the function|does not exist/i.test(String(error?.message || '')));
+async function tryRpc<T>(name: string, args: Record<string, unknown>): Promise<{ ok: true; data: T[] } | { ok: false }> {
+  if (rpcMissing.has(name)) return { ok: false };
+  try {
+    const res = await supabase.rpc(name, args);
+    if (res.error) {
+      if (isMissingRpc(res.error)) rpcMissing.add(name);
+      return { ok: false };
+    }
+    return { ok: true, data: (Array.isArray(res.data) ? res.data : []) as T[] };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // ----------------------------------------------------------------------------- Tarih yardımcıları (yerel saat)
 const pad2 = (n: number) => String(n).padStart(2, '0');
 export const ymd = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -206,7 +225,12 @@ function fail(error: any, fallback: string): never {
     throw new Error('Haftalık plan için 18 numaralı SQL dosyasının Supabase\'te çalıştırılması gerekiyor.');
   }
   if (code === '42501' || /row-level security|permission denied/i.test(msg)) {
-    throw new Error('Bu işlem için yetkiniz yok. Öğretmenler yalnızca kendi branşlarındaki derslerden görev verebilir; kurumunuzun "Ödevler" bölümü kapalı da olabilir.');
+    if (/sp_privacy_update/i.test(msg)) {
+      throw new Error('Bu planda başka öğretmenlerin de görevleri var; plan geri çekilemez. Yalnızca kendi görevlerinizi silebilirsiniz.');
+    }
+    throw new Error(
+      'Bu işlem için yetkiniz yok. Öğretmenler yalnızca kendi branşlarındaki derslerden görev verebilir ve yalnızca kendi ekledikleri görevleri değiştirebilir; kurumunuzun "Ödevler" bölümü kapalı da olabilir.'
+    );
   }
   if (code === '23505') throw new Error('Bu kayıt zaten var.');
   throw new Error(`${fallback}${msg ? ` (${msg.slice(0, 120)})` : ''}`);
@@ -284,13 +308,13 @@ export async function updatePlanItem(id: string, draft: PlanItemDraft): Promise<
 export async function deletePlanItem(id: string): Promise<void> {
   const res = await supabase.from('study_plan_items').delete().eq('id', id).select('id');
   if (res.error) fail(res.error, 'Görev silinemedi.');
-  if (!res.data || res.data.length === 0) throw new Error('Bu görevi silme yetkiniz yok (yalnızca kendi branşınızdaki görevleri silebilirsiniz).');
+  if (!res.data || res.data.length === 0) throw new Error('Bu görevi silme yetkiniz yok (yalnızca kendi eklediğiniz görevleri silebilirsiniz).');
 }
 
 export async function deletePlan(studentId: string, weekStart: string): Promise<void> {
   const res = await supabase.from('study_plans').delete().eq('id', planIdOf(studentId, weekStart)).select('id');
   if (res.error) fail(res.error, 'Plan silinemedi.');
-  if (!res.data || res.data.length === 0) throw new Error('Plan silinemedi: başka branştan görev içeriyor olabilir (yalnızca yönetici silebilir).');
+  if (!res.data || res.data.length === 0) throw new Error('Plan bütünüyle silinemedi: başka öğretmenlerin görevlerini de içeriyor (yalnızca yönetici silebilir).');
 }
 
 // Planı öğrenciye ödev olarak gönderir (öğrenci ana sayfasında "Bugün yapılması gerekenler" çıkar)
@@ -351,6 +375,25 @@ export async function findPlanConflicts(studentIds: string[], weekStart: string)
   const ids = Array.from(new Set(studentIds.filter(Boolean)));
   const out: Record<string, string[]> = {};
   if (!ids.length || !weekStart) return out;
+  const add = (sid: string, ws: string) => {
+    const list = (out[sid] = out[sid] || []);
+    if (!list.includes(ws)) list.push(ws);
+  };
+  // Aşama 45: başka öğretmenlerin görevleri artık görünmediği için çakışma özet fonksiyonla bulunur
+  let viaRpc = true;
+  for (const part of chunks(ids, 500)) {
+    const r = await tryRpc<{ student_id: string; week_start: string }>('plan_conflict_weeks', { p_student_ids: part, p_week_start: weekStart });
+    if (!r.ok) {
+      viaRpc = false;
+      break;
+    }
+    for (const row of r.data) add(String(row.student_id), String(row.week_start).slice(0, 10));
+  }
+  if (viaRpc) {
+    for (const k of Object.keys(out)) out[k].sort();
+    return out;
+  }
+  for (const k of Object.keys(out)) delete out[k];
   const from = addDaysYmd(weekStart, -6);
   const to = addDaysYmd(weekStart, 6);
   for (const part of chunks(ids, 100)) {
@@ -362,12 +405,7 @@ export async function findPlanConflicts(studentIds: string[], weekStart: string)
       .lte('week_start', to)
       .neq('week_start', weekStart);
     if (res.error) return out; // denetim yapılamazsa engellenmez (eski davranış)
-    for (const r of (res.data || []) as any[]) {
-      const sid = String(r.student_id);
-      const ws = String(r.week_start).slice(0, 10);
-      const list = (out[sid] = out[sid] || []);
-      if (!list.includes(ws)) list.push(ws);
-    }
+    for (const r of (res.data || []) as any[]) add(String(r.student_id), String(r.week_start).slice(0, 10));
   }
   for (const k of Object.keys(out)) out[k].sort();
   return out;
@@ -555,14 +593,27 @@ export async function deletePlanItems(ids: string[]): Promise<number> {
 }
 export async function unsendPlans(studentIds: string[], weekStart: string): Promise<number> {
   let n = 0;
+  let blocked = 0;
   for (const part of chunks(Array.from(new Set(studentIds)), 100)) {
     const res = await supabase
       .from('study_plans')
       .update({ sent_at: null })
       .in('id', part.map((s) => planIdOf(s, weekStart)))
       .select('id');
-    if (res.error) fail(res.error, 'Plan geri çekilemedi.');
-    n += (res.data || []).length;
+    if (!res.error) {
+      n += (res.data || []).length;
+      continue;
+    }
+    if (!/sp_privacy_update/i.test(String(res.error?.message || ''))) fail(res.error, 'Plan geri çekilemedi.');
+    // Aşama 45: başka öğretmenin görevi olan plan geri çekilemez; diğerleri tek tek geri çekilir
+    for (const sid of part) {
+      const one = await supabase.from('study_plans').update({ sent_at: null }).eq('id', planIdOf(sid, weekStart)).select('id');
+      if (one.error) blocked++;
+      else n += (one.data || []).length;
+    }
+  }
+  if (blocked && !n) {
+    throw new Error('Seçili planlarda başka öğretmenlerin de görevleri var; bu planlar geri çekilemez. Yalnızca kendi görevlerinizi silebilirsiniz.');
   }
   return n;
 }
@@ -929,34 +980,85 @@ export interface PlanQuestionCounts {
  * Öğrencinin haftalık planlarında (gönderilmiş ya da taslak, bütün öğretmenler) verilen tarih aralığına düşen
  * soru sayıları. Soru hedefi verilirken öğretmene "hayalet" bilgi olarak gösterilir. Hata olursa boş döner.
  */
-export async function loadPlanQuestionCounts(studentId: string, from: string, to: string): Promise<PlanQuestionCounts> {
-  const out: PlanQuestionCounts = { bySubject: {}, byDay: {}, total: 0 };
-  if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from || questionColumnOk === false) return out;
+const emptyCounts = (): PlanQuestionCounts => ({ bySubject: {}, byDay: {}, total: 0 });
+function addCount(out: PlanQuestionCounts, weekStart: string, day: number, subjectRaw: string, countRaw: unknown, from: string, to: string) {
+  const n = cleanQuestionCount(countRaw);
+  if (!n) return;
+  const date = dateOfDay(String(weekStart).slice(0, 10), Number(day) || 0);
+  if (date < from || date > to) return;
+  const subject = String(subjectRaw || '').trim() || 'Genel';
+  out.bySubject[subject] = (out.bySubject[subject] || 0) + n;
+  const d = (out.byDay[date] = out.byDay[date] || {});
+  d[subject] = (d[subject] || 0) + n;
+  out.total += n;
+}
+const validRange = (from: string, to: string) => /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) && to >= from;
+
+/**
+ * Öğrencilerin haftalık planlarındaki (gönderilmiş ya da taslak, BÜTÜN öğretmenler) verilen tarih aralığına düşen
+ * soru sayıları; öğrenci başına. Soru hedefi verilirken öğretmene "hayalet" bilgi olarak gösterilir.
+ * Aşama 45: diğer öğretmenlerin görevleri artık görünmediği için özet fonksiyonla (yalnızca ders + sayı) okunur.
+ * Hata olursa boş döner.
+ */
+export async function loadPlanQuestionCountsMany(studentIds: string[], from: string, to: string): Promise<Record<string, PlanQuestionCounts>> {
+  const out: Record<string, PlanQuestionCounts> = {};
+  const ids = Array.from(new Set((studentIds || []).filter(Boolean)));
+  if (!ids.length || !validRange(from, to) || questionColumnOk === false) return out;
+  const bucket = (sid: string) => (out[sid] = out[sid] || emptyCounts());
   try {
-    const res = await supabase
-      .from('study_plan_items')
-      .select('week_start,day,subject,question_count')
-      .eq('student_id', studentId)
-      .gte('week_start', addDaysYmd(from, -6))
-      .lte('week_start', to)
-      .gt('question_count', 0);
-    if (res.error) {
-      if (isMissingQuestionColumn(res.error)) questionColumnOk = false;
-      return out;
+    let viaRpc = true;
+    for (const part of chunks(ids, 500)) {
+      const r = await tryRpc<{ student_id: string; week_start: string; day: number; subject: string; question_count: number }>('plan_question_counts', {
+        p_student_ids: part,
+        p_from: from,
+        p_to: to,
+      });
+      if (!r.ok) {
+        viaRpc = false;
+        break;
+      }
+      for (const row of r.data) addCount(bucket(String(row.student_id)), row.week_start, row.day, row.subject, row.question_count, from, to);
     }
-    for (const r of (res.data || []) as any[]) {
-      const n = cleanQuestionCount(r.question_count);
-      if (!n) continue;
-      const date = dateOfDay(String(r.week_start), Number(r.day) || 0);
-      if (date < from || date > to) continue;
-      const subject = String(r.subject || '').trim() || 'Genel';
-      out.bySubject[subject] = (out.bySubject[subject] || 0) + n;
-      const day = (out.byDay[date] = out.byDay[date] || {});
-      day[subject] = (day[subject] || 0) + n;
-      out.total += n;
+    if (viaRpc) return out;
+    for (const k of Object.keys(out)) delete out[k];
+    // Eski yol (36 numaralı SQL çalıştırılmadıysa): doğrudan tablo
+    for (const part of chunks(ids, 100)) {
+      const res = await supabase
+        .from('study_plan_items')
+        .select('student_id,week_start,day,subject,question_count')
+        .in('student_id', part)
+        .gte('week_start', addDaysYmd(from, -6))
+        .lte('week_start', to)
+        .gt('question_count', 0);
+      if (res.error) {
+        if (isMissingQuestionColumn(res.error)) questionColumnOk = false;
+        return out;
+      }
+      for (const r of (res.data || []) as any[]) addCount(bucket(String(r.student_id)), r.week_start, r.day, r.subject, r.question_count, from, to);
     }
   } catch {
     /* ağ hatası: bilgi gösterilmez */
+  }
+  return out;
+}
+
+/** Tek öğrenci için (bkz. loadPlanQuestionCountsMany) */
+export async function loadPlanQuestionCounts(studentId: string, from: string, to: string): Promise<PlanQuestionCounts> {
+  if (!studentId) return emptyCounts();
+  const all = await loadPlanQuestionCountsMany([studentId], from, to);
+  return all[studentId] || emptyCounts();
+}
+
+/** Birden çok öğrencinin sayılarını tek tabloda toplar (sınıf hedefi için) */
+export function sumPlanQuestionCounts(list: PlanQuestionCounts[]): PlanQuestionCounts {
+  const out = emptyCounts();
+  for (const c of list) {
+    for (const [subj, n] of Object.entries(c.bySubject)) out.bySubject[subj] = (out.bySubject[subj] || 0) + n;
+    for (const [date, map] of Object.entries(c.byDay)) {
+      const d = (out.byDay[date] = out.byDay[date] || {});
+      for (const [subj, n] of Object.entries(map)) d[subj] = (d[subj] || 0) + n;
+    }
+    out.total += c.total;
   }
   return out;
 }

@@ -369,9 +369,20 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     setConfirmClear(false);
     if (!student) return;
     try {
-      // Önce kendi yetkisindeki görevleri siler; yönetici planın tamamını siler
-      if (isAdmin || plan.items.every((i) => canSubject(i.subject))) await deletePlan(student.id, weekStart);
-      else for (const i of plan.items.filter((x) => canSubject(x.subject))) await deletePlanItem(i.id);
+      // Önce kendi yetkisindeki görevleri siler; yönetici planın tamamını siler.
+      // Aşama 45: planda başka öğretmenlerin (görünmeyen) görevleri varsa plan bütünüyle silinemez;
+      // o zaman yalnızca bu öğretmenin görevleri silinir.
+      const mine = plan.items.filter((x) => canSubject(x.subject));
+      let whole = false;
+      if (isAdmin || plan.items.every((i) => canSubject(i.subject))) {
+        try {
+          await deletePlan(student.id, weekStart);
+          whole = true;
+        } catch (err) {
+          if (!mine.length) throw err;
+        }
+      }
+      if (!whole) for (const i of mine) await deletePlanItem(i.id);
       await reload(true);
       say({ tone: 'success', text: 'Plan temizlendi.' }, 3000);
     } catch (e: any) {

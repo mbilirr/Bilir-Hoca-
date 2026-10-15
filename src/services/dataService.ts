@@ -982,6 +982,9 @@ export class DataService {
   public messages: StudentMessage[] = [];
   public documents: TeacherDocument[] = [];
   public studentNotifications: StudentNotification[] = [];
+  private messageReplierColumnMissing = false; // Aşama 45: 35 numaralı SQL yoksa
+  private notifCloudDisabled = false; // Aşama 45: 37 numaralı SQL yoksa bildirimler yalnızca tarayıcıda
+  private notifLastSync = 0;
   public sentEmails: SentEmailLog[] = [];
   public questionLogs: StudentQuestionLog[] = [];
   public weeklyQuestionTargets: WeeklyQuestionTarget[] = [];
@@ -3277,6 +3280,10 @@ export class DataService {
       ...(m.kind === 'announcement' || m.kind === 'note'
         ? { kind: m.kind, sender_id: m.senderId || null, sender_name: m.senderName || null, group_id: m.groupId || null }
         : {}),
+      // Aşama 45: "Kime" seçildiyse (35 numaralı SQL'deki sütunlar); seçilmediyse satıra hiç eklenmez
+      ...(m.kind !== 'announcement' && m.kind !== 'note' && m.toTeacherId
+        ? { to_teacher_id: m.toTeacherId, to_teacher_name: m.toTeacherName || null }
+        : {}),
     };
   }
 
@@ -3296,6 +3303,8 @@ export class DataService {
       teacherReply: rm.teacher_reply,
       repliedAt: rm.replied_at,
       ...(kind ? { kind, senderId: rm.sender_id || undefined, senderName: rm.sender_name || undefined, groupId: rm.group_id || undefined } : {}),
+      ...(rm.to_teacher_id ? { toTeacherId: String(rm.to_teacher_id), toTeacherName: rm.to_teacher_name || undefined } : {}),
+      ...(rm.replied_by_id ? { repliedById: String(rm.replied_by_id), repliedByName: rm.replied_by_name || undefined } : {}),
     };
   }
 
@@ -3388,6 +3397,7 @@ export class DataService {
         this.syncMyTeacherAccess(),
         this.syncMyKurum(),
         this.backgroundDue('planWeekStarts', isBackground) ? this.syncPlanWeekStarts() : Promise.resolve(),
+        this.syncStudentNotifications(),
       ]);
       this.lastFullSyncAt = Date.now();
       this.notify();
@@ -7705,6 +7715,25 @@ export class DataService {
     return newMsg;
   }
 
+  /**
+   * Aşama 45: öğrencinin "Kime" listesi — kendisine ders veren öğretmenler (yalnızca ad ve branş).
+   * 35 numaralı SQL çalıştırılmadıysa boş döner (o zaman soru eskisi gibi bütün öğretmenlerine gider).
+   */
+  public async getMyTeachersAsStudent(): Promise<Array<{ id: string; name: string; branch: string }>> {
+    const session = this.getAuthSession();
+    if (session?.role !== 'student') return [];
+    try {
+      if (!(await this.hasCloudSession())) return [];
+      const { data, error } = await supabase.rpc('student_my_teachers');
+      if (error || !Array.isArray(data)) return [];
+      return (data as any[])
+        .filter((r) => r && r.id && r.name)
+        .map((r) => ({ id: String(r.id), name: String(r.name), branch: String(r.branch || '') }));
+    } catch {
+      return [];
+    }
+  }
+
   public async markMessageAsRead(id: string): Promise<void> {
     const prevMessages = this.messages;
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, read: true } : m));
@@ -7726,6 +7755,13 @@ export class DataService {
   public async replyToMessage(id: string, replyText: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const prevMessages = this.messages;
+    // Aşama 45: cevaplayan öğretmen kaydedilir; cevaplandıktan sonra soru yalnızca onda görünür
+    const session = this.getAuthSession();
+    const me = session?.role === 'teacher' ? (session.user as Teacher) : null;
+    const prevMsg = this.messages.find((m) => m.id === id);
+    // Daha önce başka biri cevapladıysa (yönetici düzeltiyorsa) cevaplayan değiştirilmez
+    const repliedById = prevMsg?.repliedById || me?.id || undefined;
+    const repliedByName = prevMsg?.repliedById ? prevMsg.repliedByName : me?.name || undefined;
     this.messages = this.messages.map((m) =>
       m.id === id
         ? {
@@ -7733,6 +7769,7 @@ export class DataService {
             teacherReply: replyText,
             repliedAt: nowIso,
             read: true,
+            ...(repliedById ? { repliedById, repliedByName } : {}),
           }
         : m
     );
@@ -7740,11 +7777,20 @@ export class DataService {
     this.notify();
 
     await this.runCloudWrite(
-      () =>
-        supabase
+      async () => {
+        const base = { teacher_reply: replyText, replied_at: nowIso, read: true };
+        if (!repliedById || this.messageReplierColumnMissing) return supabase.from('messages').update(base).eq('id', id);
+        const res = await supabase
           .from('messages')
-          .update({ teacher_reply: replyText, replied_at: nowIso, read: true })
-          .eq('id', id),
+          .update({ ...base, replied_by_id: repliedById, replied_by_name: repliedByName || null })
+          .eq('id', id);
+        // 35 numaralı SQL çalıştırılmadıysa sütun yoktur: cevap eskisi gibi kaydedilir
+        if (res.error && /replied_by|42703|PGRST204/i.test(`${res.error.code || ''} ${res.error.message || ''}`)) {
+          this.messageReplierColumnMissing = true;
+          return supabase.from('messages').update(base).eq('id', id);
+        }
+        return res;
+      },
       () => {
         this.messages = prevMessages;
         saveData(STORAGE_KEYS.MESSAGES, this.messages);
@@ -8268,7 +8314,14 @@ export class DataService {
       if (teacher?.isAdmin) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m));
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
-      return this.messages.filter((m) => visibleStudents.has(m.studentId) && !this.isTeacherAuthoredMessage(m));
+      // Aşama 45: başka öğretmene yazılmış ya da başka öğretmenin cevapladığı soru görünmez (veritabanı da denetler)
+      return this.messages.filter(
+        (m) =>
+          visibleStudents.has(m.studentId) &&
+          !this.isTeacherAuthoredMessage(m) &&
+          (!m.toTeacherId || m.toTeacherId === teacherId) &&
+          (!m.repliedById || m.repliedById === teacherId)
+      );
     }
 
     if (session?.role === 'student') {
@@ -8701,7 +8754,7 @@ export class DataService {
     }
   ): StudentNotification {
     const title = `👏 Tebrikler! Öğretmeninizden Tebrik Mesajı`;
-    return this.addStudentNotification({
+    const notif = this.addStudentNotification({
       studentId,
       type: 'praise',
       title,
@@ -8711,6 +8764,139 @@ export class DataService {
       teacherName: data.teacherName,
       linkTab: 'questions',
     });
+    // Aşama 45: tebrik artık öğrenciye GERÇEKTEN ulaşır (bulut + telefon bildirimi)
+    void this.pushNotificationsToCloud([notif]).then((ok) => {
+      if (!ok) return;
+      this.studentNotifications = this.studentNotifications.map((n) => (n.id === notif.id ? { ...n, cloud: true } : n));
+      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+      notifyPush('praise', { notificationId: notif.id });
+    });
+    return notif;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Aşama 45: Öğrenci bildirimlerinin bulut eşitlemesi (37 numaralı SQL; yoksa eskisi gibi yalnızca tarayıcı)
+  // ---------------------------------------------------------------------------
+  private isMissingNotifTable(err: any): boolean {
+    return /student_notifications|does not exist|schema cache|42P01|PGRST205/i.test(`${err?.code || ''} ${err?.message || ''}`);
+  }
+
+  private notifToRow(n: StudentNotification) {
+    const cut = (v: unknown, max: number) => (v === undefined || v === null || v === '' ? null : String(v).slice(0, max));
+    return {
+      id: String(n.id).slice(0, 120),
+      student_id: n.studentId,
+      type: n.type,
+      title: String(n.title || 'Bildirim').slice(0, 200),
+      message: String(n.message || '').slice(0, 2000),
+      source_id: cut(n.sourceId, 200),
+      source_title: cut(n.sourceTitle, 300),
+      teacher_name: cut(n.teacherName, 120),
+      link_tab: n.linkTab || null,
+    };
+  }
+
+  private rowToNotif(r: any): StudentNotification {
+    const types = ['new_homework', 'new_etut', 'grade_added', 'general', 'praise'];
+    const tabs = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions'];
+    return {
+      id: String(r.id),
+      studentId: String(r.student_id),
+      type: (types.includes(r.type) ? r.type : 'general') as StudentNotification['type'],
+      title: String(r.title || ''),
+      message: String(r.message || ''),
+      sourceId: r.source_id || undefined,
+      sourceTitle: r.source_title || undefined,
+      teacherName: r.teacher_name || undefined,
+      createdAt: r.created_at || new Date().toISOString(),
+      read: !!r.read_at,
+      linkTab: tabs.includes(r.link_tab) ? r.link_tab : undefined,
+      cloud: true,
+    };
+  }
+
+  /** Öğretmen: hazırlanan bildirimleri buluta yazar. Başarılıysa true (hata kullanıcıya gösterilmez). */
+  private async pushNotificationsToCloud(list: StudentNotification[]): Promise<boolean> {
+    if (this.notifCloudDisabled || !list.length) return false;
+    try {
+      if (!(await this.hasCloudSession())) return false;
+      const rows = list.map((n) => this.notifToRow(n));
+      let okAll = true;
+      for (let i = 0; i < rows.length; i += 200) {
+        const part = rows.slice(i, i + 200);
+        const res = await supabase.from('student_notifications').insert(part);
+        if (!res.error) continue;
+        if (this.isMissingNotifTable(res.error)) {
+          this.notifCloudDisabled = true;
+          return false;
+        }
+        // Yetkisi olmayan öğrenci yüzünden bütün grup reddedildiyse küçük gruplar tek tek denenir
+        okAll = false;
+        if (part.length <= 60) {
+          for (const row of part) await supabase.from('student_notifications').insert(row);
+        }
+      }
+      return okAll;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Buluttaki bildirimleri okur ve yerel listeyle birleştirir.
+   *  * Öğrenci: kendi bildirimleri (okundu bilgisi dahil)
+   *  * Öğretmen: kendi gönderdiği tebrikler (hangi güne tebrik gönderildiğini her cihazda görsün diye)
+   */
+  public async syncStudentNotifications(force = false): Promise<void> {
+    if (this.notifCloudDisabled) return;
+    const session = this.getAuthSession();
+    if (!session || (session.role !== 'student' && session.role !== 'teacher')) return;
+    if (!force && Date.now() - this.notifLastSync < 60000) return;
+    this.notifLastSync = Date.now();
+    try {
+      if (!(await this.hasCloudSession())) return;
+      let q = supabase.from('student_notifications').select('*').order('created_at', { ascending: false });
+      if (session.role === 'student') q = q.eq('student_id', session.user.id).limit(150);
+      else q = q.eq('type', 'praise').limit(500);
+      const { data, error } = await q;
+      if (error) {
+        if (this.isMissingNotifTable(error)) this.notifCloudDisabled = true;
+        return;
+      }
+      const remote = (Array.isArray(data) ? data : []).map((r) => this.rowToNotif(r));
+      const remoteIds = new Set(remote.map((n) => n.id));
+      const inScope = (n: StudentNotification) =>
+        session.role === 'student' ? n.studentId === session.user.id : n.type === 'praise';
+      const local = this.studentNotifications;
+      const localById = new Map(local.map((n) => [n.id, n] as const));
+      // Bulutta olmayan (başka cihazda silinmiş) bulut kayıtları çıkarılır; yerel e-posta ayrıntıları korunur
+      const kept = local.filter((n) => !(n.cloud && inScope(n) && !remoteIds.has(n.id)) && !remoteIds.has(n.id));
+      const merged = remote.map((r) => {
+        const l = localById.get(r.id);
+        return l ? { ...l, ...r, emailDetails: l.emailDetails, emailRecipient: l.emailRecipient } : r;
+      });
+      const next = [...merged, ...kept].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 400);
+      const sig = (arr: StudentNotification[]) => arr.map((n) => `${n.id}:${n.read ? 1 : 0}`).join('|');
+      if (sig(next) === sig(local)) return;
+      this.studentNotifications = next;
+      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+      this.notify();
+    } catch {
+      /* ağ hatası: yerel liste kalır */
+    }
+  }
+
+  private cloudNotifWrite(run: () => PromiseLike<{ error: any }>): void {
+    if (this.notifCloudDisabled) return;
+    void (async () => {
+      try {
+        if (!(await this.hasCloudSession())) return;
+        const res = await run();
+        if (res?.error && this.isMissingNotifTable(res.error)) this.notifCloudDisabled = true;
+      } catch {
+        /* sessizce geç */
+      }
+    })();
   }
 
   public getStudentNotifications(studentId?: string): StudentNotification[] {
@@ -8723,31 +8909,50 @@ export class DataService {
   }
 
   public markNotificationAsRead(id: string): void {
+    const target = this.studentNotifications.find((n) => n.id === id);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.id === id ? { ...n, read: true } : n
     );
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     this.notify();
+    // Aşama 45: okundu bilgisi bütün cihazlara (yalnızca öğrencinin kendi bildirimi)
+    if (target?.cloud && !target.read && this.getAuthSession()?.role === 'student') {
+      this.cloudNotifWrite(() => supabase.from('student_notifications').update({ read_at: new Date().toISOString() }).eq('id', id));
+    }
   }
 
   public markAllNotificationsAsRead(studentId: string): void {
+    const hadCloudUnread = this.studentNotifications.some((n) => n.studentId === studentId && n.cloud && !n.read);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.studentId === studentId ? { ...n, read: true } : n
     );
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     this.notify();
+    if (hadCloudUnread && this.getAuthSession()?.role === 'student') {
+      this.cloudNotifWrite(() =>
+        supabase.from('student_notifications').update({ read_at: new Date().toISOString() }).eq('student_id', studentId).is('read_at', null)
+      );
+    }
   }
 
   public deleteNotification(id: string): void {
+    const target = this.studentNotifications.find((n) => n.id === id);
     this.studentNotifications = this.studentNotifications.filter((n) => n.id !== id);
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     this.notify();
+    if (target?.cloud && this.getAuthSession()?.role === 'student') {
+      this.cloudNotifWrite(() => supabase.from('student_notifications').delete().eq('id', id));
+    }
   }
 
   public clearStudentNotifications(studentId: string): void {
+    const hadCloud = this.studentNotifications.some((n) => n.studentId === studentId && n.cloud);
     this.studentNotifications = this.studentNotifications.filter((n) => n.studentId !== studentId);
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     this.notify();
+    if (hadCloud && this.getAuthSession()?.role === 'student') {
+      this.cloudNotifWrite(() => supabase.from('student_notifications').delete().eq('student_id', studentId));
+    }
   }
 
   public getSentEmails(studentId?: string): SentEmailLog[] {
@@ -8776,6 +8981,7 @@ export class DataService {
     const nowIso = new Date().toISOString();
     let sentCount = 0;
 
+    const cloudNotifs: StudentNotification[] = [];
     targetStudents.forEach((student) => {
       const emailContent = generateHomeworkEmail({
         studentName: student.name,
@@ -8829,8 +9035,11 @@ export class DataService {
         },
       };
       this.studentNotifications.unshift(notif);
+      cloudNotifs.push(notif);
       sentCount++;
     });
+    // Aşama 45: bildirim öğrencinin Bildirim Merkezi'ne de gider (yalnızca öğretmenin erişebildiği öğrenciler)
+    this.pushVisibleStudentNotifs(cloudNotifs);
 
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
@@ -8858,6 +9067,7 @@ export class DataService {
     const nowIso = new Date().toISOString();
     let sentCount = 0;
 
+    const cloudNotifs: StudentNotification[] = [];
     targetStudents.forEach((student) => {
       const emailContent = generateEtutEmail({
         studentName: student.name,
@@ -8912,8 +9122,10 @@ export class DataService {
         },
       };
       this.studentNotifications.unshift(notif);
+      cloudNotifs.push(notif);
       sentCount++;
     });
+    this.pushVisibleStudentNotifs(cloudNotifs);
 
     saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
     saveData(STORAGE_KEYS.SENT_EMAILS, this.sentEmails);
@@ -8927,6 +9139,21 @@ export class DataService {
     }
 
     return sentCount;
+  }
+
+  /** Öğretmen tarafı: erişebildiği öğrencilerin bildirimlerini buluta yazar ve yereldeki kayıtları "bulutta" işaretler */
+  private pushVisibleStudentNotifs(list: StudentNotification[]): void {
+    const session = this.getAuthSession();
+    if (session?.role !== 'teacher' || !list.length) return;
+    const visible = new Set(this.getStudents().map((s) => s.id));
+    const rows = list.filter((n) => visible.has(n.studentId));
+    if (!rows.length) return;
+    void this.pushNotificationsToCloud(rows).then((ok) => {
+      if (!ok) return;
+      const ids = new Set(rows.map((n) => n.id));
+      this.studentNotifications = this.studentNotifications.map((n) => (ids.has(n.id) ? { ...n, cloud: true } : n));
+      saveData(STORAGE_KEYS.STUDENT_NOTIFICATIONS, this.studentNotifications);
+    });
   }
 
   private seedInitialNotifications(): void {

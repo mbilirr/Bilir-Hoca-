@@ -1591,7 +1591,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     type="button"
                     onClick={handleSaveEditedResources}
                     disabled={isSavingResources || isEditUploadBusy}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
+                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[0.8125rem] font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>

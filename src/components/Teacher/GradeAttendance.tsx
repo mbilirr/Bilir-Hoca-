@@ -885,7 +885,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                     type="button"
                     onClick={handleSaveBatchGrades}
                     disabled={isSaving || batchEnteredCount === 0}
-                    className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer ${
+                    className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center space-x-2 cursor-pointer ${
                       batchEnteredCount > 0
                         ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-[1.02]'
                         : 'bg-surface-2 text-subtle cursor-not-allowed opacity-60'
@@ -1130,7 +1130,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       type="button"
                       onClick={handleSaveAttendance}
                       disabled={isSaving}
-                      className="flex-1 sm:flex-none px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2 cursor-pointer transition-all scale-[1.02]"
+                      className="flex-1 sm:flex-none px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2 cursor-pointer transition-all scale-[1.02]"
                     >
                       <Save className="w-4 h-4" />
                       <span>{saveFeedback ? 'Yoklama Kaydedildi! ✓' : 'Yoklamayı Kaydet'}</span>
@@ -1410,7 +1410,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                   type="submit"
                   id="grade-save"
                   disabled={isSaving}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center space-x-1.5 disabled:opacity-60"
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center space-x-1.5 disabled:opacity-60"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Notu Kaydet</span>

@@ -15,7 +15,7 @@ export type PushState =
   | 'off' // destekleniyor, bu cihazda kapalı
   | 'on'; // bu cihazda açık
 
-export type PushEvent = 'homework-created' | 'announcement' | 'message-reply' | 'message-new';
+export type PushEvent = 'homework-created' | 'announcement' | 'message-reply' | 'message-new' | 'praise';
 
 const isIos = () =>
   typeof navigator !== 'undefined' &&

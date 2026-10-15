@@ -4,7 +4,7 @@ import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented } from '../ui/kit';
 import { normalizeSubject, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
-import { loadPlanQuestionCounts, type PlanQuestionCounts } from '../../services/studyPlanService';
+import { loadPlanQuestionCountsMany, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
@@ -296,8 +296,26 @@ const TargetFormContent: React.FC<Props> = ({
 
   const today = new Date();
   // Aşama 43: tek öğrenciye hedef verilirken "Bu hafta / Gelecek hafta" öğrencinin haftalık planının
-  // başladığı günden başlar (plan yoksa Pazartesi)
-  const presetWeekDay = kind === 'student' && studentId ? dataService.getStudentWeekStartDay(studentId) : 1;
+  // başladığı günden başlar (plan yoksa Pazartesi).
+  // Aşama 45: sınıfa hedef verilirken sınıftaki öğrencilerin planlarında EN ÇOK kullanılan başlangıç günü alınır.
+  const presetWeekDay = useMemo(() => {
+    if (kind === 'student') return studentId ? dataService.getStudentWeekStartDay(studentId) : 1;
+    if (!classStudents.length) return 1;
+    const freq = new Map<number, number>();
+    for (const st of classStudents) {
+      const d = dataService.getStudentWeekStartDay(st.id);
+      freq.set(d, (freq.get(d) || 0) + 1);
+    }
+    let best = 1;
+    let bestN = 0;
+    for (const [d, n] of freq) {
+      if (n > bestN || (n === bestN && d === 1)) {
+        best = d;
+        bestN = n;
+      }
+    }
+    return best;
+  }, [kind, studentId, classStudents]);
   const presets: Array<{ id: string; label: string; s: string; e: string }> = useMemo(() => {
     const mon = weekStartFrom(today, presetWeekDay);
     const nextMon = addDays(mon, 7);
@@ -318,16 +336,47 @@ const TargetFormContent: React.FC<Props> = ({
 
   // Aşama 43: HAYALET BİLGİ — seçilen tarihlerde öğrencinin haftalık planlarında (bütün öğretmenler)
   // verilmiş soru sayıları. Hedef veren öğretmen bunları dikkate alsın diye gösterilir (kaydedilmez).
+  // Aşama 45: sınıfa hedef verilirken sınıftaki öğrencilerin planlarındaki sayılar ÖĞRENCİ BAŞINA ORTALAMA olarak gösterilir
+  //            (planı olan öğrenciler üzerinden; sınıf hedefi her öğrenciye ayrı ayrı uygulanır).
   const [planCounts, setPlanCounts] = useState<PlanQuestionCounts | null>(null);
+  const [planGhostInfo, setPlanGhostInfo] = useState<{ withPlan: number; total: number } | null>(null);
+  const classStudentKey = classStudents.map((s) => s.id).join(',');
   useEffect(() => {
     setPlanCounts(null);
-    if (kind !== 'student' || !studentId || !parseYmd(start) || !parseYmd(end) || end < start) return;
+    setPlanGhostInfo(null);
+    if (!parseYmd(start) || !parseYmd(end) || end < start) return;
+    const ids = kind === 'student' ? (studentId ? [studentId] : []) : classStudents.map((s) => s.id);
+    if (!ids.length) return;
     let alive = true;
-    loadPlanQuestionCounts(studentId, start, end).then((r) => alive && setPlanCounts(r.total > 0 ? r : null));
+    loadPlanQuestionCountsMany(ids, start, end).then((all) => {
+      if (!alive) return;
+      const list = ids.map((id) => all[id]).filter((c): c is PlanQuestionCounts => !!c && c.total > 0);
+      if (!list.length) return;
+      if (kind === 'student') {
+        setPlanCounts(list[0]);
+        return;
+      }
+      const n = list.length;
+      const avg = (v: number) => Math.max(1, Math.round(v / n));
+      const out: PlanQuestionCounts = { bySubject: {}, byDay: {}, total: 0 };
+      for (const c of list) {
+        for (const [subj, v] of Object.entries(c.bySubject)) out.bySubject[subj] = (out.bySubject[subj] || 0) + v;
+        for (const [date, map] of Object.entries(c.byDay)) {
+          const d = (out.byDay[date] = out.byDay[date] || {});
+          for (const [subj, v] of Object.entries(map)) d[subj] = (d[subj] || 0) + v;
+        }
+      }
+      for (const k of Object.keys(out.bySubject)) out.bySubject[k] = avg(out.bySubject[k]);
+      for (const map of Object.values(out.byDay)) for (const k of Object.keys(map)) map[k] = avg(map[k]);
+      out.total = Object.values(out.bySubject).reduce((a, b) => a + b, 0);
+      setPlanCounts(out);
+      setPlanGhostInfo({ withPlan: n, total: ids.length });
+    });
     return () => {
       alive = false;
     };
-  }, [kind, studentId, start, end]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, studentId, classStudentKey, start, end]);
   const ghostText = (bySubject: Record<string, number>) =>
     Object.entries(bySubject)
       .sort((a, b) => b[1] - a[1])
@@ -691,10 +740,16 @@ const TargetFormContent: React.FC<Props> = ({
                 <ClipboardList className="w-3.5 h-3.5" /> Haftalık planda:
               </span>{' '}
               <span className="font-bold text-fg">
-                {selectedStudent ? `${selectedStudent.name.split(' ')[0]} — ` : ''}
+                {kind === 'student' && selectedStudent ? `${selectedStudent.name.split(' ')[0]} — ` : ''}
+                {kind === 'class' && planGhostInfo ? 'öğrenci başına ortalama ' : ''}
                 {ghostText(planCounts.bySubject)} soru
               </span>
-              <span className="block text-[11px] text-muted mt-0.5">Bu sayılar plandan öğrencinin hedeflerine zaten aktarılır; vereceğiniz hedefi buna göre ayarlayın.</span>
+              <span className="block text-[11px] text-muted mt-0.5">
+                {kind === 'class' && planGhostInfo
+                  ? `${planGhostInfo.total} öğrencinin ${planGhostInfo.withPlan} tanesinin planında soru var. `
+                  : ''}
+                Bu sayılar plandan öğrencinin hedeflerine zaten aktarılır; vereceğiniz hedefi buna göre ayarlayın.
+              </span>
             </div>
           )}
           {/* Günlere dağıtım: eşit ya da gün gün farklı */}

@@ -499,7 +499,7 @@ export const Asama25Rehberi: React.FC<{ isOpen: boolean; onClose: () => void }> 
           >
             İşaretleri temizle
           </button>
-          <button type="button" onClick={onClose} className="px-5 py-2 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold cursor-pointer">
+          <button type="button" onClick={onClose} className="px-3.5 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg rounded-xl text-xs font-bold cursor-pointer">
             Kapat
           </button>
         </div>
