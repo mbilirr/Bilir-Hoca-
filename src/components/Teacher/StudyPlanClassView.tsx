@@ -27,7 +27,7 @@ import {
   type PlanItemDraft,
   type StudentBook,
 } from '../../services/studyPlanService';
-import { subjectsForLevel } from '../../lib/subjects';
+import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, chipCls, classLevel, inputCls } from './FormParts';
@@ -67,6 +67,9 @@ const writeJson = (k: string, v: string[]) => {
   }
 };
 
+// Aşama 39: ders adı karşılaştırması (büyük/küçük harf ve Türkçe karakter farkı gözetmez)
+const subjKey = (s?: string | null) => normalizeSubject(s || '').toLocaleLowerCase('tr-TR').trim();
+
 type Notice = { tone: 'success' | 'warning' | 'danger' | 'info'; text: string };
 
 interface Group {
@@ -96,6 +99,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const mySubjects = dataService.getMySubjects();
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
+  // Aşama 39: kurum yöneticisi / genel yönetici olmayan öğretmen planda YALNIZCA kendi branşını görür
+  const restricted = !isAdmin && !!mySubjects;
+  const ownBook = (b: StudentBook) => !restricted || (!!b.subject && (mySubjects || []).some((m) => subjKey(m) === subjKey(b.subject)));
 
   // ---- sınıf / öğrenci seçimi
   const className = useCallback((cid: string) => classes.find((c) => c.id === cid)?.name || students.find((s) => s.classId === cid)?.className || cid, [classes, students]);
@@ -212,9 +218,16 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   // ---- görevleri birleştir (aynı gün + ders + kitap + açıklama = tek kart)
   const viewSet = useMemo(() => new Set(viewIds), [viewIds]);
   const viewItems = useMemo(() => items.filter((i) => viewSet.has(i.studentId)), [items, viewSet]);
+  // Aşama 39: ekranda gösterilen görevler (öğretmen: yalnızca kendi branşı). Yetki/aktarım işlemleri tam listeyle yapılır.
+  const mySubjectsKey = (mySubjects || []).join('|');
+  const shownItems = useMemo(
+    () => (restricted ? viewItems.filter((i) => canSubject(i.subject)) : viewItems),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [viewItems, restricted, mySubjectsKey]
+  );
   const groupsByDay = useMemo(() => {
     const m = new Map<string, Group>();
-    for (const it of viewItems) {
+    for (const it of shownItems) {
       const k = planGroupKey(it);
       const g = m.get(k);
       if (g) {
@@ -226,7 +239,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     for (const g of m.values()) days[g.day].push(g);
     days.forEach((list) => list.sort((a, b) => a.position - b.position || a.subject.localeCompare(b.subject, 'tr')));
     return days;
-  }, [viewItems]);
+  }, [shownItems]);
 
   const targetLabel = useCallback(
     (studentIds: string[]) => {
@@ -248,7 +261,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   );
 
   // ---- gönderim durumu
-  const withItems = useMemo(() => viewStudents.filter((s) => viewItems.some((i) => i.studentId === s.id)), [viewStudents, viewItems]);
+  const withItems = useMemo(() => viewStudents.filter((s) => shownItems.some((i) => i.studentId === s.id)), [viewStudents, shownItems]);
   const sentCount = withItems.filter((s) => headers[s.id]?.sentAt).length;
   const mailedCount = withItems.filter((s) => headers[s.id]?.sentAt && headers[s.id]?.mailedAt).length;
   const anySent = viewStudents.some((s) => headers[s.id]?.sentAt);
@@ -334,7 +347,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       for (const s of targets) {
         const own = viewItems.filter((i) => i.studentId === s.id);
         try {
-          if (own.length) await sendPlan(s.id, weekStart, teacherName);
+          if (shownItems.some((i) => i.studentId === s.id)) await sendPlan(s.id, weekStart, teacherName);
           const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: own, canSubject });
           if (r.subjects.length) topics++;
         } catch {
@@ -593,8 +606,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const [booksOpen, setBooksOpen] = useState(false);
   const bookCount = useMemo(() => {
     const ids = new Set(viewIds);
-    return new Set(books.filter((b) => ids.has(b.studentId)).map((b) => `${b.title.toLocaleLowerCase('tr-TR')}|${b.subject}`)).size;
-  }, [books, viewIds]);
+    return new Set(books.filter((b) => ids.has(b.studentId) && ownBook(b)).map((b) => `${b.title.toLocaleLowerCase('tr-TR')}|${b.subject}`)).size;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books, viewIds, restricted]);
   const booksDescription = useMemo(() => {
     const names = classIds.map((cid) => className(cid)).filter(Boolean);
     const shown = names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', ');
@@ -864,6 +878,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       )}
 
       <StudyPlanTaskModal
+        showAllBooks={isAdmin}
         open={!!taskModal}
         mode={taskModal?.mode || 'add'}
         weekStart={weekStart}
@@ -959,7 +974,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         <CopyWeekModal
           weekStart={weekStart}
           students={withItems}
-          items={viewItems}
+          items={shownItems}
           canSubject={canSubject}
           senderName={teacherName}
           onClose={() => setCopyOpen(false)}
@@ -972,6 +987,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           studentIds={viewIds}
           books={books}
           subjectOptions={subjectOptions}
+          restrictToSubjects={restricted}
           onChange={setBooks}
           onClose={() => setBooksOpen(false)}
         />

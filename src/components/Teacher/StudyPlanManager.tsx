@@ -49,7 +49,7 @@ import {
   type StudentBook,
   type StudyPlan,
 } from '../../services/studyPlanService';
-import { subjectsForLevel } from '../../lib/subjects';
+import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal, Panel, Segmented } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls } from './FormParts';
@@ -127,6 +127,9 @@ const writeStartDay = (v: WeekStartDay) => {
   }
 };
 
+// Aşama 39: ders adı karşılaştırması (büyük/küçük harf ve Türkçe karakter farkı gözetmez)
+const subjKey = (s?: string | null) => normalizeSubject(s || '').toLocaleLowerCase('tr-TR').trim();
+
 type Notice = { tone: 'success' | 'warning' | 'danger' | 'info'; text: string };
 
 interface Props {
@@ -140,6 +143,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const mySubjects = dataService.getMySubjects(); // null = tüm dersler
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
+  // Aşama 39: kurum yöneticisi / genel yönetici olmayan öğretmen planda YALNIZCA kendi branşını görür
+  const restricted = !isAdmin && !!mySubjects;
+  const ownBook = (b: StudentBook) => !restricted || (!!b.subject && (mySubjects || []).some((m) => subjKey(m) === subjKey(b.subject)));
 
   // Aşama 23: Kime? Öğrenci (tek öğrencinin planı) / Sınıf (bir ya da birden çok sınıf, seçili öğrenciler)
   const [mode, setMode] = useState<'student' | 'class'>(readMode);
@@ -333,7 +339,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
   // ---- gönder / geri çek / sil
   const sent = !!plan.header?.sentAt;
-  const doneCount = plan.items.filter((i) => i.doneAt).length;
+  // Aşama 39: ekranda gösterilen görevler (öğretmen: yalnızca kendi branşı). İşlemler tam listeyle yapılır.
+  const shownItems = restricted ? plan.items.filter((i) => canSubject(i.subject)) : plan.items;
+  const doneCount = shownItems.filter((i) => i.doneAt).length;
   const [busy, setBusy] = useState(false);
   // Aşama 22: gönderme penceresi (uygulama + isteğe bağlı e-posta / WhatsApp)
   const [sendModal, setSendModal] = useState<{ students: Student[]; kind: PlanGroupKind; classId?: string; weekStart: string; title?: string } | null>(null);
@@ -370,9 +378,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   };
 
   // ---- dışa aktarma
-  const exportCtx = () => ({ studentName: student?.name || '', className: student?.className || studentClass?.name, weekStart, items: plan.items, showStatus: sent });
+  const exportCtx = () => ({ studentName: student?.name || '', className: student?.className || studentClass?.name, weekStart, items: shownItems, showStatus: sent });
   const doExport = async (kind: 'pdf' | 'excel') => {
-    if (!student || !plan.items.length || busy) return;
+    if (!student || !shownItems.length || busy) return;
     setBusy(true);
     try {
       const mod = await import('../../lib/studyPlanExport');
@@ -454,7 +462,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     );
   }
 
-  const itemsByDay = Array.from({ length: 7 }, (_, d) => plan.items.filter((i) => i.day === d));
+  const itemsByDay = Array.from({ length: 7 }, (_, d) => shownItems.filter((i) => i.day === d));
 
   // Hafta + işlem paneli: öğrenci ve sınıf görünümü sağ sütuna kendi durum/işlem düğmelerini verir.
   const renderWeekNav = (slots: PlanWeekBarSlots = {}) => (
@@ -537,16 +545,16 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                   E-postayla gönderildi
                 </span>
               )}
-              {sent && plan.items.length > 0 && (
+              {sent && shownItems.length > 0 && (
                 <span className="ui-chip ui-chip-info" id="plan-progress">
-                  {doneCount} / {plan.items.length} görev yapıldı
+                  {doneCount} / {shownItems.length} görev yapıldı
                 </span>
               )}
-              <span className="text-xs text-muted">{plan.items.length} görev</span>
+              <span className="text-xs text-muted">{shownItems.length} görev</span>
             </div>
           ),
           statusEnd:
-            plan.items.length > 0 ? (
+            shownItems.length > 0 ? (
               <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
                 <Trash2 className="w-4 h-4" /> Planı temizle
               </button>
@@ -557,7 +565,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                 type="button"
                 id="plan-refresh"
                 className={cx(planMainBtnCls, 'ui-btn-secondary')}
-                disabled={busy || plan.items.length === 0}
+                disabled={busy || shownItems.length === 0}
                 onClick={doRefresh}
                 title="Gönderdikten sonra yaptığınız değişiklikleri öğrenciye ve Soru Kaydet bölümüne yeniden gönderir"
               >
@@ -577,16 +585,16 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               </button>
             </>
           ) : (
-            <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || plan.items.length === 0} onClick={doSend}>
+            <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || shownItems.length === 0} onClick={doSend}>
               <Send className="w-4 h-4 shrink-0" /> Öğrenciye ödev olarak gönder
             </button>
           ),
           actions: (
             <>
-              <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || plan.items.length === 0} onClick={() => doExport('pdf')}>
+              <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || shownItems.length === 0} onClick={() => doExport('pdf')}>
                 <FileText className="w-5 h-5 text-danger-fg" /> PDF
               </button>
-              <button type="button" id="plan-excel" className={planTileCls} disabled={busy || plan.items.length === 0} onClick={() => doExport('excel')}>
+              <button type="button" id="plan-excel" className={planTileCls} disabled={busy || shownItems.length === 0} onClick={() => doExport('excel')}>
                 <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
               </button>
               <button
@@ -599,12 +607,12 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               >
                 <Target className="w-5 h-5 text-warning-fg" /> Soru Kaydet'e aktar
               </button>
-              <button type="button" id="plan-apply" className={planTileCls} disabled={plan.items.length === 0} onClick={() => setApplyOpen(true)}>
+              <button type="button" id="plan-apply" className={planTileCls} disabled={shownItems.length === 0} onClick={() => setApplyOpen(true)}>
                 <Copy className="w-5 h-5 text-info-fg" /> Başkalarına / başka haftaya uygula
               </button>
-              <button type="button" id="plan-books" className={planTileCls} onClick={() => setBooksOpen(true)} aria-label={`Kitaplar (${books.length})`}>
+              <button type="button" id="plan-books" className={planTileCls} onClick={() => setBooksOpen(true)} aria-label={`Kitaplar (${books.filter(ownBook).length})`}>
                 <Library className="w-5 h-5 text-brand-fg" /> Kitaplar
-                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{books.length}</span>
+                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{books.filter(ownBook).length}</span>
               </button>
             </>
           ),
@@ -642,7 +650,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       </div>
 
       {/* Aşama 23: taslak planda gönder düğmesi daha görünür */}
-      {!sent && plan.items.length > 0 && !loading && (
+      {!sent && shownItems.length > 0 && !loading && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-xl border border-warning/40 bg-warning-soft px-4 py-3" id="plan-draft-callout">
           <p className="text-sm text-warning-fg font-semibold flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -754,6 +762,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
       {/* Pencereler */}
       <StudyPlanTaskModal
+        showAllBooks={isAdmin}
         open={!!taskModal}
         mode={taskModal?.mode || 'add'}
         weekStart={weekStart}
@@ -788,7 +797,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         <ApplyPlanModal
           sourceStudent={student}
           sourceWeek={weekStart}
-          items={plan.items}
+          items={shownItems}
           students={sortedStudents}
           classes={classes}
           canSubject={canSubject}
@@ -827,6 +836,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           studentIds={[student.id]}
           books={books}
           subjectOptions={subjectOptions}
+          restrictToSubjects={restricted}
           onChange={setBooks}
           onClose={() => setBooksOpen(false)}
         />

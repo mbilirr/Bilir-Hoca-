@@ -3,6 +3,7 @@ import { BookOpen, ChevronDown, Plus, Search, X, CalendarRange } from 'lucide-re
 import { Modal, cx } from '../ui/kit';
 import { FieldLabel, inputCls } from './FormParts';
 import { PLAN_DAYS, dateOfDay, planDayName, shortDayLabel, type PlanItemDraft, type StudentBook } from '../../services/studyPlanService';
+import { normalizeSubject } from '../../lib/subjects';
 
 // ============================================================================
 // Haftalık plan: görev penceresi (Aşama 19)
@@ -10,6 +11,15 @@ import { PLAN_DAYS, dateOfDay, planDayName, shortDayLabel, type PlanItemDraft, t
 // ============================================================================
 
 const trLower = (s: string) => s.toLocaleLowerCase('tr-TR').trim();
+// Aşama 38: ders adları büyük/küçük harf ve eski adlar ("Fen Bilgisi") farkı gözetmeden karşılaştırılır
+const sameSubject = (a?: string | null, b?: string | null) => trLower(normalizeSubject(a || '')) === trLower(normalizeSubject(b || ''));
+/**
+ * Aşama 38: kitabın seçili derste listelenip listelenmeyeceği.
+ *  - Öğretmen: YALNIZCA seçili dersin kitapları.
+ *  - Yönetici (genel yönetici / kurum yöneticisi): seçili dersin kitapları + dersi belirtilmemiş kitaplar
+ *    (diğer derslerin kitapları ayrı başlık altında ayrıca listelenir).
+ */
+const bookFitsSubject = (b: StudentBook, subject: string, showAll: boolean) => (b.subject ? sameSubject(b.subject, subject) : showAll);
 
 // ----------------------------------------------------------------------------- Kitap seçici
 export const BookPicker: React.FC<{
@@ -18,7 +28,9 @@ export const BookPicker: React.FC<{
   books: StudentBook[];
   subject: string;
   ownerLabel?: string; // Aşama 23: "Bu öğrenci" / "Seçilen öğrenciler"
-}> = ({ value, onChange, books, subject, ownerLabel = 'Bu öğrenci' }) => {
+  /** Aşama 38: yönetici bütün kitapları görür (seçili dersinkiler önce) */
+  showAll?: boolean;
+}> = ({ value, onChange, books, subject, ownerLabel = 'Bu öğrenci', showAll = false }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -39,16 +51,18 @@ export const BookPicker: React.FC<{
 
   const q = trLower(query);
   const typed = query.trim();
-  // Aşama 21: yalnızca seçilen derse ait kitaplar (ve "her ders" için kaydedilenler) listelenir
-  const { mine, general } = useMemo(() => {
+  // Aşama 21 / 38: öğretmende YALNIZCA seçilen dersin kitapları; yöneticide ayrıca dersi belirtilmemiş ve
+  // diğer derslerin kitapları (ayrı başlıklar altında)
+  const { mine, general, others } = useMemo(() => {
     const match = (b: StudentBook) => !q || trLower(b.title).includes(q);
     return {
-      mine: books.filter((b) => !!b.subject && b.subject === subject && match(b)),
-      general: books.filter((b) => !b.subject && match(b)),
+      mine: books.filter((b) => !!b.subject && sameSubject(b.subject, subject) && match(b)),
+      general: showAll ? books.filter((b) => !b.subject && match(b)) : [],
+      others: showAll ? books.filter((b) => !!b.subject && !sameSubject(b.subject, subject) && match(b)) : [],
     };
-  }, [books, subject, q]);
-  const subjectBookCount = books.filter((b) => !b.subject || b.subject === subject).length;
-  const exact = books.some((b) => (!b.subject || b.subject === subject) && trLower(b.title) === q);
+  }, [books, subject, q, showAll]);
+  const subjectBookCount = books.filter((b) => bookFitsSubject(b, subject, showAll)).length;
+  const exact = books.some((b) => bookFitsSubject(b, subject, showAll) && trLower(b.title) === q);
 
   const pick = (title: string) => {
     onChange(title);
@@ -97,14 +111,25 @@ export const BookPicker: React.FC<{
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (typed) pick([...mine, ...general].find((b) => trLower(b.title) === q)?.title || typed);
+                    if (typed) pick([...mine, ...general, ...others].find((b) => trLower(b.title) === q)?.title || typed);
                   }
                 }}
                 placeholder="Kitap adını yazın ya da arayın…"
                 className={cx(inputCls, 'pl-8 py-1.5')}
               />
             </div>
-            <p className="text-[11px] text-muted mt-1">Yalnızca <strong>{subject || 'seçilen ders'}</strong> kitapları listelenir. Kitap listede yoksa adını buraya yazıp onaylayın; bu dersin kitabı olarak eklenir.</p>
+            <p className="text-[11px] text-muted mt-1">
+              {showAll ? (
+                <>
+                  Önce <strong>{subject || 'seçilen ders'}</strong> kitapları, sonra diğerleri listelenir (yönetici görünümü).
+                </>
+              ) : (
+                <>
+                  Yalnızca <strong>{subject || 'seçilen ders'}</strong> kitapları listelenir.
+                </>
+              )}{' '}
+              Kitap listede yoksa adını buraya yazıp onaylayın; bu dersin kitabı olarak eklenir.
+            </p>
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
             {typed && !exact && (
@@ -130,6 +155,16 @@ export const BookPicker: React.FC<{
               <>
                 <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle">Her derste kullanılan kitaplar</p>
                 {general.map((b) => (
+                  <BookRow key={b.id} book={b} active={b.title === value} onPick={() => pick(b.title)} />
+                ))}
+              </>
+            )}
+            {others.length > 0 && (
+              <>
+                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-subtle" id="plan-book-others-head">
+                  Diğer derslerin kitapları
+                </p>
+                {others.map((b) => (
                   <BookRow key={b.id} book={b} active={b.title === value} onPick={() => pick(b.title)} />
                 ))}
               </>
@@ -181,9 +216,11 @@ export interface TaskModalProps {
   targetSlot?: React.ReactNode;
   validateTarget?: () => string | null;
   bookOwnerLabel?: string;
+  /** Aşama 38: yönetici kitap listesinde bütün kitapları görür */
+  showAllBooks?: boolean;
 }
 
-export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekStart, initial, subjectOptions, books, studentName, onClose, onSave, targetSlot, validateTarget, bookOwnerLabel }) => {
+export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekStart, initial, subjectOptions, books, studentName, onClose, onSave, targetSlot, validateTarget, bookOwnerLabel, showAllBooks = false }) => {
   const [day, setDay] = useState(initial.day);
   const [subject, setSubject] = useState(initial.subject || subjectOptions[0] || '');
   const [book, setBook] = useState(initial.book);
@@ -284,8 +321,8 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
                 // Aşama 21: seçili kitap başka bir derse aitse ders değişince kitap seçimi kalkar
                 const t = trLower(book);
                 if (t) {
-                  const fitsNext = books.some((b) => (!b.subject || b.subject === next) && trLower(b.title) === t);
-                  const ofOther = books.some((b) => !!b.subject && b.subject !== next && trLower(b.title) === t);
+                  const fitsNext = books.some((b) => bookFitsSubject(b, next, showAllBooks) && trLower(b.title) === t);
+                  const ofOther = books.some((b) => !!b.subject && !sameSubject(b.subject, next) && trLower(b.title) === t);
                   if (ofOther && !fitsNext) setBook('');
                 }
                 setSubject(next);
@@ -303,7 +340,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
         </div>
         <div>
           <FieldLabel optional>Kitap</FieldLabel>
-          <BookPicker value={book} onChange={setBook} books={books} subject={subject} ownerLabel={bookOwnerLabel} />
+          <BookPicker value={book} onChange={setBook} books={books} subject={subject} ownerLabel={bookOwnerLabel} showAll={showAllBooks} />
         </div>
         <div>
           <FieldLabel htmlFor="plan-task-note" optional>

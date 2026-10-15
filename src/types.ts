@@ -195,6 +195,8 @@ export interface Etut {
   createdByName?: string;
   recurrenceGroupId?: string; // Tekrarlayan etütlerde ortak kimlik
   mailMode?: 'scheduled' | 'off'; // Aşama 19: 'scheduled' = e-posta etüt gününde otomatik gider, 'off' = e-posta gitmez; boşsa kaydedilirken gider
+  /** Aşama 40 (mahremiyet): başka öğretmenin etüdü — yalnızca gün/saat/öğretmen/sınıf bilgisi gelir; değiştirilemez */
+  privacyRedacted?: boolean;
 }
 
 export interface WeeklyQuestionTarget {

@@ -29,7 +29,9 @@ export function hasEtutAttendance(etut: Pick<Etut, 'studentAttendance'>): boolea
 }
 
 // Yoklama beklenen etüt mü? (öğrencisi olmayan etütte yoklama alınamaz)
-export function etutExpectsAttendance(etut: Pick<Etut, 'assignedStudentIds'>): boolean {
+export function etutExpectsAttendance(etut: Pick<Etut, 'assignedStudentIds'> & Partial<Pick<Etut, 'privacyRedacted'>>): boolean {
+  // Aşama 40: başka öğretmenin etüdünde yoklama durumu görünmez; "yoklama alınmadı" uyarısı da çıkmaz
+  if (etut.privacyRedacted) return false;
   const a = etut.assignedStudentIds;
   return a === 'all' || (Array.isArray(a) && a.length > 0);
 }

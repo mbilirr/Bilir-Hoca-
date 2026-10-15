@@ -3,6 +3,7 @@ import { Check, Library, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { addBook, addBookForStudents, deleteBooks, renameBooks, type StudentBook } from '../../services/studyPlanService';
 import { cx, Modal } from '../ui/kit';
 import { FieldLabel, inputCls } from './FormParts';
+import { normalizeSubject } from '../../lib/subjects';
 
 // ============================================================================
 // Kitap tanımlama penceresi — öğrenci ve sınıf görünümünün ortak penceresi
@@ -15,6 +16,7 @@ import { FieldLabel, inputCls } from './FormParts';
 const ALL_SUBJECTS = 'Her ders';
 const keyOf = (title: string, subject: string) => `${title.toLocaleLowerCase('tr-TR')}|${subject}`;
 const byTitle = (a: StudentBook, b: StudentBook) => a.title.localeCompare(b.title, 'tr');
+const subjKey = (s?: string | null) => normalizeSubject(s || '').toLocaleLowerCase('tr-TR').trim();
 
 interface BookEntry {
   key: string;
@@ -31,9 +33,11 @@ export const StudyPlanBooksModal: React.FC<{
   subjectOptions: string[];
   onChange: (b: StudentBook[]) => void;
   onClose: () => void;
-}> = ({ title: modalTitle, description, studentIds, books, subjectOptions, onChange, onClose }) => {
+  /** Aşama 39: öğretmen (yönetici değil) yalnızca kendi branşının kitaplarını görür ve ekler */
+  restrictToSubjects?: boolean;
+}> = ({ title: modalTitle, description, studentIds, books, subjectOptions, onChange, onClose, restrictToSubjects = false }) => {
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(restrictToSubjects ? subjectOptions[0] || '' : '');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -45,7 +49,11 @@ export const StudyPlanBooksModal: React.FC<{
   const ids = useMemo(() => Array.from(new Set(studentIds)), [studentIds]);
   const multi = ids.length > 1;
   const idSet = useMemo(() => new Set(ids), [ids]);
-  const visible = useMemo(() => books.filter((b) => idSet.has(b.studentId)), [books, idSet]);
+  const ownKeys = useMemo(() => new Set(subjectOptions.map(subjKey)), [subjectOptions]);
+  const visible = useMemo(
+    () => books.filter((b) => idSet.has(b.studentId) && (!restrictToSubjects || (!!b.subject && ownKeys.has(subjKey(b.subject))))),
+    [books, idSet, restrictToSubjects, ownKeys]
+  );
 
   // Ders başlığına göre gruplanmış, aynı kitabı tek satırda toplayan liste
   const groups = useMemo(() => {
@@ -208,7 +216,7 @@ export const StudyPlanBooksModal: React.FC<{
               Ders
             </FieldLabel>
             <select id="book-subject" value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
-              <option value="">{ALL_SUBJECTS}</option>
+              {!restrictToSubjects && <option value="">{ALL_SUBJECTS}</option>}
               {subjectOptions.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -284,7 +292,7 @@ export const StudyPlanBooksModal: React.FC<{
                               onChange={(e) => setDraftSubject(e.target.value)}
                               className={cx(inputCls, 'w-auto sm:w-40 py-1.5')}
                             >
-                              <option value="">{ALL_SUBJECTS}</option>
+                              {!restrictToSubjects && <option value="">{ALL_SUBJECTS}</option>}
                               {subjectsFor(entry.subject).map((s) => (
                                 <option key={s} value={s}>
                                   {s}
@@ -346,7 +354,7 @@ export const StudyPlanBooksModal: React.FC<{
                                 onChange={(e) => void changeSubject(entry, e.target.value)}
                                 className="h-8 max-w-[7.5rem] sm:max-w-[10rem] rounded-lg border border-line bg-surface px-1.5 text-xs font-medium text-fg-2 cursor-pointer hover:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
-                                <option value="">{ALL_SUBJECTS}</option>
+                                {!restrictToSubjects && <option value="">{ALL_SUBJECTS}</option>}
                                 {subjectsFor(entry.subject).map((s) => (
                                   <option key={s} value={s}>
                                     {s}

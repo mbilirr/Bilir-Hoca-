@@ -19,6 +19,7 @@ import {
   AlertCircle,
   LayoutGrid,
   List,
+  Lock,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
@@ -149,7 +150,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
     const q = query.trim().toLocaleLowerCase('tr-TR');
     if (!q) return etuts;
     return etuts.filter((e) => {
-      const names = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.map((id) => studentNameById.get(id) || '') : [];
+      const names = !e.privacyRedacted && Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.map((id) => studentNameById.get(id) || '') : [];
       const hay = [e.subject, e.topic, e.location, e.notes, ...etutTeacherNames(e), ...names].join(' ').toLocaleLowerCase('tr-TR');
       return hay.includes(q);
     });
@@ -216,15 +217,23 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
       fn?.(etut);
       afterAction?.();
     };
+    // Aşama 40: başka öğretmenin etüdü — yalnızca takvime ekleme; yoklama/düzenleme/silme/kopyalama/bildirim yok
+    const locked = readOnly || !!etut.privacyRedacted;
     return (
       <div className="flex flex-wrap items-center gap-1">
-        {!readOnly && onAttendanceEtut && (
+        {etut.privacyRedacted && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
+            <Lock className="w-3.5 h-3.5" />
+            {labels && 'Başka öğretmenin etüdü'}
+          </span>
+        )}
+        {!locked && onAttendanceEtut && (
           <button type="button" onClick={run(onAttendanceEtut)} className={`${base} ${pad}`} title="Yoklama al / devamsızlık">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
             {labels && 'Yoklama'}
           </button>
         )}
-        {!readOnly && onNotifyEtut && (
+        {!locked && onNotifyEtut && (
           <button type="button" onClick={run(onNotifyEtut)} className={`${base} ${pad}`} title="WhatsApp ve mail ile ilet">
             <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
             {labels && 'Bildir'}
@@ -260,19 +269,19 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           <CalendarIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
           {labels && '.ics'}
         </button>
-        {!readOnly && onCopyEtut && (
+        {!locked && onCopyEtut && (
           <button type="button" onClick={run(onCopyEtut)} className={`${base} ${pad}`} title="Kopyala (başka tarihe yeniden tanımla)">
             <Copy className="w-3.5 h-3.5" />
             {labels && 'Kopyala'}
           </button>
         )}
-        {!readOnly && onEditEtut && (
+        {!locked && onEditEtut && (
           <button type="button" onClick={run(onEditEtut)} className={`${base} ${pad}`} title="Düzenle">
             <Edit2 className="w-3.5 h-3.5" />
             {labels && 'Düzenle'}
           </button>
         )}
-        {!readOnly && onDeleteEtut && (
+        {!locked && onDeleteEtut && (
           <button type="button" onClick={run(onDeleteEtut)} className={`${base} ${pad}`} title="Sil">
             <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             {labels && 'Sil'}
@@ -316,7 +325,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         </div>
         {etut.topic && <div className="text-[10px] text-fg-2 truncate leading-tight mt-0.5">{etut.topic}</div>}
         <div className="text-[10px] text-muted truncate leading-tight">
-          {[teachers[0] ? teachers[0].split(' ')[0] + (teachers.length > 1 ? ` +${teachers.length - 1}` : '') : '', studentsSummary(etut.assignedStudentIds, true)]
+          {[teachers[0] ? teachers[0].split(' ')[0] + (teachers.length > 1 ? ` +${teachers.length - 1}` : '') : '', etut.privacyRedacted ? '' : studentsSummary(etut.assignedStudentIds, true)]
             .filter(Boolean)
             .join(' · ')}
         </div>
@@ -363,7 +372,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           )}
           <div className="flex items-center gap-1 truncate">
             <Users className="w-3 h-3 text-indigo-500 shrink-0" />
-            <span className="truncate">{studentsSummary(etut.assignedStudentIds)}</span>
+            <span className="truncate">{etut.privacyRedacted ? 'Başka öğretmenin etüdü' : studentsSummary(etut.assignedStudentIds)}</span>
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 flex-wrap mt-2 pt-2 border-t border-black/5 dark:border-white/10">
@@ -590,8 +599,9 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         const st = ETUT_STATUS_STYLE[status];
         const missing = isEtutAttendanceMissing(openEtut, now);
         const teachers = etutTeacherNames(openEtut);
-        const assignedList =
-          openEtut.assignedStudentIds === 'all'
+        const assignedList = openEtut.privacyRedacted
+          ? []
+          : openEtut.assignedStudentIds === 'all'
             ? null
             : (openEtut.assignedStudentIds as string[]).map((id) => ({ id, name: studentNameById.get(id) || 'Öğrenci', att: openEtut.studentAttendance?.[id]?.status }));
         const dateText = (() => {

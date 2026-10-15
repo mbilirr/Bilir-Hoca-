@@ -3480,6 +3480,80 @@ export class DataService {
     return this.myKurum.supported && !this.isHeadAdmin() && this.myKurum.kurumAdmin;
   }
 
+  // ===========================================================================
+  // Aşama 40: MAHREMİYET — bir öğretmenin çalışmasını (etüt ayrıntıları, ödev) kim görebilir?
+  //  - Çalışmanın sahibi öğretmen(ler)
+  //  - Genel yönetici (her şeyi görür)
+  //  - Kurum yöneticisi: YALNIZCA kendi kurumuna kayıtlı öğretmenlerin çalışmaları
+  //    (genel yöneticinin kaydettiği öğretmenlerin çalışmaları kurum yöneticisine görünmez)
+  //  - Diğer öğretmenler: göremez (etütte yalnızca gün / saat / öğretmen / sınıf bilgisi)
+  // ===========================================================================
+  private privacyFold(v?: string | null): string {
+    return (v || '').trim().toLocaleLowerCase('tr-TR');
+  }
+  /** Etüdün sahibi öğretmen mi (kaydeden ya da etüt öğretmeni; eski kayıtlarda ad eşleşmesi) */
+  public isMyEtut(e: Etut): boolean {
+    const me = this.getCurrentTeacher();
+    if (!me) return false;
+    if (e.createdById && e.createdById === me.id) return true;
+    if (e.teacherId && e.teacherId === me.id) return true;
+    if (e.teacherIds && e.teacherIds.includes(me.id)) return true;
+    const myName = this.privacyFold(me.name);
+    if (!myName) return false;
+    if (!e.teacherId && !(e.teacherIds && e.teacherIds.length) && this.privacyFold(e.teacherName) === myName) return true;
+    if (!e.createdById && this.privacyFold(e.createdByName) === myName) return true;
+    return false;
+  }
+  /** Verilen öğretmen kimliklerinden biri oturumdaki kurum yöneticisinin kurumuna kayıtlı mı */
+  private ownersInMyKurum(ownerIds: Array<string | undefined | null>): boolean {
+    if (!this.isKurumAdmin()) return false;
+    const kid = this.getMyKurumId();
+    if (!kid) return false;
+    return ownerIds.some((id) => !!id && this.teachers.some((t) => t.id === id && (t.kurumId || null) === kid));
+  }
+  /** Etüdün özel bilgilerini (yorum, not, konu, yoklama) görebilir mi */
+  public canSeeEtutDetails(e: Etut): boolean {
+    const session = this.getAuthSession();
+    if (session?.role !== 'teacher') return false;
+    if (this.isHeadAdmin()) return true;
+    if (this.isMyEtut(e)) return true;
+    return this.ownersInMyKurum([e.createdById, e.teacherId, ...(e.teacherIds || [])]);
+  }
+  /** Başka öğretmenin etüdü: yalnızca gün / saat / öğretmen / sınıf / ders / yer görünür (konu, not, görüş, yoklama silinir) */
+  private redactEtut(e: Etut): Etut {
+    return {
+      ...e,
+      topic: '',
+      notes: '',
+      teacherFeedback: '',
+      // Öğrenci listesi yalnızca çakışma denetimi için tutulur; ekranlarda gösterilmez
+      studentAttendance: undefined,
+      attendanceTakenBy: undefined,
+      privacyRedacted: true,
+    };
+  }
+  private assertEtutEditable(id: string): void {
+    const e = this.etuts.find((x) => x.id === id);
+    if (e && this.getAuthSession()?.role === 'teacher' && !this.canSeeEtutDetails(e)) {
+      throw new Error('Bu etüt başka bir öğretmene ait; yalnızca etüdü veren öğretmen ve yönetici değiştirebilir.');
+    }
+  }
+  /** Ödevin sahibi öğretmen mi */
+  private isMyHomework(hw: Homework, teacher?: Teacher | null): boolean {
+    const me = teacher || this.getCurrentTeacher();
+    if (!me) return false;
+    return (!!me.auth_user_id && hw.teacherAuthId === me.auth_user_id) || hw.teacherId === me.id || (!!me.name && hw.createdByName === me.name);
+  }
+  /** Ödevin sahibi öğretmen(ler)in kimlikleri (kimlik ya da giriş hesabı ya da ad eşleşmesiyle) */
+  private homeworkOwnerIds(hw: Homework): string[] {
+    const ids = new Set<string>();
+    if (hw.teacherId) ids.add(hw.teacherId);
+    for (const t of this.teachers) {
+      if ((hw.teacherAuthId && t.auth_user_id === hw.teacherAuthId) || (!hw.teacherId && !hw.teacherAuthId && hw.createdByName && t.name === hw.createdByName)) ids.add(t.id);
+    }
+    return Array.from(ids);
+  }
+
   public getMyKurumId(): string | null {
     if (!this.myKurum.supported || this.isHeadAdmin()) return null;
     return this.myKurum.kurumId || null;
@@ -7210,6 +7284,7 @@ export class DataService {
   }
 
   public async updateEtut(id: string, updates: Partial<Etut>): Promise<void> {
+    this.assertEtutEditable(id); // Aşama 40
     const prevEtutsOnUpdate = JSON.parse(JSON.stringify(this.etuts));
 
     this.etuts = this.etuts.map((e) => (e.id === id ? { ...e, ...updates } : e));
@@ -7246,6 +7321,7 @@ export class DataService {
   ): Promise<void> {
     const etutIndex = this.etuts.findIndex((e) => e.id === etutId);
     if (etutIndex === -1) return;
+    this.assertEtutEditable(etutId); // Aşama 40
 
     const prevEtutsOnAttendance = JSON.parse(JSON.stringify(this.etuts));
     const currentEtut = this.etuts[etutIndex];
@@ -7308,6 +7384,7 @@ export class DataService {
   }
 
   public async deleteEtut(id: string): Promise<void> {
+    this.assertEtutEditable(id); // Aşama 40
     const prevEtutsOnDelete = JSON.parse(JSON.stringify(this.etuts));
     const prevDeletedEtutIds = new Set(this.deletedEtutIds);
 
@@ -7955,7 +8032,8 @@ export class DataService {
   }
 
   public getHomeworks(forTeacherId?: string): Homework[] {
-    return this.memoView('Homeworks:' + (forTeacherId || ''), [this.homeworks, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeHomeworks(forTeacherId));
+    const k = this.myKurum;
+    return this.memoView('Homeworks:' + (forTeacherId || ''), [this.homeworks, this.teachers, this.classes, this.students], this.viewKey(`${forTeacherId || ''}|${k.head ? 1 : 0}${k.kurumAdmin ? 1 : 0}${k.kurumId || ''}`), () => this.computeHomeworks(forTeacherId));
   }
   private computeHomeworks(forTeacherId?: string): Homework[] {
     const session = this.getAuthSession();
@@ -7966,8 +8044,12 @@ export class DataService {
         (t) => t.id === teacherId || t.username?.toLowerCase() === session?.user.username?.toLowerCase()
       );
 
-      // Yönetici tüm ödevleri görebilir
+      // Aşama 40: genel yönetici tüm ödevleri görür; kurum yöneticisi kendi ödevlerini ve YALNIZCA kendi kurumuna
+      // kayıtlı öğretmenlerin ödevlerini görür (genel yöneticinin öğretmenlerinin ödevleri görünmez)
       if (this.isTeacherAdmin(teacher)) {
+        if (!forTeacherId && session?.role === 'teacher' && this.isKurumAdmin()) {
+          return this.homeworks.filter((hw) => this.isMyHomework(hw, teacher) || this.ownersInMyKurum(this.homeworkOwnerIds(hw)));
+        }
         return [...this.homeworks];
       }
 
@@ -7991,7 +8073,8 @@ export class DataService {
   }
 
   public getEtuts(forTeacherId?: string): Etut[] {
-    return this.memoView('Etuts:' + (forTeacherId || ''), [this.etuts, this.teachers, this.classes, this.students], this.viewKey(forTeacherId || ''), () => this.computeEtuts(forTeacherId));
+    const k = this.myKurum;
+    return this.memoView('Etuts:' + (forTeacherId || ''), [this.etuts, this.teachers, this.classes, this.students], this.viewKey(`${forTeacherId || ''}|${k.head ? 1 : 0}${k.kurumAdmin ? 1 : 0}${k.kurumId || ''}`), () => this.computeEtuts(forTeacherId));
   }
   private computeEtuts(forTeacherId?: string): Etut[] {
     const session = this.getAuthSession();
@@ -7999,6 +8082,10 @@ export class DataService {
     // Öğretmen ve Yönetici Görünümü:
     // Bilgisayar, tablet ve telefondan açılan tüm oturumlarda kurumdaki planlı etütlerin eksiksiz görünmesi sağlanır
     if (forTeacherId || session?.role === 'teacher') {
+      // Aşama 40: başka öğretmenin etüdünde yalnızca gün / saat / öğretmen / sınıf bilgisi görünür
+      if (session?.role === 'teacher' && !this.isHeadAdmin()) {
+        return this.etuts.map((e) => (this.canSeeEtutDetails(e) ? e : this.redactEtut(e)));
+      }
       return [...this.etuts];
     }
 
@@ -8007,7 +8094,12 @@ export class DataService {
       const student = this.students.find((s) => s.id === studentId);
       const studentGrade = student?.className;
 
-      return this.etuts.filter((e) => {
+      // Aşama 40: öğrenci başka öğrencilerin yoklama notlarını almaz (yalnızca kendi satırı)
+      const ownOnly = (e: Etut): Etut =>
+        e.studentAttendance
+          ? { ...e, studentAttendance: e.studentAttendance[studentId] ? { [studentId]: e.studentAttendance[studentId] } : {} }
+          : e;
+      return this.etuts.map(ownOnly).filter((e) => {
         // 1. Genel herkese açık etütler
         if (e.assignedStudentIds === 'all') return true;
         // 2. Bireysel seçilmiş öğrenci

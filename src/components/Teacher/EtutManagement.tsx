@@ -35,6 +35,7 @@ import {
   MessageSquareQuote,
   ChevronDown,
   Copy,
+  Lock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
@@ -624,8 +625,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         )}
         <div className="space-y-2" id="etut-list-grid">
           {pagedListEtuts.visible.map((etut) => {
-            const assignedStudents =
-              etut.assignedStudentIds === 'all'
+            const assignedStudents = etut.privacyRedacted
+              ? []
+              : etut.assignedStudentIds === 'all'
                 ? students
                 : students.filter((s) => (etut.assignedStudentIds as string[]).includes(s.id));
             const att = etut.studentAttendance ? Object.values(etut.studentAttendance) : [];
@@ -697,6 +699,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                   </div>
                 }
                 actions={
+                  etut.privacyRedacted ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted px-2" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
+                      <Lock className="w-3.5 h-3.5" /> Başka öğretmenin etüdü
+                    </span>
+                  ) : (
                   <>
                     <StripAction label="Yoklama Al" tone="success" onClick={() => setSelectedEtutForAttendance(etut)}>
                       <CheckCircle2 className="w-4 h-4" />
@@ -711,6 +718,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       <Trash2 className="w-4 h-4" />
                     </StripAction>
                   </>
+                  )
                 }
               >
                 <div className="grid gap-4 lg:grid-cols-2" data-etut-detail>
@@ -749,6 +757,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       </div>
                     )}
                     <div className="flex flex-wrap gap-2 pt-1">
+                      {!etut.privacyRedacted && (
                       <button
                         type="button"
                         onClick={() => {
@@ -760,6 +769,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                       >
                         <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" /> WhatsApp / Mail
                       </button>
+                      )}
                       <a
                         href={createGoogleCalendarUrlForEtut(etut)}
                         target="_blank"
@@ -838,7 +848,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
       {/* DEDICATED SIMPLE ETÜT DEVAMSIZLIK ARAYÜZÜ */}
       {viewMode === 'attendance' && (() => {
-        const attEtuts = listEtuts;
+        // Aşama 40: başka öğretmenin etüdünün yoklaması alınamaz / görülemez
+        const attEtuts = listEtuts.filter((e) => !e.privacyRedacted);
         const currentAttendanceEtut =
           attEtuts.find((e) => e.id === selectedAttendanceEtutId) || attEtuts[0] || null;
 
@@ -1268,7 +1279,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
       {/* Etüt listesi indirme penceresi (Aşama 27; yalnızca açıkken çizilir) */}
       {isScheduleExportOpen && (
-        <EtutScheduleExportModal onClose={() => setIsScheduleExportOpen(false)} etuts={activeEtuts} students={students} classes={classes} />
+        <EtutScheduleExportModal onClose={() => setIsScheduleExportOpen(false)} etuts={activeEtuts.filter((e) => !e.privacyRedacted)} students={students} classes={classes} />
       )}
 
       {/* Etüt Analizi (yalnızca açıkken çizilir; her açılışta durum sıfırlanır) */}
@@ -1278,7 +1289,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             setIsReportModalOpen(false);
             setReportSelectedStudentId(undefined);
           }}
-          etuts={etuts}
+          etuts={etuts.filter((e) => !e.privacyRedacted) /* Aşama 40: başka öğretmenin etüdü rapora girmez */}
           students={students}
           classes={classes}
           preselectedStudentId={reportSelectedStudentId}

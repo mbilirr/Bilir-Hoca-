@@ -340,7 +340,7 @@ export const TeacherStatsOverview: React.FC<TeacherStatsOverviewProps> = ({
                 <span className="text-[#0f172a] font-bold">
                   {nextEtut.date === todayStr ? 'Bugün' : nextEtut.date} {nextEtut.time}
                 </span>{' '}
-                • {nextEtut.subject} ({nextEtut.topic})
+                • {nextEtut.subject}{nextEtut.topic ? ` (${nextEtut.topic})` : ''}
               </p>
             ) : (
               <p className="text-xs text-slate-400 mt-2">
