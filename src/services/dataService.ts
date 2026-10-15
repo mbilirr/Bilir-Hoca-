@@ -3387,6 +3387,7 @@ export class DataService {
         this.refreshPendingApplicationCount(),
         this.syncMyTeacherAccess(),
         this.syncMyKurum(),
+        this.backgroundDue('planWeekStarts', isBackground) ? this.syncPlanWeekStarts() : Promise.resolve(),
       ]);
       this.lastFullSyncAt = Date.now();
       this.notify();
@@ -3441,6 +3442,61 @@ export class DataService {
   // gereksiz düğmeleri gizler. SQL çalıştırılmadıysa eski davranış sürer.
   // ===========================================================================
   private myKurum: MyKurumState = { ...EMPTY_KURUM_STATE, ...loadMyKurumCache() };
+
+  // ===========================================================================
+  // Aşama 43: ÖĞRENCİNİN HAFTASI — öğretmenin haftalık planı hangi günden başlıyorsa öğrencinin soru hedefi
+  // ve soru kaydı haftası da o günden başlar (Soru Kaydet, Soru Takibi, özetler, grafikler, hedef formu).
+  // Ölçüt: öğrenciye gönderilmiş, bugün ya da daha önce başlamış EN SON plan. Plan yoksa Pazartesi.
+  // ===========================================================================
+  private static PLAN_WEEK_STARTS_KEY = 'edu_plan_week_starts_v1';
+  private planWeekStarts: Record<string, string> = (() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(DataService.PLAN_WEEK_STARTS_KEY) || '{}');
+      return v && typeof v === 'object' ? v : {};
+    } catch {
+      return {};
+    }
+  })();
+  /** Öğrencinin haftasının başladığı gün: 0 = Pazar, 1 = Pazartesi … 6 = Cumartesi */
+  public getStudentWeekStartDay(studentId?: string | null): number {
+    const ws = studentId ? this.planWeekStarts[studentId] : '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ws || '');
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]).getDay() : 1;
+  }
+  /** Öğrencilerin son gönderilen planlarının başlangıç günlerini veritabanından okur */
+  public async syncPlanWeekStarts(): Promise<void> {
+    if (!(await this.hasCloudSession())) return;
+    try {
+      const ymdOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const today = new Date();
+      const from = new Date(today);
+      from.setDate(from.getDate() - 70);
+      const res = await supabase
+        .from('study_plans')
+        .select('student_id,week_start')
+        .not('sent_at', 'is', null)
+        .gte('week_start', ymdOf(from))
+        .lte('week_start', ymdOf(today))
+        .order('week_start', { ascending: false })
+        .limit(5000);
+      if (res.error || !Array.isArray(res.data)) return;
+      const next: Record<string, string> = {};
+      for (const r of res.data as any[]) {
+        const sid = String(r.student_id || '');
+        if (sid && !next[sid]) next[sid] = String(r.week_start || '').slice(0, 10);
+      }
+      if (JSON.stringify(next) === JSON.stringify(this.planWeekStarts)) return;
+      this.planWeekStarts = next;
+      try {
+        localStorage.setItem(DataService.PLAN_WEEK_STARTS_KEY, JSON.stringify(next));
+      } catch {
+        /* tarayıcı kaydı kapalı */
+      }
+      this.notify();
+    } catch {
+      /* ağ hatası: önceki bilgiyle devam */
+    }
+  }
 
   public async syncMyKurum(): Promise<void> {
     const session = this.getAuthSession();
@@ -9297,7 +9353,7 @@ export class DataService {
 
   /**
    * Aşama 30 (eksikti — "Soru takibine aktar" düğmesi bu yüzden hata veriyordu):
-   * Bu öğretmenin, öğrenci için verilen tarih aralığına denk gelen plan KONU kayıtları (gerçek hedefler değil).
+   * Bu öğretmenin, öğrenci için verilen tarih aralığına denk gelen PLAN kayıtları (konu kayıtları ve Aşama 43 ile plandaki soru sayılarından oluşan hedefler).
    */
   public getMyPlanTopicRecords(studentId: string, rangeStart: string, rangeEnd: string): WeeklyQuestionTarget[] {
     const mine = this.myQuestionTargetOwnerKeys();
@@ -9305,8 +9361,7 @@ export class DataService {
       (t) =>
         !this.isClassQuestionTarget(t) &&
         t.studentId === studentId &&
-        isPlanTopicRecord(t) &&
-        isPendingPlanTarget(t) &&
+        isPlanTopicRecord(t) && // Aşama 43: konu kayıtları VE plandaki soru sayılarından oluşan hedefler
         mine.has(this.questionTargetOwnerKey(t)) &&
         this.questionTargetOverlaps(t, rangeStart, rangeEnd)
     );

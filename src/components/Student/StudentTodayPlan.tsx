@@ -151,6 +151,11 @@ export const StudentTodayPlan: React.FC<{
                 <BookOpen className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} /> {it.book}
               </span>
             )}
+            {it.questionCount > 0 && (
+              <span className={cx('inline-flex px-2 py-0.5 rounded-full bg-white text-indigo-800 font-black', compact ? 'text-[10px]' : 'text-[11px]')} data-task-qcount>
+                {it.questionCount} soru
+              </span>
+            )}
           </div>
           {it.note && (
             <p className={cx('font-medium whitespace-pre-wrap break-words', compact ? 'text-xs' : 'text-sm', done && 'line-through')}>{it.note}</p>

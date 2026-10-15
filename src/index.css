@@ -146,17 +146,18 @@
   }
 
   /* Düğmeler */
+  /* Aşama 42: düğmeler sistem genelinde daha kompakt (yazı, simge ve iç boşluk orantılı küçültüldü) */
   .ui-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer select-none whitespace-nowrap disabled:opacity-55 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-[0.8125rem] leading-5 font-semibold transition-colors cursor-pointer select-none whitespace-nowrap disabled:opacity-55 disabled:cursor-not-allowed;
   }
   .ui-btn-sm {
-    @apply px-3 py-1.5 text-xs gap-1.5 rounded-lg;
+    @apply px-2.5 py-1 text-xs leading-4 gap-1 rounded-md;
   }
   .ui-btn-lg {
-    @apply px-5 py-2.5 text-base;
+    @apply px-4 py-2 text-sm;
   }
   .ui-btn-icon {
-    @apply p-2 gap-0;
+    @apply p-1.5 gap-0;
   }
   .ui-btn-primary {
     @apply bg-brand text-white hover:bg-brand-hover shadow-sm;
@@ -178,6 +179,16 @@
   }
   .ui-btn-danger-soft {
     @apply bg-danger-soft text-danger-fg hover:brightness-95 dark:hover:brightness-125;
+  }
+
+  /* Dokunmatik ekranlarda parmakla rahat basılabilsin (görünüm yine kompakt) */
+  @media (pointer: coarse) {
+    .ui-btn {
+      min-height: 2.25rem;
+    }
+    .ui-btn-sm {
+      min-height: 2rem;
+    }
   }
 
   /* Form alanları */
@@ -478,4 +489,16 @@ html, body {
   .fixed.bottom-0[class*='backdrop-blur'] {
     background-color: var(--color-surface) !important;
   }
+}
+
+/* Aşama 42: düğme içindeki simgeler yazıyla orantılı ve her yerde aynı boyutta
+   (katman dışında: bileşenlerdeki w-5 / h-5 gibi büyük simge sınıflarını da hizalar) */
+.ui-btn svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.ui-btn-sm svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }

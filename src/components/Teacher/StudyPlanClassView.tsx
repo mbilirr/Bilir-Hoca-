@@ -7,6 +7,8 @@ import {
   addBookForStudents,
   addDaysYmd,
   addPlanItemsBulk,
+  findPlanConflicts,
+  planWeekText,
   applyPlan,
   dateOfDay,
   deletePlanItems,
@@ -78,6 +80,7 @@ interface Group {
   subject: string;
   book: string;
   note: string;
+  questionCount: number; // Aşama 43
   createdByName: string;
   position: number;
   items: PlanItem[];
@@ -93,7 +96,7 @@ interface Props {
   modeSwitch: React.ReactNode;
 }
 
-export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekStart, weekNav, modeSwitch }) => {
+export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekStart, onWeekChange, weekNav, modeSwitch }) => {
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
   const mySubjects = dataService.getMySubjects();
@@ -138,6 +141,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const viewIds = useMemo(() => viewStudents.map((s) => s.id), [viewStudents]);
   const viewKey = viewIds.join(',');
   const studentById = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const nameOfStudent = (id: string) => studentById.get(id)?.name || 'Öğrenci';
 
   const studentOptions = useMemo(
     () => inClasses.map((s) => ({ id: s.id, label: s.name, sub: s.studentNumber ? `No ${s.studentNumber}` : undefined, group: className(s.classId) })),
@@ -193,6 +197,26 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  // Aşama 44: seçili öğrencilerin bu haftayla ÇAKIŞAN (farklı günde başlayan) planları — uyarı olarak gösterilir;
+  // bu öğrencilere bu haftada görev eklenemez (sistem de engeller)
+  const [conflicts, setConflicts] = useState<Record<string, string[]>>({});
+  useEffect(() => {
+    let alive = true;
+    const ids = viewKey ? viewKey.split(',') : [];
+    if (!ids.length) {
+      setConflicts({});
+      return;
+    }
+    findPlanConflicts(ids, weekStart)
+      .then((c) => alive && setConflicts(c))
+      .catch(() => alive && setConflicts({}));
+    return () => {
+      alive = false;
+    };
+  }, [viewKey, weekStart, items.length]);
+  const conflictIds = Object.keys(conflicts);
+  const conflictWeeks = Array.from(new Set(conflictIds.flatMap((id) => conflicts[id]))).sort();
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === 'visible') void reload(true);
@@ -233,7 +257,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       if (g) {
         g.items.push(it);
         g.position = Math.min(g.position, it.position);
-      } else m.set(k, { key: k, day: it.day, subject: it.subject, book: it.book, note: it.note, createdByName: it.createdByName, position: it.position, items: [it] });
+      } else m.set(k, { key: k, day: it.day, subject: it.subject, book: it.book, note: it.note, questionCount: it.questionCount || 0, createdByName: it.createdByName, position: it.position, items: [it] });
     }
     const days: Group[][] = Array.from({ length: 7 }, () => []);
     for (const g of m.values()) days[g.day].push(g);
@@ -296,12 +320,14 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   };
 
   // ---- Aşama 35: Soru Kaydet'e aktar (seçili öğrencilerin hepsi): plandaki görevlerin metni öğrencinin
-  //      "Soru Kaydet → Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır. Soru hedefi açılmaz.
-  const transferable = withItems.filter((s) => viewItems.some((i) => i.studentId === s.id && canSubject(i.subject) && (i.book.trim() || i.note.trim())));
+  //      "Soru Kaydet → Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır; soru sayısı yazılmış görevler gün gün soru hedefine aktarılır (Aşama 43).
+  const transferable = withItems.filter((s) => viewItems.some((i) => i.studentId === s.id && canSubject(i.subject) && (i.book.trim() || i.note.trim() || i.questionCount > 0)));
   const doTransferToQuestions = async () => {
     if (busy || !transferable.length) return;
     setBusy(true);
     let ok = 0;
+    let qTotal = 0;
+    const manual = new Set<string>();
     const failed: string[] = [];
     const subjects = new Set<string>();
     try {
@@ -312,6 +338,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
             ok++;
             r.subjects.forEach((x) => subjects.add(x));
           }
+          qTotal += r.questionTotal;
+          r.manualKept.forEach((x) => manual.add(x));
         } catch {
           failed.push(s.name);
         }
@@ -320,12 +348,12 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         say(
           {
             tone: failed.length ? 'warning' : 'success',
-            text: `${[...subjects].join(', ')} görevleri ${ok} öğrencinin "Soru Kaydet → Çalışılan Konu / Test" kutusuna aktarıldı.${failed.length ? ` Aktarılamayan: ${failed.join(', ')}.` : ''}`,
+            text: `${[...subjects].join(', ')} görevleri ${ok} öğrencinin "Soru Kaydet → Çalışılan Konu / Test" kutusuna aktarıldı.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Aktarılamayan: ${failed.join(', ')}.` : ''}`,
           },
           8000
         );
       } else {
-        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap veya açıklama yazılı olmalı (ve kendi branşınızdan olmalı).' });
+        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap, açıklama ya da soru sayısı yazılı olmalı (ve kendi branşınızdan olmalı).' });
       }
     } finally {
       setBusy(false);
@@ -340,6 +368,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     setBusy(true);
     const failed: string[] = [];
     let topics = 0;
+    let qTotal = 0;
+    const manual = new Set<string>();
     try {
       // Görevi olan öğrenciler + görevi sonradan tamamen çıkarılmış ama planı gönderilmiş öğrenciler
       // (onların Soru Kaydet'teki eski konuları da temizlensin)
@@ -350,15 +380,18 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           if (shownItems.some((i) => i.studentId === s.id)) await sendPlan(s.id, weekStart, teacherName);
           const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: own, canSubject });
           if (r.subjects.length) topics++;
+          qTotal += r.questionTotal;
+          r.manualKept.forEach((x) => manual.add(x));
         } catch {
           failed.push(s.name);
         }
       }
       await reload(true);
+      void dataService.syncPlanWeekStarts(); // Aşama 43
       say(
         {
           tone: failed.length ? 'warning' : 'success',
-          text: `Plan ${withItems.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
+          text: `Plan ${withItems.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
         },
         8000
       );
@@ -419,7 +452,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   }, [books, taskTargets, taskModal]);
 
   const taskInitial: PlanItemDraft = taskModal?.group
-    ? { day: taskModal.group.day, subject: taskModal.group.subject, book: taskModal.group.book, note: taskModal.group.note }
+    ? { day: taskModal.group.day, subject: taskModal.group.subject, book: taskModal.group.book, note: taskModal.group.note, questionCount: taskModal.group.questionCount }
     : { day: taskModal?.day ?? 0, subject: subjectOptions[0] || '', book: '', note: '' };
   const subjectOptionsForModal = useMemo(
     () => (taskModal?.group && !subjectOptions.includes(taskModal.group.subject) ? [taskModal.group.subject, ...subjectOptions] : subjectOptions),
@@ -445,7 +478,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       if (addIds.length) {
         const positions: Record<string, number> = {};
         for (const sid of addIds) positions[sid] = items.filter((i) => i.studentId === sid && i.day === draft.day).reduce((m, i) => Math.max(m, i.position + 1), 0);
-        added = (await addPlanItemsBulk(addIds, weekStart, draft, positions, teacherName)).length;
+        added = (await addPlanItemsBulk(addIds, weekStart, draft, positions, teacherName, nameOfStudent)).length;
       }
       const n = keep.length ? await updatePlanItems(keep.map((i) => i.id), draft) : 0;
       const removed = remove.length ? await deletePlanItems(remove.map((i) => i.id)) : 0;
@@ -467,7 +500,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     }
     const positions: Record<string, number> = {};
     for (const sid of targets) positions[sid] = items.filter((i) => i.studentId === sid && i.day === draft.day).reduce((m, i) => Math.max(m, i.position + 1), 0);
-    const created = await addPlanItemsBulk(targets, weekStart, draft, positions, teacherName);
+    const created = await addPlanItemsBulk(targets, weekStart, draft, positions, teacherName, nameOfStudent);
     setItems((cur) => [...cur, ...created]);
     void reload(true);
     if (keepOpen) setTaskModal((m) => (m ? { ...m, day: draft.day } : m));
@@ -749,6 +782,30 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         })}
       </div>
 
+      {conflictIds.length > 0 && (
+        <div role="alert" id="plan-conflicts" className="rounded-xl border border-danger/40 bg-danger-soft text-danger-fg px-4 py-3 text-sm space-y-2">
+          <p className="font-bold flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            Çakışma var: {conflictIds.length} öğrencinin bu tarihlerde başka bir haftalık planı mevcut.
+          </p>
+          <p className="text-xs">
+            {conflictIds
+              .slice(0, 6)
+              .map((id) => nameOfStudent(id))
+              .join(', ')}
+            {conflictIds.length > 6 ? ` +${conflictIds.length - 6}` : ''} — bu öğrencilere bu haftada görev eklenemez. Görevlerin mevcut plana eklenmesi
+            için o haftayı açın:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {conflictWeeks.map((ws) => (
+              <button key={ws} type="button" data-conflict-week={ws} className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => onWeekChange(ws)}>
+                {planWeekText(ws)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {withItems.length > 0 && !allSent && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-xl border border-warning/40 bg-warning-soft px-4 py-3" id="plan-draft-callout">
           <p className="text-sm text-warning-fg font-semibold flex items-start gap-2">
@@ -849,6 +906,11 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                           </p>
                         )}
                         {g.note && <p className="text-xs text-fg-2 whitespace-pre-wrap break-words">{g.note}</p>}
+                        {g.questionCount > 0 && (
+                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-[11px] font-bold" data-plan-qcount>
+                            {g.questionCount} soru
+                          </p>
+                        )}
                         <button
                           type="button"
                           data-target-label
@@ -1009,7 +1071,7 @@ const CopyWeekModal: React.FC<{
   const [date, setDate] = useState(addDaysYmd(weekStart, 7));
   const [send, setSend] = useState(false);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ students: number; added: number; skipped: number; failed: number } | null>(null);
+  const [result, setResult] = useState<{ students: number; added: number; skipped: number; failed: number; messages: string[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const target = mode === 'next' ? addDaysYmd(weekStart, 7) : weekStartOf(date || weekStart, weekStartDayOf(weekStart));
   const run = async () => {
@@ -1017,7 +1079,7 @@ const CopyWeekModal: React.FC<{
     if (target === weekStart) return setError('Hedef hafta bu haftadan farklı olmalı.');
     setRunning(true);
     setError(null);
-    const out = { students: 0, added: 0, skipped: 0, failed: 0 };
+    const out = { students: 0, added: 0, skipped: 0, failed: 0, messages: [] as string[] };
     try {
       for (const s of students) {
         const r = await applyPlan({ items: items.filter((i) => i.studentId === s.id), targetStudentIds: [s.id], targetWeek: target, send, senderName, canUseSubject: canSubject });
@@ -1025,6 +1087,7 @@ const CopyWeekModal: React.FC<{
         out.added += r.added;
         out.skipped += r.skipped;
         out.failed += r.failed.length;
+        r.failed.forEach((f) => out.messages.push(`${s.name}: ${f.message}`));
       }
       setResult(out);
     } catch (e: any) {
@@ -1063,7 +1126,12 @@ const CopyWeekModal: React.FC<{
         <div className="rounded-xl bg-success-soft text-success-fg px-4 py-3 text-sm font-semibold" id="plan-copy-result">
           {result.students} öğrenciye {weekRangeLabel(target)} haftası için {result.added} görev eklendi
           {result.skipped ? `, ${result.skipped} görev zaten vardı` : ''}.{send ? ' Planlar öğrencilere gönderildi.' : ''}
-          {result.failed ? ` ${result.failed} öğrencide hata oluştu.` : ''}
+          {result.failed ? ` ${result.failed} öğrenciye eklenemedi.` : ''}
+          {result.messages.slice(0, 4).map((m) => (
+            <p key={m} className="mt-1 text-xs font-medium text-warning-fg" data-copy-fail>
+              {m}
+            </p>
+          ))}
         </div>
       ) : (
         <div className="space-y-4">

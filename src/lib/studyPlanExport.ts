@@ -13,6 +13,10 @@ export interface PlanExportContext {
   whoLabel?: string; // Aşama 23: "Öğrenci" (varsayılan) ya da "Sınıf"
 }
 
+// Aşama 43: soru sayısı verilmiş görevlerde "Yapılacaklar" sütununa "· 50 soru" eklenir
+const noteWithCount = (i: { note: string; questionCount?: number }) =>
+  [i.note, i.questionCount && i.questionCount > 0 ? `${i.questionCount} soru` : ''].filter(Boolean).join(' · ');
+
 const safeName = (s: string) =>
   s
     .normalize('NFKD')
@@ -39,7 +43,7 @@ function planSheet(XLSX: any, c: PlanExportContext) {
         idx === 0 ? date : '',
         i.subject,
         i.book,
-        i.note,
+        noteWithCount(i),
         i.createdByName,
         ...(c.showStatus ? [i.doneAt ? 'Yapıldı' : 'Bekliyor'] : []),
       ])
@@ -123,7 +127,7 @@ async function buildPlanPdfSections(sections: PlanExportContext[]) {
     list.forEach((i, idx) => {
       const row: any[] = [];
       if (idx === 0) row.push(dayCell);
-      row.push(t(i.subject), t(i.book || '-'), t(i.note || '-'), t(i.createdByName || ''), c.showStatus ? t(i.doneAt ? 'Yapıldı' : '') : '');
+      row.push(t(i.subject), t(i.book || '-'), t(noteWithCount(i) || '-'), t(i.createdByName || ''), c.showStatus ? t(i.doneAt ? 'Yapıldı' : '') : '');
       body.push(row);
     });
   });

@@ -14,6 +14,7 @@ import {
   type PlanItem,
 } from '../../services/studyPlanService';
 import { planPdfBase64 } from '../../lib/studyPlanExport';
+import { dataService } from '../../services/dataService';
 import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
 
 // ============================================================================
@@ -59,6 +60,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
   const [transferred, setTransferred] = useState(0);
+  const [transferredQ, setTransferredQ] = useState(0); // Aşama 43: soru hedefi olarak aktarılan toplam
 
   const single = students.length === 1;
   const groupLabel =
@@ -83,6 +85,8 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
         await sendPlan(students[i].id, weekStart, teacherName);
       }
       setChanged(true);
+      // Aşama 43: öğrencinin soru haftası bu planın başladığı günden başlasın
+      void dataService.syncPlanWeekStarts();
       // 2) E-posta / WhatsApp için gönderim grubu ve kişisel bağlantılar
       let groupId = '';
       let links: Record<string, string> = {};
@@ -109,6 +113,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
           try {
             const t = await transferPlanTopicsToQuestionEntry({ student: st, weekStart, items: p.items, canSubject });
             if (t.subjects.length) setTransferred((n) => n + 1);
+            if (t.questionTotal) setTransferredQ((n) => n + t.questionTotal);
           } catch {
             /* aktarılamazsa öğretmen "Soru Kaydet'e aktar" düğmesiyle tekrar deneyebilir */
           }
@@ -234,6 +239,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
             <div className="rounded-xl bg-success-soft text-success-fg px-3 py-2 text-sm font-semibold" id="plan-send-summary">
               Plan {single ? 'öğrenciye' : `${students.length} öğrenciye`} gönderildi; uygulamada görünüyor.
               {transferred > 0 ? ` Görevler ${transferred} öğrencinin Soru Kaydet bölümüne de aktarıldı.` : ''}
+              {transferredQ > 0 ? ` Plandaki ${transferredQ} soru, öğrencilerin gün gün soru hedeflerine eklendi.` : ''}
               {mail ? ` ${sentCount} öğrenciye e-posta gitti.` : ''}
               {mail && sentCount > 0 ? ' Rapor, planın son görev günü 20:00\'de size gelecek.' : ''}
             </div>

@@ -41,6 +41,8 @@ export interface PlanItem {
   position: number;
   createdByName: string;
   doneAt: string | null;
+  /** Aşama 43: görev için verilen soru sayısı (0 = soru sayısı verilmedi) */
+  questionCount: number;
 }
 export interface PlanHeader {
   id: string;
@@ -66,7 +68,36 @@ export interface PlanItemDraft {
   subject: string;
   book: string;
   note: string;
+  /** Aşama 43: isteğe bağlı soru sayısı (boş / 0 = yok) */
+  questionCount?: number;
 }
+
+// ----------------------------------------------------------------------------- Aşama 43: soru sayısı sütunu
+// 34 numaralı SQL çalıştırılmadıysa study_plan_items.question_count sütunu yoktur: o zaman kayıt sütunsuz
+// tekrar denenir (plan yine çalışır, yalnızca soru sayısı saklanmaz).
+let questionColumnOk: boolean | null = null;
+const isMissingQuestionColumn = (error: any) =>
+  !!error && (/question_count/i.test(String(error?.message || '')) || ((String(error?.code || '') === '42703' || String(error?.code || '') === 'PGRST204') && /question/i.test(String(error?.message || ''))));
+export const cleanQuestionCount = (v: unknown): number => {
+  const n = Math.round(Number(v) || 0);
+  return n > 0 ? Math.min(2000, n) : 0;
+};
+/** Satıra soru sayısını ekler (sütun yoksa eklemez) */
+const withQuestionCount = <T extends Record<string, any>>(row: T, count: unknown): T =>
+  questionColumnOk === false ? row : { ...row, question_count: cleanQuestionCount(count) || null };
+/** Önce soru sayısıyla dener; sütun yoksa sütunsuz tekrar dener */
+async function withQuestionFallback<R extends { error: any }>(run: (withCount: boolean) => PromiseLike<R>): Promise<R> {
+  const useCount = questionColumnOk !== false;
+  const res = await run(useCount);
+  if (useCount && res.error && isMissingQuestionColumn(res.error)) {
+    questionColumnOk = false;
+    return run(false);
+  }
+  if (useCount && !res.error) questionColumnOk = true;
+  return res;
+}
+/** Soru sayısı veritabanında saklanabiliyor mu (bilinmiyorsa null) */
+export const planQuestionColumnStatus = () => questionColumnOk;
 
 // ----------------------------------------------------------------------------- Tarih yardımcıları (yerel saat)
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -136,6 +167,7 @@ function itemFromRow(r: any): PlanItem {
     position: Number(r.position) || 0,
     createdByName: String(r.created_by_name || ''),
     doneAt: r.done_at || null,
+    questionCount: cleanQuestionCount(r.question_count),
   };
 }
 function headerFromRow(r: any): PlanHeader {
@@ -212,6 +244,7 @@ export async function addPlanItem(studentId: string, weekStart: string, draft: P
   const subject = clean(draft.subject, 60);
   if (!subject) throw new Error('Ders seçilmedi.');
   if (!(draft.day >= 0 && draft.day <= 6)) throw new Error('Gün seçilmedi.');
+  await assertNoPlanConflict([studentId], weekStart); // Aşama 44
   const plan = await ensurePlan(studentId, weekStart);
   const row = {
     id: newId('pi'),
@@ -225,19 +258,24 @@ export async function addPlanItem(studentId: string, weekStart: string, draft: P
     position,
     created_by_name: clean(teacherName, 120) || null,
   };
-  const res = await supabase.from('study_plan_items').insert(row).select('*').maybeSingle();
+  const res = await withQuestionFallback((wc) =>
+    supabase.from('study_plan_items').insert(wc ? withQuestionCount(row, draft.questionCount) : row).select('*').maybeSingle()
+  );
   if (res.error) fail(res.error, 'Görev kaydedilemedi.');
-  return itemFromRow(res.data || row);
+  return itemFromRow(res.data || { ...row, question_count: draft.questionCount });
 }
 
 export async function updatePlanItem(id: string, draft: PlanItemDraft): Promise<PlanItem> {
   const subject = clean(draft.subject, 60);
   if (!subject) throw new Error('Ders seçilmedi.');
-  const res = await supabase
-    .from('study_plan_items')
-    .update({ day: draft.day, subject, book: clean(draft.book, 160) || null, note: cleanNote(draft.note) || null })
-    .eq('id', id)
-    .select('*');
+  const patch = { day: draft.day, subject, book: clean(draft.book, 160) || null, note: cleanNote(draft.note) || null };
+  const res = await withQuestionFallback((wc) =>
+    supabase
+      .from('study_plan_items')
+      .update(wc ? withQuestionCount(patch, draft.questionCount) : patch)
+      .eq('id', id)
+      .select('*')
+  );
   if (res.error) fail(res.error, 'Görev güncellenemedi.');
   if (!res.data || res.data.length === 0) throw new Error('Bu görevi değiştirme yetkiniz yok (yalnızca kendi branşınızdaki görevleri değiştirebilirsiniz).');
   return itemFromRow(res.data[0]);
@@ -296,6 +334,60 @@ export async function findOverlappingPlans(studentIds: string[], weekStart: stri
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 44: plan çakışması
+// Aynı öğrenciye FARKLI günde başlayan ve tarihleri çakışan iki plan verilemez: sonradan görev eklemeye çalışan
+// öğretmene "çakışma var" bildirilir. AYNI gün başlayan planlar zaten tek plandır (plan = öğrenci + başlangıç):
+// sonradan gelen öğretmenin görevleri ilk öğretmenin planının içine eklenir.
+export class PlanOverlapError extends Error {
+  conflicts: Record<string, string[]>; // öğrenci → çakışan planların başlangıç tarihleri
+  constructor(message: string, conflicts: Record<string, string[]>) {
+    super(message);
+    this.name = 'PlanOverlapError';
+    this.conflicts = conflicts;
+  }
+}
+/** Öğrencilerin, verilen haftayla çakışan (farklı günde başlayan) ve İÇİNDE GÖREV OLAN planları */
+export async function findPlanConflicts(studentIds: string[], weekStart: string): Promise<Record<string, string[]>> {
+  const ids = Array.from(new Set(studentIds.filter(Boolean)));
+  const out: Record<string, string[]> = {};
+  if (!ids.length || !weekStart) return out;
+  const from = addDaysYmd(weekStart, -6);
+  const to = addDaysYmd(weekStart, 6);
+  for (const part of chunks(ids, 100)) {
+    const res = await supabase
+      .from('study_plan_items')
+      .select('student_id,week_start')
+      .in('student_id', part)
+      .gte('week_start', from)
+      .lte('week_start', to)
+      .neq('week_start', weekStart);
+    if (res.error) return out; // denetim yapılamazsa engellenmez (eski davranış)
+    for (const r of (res.data || []) as any[]) {
+      const sid = String(r.student_id);
+      const ws = String(r.week_start).slice(0, 10);
+      const list = (out[sid] = out[sid] || []);
+      if (!list.includes(ws)) list.push(ws);
+    }
+  }
+  for (const k of Object.keys(out)) out[k].sort();
+  return out;
+}
+/** Kısa açıklama: "9 Eki – 15 Eki (Cuma başlangıçlı)" */
+export const planWeekText = (ws: string) => `${weekRangeLabel(ws)} (${planDayName(ws, 0)} başlangıçlı)`;
+/** Çakışma varsa öğretmene gösterilecek iletiyle hata fırlatır */
+export async function assertNoPlanConflict(studentIds: string[], weekStart: string, nameOf?: (id: string) => string): Promise<void> {
+  const conflicts = await findPlanConflicts(studentIds, weekStart);
+  const sids = Object.keys(conflicts);
+  if (!sids.length) return;
+  const one = (sid: string) => `${nameOf ? nameOf(sid) : 'Öğrenci'}: ${conflicts[sid].map(planWeekText).join(', ')}`;
+  const list = sids.slice(0, 5).map(one).join(' · ') + (sids.length > 5 ? ` · +${sids.length - 5} öğrenci` : '');
+  throw new PlanOverlapError(
+    `Çakışma var: bu tarihlerde öğrencinin başka bir haftalık planı mevcut (${list}). ` +
+      `Görevleri o plana eklemek için hafta başlangıcını o planın günüyle aynı seçin ya da o haftayı açın.`,
+    conflicts
+  );
+}
+
 // ----------------------------------------------------------------------------- Öğretmen: kitaplar
 export async function listBooks(studentId: string): Promise<StudentBook[]> {
   const res = await supabase.from('student_books').select('*').eq('student_id', studentId).order('title');
@@ -334,7 +426,8 @@ const chunks = <T,>(arr: T[], n = 80): T[][] => {
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
   return out;
 };
-export const planGroupKey = (i: { day: number; subject: string; book: string; note: string }) => itemKey(i);
+export const planGroupKey = (i: { day: number; subject: string; book: string; note: string; questionCount?: number }) =>
+  `${itemKey(i)}|${cleanQuestionCount(i.questionCount)}`;
 
 export async function loadPlansFor(studentIds: string[], weekStart: string): Promise<{ headers: Record<string, PlanHeader>; items: PlanItem[] }> {
   const ids = Array.from(new Set(studentIds));
@@ -394,13 +487,15 @@ export async function addPlanItemsBulk(
   weekStart: string,
   draft: PlanItemDraft,
   positions: Record<string, number>,
-  teacherName: string
+  teacherName: string,
+  nameOf?: (studentId: string) => string
 ): Promise<PlanItem[]> {
   const subject = clean(draft.subject, 60);
   if (!subject) throw new Error('Ders seçilmedi.');
   if (!(draft.day >= 0 && draft.day <= 6)) throw new Error('Gün seçilmedi.');
   const ids = Array.from(new Set(studentIds));
   if (!ids.length) throw new Error('En az bir öğrenci seçin.');
+  await assertNoPlanConflict(ids, weekStart, nameOf); // Aşama 44
   await ensurePlans(ids, weekStart);
   const out: PlanItem[] = [];
   for (const part of chunks(ids, 100)) {
@@ -416,9 +511,14 @@ export async function addPlanItemsBulk(
       position: positions[sid] || 0,
       created_by_name: clean(teacherName, 120) || null,
     }));
-    const res = await supabase.from('study_plan_items').insert(rows).select('*');
+    const res = await withQuestionFallback((wc) =>
+      supabase
+        .from('study_plan_items')
+        .insert(wc ? rows.map((r) => withQuestionCount(r, draft.questionCount)) : rows)
+        .select('*')
+    );
     if (res.error) fail(res.error, 'Görev kaydedilemedi.');
-    out.push(...(res.data && res.data.length ? res.data : rows).map(itemFromRow));
+    out.push(...(res.data && res.data.length ? res.data : rows.map((r) => ({ ...r, question_count: draft.questionCount }))).map(itemFromRow));
   }
   return out;
 }
@@ -429,11 +529,14 @@ export async function updatePlanItems(ids: string[], draft: PlanItemDraft): Prom
   if (!subject) throw new Error('Ders seçilmedi.');
   let n = 0;
   for (const part of chunks(ids, 100)) {
-    const res = await supabase
-      .from('study_plan_items')
-      .update({ day: draft.day, subject, book: clean(draft.book, 160) || null, note: cleanNote(draft.note) || null })
-      .in('id', part)
-      .select('id');
+    const patch = { day: draft.day, subject, book: clean(draft.book, 160) || null, note: cleanNote(draft.note) || null };
+    const res = await withQuestionFallback((wc) =>
+      supabase
+        .from('study_plan_items')
+        .update(wc ? withQuestionCount(patch, draft.questionCount) : patch)
+        .in('id', part)
+        .select('id')
+    );
     if (res.error) fail(res.error, 'Görev güncellenemedi.');
     n += (res.data || []).length;
   }
@@ -622,6 +725,7 @@ export async function applyPlan(opts: {
         return true;
       });
       if (toAdd.length) {
+        await assertNoPlanConflict([sid], opts.targetWeek); // Aşama 44
         const plan = await ensurePlan(sid, opts.targetWeek);
         const rows = toAdd.map((i) => {
           const pos = perDay.get(i.day) || 0;
@@ -637,9 +741,12 @@ export async function applyPlan(opts: {
             note: i.note || null,
             position: pos,
             created_by_name: clean(opts.senderName, 120) || null,
+            _qc: i.questionCount,
           };
         });
-        const res = await supabase.from('study_plan_items').insert(rows);
+        const res = await withQuestionFallback((wc) =>
+          supabase.from('study_plan_items').insert(rows.map(({ _qc, ...r }) => (wc ? withQuestionCount(r, _qc) : r)))
+        );
         if (res.error) fail(res.error, 'Görevler eklenemedi.');
         out.added += rows.length;
         // Kitap adları hedef öğrencinin listesine de eklenir (sonraki planlarda açılır listede çıksın)
@@ -808,4 +915,48 @@ export function whatsappUrl(phone: string | undefined, text: string): string {
   const digits = (phone || '').replace(/[^0-9]/g, '');
   const intl = digits ? (digits.startsWith('90') ? digits : digits.startsWith('0') ? `9${digits}` : `90${digits}`) : '';
   return `https://api.whatsapp.com/send?${intl ? `phone=${intl}&` : ''}text=${encodeURIComponent(text)}`;
+}
+
+// ----------------------------------------------------------------------------- Aşama 43: plandaki soru sayıları
+export interface PlanQuestionCounts {
+  /** ders → toplam soru (verilen tarih aralığında) */
+  bySubject: Record<string, number>;
+  /** tarih → ders → soru */
+  byDay: Record<string, Record<string, number>>;
+  total: number;
+}
+/**
+ * Öğrencinin haftalık planlarında (gönderilmiş ya da taslak, bütün öğretmenler) verilen tarih aralığına düşen
+ * soru sayıları. Soru hedefi verilirken öğretmene "hayalet" bilgi olarak gösterilir. Hata olursa boş döner.
+ */
+export async function loadPlanQuestionCounts(studentId: string, from: string, to: string): Promise<PlanQuestionCounts> {
+  const out: PlanQuestionCounts = { bySubject: {}, byDay: {}, total: 0 };
+  if (!studentId || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from || questionColumnOk === false) return out;
+  try {
+    const res = await supabase
+      .from('study_plan_items')
+      .select('week_start,day,subject,question_count')
+      .eq('student_id', studentId)
+      .gte('week_start', addDaysYmd(from, -6))
+      .lte('week_start', to)
+      .gt('question_count', 0);
+    if (res.error) {
+      if (isMissingQuestionColumn(res.error)) questionColumnOk = false;
+      return out;
+    }
+    for (const r of (res.data || []) as any[]) {
+      const n = cleanQuestionCount(r.question_count);
+      if (!n) continue;
+      const date = dateOfDay(String(r.week_start), Number(r.day) || 0);
+      if (date < from || date > to) continue;
+      const subject = String(r.subject || '').trim() || 'Genel';
+      out.bySubject[subject] = (out.bySubject[subject] || 0) + n;
+      const day = (out.byDay[date] = out.byDay[date] || {});
+      day[subject] = (day[subject] || 0) + n;
+      out.total += n;
+    }
+  } catch {
+    /* ağ hatası: bilgi gösterilmez */
+  }
+  return out;
 }

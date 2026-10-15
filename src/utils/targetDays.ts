@@ -55,6 +55,12 @@ export function isFlexibleTarget(t: WeeklyQuestionTarget): boolean {
 
 /** Günlük plandan aktarılan konu kayıtlarının not metni (lib/planToTarget.ts bu metinle kaydeder) */
 export const PLAN_TOPIC_NOTE_PREFIX = 'Günlük plandan aktarılan konular';
+/** Aşama 43: haftalık plandaki soru sayılarından oluşan GERÇEK hedeflerin not metni */
+export const PLAN_QUESTION_TARGET_NOTE = 'Haftalık plandan aktarılan soru hedefi.';
+/** Aşama 43: plandaki soru sayılarından oluşmuş gerçek hedef mi? (1 soruluk olsa bile hedeftir) */
+export function isPlanQuestionTarget(t: WeeklyQuestionTarget | null | undefined): boolean {
+  return !!t && !!t.fromPlan && t.notes === PLAN_QUESTION_TARGET_NOTE && (Number(t.targetQuestions ?? t.weeklyTarget) || 0) >= 1;
+}
 
 /** Kayıt günlük plandan mı geldi? (yeni kayıtlarda fromPlan, eskilerde not metni) */
 export function isPlanTopicRecord(t: WeeklyQuestionTarget | null | undefined): boolean {
@@ -75,6 +81,7 @@ export function isPendingPlanTarget(t: WeeklyQuestionTarget | null | undefined):
   if (!t) return false;
   const total = Number(t.targetQuestions ?? t.weeklyTarget) || 0;
   if (total > 1) return false;
+  if (isPlanQuestionTarget(t)) return false;
   if (isPlanTopicRecord(t)) return true;
   const hasTopics = !!t.dailyTopics && typeof t.dailyTopics === 'object' && Object.keys(t.dailyTopics).length > 0;
   return hasTopics || isFlexibleTarget(t) || total <= 0;

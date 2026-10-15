@@ -81,7 +81,7 @@ import {
   downloadMonthlyPDF,
   formatTurkishDate,
   formatDateISO,
-  getMondayOfWeek,
+  getWeekStartOf,
   TURKISH_MONTHS,
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
@@ -360,6 +360,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }, 4000);
   };
 
+  // Aşama 43: öğrencinin haftası, öğretmenin haftalık planının başladığı günden başlar (plan yoksa Pazartesi)
+  const weekStartDay = dataService.getStudentWeekStartDay(activeStudent?.id);
   // Aktif öğrenci için haftalık analitik
   const targetWeekDate = useMemo(() => {
     const d = parseIsoDate(todayIsoStr) || new Date();
@@ -367,23 +369,23 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return d;
   }, [weekOffset, todayIsoStr]);
   useEffect(() => {
-    const weekFrom = getMondayOfWeek(targetWeekDate);
+    const weekFrom = getWeekStartOf(targetWeekDate, weekStartDay);
     weekFrom.setDate(weekFrom.getDate() - 7); // önceki haftayla karşılaştırma
     const monthFrom = new Date(monthDate.year, monthDate.month - 1, 1); // önceki ayla karşılaştırma
     dataService.ensureQuestionLogsFrom(formatDateISO(weekFrom < monthFrom ? weekFrom : monthFrom));
-  }, [targetWeekDate, monthDate]);
+  }, [targetWeekDate, monthDate, weekStartDay]);
 
   const currentWeekStartDate = useMemo(() => {
-    const mon = getMondayOfWeek(targetWeekDate);
+    const mon = getWeekStartOf(targetWeekDate, weekStartDay);
     return formatDateISO(mon);
-  }, [targetWeekDate]);
+  }, [targetWeekDate, weekStartDay]);
 
   const currentWeekEndDate = useMemo(() => {
-    const mon = getMondayOfWeek(targetWeekDate);
+    const mon = getWeekStartOf(targetWeekDate, weekStartDay);
     const sun = new Date(mon);
     sun.setDate(mon.getDate() + 6);
     return formatDateISO(sun);
-  }, [targetWeekDate]);
+  }, [targetWeekDate, weekStartDay]);
 
   // Bu haftaya denk gelen hedefler (önce benim verdiğim). Başka haftanın hedefi gösterilmez.
   const activeTargets = useMemo(() => {
@@ -449,13 +451,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       activeStudent.id,
       activeStudent.name,
       activeStudent.className || activeClass?.name || 'Sınıf Belirtilmedi',
-      targetWeekDate
+      targetWeekDate,
+      weekStartDay
     );
-  }, [activeLogs, activeStudent, activeClass, targetWeekDate]);
+  }, [activeLogs, activeStudent, activeClass, targetWeekDate, weekStartDay]);
 
   // Öğrencinin geçmiş haftaları ve soru sayıları (Açılır pencere için)
   const pastWeeksList = useMemo(() => {
-    const currentMonday = getMondayOfWeek(new Date());
+    const currentMonday = getWeekStartOf(new Date(), weekStartDay);
     const studentLogs = activeLogs;
 
     // En az 26 hafta (yaklaşık 6 ay), eğer daha eski log varsa listeyi o tarihe kadar genişlet
@@ -465,7 +468,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         if (l.date) {
           const logDate = new Date(l.date + 'T00:00:00');
           if (!isNaN(logDate.getTime())) {
-            const logMonday = getMondayOfWeek(logDate);
+            const logMonday = getWeekStartOf(logDate, weekStartDay);
             const diffDays = Math.round((currentMonday.getTime() - logMonday.getTime()) / (1000 * 60 * 60 * 24));
             const off = Math.round(diffDays / 7);
             if (off > maxPastWeeks && off < 104) {
@@ -528,7 +531,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     }
 
     return list;
-  }, [activeLogs, activeStudent?.id, todayIsoStr]);
+  }, [activeLogs, activeStudent?.id, todayIsoStr, weekStartDay]);
 
   // Filtrelenmiş geçmiş haftalar
   const filteredPastWeeks = useMemo(() => {
@@ -666,7 +669,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         st.id,
         st.name,
         st.className || classNameStr,
-        targetWeekDate
+        targetWeekDate,
+        dataService.getStudentWeekStartDay(st.id)
       );
       const stMonthly = computeMonthlyAnalytics(
         stLogs,

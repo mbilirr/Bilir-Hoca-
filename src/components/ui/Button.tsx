@@ -20,10 +20,11 @@ const variantStyles: Record<ButtonVariant, string> = {
   danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm',
 };
 
+// Aşama 42: daha kompakt boyutlar; simgeler yazıyla orantılı (her boyutta simge boyutu sabitlenir)
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'px-3 py-1.5 text-xs gap-1.5',
-  md: 'px-4 py-2 text-sm gap-2',
-  lg: 'px-5 py-2.5 text-base gap-2.5',
+  sm: 'px-2.5 py-1 text-xs leading-4 gap-1 [&_svg]:size-3.5',
+  md: 'px-3 py-1.5 text-[0.8125rem] leading-5 gap-1.5 [&_svg]:size-4',
+  lg: 'px-4 py-2 text-sm gap-2 [&_svg]:size-4',
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

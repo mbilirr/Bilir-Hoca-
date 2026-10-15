@@ -28,6 +28,7 @@ import {
   deletePlan,
   deletePlanItem,
   findOverlappingPlans,
+  findPlanConflicts,
   listBooks,
   loadPlan,
   sendPlan,
@@ -243,8 +244,9 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     let alive = true;
     setOverlaps([]);
     if (!studentId || mode === 'class') return;
-    findOverlappingPlans([studentId], weekStart)
-      .then((list) => alive && setOverlaps(list))
+    // Aşama 44: yalnızca İÇİNDE GÖREV OLAN çakışan planlar uyarı sayılır (boş plan kaydı engel değildir)
+    Promise.all([findOverlappingPlans([studentId], weekStart), findPlanConflicts([studentId], weekStart)])
+      .then(([list, conf]) => alive && setOverlaps(list.filter((h) => (conf[studentId] || []).includes(h.weekStart))))
       .catch(() => alive && setOverlaps([]));
     return () => {
       alive = false;
@@ -282,7 +284,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   }, [studentClass, isAdmin, mySubjects]);
   const [taskModal, setTaskModal] = useState<{ mode: 'add' | 'edit'; item?: PlanItem; day: number } | null>(null);
   const taskInitial: PlanItemDraft = taskModal?.item
-    ? { day: taskModal.item.day, subject: taskModal.item.subject, book: taskModal.item.book, note: taskModal.item.note }
+    ? { day: taskModal.item.day, subject: taskModal.item.subject, book: taskModal.item.book, note: taskModal.item.note, questionCount: taskModal.item.questionCount }
     : { day: taskModal?.day ?? 0, subject: subjectOptions[0] || '', book: '', note: '' };
   const subjectOptionsForModal = useMemo(
     () => (taskModal?.item && !subjectOptions.includes(taskModal.item.subject) ? [taskModal.item.subject, ...subjectOptions] : subjectOptions),
@@ -394,18 +396,20 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   };
 
   // ---- Soru Kaydet'e aktar: plandaki görevlerin metni (kitap – açıklama) öğrencinin "Soru Kaydet" formundaki
-  //      "Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır. Soru hedefi açılmaz.
-  const transferableCount = plan.items.filter((i) => canSubject(i.subject) && (i.book.trim() || i.note.trim())).length;
+  //      "Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır; soru sayısı yazılmış görevler gün gün soru hedefine aktarılır (Aşama 43).
+  const transferableCount = plan.items.filter((i) => canSubject(i.subject) && (i.book.trim() || i.note.trim() || i.questionCount > 0)).length;
   const doTransferToQuestions = async () => {
     if (!student || busy) return;
     setBusy(true);
     try {
       const r = await transferPlanTopicsToQuestionEntry({ student, weekStart, items: plan.items, canSubject });
       if (!r.subjects.length) {
-        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap veya açıklama yazılı olmalı (ve kendi branşınızdan olmalı).' });
+        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap, açıklama ya da soru sayısı yazılı olmalı (ve kendi branşınızdan olmalı).' });
         return;
       }
       const extra = [
+        r.questionTotal ? `Soru hedefi olarak ${r.questionTotal} soru aktarıldı (${r.questionSubjects.join(', ')}).` : '',
+        r.manualKept.length ? `${r.manualKept.join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : '',
         r.skippedSubjects.length ? `Yetkiniz olmayan dersler aktarılmadı: ${r.skippedSubjects.join(', ')}.` : '',
         r.emptySubjects.length ? `Kitap/açıklaması boş görevler atlandı: ${r.emptySubjects.join(', ')}.` : '',
       ]
@@ -432,11 +436,12 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     try {
       const h = await sendPlan(student.id, weekStart, teacherName);
       setPlan((p) => ({ ...p, header: h }));
+      void dataService.syncPlanWeekStarts(); // Aşama 43
       const r = await transferPlanTopicsToQuestionEntry({ student, weekStart, items: plan.items, canSubject });
       say(
         {
           tone: 'success',
-          text: `Plan ${student.name} adlı öğrenciye yeniden gönderildi${r.subjects.length ? `; ${r.subjects.join(', ')} görevleri Soru Kaydet'e aktarıldı` : ''}.`,
+          text: `Plan ${student.name} adlı öğrenciye yeniden gönderildi${r.subjects.length ? `; ${r.subjects.join(', ')} görevleri Soru Kaydet'e aktarıldı` : ''}.${r.questionTotal ? ` Soru hedefi olarak ${r.questionTotal} soru aktarıldı.` : ''}${r.manualKept.length ? ` ${r.manualKept.join(', ')}: elle verdiğiniz soru hedefi korundu.` : ''}`,
         },
         6000
       );
@@ -496,7 +501,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   );
 
   if (mode === 'class') {
-    return <StudyPlanClassView students={students} classes={classes} weekStart={weekStart} onWeekChange={setWeekStart} weekNav={renderWeekNav} modeSwitch={modeSwitch} />;
+    return <StudyPlanClassView students={students} classes={classes} weekStart={weekStart} onWeekChange={openWeek} weekNav={renderWeekNav} modeSwitch={modeSwitch} />;
   }
 
   return (
@@ -629,9 +634,12 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             ) : null,
         })}
         {overlaps.length > 0 && (
-          <div id="plan-overlaps" className="flex flex-wrap items-center gap-2 text-xs rounded-xl bg-info-soft text-info-fg px-3 py-2">
+          <div id="plan-overlaps" role="alert" className="flex flex-wrap items-center gap-2 text-xs rounded-xl bg-danger-soft text-danger-fg px-3 py-2">
             <CalendarRange className="w-4 h-4 shrink-0" />
-            <span className="font-semibold">Bu tarihlerle çakışan kayıtlı plan:</span>
+            <span className="font-semibold">
+              Çakışma var: bu tarihlerde öğrencinin başka bir planı mevcut. Bu haftaya görev eklenemez; görevleri mevcut plana eklemek için o
+              haftayı açın:
+            </span>
             {overlaps.map((h) => (
               <button
                 key={h.id}
@@ -750,6 +758,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                         </p>
                       )}
                       {it.note && <p className="text-xs text-fg-2 whitespace-pre-wrap break-words">{it.note}</p>}
+                      {it.questionCount > 0 && (
+                          <p className="inline-flex items-center gap-1 rounded-full bg-brand-soft text-brand-fg px-2 py-0.5 text-[11px] font-bold" data-plan-qcount>
+                            {it.questionCount} soru
+                          </p>
+                        )}
                       {it.createdByName && <p className="text-[10px] text-subtle">{it.createdByName}</p>}
                     </article>
                   );

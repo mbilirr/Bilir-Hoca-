@@ -34,6 +34,23 @@ import {
   type BiometricProfile,
 } from '../../lib/biometricLogin';
 
+// Aşama 42: giriş ekranı en son kullanılan rolde açılır (öğrenci çıkış yaptıysa öğrenci sekmesinde)
+const LAST_ROLE_KEY = 'auth_last_role';
+const readLastRole = (): 'teacher' | 'student' => {
+  try {
+    return localStorage.getItem(LAST_ROLE_KEY) === 'student' ? 'student' : 'teacher';
+  } catch {
+    return 'teacher';
+  }
+};
+const writeLastRole = (role: string) => {
+  try {
+    if (role === 'teacher' || role === 'student') localStorage.setItem(LAST_ROLE_KEY, role);
+  } catch {
+    /* tarayıcı izin vermiyorsa önemli değil */
+  }
+};
+
 // Parmak izi simgesi (lucide "fingerprint" çizimi; simge adının sürüme göre değişmesinden etkilenmesin diye burada)
 const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
@@ -65,7 +82,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   // Main view mode: 'login' | 'register'
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   // Selected role tab for login/register: 'teacher' | 'student'
-  const [selectedRole, setSelectedRole] = useState<UserRole>('teacher');
+  const [selectedRole, setSelectedRole] = useState<UserRole>(() => readLastRole());
 
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
@@ -79,7 +96,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   // Remember Me & Easy Login (Role-specific separation)
   const [rememberedTeacher, setRememberedTeacher] = useState(() => dataService.getRememberedUser('teacher'));
   const [rememberedStudent, setRememberedStudent] = useState(() => dataService.getRememberedUser('student'));
-  const [rememberMe, setRememberMe] = useState(() => Boolean(dataService.getRememberedUser('teacher')));
+  const [rememberMe, setRememberMe] = useState(() => Boolean(dataService.getRememberedUser(readLastRole())));
 
   // Listen to dataService updates so remembered users & teachers stay synchronized
   useEffect(() => {
@@ -97,7 +114,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   // --- LOGIN FORM STATE ---
   const [loginUsername, setLoginUsername] = useState(() => {
-    const rem = dataService.getRememberedUser('teacher');
+    const rem = dataService.getRememberedUser(readLastRole());
     return rem?.identifier || '';
   });
   const [loginPassword, setLoginPassword] = useState('');
@@ -111,6 +128,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     student: getBiometricProfile('student'),
   }));
   const [enableBio, setEnableBio] = useState(false);
+  // Aşama 42: parmak izi açılamazsa (ya da "Şifreyle gir") şifre formu gösterilir
+  const [bioFallback, setBioFallback] = useState(false);
   // Şifreyle giriş başarılı ve parmak izi açılmak isteniyor: kayıt adımı (tarayıcı kuralı gereği ayrı düğmeyle)
   const [pendingBio, setPendingBio] = useState<{ session: AuthSession; identifier: string; name: string; password: string } | null>(null);
   useEffect(() => {
@@ -122,6 +141,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   }, []);
   const refreshBioProfiles = () => setBioProfiles({ teacher: getBiometricProfile('teacher'), student: getBiometricProfile('student') });
   const activeBioProfile = selectedRole === 'teacher' ? bioProfiles.teacher : bioProfiles.student;
+  // Aşama 42: parmak izi kayıtlıysa yalnızca tek "Giriş" düğmesi gösterilir (cihaz denetlenirken de)
+  const bioMode = !!activeBioProfile && !bioFallback && (bioAvailable || !bioSupport.checked);
 
   // --- ÖĞRENCİ KAYIT BAŞVURUSU (yönetici onayından sonra hesap açılır) ---
   const [aName, setAName] = useState('');
@@ -156,6 +177,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   // Handle role switch in login tab
   const handleSelectRole = (role: UserRole) => {
     setSelectedRole(role);
+    writeLastRole(role);
+    setBioFallback(false);
     setError(null);
     setSuccessMsg(null);
     const rem = dataService.getRememberedUser(role);
@@ -233,6 +256,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   // Oturumu açar ve panele geçer
   const finishLogin = (session: AuthSession, greeting: string) => {
+    writeLastRole(session.role);
     dataService.setAuthSession(session);
     confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     setSuccessMsg(greeting);
@@ -361,15 +385,27 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         removeBiometricProfile(role);
         refreshBioProfiles();
         setLoginUsername(cred.identifier);
+        setBioFallback(true);
         setError('Şifreniz değiştiği için parmak izi girişi kapatıldı. Lütfen yeni şifrenizle girip "Parmak izi ile girişi aç" kutusunu yeniden işaretleyin.');
         return;
       }
       finishLogin(session, greetingOf(session));
     } catch (err: any) {
-      setError(err?.message || 'Parmak izi ile giriş yapılamadı.');
+      // Aşama 42: parmak izi açılamadı → şifreyle girişe yönlendir (kullanıcı adı hazır gelir)
+      const prof = getBiometricProfile(role);
+      if (prof) setLoginUsername(prof.identifier);
+      setBioFallback(true);
+      setError(`${err?.message || 'Parmak izi ile giriş yapılamadı.'} Lütfen şifrenizle giriş yapın.`);
+      setTimeout(() => passwordInputRef.current?.focus(), 80);
     } finally {
       setIsLoading(false);
     }
+  };
+  const goPasswordLogin = () => {
+    if (activeBioProfile) setLoginUsername(activeBioProfile.identifier);
+    setBioFallback(true);
+    setError(null);
+    setTimeout(() => passwordInputRef.current?.focus(), 80);
   };
   const handleRemoveBiometric = () => {
     removeBiometricProfile(selectedRole as 'teacher' | 'student');
@@ -592,60 +628,44 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {authMode === 'login' && !pendingBio && (
             <div className="space-y-5">
-              {/* PARMAK İZİ İLE GİRİŞ — her zaman görünür: açıksa giriş düğmesi, değilse nasıl açılacağı / neden kullanılamadığı */}
-              {bioAvailable && activeBioProfile ? (
-                <div id="biometric-login" className="p-4 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-surface space-y-2">
+              {/* Aşama 42: PARMAK İZİ AÇIKSA tek "Giriş" düğmesi — önce parmak izi, sorun olursa şifre formu */}
+              {bioMode && activeBioProfile && (
+                <div id="biometric-login" className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 rounded-2xl border border-line bg-surface">
+                    <span className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
+                      <Fingerprint className="w-5 h-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-fg truncate">{activeBioProfile.name || activeBioProfile.identifier}</p>
+                      <p className="text-[11px] text-muted">{selectedRole === 'teacher' ? 'Öğretmen hesabı' : 'Öğrenci hesabı'}</p>
+                    </div>
+                  </div>
                   <Button
                     type="button"
                     variant="primary"
+                    id="biometric-login-btn"
                     onClick={handleBiometricLogin}
                     disabled={isLoading}
                     isLoading={isLoading}
                     loadingText="Parmak izi bekleniyor..."
-                    leftIcon={<Fingerprint className="w-5 h-5" />}
-                    className="w-full py-3"
+                    leftIcon={<Fingerprint className="w-4 h-4" />}
+                    className="w-full"
                   >
-                    Parmak İzi ile Giriş · {activeBioProfile.name || activeBioProfile.identifier}
+                    Giriş
                   </Button>
                   <div className="flex items-center justify-between text-[11px] text-muted">
-                    <span>Bu cihazda kayıtlı · şifre yazmanız gerekmez</span>
+                    <button type="button" id="biometric-use-password" onClick={goPasswordLogin} className="font-semibold hover:text-fg cursor-pointer">
+                      Şifreyle gir
+                    </button>
                     <button type="button" onClick={handleRemoveBiometric} className="font-semibold hover:text-red-600 dark:hover:text-red-300 cursor-pointer">
                       Parmak izini kaldır
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div
-                  id="biometric-info"
-                  className={`p-3.5 rounded-2xl border flex items-start gap-3 ${
-                    bioSupport.checked && !bioSupport.ok
-                      ? 'border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10'
-                      : 'border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-500/10'
-                  }`}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                    <Fingerprint className="w-6 h-6" />
-                  </div>
-                  <div className="min-w-0 text-xs leading-relaxed">
-                    <p className="font-bold text-fg text-sm">Parmak izi ile giriş</p>
-                    {!bioSupport.checked ? (
-                      <p className="text-muted">Cihazınız denetleniyor…</p>
-                    ) : !bioSupport.ok ? (
-                      <p className="text-amber-800 dark:text-amber-200" id="biometric-unsupported">
-                        Bu cihazda şu an kullanılamıyor: {bioSupport.reason}
-                      </p>
-                    ) : (
-                      <p className="text-muted">
-                        Bu cihazda henüz açılmadı. Aşağıda şifrenizle girerken <strong>“Parmak izi ile girişi aç”</strong> kutusunu işaretleyin;
-                        sonraki girişlerinizde buradan şifresiz, parmak izinizle girersiniz.
-                      </p>
-                    )}
-                  </div>
-                </div>
               )}
 
               {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
-              {activeRememberedUser && (
+              {!bioMode && activeRememberedUser && (
                 <div className="p-4 rounded-2xl border transition-all bg-indigo-50/50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/30">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center space-x-3 min-w-0">
@@ -711,6 +731,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 </div>
               )}
 
+              {!bioMode && (
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <Input
                   label={
@@ -762,7 +783,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     />
                     <span>Beni Hatırla</span>
                   </label>
-                  {!activeBioProfile && (
+                  {!activeBioProfile && bioAvailable && (
                     <label
                       className={`flex items-center space-x-2.5 text-xs font-semibold select-none ${bioAvailable ? 'cursor-pointer text-muted' : 'cursor-not-allowed text-subtle'}`}
                       id="biometric-optin"
@@ -802,6 +823,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   Giriş Yap
                 </Button>
               </form>
+              )}
             </div>
           )}
 

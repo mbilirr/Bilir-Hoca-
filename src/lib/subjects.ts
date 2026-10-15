@@ -167,3 +167,27 @@ export function targetSubjectMatcher(subject?: string | null): (s?: string | nul
 export function sameTargetSubjects(a?: string | null, b?: string | null): boolean {
   return targetSubjectList(a).sort().join('|') === targetSubjectList(b).sort().join('|');
 }
+
+// Aşama 43: kısa ders adları ("Mat 50 · Fen 40" gibi dar alanlar için)
+const SHORT_SUBJECTS: Record<string, string> = {
+  Matematik: 'Mat',
+  'Fen Bilimleri': 'Fen',
+  Türkçe: 'Türk',
+  'Türk Dili ve Edebiyatı': 'Edb',
+  'Sosyal Bilgiler': 'Sos',
+  'T.C. İnkılap Tarihi': 'İnk',
+  'Din Kültürü': 'Din',
+  İngilizce: 'İng',
+  Geometri: 'Geo',
+  Fizik: 'Fiz',
+  Kimya: 'Kim',
+  Biyoloji: 'Biy',
+  Tarih: 'Tar',
+  Coğrafya: 'Coğ',
+  Felsefe: 'Fel',
+};
+export function shortSubjectName(subject?: string | null): string {
+  const s = normalizeSubject(subject || '');
+  if (!s) return '';
+  return SHORT_SUBJECTS[s] || (s.length > 5 ? s.slice(0, 4) : s);
+}

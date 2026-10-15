@@ -225,6 +225,8 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
   const [subject, setSubject] = useState(initial.subject || subjectOptions[0] || '');
   const [book, setBook] = useState(initial.book);
   const [note, setNote] = useState(initial.note);
+  // Aşama 43: isteğe bağlı soru sayısı (öğrencinin o günkü soru hedefine aktarılır)
+  const [qCount, setQCount] = useState(initial.questionCount ? String(initial.questionCount) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedCount, setSavedCount] = useState(0);
@@ -236,6 +238,7 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
     setSubject(initial.subject || subjectOptions[0] || '');
     setBook(initial.book);
     setNote(initial.note);
+    setQCount(initial.questionCount ? String(initial.questionCount) : '');
     setError(null);
     setSaving(false);
     setSavedCount(0);
@@ -247,14 +250,16 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
     const targetError = validateTarget ? validateTarget() : null;
     if (targetError) return setError(targetError);
     if (!subject) return setError('Lütfen bir ders seçin.');
-    if (!book.trim() && !note.trim()) return setError('Kitap seçin ya da yapılacakları (sayfa / konu) yazın.');
+    const qc = Math.min(2000, parseInt(qCount || '0', 10) || 0);
+    if (!book.trim() && !note.trim() && !qc) return setError('Kitap seçin, yapılacakları (sayfa / konu) ya da soru sayısını yazın.');
     setSaving(true);
     setError(null);
     try {
-      await onSave({ day, subject, book: book.trim(), note: note.trim() }, keepOpen);
+      await onSave({ day, subject, book: book.trim(), note: note.trim(), questionCount: qc }, keepOpen);
       if (keepOpen) {
         setBook('');
         setNote('');
+        setQCount('');
         setSavedCount((n) => n + 1);
       }
     } catch (e: any) {
@@ -355,6 +360,25 @@ export const StudyPlanTaskModal: React.FC<TaskModalProps> = ({ open, mode, weekS
             placeholder="Örn: 45–52. sayfalardaki tüm soruları çöz / Üslü sayılar konusunu bitir ve sonundaki testi yap"
             className={cx(inputCls, 'resize-y')}
           />
+        </div>
+        <div className="grid grid-cols-[minmax(0,9rem)_1fr] items-end gap-3" id="plan-task-qcount-row">
+          <div>
+            <FieldLabel htmlFor="plan-task-qcount" optional>
+              Soru sayısı
+            </FieldLabel>
+            <div className="relative">
+              <input
+                id="plan-task-qcount"
+                inputMode="numeric"
+                value={qCount}
+                onChange={(e) => setQCount(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+                placeholder="0"
+                className={cx(inputCls, 'pr-11 text-center')}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted">soru</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted pb-2">Yazarsanız öğrencinin o günkü soru hedefine eklenir.</p>
         </div>
         {error && (
           <div role="alert" id="plan-task-error" className="rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">

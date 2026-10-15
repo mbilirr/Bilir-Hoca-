@@ -17,10 +17,10 @@ import { inputCls } from './FormParts';
 const SHORT_DAY: Record<string, string> = { Pazartesi: 'Pzt', Salı: 'Sal', Çarşamba: 'Çar', Perşembe: 'Per', Cuma: 'Cum', Cumartesi: 'Cmt', Pazar: 'Paz' };
 
 /** Gönder satırındaki düğmeler için ortak sınıf (varyantı çağıran ekler: ui-btn-primary vb.). */
-export const planMainBtnCls = 'ui-btn ui-btn-sm min-h-10 w-full whitespace-normal text-center leading-tight';
+export const planMainBtnCls = 'ui-btn ui-btn-sm min-h-9 w-full whitespace-normal text-center leading-tight';
 /** İşlem döşemeleri için ortak sınıf (ikon üstte, etiket altta). */
 export const planTileCls =
-  'ui-btn ui-btn-secondary relative w-full min-h-[3.75rem] flex-col gap-1 px-2 py-2 text-xs leading-tight whitespace-normal text-center';
+  'ui-btn ui-btn-secondary relative w-full min-h-[3.25rem] flex-col gap-1 px-2 py-1.5 text-xs leading-tight whitespace-normal text-center';
 
 /** Panelin sağ sütununa yerleşen içerik (öğrenci ve sınıf görünümü kendi düğmelerini verir). */
 export type PlanWeekBarSlots = {

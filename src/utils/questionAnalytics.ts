@@ -188,6 +188,23 @@ export function formatTurkishDate(dateStr: string): string {
 /**
  * Returns the Monday of the week for a given Date
  */
+/**
+ * Aşama 43: haftanın verilen günden (0 = Pazar … 1 = Pazartesi … 6 = Cumartesi) başladığı hafta başlangıcı.
+ * Öğrencinin haftası, öğretmenin haftalık planı hangi günden başlıyorsa o günden başlar
+ * (dataService.getStudentWeekStartDay). Plan yoksa Pazartesi (getMondayOfWeek ile aynı).
+ */
+export function getWeekStartOf(d: Date, startDay: number = 1): Date {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  const sd = Number.isInteger(startDay) && startDay >= 0 && startDay <= 6 ? startDay : 1;
+  const back = (date.getDay() - sd + 7) % 7;
+  date.setDate(date.getDate() - back);
+  return date;
+}
+/** Tarihin Türkçe gün adı (Pazartesi …) ve kısa adı (Pzt …) — haftanın başladığı günden bağımsız */
+export const turkishDayNameOf = (d: Date) => TURKISH_DAYS[(d.getDay() + 6) % 7];
+export const turkishDayShortOf = (d: Date) => TURKISH_DAYS_SHORT[(d.getDay() + 6) % 7];
+
 export function getMondayOfWeek(d: Date): Date {
   const date = new Date(d);
   const day = date.getDay(); // 0 is Sunday
@@ -205,9 +222,10 @@ export function computeWeeklyAnalytics(
   studentId: string,
   studentName: string,
   className: string,
-  targetDate: Date = new Date()
+  targetDate: Date = new Date(),
+  weekStartDay: number = 1 // Aşama 43: öğrencinin haftası planın başladığı günden başlar
 ): WeeklyAnalytics {
-  const monday = getMondayOfWeek(targetDate);
+  const monday = getWeekStartOf(targetDate, weekStartDay); // (adı eski: haftanın İLK günü)
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
 
@@ -237,8 +255,8 @@ export function computeWeeklyAnalytics(
     const curDate = new Date(monday);
     curDate.setDate(monday.getDate() + i);
     const curDateStr = formatDateISO(curDate);
-    const dayName = TURKISH_DAYS[i];
-    const dayShortName = TURKISH_DAYS_SHORT[i];
+    const dayName = turkishDayNameOf(curDate);
+    const dayShortName = turkishDayShortOf(curDate);
 
     // Find logs for this date
     const dayLogs = studentLogs.filter((l) => l.date === curDateStr);

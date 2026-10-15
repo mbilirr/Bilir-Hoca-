@@ -59,7 +59,7 @@ import {
   downloadMonthlyPDF,
   formatTurkishDate,
   formatDateISO,
-  getMondayOfWeek,
+  getWeekStartOf,
   TURKISH_MONTHS,
   getStudentSchoolLevel,
   getStudentQuestionSubjects,
@@ -132,6 +132,7 @@ export function computeMonthlyTargetPlan(studentId: string, year: number, month:
   const monthEnd = formatDateISO(new Date(year, month, daysInMonth));
   const monthTargets = studentId ? dataService.getQuestionTargetsForStudent(studentId, monthStart, monthEnd) : [];
   const hasGeneralTarget = monthTargets.some((t) => !t.subject);
+  const weekStartDay = dataService.getStudentWeekStartDay(studentId);
   const perDay: Record<string, number> = {};
   const weekCache = new Map<string, number>();
   let total = 0;
@@ -139,7 +140,7 @@ export function computeMonthlyTargetPlan(studentId: string, year: number, month:
     const d = new Date(year, month, day);
     let daily = DEFAULT_DAILY_QUESTION_TARGET;
     if (hasGeneralTarget) {
-      const mon = getMondayOfWeek(d);
+      const mon = getWeekStartOf(d, weekStartDay); // Aşama 43: öğrencinin haftası
       const monStr = formatDateISO(mon);
       if (!weekCache.has(monStr)) {
         const sun = new Date(mon);
@@ -940,6 +941,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
 
   // Haftalık analitik hesaplama
+  // Aşama 43: öğrencinin haftası, öğretmenin haftalık planının başladığı günden başlar (plan yoksa Pazartesi)
+  const weekStartDay = dataService.getStudentWeekStartDay(activeStudent.id);
   const targetWeekDate = useMemo(() => {
     const d = parseIsoDate(todayIso) || new Date();
     d.setDate(d.getDate() + weekOffset * 7);
@@ -952,9 +955,10 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       activeStudent.id,
       activeStudent.name,
       activeStudent.className || 'Sınıf Belirtilmedi',
-      targetWeekDate
+      targetWeekDate,
+      weekStartDay
     );
-  }, [allLogs, activeStudent, targetWeekDate]);
+  }, [allLogs, activeStudent, targetWeekDate, weekStartDay]);
 
   // Aylık analitik hesaplama
   const monthlyAnalytics = useMemo(() => {
@@ -977,7 +981,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
   // Öğrencinin geçmiş haftaları (Soru sayısı 0 olan geçmiş haftalar tamamen silinir/çıkarılır)
   const pastWeeksList = useMemo(() => {
-    const currentMonday = getMondayOfWeek(new Date());
+    const currentMonday = getWeekStartOf(new Date(), weekStartDay);
     const studentLogs = allLogs.filter((l) => l.studentId === activeStudent.id);
 
     let maxPastWeeks = 26;
@@ -986,7 +990,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
         if (l.date) {
           const logDate = new Date(l.date + 'T00:00:00');
           if (!isNaN(logDate.getTime())) {
-            const logMonday = getMondayOfWeek(logDate);
+            const logMonday = getWeekStartOf(logDate, weekStartDay);
             const diffDays = Math.round((currentMonday.getTime() - logMonday.getTime()) / (1000 * 60 * 60 * 24));
             const off = Math.round(diffDays / 7);
             if (off > maxPastWeeks && off < 104) {
@@ -1049,7 +1053,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     }
 
     return list;
-  }, [allLogs, activeStudent.id, todayIso]);
+  }, [allLogs, activeStudent.id, todayIso, weekStartDay]);
 
   // Filtrelenmiş geçmiş haftalar (Arama için)
   const filteredPastWeeks = useMemo(() => {
@@ -1192,16 +1196,16 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
 
   // Haftalık tarih aralığı
   const currentWeekStartDate = useMemo(() => {
-    const mon = getMondayOfWeek(targetWeekDate);
+    const mon = getWeekStartOf(targetWeekDate, weekStartDay);
     return formatDateISO(mon);
-  }, [targetWeekDate]);
+  }, [targetWeekDate, weekStartDay]);
 
   const currentWeekEndDate = useMemo(() => {
-    const mon = getMondayOfWeek(targetWeekDate);
+    const mon = getWeekStartOf(targetWeekDate, weekStartDay);
     const sun = new Date(mon);
     sun.setDate(mon.getDate() + 6);
     return formatDateISO(sun);
-  }, [targetWeekDate]);
+  }, [targetWeekDate, weekStartDay]);
 
   const activeTargets = useMemo(() => {
     return dataService.getQuestionTargetsForStudent(activeStudent.id, currentWeekStartDate, currentWeekEndDate);
@@ -2252,6 +2256,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     >
                       <span className="font-bold text-indigo-700 dark:text-indigo-300 shrink-0">{it.subject}</span>
                       <span className="truncate">{text || '—'}</span>
+                      {it.questionCount > 0 && <span className="shrink-0 font-bold text-indigo-700 dark:text-indigo-300">· {it.questionCount} soru</span>}
                       {it.doneAt && <Check className="w-3 h-3 text-emerald-600 shrink-0" aria-label="yapıldı" />}
                       <Plus className="w-3 h-3 text-indigo-600 dark:text-indigo-300 shrink-0" />
                     </button>

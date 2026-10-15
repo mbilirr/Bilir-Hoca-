@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide } from 'lucide-react';
+import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide, ClipboardList } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented } from '../ui/kit';
-import { normalizeSubject, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
+import { normalizeSubject, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
+import { loadPlanQuestionCounts, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
@@ -50,10 +51,10 @@ const daysBetween = (a: string, b: string) => {
   if (!da || !db) return 0;
   return Math.round((db.getTime() - da.getTime()) / 86400000) + 1;
 };
-const mondayOf = (d: Date) => {
+// Aşama 43: haftanın verilen günden (0 = Pazar … 1 = Pazartesi) başladığı hafta başlangıcı
+const weekStartFrom = (d: Date, startDay = 1) => {
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = x.getDay();
-  x.setDate(x.getDate() - (day === 0 ? 6 : day - 1));
+  x.setDate(x.getDate() - ((x.getDay() - startDay + 7) % 7));
   return x;
 };
 const toInt = (v: string) => (/^\d+$/.test(v.trim()) ? parseInt(v.trim(), 10) : NaN);
@@ -294,8 +295,11 @@ const TargetFormContent: React.FC<Props> = ({
   const setDayRow = (d: string, v: string) => setDayRows((r) => ({ ...r, [d]: v.replace(/[^\d]/g, '').slice(0, 4) }));
 
   const today = new Date();
+  // Aşama 43: tek öğrenciye hedef verilirken "Bu hafta / Gelecek hafta" öğrencinin haftalık planının
+  // başladığı günden başlar (plan yoksa Pazartesi)
+  const presetWeekDay = kind === 'student' && studentId ? dataService.getStudentWeekStartDay(studentId) : 1;
   const presets: Array<{ id: string; label: string; s: string; e: string }> = useMemo(() => {
-    const mon = mondayOf(today);
+    const mon = weekStartFrom(today, presetWeekDay);
     const nextMon = addDays(mon, 7);
     return [
       { id: 'this-week', label: 'Bu hafta', s: localDateStr(mon), e: localDateStr(addDays(mon, 6)) },
@@ -310,7 +314,25 @@ const TargetFormContent: React.FC<Props> = ({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [presetWeekDay]);
+
+  // Aşama 43: HAYALET BİLGİ — seçilen tarihlerde öğrencinin haftalık planlarında (bütün öğretmenler)
+  // verilmiş soru sayıları. Hedef veren öğretmen bunları dikkate alsın diye gösterilir (kaydedilmez).
+  const [planCounts, setPlanCounts] = useState<PlanQuestionCounts | null>(null);
+  useEffect(() => {
+    setPlanCounts(null);
+    if (kind !== 'student' || !studentId || !parseYmd(start) || !parseYmd(end) || end < start) return;
+    let alive = true;
+    loadPlanQuestionCounts(studentId, start, end).then((r) => alive && setPlanCounts(r.total > 0 ? r : null));
+    return () => {
+      alive = false;
+    };
+  }, [kind, studentId, start, end]);
+  const ghostText = (bySubject: Record<string, number>) =>
+    Object.entries(bySubject)
+      .sort((a, b) => b[1] - a[1])
+      .map(([s, n]) => `${shortSubjectName(s)} ${n}`)
+      .join(' · ');
 
   // ---- taslak ve çakışma
   const draft: WeeklyQuestionTarget = {
@@ -658,6 +680,23 @@ const TargetFormContent: React.FC<Props> = ({
         </FormSection>
 
         <FormSection title="4. Soru hedefi">
+          {planCounts && (
+            <div
+              id="qt-plan-ghost"
+              role="note"
+              className="rounded-xl border border-dashed border-brand/40 bg-brand-soft/40 px-3 py-2 text-xs text-fg-2 opacity-90"
+              title="Öğrencinin haftalık planlarında bu tarihlerde verilmiş soru sayıları (bütün öğretmenler). Hedefi verirken dikkate alın."
+            >
+              <span className="inline-flex items-center gap-1.5 font-semibold text-brand-fg">
+                <ClipboardList className="w-3.5 h-3.5" /> Haftalık planda:
+              </span>{' '}
+              <span className="font-bold text-fg">
+                {selectedStudent ? `${selectedStudent.name.split(' ')[0]} — ` : ''}
+                {ghostText(planCounts.bySubject)} soru
+              </span>
+              <span className="block text-[11px] text-muted mt-0.5">Bu sayılar plandan öğrencinin hedeflerine zaten aktarılır; vereceğiniz hedefi buna göre ayarlayın.</span>
+            </div>
+          )}
           {/* Günlere dağıtım: eşit ya da gün gün farklı */}
           <div className="flex flex-wrap items-center gap-2" id="qt-dist-mode">
             <span className="text-xs font-semibold text-fg">Günlere dağıtım:</span>
@@ -755,6 +794,11 @@ const TargetFormContent: React.FC<Props> = ({
                         {planTopics[d] && (
                           <span className="block mt-1 text-[10px] leading-tight text-muted break-words" title={planTopics[d]} data-testid="qt-day-topic">
                             {planTopics[d]}
+                          </span>
+                        )}
+                        {planCounts?.byDay[d] && (
+                          <span className="block mt-1 text-[10px] leading-tight font-semibold text-brand-fg/80" data-testid="qt-day-plan-count" title="Haftalık plandaki soru sayıları">
+                            Plan: {ghostText(planCounts.byDay[d])}
                           </span>
                         )}
                       </span>

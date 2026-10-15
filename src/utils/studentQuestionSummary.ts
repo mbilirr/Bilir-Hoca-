@@ -1,6 +1,6 @@
 import type { StudentQuestionLog, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
-import { formatDateISO, getMondayOfWeek, TURKISH_DAYS_SHORT } from './questionAnalytics';
+import { formatDateISO, getWeekStartOf, turkishDayShortOf } from './questionAnalytics';
 import { computeTargetDays, isPendingPlanTarget, weekDayGoal, type TargetDaysResult } from './targetDays';
 
 // ============================================================================
@@ -68,13 +68,14 @@ export function buildStudentQuestionSummary(
   logs: StudentQuestionLog[]
 ): StudentQuestionSummary {
   const todayYmd = formatDateISO(now);
-  const monday = getMondayOfWeek(now);
+  // Aşama 43: hafta, öğrencinin haftalık planının başladığı günden başlar (plan yoksa Pazartesi)
+  const monday = getWeekStartOf(now, dataService.getStudentWeekStartDay(studentId));
   const mine = logs.filter((l) => l.studentId === studentId);
 
   // --- Günlük/haftalık toplamlar (tüm dersler) ---
   const weekDays: QuestionDayCount[] = Array.from({ length: 7 }, (_, i) => ({
     ymd: formatDateISO(addDays(monday, i)),
-    label: TURKISH_DAYS_SHORT[i],
+    label: turkishDayShortOf(addDays(monday, i)),
     count: 0,
   }));
   const index = new Map(weekDays.map((d, i) => [d.ymd, i]));
