@@ -9,7 +9,7 @@
 //  POST /api/push { action: 'notify', event, ... }        -> anlık bildirim (yeni ödev, duyuru/not, cevap, öğrenci mesajı)
 //
 // POST istekleri giriş yapmış kullanıcının oturum anahtarıyla gelir (Authorization: Bearer …).
-// Ayrıntılar ve ortam değişkenleri: api/_pushCore.js
+// Ayrıntılar ve ortam değişkenleri: server/pushCore.js
 // ============================================================================
 import crypto from 'node:crypto';
 import {
@@ -23,7 +23,7 @@ import {
   notifyAnnouncement,
   notifyMessageReply,
   notifyMessageNew,
-} from './_pushCore.js';
+} from '../server/pushCore.js';
 
 export const config = { maxDuration: 30 };
 const TIME_BUDGET_MS = 22000;
