@@ -328,10 +328,14 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     const failed: string[] = [];
     let topics = 0;
     try {
-      for (const s of withItems) {
+      // Görevi olan öğrenciler + görevi sonradan tamamen çıkarılmış ama planı gönderilmiş öğrenciler
+      // (onların Soru Kaydet'teki eski konuları da temizlensin)
+      const targets = viewStudents.filter((s) => withItems.includes(s) || headers[s.id]?.sentAt);
+      for (const s of targets) {
+        const own = viewItems.filter((i) => i.studentId === s.id);
         try {
-          await sendPlan(s.id, weekStart, teacherName);
-          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: viewItems.filter((i) => i.studentId === s.id), canSubject });
+          if (own.length) await sendPlan(s.id, weekStart, teacherName);
+          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: own, canSubject });
           if (r.subjects.length) topics++;
         } catch {
           failed.push(s.name);
@@ -368,6 +372,14 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     setTaskStudentIds(viewStudents.filter((s) => cids.includes(s.classId)).map((s) => s.id));
     setTaskModal({ mode: 'add', day });
   };
+  // Aşama 37: düzenlemede sınıf / öğrenci seçicileri görevin ŞU ANKİ öğrencileriyle açılır
+  const openEdit = (g: Group) => {
+    const sids = Array.from(new Set(g.items.map((i) => i.studentId)));
+    const cids = Array.from(new Set(sids.map((id) => studentById.get(id)?.classId || '').filter(Boolean)));
+    setTaskClassIds(cids);
+    setTaskStudentIds(sids);
+    setTaskModal({ mode: 'edit', day: g.day, group: g });
+  };
   const toggleTaskClass = (cid: string) => {
     const on = taskClassIds.includes(cid);
     const ids = viewStudents.filter((s) => s.classId === cid).map((s) => s.id);
@@ -380,7 +392,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   );
   const taskTargets = useMemo(() => taskStudentIds.filter((id) => taskStudentOptions.some((o) => o.id === id)), [taskStudentIds, taskStudentOptions]);
   const taskBooks = useMemo(() => {
-    const ids = new Set(taskModal?.mode === 'edit' && taskModal.group ? taskModal.group.items.map((i) => i.studentId) : taskTargets);
+    const ids = new Set(taskTargets);
     const seen = new Set<string>();
     const out: StudentBook[] = [];
     for (const b of books) {
@@ -403,15 +415,35 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
 
   const saveTask = async (draft: PlanItemDraft, keepOpen: boolean) => {
     if (taskModal?.mode === 'edit' && taskModal.group) {
-      const ids = taskModal.group.items.map((i) => i.id);
+      const g = taskModal.group;
+      const after = new Set(taskTargets);
+      if (!after.size) throw new Error('En az bir öğrenci seçin.');
+      const before = new Set(g.items.map((i) => i.studentId));
+      const keep = g.items.filter((i) => after.has(i.studentId));
+      const remove = g.items.filter((i) => !after.has(i.studentId));
+      const addIds = taskTargets.filter((id) => !before.has(id));
       if (draft.book) {
-        const nb = await addBookForStudents(taskModal.group.items.map((i) => i.studentId), draft.book, draft.subject, books).catch(() => []);
+        const nb = await addBookForStudents(taskTargets, draft.book, draft.subject, books).catch(() => []);
         if (nb.length) setBooks((b) => [...b, ...nb]);
       }
-      const n = await updatePlanItems(ids, draft);
+      // Sıra önemli: önce yeni öğrencilere eklenir, sonra kalanlar güncellenir, en son çıkarılanlardan silinir.
+      // Böylece yarıda bir hata olursa görev hiçbir öğrenciden kaybolmaz.
+      let added = 0;
+      if (addIds.length) {
+        const positions: Record<string, number> = {};
+        for (const sid of addIds) positions[sid] = items.filter((i) => i.studentId === sid && i.day === draft.day).reduce((m, i) => Math.max(m, i.position + 1), 0);
+        added = (await addPlanItemsBulk(addIds, weekStart, draft, positions, teacherName)).length;
+      }
+      const n = keep.length ? await updatePlanItems(keep.map((i) => i.id), draft) : 0;
+      const removed = remove.length ? await deletePlanItems(remove.map((i) => i.id)) : 0;
       setTaskModal(null);
       await reload(true);
-      say({ tone: 'success', text: `Görev ${n} öğrencide güncellendi.` }, 3500);
+      const parts: string[] = [];
+      if (n) parts.push(`${n} öğrencide güncellendi`);
+      if (added) parts.push(`${added} öğrenciye eklendi`);
+      if (removed) parts.push(`${removed} öğrenciden çıkarıldı`);
+      const sentNote = anySent && (added || removed || n) ? ' Öğrencilere ve Soru Kaydet bölümüne ulaşması için "Planı yenile"ye basın.' : '';
+      say({ tone: 'success', text: `Görev ${parts.join(', ')}.${sentNote}` }, 8000);
       return;
     }
     const targets = taskTargets;
@@ -432,13 +464,12 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     }
   };
 
-  const targetSlot =
-    taskModal?.mode === 'edit' && taskModal.group ? (
-      <p className="text-sm text-fg-2" id="plan-task-target-fixed">
-        <span className="font-semibold text-fg">Kime:</span> {targetLabel(taskModal.group.items.map((i) => i.studentId))}
-        <span className="block text-[11px] text-muted mt-0.5">Değişiklik bu görevi alan öğrencilerin hepsine uygulanır.</span>
-      </p>
-    ) : (
+  // Aşama 37: düzenlemede çıkarılacak / eklenecek öğrenciler (uyarı metni için)
+  const editGroup = taskModal?.mode === 'edit' ? taskModal.group : undefined;
+  const editRemoved = editGroup ? editGroup.items.filter((i) => !taskTargets.includes(i.studentId)) : [];
+  const editRemovedDone = editRemoved.filter((i) => i.doneAt).length;
+  const editAdded = editGroup ? taskTargets.filter((id) => !editGroup.items.some((i) => i.studentId === id)).length : 0;
+  const targetSlot = (
       <>
         <div>
           <FieldLabel>1. Sınıf</FieldLabel>
@@ -470,9 +501,27 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
             emptyText="Önce sınıf seçin."
           />
           <p className="text-[11px] text-muted mt-1" id="plan-task-target-count">
-            {taskTargets.length ? `Görev ${targetLabel(taskTargets)} için eklenecek.` : 'Görev eklenecek öğrenci seçilmedi.'} Sonra ders ve o dersin kitabını seçin.
+            {editGroup
+              ? taskTargets.length
+                ? `Görev ${targetLabel(taskTargets)} için kaydedilecek.`
+                : 'Öğrenci seçilmedi.'
+              : taskTargets.length
+                ? `Görev ${targetLabel(taskTargets)} için eklenecek.`
+                : 'Görev eklenecek öğrenci seçilmedi.'}{' '}
+            {editGroup ? 'Değişiklik seçili öğrencilerin hepsine uygulanır.' : 'Sonra ders ve o dersin kitabını seçin.'}
           </p>
         </div>
+        {editGroup && (editRemoved.length > 0 || editAdded > 0) && (
+          <div role="status" id="plan-task-target-change" className={cx('rounded-lg px-3 py-2 text-[11px] font-semibold', editRemoved.length ? 'bg-warning-soft text-warning-fg' : 'bg-info-soft text-info-fg')}>
+            {editAdded > 0 && <span className="block">{editAdded} öğrenciye bu görev eklenecek.</span>}
+            {editRemoved.length > 0 && (
+              <span className="block">
+                {editRemoved.length} öğrenciden bu görev silinecek
+                {editRemovedDone > 0 ? ` (${editRemovedDone} öğrenci "yaptım" diye işaretlemişti; işaretleri de silinir)` : ''}.
+              </span>
+            )}
+          </div>
+        )}
       </>
     );
 
@@ -770,7 +819,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                           <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-bold', subjectTone(g.subject))}>{g.subject}</span>
                           {editable && (
                             <span className="flex items-center gap-0.5 shrink-0">
-                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => setTaskModal({ mode: 'edit', day: g.day, group: g })}>
+                              <button type="button" aria-label="Görevi düzenle" title="Düzenle" data-edit className="p-1 rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer" onClick={() => openEdit(g)}>
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
                               <button type="button" aria-label="Görevi sil" title="Sil" data-delete className="p-1 rounded-md text-muted hover:text-danger-fg hover:bg-danger-soft cursor-pointer" onClick={() => setDeleteGroup(g)}>
@@ -825,7 +874,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         onClose={() => setTaskModal(null)}
         onSave={saveTask}
         targetSlot={targetSlot}
-        validateTarget={() => (taskModal?.mode === 'add' && taskTargets.length === 0 ? 'Görevin verileceği en az bir öğrenci seçin.' : null)}
+        validateTarget={() => (taskTargets.length === 0 ? 'Görevin verileceği en az bir öğrenci seçin.' : null)}
         bookOwnerLabel="Seçilen öğrenciler"
       />
       <ConfirmDeleteModal
