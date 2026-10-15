@@ -122,6 +122,7 @@ const b64u = (buf) => Buffer.from(buf).toString('base64url');
 const fromB64u = (s) => Buffer.from(String(s || '').trim().replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'), 'base64url');
 
 let vapidKey = null; // { key: KeyObject, pub: string }
+let vapidProblem = '';
 function ensureVapid() {
   if (vapidKey) return true;
   const e = pushEnv();
@@ -130,7 +131,16 @@ function ensureVapid() {
     const pub = fromB64u(e.vapidPublic);
     const d = fromB64u(e.vapidPrivate);
     if (pub.length !== 65 || pub[0] !== 4 || d.length !== 32) {
-      console.error('[push] VAPID anahtarları hatalı biçimde (ortak 65 bayt, gizli 32 bayt olmalı)');
+      vapidProblem = `VAPID anahtarları hatalı biçimde (ortak ${pub.length}/65, gizli ${d.length}/32 bayt)`;
+      console.error('[push]', vapidProblem);
+      return false;
+    }
+    // Gizli anahtar ortak anahtarın eşi mi? (eşleşmezse Apple "BadJwtToken", Google 403 verir)
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.setPrivateKey(d);
+    if (!ecdh.getPublicKey().equals(pub)) {
+      vapidProblem = 'VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY ile eşleşmiyor (Vercel\'deki gizli anahtarı kontrol edin)';
+      console.error('[push]', vapidProblem);
       return false;
     }
     const key = crypto.createPrivateKey({
@@ -140,7 +150,8 @@ function ensureVapid() {
     vapidKey = { key, pub: b64u(pub) };
     return true;
   } catch (err) {
-    console.error('[push] VAPID anahtarı okunamadı', err && err.message);
+    vapidProblem = `VAPID anahtarı okunamadı: ${(err && err.message) || ''}`;
+    console.error('[push]', vapidProblem);
     return false;
   }
 }
@@ -149,7 +160,10 @@ function vapidAuth(endpoint) {
   const e = pushEnv();
   const aud = new URL(endpoint).origin;
   const head = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
-  const claims = b64u(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: e.vapidSubject }));
+  let sub = String(e.vapidSubject || '').replace(/\s+/g, '').replace(/^["']|["']$/g, '');
+  if (/^mailto:/i.test(sub)) sub = 'mailto:' + sub.slice(7);
+  if (!/^mailto:[^@]+@[^@]+\.[^@]+$/.test(sub) && !/^https:\/\/[^/]+\.[^/]+/.test(sub)) sub = `mailto:${HEAD_ADMIN_EMAIL}`;
+  const claims = b64u(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 3600, sub }));
   const sig = crypto.sign('sha256', Buffer.from(`${head}.${claims}`), { key: vapidKey.key, dsaEncoding: 'ieee-p1363' });
   return `vapid t=${head}.${claims}.${b64u(sig)}, k=${vapidKey.pub}`;
 }
@@ -220,7 +234,7 @@ async function claim(key) {
 export async function sendToUsers(userIds, payload, { dedupe, deadline } = {}) {
   const out = { users: 0, devices: 0, sent: 0, failed: 0, removed: 0, lastError: '' };
   if (!ensureVapid()) {
-    out.lastError = 'VAPID anahtarları okunamadı';
+    out.lastError = vapidProblem || 'VAPID anahtarları okunamadı';
     return out;
   }
   const ids = uniq(userIds);
@@ -791,7 +805,8 @@ export default async function handler(req, res) {
         });
         let why = '';
         if (r.sent === 0) {
-          if (!r.devices) why = 'Bu hesaba kayıtlı cihaz bulunamadı. Kapat\'a basıp Bildirimleri aç\'a yeniden dokunun.';
+          if (!r.devices && r.lastError) why = r.lastError;
+          else if (!r.devices) why = 'Bu hesaba kayıtlı cihaz bulunamadı. Kapat\'a basıp Bildirimleri aç\'a yeniden dokunun.';
           else if (r.removed && !r.failed) why = 'Cihaz aboneliği geçersiz çıktı ve silindi. Bildirimleri aç\'a yeniden dokunun.';
           else why = `Bildirim servisi reddetti: ${r.lastError || 'bilinmeyen neden'}`;
         }
