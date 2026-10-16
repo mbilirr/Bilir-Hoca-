@@ -181,7 +181,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               className="p-2 bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg rounded-xl border border-line transition-colors text-xs flex items-center space-x-1.5"
               title="Yazdır"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Yazdır</span>
             </button>
 
@@ -191,7 +191,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium transition-colors text-xs flex items-center space-x-1.5 shadow-md shadow-indigo-600/20"
               title="Orijinal Dosyayı İndir"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               <span>{document.fileSize ? `İndir (${document.fileSize})` : 'İndir'}</span>
             </button>
 
@@ -441,7 +441,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
                     onClick={() => onDownload(document)}
                     className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center space-x-2"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-3.5 h-3.5" />
                     <span>PDF Olarak İndir</span>
                   </button>
                 </div>
@@ -467,7 +467,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-xs font-bold flex items-center space-x-2 shadow-md shadow-indigo-600/30 transition-all cursor-pointer hover:scale-105"
               title="Belgeyi Bilgisayara İndir"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5" />
               <span>Belgeyi İndir ({document.fileFormat.toUpperCase()})</span>
             </button>
 

@@ -146,7 +146,7 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
                   type="button"
                   onClick={() => markSeen([x.id])}
                   data-etut-note={x.studentId}
-                  className={cx('w-full text-left px-4 sm:px-5 py-3 flex items-start gap-3 transition-colors cursor-pointer', isNew ? 'bg-brand-soft/50 hover:bg-brand-soft' : 'hover:bg-surface-2')}
+                  className={cx('w-full text-left px-4 sm:px-5 py-2 flex items-start gap-3 transition-colors cursor-pointer', isNew ? 'bg-brand-soft/50 hover:bg-brand-soft' : 'hover:bg-surface-2')}
                 >
                   <span className={cx('mt-1.5 w-2.5 h-2.5 rounded-full shrink-0', isNew ? 'bg-brand' : 'bg-transparent')} aria-hidden />
                   <span className="flex-1 min-w-0 space-y-1">

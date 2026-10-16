@@ -572,7 +572,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           statusEnd:
             shownItems.length > 0 ? (
               <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
-                <Trash2 className="w-4 h-4" /> Planı temizle
+                <Trash2 className="w-3.5 h-3.5" /> Planı temizle
               </button>
             ) : null,
           primary: sent ? (
@@ -608,10 +608,10 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           actions: (
             <>
               <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || shownItems.length === 0} onClick={() => doExport('pdf')}>
-                <FileText className="w-5 h-5 text-danger-fg" /> PDF
+                <FileText className="text-danger-fg" /> PDF
               </button>
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || shownItems.length === 0} onClick={() => doExport('excel')}>
-                <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
+                <FileSpreadsheet className="text-success-fg" /> Excel
               </button>
               <button
                 type="button"
@@ -621,14 +621,14 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                 onClick={doTransferToQuestions}
                 title="Görevleri öğrencinin Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır"
               >
-                <Target className="w-5 h-5 text-warning-fg" /> Soru Kaydet'e aktar
+                <Target className="text-warning-fg" /> Soru Kaydet'e aktar
               </button>
               <button type="button" id="plan-apply" className={planTileCls} disabled={shownItems.length === 0} onClick={() => setApplyOpen(true)}>
-                <Copy className="w-5 h-5 text-info-fg" /> Başkalarına / başka haftaya uygula
+                <Copy className="text-info-fg" /> Başkalarına / başka haftaya uygula
               </button>
               <button type="button" id="plan-books" className={planTileCls} onClick={() => setBooksOpen(true)} aria-label={`Kitaplar (${books.filter(ownBook).length})`}>
-                <Library className="w-5 h-5 text-brand-fg" /> Kitaplar
-                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{books.filter(ownBook).length}</span>
+                <Library className="text-brand-fg" /> Kitaplar
+                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-[10px] leading-4">{books.filter(ownBook).length}</span>
               </button>
             </>
           ),
@@ -676,7 +676,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             Plan taslak: öğrenci henüz görmüyor. Görmesi için "Öğrenciye ödev olarak gönder"e basın.
           </p>
           <button type="button" id="plan-send-callout" className="ui-btn ui-btn-primary ui-btn-sm shrink-0" disabled={busy} onClick={doSend}>
-            <Send className="w-4 h-4" /> Öğrenciye ödev olarak gönder
+            <Send className="w-3.5 h-3.5" /> Öğrenciye ödev olarak gönder
           </button>
         </div>
       )}
@@ -975,7 +975,7 @@ const ApplyPlanModal: React.FC<{
                 {classIds.length === 1 ? ' sınıfın toplu karnesi' : ' rapor'} gelir.
               </p>
               <button type="button" id="plan-apply-dispatch" className="ui-btn ui-btn-primary ui-btn-sm" onClick={openDispatch}>
-                <Send className="w-4 h-4" /> E-posta / WhatsApp ile gönder
+                <Send className="w-3.5 h-3.5" /> E-posta / WhatsApp ile gönder
               </button>
             </div>
           )}

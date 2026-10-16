@@ -456,7 +456,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
               disabled={isSaving}
               className="flex items-center space-x-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-600/25 cursor-pointer disabled:opacity-60"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kaydediliyor…' : 'Yoklamayı Kaydet'}</span>
             </button>
           </div>

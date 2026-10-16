@@ -498,6 +498,11 @@ html, body {
   height: 1rem;
   flex-shrink: 0;
 }
+/* Aşama 45b: küçük düğmelerde simge yazıyla aynı boyda */
+.ui-btn-sm svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
 .ui-btn-sm svg {
   width: 0.875rem;
   height: 0.875rem;

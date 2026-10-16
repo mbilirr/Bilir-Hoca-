@@ -16,11 +16,11 @@ import { inputCls } from './FormParts';
 // Dar ekranda hafta günleri kısa adla gösterilir
 const SHORT_DAY: Record<string, string> = { Pazartesi: 'Pzt', Salı: 'Sal', Çarşamba: 'Çar', Perşembe: 'Per', Cuma: 'Cum', Cumartesi: 'Cmt', Pazar: 'Paz' };
 
-/** Gönder satırındaki düğmeler için ortak sınıf (varyantı çağıran ekler: ui-btn-primary vb.). */
-export const planMainBtnCls = 'ui-btn ui-btn-sm min-h-9 w-full whitespace-normal text-center leading-tight';
-/** İşlem döşemeleri için ortak sınıf (ikon üstte, etiket altta). */
-export const planTileCls =
-  'ui-btn ui-btn-secondary relative w-full min-h-[3.25rem] flex-col gap-1 px-2 py-1.5 text-xs leading-tight whitespace-normal text-center';
+/** Gönder satırındaki düğmeler için ortak sınıf (varyantı çağıran ekler: ui-btn-primary vb.).
+ *  Aşama 45b: düğme yazısı kadar — sütunu doldurmaz, simge yazıyla aynı boyda. */
+export const planMainBtnCls = 'ui-btn ui-btn-sm';
+/** İşlem düğmeleri (PDF, Excel, Kitaplar …): yazı boyunda, simge ve yazı yan yana. */
+export const planTileCls = 'ui-btn ui-btn-secondary ui-btn-sm';
 
 /** Panelin sağ sütununa yerleşen içerik (öğrenci ve sınıf görünümü kendi düğmelerini verir). */
 export type PlanWeekBarSlots = {
@@ -64,11 +64,11 @@ export const StudyPlanWeekBar: React.FC<
         {/* ---------------- Sol: başlangıç günü + hafta gezgini (aynı genişlik) ---------------- */}
         <div id="plan-week-controls" className={cx('flex min-w-0 flex-col gap-2', !hasSide && 'sm:max-w-[19rem]')}>
           {/* 1) Hafta başlangıç günü — kompakt açılır liste */}
-          <div className="relative h-14 rounded-xl border border-line bg-surface shadow-card transition-colors hover:border-line-strong focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
-            <span aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg bg-brand-soft text-brand-fg">
+          <div className="relative h-12 rounded-xl border border-line bg-surface shadow-card transition-colors hover:border-line-strong focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
+            <span aria-hidden className="pointer-events-none absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg bg-brand-soft text-brand-fg">
               <CalendarRange className="h-4 w-4" />
             </span>
-            <label id="plan-week-start-day-label" htmlFor="plan-week-start-day" className="pointer-events-none absolute left-14 top-2 text-[11px] font-medium text-muted">
+            <label id="plan-week-start-day-label" htmlFor="plan-week-start-day" className="pointer-events-none absolute left-12 top-1.5 text-[11px] font-medium text-muted">
               Hafta başlangıç günü
             </label>
             <select
@@ -76,7 +76,7 @@ export const StudyPlanWeekBar: React.FC<
               value={startDay}
               onChange={(e) => onStartDayChange(normalizeWeekStartDay(e.target.value))}
               title={`Plan ${firstDay} günü başlar, ${lastDay} günü biter. (Varsayılan: Pazartesi)`}
-              className="h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-14 pr-9 pt-4 text-sm font-bold text-fg focus:outline-none"
+              className="h-full w-full cursor-pointer appearance-none rounded-xl bg-transparent pl-12 pr-9 pt-3.5 text-sm font-bold text-fg focus:outline-none"
             >
               {WEEK_START_DAY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -88,13 +88,13 @@ export const StudyPlanWeekBar: React.FC<
           </div>
 
           {/* 2) Hafta gezgini — açılır listeyle aynı boyutta */}
-          <div className="flex h-14 items-stretch overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+          <div className="flex h-12 items-stretch overflow-hidden rounded-xl border border-line bg-surface shadow-card">
             <button
               type="button"
               id="plan-week-prev"
               aria-label="Önceki hafta"
               title="Önceki hafta"
-              className="grid w-11 shrink-0 cursor-pointer place-items-center border-r border-line text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus:outline-none focus-visible:bg-surface-2"
+              className="grid w-9 shrink-0 cursor-pointer place-items-center border-r border-line text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus:outline-none focus-visible:bg-surface-2"
               onClick={() => onShift(-1)}
             >
               <ChevronLeft className="h-5 w-5" />
@@ -122,7 +122,7 @@ export const StudyPlanWeekBar: React.FC<
               id="plan-week-next"
               aria-label="Sonraki hafta"
               title="Sonraki hafta"
-              className="grid w-11 shrink-0 cursor-pointer place-items-center border-l border-line text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus:outline-none focus-visible:bg-surface-2"
+              className="grid w-9 shrink-0 cursor-pointer place-items-center border-l border-line text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg focus:outline-none focus-visible:bg-surface-2"
               onClick={() => onShift(1)}
             >
               <ChevronRight className="h-5 w-5" />
@@ -134,7 +134,7 @@ export const StudyPlanWeekBar: React.FC<
             <button
               type="button"
               id="plan-week-today"
-              className="ui-btn ui-btn-secondary ui-btn-sm h-9 shrink-0"
+              className="ui-btn ui-btn-secondary ui-btn-sm shrink-0"
               onClick={onToday}
               disabled={isThisWeek}
               title={isThisWeek ? 'Zaten bu haftadasınız' : 'Bu haftaya dön'}
@@ -150,7 +150,7 @@ export const StudyPlanWeekBar: React.FC<
                 id="plan-week-date"
                 value={weekStart}
                 onChange={(e) => e.target.value && onPickDate(e.target.value)}
-                className={cx(inputCls, 'h-9 py-1 sm:pl-9')}
+                className={cx(inputCls, 'h-8 py-1 text-xs sm:pl-9')}
               />
             </div>
           </div>
@@ -166,12 +166,12 @@ export const StudyPlanWeekBar: React.FC<
               </div>
             )}
             {primary && (
-              <div id="plan-week-primary" className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2">
+              <div id="plan-week-primary" className="flex flex-wrap items-center gap-1.5">
                 {primary}
               </div>
             )}
             {actions && (
-              <div id="plan-week-actions" role="toolbar" aria-label="Plan işlemleri" className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+              <div id="plan-week-actions" role="toolbar" aria-label="Plan işlemleri" className="flex flex-wrap items-center gap-1.5">
                 {actions}
               </div>
             )}

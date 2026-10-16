@@ -234,7 +234,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
                 type="button"
                 onClick={() => setOpenId(open ? null : k.id)}
                 aria-expanded={open}
-                className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-surface-2 hover:bg-surface-3 text-left cursor-pointer"
+                className="w-full flex items-center justify-between gap-3 px-4 py-2 bg-surface-2 hover:bg-surface-3 text-left cursor-pointer"
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-fg truncate">{k.name}</span>

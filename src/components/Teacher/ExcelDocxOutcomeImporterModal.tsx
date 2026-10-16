@@ -639,7 +639,7 @@ const ExcelDocxOutcomeImporterContent: React.FC<ExcelDocxOutcomeImporterModalPro
               onClick={handleTransferToNewHomework}
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl text-xs font-semibold transition-all flex items-center space-x-2 shadow-lg shadow-indigo-600/30"
             >
-              <Target className="w-4 h-4" />
+              <Target className="w-3.5 h-3.5" />
               <span>Seçilenleri Yeni Ödeve Aktar</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>

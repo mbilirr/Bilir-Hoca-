@@ -1583,7 +1583,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <button
                     type="button"
                     onClick={closeEditResourcesModal}
-                    className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-medium cursor-pointer"
+                    className="px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs font-semibold cursor-pointer"
                   >
                     İptal
                   </button>
@@ -1591,9 +1591,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     type="button"
                     onClick={handleSaveEditedResources}
                     disabled={isSavingResources || isEditUploadBusy}
-                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[0.8125rem] font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 cursor-pointer disabled:opacity-60"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>{isSavingResources ? 'Kaydediliyor…' : 'Materyalleri Kaydet'}</span>
                   </button>
                 </div>

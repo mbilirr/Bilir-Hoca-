@@ -161,7 +161,7 @@ export const TeacherNavDropdown: React.FC<TeacherNavDropdownProps> = ({
             aria-expanded={isOpen}
             aria-haspopup="true"
             id="teacher-module-dropdown-button"
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-between space-x-3 transition-all duration-200 cursor-pointer ${
+            className={`px-4 py-1.5 rounded-xl font-bold text-xs flex items-center justify-between space-x-3 transition-all duration-200 cursor-pointer ${
               isOpen
                 ? 'bg-indigo-600 border-2 border-indigo-400 text-white shadow-lg shadow-indigo-600/30'
                 : 'bg-indigo-600 border-2 border-indigo-200 text-white animate-beacon hover:brightness-110 shadow-md'
@@ -200,7 +200,7 @@ export const TeacherNavDropdown: React.FC<TeacherNavDropdownProps> = ({
 
             <div className="flex items-center space-x-1.5 shrink-0 pl-1.5">
               <ChevronDown
-                className={`w-4 h-4 text-white/90 transition-transform duration-200 shrink-0 ${
+                className={`w-3.5 h-3.5 text-white/90 transition-transform duration-200 shrink-0 ${
                   isOpen ? 'rotate-180 text-white' : ''
                 }`}
               />
@@ -229,7 +229,7 @@ export const TeacherNavDropdown: React.FC<TeacherNavDropdownProps> = ({
                       role="menuitem"
                       type="button"
                       onClick={() => handleSelect(item.id)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group cursor-pointer ${
+                      className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between group cursor-pointer ${
                         isSelected
                           ? 'bg-indigo-600/25 text-indigo-200 border border-indigo-500/50 shadow-sm'
                           : 'text-slate-300 hover:text-white hover:bg-slate-850 hover:bg-slate-800/80 border border-transparent'
@@ -259,7 +259,7 @@ export const TeacherNavDropdown: React.FC<TeacherNavDropdownProps> = ({
                           </span>
                         )}
                         {isSelected && (
-                          <Check className="w-4 h-4 text-indigo-400 font-black shrink-0" />
+                          <Check className="w-3.5 h-3.5 text-indigo-400 font-black shrink-0" />
                         )}
                       </div>
                     </button>

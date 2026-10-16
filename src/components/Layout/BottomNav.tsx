@@ -116,7 +116,7 @@ export const TeacherBottomNav: React.FC<{
                     type="button"
                     onClick={() => pick(item.id)}
                     className={cx(
-                      'flex items-center gap-3 px-3 py-3 rounded-2xl text-left cursor-pointer',
+                      'flex items-center gap-3 px-3 py-2 rounded-2xl text-left cursor-pointer',
                       item.id === activeTab ? 'bg-brand-soft' : 'hover:bg-surface-2'
                     )}
                   >
@@ -137,7 +137,7 @@ export const TeacherBottomNav: React.FC<{
                     setMoreOpen(false);
                     openCommandPalette();
                   }}
-                  className="flex items-center gap-3 px-3 py-3 rounded-2xl text-left hover:bg-surface-2 cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2 rounded-2xl text-left hover:bg-surface-2 cursor-pointer"
                 >
                   <IconBox icon={Search} tone="neutral" size="sm" />
                   <span className="text-sm font-semibold text-fg">Hızlı Ara</span>
@@ -148,7 +148,7 @@ export const TeacherBottomNav: React.FC<{
                     setMoreOpen(false);
                     onLogout();
                   }}
-                  className="flex items-center gap-3 px-3 py-3 rounded-2xl text-left hover:bg-danger-soft cursor-pointer"
+                  className="flex items-center gap-3 px-3 py-2 rounded-2xl text-left hover:bg-danger-soft cursor-pointer"
                 >
                   <IconBox icon={LogOut} tone="danger" size="sm" />
                   <span className="text-sm font-semibold text-danger-fg">Çıkış Yap</span>

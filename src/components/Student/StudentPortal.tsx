@@ -300,26 +300,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-homework-card-btn"
             type="button"
             onClick={() => setActiveTab('homework')}
-            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-amber text-white shadow-sm ${
+            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-amber text-white shadow-sm ${
               activeTab === 'homework'
-                ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 border-white ring-4 ring-amber-300/90 shadow-md scale-[1.01]'
+                ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 border-white ring-2 ring-amber-300/90 shadow-md '
                 : 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400/80 hover:from-amber-600 hover:to-orange-600'
             }`}
           >
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
               >
-                <BookOpen className="w-4 h-4 text-white" />
+                <BookOpen className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs sm:text-sm font-black text-white group-hover:text-amber-100 transition-colors drop-shadow-xs">
+                <div className="text-xs font-black text-white group-hover:text-amber-100 transition-colors drop-shadow-xs">
                   Ödevlerim
                 </div>
               </div>
             </div>
             <ArrowRight
-              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
                 activeTab === 'homework' ? 'font-black' : 'opacity-90'
               }`}
             />
@@ -330,26 +330,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-etuts-card-btn"
             type="button"
             onClick={() => setActiveTab('etuts')}
-            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-blue text-white shadow-sm ${
+            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-blue text-white shadow-sm ${
               activeTab === 'etuts'
-                ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 border-white ring-4 ring-blue-300/90 shadow-md scale-[1.01]'
+                ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 border-white ring-2 ring-blue-300/90 shadow-md '
                 : 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-400/80 hover:from-blue-700 hover:to-indigo-700'
             }`}
           >
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
               >
-                <Calendar className="w-4 h-4 text-white" />
+                <Calendar className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs sm:text-sm font-black text-white group-hover:text-blue-100 transition-colors drop-shadow-xs">
+                <div className="text-xs font-black text-white group-hover:text-blue-100 transition-colors drop-shadow-xs">
                   Etütlerim
                 </div>
               </div>
             </div>
             <ArrowRight
-              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
                 activeTab === 'etuts' ? 'font-black' : 'opacity-90'
               }`}
             />
@@ -360,26 +360,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-questions-card-btn"
             type="button"
             onClick={() => setActiveTab('questions')}
-            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-emerald text-white shadow-sm ${
+            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-emerald text-white shadow-sm ${
               activeTab === 'questions'
-                ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-600 border-white ring-4 ring-emerald-300/90 shadow-md scale-[1.01]'
+                ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-600 border-white ring-2 ring-emerald-300/90 shadow-md '
                 : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-400/80 hover:from-emerald-700 hover:to-teal-700'
             }`}
           >
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
               >
-                <HelpCircle className="w-4 h-4 text-white" />
+                <HelpCircle className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs sm:text-sm font-black text-white group-hover:text-emerald-100 transition-colors drop-shadow-xs">
+                <div className="text-xs font-black text-white group-hover:text-emerald-100 transition-colors drop-shadow-xs">
                   Soru Sayısı
                 </div>
               </div>
             </div>
             <ArrowRight
-              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
                 activeTab === 'questions' ? 'font-black' : 'opacity-90'
               }`}
             />
@@ -390,26 +390,26 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             id="student-nav-grades-card-btn"
             type="button"
             onClick={() => setActiveTab('grades')}
-            className={`flex items-center justify-between p-3.5 rounded-xl border-2 transition-all cursor-pointer group hover-glow-purple text-white shadow-sm ${
+            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-purple text-white shadow-sm ${
               activeTab === 'grades'
-                ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-violet-600 border-white ring-4 ring-purple-300/90 shadow-md scale-[1.01]'
+                ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-violet-600 border-white ring-2 ring-purple-300/90 shadow-md '
                 : 'bg-gradient-to-r from-purple-600 to-purple-700 border-purple-400/80 hover:from-purple-700 hover:to-violet-700'
             }`}
           >
-            <div className="flex items-center space-x-2.5">
+            <div className="flex items-center space-x-2">
               <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
               >
-                <Award className="w-4 h-4 text-white" />
+                <Award className="w-3.5 h-3.5 text-white" />
               </div>
               <div className="text-left">
-                <div className="text-xs sm:text-sm font-black text-white group-hover:text-purple-100 transition-colors drop-shadow-xs">
+                <div className="text-xs font-black text-white group-hover:text-purple-100 transition-colors drop-shadow-xs">
                   Not-Devamsızlık
                 </div>
               </div>
             </div>
             <ArrowRight
-              className={`w-4 h-4 text-white group-hover:translate-x-1 transition-transform ${
+              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
                 activeTab === 'grades' ? 'font-black' : 'opacity-90'
               }`}
             />
@@ -534,7 +534,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                       dataService.markNotificationAsRead(unreadPraiseNotifs[0].id);
                       setNotificationTrigger((prev) => prev + 1);
                     }}
-                    className="px-4 py-2.5 rounded-xl bg-surface hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-950 dark:text-amber-200 font-black text-xs shadow-md transition-all hover:scale-105 active:scale-95 flex items-center space-x-1.5 cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-surface hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-950 dark:text-amber-200 font-black text-xs shadow-md transition-all hover:scale-105 active:scale-95 flex items-center space-x-1.5 cursor-pointer"
                   >
                     <span>Teşekkürler! (Okundu Yap) 👏</span>
                   </button>
@@ -702,7 +702,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         setSubmitError(null);
                         setSubmittingHw(hw);
                       }}
-                      className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 ${
+                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center space-x-1.5 ${
                         mySubmission
                           ? 'bg-surface-2 hover:bg-surface-3 text-fg'
                           : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
@@ -847,7 +847,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         href={createGoogleCalendarUrlForEtut(etut)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-xs font-semibold transition-all"
+                        className="inline-flex items-center justify-center space-x-1.5 py-1.5 px-3 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-xs font-semibold transition-all"
                       >
                         <CalendarCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
                         <span>Google Takvime Ekle</span>

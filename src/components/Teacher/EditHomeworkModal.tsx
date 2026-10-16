@@ -407,16 +407,16 @@ const EditHomeworkModalContent: React.FC<EditHomeworkModalProps & { homework: Ho
                 type="button"
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="px-3 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
                 İptal
               </button>
               <button
                 type="submit"
                 disabled={isSaving || isUploadBusy}
-                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[0.8125rem] font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center space-x-1.5 cursor-pointer transition-all disabled:opacity-60"
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 <span>{isSaving ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}</span>
               </button>
             </div>

@@ -1792,7 +1792,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 onClick={handleSaveAuthModal}
                 className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 flex items-center space-x-1.5 cursor-pointer"
               >
-                <Check className="w-4 h-4" />
+                <Check className="w-3.5 h-3.5" />
                 <span>Yetkileri Kaydet ve Uygula</span>
               </button>
             </div>
@@ -1941,7 +1941,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 }}
                 className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold border border-line"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>Bilgileri Kopyala</span>
               </button>
               <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">

@@ -2181,7 +2181,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div>
                 <label
                   htmlFor="class-excel-upload"
-                  className="border-2 border-dashed border-line-strong hover:border-success bg-surface rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer transition-all group"
+                  className="border-2 border-dashed border-line-strong hover:border-success bg-surface rounded-xl px-3 py-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all group"
                 >
                   <input
                     id="class-excel-upload"
@@ -2194,9 +2194,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       e.target.value = '';
                     }}
                   />
-                  <div className="w-9 h-9 rounded-xl bg-success-soft text-success-fg flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                    <Upload className="w-4 h-4" />
-                  </div>
+                  <Upload className="w-3.5 h-3.5 shrink-0 text-success-fg" />
                   <span className="text-xs font-bold text-fg-2 group-hover:text-success-fg">
                     {isReadingClassExcel ? 'Excel Okunuyor...' : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
                   </span>
@@ -2574,7 +2572,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         }}
                         className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center space-x-1.5"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5" />
                         <span>Yeni Öğrenci Ekle</span>
                       </button>
                       )}
@@ -2589,7 +2587,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         }}
                         className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center space-x-1.5"
                       >
-                        <ArrowRightLeft className="w-4 h-4" />
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
                         <span>Sistemdeki Öğrencileri Aktar</span>
                       </button>
                       )}

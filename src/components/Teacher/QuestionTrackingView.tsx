@@ -1030,7 +1030,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 <span className="text-muted font-medium">Öğrenci Seçiniz</span>
               )}
               <ChevronDown
-                className={`w-4 h-4 text-subtle shrink-0 transition-transform ${
+                className={`w-3.5 h-3.5 text-subtle shrink-0 transition-transform ${
                   isStudentDropdownOpen ? 'rotate-180 text-orange-700 dark:text-orange-400' : ''
                 }`}
               />
@@ -1120,7 +1120,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                           key={s.id}
                           type="button"
                           onClick={() => handleSelectStudent(s.id)}
-                          className={`w-full text-left px-3 py-2.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors cursor-pointer ${
                             hasSolvedToday
                               ? isSelected
                                 ? 'bg-emerald-100/90 dark:bg-emerald-500/15 text-emerald-950 dark:text-emerald-200 font-black border-l-4 border-emerald-600'
@@ -2191,9 +2191,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="pt-3 border-t border-line">
                     <button
                       onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                      className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+                      className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                     >
-                      <Download className="w-4 h-4 text-orange-400" />
+                      <Download className="w-3.5 h-3.5 text-orange-400" />
                       <span>Haftalık Raporu PDF İndir</span>
                     </button>
                   </div>
@@ -2506,9 +2506,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   <div className="pt-3 border-t border-line">
                     <button
                       onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: activeLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                      className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+                      className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                     >
-                      <Download className="w-4 h-4 text-orange-400" />
+                      <Download className="w-3.5 h-3.5 text-orange-400" />
                       <span>Aylık Raporu PDF İndir</span>
                     </button>
                   </div>
@@ -3516,7 +3516,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 onClick={handleSendPraise}
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center space-x-1.5 cursor-pointer"
               >
-                <Award className="w-4 h-4" />
+                <Award className="w-3.5 h-3.5" />
                 <span>Öğrenciye Tebrik Bildirimi Gönder 🚀</span>
               </button>
             </div>

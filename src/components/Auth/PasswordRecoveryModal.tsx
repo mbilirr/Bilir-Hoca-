@@ -83,7 +83,7 @@ export const PasswordRecoveryModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClose}
-                className="w-full px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[0.8125rem] font-semibold cursor-pointer"
+                className="w-full px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer"
               >
                 Giriş ekranına dön
               </button>
@@ -141,14 +141,14 @@ export const PasswordRecoveryModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 rounded-xl text-sm text-fg-2 hover:text-fg cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-fg-2 hover:text-fg cursor-pointer"
                 >
                   Vazgeç
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-60"
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-60"
                 >
                   {isSaving ? 'Kaydediliyor...' : 'Şifreyi Kaydet'}
                 </button>

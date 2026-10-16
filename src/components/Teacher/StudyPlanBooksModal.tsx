@@ -307,10 +307,10 @@ export const StudyPlanBooksModal: React.FC<{
                                 disabled={busy || !draft.trim()}
                                 onClick={() => void saveEdit(entry)}
                               >
-                                <Check className="w-4 h-4" /> Kaydet
+                                <Check className="w-3.5 h-3.5" /> Kaydet
                               </button>
                               <button type="button" id="book-edit-cancel" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={cancelEdit}>
-                                <X className="w-4 h-4" /> Vazgeç
+                                <X className="w-3.5 h-3.5" /> Vazgeç
                               </button>
                             </div>
                           </div>
@@ -321,7 +321,7 @@ export const StudyPlanBooksModal: React.FC<{
                             </span>
                             <span className="flex items-center gap-1.5">
                               <button type="button" id="book-delete-confirm" className="ui-btn ui-btn-danger ui-btn-sm" disabled={busy} onClick={() => void remove(entry)}>
-                                <Trash2 className="w-4 h-4" /> Sil
+                                <Trash2 className="w-3.5 h-3.5" /> Sil
                               </button>
                               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setConfirmKey(null)}>
                                 Vazgeç

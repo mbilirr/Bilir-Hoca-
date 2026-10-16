@@ -1895,9 +1895,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <div className="pt-3 border-t border-line">
                 <button
                   onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                  className="w-full py-2.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
+                  className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
                 >
-                  <Download className="w-4 h-4 text-orange-400" />
+                  <Download className="w-3.5 h-3.5 text-orange-400" />
                   <span>Haftalık Raporumu İndir</span>
                 </button>
               </div>
@@ -2683,7 +2683,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               disabled={isSaving}
               className="px-3.5 py-1.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
             >
-              <Check className="w-4 h-4 text-orange-400" />
+              <Check className="w-3.5 h-3.5 text-orange-400" />
               <span>{isSaving ? 'Kaydediliyor…' : isEditMode ? 'Kaydı Güncelle' : 'Soru Kaydını Tamamla ve Gönder'}</span>
             </button>
           </div>

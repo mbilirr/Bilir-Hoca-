@@ -43,7 +43,7 @@ export const TargetDailyBreakdown: React.FC<{
             {rows.some((r) => r.status === 'today') ? ' (bugün devam ediyor)' : ''}
           </span>
         </span>
-        {open ? <ChevronUp className="w-4 h-4 text-muted" /> : <ChevronDown className="w-4 h-4 text-muted" />}
+        {open ? <ChevronUp className="w-3.5 h-3.5 text-muted" /> : <ChevronDown className="w-3.5 h-3.5 text-muted" />}
       </button>
       {open && (
         <div className="px-3 pb-3 space-y-3">

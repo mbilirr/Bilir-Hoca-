@@ -178,15 +178,15 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
       {credentials.length > 0 && (
         <>
           <button type="button" onClick={copyAll} className="ui-btn ui-btn-secondary ui-btn-sm">
-            {copiedKey === 'all' ? <Check className="w-4 h-4 text-success-fg" /> : <Copy className="w-4 h-4" />}
+            {copiedKey === 'all' ? <Check className="w-3.5 h-3.5 text-success-fg" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{single ? 'Bilgileri Kopyala' : 'Tümünü Kopyala'}</span>
           </button>
           <button type="button" onClick={printCredentials} className="ui-btn ui-btn-secondary ui-btn-sm">
-            {copiedKey === 'print' ? <Check className="w-4 h-4 text-success-fg" /> : <Printer className="w-4 h-4" />}
+            {copiedKey === 'print' ? <Check className="w-3.5 h-3.5 text-success-fg" /> : <Printer className="w-3.5 h-3.5" />}
             <span>Yazdır</span>
           </button>
           <button type="button" onClick={downloadExcel} className="ui-btn ui-btn-success ui-btn-sm">
-            {copiedKey === 'excel' ? <Check className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+            {copiedKey === 'excel' ? <Check className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
             <span>Excel Olarak İndir</span>
           </button>
         </>

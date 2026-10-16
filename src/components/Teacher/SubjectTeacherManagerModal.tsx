@@ -146,7 +146,7 @@ export const SubjectTeacherManagerModal: React.FC<SubjectTeacherManagerModalProp
                 disabled={!newTeacherName.trim()}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Listeye Ata</span>
               </button>
             </div>

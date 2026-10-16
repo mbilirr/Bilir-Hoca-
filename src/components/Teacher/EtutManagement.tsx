@@ -963,9 +963,9 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                 onClick={() => {
                   openEtutForm('create');
                 }}
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-all shadow-lg shadow-indigo-600/25 cursor-pointer inline-flex items-center space-x-2"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>İlk Etütü Planla</span>
               </button>
             </div>

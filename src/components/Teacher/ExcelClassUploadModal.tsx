@@ -352,7 +352,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
             onClick={handleSaveAllClasses}
             className="ui-btn ui-btn-success ui-btn-sm"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-3.5 h-3.5" />
             <span>{isSaving ? 'Yükleniyor...' : `${pendingCount} Sınıfı Sisteme Yükle`}</span>
           </button>
         </>

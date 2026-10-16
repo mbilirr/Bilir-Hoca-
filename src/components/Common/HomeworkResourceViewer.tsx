@@ -513,7 +513,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveVideoModal(res)}
-                    className="flex-1 py-1.5 px-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+                    className="py-1 px-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Videoyu İzle</span>
@@ -525,7 +525,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                     <button
                       type="button"
                       onClick={() => setActivePdfModal(res)}
-                      className="flex-1 py-1.5 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+                      className="py-1 px-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>{res.type === 'image' ? 'Fotoğrafı Gör' : 'PDF İncele'}</span>
@@ -547,7 +547,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                     href={safeHttpUrl(res.url) || undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-1.5 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-all flex items-center justify-center space-x-1.5"
+                    className="py-1 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center justify-center space-x-1.5"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     <span>Bağlantıyı Aç</span>

@@ -151,7 +151,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
           isLoading={isLoading}
           loadingText="Giriş Yapılıyor..."
           rightIcon={<ArrowRight className="w-4 h-4" />}
-          className="w-full py-2.5"
+          className="w-full"
         >
           Giriş Yap
         </Button>
@@ -166,7 +166,7 @@ export const TeacherLogin: React.FC<TeacherLoginProps> = ({
               if (onClose) onClose();
               onSwitchToStudent();
             }}
-            className="inline-flex items-center space-x-1.5 text-xs sm:text-sm text-slate-500 hover:text-indigo-600 font-medium transition-colors cursor-pointer"
+            className="inline-flex items-center space-x-1.5 text-xs text-slate-500 hover:text-indigo-600 font-medium transition-colors cursor-pointer"
           >
             <span>Öğrenci Portalı Girişi</span>
             <ArrowRight className="w-3.5 h-3.5" />

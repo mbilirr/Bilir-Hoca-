@@ -527,35 +527,35 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               <button
                 type="button"
                 onClick={() => handleSelectRole('teacher')}
-                className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`flex items-center justify-center space-x-2 px-3 py-2 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'teacher'
                     ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-semibold shadow-xs ring-1 ring-indigo-500'
                     : 'bg-surface border-line text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <ShieldCheck
-                  className={`w-5 h-5 ${
+                  className={`w-4 h-4 ${
                     selectedRole === 'teacher' ? 'text-indigo-600 dark:text-indigo-300' : 'text-subtle'
                   }`}
                 />
-                <span className="text-xs sm:text-sm">Öğretmen (Yönetici)</span>
+                <span className="text-xs">Öğretmen (Yönetici)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectRole('student')}
-                className={`flex items-center justify-center space-x-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`flex items-center justify-center space-x-2 px-3 py-2 rounded-xl border transition-all cursor-pointer ${
                   selectedRole === 'student'
                     ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-semibold shadow-xs ring-1 ring-indigo-500'
                     : 'bg-surface border-line text-muted hover:text-fg hover:bg-surface-2'
                 }`}
               >
                 <BookOpen
-                  className={`w-5 h-5 ${
+                  className={`w-4 h-4 ${
                     selectedRole === 'student' ? 'text-indigo-600 dark:text-indigo-300' : 'text-subtle'
                   }`}
                 />
-                <span className="text-xs sm:text-sm">Öğrenci Portalı</span>
+                <span className="text-xs">Öğrenci Portalı</span>
               </button>
             </div>
           </div>
@@ -794,7 +794,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                   isLoading={isLoading}
                   loadingText="Giriş Yapılıyor..."
                   rightIcon={<ArrowRight className="w-4 h-4" />}
-                  className="w-full py-2.5"
+                  className="w-full"
                 >
                   Giriş Yap
                 </Button>
@@ -964,7 +964,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 isLoading={isLoading}
                 loadingText="Başvuru Gönderiliyor..."
                 leftIcon={<BookOpen className="w-4 h-4" />}
-                className="w-full mt-2 py-2.5"
+                className="w-full mt-2"
               >
                 Başvuruyu Gönder
               </Button>

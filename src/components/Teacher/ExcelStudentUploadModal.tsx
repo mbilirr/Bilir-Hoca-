@@ -469,7 +469,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-label="İşleniyor" />
             ) : (
               <>
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Öğrencileri Sisteme Aktar ({validCount})</span>
               </>
             )}

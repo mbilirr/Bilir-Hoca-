@@ -127,7 +127,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
             onClick={onOpenFullModal}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 border border-amber-500/40 hover:border-amber-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
-            <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
             <span>Tüm Başvuru ve Yetkileri Yönet</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>

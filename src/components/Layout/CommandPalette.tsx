@@ -265,7 +265,7 @@ export const CommandPalette: React.FC<{
                     onMouseMove={() => setActive(i)}
                     onClick={() => r.run()}
                     className={cx(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left cursor-pointer transition-colors',
+                      'w-full flex items-center gap-3 px-3 py-1.5 rounded-xl text-left cursor-pointer transition-colors',
                       i === active ? 'bg-brand-soft' : 'hover:bg-surface-2'
                     )}
                   >

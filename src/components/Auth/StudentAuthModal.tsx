@@ -554,7 +554,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 isLoading={isLoading}
                 loadingText="Kaydediliyor..."
                 leftIcon={<UserPlus className="w-4 h-4" />}
-                className="w-full mt-2 py-2.5"
+                className="w-full mt-2"
               >
                 Kayıt Ol
               </Button>
@@ -606,7 +606,7 @@ export const StudentAuthModal: React.FC<StudentAuthModalProps> = ({
                 isLoading={isLoading}
                 loadingText="Giriş Yapılıyor..."
                 leftIcon={<LogIn className="w-4 h-4" />}
-                className="w-full py-2.5"
+                className="w-full"
               >
                 Giriş Yap
               </Button>

@@ -431,7 +431,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 : 'text-muted hover:text-fg hover:bg-surface-2/60'
             }`}
           >
-            <Award className="w-4 h-4" />
+            <Award className="w-3.5 h-3.5" />
             <span>Ders Not Çizelgesi ({classGrades.length})</span>
           </button>
 
@@ -444,7 +444,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                 : 'text-muted hover:text-fg hover:bg-surface-2/60'
             }`}
           >
-            <UserX className="w-4 h-4" />
+            <UserX className="w-3.5 h-3.5" />
             <span>Devamsızlık Defteri ({classAttendanceRecords.length} Oturum)</span>
           </button>
         </div>
@@ -891,7 +891,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                         : 'bg-surface-2 text-subtle cursor-not-allowed opacity-60'
                     }`}
                   >
-                    <Save className="w-4 h-4" />
+                    <Save className="w-3.5 h-3.5" />
                     <span>
                       {batchEnteredCount > 0
                         ? `Notları Kaydet (${batchEnteredCount} Öğrenci)`
@@ -1132,7 +1132,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
                       disabled={isSaving}
                       className="flex-1 sm:flex-none px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 flex items-center justify-center space-x-2 cursor-pointer transition-all scale-[1.02]"
                     >
-                      <Save className="w-4 h-4" />
+                      <Save className="w-3.5 h-3.5" />
                       <span>{saveFeedback ? 'Yoklama Kaydedildi! ✓' : 'Yoklamayı Kaydet'}</span>
                     </button>
                   </div>

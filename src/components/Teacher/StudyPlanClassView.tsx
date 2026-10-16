@@ -712,7 +712,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           statusEnd:
             clearable.length > 0 ? (
               <button type="button" id="plan-clear" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setConfirmClear(true)}>
-                <Trash2 className="w-4 h-4" /> Planı temizle
+                <Trash2 className="w-3.5 h-3.5" /> Planı temizle
               </button>
             ) : null,
           primary: (
@@ -747,10 +747,10 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           actions: (
             <>
               <button type="button" id="plan-pdf" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('pdf')}>
-                <FileText className="w-5 h-5 text-danger-fg" /> PDF
+                <FileText className="text-danger-fg" /> PDF
               </button>
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('excel')}>
-                <FileSpreadsheet className="w-5 h-5 text-success-fg" /> Excel
+                <FileSpreadsheet className="text-success-fg" /> Excel
               </button>
               <button
                 type="button"
@@ -760,10 +760,10 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                 onClick={doTransferToQuestions}
                 title="Seçili öğrencilerin görevlerini Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır"
               >
-                <Target className="w-5 h-5 text-warning-fg" /> Soru Kaydet'e aktar
+                <Target className="text-warning-fg" /> Soru Kaydet'e aktar
               </button>
               <button type="button" id="plan-copy-week" className={planTileCls} disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
-                <Copy className="w-5 h-5 text-info-fg" /> Başka haftaya kopyala
+                <Copy className="text-info-fg" /> Başka haftaya kopyala
               </button>
               <button
                 type="button"
@@ -774,8 +774,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                 aria-label={`Kitaplar (${bookCount})`}
                 onClick={() => setBooksOpen(true)}
               >
-                <Library className="w-5 h-5 text-brand-fg" /> Kitaplar
-                <span className="ui-chip ui-chip-brand absolute right-1.5 top-1.5 px-1.5 py-0 text-[10px] leading-4">{bookCount}</span>
+                <Library className="text-brand-fg" /> Kitaplar
+                <span className="ui-chip ui-chip-brand px-1.5 py-0 text-[10px] leading-4">{bookCount}</span>
               </button>
             </>
           ),
@@ -815,7 +815,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               : 'Plan taslak: öğrenciler henüz görmüyor. Görmeleri için "Ödev olarak gönder"e basın.'}
           </p>
           <button type="button" id="plan-send-callout" className="ui-btn ui-btn-primary ui-btn-sm shrink-0" disabled={busy} onClick={() => openSend()}>
-            <Send className="w-4 h-4" /> Ödev olarak gönder
+            <Send className="w-3.5 h-3.5" /> Ödev olarak gönder
           </button>
         </div>
       )}

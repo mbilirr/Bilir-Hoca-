@@ -209,7 +209,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                   : 'text-muted hover:text-fg hover:bg-surface-2'
               }`}
             >
-              <Clock className="w-4 h-4" />
+              <Clock className="w-3.5 h-3.5" />
               <span>Onay Bekleyenler ({pendingTeachers.length})</span>
             </button>
 
@@ -222,7 +222,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                   : 'text-muted hover:text-fg hover:bg-surface-2'
               }`}
             >
-              <Users className="w-4 h-4" />
+              <Users className="w-3.5 h-3.5" />
               <span>Tüm Öğretmenler & Sınıf İzinleri ({allTeachers.length})</span>
             </button>
           </div>
@@ -307,7 +307,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                         onClick={() => handleApprove(t.id, t.name)}
                         className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
                       >
-                        <UserCheck className="w-4 h-4" />
+                        <UserCheck className="w-3.5 h-3.5" />
                         <span>Onayla</span>
                       </button>
 
@@ -316,7 +316,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                         onClick={() => handleReject(t.id, t.name)}
                         className="flex items-center space-x-1.5 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-500/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                       >
-                        <UserX className="w-4 h-4" />
+                        <UserX className="w-3.5 h-3.5" />
                         <span>Reddet</span>
                       </button>
 
