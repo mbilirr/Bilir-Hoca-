@@ -87,7 +87,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleRetry}
                 className="w-full flex items-center justify-center space-x-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 <span>Tekrar Dene</span>
               </button>
 
@@ -96,7 +96,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleReload}
                 className="w-full flex items-center justify-center space-x-2 px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-semibold transition-all cursor-pointer border border-line"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3.5 h-3.5" />
                 <span>Sayfayı Yenile</span>
               </button>
             </div>
