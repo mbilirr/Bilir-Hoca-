@@ -786,7 +786,6 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
       {/* Pencereler */}
       <StudyPlanTaskModal
-        showAllBooks={isAdmin}
         open={!!taskModal}
         mode={taskModal?.mode || 'add'}
         weekStart={weekStart}

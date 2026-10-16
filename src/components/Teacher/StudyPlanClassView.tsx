@@ -940,7 +940,6 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       )}
 
       <StudyPlanTaskModal
-        showAllBooks={isAdmin}
         open={!!taskModal}
         mode={taskModal?.mode || 'add'}
         weekStart={weekStart}

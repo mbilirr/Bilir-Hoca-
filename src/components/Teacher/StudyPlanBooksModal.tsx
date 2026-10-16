@@ -72,7 +72,11 @@ export const StudyPlanBooksModal: React.FC<{
     for (const list of m.values()) list.sort((a, b) => a.title.localeCompare(b.title, 'tr'));
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'));
   }, [visible]);
-  const entryCount = groups.reduce((n, [, list]) => n + list.length, 0);
+  // Aşama 45f: "Ders" kutusunda bir ders seçiliyse yalnızca o dersin kitapları listelenir
+  //            ("Her ders" seçiliyse — yalnızca yöneticide — bütün kitaplar)
+  const shownGroups = useMemo(() => (subject ? groups.filter(([g]) => subjKey(g) === subjKey(subject)) : groups), [groups, subject]);
+  const entryCount = shownGroups.reduce((n, [, list]) => n + list.length, 0);
+  const totalCount = groups.reduce((n, [, list]) => n + list.length, 0);
 
   const reset = () => {
     setError(null);
@@ -238,11 +242,19 @@ export const StudyPlanBooksModal: React.FC<{
             {notice}
           </div>
         )}
+        {subject && totalCount > entryCount && (
+          <p className="text-[11px] text-muted" id="plan-books-filter-note">
+            Yalnızca <strong>{subject}</strong> kitapları gösteriliyor. Başka dersin kitapları için yukarıdaki <strong>Ders</strong> kutusundan
+            {restrictToSubjects ? ' o dersi seçin.' : ` o dersi ya da “${ALL_SUBJECTS}” seçeneğini seçin.`}
+          </p>
+        )}
         {entryCount === 0 ? (
-          <p className="text-xs text-muted">Henüz kitap yok. Görev eklerken yazdığınız kitap adları da buraya kaydedilir.</p>
+          <p className="text-xs text-muted">
+            {subject ? `${subject} dersinde henüz kitap yok.` : 'Henüz kitap yok.'} Görev eklerken yazdığınız kitap adları da buraya kaydedilir.
+          </p>
         ) : (
           <div className="space-y-3" id="plan-books-list">
-            {groups.map(([group, list]) => (
+            {shownGroups.map(([group, list]) => (
               <div key={group}>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-subtle mb-1">{group}</p>
                 <ul className="divide-y divide-line rounded-xl border border-line overflow-hidden">
