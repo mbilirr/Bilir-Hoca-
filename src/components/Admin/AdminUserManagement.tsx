@@ -651,7 +651,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
+            <input autoComplete="off"
               type="text"
               placeholder="İsim, kullanıcı adı, e-posta, telefon, branş veya sınıf ile ara..."
               value={searchQuery}
@@ -1141,7 +1141,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {/* Ad Soyad */}
                 <div>
                   <label className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad</label>
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     required
                     value={editFormData.name}
@@ -1153,7 +1153,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {/* Kullanıcı Adı */}
                 <div>
                   <label className="block text-xs font-bold text-fg-2 mb-1">Kullanıcı Adı</label>
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     required
                     value={editFormData.username}
@@ -1165,7 +1165,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {/* E-posta */}
                 <div>
                   <label className="block text-xs font-bold text-fg-2 mb-1">E-posta Adresi</label>
-                  <input
+                  <input autoComplete="off"
                     type="email"
                     value={editFormData.email}
                     onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
@@ -1176,7 +1176,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {/* Telefon */}
                 <div>
                   <label className="block text-xs font-bold text-fg-2 mb-1">Telefon Numarası</label>
-                  <input
+                  <input autoComplete="off"
                     type="tel"
                     placeholder="05XX XXX XX XX"
                     value={editFormData.phone}
@@ -1189,7 +1189,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {editModalUser.role !== 'student' && (
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-fg-2 mb-1">Branş / Görev</label>
-                    <input
+                    <input autoComplete="off"
                       type="text"
                       placeholder="Örn: Fen Bilgisi Öğretmeni, Matematik, Kurum Müdürü"
                       value={editFormData.branch}
@@ -1226,7 +1226,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-fg-2 mb-1">Okul Numarası</label>
-                      <input
+                      <input autoComplete="off"
                         type="text"
                         placeholder="Örn: 482"
                         value={editFormData.studentNumber}
@@ -1258,12 +1258,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   </div>
 
                   <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
+                    <input autoComplete="off"
+                      type="text"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                      data-form-type="other"
+                      spellCheck={false}
+                      autoCapitalize="none"
                       placeholder="Değiştirmek istemiyorsanız boş bırakın"
                       value={editFormData.newPassword}
                       onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
-                      className="w-full pl-3.5 pr-20 py-2.5 bg-surface border border-line rounded-xl text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-amber-500"
+                      className={`w-full pl-3.5 pr-20 py-2.5 bg-surface border border-line rounded-xl text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-amber-500 ${showPassword ? '' : 'pw-mask'}`}
                     />
 
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
@@ -1698,7 +1703,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     placeholder="Öğrenci ara (Ad, Sınıf, Numara)..."
                     value={authStudentSearch}
@@ -1954,7 +1959,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             )}
             <div>
               <label className="block text-[11px] font-bold text-fg-2 mb-1">Ad Soyad *</label>
-              <input
+              <input autoComplete="off"
                 required
                 value={name}
                 onChange={(e) => {
@@ -1967,7 +1972,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             </div>
             <div>
               <label className="block text-[11px] font-bold text-fg-2 mb-1">Kullanıcı adı * (giriş adı)</label>
-              <input
+              <input autoComplete="off"
                 required
                 value={username}
                 onChange={(e) => {
@@ -1985,11 +1990,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">Branş</label>
-                <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
+                <input autoComplete="off" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">E-posta (iletişim)</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
+                <input autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
               </div>
             </div>
             <div>
@@ -2000,7 +2005,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
+                  autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                   className={`${inputCls} font-mono font-bold`}
                 />
                 <button

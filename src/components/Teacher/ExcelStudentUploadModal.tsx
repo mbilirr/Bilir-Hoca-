@@ -670,7 +670,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                       <tr key={row.id} className={cx('transition-colors', !row.isValid ? 'bg-danger-soft/40' : 'hover:bg-surface-2/40')}>
                         <td className="px-3 py-2.5 font-mono text-muted">{row.rowNumber}</td>
                         <td className="px-3 py-2.5 min-w-[110px]">
-                          <input
+                          <input autoComplete="off"
                             type="text"
                             value={row.firstName}
                             onChange={(e) => handleUpdateRow(row.id, 'firstName', e.target.value)}
@@ -679,7 +679,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           />
                         </td>
                         <td className="px-3 py-2.5 min-w-[110px]">
-                          <input
+                          <input autoComplete="off"
                             type="text"
                             value={row.lastName}
                             onChange={(e) => handleUpdateRow(row.id, 'lastName', e.target.value)}
@@ -688,7 +688,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           />
                         </td>
                         <td className="px-3 py-2.5 min-w-[120px]">
-                          <input
+                          <input autoComplete="off"
                             type="text"
                             value={row.className}
                             onChange={(e) => handleUpdateRow(row.id, 'className', e.target.value)}
@@ -699,7 +699,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           {row.isNewClass && <span className="text-[10px] text-warning-fg block mt-0.5">Yeni sınıf</span>}
                         </td>
                         <td className="px-3 py-2.5">
-                          <input
+                          <input autoComplete="off"
                             type="text"
                             value={row.studentNumber}
                             onChange={(e) => handleUpdateRow(row.id, 'studentNumber', e.target.value)}
@@ -708,7 +708,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                           />
                         </td>
                         <td className="px-3 py-2.5 min-w-[170px] space-y-1">
-                          <input
+                          <input autoComplete="off"
                             type="text"
                             inputMode="tel"
                             value={row.phone}
@@ -722,7 +722,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                             aria-invalid={phoneBad}
                             className={cx(cellCls, 'text-[11px]', phoneBad ? 'border-danger' : 'border-line')}
                           />
-                          <input
+                          <input autoComplete="off"
                             type="email"
                             value={row.email}
                             onChange={(e) => handleUpdateRow(row.id, 'email', e.target.value)}

@@ -1153,7 +1153,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <div className="p-4 sm:p-5 border-b border-line flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-surface">
             <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 text-subtle absolute left-3.5 top-3" />
-              <input
+              <input autoComplete="off"
                 type="text"
                 placeholder="Öğrenci adı, no veya e-posta ara..."
                 value={searchTerm}
@@ -1761,7 +1761,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad *</label>
-              <input
+              <input autoComplete="off"
                 id="student-form-name"
                 type="text"
                 required
@@ -1775,7 +1775,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <label htmlFor="student-form-number" className="block text-xs font-bold text-fg-2 mb-1">
                 Öğrenci No * <span className="font-medium text-muted">(giriş adı)</span>
               </label>
-              <input
+              <input autoComplete="off"
                 id="student-form-number"
                 type="text"
                 required
@@ -1820,7 +1820,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="student-form-email" className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
-              <input
+              <input autoComplete="off"
                 id="student-form-email"
                 type="email"
                 value={studentEmail}
@@ -1842,7 +1842,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
             <div>
               <label htmlFor="student-form-phone" className="block text-xs font-bold text-fg-2 mb-1">Telefon</label>
-              <input
+              <input autoComplete="off"
                 id="student-form-phone"
                 type="tel"
                 inputMode="tel"
@@ -1890,14 +1890,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <div className="relative">
               <input
                 id="student-form-password"
-                type={showStudentPassword ? 'text' : 'password'}
+                type="text"
+                spellCheck={false}
+                autoCapitalize="none"
                 required={!editingStudent}
                 minLength={6}
-                autoComplete="new-password"
+                autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                 value={studentPassword}
                 onChange={(e) => setStudentPassword(e.target.value)}
                 placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
-                className={cx(inputCls, 'pr-10 font-mono font-bold tracking-wider')}
+                className={cx(inputCls, 'pr-10 font-mono font-bold tracking-wider', !showStudentPassword && 'pw-mask')}
               />
               <button
                 type="button"
@@ -2110,7 +2112,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor="class-form-name" className="block text-xs font-bold text-fg-2 mb-1">Sınıf Adı *</label>
-              <input
+              <input autoComplete="off"
                 id="class-form-name"
                 type="text"
                 required
@@ -2123,7 +2125,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
             <div>
               <label htmlFor="class-form-year" className="block text-xs font-bold text-fg-2 mb-1">Eğitim Yılı</label>
-              <input
+              <input autoComplete="off"
                 id="class-form-year"
                 type="text"
                 value={classAcademicYear}
@@ -2481,7 +2483,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <div className="p-4 border-b border-line bg-canvas/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
+                  <input autoComplete="off"
                     type="text"
                     value={classStudentSearch}
                     onChange={(e) => setClassStudentSearch(e.target.value)}
@@ -2844,7 +2846,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
                   <div className="relative flex-1">
                     <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
+                    <input autoComplete="off"
                       type="text"
                       value={transferSearchTerm}
                       onChange={(e) => setTransferSearchTerm(e.target.value)}

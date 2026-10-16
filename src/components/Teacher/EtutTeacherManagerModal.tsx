@@ -191,19 +191,19 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <FieldLabel htmlFor="et-name">Ad soyad</FieldLabel>
-          <input id="et-name" value={draft.name} disabled={!!draft.teacherId} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
+          <input autoComplete="off" id="et-name" value={draft.name} disabled={!!draft.teacherId} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className={inputCls} />
         </div>
         <div>
           <FieldLabel htmlFor="et-email" optional>
             E-posta (etüt bilgisi gönderilir)
           </FieldLabel>
-          <input id="et-email" type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} className={inputCls} placeholder="ornek@gmail.com" />
+          <input autoComplete="off" id="et-email" type="email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} className={inputCls} placeholder="ornek@gmail.com" />
         </div>
         <div>
           <FieldLabel htmlFor="et-phone" optional>
             Telefon
           </FieldLabel>
-          <input id="et-phone" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} className={inputCls} placeholder="05xx xxx xx xx" />
+          <input autoComplete="off" id="et-phone" value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} className={inputCls} placeholder="05xx xxx xx xx" />
         </div>
       </div>
       <div className="space-y-2">
@@ -281,7 +281,7 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
 
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
-          <input
+          <input autoComplete="off"
             id="et-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

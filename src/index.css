@@ -502,3 +502,10 @@ html, body {
   width: 0.875rem;
   height: 0.875rem;
 }
+
+/* Aşama 45d: başkası için girilen şifre alanları tarayıcının "şifre" alanı sayılmasın diye metin kutusudur;
+   yazılanlar nokta olarak gösterilir (tarayıcı "parolayı kaydet / güncelle" sormaz, otomatik doldurmaz). */
+.pw-mask {
+  -webkit-text-security: disc;
+  text-security: disc;
+}

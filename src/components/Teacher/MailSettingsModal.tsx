@@ -175,12 +175,14 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
                     <FieldLabel htmlFor="mail-app-password">Uygulama şifresi</FieldLabel>
                     <input
                       id="mail-app-password"
-                      type="password"
-                      autoComplete="new-password"
+                      type="text"
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                       value={appPassword}
                       onChange={(e) => setAppPassword(e.target.value)}
                       placeholder="abcd efgh ijkl mnop"
-                      className={inputCls}
+                      className={`${inputCls} pw-mask`}
                     />
                   </div>
                 </div>
