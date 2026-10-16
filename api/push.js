@@ -480,6 +480,154 @@ async function tickHomeworkDue(now, deadline) {
   return out;
 }
 
+// ----------------------------------------------------------------------------- Aşama 45e: günlük soru hedefi
+// Öğrencinin bugünkü soru hedefi (ekrandaki "günlük hedef" ile aynı kurallar: utils/targetDays.ts):
+//  * öğrencinin kendi hedefleri + sınıfının hedefleri (aynı öğretmenin aynı derste öğrenciye özel hedefi varsa sınıf hedefi sayılmaz)
+//  * plandan gelen 0 soruluk konu kayıtları hedef değildir
+//  * aynı derse birden çok öğretmen hedef verdiyse en büyüğü
+const SUBJECT_MAP = { 'Fen Bilgisi': 'Fen Bilimleri', Edebiyat: 'Türk Dili ve Edebiyatı' };
+const SHORT_SUBJECTS = {
+  Matematik: 'Mat', 'Fen Bilimleri': 'Fen', Türkçe: 'Türk', 'Türk Dili ve Edebiyatı': 'Edb', 'Sosyal Bilgiler': 'Sos',
+  'T.C. İnkılap Tarihi': 'İnk', 'Din Kültürü': 'Din', İngilizce: 'İng', Geometri: 'Geo', Fizik: 'Fiz', Kimya: 'Kim',
+  Biyoloji: 'Biy', Tarih: 'Tar', Coğrafya: 'Coğ', Felsefe: 'Fel',
+};
+const normSubject = (v) => {
+  const t = String(v || '').trim();
+  return SUBJECT_MAP[t] || t;
+};
+const subjectList = (v) => uniq(String(v || '').split(',').map(normSubject).filter(Boolean));
+const shortSubject = (v) => {
+  const t = normSubject(v);
+  return SHORT_SUBJECTS[t] || (t.length > 5 ? t.slice(0, 4) : t);
+};
+const PLAN_TOPIC_PREFIX = 'Günlük plandan aktarılan konular';
+const PLAN_Q_NOTE = 'Haftalık plandan aktarılan soru hedefi.';
+const tTotal = (t) => Number(t.targetQuestions ?? t.weeklyTarget) || 0;
+const isFlex = (t) => !!t.dailyTargets && typeof t.dailyTargets === 'object' && Object.keys(t.dailyTargets).length > 0;
+function isPendingPlan(t) {
+  const total = tTotal(t);
+  if (total > 1) return false;
+  if (t.fromPlan && t.notes === PLAN_Q_NOTE && total >= 1) return false;
+  if (t.fromPlan || String(t.notes || '').startsWith(PLAN_TOPIC_PREFIX)) return true;
+  const hasTopics = !!t.dailyTopics && typeof t.dailyTopics === 'object' && Object.keys(t.dailyTopics).length > 0;
+  return hasTopics || isFlex(t) || total <= 0;
+}
+function tEnd(t) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(t.weekEndDate || ''))) return t.weekEndDate;
+  const st = String(t.weekStartDate || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(st) ? addDaysStr(st, Math.max(1, Number(t.targetDays) || 7) - 1) : st;
+}
+function tForDay(t, ymd) {
+  const st = String(t.weekStartDate || '').slice(0, 10);
+  if (!st || ymd < st || ymd > tEnd(t)) return 0;
+  if (isFlex(t)) {
+    const v = Number(t.dailyTargets[ymd]);
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+  }
+  const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
+  return Math.max(1, Number(t.dailyTarget) || Math.round(total / Math.max(1, Number(t.targetDays) || 7)) || 1);
+}
+function shareFor(t, subject) {
+  const st = t.subjectTargets;
+  if (Array.isArray(st)) return Number((st.find((x) => x && normSubject(x.subject) === subject) || {}).target) || 0;
+  let share = 0;
+  if (st && typeof st === 'object') for (const [k, v] of Object.entries(st)) if (normSubject(k) === subject) share = Number(v) || 0;
+  return share;
+}
+/** Hedefin bugünkü parçaları: [{ key, label, subjects, n }] (key aynı olan parçalardan en büyüğü alınır) */
+function targetParts(t, ymd) {
+  const day = tForDay(t, ymd);
+  if (day <= 0) return [];
+  const list = subjectList(t.subject);
+  if (!list.length) return [{ key: '*', label: 'Genel', subjects: [], n: day }];
+  if (list.length === 1) return [{ key: list[0], label: shortSubject(list[0]), subjects: list, n: day }];
+  const total = Math.max(1, Number(t.targetQuestions || t.weeklyTarget) || 1);
+  const parts = [];
+  for (const sub of list) {
+    const share = shareFor(t, sub);
+    if (share > 0) parts.push({ key: sub, label: shortSubject(sub), subjects: [sub], n: Math.max(1, Math.round((share * day) / total)) });
+  }
+  if (parts.length) return parts;
+  const key = [...list].sort().join('+');
+  return [{ key, label: list.map(shortSubject).join('+'), subjects: list, n: day }];
+}
+const ownerOf = (t) => t.assignedByTeacherId || (t.createdBy ? `auth:${t.createdBy}` : 'eski');
+
+/** students: [{ id, class_id }] → Map(studentId → { parts: [{key,label,subjects,n}], total }) */
+async function loadDailyTargets(students, ymd) {
+  const out = new Map();
+  if (!students.length) return out;
+  const from = addDaysStr(ymd, -70);
+  const parse = (r) => {
+    const data = r.data && typeof r.data === 'object' ? r.data : {};
+    return {
+      ...data,
+      targetType: r.target_type === 'class' ? 'class' : 'student',
+      studentId: r.target_type === 'class' ? undefined : r.student_id || data.studentId,
+      classId: r.class_id || data.classId,
+      weekStartDate: String(r.week_start_date || data.weekStartDate || '').slice(0, 10),
+      createdBy: r.created_by || data.createdBy,
+    };
+  };
+  const own = await chunked(
+    students.map((s) => s.id),
+    80,
+    (part) => rest(`question_targets?select=*&student_id=in.${inList(part)}&week_start_date=gte.${from}&week_start_date=lte.${ymd}`, { token: 'service' }).catch(() => [])
+  );
+  const classIds = uniq(students.map((s) => s.class_id).filter(Boolean));
+  const cls = classIds.length
+    ? await chunked(classIds, 60, (part) =>
+        rest(`question_targets?select=*&target_type=eq.class&class_id=in.${inList(part)}&week_start_date=gte.${from}&week_start_date=lte.${ymd}`, { token: 'service' }).catch(() => [])
+      )
+    : [];
+  const ownBy = new Map();
+  for (const t of own.map(parse)) {
+    if (t.targetType === 'class' || isPendingPlan(t)) continue;
+    const list = ownBy.get(t.studentId) || [];
+    list.push(t);
+    ownBy.set(t.studentId, list);
+  }
+  const clsBy = new Map();
+  for (const t of cls.map(parse)) {
+    if (isPendingPlan(t)) continue;
+    const list = clsBy.get(t.classId) || [];
+    list.push(t);
+    clsBy.set(t.classId, list);
+  }
+  for (const st of students) {
+    const mine = (ownBy.get(st.id) || []).filter((t) => tForDay(t, ymd) > 0);
+    const fromClass = (clsBy.get(st.class_id) || []).filter(
+      (c) =>
+        tForDay(c, ymd) > 0 &&
+        !mine.some((o) => ownerOf(o) === ownerOf(c) && subjectList(o.subject).sort().join('|') === subjectList(c.subject).sort().join('|'))
+    );
+    const best = new Map();
+    for (const t of [...mine, ...fromClass]) {
+      for (const p of targetParts(t, ymd)) {
+        const cur = best.get(p.key);
+        if (!cur || p.n > cur.n) best.set(p.key, p);
+      }
+    }
+    const parts = [...best.values()].sort((a, b) => b.n - a.n);
+    const total = parts.reduce((a, p) => a + p.n, 0);
+    if (total > 0) out.set(st.id, { parts, total });
+  }
+  return out;
+}
+const partsText = (parts) => parts.map((p) => `${p.label} ${p.n}`).join(' · ');
+
+/** Bildirimi açmış (aktif) öğrenciler: [{ id, auth_user_id, class_id }] */
+async function pushStudents() {
+  const subs = await rest(`push_subscriptions?select=user_id&role=eq.student`, { token: 'service' });
+  const userIds = uniq((subs || []).map((s) => s.user_id));
+  if (!userIds.length) return [];
+  const rows = await chunked(userIds, 100, (part) =>
+    rest(`students?select=id,auth_user_id,class_id,status&auth_user_id=in.${inList(part)}`, { token: 'service' })
+  );
+  return rows.filter((s) => s.auth_user_id && (!s.status || s.status === 'active'));
+}
+
+// Sabah: bugünkü çalışma planı + bugünkü soru hedefi TEK bildirimde (ikisinden biri varsa)
 async function tickPlanDaily(now, deadline) {
   if (now.minutes < PLAN_MORNING) return EMPTY;
   let out = EMPTY;
@@ -488,63 +636,122 @@ async function tickPlanDaily(now, deadline) {
     `study_plans?select=id,student_id,week_start&sent_at=not.is.null&week_start=gte.${addDaysStr(now.date, -6)}&week_start=lte.${now.date}`,
     { token: 'service' }
   );
-  if (!plans || !plans.length) return out;
-  const planIds = plans.map((p) => p.id);
-  const items = await chunked(planIds, 60, (part) =>
-    rest(`study_plan_items?select=plan_id,student_id,week_start,day,subject,done_at&plan_id=in.${inList(part)}`, { token: 'service' })
-  );
   const byStudent = new Map();
-  for (const it of items) {
-    if (it.done_at) continue;
-    if (addDaysStr(String(it.week_start), Number(it.day) || 0) !== now.date) continue;
-    const list = byStudent.get(it.student_id) || [];
-    list.push(String(it.subject || '').trim());
-    byStudent.set(it.student_id, list);
+  if (plans && plans.length) {
+    const planIds = plans.map((p) => p.id);
+    const items = await chunked(planIds, 60, (part) =>
+      rest(`study_plan_items?select=plan_id,student_id,week_start,day,subject,done_at&plan_id=in.${inList(part)}`, { token: 'service' })
+    );
+    for (const it of items) {
+      if (it.done_at) continue;
+      if (addDaysStr(String(it.week_start), Number(it.day) || 0) !== now.date) continue;
+      const list = byStudent.get(it.student_id) || [];
+      list.push(String(it.subject || '').trim());
+      byStudent.set(it.student_id, list);
+    }
   }
-  for (const [studentId, subjects] of byStudent) {
+  // Soru hedefleri yalnızca bildirimi açmış öğrenciler için hesaplanır
+  let targets = new Map();
+  let authOf = new Map();
+  try {
+    const stu = await pushStudents();
+    authOf = new Map(stu.map((s) => [s.id, s.auth_user_id]));
+    targets = await loadDailyTargets(stu, now.date);
+  } catch (err) {
+    console.error('[push] hedef okunamadı', err && err.message);
+  }
+  const ids = uniq([...byStudent.keys(), ...targets.keys()]);
+  for (const studentId of ids) {
     if (deadline && Date.now() > deadline) break;
-    const users = await studentAuthIds([studentId]);
+    const subjects = byStudent.get(studentId) || [];
+    const tg = targets.get(studentId);
     const names = uniq(subjects.filter(Boolean));
+    const planText = names.length ? `${names.slice(0, 4).join(', ')}${names.length > 4 ? ' …' : ''}` : '';
+    let title;
+    let body;
+    if (subjects.length && tg) {
+      title = `Bugün: ${subjects.length} görev · ${tg.total} soru hedefi`;
+      body = `${planText ? `Plan: ${planText}. ` : ''}Hedef: ${partsText(tg.parts)}`;
+    } else if (subjects.length) {
+      title = `Bugünkü çalışma planın: ${subjects.length} görev`;
+      body = planText || 'Görevlerini işaretlemeyi unutma.';
+    } else {
+      title = `Bugünkü soru hedefin: ${tg.total} soru`;
+      body = `${partsText(tg.parts)} — akşam çözdüklerini girmeyi unutma.`;
+    }
+    const users = authOf.has(studentId) ? [authOf.get(studentId)] : await studentAuthIds([studentId]);
     out = addOut(
       out,
-      await sendToUsers(
-        users,
-        {
-          title: `Bugünkü çalışma planın: ${subjects.length} görev`,
-          body: names.length ? `${names.slice(0, 4).join(', ')}${names.length > 4 ? ' …' : ''}` : 'Görevlerini işaretlemeyi unutma.',
-          url: '/#/student',
-          tag: `plan-${now.date}`,
-        },
-        { dedupe: `plan-day:${now.date}`, deadline }
-      )
+      await sendToUsers(users, { title, body: clip(body, 180), url: subjects.length ? '/#/student' : '/#/student/questions', tag: `plan-${now.date}` }, { dedupe: `plan-day:${now.date}`, deadline })
     );
   }
   return out;
 }
 
+// Akşam: hedefi olan öğrenciye kalan soru sayısı; hedefi olmayan öğrenciye (hiç giriş yapmadıysa) genel hatırlatma.
+// Hedefini tamamlayan öğrenciye bildirim gitmez.
 async function tickQuestionDaily(now, deadline) {
   if (now.minutes < QUESTION_EVENING) return EMPTY;
-  // Yalnızca bildirimi açmış öğrencilere bakılır (gereksiz sorgu yapılmaz)
-  const subs = await rest(`push_subscriptions?select=user_id&role=eq.student`, { token: 'service' });
-  const userIds = uniq((subs || []).map((s) => s.user_id));
-  if (!userIds.length) return EMPTY;
-  const students = await chunked(userIds, 100, (part) =>
-    rest(`students?select=id,auth_user_id,status&auth_user_id=in.${inList(part)}`, { token: 'service' })
-  );
-  const active = students.filter((s) => !s.status || s.status === 'active');
+  const active = await pushStudents();
   if (!active.length) return EMPTY;
   const logs = await chunked(
     active.map((s) => s.id),
     100,
-    (part) => rest(`question_logs?select=student_id,total_questions&date=eq.${now.date}&student_id=in.${inList(part)}`, { token: 'service' })
+    (part) => rest(`question_logs?select=student_id,total_questions,entries&date=eq.${now.date}&student_id=in.${inList(part)}`, { token: 'service' })
   );
-  const entered = new Set(logs.filter((l) => Number(l.total_questions) > 0).map((l) => l.student_id));
-  const users = active.filter((s) => !entered.has(s.id)).map((s) => s.auth_user_id);
-  return sendToUsers(
-    users,
-    { title: 'Bugünkü soru sayını girdin mi?', body: 'Bugün çözdüğün soruları girmeyi unutma.', url: '/#/student/questions', tag: `soru-${now.date}` },
-    { dedupe: `soru-gun:${now.date}`, deadline }
-  );
+  const solved = new Map(); // öğrenci → { total, bySubject: Map }
+  for (const l of logs) {
+    const cur = solved.get(l.student_id) || { total: 0, bySubject: new Map() };
+    cur.total += Number(l.total_questions) || 0;
+    for (const e of Array.isArray(l.entries) ? l.entries : []) {
+      const sub = normSubject(e && e.subject);
+      if (sub) cur.bySubject.set(sub, (cur.bySubject.get(sub) || 0) + (Number(e.questionCount) || 0));
+    }
+    solved.set(l.student_id, cur);
+  }
+  let targets = new Map();
+  try {
+    targets = await loadDailyTargets(active, now.date);
+  } catch (err) {
+    console.error('[push] hedef okunamadı', err && err.message);
+  }
+  let out = EMPTY;
+  const plain = [];
+  for (const st of active) {
+    if (deadline && Date.now() > deadline) break;
+    const done = solved.get(st.id) || { total: 0, bySubject: new Map() };
+    const tg = targets.get(st.id);
+    if (!tg) {
+      if (done.total <= 0) plain.push(st.auth_user_id);
+      continue;
+    }
+    const left = [];
+    for (const p of tg.parts) {
+      const got = p.subjects.length ? p.subjects.reduce((a, sub) => a + (done.bySubject.get(sub) || 0), 0) : done.total;
+      if (got < p.n) left.push({ label: p.label, n: p.n - got });
+    }
+    if (!left.length) continue; // hedef tamam
+    const leftTotal = left.reduce((a, x) => a + x.n, 0);
+    const payload =
+      done.total <= 0
+        ? { title: `Bugünkü hedefin ${tg.total} soru`, body: `${partsText(tg.parts)} — henüz giriş yapmadın.` }
+        : { title: `Hedefe ${leftTotal} soru kaldı`, body: `Bugün ${done.total} soru girdin. Kalan: ${left.map((x) => `${x.label} ${x.n}`).join(' · ')}` };
+    out = addOut(
+      out,
+      await sendToUsers([st.auth_user_id], { ...payload, url: '/#/student/questions', tag: `soru-${now.date}` }, { dedupe: `soru-gun:${now.date}`, deadline })
+    );
+  }
+  if (plain.length) {
+    out = addOut(
+      out,
+      await sendToUsers(
+        plain,
+        { title: 'Bugünkü soru sayını girdin mi?', body: 'Bugün çözdüğün soruları girmeyi unutma.', url: '/#/student/questions', tag: `soru-${now.date}` },
+        { dedupe: `soru-gun:${now.date}`, deadline }
+      )
+    );
+  }
+  return out;
 }
 
 export async function runPushTick(deadline) {
