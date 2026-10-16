@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, CalendarCheck, Check, ChevronDown, ChevronUp, PartyPopper, AlertTriangle } from 'lucide-react';
+import { BookOpen, CalendarCheck, Check, ChevronDown, ChevronUp, PartyPopper, AlertTriangle, ListChecks } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cx } from '../ui/kit';
+import { dataService } from '../../services/dataService';
 import {
   PLAN_DAYS,
   dateOfDay,
@@ -32,6 +33,26 @@ export const StudentTodayPlan: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [showWeek, setShowWeek] = useState(false);
   const pending = useRef(new Set<string>());
+  // Aşama 46: görevin soruları soru kaydına aktarılır; öğrenci fazlasını çözdüyse sayıyı günceller
+  const [info, setInfo] = useState<string | null>(null);
+  const infoTimer = useRef<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [, setLogsTick] = useState(0);
+  useEffect(() => dataService.subscribe(() => setLogsTick((n) => n + 1)), []);
+  useEffect(
+    () => () => {
+      if (infoTimer.current) window.clearTimeout(infoTimer.current);
+    },
+    []
+  );
+  const showInfo = (msg: string) => {
+    setInfo(msg);
+    if (infoTimer.current) window.clearTimeout(infoTimer.current);
+    infoTimer.current = window.setTimeout(() => setInfo(null), 7000);
+  };
+  const dayText = (d: string) => (d === ymd(new Date()) ? 'bugün' : shortDayLabel(d));
 
   const refresh = useCallback(async () => {
     try {
@@ -81,8 +102,62 @@ export const StudentTodayPlan: React.FC<{
     } catch (e: any) {
       setItems((cur) => cur.map((i) => (i.id === it.id ? { ...i, doneAt: it.doneAt } : i)));
       setError(e?.message || 'İşaret kaydedilemedi. Lütfen tekrar dene.');
+      pending.current.delete(it.id);
+      return;
+    }
+    // Aşama 46: görevde soru sayısı varsa soru kaydına aktarılır (işaret kaldırılınca geri alınır)
+    try {
+      const before = dataService.getPlanTaskQuestionShare(it.id);
+      if (next && it.questionCount > 0 && !before) {
+        const r = await dataService.setPlanTaskQuestions({ itemId: it.id, subject: it.subject, date: dateOfDay(weekStart, it.day), count: it.questionCount });
+        showInfo(`${r.subject}: ${r.count} soru, ${dayText(r.date)} soru kaydına eklendi. Fazlasını çözdüysen "Düzenle" ile güncelleyebilirsin.`);
+      } else if (!next && before) {
+        await dataService.setPlanTaskQuestions({ itemId: it.id, subject: it.subject, date: before.date, count: 0 });
+        if (editId === it.id) setEditId(null);
+        showInfo(`${before.subject}: ${before.count} soru, ${dayText(before.date)} soru kaydından çıkarıldı.`);
+      }
+    } catch (e: any) {
+      setError(`Görev işaretlendi ama soru kaydı güncellenemedi: ${e?.message || 'bağlantı sorunu'}. Soru Kaydet bölümünden elle girebilirsin.`);
     } finally {
       pending.current.delete(it.id);
+      setLogsTick((n) => n + 1); // "aktarılıyor" yazısı kalksın
+    }
+  };
+
+  const startEdit = (it: PlanItem) => {
+    const share = dataService.getPlanTaskQuestionShare(it.id);
+    setEditId(it.id);
+    setEditValue(String(share ? share.count : it.questionCount));
+    setError(null);
+  };
+  const saveEdit = async (it: PlanItem) => {
+    if (editSaving) return;
+    const v = editValue.trim();
+    if (!/^\d{1,4}$/.test(v) || Number(v) > 1000) {
+      setError('Soru sayısı 0 ile 1000 arasında bir tam sayı olmalı.');
+      return;
+    }
+    const n = Number(v);
+    const share = dataService.getPlanTaskQuestionShare(it.id);
+    setEditSaving(true);
+    setError(null);
+    try {
+      const r = await dataService.setPlanTaskQuestions({
+        itemId: it.id,
+        subject: it.subject,
+        date: share ? share.date : dateOfDay(weekStart, it.day),
+        count: n,
+      });
+      setEditId(null);
+      showInfo(
+        n > 0
+          ? `${r.subject}: bu görevden ${n} soru kayıtlı (${r.date === ymd(new Date()) ? 'bugünkü' : `${shortDayLabel(r.date)} günü`} ${r.subject} toplamı: ${r.subjectTotal} soru).`
+          : `${it.subject}: bu görevin soruları soru kaydından çıkarıldı.`
+      );
+    } catch (e: any) {
+      setError(e?.message || 'Soru kaydı güncellenemedi. Lütfen tekrar dene.');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -116,6 +191,76 @@ export const StudentTodayPlan: React.FC<{
     );
   }
 
+  // Yapılan görevin soru kaydındaki payı: "Soru kaydında: 40 soru · Düzenle"
+  const renderShare = (it: PlanItem) => {
+    const share = dataService.getPlanTaskQuestionShare(it.id);
+    const busy = pending.current.has(it.id);
+    if (editId === it.id) {
+      return (
+        <form
+          data-task-share-edit
+          className="flex flex-wrap items-center gap-1.5 pt-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveEdit(it);
+          }}
+        >
+          <label className="text-[11px] font-bold" htmlFor={`share-${it.id}`}>
+            Çözdüğün soru:
+          </label>
+          <input
+            id={`share-${it.id}`}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            className="w-16 h-7 min-h-0 rounded-lg border border-white/60 bg-white px-2 py-0 text-xs font-black text-indigo-900 outline-none focus:ring-2 focus:ring-white"
+            autoFocus
+          />
+          <button
+            type="submit"
+            disabled={editSaving}
+            className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-indigo-800 hover:bg-indigo-50 disabled:opacity-60 cursor-pointer"
+          >
+            {editSaving ? 'Kaydediliyor…' : 'Kaydet'}
+          </button>
+          <button
+            type="button"
+            disabled={editSaving}
+            onClick={() => setEditId(null)}
+            className="rounded-lg border border-white/50 px-2 py-0.5 text-[11px] font-bold hover:bg-white/15 cursor-pointer"
+          >
+            Vazgeç
+          </button>
+        </form>
+      );
+    }
+    return (
+      <div data-task-share className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] font-bold text-indigo-50">
+        <ListChecks className="w-3.5 h-3.5 shrink-0" />
+        {share ? (
+          <span data-task-share-count>
+            Soru kaydında: {share.count} soru{share.date !== ymd(new Date()) ? ` (${shortDayLabel(share.date)})` : ''}
+          </span>
+        ) : (
+          <span>{busy ? 'Soru kaydına aktarılıyor…' : 'Soru kaydına aktarılmadı'}</span>
+        )}
+        {!busy && (
+          <button
+            type="button"
+            data-task-share-btn
+            onClick={() => startEdit(it)}
+            className="rounded-md bg-white/20 px-1.5 py-0.5 font-black hover:bg-white/30 cursor-pointer"
+          >
+            {share ? 'Düzenle' : 'Soru kaydına ekle'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   const renderRow = (it: PlanItem) => {
     const done = !!it.doneAt;
     return (
@@ -143,7 +288,8 @@ export const StudentTodayPlan: React.FC<{
         >
           <Check className={compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} strokeWidth={3} />
         </button>
-        <div className={cx('min-w-0 flex-1', compact ? 'space-y-0.5' : 'space-y-1', done && 'opacity-70')}>
+        <div className={cx('min-w-0 flex-1', compact ? 'space-y-0.5' : 'space-y-1')}>
+          <div className={cx(compact ? 'space-y-0.5' : 'space-y-1', done && 'opacity-70')}>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className={cx('inline-flex px-2 py-0.5 rounded-full bg-white/25 font-black tracking-wide', compact ? 'text-[10px]' : 'text-[11px]')}>{it.subject}</span>
             {it.book && (
@@ -160,6 +306,8 @@ export const StudentTodayPlan: React.FC<{
           {it.note && (
             <p className={cx('font-medium whitespace-pre-wrap break-words', compact ? 'text-xs' : 'text-sm', done && 'line-through')}>{it.note}</p>
           )}
+          </div>
+          {done && it.questionCount > 0 && renderShare(it)}
         </div>
       </li>
     );
@@ -239,6 +387,12 @@ export const StudentTodayPlan: React.FC<{
               {overdue.map((it) => renderRow(it))}
             </ul>
           </div>
+        )}
+
+        {info && (
+          <p role="status" id="student-today-info" className="text-xs font-bold bg-emerald-500/80 rounded-lg px-3 py-2">
+            {info}
+          </p>
         )}
 
         {error && (

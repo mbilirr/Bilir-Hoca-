@@ -404,6 +404,13 @@ export interface QuestionLogSubjectEntry {
   wrongCount?: number;
   emptyCount?: number;
   topic?: string;
+  /** Aşama 46: Bu dersin sorularından günlük plan görevlerinden otomatik aktarılanlar (görev kimliği → soru sayısı) */
+  planItems?: QuestionLogPlanPart[];
+}
+
+export interface QuestionLogPlanPart {
+  id: string; // çalışma planı görevinin kimliği
+  count: number; // bu görevden soru kaydına aktarılan soru sayısı
 }
 
 export interface StudentQuestionLog {

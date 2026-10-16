@@ -91,6 +91,12 @@ const fold = (v: string) =>
     .replace(/[îì]/g, 'i')
     .replace(/[ûù]/g, 'u');
 
+// Aşama 46: iki ders adı aynı dersi mi gösteriyor (büyük/küçük harf, Türkçe karakter ve eski adlar yok sayılır)
+export function sameSubjectName(a?: string | null, b?: string | null): boolean {
+  const x = fold(normalizeSubject(a || '').trim());
+  return !!x && x === fold(normalizeSubject(b || '').trim());
+}
+
 // Öğretmenin branş yazısından ders adlarını çıkarır ("Fen Bilgisi Öğretmeni" -> ["Fen Bilimleri"]).
 // Veritabanındaki public.branch_subjects() ile aynı kurallar. Tanınmayan branş kendisi ders sayılır.
 export function subjectsForBranch(branch?: string | null): string[] {

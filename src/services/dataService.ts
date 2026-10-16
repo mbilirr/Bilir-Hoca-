@@ -19,6 +19,8 @@ import {
   StudentNotification,
   SentEmailLog,
   StudentQuestionLog,
+  QuestionLogPlanPart,
+  QuestionLogSubjectEntry,
   WeeklyQuestionTarget,
   EtutStudentAttendance,
   UnifiedUser,
@@ -43,8 +45,8 @@ import {
   formatEtutDateTurkish,
 } from '../lib/emailTemplates';
 import { sendBrowserNotification, playNotificationChime } from '../lib/browserNotifications';
-import { detectSchoolLevelFromGrade } from '../constants/schoolConstants';
-import { subjectsForBranch, normalizeSubject, targetSubjectList, targetSubjectMatcher, sameTargetSubjects } from '../lib/subjects';
+import { detectSchoolLevelFromGrade, getStudentQuestionSubjects } from '../constants/schoolConstants';
+import { subjectsForBranch, normalizeSubject, targetSubjectList, targetSubjectMatcher, sameTargetSubjects, sameSubjectName } from '../lib/subjects';
 import {
   isValidEmail,
   isInternalLoginEmail,
@@ -9264,7 +9266,10 @@ export class DataService {
     };
 
     // Aynı ders birden fazla kez girildiyse sayılar toplanır
-    const merged = new Map<string, { subject: string; questionCount: number; correctCount: number; wrongCount: number; topics: string[] }>();
+    const merged = new Map<
+      string,
+      { subject: string; questionCount: number; correctCount: number; wrongCount: number; topics: string[]; planParts: QuestionLogPlanPart[]; planGiven: boolean }
+    >();
     for (const e of logData.entries || []) {
       const subject = String(e.subject || '').trim();
       if (!subject) throw new Error('Ders adı boş olamaz.');
@@ -9273,13 +9278,49 @@ export class DataService {
       const w = toCount(e.wrongCount, 'yanlış sayısı', subject);
       if (c + w > qc) throw new Error(`${subject}: doğru + yanlış, soru sayısından fazla olamaz.`);
       if (qc === 0) continue;
-      const cur = merged.get(subject) || { subject, questionCount: 0, correctCount: 0, wrongCount: 0, topics: [] };
+      const cur = merged.get(subject) || { subject, questionCount: 0, correctCount: 0, wrongCount: 0, topics: [], planParts: [], planGiven: false };
       cur.questionCount += qc;
       cur.correctCount += c;
       cur.wrongCount += w;
       const topic = String(e.topic || '').trim();
       if (topic && !cur.topics.includes(topic)) cur.topics.push(topic);
+      // Aşama 46: plan görevlerinden aktarılan pay (varsa) korunur
+      if (Array.isArray(e.planItems)) {
+        cur.planGiven = true;
+        for (const p of e.planItems) {
+          const pid = String(p?.id || '').trim();
+          const n = Math.max(0, Math.round(Number(p?.count) || 0));
+          if (!pid || n <= 0) continue;
+          const ex = cur.planParts.find((x) => x.id === pid);
+          if (ex) ex.count += n;
+          else cur.planParts.push({ id: pid, count: n });
+        }
+      }
       merged.set(subject, cur);
+    }
+    // Aşama 46: Soru Kaydet formu plan payını bilmez; formdan gelen kayıtta o günün önceki kaydındaki
+    // plan payları aynı derse taşınır. Pay, dersin soru sayısını hiçbir zaman aşmaz.
+    const prevSameDay = logData.id
+      ? this.questionLogs.find((q) => q.id === logData.id)
+      : this.questionLogs.find((q) => q.studentId === logData.studentId && q.date === date);
+    for (const m of merged.values()) {
+      if (!m.planGiven && prevSameDay) {
+        for (const pe of prevSameDay.entries || []) {
+          if (!sameSubjectName(pe.subject, m.subject) || !Array.isArray(pe.planItems)) continue;
+          for (const p of pe.planItems) {
+            const n = Math.max(0, Math.round(Number(p?.count) || 0));
+            if (p?.id && n > 0 && !m.planParts.some((x) => x.id === p.id)) m.planParts.push({ id: String(p.id), count: n });
+          }
+        }
+      }
+      let room = m.questionCount;
+      m.planParts = m.planParts
+        .map((p) => {
+          const n = Math.min(p.count, room);
+          room -= n;
+          return { id: p.id, count: n };
+        })
+        .filter((p) => p.count > 0);
     }
     for (const m of merged.values()) {
       if (m.questionCount > MAX_COUNT) throw new Error(`${m.subject}: bir günde en fazla ${MAX_COUNT} soru girilebilir.`);
@@ -9305,6 +9346,7 @@ export class DataService {
         wrongCount: m.wrongCount,
         emptyCount: emp,
         topic: m.topics.join(', ').slice(0, 200),
+        ...(m.planParts.length ? { planItems: m.planParts } : {}),
       };
     });
 
@@ -9435,6 +9477,135 @@ export class DataService {
       },
       'Soru kaydı silinemedi'
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Aşama 46: Günlük plan görevi "yaptım" işaretlenince görevin soru sayısı soru kaydına aktarılır.
+  // Her görevin payı, o dersin kaydında görev kimliğiyle tutulur; böylece işaret kaldırılınca
+  // yalnızca o pay geri alınır, öğrenci fazladan çözdüyse payı güncelleyebilir.
+  // ---------------------------------------------------------------------------
+  private planQuestionQueue: Promise<unknown> = Promise.resolve();
+
+  /** Görevin soru kaydına aktarılmış payı (aktarılmamışsa null). Yalnızca öğrenci oturumunda. */
+  public getPlanTaskQuestionShare(itemId: string): { date: string; subject: string; count: number } | null {
+    const session = this.getAuthSession();
+    if (session?.role !== 'student' || !itemId) return null;
+    for (const log of this.questionLogs) {
+      if (log.studentId !== session.user.id) continue;
+      for (const e of log.entries || []) {
+        const p = (e.planItems || []).find((x) => x.id === itemId);
+        if (p) return { date: log.date, subject: e.subject, count: Number(p.count) || 0 };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Görevin soru kaydındaki payını `count` yapar (0 = payı kaldırır). Görev daha önce aktarıldıysa
+   * aynı gün ve derste güncellenir; aktarılmadıysa görevin gününe (ileri tarihse bugüne) eklenir.
+   * Çağrılar sırayla çalışır (art arda işaretlemede kayıtlar birbirini ezmez).
+   */
+  public setPlanTaskQuestions(opts: { itemId: string; subject: string; date: string; count: number }): Promise<{ date: string; subject: string; count: number; subjectTotal: number }> {
+    const run = this.planQuestionQueue.then(
+      () => this.setPlanTaskQuestionsNow(opts),
+      () => this.setPlanTaskQuestionsNow(opts)
+    );
+    this.planQuestionQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async setPlanTaskQuestionsNow(opts: { itemId: string; subject: string; date: string; count: number }): Promise<{ date: string; subject: string; count: number; subjectTotal: number }> {
+    const session = this.getAuthSession();
+    if (session?.role !== 'student') throw new Error('Soru kaydı yalnızca öğrenci hesabıyla güncellenebilir.');
+    const student = session.user as Student;
+    const itemId = String(opts.itemId || '').trim();
+    if (!itemId) throw new Error('Görev bulunamadı.');
+    const want = Number(opts.count);
+    if (!Number.isInteger(want) || want < 0 || want > 1000) throw new Error('Soru sayısı 0 ile 1000 arasında bir tam sayı olmalı.');
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dstr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const now = new Date();
+    const todayStr = dstr(now);
+
+    // Buluttaki güncel kayıtlar okunur: başka cihazdan girilmiş sayılar eski yerel veriyle ezilmesin
+    if (await this.hasCloudSession()) {
+      const from = dstr(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 21));
+      const { data, error } = await supabase.from('question_logs').select('*').eq('student_id', student.id).gte('date', from);
+      if (error || !Array.isArray(data)) throw new Error('Soru kayıtların okunamadı. Bağlantını kontrol edip tekrar dene.');
+      this.mergeQuestionLogs(
+        data.map((r: any) => this.questionLogFromRow(r)),
+        null
+      );
+    }
+
+    const mine = this.questionLogs.filter((q) => q.studentId === student.id);
+    const hasShare = (q: StudentQuestionLog) => (q.entries || []).some((e) => (e.planItems || []).some((p) => p.id === itemId));
+    let log = mine.find(hasShare);
+    let targetDate: string;
+    if (log) {
+      targetDate = log.date;
+    } else {
+      if (want === 0) return { date: '', subject: '', count: 0, subjectTotal: 0 }; // geri alınacak pay yok
+      const d = String(opts.date || '').trim();
+      targetDate = /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= todayStr ? d : todayStr;
+      log = mine.find((q) => q.date === targetDate);
+    }
+
+    const entries: QuestionLogSubjectEntry[] = (log?.entries || []).map((e) => ({
+      ...e,
+      planItems: (e.planItems || []).map((p) => ({ id: p.id, count: Number(p.count) || 0 })),
+    }));
+    let idx = entries.findIndex((e) => (e.planItems || []).some((p) => p.id === itemId));
+    if (idx >= 0) {
+      const e = entries[idx];
+      const old = (e.planItems || []).find((p) => p.id === itemId)?.count || 0;
+      e.questionCount = Math.max(0, (Number(e.questionCount) || 0) - old);
+      e.planItems = (e.planItems || []).filter((p) => p.id !== itemId);
+    } else {
+      idx = entries.findIndex((e) => sameSubjectName(e.subject, opts.subject));
+      if (idx < 0) {
+        const list = getStudentQuestionSubjects(student, this.classes);
+        const name = list.find((s) => sameSubjectName(s, opts.subject)) || normalizeSubject(opts.subject).trim();
+        if (!name) throw new Error('Görevin dersi bulunamadı.');
+        entries.push({ subject: name, questionCount: 0, correctCount: 0, wrongCount: 0, planItems: [] });
+        idx = entries.length - 1;
+      }
+    }
+    const e = entries[idx];
+    e.questionCount = (Number(e.questionCount) || 0) + want;
+    if (want > 0) e.planItems = [...(e.planItems || []), { id: itemId, count: want }];
+    if (e.questionCount > 1000) throw new Error(`${e.subject}: bir günde en fazla 1000 soru girilebilir.`);
+    // Doğru + yanlış, soru sayısını aşamaz (soru azaldıysa önce yanlış, sonra doğru kırpılır)
+    let c = Number(e.correctCount) || 0;
+    let w = Number(e.wrongCount) || 0;
+    if (c + w > e.questionCount) {
+      w = Math.min(w, e.questionCount);
+      c = Math.min(c, e.questionCount - w);
+    }
+    e.correctCount = c;
+    e.wrongCount = w;
+    delete e.emptyCount;
+
+    const remaining = entries.filter((x) => (Number(x.questionCount) || 0) > 0);
+    const result = { date: targetDate, subject: e.subject, count: want, subjectTotal: e.questionCount };
+    if (remaining.length === 0) {
+      // O günün kaydında başka soru kalmadı: kayıt kaldırılır
+      if (log) await this.deleteQuestionLog(log.id);
+      return result;
+    }
+    const cls = this.classes.find((x) => x.id === student.classId);
+    await this.saveQuestionLog({
+      id: log?.id,
+      studentId: student.id,
+      studentName: log?.studentName || student.name,
+      classId: log?.classId || student.classId || '',
+      className: log?.className || student.className || cls?.name || 'Belirtilmedi',
+      date: targetDate,
+      entries: remaining,
+      notes: log?.notes || '',
+    });
+    return result;
   }
 
   public clearAutoSeededQuestionLogs(): void {
