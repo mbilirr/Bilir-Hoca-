@@ -8,6 +8,7 @@ import { formatPageRanges, openKitapcik, parsePageRanges, type Kitapcik } from '
 import {
   AI_CONCURRENCY,
   AI_PROVIDERS,
+  DAY_DONE_MSG,
   aiCall,
   aiClassifyPage,
   aiPages,
@@ -188,7 +189,7 @@ export const KazanimAI: React.FC<{
         if (img) images.push({ mime: img.mime, data: img.data, page: p });
       }
       if (images.length) {
-        const r = await aiCall(state, (pv) => aiPages({ provider: pv, images }), {
+        const r = await aiCall(state, (pv, avoid) => aiPages({ provider: pv, images, avoid }), {
           stop: () => stopRef.current,
           onWait: (w) => setProgress({ ...progressOf(), wait: w }),
           onNote: (n) => notes.push(n),
@@ -197,8 +198,10 @@ export const KazanimAI: React.FC<{
           for (const pg of (r.pages || []) as AiPageInfo[]) map[pg.page] = pg.dersler.filter((d) => subjectKeys.has(d.ders));
           setPageMap({ ...map });
         } else if (!stopRef.current) {
-          notes.push(`${from}-${to}. sayfalar tanınamadı (${r.error || 'hata'}); bu sayfaları elle yazabilirsiniz.`);
-          if (r.code === 'no-key') noKey = true;
+          if (r.code === 'quota-day') {
+            if (!notes.includes(DAY_DONE_MSG)) notes.push(DAY_DONE_MSG);
+          } else notes.push(`${from}-${to}. sayfalar tanınamadı (${r.error || 'hata'}); bu sayfaları elle yazabilirsiniz.`);
+          if (r.code === 'no-key' || r.code === 'quota-day') noKey = true;
         }
       }
       done++;
@@ -270,6 +273,7 @@ export const KazanimAI: React.FC<{
     let done = 0;
     let gi = 0;
     let noKey = false;
+    const usedModels = new Set<string>();
     const progressOf = () => ({ done, total: groups.length, label: `Sorular inceleniyor (aynı anda ${AI_CONCURRENCY} istek)` });
     setProgress(progressOf());
 
@@ -302,12 +306,13 @@ export const KazanimAI: React.FC<{
             kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text })),
           };
         });
-        const r = await aiCall(state, (pv) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects }), {
+        const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid }), {
           stop: () => stopRef.current,
           onWait: (w) => setProgress({ ...progressOf(), wait: w }),
           onNote: (n) => notes.push(n),
         });
         if (r.ok) {
+          if (r.model) usedModels.add(r.model);
           for (const it of (r.items || []) as AiSuggestion[]) {
             const map = (result[it.ders] = result[it.ders] || {});
             const prev = map[it.no];
@@ -315,14 +320,17 @@ export const KazanimAI: React.FC<{
           }
           setFound({ ...result });
         } else if (!stopRef.current) {
-          notes.push(`${pages.join('-')}. sayfa işlenemedi: ${r.error || 'hata'}`);
-          if (r.code === 'no-key') noKey = true;
+          if (r.code === 'quota-day') {
+            if (!notes.includes(DAY_DONE_MSG)) notes.push(DAY_DONE_MSG);
+          } else notes.push(`${pages.join('-')}. sayfa işlenemedi: ${r.error || 'hata'}`);
+          if (r.code === 'no-key' || r.code === 'quota-day') noKey = true;
         }
       }
       done++;
       setProgress(progressOf());
     };
     await runPool(AI_CONCURRENCY, () => (gi < groups.length && !noKey ? job(groups[gi++]) : null), () => stopRef.current);
+    if (usedModels.size > 1) notes.push(`Sınırlar nedeniyle birden çok model kullanıldı: ${Array.from(usedModels).join(', ')}. Güveni düşük satırları kontrol edin.`);
     setProgress(null);
     setLog(notes);
     setFound(result);

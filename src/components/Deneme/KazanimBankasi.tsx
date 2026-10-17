@@ -16,7 +16,7 @@ import {
 } from '../../lib/deneme/kazanimBank';
 import { foldTr, guessSubjectKey } from '../../lib/deneme/optik';
 import { extractPdfText } from '../../lib/deneme/kitapcik';
-import { AI_CONCURRENCY, AI_PROVIDERS, aiCall, aiProgram, aiStatus, newAiState, runPool, type AiProgramItem, type AiProvider } from '../../lib/aiApi';
+import { AI_CONCURRENCY, AI_PROVIDERS, DAY_DONE_MSG, aiCall, aiProgram, aiStatus, newAiState, runPool, type AiProgramItem, type AiProvider } from '../../lib/aiApi';
 
 // ============================================================================
 // Kazanım bankası (Aşama 48)
@@ -211,7 +211,7 @@ export const KazanimBankasi: React.FC = () => {
     const progressOf = () => ({ done, total, label: `Kazanımlar çıkarılıyor (aynı anda ${AI_CONCURRENCY} bölüm)` });
     setProgress(progressOf());
     const work = (job: { f: ProgFile; text: string }) => async () => {
-      const r = await aiCall(state, (p) => aiProgram({ provider: p, text: job.text, grade: '8', subject: job.f.subject || undefined }), {
+      const r = await aiCall(state, (p, avoid) => aiProgram({ provider: p, text: job.text, grade: '8', subject: job.f.subject || undefined, avoid }), {
         stop: () => stopRef.current,
         onWait: (w) => setProgress({ ...progressOf(), wait: w }),
         onNote: (n) => note.push(n),
@@ -226,8 +226,10 @@ export const KazanimBankasi: React.FC = () => {
         queue.unshift({ f: job.f, text: parts[0] }, { f: job.f, text: parts[1] });
         total += 2;
       } else if (!stopRef.current) {
-        note.push(`${job.f.file.name}: bir bölüm işlenemedi (${r.error || 'bilinmeyen hata'}).`);
-        if (r.code === 'no-key') noKey = true;
+        if (r.code === 'quota-day') {
+          if (!note.includes(DAY_DONE_MSG)) note.push(DAY_DONE_MSG);
+        } else note.push(`${job.f.file.name}: bir bölüm işlenemedi (${r.error || 'bilinmeyen hata'}).`);
+        if (r.code === 'no-key' || r.code === 'quota-day') noKey = true;
       }
       setProgress(progressOf());
     };

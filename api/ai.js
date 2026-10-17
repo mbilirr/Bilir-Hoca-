@@ -173,22 +173,77 @@ const THINKING = {
 };
 const thinkingStart = new Map(); // `${model}|${mode}` → ilk denenecek ayarın sırası
 
+// Ücretsiz planda her modelin AYRI sınırı vardır. Bir modelin günlük hakkı biterse (ya da modelin ücretsiz
+// hakkı hiç yoksa) sıradaki modele geçilir. Gemma modelleri ücretsiz planda çok daha yüksek sınırlıdır.
+const GEMINI_FALLBACK_MODELS = [
+  'gemini-flash-latest',
+  'gemini-flash-lite-latest',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemma-4-31b-it',
+  'gemma-3-27b-it',
+];
+
+// Google'ın 429 yanıtındaki ayrıntılar: hangi sınır (dakikalık / günlük), sınır değeri, ne kadar beklenmeli
+function quotaInfo(data) {
+  const err = (data && data.error) || {};
+  const details = Array.isArray(err.details) ? err.details : [];
+  let quotaId = '';
+  let value = '';
+  let retry = 0;
+  for (const d of details) {
+    const t = String((d && d['@type']) || '');
+    if (/QuotaFailure/i.test(t)) {
+      for (const v of Array.isArray(d.violations) ? d.violations : []) {
+        if (!quotaId) quotaId = String(v.quotaId || v.quotaMetric || '');
+        if (!value && v.quotaValue !== undefined) value = String(v.quotaValue);
+      }
+    }
+    if (/RetryInfo/i.test(t)) {
+      const m = /([\d.]+)\s*s/.exec(String(d.retryDelay || ''));
+      if (m) retry = Math.ceil(Number(m[1]));
+    }
+  }
+  const msg = String(err.message || '');
+  if (!retry) {
+    const m = /retry in ([\d.]+)\s*s/i.exec(msg);
+    if (m) retry = Math.ceil(Number(m[1]));
+  }
+  return {
+    quotaId,
+    value,
+    retry,
+    daily: /PerDay/i.test(quotaId) || /per day|daily/i.test(msg),
+    none: value === '0' || /limit:\s*0\b/.test(msg),
+  };
+}
+
 // Ortak çağrı: sistem metni + kullanıcı metni + resimler → yapay zekânın metin yanıtı
-async function callGemini(e, system, prompt, images, mode = 'normal') {
-  const models = Array.from(new Set([e.geminiModel, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean)));
-  const options = THINKING[mode] || THINKING.normal;
+// `avoid`: bugün hakkı biten modeller (tarayıcı hatırlar ve her istekte gönderir)
+async function callGemini(e, system, prompt, images, mode = 'normal', avoid = []) {
+  const skip = new Set(avoid);
+  const models = Array.from(new Set([e.geminiModel, ...GEMINI_FALLBACK_MODELS].filter(Boolean))).filter((m) => !skip.has(m));
+  const exhausted = [];
   let lastErr = null;
+  let dailyErr = null;
+  let minuteErr = null;
   for (const model of models) {
+    const gemma = /^gemma/i.test(model);
+    // Gemma: sistem metni ve JSON modu desteklenmez → metnin başına eklenir, yanıt metinden okunur
+    const options = gemma ? [null] : THINKING[mode] || THINKING.normal;
     const memo = `${model}|${mode}`;
-    for (let ti = thinkingStart.get(memo) || 0; ti < options.length; ti++) {
-      const generationConfig = { responseMimeType: 'application/json' };
+    let next = false;
+    for (let ti = gemma ? 0 : thinkingStart.get(memo) || 0; ti < options.length; ti++) {
+      const generationConfig = gemma ? {} : { responseMimeType: 'application/json' };
       if (options[ti]) generationConfig.thinkingConfig = options[ti];
-      const parts = [{ text: prompt }];
+      const parts = [{ text: gemma ? `${system}\n\n${prompt}\n\nYanıtın yalnızca JSON olsun.` : prompt }];
       for (const img of images) parts.push({ inlineData: { mimeType: img.mime, data: img.data } });
+      const payload = { contents: [{ role: 'user', parts }], generationConfig };
+      if (!gemma) payload.systemInstruction = { parts: [{ text: system }] };
       const r = await withTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': e.gemini },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts }], generationConfig }),
+        body: JSON.stringify(payload),
       });
       const text = await r.text();
       let data = null;
@@ -207,27 +262,57 @@ async function callGemini(e, system, prompt, images, mode = 'normal') {
           const reason = data && data.promptFeedback && data.promptFeedback.blockReason;
           throw new HttpError(502, reason ? 'Gemini bu içeriği işlemeyi reddetti.' : 'Gemini boş yanıt verdi.', { code: 'empty' });
         }
-        thinkingStart.set(memo, ti);
-        return { model, text: out, truncated: !!(cand && cand.finishReason === 'MAX_TOKENS') };
+        if (!gemma) thinkingStart.set(memo, ti);
+        return { model, text: out, truncated: !!(cand && cand.finishReason === 'MAX_TOKENS'), exhausted };
       }
       const msg = String((data && data.error && data.error.message) || text || '').slice(0, 300);
       if (options[ti] && r.status === 400 && /think|budget|level/i.test(msg)) {
         thinkingStart.set(memo, ti + 1); // bu düşünme ayarı desteklenmiyor: sıradakini dene
         continue;
       }
-      if (r.status === 404) {
-        lastErr = new HttpError(502, `Gemini modeli bulunamadı (${model}).`, { code: 'model' });
-        break; // sıradaki modeli dene
+      // Model yok ya da bu işi (ör. resim) desteklemiyor: sıradaki modele geç ve bir daha deneme
+      if (r.status === 404 || (r.status === 400 && /not found|not supported|unsupported|does not support|invalid model/i.test(msg))) {
+        exhausted.push(model);
+        lastErr = new HttpError(502, `Gemini modeli kullanılamadı (${model}).`, { code: 'model', exhausted });
+        next = true;
+        break;
       }
-      if (r.status === 429) throw new HttpError(429, 'Gemini ücretsiz kullanım sınırı doldu.', { code: 'quota' });
+      if (r.status === 429) {
+        const q = quotaInfo(data);
+        if (q.daily || q.none) {
+          // Bu modelin bugünkü hakkı bitti (ya da ücretsiz hakkı yok): sıradaki modele geç
+          console.warn('[ai] gemini günlük sınır', model, q.quotaId, q.value);
+          exhausted.push(model);
+          dailyErr = new HttpError(429, 'Gemini\'nin bugünkü ücretsiz kullanım hakkı doldu.', { code: 'quota-day', exhausted });
+          next = true;
+          break;
+        }
+        // Dakikalık sınır: beklemek yerine sınırı ayrı olan sıradaki model denenir.
+        // Hepsi doluysa tarayıcı, Google'ın söylediği en kısa süre kadar bekler.
+        const retryAfter = Math.max(3, Math.min(90, q.retry || 20));
+        if (!minuteErr || retryAfter < minuteErr.extra.retryAfter) {
+          minuteErr = new HttpError(429, `Gemini dakikalık sınırı doldu (${model}).`, { code: 'quota', retryAfter, model, exhausted });
+        }
+        next = true;
+        break;
+      }
       if (r.status === 400 && /api key/i.test(msg)) throw new HttpError(503, 'Gemini API anahtarı geçersiz. Vercel\'deki GEMINI_API_KEY değerini kontrol edin.', { code: 'no-key' });
       if (r.status === 401 || r.status === 403) throw new HttpError(503, 'Gemini anahtarı bu işlem için yetkili değil. Vercel\'deki GEMINI_API_KEY değerini kontrol edin.', { code: 'no-key' });
-      if (r.status >= 500) throw new HttpError(502, 'Gemini şu an yanıt veremiyor.', { code: 'provider' });
-      console.error('[ai] gemini', r.status, msg);
-      throw new HttpError(502, 'Gemini isteği kabul etmedi.', { code: 'provider' });
+      if (r.status >= 500) {
+        // Model aşırı yoğun ("overloaded") olabilir: sıradaki modeli dene
+        lastErr = new HttpError(502, 'Gemini şu an yanıt veremiyor.', { code: 'provider', exhausted });
+        next = true;
+        break;
+      }
+      console.error('[ai] gemini', model, r.status, msg);
+      throw new HttpError(502, 'Gemini isteği kabul etmedi.', { code: 'provider', exhausted });
     }
+    if (!next) break;
   }
-  throw lastErr || new HttpError(502, 'Gemini modeli bulunamadı.', { code: 'model' });
+  if (minuteErr) throw minuteErr; // bazı modeller yalnızca dakikalık sınırda: kısa bekleme yeter
+  if (dailyErr) throw dailyErr;
+  if (!models.length) throw new HttpError(429, 'Gemini\'nin bugünkü ücretsiz kullanım hakkı doldu.', { code: 'quota-day', exhausted });
+  throw lastErr || new HttpError(502, 'Gemini modeli bulunamadı.', { code: 'model', exhausted });
 }
 
 async function callMistral(e, system, prompt, images) {
@@ -284,12 +369,17 @@ async function ask(body, system, prompt, images, mode = 'normal') {
   const provider = body.provider === 'mistral' ? 'mistral' : 'gemini';
   if (provider === 'gemini' && !e.gemini) throw new HttpError(503, 'Gemini anahtarı tanımlı değil (Vercel > GEMINI_API_KEY).', { code: 'no-key' });
   if (provider === 'mistral' && !e.mistral) throw new HttpError(503, 'Mistral anahtarı tanımlı değil (Vercel > MISTRAL_API_KEY).', { code: 'no-key' });
-  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images) : await callGemini(e, system, prompt, images, mode);
+  const avoid = (Array.isArray(body.avoid) ? body.avoid : []).filter((m) => typeof m === 'string' && /^[a-z0-9.\-]{3,60}$/i.test(m)).slice(0, 12);
+  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images) : await callGemini(e, system, prompt, images, mode, avoid);
+  const exhausted = out.exhausted || [];
   const parsed = parseJsonLoose(out.text);
   if (!parsed || typeof parsed !== 'object') {
-    throw new HttpError(502, out.truncated ? 'Yapay zekânın yanıtı çok uzun olduğu için kesildi.' : 'Yapay zekânın yanıtı okunamadı.', { code: out.truncated ? 'long' : 'parse' });
+    throw new HttpError(502, out.truncated ? 'Yapay zekânın yanıtı çok uzun olduğu için kesildi.' : 'Yapay zekânın yanıtı okunamadı.', {
+      code: out.truncated ? 'long' : 'parse',
+      exhausted,
+    });
   }
-  return { provider, model: out.model, parsed };
+  return { provider, model: out.model, parsed, exhausted };
 }
 
 const SUBJECT_LIST = Object.entries(SUBJECTS)
@@ -323,7 +413,7 @@ async function actionProgram(body) {
     'Metin:',
     text,
   ].join('\n');
-  const { provider, model, parsed } = await ask(body, PROGRAM_SYSTEM, prompt, []);
+  const { provider, model, parsed, exhausted } = await ask(body, PROGRAM_SYSTEM, prompt, []);
   const raw = Array.isArray(parsed.kazanimlar) ? parsed.kazanimlar : [];
   const seen = new Set();
   const items = [];
@@ -337,7 +427,7 @@ async function actionProgram(body) {
     seen.add(k);
     items.push({ ders, kod: kod.replace(/\.+$/, ''), kazanim, konu: clean(it.konu, 200) });
   }
-  return { ok: true, provider, model, items };
+  return { ok: true, provider, model, items, exhausted };
 }
 
 // ----------------------------------------------------------------------------- 2) Kitapçık sayfalarını tanıma
@@ -357,7 +447,7 @@ const PAGES_SYSTEM = [
 async function actionPages(body) {
   const images = readImages(body.images);
   const prompt = [`Resimler sırasıyla şu sayfalardır: ${images.map((i) => i.page).join(', ')}.`, 'Her sayfa için dersleri ve soru numaralarını yaz.'].join('\n');
-  const { provider, model, parsed } = await ask(body, PAGES_SYSTEM, prompt, images, 'fast');
+  const { provider, model, parsed, exhausted } = await ask(body, PAGES_SYSTEM, prompt, images, 'fast');
   const raw = Array.isArray(parsed.sayfalar) ? parsed.sayfalar : [];
   const allowedPages = new Set(images.map((i) => i.page));
   const pages = [];
@@ -376,7 +466,7 @@ async function actionPages(body) {
     }
     pages.push({ page, dersler });
   }
-  return { ok: true, provider, model, pages };
+  return { ok: true, provider, model, pages, exhausted };
 }
 
 // ----------------------------------------------------------------------------- 3) Soru → kazanım
@@ -430,7 +520,7 @@ async function actionClassify(body) {
     '',
     ...blocks,
   ].join('\n');
-  const { provider, model, parsed } = await ask(body, CLASSIFY_SYSTEM, prompt, images, 'normal');
+  const { provider, model, parsed, exhausted } = await ask(body, CLASSIFY_SYSTEM, prompt, images, 'normal');
   const raw = Array.isArray(parsed.sorular) ? parsed.sorular : Array.isArray(parsed) ? parsed : [];
   const byKey = new Map(prepared.map((s) => [s.key, s]));
   const seen = new Set();
@@ -460,7 +550,7 @@ async function actionClassify(body) {
     });
   }
   items.sort((a, b) => (a.ders === b.ders ? a.no - b.no : a.ders.localeCompare(b.ders)));
-  return { ok: true, provider, model, items };
+  return { ok: true, provider, model, items, exhausted };
 }
 
 export default async function handler(req, res) {

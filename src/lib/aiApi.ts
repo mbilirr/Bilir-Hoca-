@@ -57,6 +57,8 @@ export interface AiResult {
   model?: string;
   items?: any[];
   pages?: AiPageInfo[];
+  exhausted?: string[]; // bugünkü hakkı biten Gemini modelleri
+  retryAfter?: number; // dakikalık sınırda Google'ın söylediği bekleme (sn)
   gemini?: boolean;
   mistral?: boolean;
 }
@@ -114,12 +116,12 @@ export function aiStatus(): Promise<AiResult> {
 }
 
 /** Öğretim programı metninin bir bölümünden kazanımlar */
-export function aiProgram(input: { provider: AiProvider; text: string; grade: string; subject?: string }): Promise<AiResult> {
+export function aiProgram(input: { provider: AiProvider; text: string; grade: string; subject?: string; avoid?: string[] }): Promise<AiResult> {
   return post({ action: 'program', ...input });
 }
 
 /** Kitapçık sayfalarının hangi derse ait olduğu ve görünen soru numaraları */
-export function aiPages(input: { provider: AiProvider; images: AiImage[] }): Promise<AiResult> {
+export function aiPages(input: { provider: AiProvider; images: AiImage[]; avoid?: string[] }): Promise<AiResult> {
   return post({ action: 'pages', ...input });
 }
 
@@ -127,6 +129,7 @@ export function aiPages(input: { provider: AiProvider; images: AiImage[] }): Pro
 export function aiClassifyPage(input: {
   provider: AiProvider;
   images: AiImage[];
+  avoid?: string[];
   subjects: Array<{ key: string; name: string; count: number; kazanimlar: AiKazanimInput[]; hint?: string }>;
 }): Promise<AiResult> {
   return post({ action: 'classify', ...input });
@@ -147,6 +150,9 @@ export async function runPool(concurrency: number, next: () => (() => Promise<vo
 /** Aynı anda gönderilecek istek sayısı (ücretsiz planlara uygun) */
 export const AI_CONCURRENCY = 3;
 
+export const DAY_DONE_MSG =
+  'Gemini\'nin bugünkü ücretsiz kullanım hakkı doldu (bütün modeller denendi). Hak her gün Türkiye saatiyle yaklaşık 10:00-11:00\'de yenilenir; bulunan sonuçlar kaybolmaz, kalan sayfaları o saatten sonra yeniden çalıştırabilirsiniz.';
+
 const sleep = (ms: number, stop: () => boolean) =>
   new Promise<void>((resolve) => {
     const started = Date.now();
@@ -164,6 +170,38 @@ export interface AiCallState {
   lastCall: number; // sıradaki isteğin en erken başlama zamanı (paralel işler ortak kullanır)
   gap?: number; // Gemini için istekler arası en kısa süre (ms); sınıra takılınca kendiliğinden uzar
   pauseUntil?: number; // kota dolunca bütün işler bu zamana kadar bekler
+  avoid?: string[]; // bugünkü hakkı biten modeller (sunucu bunları atlayıp sıradaki modeli kullanır)
+  dayDone?: boolean; // bütün modellerin bugünkü hakkı bitti
+}
+
+const AVOID_KEY = 'ai-gemini-avoid';
+/** Hakkı biten modeller tarayıcıda o gün için hatırlanır (Google sınırları Türkiye saatiyle ~10:00-11:00'de yenilenir) */
+function loadAvoid(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(AVOID_KEY) || 'null');
+    if (raw && Array.isArray(raw.models) && typeof raw.until === 'number' && raw.until > Date.now()) return raw.models.filter((m: unknown) => typeof m === 'string');
+  } catch {
+    /* yok say */
+  }
+  return [];
+}
+function saveAvoid(models: string[]) {
+  try {
+    // Pasifik saatiyle gece yarısına kadar (yaklaşık: şimdiden sonraki 08:00 UTC)
+    const d = new Date();
+    const until = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 8, 0, 0) + (d.getUTCHours() >= 8 ? 86400000 : 0);
+    localStorage.setItem(AVOID_KEY, JSON.stringify({ models, until }));
+  } catch {
+    /* yok say */
+  }
+}
+function mergeAvoid(state: AiCallState, list?: string[]) {
+  if (!list || !list.length) return;
+  const next = Array.from(new Set([...(state.avoid || []), ...list])).slice(0, 12);
+  if (next.length !== (state.avoid || []).length) {
+    state.avoid = next;
+    saveAvoid(next);
+  }
 }
 
 /** Yeni durum: Gemini'de istek başlangıçları arası 6 sn (dakikada ~10, ücretsiz sınır); sınıra takılınca uzar */
@@ -173,6 +211,7 @@ export const newAiState = (provider: AiProvider, fallback: boolean, keys: { gemi
   keys,
   lastCall: 0,
   gap: 6000,
+  avoid: loadAvoid(),
 });
 
 /**
@@ -181,11 +220,12 @@ export const newAiState = (provider: AiProvider, fallback: boolean, keys: { gemi
  */
 export async function aiCall(
   state: AiCallState,
-  call: (p: AiProvider) => Promise<AiResult>,
+  call: (p: AiProvider, avoid: string[]) => Promise<AiResult>,
   opts: { stop: () => boolean; onWait?: (text: string | null) => void; onNote?: (text: string) => void }
 ): Promise<AiResult> {
   let r: AiResult = { ok: false, error: 'Durduruldu.' };
-  for (let attempt = 0; attempt < 5 && !opts.stop(); attempt++) {
+  for (let attempt = 0; attempt < 6 && !opts.stop(); attempt++) {
+    if (state.dayDone && state.provider === 'gemini') return { ok: false, code: 'quota-day', error: DAY_DONE_MSG };
     // Ortak sıra: her istek bir başlama zamanı ayırır (JavaScript tek iş parçacıklı olduğu için çakışmaz)
     const gap = state.provider === 'gemini' ? state.gap || 6000 : 1200;
     const now = Date.now();
@@ -193,11 +233,22 @@ export async function aiCall(
     state.lastCall = start;
     if (start > now) await sleep(start - now, opts.stop);
     if (opts.stop()) break;
-    r = await call(state.provider);
+    r = await call(state.provider, state.provider === 'gemini' ? state.avoid || [] : []);
+    mergeAvoid(state, r.exhausted);
     if (r.ok) return r;
     const other: AiProvider = state.provider === 'gemini' ? 'mistral' : 'gemini';
     const canSwitch = state.fallback && !!state.keys && state.keys[other];
-    if ((r.code === 'quota' || r.code === 'no-key' || r.code === 'model' || r.code === 'provider') && canSwitch) {
+    if (r.code === 'quota-day') {
+      // Bütün Gemini modellerinin bugünkü hakkı bitti: beklemenin anlamı yok
+      if (state.provider === 'gemini') state.dayDone = true;
+      if (canSwitch) {
+        opts.onNote?.(`${r.error} ${other === 'mistral' ? 'Mistral' : 'Gemini'} ile devam edildi.`);
+        state.provider = other;
+        continue;
+      }
+      return { ...r, error: DAY_DONE_MSG };
+    }
+    if ((r.code === 'no-key' || r.code === 'model' || r.code === 'provider') && canSwitch) {
       if (state.provider !== other) {
         opts.onNote?.(`${state.provider === 'gemini' ? 'Gemini' : 'Mistral'}: ${r.error} ${other === 'mistral' ? 'Mistral' : 'Gemini'} ile devam edildi.`);
         state.provider = other;
@@ -205,14 +256,17 @@ export async function aiCall(
       continue;
     }
     if (r.code === 'quota' || r.code === 'rate') {
-      // Sınıra takıldık: istek aralığını uzat ve bütün işleri birlikte beklet
+      // Dakikalık sınır: Google'ın söylediği süre kadar bütün işler birlikte bekler, istek aralığı biraz uzar
+      const waitMs = Math.max(3, Math.min(90, r.retryAfter || 20)) * 1000 + 500;
       if ((state.pauseUntil || 0) < Date.now()) {
         // aynı anda gelen birden çok sınır uyarısı aralığı yalnızca bir kez uzatsın
-        state.gap = Math.min(15000, Math.round((state.gap || 6000) * 1.5));
-        state.pauseUntil = Date.now() + 30000;
+        state.gap = Math.min(15000, Math.round((state.gap || 6000) * 1.25));
+        state.pauseUntil = Date.now() + waitMs;
       }
       while (!opts.stop() && Date.now() < (state.pauseUntil || 0)) {
-        opts.onWait?.(`Kullanım sınırı: ${Math.ceil(((state.pauseUntil || 0) - Date.now()) / 1000)} sn bekleniyor…`);
+        opts.onWait?.(
+          `Dakikalık kullanım sınırı${r.model ? ` (${r.model})` : ''}: ${Math.ceil(((state.pauseUntil || 0) - Date.now()) / 1000)} sn bekleniyor, sonra kendiliğinden devam edecek…`
+        );
         await sleep(1000, opts.stop);
       }
       opts.onWait?.(null);
