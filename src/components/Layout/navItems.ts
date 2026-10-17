@@ -1,4 +1,4 @@
-import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck } from 'lucide-react';
+import { Home, Users, BookOpen, CalendarDays, MessageSquare, FolderArchive, HelpCircle, ShieldCheck, ClipboardCheck, BarChart3 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { TeacherTabType } from '../../types';
 import type { Tone } from '../ui/kit';
@@ -24,6 +24,8 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   // Aşama 17 (rapor Ö13): not ve devamsızlık girişi menüye bağlandı
   { id: 'grades', title: 'Not & Yoklama', description: 'Sınav notları ve ders yoklaması', icon: ClipboardCheck, tone: 'success', keywords: 'not yazılı sınav puan yoklama devamsızlık' },
   { id: 'question_tracking', title: 'Soru Takibi', description: 'Çözülen soru sayıları ve analiz', icon: HelpCircle, tone: 'info', keywords: 'soru sayısı analiz hedef grafik' },
+  // Aşama 47: yalnızca genel yönetici ve izinli kurum yöneticileri görür (dataService.canUseTab)
+  { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, LGS puanı ve kazanım analizi', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },
   {
     id: 'user_management',
     title: 'Yönetim',

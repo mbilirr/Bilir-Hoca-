@@ -20,7 +20,7 @@ import { buildStudentQuestionSummary } from '../../utils/studentQuestionSummary'
 import { useLiveNow } from '../../lib/useLiveNow';
 import { useDataVersion } from '../../lib/useDataVersion';
 
-export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
+export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions' | 'deneme';
 
 interface StudentHeroBannerProps {
   student: Student;

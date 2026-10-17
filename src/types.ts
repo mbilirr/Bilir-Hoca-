@@ -11,6 +11,7 @@ export type TeacherTabType =
   | 'messages'
   | 'archive'
   | 'question_tracking'
+  | 'deneme' // Aşama 47: Deneme Analizi (genel yönetici + izinli kurum yöneticileri)
   | 'user_management';
 
 export interface Teacher {
@@ -489,7 +490,8 @@ export type KurumModule =
   | 'messages'
   | 'archive'
   | 'manage_students'
-  | 'manage_teachers';
+  | 'manage_teachers'
+  | 'deneme';
 
 export interface KurumInfo {
   id: string;

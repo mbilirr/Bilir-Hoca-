@@ -2417,6 +2417,63 @@ async function actionPlanMail(caller, body, req, deadline) {
   return { ok: true, markUrl, ...summary };
 }
 
+// ----------------------------------------------------------------------------- Aşama 47: deneme karnesi
+// Yalnızca Deneme Analizi yetkisi olan yönetici, kendi kapsamındaki (sonucunu görebildiği) öğrenciye gönderebilir.
+// Alıcı her zaman sunucuda veritabanından bulunur; tarayıcıdan e-posta adresi kabul edilmez.
+async function actionDenemeKarne(caller, body, req, deadline) {
+  const studentId = String(body.studentId || '');
+  if (!studentId || studentId.length > 120) throw new HttpError(400, 'Eksik bilgi.');
+  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
+  if (can !== true) throw new HttpError(403, 'Deneme karnesi göndermek için yetkiniz yok.');
+  // Yöneticinin bu öğrencinin sonucunu görme yetkisi var mı? (kendi oturumuyla; veritabanı kuralları denetler)
+  const vis = await rest(`deneme_results?select=id&student_id=eq.${encodeURIComponent(studentId)}&limit=1`, { token: caller.token });
+  if (!vis || !vis.length) throw new HttpError(404, 'Bu öğrencinin size açık bir deneme sonucu yok.');
+  const rows = await rest(`students?select=id,name,email,status&id=eq.${encodeURIComponent(studentId)}`, { token: 'service' });
+  const student = rows && rows[0];
+  if (!student || (student.status && student.status !== 'active')) throw new HttpError(404, 'Öğrenci bulunamadı.');
+  if (typeof body.pdf !== 'string' || !body.pdf) throw new HttpError(400, 'Karne PDF dosyası eksik.');
+  const buf = Buffer.from(body.pdf.replace(/^data:application\/pdf;[^,]*,/, ''), 'base64');
+  if (buf.length > PLAN_PDF_MAX_BYTES) throw new HttpError(413, 'PDF dosyası çok büyük.');
+  if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'Ek bir PDF dosyası değil.');
+  const title = clean(String(body.title || 'Deneme karnesi')).slice(0, 120);
+  const safe = clean(student.name)
+    .normalize('NFKD')
+    .replace(/[^\w ]+/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 40);
+  const { html, text } = layout({
+    heading: title,
+    greeting: `Merhaba ${clean(student.name)},`,
+    intro: 'Deneme sonuçlarını, ders netlerini ve konu/kazanım analizini içeren karnen ekteki PDF dosyasında. Karneni uygulamaya girerek "Deneme Sonuçlarım" bölümünden de görebilirsin.',
+    buttonLabel: 'Uygulamayı aç',
+    url: appUrl(req),
+    footer: 'Bu e-posta yalnızca sana gönderilmiştir; karnende kişisel bilgilerin bulunur, başkasıyla paylaşma.',
+  });
+  const sender = await resolveSender(caller);
+  const summary = await deliver(
+    sender,
+    caller,
+    [
+      {
+        event: 'deneme-karne',
+        refId: `deneme-${studentId}`,
+        refTitle: title,
+        to: student.email,
+        toName: student.name,
+        role: 'ogrenci',
+        repeatLimit: 5,
+        attachments: [{ filename: `Deneme-Karnesi-${safe || 'ogrenci'}.pdf`, contentType: 'application/pdf', content: buf }],
+        subject: title,
+        html,
+        text,
+      },
+    ],
+    deadline,
+  );
+  return { ok: true, ...summary };
+}
+
 // ----------------------------------------------------------------------------- İşaretleme sayfası (giriş gerektirmez)
 async function loadPlanByToken(token) {
   const { planId, studentId } = readPlanToken(token);
@@ -2770,6 +2827,9 @@ export default async function handler(req, res) {
         break;
       case 'plan-mail':
         result = await actionPlanMail(caller, body, req, deadline);
+        break;
+      case 'deneme-karne':
+        result = await actionDenemeKarne(caller, body, req, deadline);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

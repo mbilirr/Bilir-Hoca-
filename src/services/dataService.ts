@@ -140,6 +140,7 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   { key: 'archive', title: 'Arşiv', description: 'Plan ve zümre evrakı yükleme' },
   { key: 'manage_students', title: 'Öğrenci ve sınıf yönetimi', description: 'Kurum yöneticisi kendi sınıf ve öğrencilerini ekler, düzenler, siler' },
   { key: 'manage_teachers', title: 'Öğretmen yönetimi', description: 'Kurum yöneticisi kendi öğretmenlerini ekler, siler ve onlara sınıf yetkisi verir' },
+  { key: 'deneme', title: 'Deneme Analizi', description: 'Kurum yöneticisi optik sonuçlarını yükler, karne ve kazanım analizi çıkarır (yalnızca kurum yöneticileri)' },
 ];
 
 const TAB_MODULES: Partial<Record<TeacherTabType, KurumModule>> = {
@@ -3662,7 +3663,15 @@ export class DataService {
   public canUseTab(tab: TeacherTabType): boolean {
     const mod = TAB_MODULES[tab];
     if (tab === 'user_management') return this.canAccessUserManagement();
+    if (tab === 'deneme') return this.canUseDeneme();
     return mod ? this.canUseModule(mod) : true;
+  }
+
+  // Aşama 47: Deneme Analizi yalnızca genel yöneticiye ve bölümü açılmış kurumun YÖNETİCİLERİNE açıktır
+  // (kurumsuz ya da yönetici olmayan öğretmenlere hiçbir zaman açılmaz)
+  public canUseDeneme(): boolean {
+    if (this.isHeadAdmin()) return true;
+    return this.isKurumAdmin() && this.myKurum.modules?.deneme === true;
   }
 
   // Öğrenci ve sınıf ekleme/çıkarma/düzenleme

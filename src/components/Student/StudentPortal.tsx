@@ -30,6 +30,7 @@ import {
   UserCog,
   KeyRound,
   ShieldCheck,
+  BarChart3,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Student, Homework, HomeworkSubmission, Etut, GradeRecord, AttendanceRecord, StudentMessage, HomeworkResource, ClassGroup } from '../../types';
@@ -55,6 +56,8 @@ import { PushOptInCard } from '../Common/PushOptInCard';
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
+// Aşama 47: deneme sonuçları (grafik ve PDF kütüphaneleriyle) yalnız bu bölüm açılınca yüklenir
+const StudentDenemeSonuclari = lazyNamed(() => import('./StudentDenemeSonuclari'), 'StudentDenemeSonuclari');
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -466,6 +469,21 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             >
               <MessageSquare className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
               <span>Öğretmene Soru Sor ({myMessages.length})</span>
+            </button>
+
+            {/* Aşama 47: Deneme Sonuçlarım */}
+            <button
+              id="student-subnav-deneme-btn"
+              type="button"
+              onClick={() => setActiveTab('deneme')}
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'deneme'
+                  ? 'bg-fg text-surface shadow-xs'
+                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
+              <span>Deneme Sonuçlarım</span>
             </button>
           </div>
 
@@ -1126,6 +1144,15 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         <div className="space-y-6 animate-in fade-in duration-200">
           <Suspense fallback={<PageLoading />}>
             <StudentQuestionModule currentStudent={currentStudent} classes={dataService.getClasses()} students={selfList} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* VIEW 7: DENEME SONUÇLARIM (Aşama 47) — yalnızca öğrencinin kendi sonuçları */}
+      {activeTab === 'deneme' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <Suspense fallback={<PageLoading />}>
+            <StudentDenemeSonuclari currentStudent={currentStudent} />
           </Suspense>
         </div>
       )}

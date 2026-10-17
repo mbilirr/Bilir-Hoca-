@@ -45,6 +45,7 @@ const TeacherDocumentsArchive = lazyNamed(() => import('./components/Teacher/Doc
 const KurumManagement = lazyNamed(() => import('./components/Admin/KurumManagement'), 'KurumManagement');
 const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttendance'), 'GradeAttendance');
 const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
+const DenemeAnalizi = lazyNamed(() => import('./components/Deneme/DenemeAnalizi'), 'DenemeAnalizi');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
@@ -541,6 +542,8 @@ export default function App() {
                       students={students}
                     />
                   )}
+
+                  {teacherTab === 'deneme' && <DenemeAnalizi students={students} classes={classes} />}
 
                   {teacherTab === 'user_management' && dataService.isHeadAdmin() && (
                     <div className="space-y-6 mb-6">

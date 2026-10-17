@@ -7,10 +7,10 @@
 //   #/student/questions            → Soru Sayısı (varsayılan alt sekme)
 //   #/student/questions/entry      → Soru Sayısı › + Soru Kaydet
 
-export type StudentRouteTab = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions';
+export type StudentRouteTab = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions' | 'deneme';
 export type QuestionSubTab = 'entry' | 'weekly' | 'monthly' | 'history';
 
-const STUDENT_TABS: StudentRouteTab[] = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions'];
+const STUDENT_TABS: StudentRouteTab[] = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions', 'deneme'];
 const QUESTION_SUB_TABS: QuestionSubTab[] = ['entry', 'weekly', 'monthly', 'history'];
 
 const hashParts = (): string[] => window.location.hash.replace(/^#\/?/, '').split('/');

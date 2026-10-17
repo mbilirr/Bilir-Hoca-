@@ -1,0 +1,124 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart3, Download } from 'lucide-react';
+import { EmptyState, PageHeader, Segmented } from '../ui/kit';
+import type { Student } from '../../types';
+import { getTarget, isSetupError, loadMyDenemeler, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { SCOPES, pickScope, scopeLabel, studentKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
+import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
+import { StudentKarneView } from '../Deneme/KarneViews';
+
+// ============================================================================
+// Öğrenci: Deneme Sonuçlarım (Aşama 47)
+// Öğrenci yalnızca öğretmeninin "öğrencilere açtığı" denemelerdeki KENDİ sonucunu görür
+// (veritabanı kuralı: 38 numaralı SQL). Başka öğrencilerin sonuçları hiçbir zaman gelmez;
+// sınıf ortalaması ve sıralaması yalnızca sayı olarak görünür.
+// ============================================================================
+
+export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ currentStudent }) => {
+  const [exams, setExams] = useState<DenemeExam[]>([]);
+  const [results, setResults] = useState<DenemeResult[]>([]);
+  const [target, setTarget] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<ScopeKey>('all');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await loadMyDenemeler();
+        let tg: number | null = null;
+        try {
+          tg = await getTarget(currentStudent.id);
+        } catch {
+          tg = null;
+        }
+        if (!alive) return;
+        setExams(r.exams);
+        setResults(r.results.filter((x) => x.studentId === currentStudent.id));
+        setTarget(tg);
+      } catch (e: any) {
+        if (alive) setError(isSetupError(e) ? null : e?.message || 'Deneme sonuçların yüklenemedi.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [currentStudent.id]);
+
+  const scoped = useMemo(() => pickScope(exams, scope, (e) => picked.has(e.id)), [exams, scope, picked]);
+
+  const onPdf = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const blocks = studentKarneBlocks({ studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, target, scopeLabel: scopeLabel(scope) });
+      await downloadKarnePdf(blocks, `${currentStudent.name} deneme karnesi`, `Deneme-Karnem-${currentStudent.name}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4" id="student-deneme">
+      <PageHeader
+        icon={BarChart3}
+        tone="brand"
+        title="Deneme Sonuçlarım"
+        description="Deneme puanların, ders netlerin ve konu analizin"
+        actions={
+          results.length > 0 ? (
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void onPdf()}>
+              <Download /> {busy ? 'Hazırlanıyor…' : 'Karnemi indir (PDF)'}
+            </button>
+          ) : undefined
+        }
+      />
+      {loading ? (
+        <p className="text-sm text-muted">Yükleniyor…</p>
+      ) : error ? (
+        <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>
+      ) : !results.length ? (
+        <div className="ui-card ui-card-pad">
+          <EmptyState icon={BarChart3} title="Henüz deneme sonucun yok" description="Öğretmenin deneme sonuçlarını açtığında burada göreceksin." />
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
+          </div>
+          {scope === 'custom' && (
+            <div className="flex flex-wrap gap-1.5">
+              {exams.map((e) => {
+                const on = picked.has(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setPicked((cur) => {
+                        const n = new Set(cur);
+                        if (on) n.delete(e.id);
+                        else n.add(e.id);
+                        return n;
+                      })
+                    }
+                    className={`ui-chip cursor-pointer border ${on ? 'ui-chip-brand border-brand/30' : 'ui-chip-neutral border-line'}`}
+                  >
+                    {e.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <StudentKarneView exams={scoped} results={results} target={target} />
+        </>
+      )}
+    </div>
+  );
+};

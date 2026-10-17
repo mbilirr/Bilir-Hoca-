@@ -1,0 +1,119 @@
+// ============================================================================
+// DENEME ANALİZİ (Aşama 47) — YAYINEVİ EXCEL ŞABLONUNDAN CEVAP ANAHTARI VE KAZANIMLAR
+// "LGS Sınav Oluşturma Şablonu" (K12) biçimi: her ders için bir başlık satırı (TÜRKÇE, MATEMATİK…),
+// altında "Soru No | Cevap | B Karşılığı | … | K12 KAZANIM | Konu" tablosu.
+// Başlık ve sütun yerleri sabit kabul edilmez; satırlar taranarak bulunur.
+// ============================================================================
+import type { ExamQuestion, ExamQuestions } from './lgs';
+import { foldTr, guessSubjectKey } from './optik';
+
+export interface ExcelKeyResult {
+  examName: string;
+  examDate: string; // YYYY-AA-GG ya da boş
+  questions: ExamQuestions;
+  found: string[]; // bulunan ders anahtarları
+  warnings: string[];
+}
+
+const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
+
+function toDateStr(v: unknown): string {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  const s = cellText(v);
+  const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/.exec(s);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return '';
+}
+
+export async function readKeyExcel(file: File): Promise<ExcelKeyResult> {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  const questions: ExamQuestions = {};
+  const warnings: string[] = [];
+  let examName = '';
+  let examDate = '';
+
+  for (const sheetName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, raw: true, defval: null, blankrows: false });
+    let current: string | null = null;
+    let col = { no: 0, ans: 1, b: 2, code: -1, text: -1 };
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const cells = row.map(cellText);
+      const filled = cells.map((c, idx) => ({ c, idx })).filter((x) => x.c);
+      if (!filled.length) continue;
+      const first = foldTr(filled[0].c);
+
+      // Sınav bilgileri
+      if (/^sinav adi/.test(first) && filled[1]) examName = examName || filled[1].c;
+      if (/tarih/.test(cells.map(foldTr).join(' '))) {
+        const dIdx = cells.findIndex((c) => /tarih/.test(foldTr(c)));
+        for (let j = dIdx + 1; j < row.length; j++) {
+          const d = toDateStr(row[j]);
+          if (d) {
+            examDate = examDate || d;
+            break;
+          }
+        }
+      }
+
+      // Tablo başlığı: "Soru No | Cevap | B Karşılığı | … | Kazanım | Konu"
+      const folded = cells.map(foldTr);
+      const noIdx = folded.findIndex((c) => /^soru ?no/.test(c));
+      if (noIdx >= 0 && current) {
+        const find = (re: RegExp, fb: number) => {
+          const k = folded.findIndex((c) => re.test(c));
+          return k >= 0 ? k : fb;
+        };
+        col = {
+          no: noIdx,
+          ans: find(/^cevap/, noIdx + 1),
+          b: find(/^b karsil|^b kitap/, -1),
+          code: find(/kazanim/, -1),
+          text: find(/^konu|aciklama|kazanim metni/, -1),
+        };
+        continue;
+      }
+
+      // Ders başlığı: tek dolu hücre, büyük harf, bilinen bir ders
+      if (filled.length === 1 && filled[0].c.length < 60 && !/^\d/.test(filled[0].c) && filled[0].c === filled[0].c.toLocaleUpperCase('tr-TR')) {
+        const key = guessSubjectKey(filled[0].c);
+        if (key) {
+          current = key;
+          if (questions[key]?.length) warnings.push(`"${filled[0].c}" dersi Excel'de iki kez geçiyor; ikincisi kullanıldı.`);
+          questions[key] = [];
+          continue;
+        }
+      }
+
+      // Soru satırı
+      if (current) {
+        const no = Number(row[col.no]);
+        const ans = cellText(row[col.ans]).toUpperCase();
+        if (Number.isInteger(no) && no > 0 && no <= 100 && /^[A-EX]$/.test(ans)) {
+          const bVal = col.b >= 0 ? Number(row[col.b]) : NaN;
+          const code = col.code >= 0 ? cellText(row[col.code]) : '';
+          const text = col.text >= 0 ? cellText(row[col.text]) : '';
+          const q: ExamQuestion = { no, answer: ans };
+          if (Number.isInteger(bVal) && bVal > 0) q.bNo = bVal;
+          if (code) q.kazanimCode = code;
+          if (text) {
+            q.kazanim = text.slice(0, 600);
+            // Kısa metinler (ör. Türkçe: "Paragrafta Anlam") zaten konu adıdır
+            if (text.length <= 45) q.konu = text;
+          }
+          questions[current].push(q);
+        }
+      }
+    }
+  }
+
+  const found = Object.keys(questions).filter((k) => questions[k].length > 0);
+  for (const k of Object.keys(questions)) if (!questions[k].length) delete questions[k];
+  if (!found.length) warnings.push('Excel dosyasında cevap anahtarı tablosu bulunamadı. Şablonun "Soru No / Cevap" başlıklı tablolar içerdiğinden emin olun.');
+  return { examName, examDate, questions, found, warnings };
+}

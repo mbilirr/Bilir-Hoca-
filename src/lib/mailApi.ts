@@ -19,6 +19,7 @@ export type MailAction =
   | 'teacher-account'
   | 'plan-group'
   | 'plan-mail'
+  | 'deneme-karne' // Aşama 47: deneme karnesi (PDF ekli) öğrenciye
   | 'reminders';
 
 export interface MailResult {
