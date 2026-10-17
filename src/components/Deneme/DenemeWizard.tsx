@@ -4,6 +4,7 @@ import { Panel, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
 import { AnahtarEditor } from './AnahtarEditor';
+import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, parseTxt, type OptikField, type TxtParseResult } from '../../lib/deneme/optik';
 import { aliasKeyOf, groupRows, matchGroups, normNumber, type MatchItem } from '../../lib/deneme/eslestir';
 import {
@@ -86,7 +87,10 @@ export const DenemeWizard: React.FC<{
   const [aliases, setAliases] = useState<Record<string, string>>({});
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [manual, setManual] = useState<Set<string>>(new Set());
-  const [matchFilter, setMatchFilter] = useState<'all' | 'check' | 'none'>('all');
+  const [matchFilter, setMatchFilter] = useState<'all' | 'pending' | 'none'>('all');
+  const [matchMsg, setMatchMsg] = useState<string | null>(null);
+  const [flashKey, setFlashKey] = useState<string | null>(null);
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   // 4) Kayıt
   const [saving, setSaving] = useState(false);
@@ -226,10 +230,50 @@ export const DenemeWizard: React.FC<{
     }
     if (step === 3) {
       const open = matches.filter((m) => !m.skip && (m.status !== 'ok' || !m.studentId));
-      if (open.length) return setError(`${open.length} satır onay bekliyor. Öğrenciyi seçin, önerileri onaylayın ya da "Atla" işaretleyin.`);
-      if (duplicateIds.size) return setError('Aynı öğrenci birden fazla satıra seçilmiş. Lütfen düzeltin.');
+      if (open.length) {
+        setMatchFilter('pending');
+        return setError(`${open.length} satır onay bekliyor; liste yalnızca onları gösterecek şekilde süzüldü. Öğrenciyi seçin, "Onayla" deyin ya da "Atla" işaretleyin.`);
+      }
+      if (duplicateIds.size) {
+        setMatchFilter('pending');
+        return setError('Aynı öğrenci birden fazla satıra seçilmiş. Lütfen düzeltin.');
+      }
       setStep(4);
     }
+  };
+
+  // Onay bekleyen satır: atlanmamış ve (eşleşmemiş ya da öğrencisi seçilmemiş ya da aynı öğrenci başka satırda)
+  const isPending = (m: MatchItem) => !m.skip && (m.status !== 'ok' || !m.studentId || duplicateIds.has(m.studentId));
+  const pendingCount = matches.filter(isPending).length;
+
+  // "Önerileri onayla": öğrencisi seçili "kontrol" satırları onaylanır; seçili değilse ilk öneri seçilir
+  // (aynı öğrenci başka satırda kullanılıyorsa o satır elle seçime bırakılır)
+  const confirmSuggestions = () => {
+    const used = new Map<string, number>();
+    for (const m of matches) if (!m.skip && m.studentId) used.set(m.studentId, (used.get(m.studentId) || 0) + 1);
+    let done = 0;
+    const next = matches.map((m) => {
+      if (m.skip || m.status === 'ok') return m;
+      if (m.studentId) {
+        if ((used.get(m.studentId) || 0) > 1) return m;
+        done++;
+        return { ...m, status: 'ok' as const };
+      }
+      const first = m.candidates.find((id) => !used.has(id));
+      if (m.status === 'check' && first) {
+        used.set(first, 1);
+        done++;
+        return { ...m, studentId: first, status: 'ok' as const };
+      }
+      return m;
+    });
+    setMatches(next);
+    const left = next.filter((m) => !m.skip && (m.status !== 'ok' || !m.studentId)).length;
+    setMatchMsg(
+      `${done} öneri onaylandı.` +
+        (left ? ` ${left} satırda öneri yok ya da öğrenci başka satırda kullanılıyor; bunları elle seçin ya da "Atla" işaretleyin.` : ' Onay bekleyen satır kalmadı.')
+    );
+    if (left) setMatchFilter('pending');
   };
 
   // ----------------------------------------------------------------------------- 4) sonuçların hesaplanması
@@ -334,7 +378,37 @@ export const DenemeWizard: React.FC<{
   };
 
   // ----------------------------------------------------------------------------- görünüm
-  const shownMatches = matches.filter((m) => (matchFilter === 'all' ? true : matchFilter === 'check' ? !m.skip && m.status === 'check' : !m.skip && m.status === 'none'));
+  // Aynı öğrencinin seçildiği satırlar listede alt alta gelir (ilk satırın yerinde toplanır)
+  const shownMatches = useMemo(() => {
+    const list = matches.filter((m) => (matchFilter === 'all' ? true : matchFilter === 'pending' ? isPending(m) : !m.skip && m.status === 'none'));
+    const firstIdx = new Map<string, number>();
+    list.forEach((m, i) => {
+      if (!m.skip && m.studentId && duplicateIds.has(m.studentId) && !firstIdx.has(m.studentId)) firstIdx.set(m.studentId, i);
+    });
+    return list
+      .map((m, i) => ({ m, i, k: !m.skip && m.studentId && firstIdx.has(m.studentId) ? (firstIdx.get(m.studentId) as number) : i }))
+      .sort((a, b) => a.k - b.k || a.i - b.i)
+      .map((x) => x.m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches, matchFilter, duplicateIds]);
+
+  const otherRowsOf = (m: MatchItem) => matches.filter((o) => o !== m && !o.skip && !!m.studentId && o.studentId === m.studentId);
+
+  // "Başka satırda da seçili" yazısına tıklanınca diğer satıra kayılır ve satır kısa süre vurgulanır
+  const jumpToTwin = (m: MatchItem) => {
+    const twin = otherRowsOf(m)[0];
+    if (!twin) return;
+    const go = () => {
+      const el = rowRefs.current.get(twin.group.key);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setFlashKey(twin.group.key);
+      window.setTimeout(() => setFlashKey((k) => (k === twin.group.key ? null : k)), 1800);
+    };
+    if (!shownMatches.includes(twin)) {
+      setMatchFilter('all');
+      window.setTimeout(go, 60);
+    } else go();
+  };
 
   return (
     <div className="space-y-4" id="deneme-wizard">
@@ -555,20 +629,29 @@ export const DenemeWizard: React.FC<{
               value={matchFilter}
               onChange={setMatchFilter}
               items={[
-                { value: 'all', label: 'Tümü' },
-                { value: 'check', label: 'Kontrol' },
-                { value: 'none', label: 'Bulunamayan' },
+                { value: 'all', label: `Tümü (${matches.length})` },
+                { value: 'pending', label: `Onay bekleyenler (${pendingCount})`, id: 'dn-match-pending' },
+                { value: 'none', label: `Bulunamayanlar (${counts.none})` },
               ]}
             />
             {counts.check > 0 && (
-              <button
-                type="button"
-                className="ui-btn ui-btn-secondary ui-btn-sm"
-                onClick={() => setMatches((cur) => cur.map((m) => (!m.skip && m.status === 'check' && m.studentId && !duplicateIds.has(m.studentId) ? { ...m, status: 'ok' as const } : m)))}
-              >
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={confirmSuggestions} id="dn-match-confirm">
                 <CheckCircle2 /> Önerileri onayla
               </button>
             )}
+          </div>
+          {matchMsg && (
+            <p role="status" className={cx('text-xs font-semibold rounded-xl px-3 py-2 mb-3', pendingCount ? 'bg-warning-soft text-warning-fg' : 'bg-success-soft text-success-fg')}>
+              {matchMsg}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3 mb-2 text-[11px] text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-danger-soft border border-danger/30" /> Tanınmayan öğrenci
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-warning-soft border border-warning/30" /> Kontrol edilmeli
+            </span>
           </div>
           <div className="bg-surface border border-line rounded-2xl overflow-hidden">
             <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
@@ -592,7 +675,21 @@ export const DenemeWizard: React.FC<{
                       const dup = !!m.studentId && duplicateIds.has(m.studentId) && !m.skip;
                       const st = m.skip ? 'skip' : dup ? 'check' : m.status;
                       return (
-                        <tr key={g.key} className={cx(m.skip && 'opacity-55')}>
+                        <tr
+                          key={g.key}
+                          ref={(el) => {
+                            if (el) rowRefs.current.set(g.key, el);
+                            else rowRefs.current.delete(g.key);
+                          }}
+                          className={cx(
+                            'transition-shadow',
+                            m.skip && 'opacity-55',
+                            !m.skip && st === 'none' && 'bg-danger-soft/60',
+                            !m.skip && st === 'check' && 'bg-warning-soft/50',
+                            dup && 'border-l-4 border-l-warning',
+                            flashKey === g.key && 'ring-2 ring-inset ring-brand'
+                          )}
+                        >
                           <td className="px-3 py-1.5">
                             <p className="font-semibold text-fg">{g.name || '—'}</p>
                             <p className="text-muted">
@@ -614,52 +711,30 @@ export const DenemeWizard: React.FC<{
                             >
                               {st === 'ok' ? `Eşleşti${m.method ? ` (${manual.has(g.key) ? 'elle' : m.method})` : ''}` : st === 'check' ? 'Kontrol edin' : st === 'none' ? 'Bulunamadı' : 'Atlandı'}
                             </span>
-                            {(dup || (m.reason && st !== 'ok')) && <p className="text-muted mt-0.5">{dup ? 'Aynı öğrenci başka satırda da seçili' : m.reason}</p>}
+                            {dup && (
+                              <button
+                                type="button"
+                                className="block mt-0.5 text-left text-warning-fg underline underline-offset-2 hover:text-fg"
+                                onClick={() => jumpToTwin(m)}
+                                title="Aynı öğrencinin seçildiği diğer satıra git"
+                              >
+                                Aynı öğrenci başka satırda da seçili: {otherRowsOf(m).map((o) => o.group.name || `No ${o.group.number || '—'}`).join(', ')} →
+                              </button>
+                            )}
+                            {!dup && m.reason && st !== 'ok' && <p className="text-muted mt-0.5">{m.reason}</p>}
                           </td>
                           <td className="px-3 py-1.5">
                             <div className="flex items-center gap-1.5">
-                              <select
-                                className="ui-input py-1 text-xs"
-                                value={m.studentId || ''}
-                                disabled={m.skip}
-                                aria-label="Sistemdeki öğrenci"
-                                onChange={(e) => setMatch(g.key, { studentId: e.target.value || null, status: e.target.value ? 'ok' : 'none', method: 'elle' })}
-                              >
-                                <option value="">Öğrenci seçin</option>
-                                {m.candidates.length > 0 && (
-                                  <optgroup label="Öneriler">
-                                    {m.candidates.map((id) => {
-                                      const s = studentById.get(id);
-                                      return s ? (
-                                        <option key={`c-${id}`} value={id}>
-                                          {s.name} — {s.className || 'sınıfsız'}
-                                        </option>
-                                      ) : null;
-                                    })}
-                                  </optgroup>
-                                )}
-                                {st === 'ok' && !manual.has(g.key) ? (
-                                  // Eşleşmiş satırda uzun liste çizilmez (yalnızca öneriler); "Değiştir" ile açılır
-                                  m.studentId && !m.candidates.includes(m.studentId) && studentById.get(m.studentId) ? (
-                                    <option value={m.studentId}>{studentById.get(m.studentId)!.name}</option>
-                                  ) : null
-                                ) : (
-                                  <optgroup label="Tüm öğrenciler">
-                                    {sortedStudents
-                                      .filter((s) => !m.candidates.includes(s.id))
-                                      .map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                          {s.name} — {s.className || 'sınıfsız'}
-                                        </option>
-                                      ))}
-                                  </optgroup>
-                                )}
-                              </select>
-                              {st === 'ok' && !manual.has(g.key) && (
-                                <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setManual((cur) => new Set(cur).add(g.key))}>
-                                  Değiştir
-                                </button>
-                              )}
+                              <div className="flex-1 min-w-56">
+                                <OgrenciSecici
+                                  students={sortedStudents}
+                                  byId={studentById}
+                                  candidates={m.candidates}
+                                  value={m.studentId}
+                                  disabled={m.skip}
+                                  onChange={(id) => setMatch(g.key, { studentId: id, status: id ? 'ok' : 'none', method: 'elle' })}
+                                />
+                              </div>
                               {st === 'check' && m.studentId && !dup && (
                                 <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setMatch(g.key, { status: 'ok' })}>
                                   Onayla
