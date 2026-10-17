@@ -16,7 +16,7 @@ import {
 } from '../../lib/deneme/kazanimBank';
 import { foldTr, guessSubjectKey } from '../../lib/deneme/optik';
 import { extractPdfText } from '../../lib/deneme/kitapcik';
-import { AI_PROVIDERS, aiCall, aiProgram, aiStatus, type AiProgramItem, type AiProvider } from '../../lib/aiApi';
+import { AI_CONCURRENCY, AI_PROVIDERS, aiCall, aiProgram, aiStatus, newAiState, runPool, type AiProgramItem, type AiProvider } from '../../lib/aiApi';
 
 // ============================================================================
 // Kazanım bankası (Aşama 48)
@@ -201,33 +201,44 @@ export const KazanimBankasi: React.FC = () => {
       const idx = f.all || !f.relevant.length ? f.pages.map((_, i) => i).filter((i) => f.pages[i].trim()) : f.relevant;
       for (const text of chunkProgram(f.pages, idx)) jobs.push({ f, text });
     }
-    const state = { provider, fallback, keys, lastCall: 0 };
+    const state = newAiState(provider, fallback, keys);
     const lists: AiProgramItem[][] = [];
     const note: string[] = [];
     let total = jobs.length;
     let done = 0;
+    let noKey = false;
     const queue = [...jobs];
-    while (queue.length && !stopRef.current) {
-      const job = queue.shift()!;
-      setProgress({ done, total, label: `${job.f.file.name} · ${done + 1}. bölüm` });
+    const progressOf = () => ({ done, total, label: `Kazanımlar çıkarılıyor (aynı anda ${AI_CONCURRENCY} bölüm)` });
+    setProgress(progressOf());
+    const work = (job: { f: ProgFile; text: string }) => async () => {
       const r = await aiCall(state, (p) => aiProgram({ provider: p, text: job.text, grade: '8', subject: job.f.subject || undefined }), {
         stop: () => stopRef.current,
-        onWait: (w) => setProgress((pr) => (pr ? { ...pr, wait: w } : pr)),
+        onWait: (w) => setProgress({ ...progressOf(), wait: w }),
         onNote: (n) => note.push(n),
       });
       done++;
+      const parts = !r.ok && (r.code === 'timeout' || r.code === 'long') ? splitChunk(job.text) : null;
       if (r.ok) {
         lists.push((r.items || []) as AiProgramItem[]);
-      } else if ((r.code === 'timeout' || r.code === 'long') && splitChunk(job.text)) {
-        const [a, b] = splitChunk(job.text)!;
-        queue.unshift({ f: job.f, text: a }, { f: job.f, text: b });
+        setExtracted(mergeProgramItems(lists));
+      } else if (parts) {
+        // Uzun bölüm: ikiye bölünüp yeniden sıraya girer
+        queue.unshift({ f: job.f, text: parts[0] }, { f: job.f, text: parts[1] });
         total += 2;
       } else if (!stopRef.current) {
         note.push(`${job.f.file.name}: bir bölüm işlenemedi (${r.error || 'bilinmeyen hata'}).`);
-        if (r.code === 'no-key') break;
+        if (r.code === 'no-key') noKey = true;
       }
-      setExtracted(mergeProgramItems(lists));
-    }
+      setProgress(progressOf());
+    };
+    await runPool(
+      AI_CONCURRENCY,
+      () => {
+        const j = !noKey ? queue.shift() : undefined;
+        return j ? work(j) : null;
+      },
+      () => stopRef.current
+    );
     const merged = mergeProgramItems(lists);
     setExtracted(merged);
     const subjects = Array.from(new Set(merged.map((r) => r.subject)));

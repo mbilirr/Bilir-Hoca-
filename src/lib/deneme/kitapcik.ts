@@ -16,7 +16,7 @@ export interface PageImage {
 export interface Kitapcik {
   name: string;
   pageCount: number;
-  render: (page: number, maxWidth: number, quality?: number) => Promise<PageImage>;
+  render: (page: number, maxWidth: number, quality?: number, maxBytes?: number) => Promise<PageImage>;
   destroy: () => void;
 }
 
@@ -117,7 +117,7 @@ export async function openKitapcik(files: File[]): Promise<Kitapcik> {
   return {
     name: list.length === 1 ? list[0].name : `${list.length} dosya`,
     pageCount: pages.length,
-    render: async (p, maxWidth, quality = 0.85) => {
+    render: async (p, maxWidth, quality = 0.85, maxBytes) => {
       const ref = pages[p - 1];
       if (!ref) throw new Error('Sayfa bulunamadı.');
       if (ref.kind === 'img') {
@@ -125,7 +125,7 @@ export async function openKitapcik(files: File[]): Promise<Kitapcik> {
         const scale = Math.min(1, maxWidth / img.naturalWidth);
         const { canvas, ctx } = makeCanvas(img.naturalWidth * scale, img.naturalHeight * scale);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        return canvasToImage(canvas, quality);
+        return canvasToImage(canvas, quality, maxBytes);
       }
       const page = await ref.doc.getPage(ref.n);
       try {
@@ -134,7 +134,7 @@ export async function openKitapcik(files: File[]): Promise<Kitapcik> {
         const vp = page.getViewport({ scale });
         const { canvas, ctx } = makeCanvas(vp.width, vp.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
-        return canvasToImage(canvas, quality);
+        return canvasToImage(canvas, quality, maxBytes);
       } finally {
         try {
           page.cleanup();

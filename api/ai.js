@@ -29,7 +29,7 @@ export const config = { maxDuration: 60 };
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
 const PROVIDER_TIMEOUT_MS = 54000;
 const MAX_IMAGES_BYTES = 3_300_000; // bir istekteki resimlerin toplamı (Vercel isteği en çok ~4,5 MB olabilir)
-const MAX_IMAGES = 6;
+const MAX_IMAGES = 10;
 const MAX_PROGRAM_CHARS = 40000;
 const MAX_KAZANIM = 400;
 const PER_MINUTE_LIMIT = 40; // bir kişinin dakikada en çok bu kadar istek göndermesi (kötüye kullanıma karşı)
@@ -165,15 +165,24 @@ function readImages(list) {
 }
 
 // ----------------------------------------------------------------------------- Sağlayıcılar
+// Düşünme süresi ayarları (hız için). Model sürümüne göre farklı ayar kabul edilir:
+// Gemini 3: thinkingLevel; Gemini 2.5: thinkingBudget. Kabul edilmeyen ayar atlanır ve hatırlanır.
+const THINKING = {
+  fast: [{ thinkingLevel: 'minimal' }, { thinkingBudget: 0 }, null],
+  normal: [{ thinkingLevel: 'low' }, { thinkingBudget: 512 }, null],
+};
+const thinkingStart = new Map(); // `${model}|${mode}` → ilk denenecek ayarın sırası
+
 // Ortak çağrı: sistem metni + kullanıcı metni + resimler → yapay zekânın metin yanıtı
-async function callGemini(e, system, prompt, images) {
+async function callGemini(e, system, prompt, images, mode = 'normal') {
   const models = Array.from(new Set([e.geminiModel, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean)));
+  const options = THINKING[mode] || THINKING.normal;
   let lastErr = null;
   for (const model of models) {
-    // Önce kısa düşünme süresiyle (daha hızlı) denenir; model bu ayarı kabul etmezse ayarsız tekrar denenir
-    for (const withThinking of [true, false]) {
+    const memo = `${model}|${mode}`;
+    for (let ti = thinkingStart.get(memo) || 0; ti < options.length; ti++) {
       const generationConfig = { responseMimeType: 'application/json' };
-      if (withThinking) generationConfig.thinkingConfig = { thinkingBudget: 1024 };
+      if (options[ti]) generationConfig.thinkingConfig = options[ti];
       const parts = [{ text: prompt }];
       for (const img of images) parts.push({ inlineData: { mimeType: img.mime, data: img.data } });
       const r = await withTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -198,10 +207,14 @@ async function callGemini(e, system, prompt, images) {
           const reason = data && data.promptFeedback && data.promptFeedback.blockReason;
           throw new HttpError(502, reason ? 'Gemini bu içeriği işlemeyi reddetti.' : 'Gemini boş yanıt verdi.', { code: 'empty' });
         }
+        thinkingStart.set(memo, ti);
         return { model, text: out, truncated: !!(cand && cand.finishReason === 'MAX_TOKENS') };
       }
       const msg = String((data && data.error && data.error.message) || text || '').slice(0, 300);
-      if (withThinking && r.status === 400 && /think/i.test(msg)) continue; // düşünme ayarı desteklenmiyor
+      if (options[ti] && r.status === 400 && /think|budget|level/i.test(msg)) {
+        thinkingStart.set(memo, ti + 1); // bu düşünme ayarı desteklenmiyor: sıradakini dene
+        continue;
+      }
       if (r.status === 404) {
         lastErr = new HttpError(502, `Gemini modeli bulunamadı (${model}).`, { code: 'model' });
         break; // sıradaki modeli dene
@@ -266,12 +279,12 @@ async function callMistral(e, system, prompt, images) {
   throw lastErr || new HttpError(502, 'Mistral modeli bulunamadı.', { code: 'model' });
 }
 
-async function ask(body, system, prompt, images) {
+async function ask(body, system, prompt, images, mode = 'normal') {
   const e = env();
   const provider = body.provider === 'mistral' ? 'mistral' : 'gemini';
   if (provider === 'gemini' && !e.gemini) throw new HttpError(503, 'Gemini anahtarı tanımlı değil (Vercel > GEMINI_API_KEY).', { code: 'no-key' });
   if (provider === 'mistral' && !e.mistral) throw new HttpError(503, 'Mistral anahtarı tanımlı değil (Vercel > MISTRAL_API_KEY).', { code: 'no-key' });
-  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images) : await callGemini(e, system, prompt, images);
+  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images) : await callGemini(e, system, prompt, images, mode);
   const parsed = parseJsonLoose(out.text);
   if (!parsed || typeof parsed !== 'object') {
     throw new HttpError(502, out.truncated ? 'Yapay zekânın yanıtı çok uzun olduğu için kesildi.' : 'Yapay zekânın yanıtı okunamadı.', { code: out.truncated ? 'long' : 'parse' });
@@ -344,7 +357,7 @@ const PAGES_SYSTEM = [
 async function actionPages(body) {
   const images = readImages(body.images);
   const prompt = [`Resimler sırasıyla şu sayfalardır: ${images.map((i) => i.page).join(', ')}.`, 'Her sayfa için dersleri ve soru numaralarını yaz.'].join('\n');
-  const { provider, model, parsed } = await ask(body, PAGES_SYSTEM, prompt, images);
+  const { provider, model, parsed } = await ask(body, PAGES_SYSTEM, prompt, images, 'fast');
   const raw = Array.isArray(parsed.sayfalar) ? parsed.sayfalar : [];
   const allowedPages = new Set(images.map((i) => i.page));
   const pages = [];
@@ -369,8 +382,9 @@ async function actionPages(body) {
 // ----------------------------------------------------------------------------- 3) Soru → kazanım
 const CLASSIFY_SYSTEM = [
   'Sen Türkiye\'de 8. sınıf (LGS) sorularını MEB öğretim programı kazanımlarına göre sınıflandıran deneyimli bir ölçme-değerlendirme uzmanısın.',
-  'Sana bir deneme kitapçığının tek bir sayfasının resmi, sayfadaki derslerin bilgisi ve her dersin kazanım listesi verilir.',
-  'Görevin: sayfada numarası görünen HER soru için sorunun ölçtüğü kazanımı listeden seçmek.',
+  'Sana bir deneme kitapçığının bir ya da iki sayfasının resmi (sayfa numaraları metinde yazılı), sayfalardaki derslerin bilgisi ve her dersin kazanım listesi verilir.',
+  'Görevin: sayfalarda numarası görünen HER soru için sorunun ölçtüğü kazanımı listeden seçmek.',
+  '- "sayfa": sorunun bulunduğu sayfanın numarası (metinde verilen sayfa numaralarından biri).',
   'Kurallar:',
   '- Kazanım kodunu YALNIZCA o dersin listesinden seç; listede uygun kazanım yoksa "kod" alanını boş bırak.',
   '- Soru birden çok kazanımı ölçüyorsa en baskın olanı "kod", ikincisini "kod2" yaz (yoksa boş bırak).',
@@ -379,12 +393,12 @@ const CLASSIFY_SYSTEM = [
   '- "alt": sorunun ölçtüğü beceriyi anlatan kısa ifade (en çok 12 kelime).',
   '- "guven": seçiminden ne kadar eminsin, 0-100 arası tam sayı.',
   '- Soruyu çözme, cevabı yazma. Sayfada soru yoksa boş liste döndür.',
-  '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"ders":"fen","no":1,"kod":"","kod2":"","konu":"","alt":"","guven":0}]}',
+  '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"sayfa":1,"ders":"fen","no":1,"kod":"","kod2":"","konu":"","alt":"","guven":0}]}',
 ].join('\n');
 
 async function actionClassify(body) {
-  const images = readImages(body.image ? [body.image] : body.images).slice(0, 1);
-  const subjects = (Array.isArray(body.subjects) ? body.subjects : body.subject ? [body.subject] : []).slice(0, 3);
+  const images = readImages(body.image ? [body.image] : body.images).slice(0, 2);
+  const subjects = (Array.isArray(body.subjects) ? body.subjects : body.subject ? [body.subject] : []).slice(0, 4);
   const prepared = [];
   for (const s of subjects) {
     const key = subjectKeyOf(s && s.key) || 'x' + prepared.length;
@@ -394,7 +408,7 @@ async function actionClassify(body) {
     const kaz = (Array.isArray(s.kazanimlar) ? s.kazanimlar.slice(0, MAX_KAZANIM) : [])
       .map((k) => ({ code: clean(k && k.code, 60), konu: clean(k && k.konu, 120), text: clean(k && k.text, 400) }))
       .filter((k) => k.code && k.text);
-    prepared.push({ key, name, count, kaz, hint: clean(s.hint, 160) });
+    prepared.push({ key, name, count, kaz, hint: clean(s.hint, 500) });
   }
   if (!prepared.length) throw new HttpError(400, 'Ders bilgisi eksik.');
 
@@ -409,17 +423,19 @@ async function actionClassify(body) {
       .filter(Boolean)
       .join('\n')
   );
+  const pageNos = images.map((i) => i.page);
   const prompt = [
-    prepared.length > 1 ? 'Bu sayfada birden çok dersin soruları var. Her sorunun "ders" alanına doğru ders anahtarını yaz.' : `Yalnızca "${prepared[0].name}" dersinin sorularını değerlendir.`,
+    images.length > 1 ? `Resimler sırasıyla şu sayfalardır: ${pageNos.join(', ')}.` : `Resim ${pageNos[0] || 1}. sayfadır.`,
+    prepared.length > 1 ? 'Sayfalarda birden çok dersin soruları var. Her sorunun "ders" alanına doğru ders anahtarını yaz.' : `Yalnızca "${prepared[0].name}" dersinin sorularını değerlendir.`,
     '',
     ...blocks,
   ].join('\n');
-  const { provider, model, parsed } = await ask(body, CLASSIFY_SYSTEM, prompt, images);
+  const { provider, model, parsed } = await ask(body, CLASSIFY_SYSTEM, prompt, images, 'normal');
   const raw = Array.isArray(parsed.sorular) ? parsed.sorular : Array.isArray(parsed) ? parsed : [];
   const byKey = new Map(prepared.map((s) => [s.key, s]));
   const seen = new Set();
   const items = [];
-  for (const it of raw.slice(0, 80)) {
+  for (const it of raw.slice(0, 120)) {
     const s = byKey.get(clean(it && it.ders, 10).toLowerCase()) || (prepared.length === 1 ? prepared[0] : null);
     if (!s) continue;
     const no = Number(it && it.no);
@@ -431,7 +447,9 @@ async function actionClassify(body) {
     let kod2 = allowed.get(codeKey(it.kod2)) || '';
     if (kod2 === kod) kod2 = '';
     const g = Math.round(Number(it.guven));
+    const sp = Number(it.sayfa);
     items.push({
+      sayfa: pageNos.includes(sp) ? sp : pageNos[0] || 0,
       ders: s.key,
       no,
       kod,

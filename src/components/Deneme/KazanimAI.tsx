@@ -5,7 +5,20 @@ import type { ExamQuestion, ExamQuestions, ExamSubject } from '../../lib/deneme/
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { bankSubjectKey, codeKey } from '../../lib/deneme/kazanimBank';
 import { formatPageRanges, openKitapcik, parsePageRanges, type Kitapcik } from '../../lib/deneme/kitapcik';
-import { AI_PROVIDERS, aiCall, aiClassifyPage, aiPages, aiStatus, type AiImage, type AiPageInfo, type AiProvider, type AiSuggestion } from '../../lib/aiApi';
+import {
+  AI_CONCURRENCY,
+  AI_PROVIDERS,
+  aiCall,
+  aiClassifyPage,
+  aiPages,
+  aiStatus,
+  newAiState,
+  runPool,
+  type AiImage,
+  type AiPageInfo,
+  type AiProvider,
+  type AiSuggestion,
+} from '../../lib/aiApi';
 
 // ============================================================================
 // Kitapçıktan yapay zekâ ile kazanım bulma (Aşama 48)
@@ -37,7 +50,7 @@ interface Decision {
 
 type PageMap = Record<number, Array<{ ders: string; sorular: number[] }>>;
 
-const SCAN_BATCH = 4; // sayfa tanımada bir istekteki sayfa sayısı
+const SCAN_BATCH = 8; // sayfa tanımada bir istekteki sayfa sayısı
 const confTone = (g: number) => (g >= 75 ? 'ui-chip-success' : g >= 50 ? 'ui-chip-info' : 'ui-chip-warning');
 const short = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const numsText = (n: number[]) => (n.length > 2 && n[n.length - 1] - n[0] === n.length - 1 ? `${n[0]}-${n[n.length - 1]}` : n.join(', '));
@@ -137,7 +150,7 @@ export const KazanimAI: React.FC<{
       setBook(opened);
       const out: string[] = [];
       for (let p = 1; p <= opened.pageCount; p++) {
-        const img = await opened.render(p, 220, 0.7);
+        const img = await opened.render(p, 180, 0.6);
         out.push(img.dataUrl);
         setThumbs([...out]);
       }
@@ -157,31 +170,41 @@ export const KazanimAI: React.FC<{
     setError(null);
     const notes: string[] = [];
     const map: PageMap = {};
-    const state = { provider, fallback, keys: keysRef.current, lastCall: 0 };
+    const state = newAiState(provider, fallback, keysRef.current);
     const total = Math.ceil(b.pageCount / SCAN_BATCH);
-    for (let i = 0; i < total && !stopRef.current; i++) {
+    let done = 0;
+    let bi = 0;
+    let noKey = false;
+    const progressOf = () => ({ done, total, label: `Sayfalar tanınıyor (aynı anda ${AI_CONCURRENCY} istek)` });
+    setProgress(progressOf());
+
+    const job = (i: number) => async () => {
       const from = i * SCAN_BATCH + 1;
       const to = Math.min(b.pageCount, from + SCAN_BATCH - 1);
-      setProgress({ done: i, total, label: `Sayfalar tanınıyor: ${from}-${to}` });
+      // Sayfa tanıma için küçük resim yeterli (istek hızlı gider)
       const images: AiImage[] = [];
       for (let p = from; p <= to; p++) {
-        const img = await b.render(p, 1000, 0.7).catch(() => null);
+        const img = await b.render(p, 800, 0.65, 350_000).catch(() => null);
         if (img) images.push({ mime: img.mime, data: img.data, page: p });
       }
-      if (!images.length) continue;
-      const r = await aiCall(state, (pv) => aiPages({ provider: pv, images }), {
-        stop: () => stopRef.current,
-        onWait: (w) => setProgress((pr) => (pr ? { ...pr, wait: w } : pr)),
-        onNote: (n) => notes.push(n),
-      });
-      if (!r.ok) {
-        if (!stopRef.current) notes.push(`${from}-${to}. sayfalar tanınamadı (${r.error || 'hata'}); bu sayfaları elle yazabilirsiniz.`);
-        if (r.code === 'no-key') break;
-        continue;
+      if (images.length) {
+        const r = await aiCall(state, (pv) => aiPages({ provider: pv, images }), {
+          stop: () => stopRef.current,
+          onWait: (w) => setProgress({ ...progressOf(), wait: w }),
+          onNote: (n) => notes.push(n),
+        });
+        if (r.ok) {
+          for (const pg of (r.pages || []) as AiPageInfo[]) map[pg.page] = pg.dersler.filter((d) => subjectKeys.has(d.ders));
+          setPageMap({ ...map });
+        } else if (!stopRef.current) {
+          notes.push(`${from}-${to}. sayfalar tanınamadı (${r.error || 'hata'}); bu sayfaları elle yazabilirsiniz.`);
+          if (r.code === 'no-key') noKey = true;
+        }
       }
-      for (const pg of (r.pages || []) as AiPageInfo[]) map[pg.page] = pg.dersler.filter((d) => subjectKeys.has(d.ders));
-      setPageMap({ ...map });
-    }
+      done++;
+      setProgress(progressOf());
+    };
+    await runPool(AI_CONCURRENCY, () => (bi < total && !noKey ? job(bi++) : null), () => stopRef.current);
     // Ders sayfa aralıklarını otomatik doldur
     const next: Record<string, string> = {};
     for (const s of subjects) {
@@ -222,6 +245,7 @@ export const KazanimAI: React.FC<{
   // ----------------------------------------------------------------------------- 3) Kazanım bulma
   const run = async () => {
     if (!book || !selected.length) return;
+    const bk: Kitapcik = book;
     stopRef.current = false;
     setError(null);
     setStep('run');
@@ -230,53 +254,75 @@ export const KazanimAI: React.FC<{
     // Sayfa → o sayfadaki dersler
     const byPage = new Map<number, ExamSubject[]>();
     for (const s of selected) for (const p of pagesOf(s.key)) byPage.set(p, [...(byPage.get(p) || []), s]);
-    const jobs = Array.from(byPage.entries()).sort((a, b) => a[0] - b[0]);
+    const pageList = Array.from(byPage.keys()).sort((a, b) => a - b);
+    // Hız için ardışık iki sayfa tek istekte gönderilir
+    const groups: number[][] = [];
+    for (let i = 0; i < pageList.length; i++) {
+      if (i + 1 < pageList.length && pageList[i + 1] === pageList[i] + 1) {
+        groups.push([pageList[i], pageList[i + 1]]);
+        i++;
+      } else groups.push([pageList[i]]);
+    }
 
     const result: Record<string, Record<number, Found>> = {};
     const notes: string[] = [...log];
-    const state = { provider, fallback, keys: keysRef.current, lastCall: 0 };
+    const state = newAiState(provider, fallback, keysRef.current);
+    let done = 0;
+    let gi = 0;
+    let noKey = false;
+    const progressOf = () => ({ done, total: groups.length, label: `Sorular inceleniyor (aynı anda ${AI_CONCURRENCY} istek)` });
+    setProgress(progressOf());
 
-    for (let j = 0; j < jobs.length && !stopRef.current; j++) {
-      const [page, subs] = jobs[j];
-      setProgress({ done: j, total: jobs.length, label: `${page}. sayfa · ${subs.map((s) => s.name).join(', ')}` });
-      const img = await book.render(page, 1600, 0.85).catch(() => null);
-      if (!img) {
-        notes.push(`${page}. sayfa resme çevrilemedi.`);
-        continue;
+    const job = (pages: number[]) => async () => {
+      const images: AiImage[] = [];
+      for (const p of pages) {
+        const img = await bk.render(p, 1400, 0.8, 1_400_000).catch(() => null);
+        if (img) images.push({ mime: img.mime, data: img.data, page: p });
+        else notes.push(`${p}. sayfa resme çevrilemedi.`);
       }
-      const payloadSubjects = subs.slice(0, 3).map((s) => {
-        const seen = (pageMap[page] || []).find((d) => d.ders === s.key)?.sorular || [];
-        const off = offsets[s.key] || 0;
-        let hint = '';
-        if (seen.length) {
-          hint = `Bu sayfada görünen soru numaraları: ${numsText(seen)}.`;
-          if (off) hint += ` Bunlar dersin kendi sırasıyla ${numsText(seen.map((n) => n - off))}. sorulardır; "no" alanına dersin kendi sırasını yaz.`;
-        } else if (off) hint = `Bu ders kitapçıkta ${off + 1}. sorudan başlar; "no" alanına dersin kendi sırasını yaz (kitapçıktaki numaradan ${off} çıkar).`;
-        return {
-          key: s.key,
-          name: s.name,
-          count: s.count,
-          hint,
-          kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text })),
-        };
-      });
-      const r = await aiCall(state, (pv) => aiClassifyPage({ provider: pv, image: { mime: img.mime, data: img.data }, subjects: payloadSubjects }), {
-        stop: () => stopRef.current,
-        onWait: (w) => setProgress((pr) => (pr ? { ...pr, wait: w } : pr)),
-        onNote: (n) => notes.push(n),
-      });
-      if (!r.ok) {
-        if (!stopRef.current) notes.push(`${page}. sayfa işlenemedi: ${r.error || 'hata'}`);
-        if (r.code === 'no-key') break;
-        continue;
+      if (images.length) {
+        const subs = Array.from(new Set(pages.flatMap((p) => byPage.get(p) || []))).slice(0, 4);
+        const payloadSubjects = subs.map((s) => {
+          const off = offsets[s.key] || 0;
+          const parts: string[] = [];
+          for (const p of pages) {
+            const seen = (pageMap[p] || []).find((d) => d.ders === s.key)?.sorular || [];
+            if (!seen.length) continue;
+            parts.push(
+              `${p}. sayfada görünen numaralar: ${numsText(seen)}${off ? ` (dersin kendi sırasıyla ${numsText(seen.map((n) => n - off))})` : ''}.`
+            );
+          }
+          let hint = parts.join(' ');
+          if (off) hint += ` Bu ders kitapçıkta ${off + 1}. sorudan başlar; "no" alanına dersin kendi sırasını yaz (kitapçıktaki numaradan ${off} çıkar).`;
+          return {
+            key: s.key,
+            name: s.name,
+            count: s.count,
+            hint: hint.trim(),
+            kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text })),
+          };
+        });
+        const r = await aiCall(state, (pv) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects }), {
+          stop: () => stopRef.current,
+          onWait: (w) => setProgress({ ...progressOf(), wait: w }),
+          onNote: (n) => notes.push(n),
+        });
+        if (r.ok) {
+          for (const it of (r.items || []) as AiSuggestion[]) {
+            const map = (result[it.ders] = result[it.ders] || {});
+            const prev = map[it.no];
+            if (!prev || it.guven > prev.sug.guven) map[it.no] = { sug: it, page: it.sayfa || pages[0], provider: (r.provider as AiProvider) || state.provider };
+          }
+          setFound({ ...result });
+        } else if (!stopRef.current) {
+          notes.push(`${pages.join('-')}. sayfa işlenemedi: ${r.error || 'hata'}`);
+          if (r.code === 'no-key') noKey = true;
+        }
       }
-      for (const it of (r.items || []) as AiSuggestion[]) {
-        const map = (result[it.ders] = result[it.ders] || {});
-        const prev = map[it.no];
-        if (!prev || it.guven > prev.sug.guven) map[it.no] = { sug: it, page, provider: (r.provider as AiProvider) || state.provider };
-      }
-      setFound({ ...result });
-    }
+      done++;
+      setProgress(progressOf());
+    };
+    await runPool(AI_CONCURRENCY, () => (gi < groups.length && !noKey ? job(groups[gi++]) : null), () => stopRef.current);
     setProgress(null);
     setLog(notes);
     setFound(result);
