@@ -100,12 +100,10 @@ export async function readKeyExcel(file: File): Promise<ExcelKeyResult> {
           const text = col.text >= 0 ? cellText(row[col.text]) : '';
           const q: ExamQuestion = { no, answer: ans };
           if (Number.isInteger(bVal) && bVal > 0) q.bNo = bVal;
-          if (code) q.kazanimCode = code;
-          if (text) {
-            q.kazanim = text.slice(0, 600);
-            // Kısa metinler (ör. Türkçe: "Paragrafta Anlam") zaten konu adıdır
-            if (text.length <= 45) q.konu = text;
-          }
+          // Aşama 48d: Excel'deki kazanım doğrudan KULLANILMAZ; yalnızca kazanım bankasındaki MEB
+          // kazanımıyla eşleştirmek için saklanır (kazanım ve konu bankadan gelir)
+          if (code) q.srcCode = code.slice(0, 60);
+          if (text) q.srcText = text.slice(0, 600);
           questions[current].push(q);
         }
       }

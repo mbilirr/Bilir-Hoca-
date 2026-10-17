@@ -24,6 +24,8 @@ export interface ExamQuestion {
   kazanimCode2?: string; // Aşama 48: ikincil kazanım (yalnızca bilgi; analizde birincil kullanılır)
   kazanim2?: string;
   ai?: string; // Aşama 48: kazanımı yapay zekâ önerdiyse sağlayıcının adı (gemini / mistral)
+  srcCode?: string; // Aşama 48d: yayınevi Excel'indeki kazanım kodu (yalnızca bankayla eşleştirmek için; analizde kullanılmaz)
+  srcText?: string; // Aşama 48d: yayınevi Excel'indeki kazanım/konu metni (yalnızca eşleştirme için)
 }
 
 export type ExamQuestions = Record<string, ExamQuestion[]>;

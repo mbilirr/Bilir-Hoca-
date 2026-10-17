@@ -66,6 +66,14 @@ function splitChunk(text: string): [string, string] | null {
   return [text.slice(0, cut), text.slice(cut)];
 }
 
+/** "2026-10-18T01:05:..." → "18.10.2026 01:05" */
+function fmtStamp(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: string }> }> = ({ rows }) => (
   <table className="w-full text-left text-xs text-fg-2">
     <tbody className="divide-y divide-line">
@@ -91,6 +99,7 @@ export const KazanimBankasi: React.FC = () => {
   const [open, setOpen] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [delTarget, setDelTarget] = useState<{ name: string; codes: string[] } | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const isHead = dataService.isHeadAdmin();
 
   // Yapay zekâ ile programdan
@@ -316,6 +325,7 @@ export const KazanimBankasi: React.FC = () => {
     try {
       await deleteKazanimlar(delTarget.codes);
       setDelTarget(null);
+      setSel(new Set());
       await load();
     } catch (e: any) {
       setError(e?.message || 'Silinemedi.');
@@ -616,11 +626,27 @@ export const KazanimBankasi: React.FC = () => {
       <Panel
         icon={BookOpen}
         title="Bankadaki kazanımlar"
-        description="Yayınevi Excel'inden gelen kazanımlar da buraya otomatik eklenir."
+        description={
+          isHead
+            ? 'Sistem yalnızca bu listedeki kazanımları kullanır. Silmek istediklerinizi işaretleyip "Seçilenleri sil" deyin.'
+            : 'Sistem yalnızca bu listedeki kazanımları kullanır.'
+        }
         actions={
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-subtle" />
-            <input className="ui-input py-1 pl-8 text-xs w-48" placeholder="Kod ya da kelime ara" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Kazanım ara" />
+          <div className="flex flex-wrap items-center gap-2">
+            {isHead && sel.size > 0 && (
+              <>
+                <button type="button" className="ui-btn ui-btn-danger ui-btn-sm" onClick={() => setDelTarget({ name: '', codes: Array.from(sel) })} id="kb-delete-selected">
+                  <Trash2 /> Seçilenleri sil ({sel.size})
+                </button>
+                <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setSel(new Set())}>
+                  Seçimi temizle
+                </button>
+              </>
+            )}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-subtle" />
+              <input className="ui-input py-1 pl-8 text-xs w-48" placeholder="Kod ya da kelime ara" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Kazanım ara" />
+            </div>
           </div>
         }
       >
@@ -635,18 +661,33 @@ export const KazanimBankasi: React.FC = () => {
               const shown = g.rows.filter(match);
               const isOpen = open === g.key || (!!q && shown.length > 0);
               const konuCount = new Set(g.rows.map((r) => r.konu).filter(Boolean)).size;
+              // "Tümünü seç": aramada görünen kazanımlar (arama yoksa dersin bütün kazanımları)
+              const target = shown.length ? shown : g.rows;
+              const nSel = g.rows.filter((r) => sel.has(r.code)).length;
+              const allSel = target.length > 0 && target.every((r) => sel.has(r.code));
               return (
                 <div key={g.key} className="border border-line rounded-xl bg-surface">
                   <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+                    {isHead && g.rows.length > 0 && (
+                      <input
+                        type="checkbox"
+                        checked={allSel}
+                        onChange={(e) =>
+                          setSel((s) => {
+                            const n = new Set(s);
+                            for (const r of target) e.target.checked ? n.add(r.code) : n.delete(r.code);
+                            return n;
+                          })
+                        }
+                        aria-label={`${g.name}: ${q ? 'aramada görünen' : 'bütün'} kazanımları seç`}
+                        title={q ? 'Aramada görünenlerin tümünü seç' : 'Bu dersin tümünü seç'}
+                      />
+                    )}
                     <span className="text-sm font-semibold text-fg min-w-40">{g.name}</span>
                     <span className={cx('ui-chip', g.rows.length ? 'ui-chip-success' : 'ui-chip-neutral')}>{g.rows.length} kazanım</span>
                     {konuCount > 0 && <span className="ui-chip ui-chip-info">{konuCount} konu</span>}
+                    {nSel > 0 && <span className="ui-chip ui-chip-danger">{nSel} seçili</span>}
                     <span className="flex-1" />
-                    {isHead && g.rows.length > 0 && (
-                      <button type="button" className="ui-btn ui-btn-danger-soft ui-btn-sm" onClick={() => setDelTarget({ name: g.name, codes: g.rows.map((r) => r.code) })}>
-                        <Trash2 /> Sil
-                      </button>
-                    )}
                     {g.rows.length > 0 && (
                       <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setOpen(open === g.key ? null : g.key)} aria-expanded={isOpen}>
                         {isOpen ? <ChevronUp /> : <ChevronDown />} Kazanımlar
@@ -655,7 +696,40 @@ export const KazanimBankasi: React.FC = () => {
                   </div>
                   {isOpen && (
                     <div className="border-t border-line max-h-96 overflow-y-auto">
-                      <BankTable rows={shown} />
+                      <table className="w-full text-left text-xs text-fg-2">
+                        <tbody className="divide-y divide-line">
+                          {shown.map((r) => (
+                            <tr key={r.code} className={cx(sel.has(r.code) && 'bg-danger-soft/40')}>
+                              {isHead && (
+                                <td className="pl-3 py-1.5 align-top w-6">
+                                  <input
+                                    type="checkbox"
+                                    checked={sel.has(r.code)}
+                                    onChange={(e) =>
+                                      setSel((s) => {
+                                        const n = new Set(s);
+                                        if (e.target.checked) n.add(r.code);
+                                        else n.delete(r.code);
+                                        return n;
+                                      })
+                                    }
+                                    aria-label={`${r.code} kazanımını seç`}
+                                  />
+                                </td>
+                              )}
+                              <td className="px-3 py-1.5 align-top whitespace-nowrap">
+                                <span className="ui-chip ui-chip-neutral">{r.code}</span>
+                              </td>
+                              <td className="px-3 py-1.5 align-top">
+                                <p className="text-fg">{r.text}</p>
+                                <p className="text-[11px] text-muted">
+                                  {[r.konu ? `Konu: ${r.konu}` : '', r.updatedAt ? `Yüklenme: ${fmtStamp(r.updatedAt)}` : ''].filter(Boolean).join(' · ')}
+                                </p>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -668,8 +742,8 @@ export const KazanimBankasi: React.FC = () => {
       <Modal
         open={!!delTarget}
         onClose={() => !busy && setDelTarget(null)}
-        title="Kazanımlar silinsin mi?"
-        description={delTarget ? `${delTarget.name}: ${delTarget.codes.length} kazanım bankadan silinir.` : ''}
+        title="Seçilen kazanımlar silinsin mi?"
+        description={delTarget ? `${delTarget.codes.length} kazanım bankadan silinir.` : ''}
         icon={Trash2}
         tone="danger"
         size="sm"

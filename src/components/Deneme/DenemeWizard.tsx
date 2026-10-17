@@ -26,7 +26,6 @@ import {
   saveFormat,
   deleteFormat,
   saveResults,
-  upsertKazanimlar,
   type DenemeExam,
   type DenemeFormat,
   type DenemeResult,
@@ -324,15 +323,7 @@ export const DenemeWizard: React.FC<{
       } catch {
         /* hafıza kaydedilemese de sonuçlar kaydedildi */
       }
-      // Excel'den gelen kazanımlar bankaya eklenir (bir kez öğrenilir, sonra hep kullanılır)
-      try {
-        const kaz = subjects.flatMap((s) =>
-          (qs[s.key] || []).filter((q) => q.kazanimCode && q.kazanim).map((q) => ({ code: q.kazanimCode as string, subject: s.name, grade: '8', text: q.kazanim as string, konu: q.konu }))
-        );
-        await upsertKazanimlar(kaz);
-      } catch {
-        /* banka güncellenemese de deneme kaydedildi */
-      }
+      // Aşama 48d: Excel'deki kazanımlar artık bankaya EKLENMEZ; banka yalnızca MEB kazanımlarından oluşur
       onSaved(examId);
     } catch (e: any) {
       setError(e?.message || 'Kaydedilemedi.');

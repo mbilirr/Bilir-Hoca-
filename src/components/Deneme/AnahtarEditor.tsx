@@ -1,17 +1,24 @@
-import React, { useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { readKeyExcel, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
+import { listKazanimlar, type BankRow } from '../../services/denemeService';
+import { codeKey } from '../../lib/deneme/kazanimBank';
+import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
+import { aiStatus, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
 
 // ============================================================================
-// Cevap anahtarı ve kazanım düzenleyici (Aşama 47)
-// Yayınevinin Excel şablonu yüklenince cevaplar, B kitapçığı karşılıkları ve kazanımlar dolar.
+// Cevap anahtarı ve kazanım düzenleyici (Aşama 47, 48d)
+// Yayınevinin Excel şablonu yüklenince cevaplar ve B kitapçığı karşılıkları dolar.
+// Aşama 48d: sistem YALNIZCA kazanım bankasındaki (MEB) kazanımları kullanır. Excel'deki kazanım
+// yalnızca bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir.
 // Excel yoksa A cevapları elle yazılır; B kitapçığı "A'nın tersi" ya da "A ile aynı" seçilir.
 // ============================================================================
 
 const keyString = (qs: ExamQuestion[]) => qs.map((q) => q.answer || ' ').join('').replace(/\s+$/, '');
+const short = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 
 function bRuleOf(qs: ExamQuestion[], count: number): 'reverse' | 'same' | 'custom' {
   if (!qs.length) return 'reverse';
@@ -29,10 +36,56 @@ export const AnahtarEditor: React.FC<{
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [busyText, setBusyText] = useState('');
   const [msg, setMsg] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [bank, setBank] = useState<BankRow[] | null>(null);
+  const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
+
+  // Kazanım bankası ve yapay zekâ durumu (bir kez)
+  useEffect(() => {
+    let alive = true;
+    listKazanimlar()
+      .then((b) => alive && setBank(b))
+      .catch(() => alive && setBank([]));
+    void aiStatus().then((r) => {
+      if (alive && r.ok) setAi({ provider: !r.gemini && r.mistral ? 'mistral' : 'gemini', keys: { gemini: !!r.gemini, mistral: !!r.mistral } });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const options = useMemo(() => bankOptionsBySubject(bank || []), [bank]);
+  const byCode = useMemo(() => new Map((bank || []).map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu }])), [bank]);
 
   const setSubject = (key: string, list: ExamQuestion[]) => onChange({ ...questions, [key]: list });
+
+  const ensureBank = async (): Promise<BankRow[]> => {
+    if (bank) return bank;
+    try {
+      const b = await listKazanimlar();
+      setBank(b);
+      return b;
+    } catch {
+      return [];
+    }
+  };
+
+  // Excel'deki kazanım bilgilerini bankayla eşleştirir (kod → metin → yapay zekâ)
+  const runMatch = async (qs: ExamQuestions, clearUnmatched: boolean, prefix: string) => {
+    const b = await ensureBank();
+    if (!b.length) {
+      onChange(qs);
+      setMsg({ tone: 'warning', text: `${prefix}Kazanım bankası boş olduğu için kazanımlar eşleştirilemedi. Önce "Kazanım bankası" sekmesinden MEB kazanımlarını yükleyin.` });
+      return;
+    }
+    setBusyText('Kazanımlar bankayla eşleştiriliyor…');
+    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText });
+    onChange(r.questions);
+    const d = describeMatch(subjects, r.stats);
+    setMsg({ tone: d.tone === 'success' && !r.notes.length ? 'success' : 'warning', text: `${prefix}${d.text}${r.notes.length ? ' ' + r.notes.join(' ') : ''}` });
+  };
 
   const onExcel = async (file?: File | null) => {
     if (!file) return;
@@ -46,29 +99,43 @@ export const AnahtarEditor: React.FC<{
       }
       const next: ExamQuestions = { ...questions };
       for (const k of r.found) next[k] = r.questions[k];
-      onChange(next);
       onExcelMeta?.(r);
       const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.name);
       const missing = subjects.filter((s) => !r.found.includes(s.key)).map((s) => s.name);
-      setMsg({
-        tone: missing.length || r.warnings.length ? 'warning' : 'success',
-        text:
-          `Excel'den okundu: ${names.join(', ')}.` +
-          (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
-          (r.warnings.length ? ' ' + r.warnings.join(' ') : ''),
-      });
+      const prefix =
+        `Excel'den okundu: ${names.join(', ')}.` +
+        (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
+        (r.warnings.length ? ' ' + r.warnings.join(' ') : '') +
+        ' ';
+      await runMatch(next, true, prefix);
     } catch {
       setMsg({ tone: 'danger', text: 'Excel dosyası okunamadı. Dosyanın bozuk olmadığından emin olun.' });
     } finally {
       setBusy(false);
+      setBusyText('');
     }
   };
+
+  const onRematch = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await runMatch(questions, false, '');
+    } catch {
+      setMsg({ tone: 'danger', text: 'Eşleştirme yapılamadı. Tekrar deneyin.' });
+    } finally {
+      setBusy(false);
+      setBusyText('');
+    }
+  };
+
+  const hasSource = subjects.some((s) => (questions[s.key] || []).some((q) => q.srcCode || q.srcText || q.kazanimCode || q.kazanim || q.konu));
 
   return (
     <div className="space-y-3" id="deneme-key-editor">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => fileRef.current?.click()}>
-          <FileSpreadsheet /> {busy ? 'Okunuyor…' : 'Cevap anahtarı / kazanım Excel\'i yükle'}
+          <FileSpreadsheet /> {busy && !busyText ? 'Okunuyor…' : 'Cevap anahtarı Excel\'i yükle'}
         </button>
         <input
           ref={fileRef}
@@ -83,8 +150,16 @@ export const AnahtarEditor: React.FC<{
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setAiOpen(true)} id="deneme-kazanim-ai">
           <Sparkles /> Kitapçıktan kazanım bul (yapay zekâ)
         </button>
-        <span className="text-[11px] text-muted">Excel: yayınevinin "LGS sınav oluşturma şablonu". Excel yoksa taranmış kitapçıktan yapay zekâ ile.</span>
+        {hasSource && (
+          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => void onRematch()} id="deneme-kazanim-rematch">
+            <BookOpen /> Kazanımları bankadan eşleştir
+          </button>
+        )}
       </div>
+      <p className="text-[11px] text-muted">
+        Sistem yalnızca <b>Kazanım bankasındaki</b> MEB kazanımlarını kullanır. Excel'deki kazanımlar bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir.
+      </p>
+      {busy && busyText && <p className="text-xs text-muted">{busyText}</p>}
       {aiOpen && (
         <KazanimAI
           open
@@ -117,7 +192,9 @@ export const AnahtarEditor: React.FC<{
           const ks = keyString(list);
           const filledCount = list.filter((q) => q.answer).length;
           const rule = bRuleOf(list, s.count);
-          const withKazanim = list.filter((q) => q.kazanim || q.kazanimCode).length;
+          const withKazanim = list.filter((q) => q.kazanimCode && byCode.has(codeKey(q.kazanimCode))).length;
+          const unmatched = list.filter((q) => (q.srcCode || q.srcText) && !q.kazanimCode).length;
+          const opts = options[s.key] || [];
           const isOpen = open === s.key;
           return (
             <div key={s.key} className="border border-line rounded-xl bg-surface" data-key-subject={s.key}>
@@ -127,6 +204,7 @@ export const AnahtarEditor: React.FC<{
                   {filledCount}/{s.count} cevap
                 </span>
                 <span className={cx('ui-chip', withKazanim ? 'ui-chip-info' : 'ui-chip-neutral')}>{withKazanim} kazanım</span>
+                {unmatched > 0 && <span className="ui-chip ui-chip-warning">{unmatched} eşleşmedi</span>}
                 <input
                   className="ui-input py-1 text-xs font-mono tracking-widest flex-1 min-w-48 uppercase"
                   placeholder={`A kitapçığı cevapları (${s.count} harf), örn. CDCDCCAB…`}
@@ -162,7 +240,7 @@ export const AnahtarEditor: React.FC<{
                         <th className="px-3 py-2 font-semibold w-12">No</th>
                         <th className="px-3 py-2 font-semibold w-16">Cevap</th>
                         <th className="px-3 py-2 font-semibold w-14">B no</th>
-                        <th className="px-3 py-2 font-semibold">Kazanım</th>
+                        <th className="px-3 py-2 font-semibold min-w-72">Kazanım (bankadan)</th>
                         <th className="px-3 py-2 font-semibold w-44">Konu</th>
                         <th className="px-3 py-2 font-semibold w-44">Alt kazanım</th>
                       </tr>
@@ -170,10 +248,11 @@ export const AnahtarEditor: React.FC<{
                     <tbody className="divide-y divide-line">
                       {list.map((q, i) => {
                         const set = (p: Partial<ExamQuestion>) => setSubject(s.key, list.map((x, j) => (j === i ? { ...x, ...p } : x)));
+                        const inBank = !!q.kazanimCode && byCode.has(codeKey(q.kazanimCode));
                         return (
                           <tr key={q.no}>
-                            <td className="px-3 py-1.5 font-bold text-fg tabular-nums">{q.no}</td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-3 py-1.5 font-bold text-fg tabular-nums align-top">{q.no}</td>
+                            <td className="px-3 py-1.5 align-top">
                               <select className="ui-input py-0.5 text-xs" value={q.answer} onChange={(e) => set({ answer: e.target.value })} aria-label={`${q.no}. soru cevabı`}>
                                 <option value="">-</option>
                                 {['A', 'B', 'C', 'D'].map((c) => (
@@ -184,20 +263,45 @@ export const AnahtarEditor: React.FC<{
                                 <option value="X">İptal</option>
                               </select>
                             </td>
-                            <td className="px-3 py-1.5 tabular-nums text-muted">{q.bNo || '-'}</td>
-                            <td className="px-3 py-1.5 text-fg-2">
-                              {q.kazanimCode && <span className="ui-chip ui-chip-neutral mr-1">{q.kazanimCode}</span>}
-                              {q.ai && (
-                                <span className="ui-chip ui-chip-info mr-1" title={`Yapay zekâ önerisi (${q.ai === 'mistral' ? 'Mistral' : 'Gemini'})`}>
-                                  YZ
-                                </span>
-                              )}
-                              <span className="line-clamp-2">{q.kazanim || <span className="text-subtle">—</span>}</span>
+                            <td className="px-3 py-1.5 tabular-nums text-muted align-top">{q.bNo || '-'}</td>
+                            <td className="px-3 py-1.5 text-fg-2 align-top">
+                              <select
+                                className="ui-input py-0.5 text-xs"
+                                value={inBank ? q.kazanimCode : q.kazanimCode ? '__old' : ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (v === '__old') return;
+                                  const b = v ? byCode.get(codeKey(v)) : undefined;
+                                  setSubject(s.key, list.map((x, j) => (j === i ? applyBank(x, b) : x)));
+                                }}
+                                aria-label={`${q.no}. soru kazanımı`}
+                              >
+                                <option value="">{opts.length ? '— kazanım seçin —' : '— bankada bu dersin kazanımı yok —'}</option>
+                                {q.kazanimCode && !inBank && <option value="__old">{q.kazanimCode} (bankada yok)</option>}
+                                {opts.map((o) => (
+                                  <option key={o.code} value={o.code}>
+                                    {o.code} — {short(o.text, 90)}
+                                  </option>
+                                ))}
+                              </select>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                {q.ai && (
+                                  <span className="ui-chip ui-chip-info" title={`Yapay zekâ önerisi (${q.ai === 'mistral' ? 'Mistral' : 'Gemini'})`}>
+                                    YZ
+                                  </span>
+                                )}
+                                {(q.srcCode || q.srcText) && (
+                                  <span className={cx('text-[11px]', q.kazanimCode ? 'text-muted' : 'text-warning-fg')}>
+                                    Excel: {short([q.srcCode, q.srcText].filter(Boolean).join(' — '), 110)}
+                                    {!q.kazanimCode && ' · eşleşmedi'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-3 py-1.5 align-top">
                               <input className="ui-input py-0.5 text-xs" value={q.konu || ''} maxLength={120} onChange={(e) => set({ konu: e.target.value || undefined })} aria-label={`${q.no}. soru konusu`} />
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td className="px-3 py-1.5 align-top">
                               <input className="ui-input py-0.5 text-xs" value={q.alt || ''} maxLength={160} onChange={(e) => set({ alt: e.target.value || undefined })} aria-label={`${q.no}. soru alt kazanımı`} />
                             </td>
                           </tr>
@@ -212,8 +316,8 @@ export const AnahtarEditor: React.FC<{
         })}
       </div>
       <p className="text-[11px] text-muted">
-        Excel yoksa "Kitapçıktan kazanım bul" ile taranmış kitapçıktaki sorular yapay zekâ yardımıyla kazanım bankasındaki MEB kazanımlarıyla eşleştirilir; konu ve
-        alt kazanımı her zaman elle de düzeltebilirsiniz. "İptal" seçilen soru herkes için doğru sayılır.
+        Kazanımı listeden seçince konusu bankadan otomatik gelir; konu ve alt kazanımı isterseniz elle düzeltebilirsiniz. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
+        kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır.
       </p>
     </div>
   );

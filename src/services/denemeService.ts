@@ -342,15 +342,17 @@ export interface BankRow {
   grade: string;
   text: string;
   konu: string;
+  updatedAt?: string; // Aşama 48d: yükleme zamanı (yüklemeleri topluca silebilmek için)
 }
 
 /** Bankadaki bütün kazanımlar (MEB kazanımları; kişisel bilgi yok) */
 export async function listKazanimlar(): Promise<BankRow[]> {
   const out: BankRow[] = [];
   for (let from = 0; from < 20000; from += 1000) {
-    const { data, error } = await supabase.from('deneme_kazanimlar').select('code,subject,grade,text,konu').order('code').range(from, from + 999);
+    const { data, error } = await supabase.from('deneme_kazanimlar').select('code,subject,grade,text,konu,updated_at').order('code').range(from, from + 999);
     if (error) fail(error, 'Kazanım bankası yüklenemedi.');
-    for (const r of data || []) out.push({ code: r.code, subject: r.subject || '', grade: r.grade || '', text: r.text || '', konu: r.konu || '' });
+    for (const r of data || [])
+      out.push({ code: r.code, subject: r.subject || '', grade: r.grade || '', text: r.text || '', konu: r.konu || '', updatedAt: r.updated_at || '' });
     if (!data || data.length < 1000) break;
   }
   return out;
@@ -359,6 +361,7 @@ export async function listKazanimlar(): Promise<BankRow[]> {
 /** Kazanımları bankaya yazar; aynı kodlu kazanımın metni ve konusu güncellenir */
 export async function saveKazanimBank(list: BankRow[], onProgress?: (done: number, total: number) => void): Promise<number> {
   const map = new Map<string, any>();
+  const stamp = new Date().toISOString(); // bir yüklemenin bütün satırları aynı zamanı taşır
   for (const k of list) {
     const code = (k.code || '').trim();
     if (!code || !k.text || !k.subject) continue;
@@ -368,7 +371,7 @@ export async function saveKazanimBank(list: BankRow[], onProgress?: (done: numbe
       grade: (k.grade || '').slice(0, 10) || null,
       text: k.text.slice(0, 2000),
       konu: k.konu ? k.konu.slice(0, 300) : null,
-      updated_at: new Date().toISOString(),
+      updated_at: stamp,
     });
   }
   const rows = Array.from(map.values());

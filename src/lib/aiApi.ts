@@ -135,6 +135,17 @@ export function aiClassifyPage(input: {
   return post({ action: 'classify', ...input });
 }
 
+/** Yayınevinin kazanım/konu ifadelerini dersin MEB kazanımlarıyla eşleştirir (yalnızca metin gider) */
+export function aiMatchKazanim(input: {
+  provider: AiProvider;
+  subject: { name: string };
+  items: Array<{ no: number; text: string }>;
+  kazanimlar: AiKazanimInput[];
+  avoid?: string[];
+}): Promise<AiResult> {
+  return post({ action: 'match', ...input });
+}
+
 /** İşleri `concurrency` kadar paralel çalıştırır; `next()` boşalana kadar iş alır (iş sırasında kuyruğa eklenebilir) */
 export async function runPool(concurrency: number, next: () => (() => Promise<void>) | null, stop: () => boolean): Promise<void> {
   const worker = async () => {

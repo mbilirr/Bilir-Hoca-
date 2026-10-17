@@ -291,3 +291,73 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
     warnings,
   };
 }
+
+// ----------------------------------------------------------------------------- Aşama 48d: Excel kazanımını bankaya eşleştirme
+// Yayınevi Excel'indeki kazanım (kod ya da metin) doğrudan kullanılmaz; bankadaki MEB kazanımlarından
+// en uygun olanı bulunur. Kazanım metni ve konu bankadan gelir.
+
+export interface BankOption {
+  code: string;
+  text: string;
+  konu: string;
+}
+
+export interface BankMatch {
+  code: string;
+  score: number; // 0-100
+  by: 'kod' | 'metin';
+}
+
+const STOP = new Set(
+  'bir ve ile icin gibi olan olarak veya ya da de da ki bu su o ilgili yonelik uygun eder eden yapar belirler aciklar kullanir'.split(' ')
+);
+
+function tokens(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of foldTr(s || '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/)) {
+    if (w.length < 3 || STOP.has(w) || /^\d+$/.test(w)) continue;
+    out.add(w.slice(0, 5)); // kaba kök: Türkçe ekleri büyük ölçüde atılır
+  }
+  return out;
+}
+
+function dice(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let n = 0;
+  for (const x of a) if (b.has(x)) n++;
+  return (2 * n) / (a.size + b.size);
+}
+
+const digitsKey = (c: string) => ((c || '').match(/\d+/g) || []).join('.');
+
+/**
+ * Bir sorunun Excel'den gelen kazanım bilgisini bankadaki kazanımlarla eşleştirir.
+ * 1) Kod aynıysa (ya da harf öneki farklı ama numaraları aynıysa) doğrudan eşleşir.
+ * 2) Değilse metin benzerliğine bakılır; yeterince benzer ve tek bir aday öne çıkıyorsa eşleşir.
+ */
+export function matchToBank(src: { code?: string; text?: string }, options: BankOption[]): BankMatch | null {
+  if (!options.length) return null;
+  const code = (src.code || '').trim();
+  if (code && /\d/.test(code)) {
+    const k = codeKey(code);
+    const exact = options.find((o) => codeKey(o.code) === k);
+    if (exact) return { code: exact.code, score: 100, by: 'kod' };
+    const dk = digitsKey(code);
+    if (dk.split('.').length >= 3) {
+      const same = options.filter((o) => digitsKey(o.code) === dk);
+      if (same.length === 1) return { code: same[0].code, score: 92, by: 'kod' };
+    }
+  }
+  // Metin: Excel'de kod sütununda metin olabilir; ikisi birlikte değerlendirilir
+  const srcText = [src.text, code && !/^\s*[A-Za-zÇĞİÖŞÜ.]{0,6}\s*\d/.test(code) ? code : ''].filter(Boolean).join(' ');
+  const st = tokens(srcText);
+  if (st.size < 2) return null;
+  const scored = options
+    .map((o) => ({ o, s: Math.max(dice(st, tokens(o.text)), dice(st, tokens(`${o.konu} ${o.text}`))) }))
+    .sort((a, b) => b.s - a.s);
+  const best = scored[0];
+  const second = scored[1];
+  const score = Math.round(best.s * 100);
+  if (score >= 75 || (score >= 50 && (!second || best.s - second.s >= 0.08))) return { code: best.o.code, score, by: 'metin' };
+  return null;
+}

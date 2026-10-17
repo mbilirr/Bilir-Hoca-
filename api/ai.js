@@ -553,6 +553,56 @@ async function actionClassify(body) {
   return { ok: true, provider, model, items, exhausted };
 }
 
+// ----------------------------------------------------------------------------- 4) Yayınevi kazanımı → MEB kazanımı (yalnızca metin)
+const MATCH_SYSTEM = [
+  'Sen MEB 8. sınıf öğretim programlarını çok iyi bilen bir ölçme-değerlendirme uzmanısın.',
+  'Sana bir yayınevinin deneme sınavındaki soruların kazanım ya da konu ifadeleri ve dersin MEB kazanım listesi verilir.',
+  'Görevin: her soru için yayınevinin ifadesine anlamca EN UYGUN MEB kazanımını listeden seçmek.',
+  'Kurallar:',
+  '- Kodu YALNIZCA verilen listeden seç; uygun kazanım yoksa "kod" alanını boş bırak.',
+  '- Yayınevi yalnızca konu adı yazdıysa (ör. "Paragrafta Anlam") o konuyu en iyi karşılayan kazanımı seç.',
+  '- "guven": 0-100 arası tam sayı.',
+  '- Yalnızca şu biçimde JSON döndür: {"eslesmeler":[{"no":1,"kod":"","guven":0}]}',
+].join('\n');
+
+async function actionMatch(body) {
+  const name = clean(body.subject && body.subject.name, 80);
+  if (!name) throw new HttpError(400, 'Ders bilgisi eksik.');
+  const kaz = (Array.isArray(body.kazanimlar) ? body.kazanimlar.slice(0, MAX_KAZANIM) : [])
+    .map((k) => ({ code: clean(k && k.code, 60), konu: clean(k && k.konu, 120), text: clean(k && k.text, 400) }))
+    .filter((k) => k.code && k.text);
+  if (!kaz.length) throw new HttpError(400, 'Bu ders için kazanım bankası boş.');
+  const items = (Array.isArray(body.items) ? body.items.slice(0, 100) : [])
+    .map((it) => ({ no: Number(it && it.no), text: clean(it && it.text, 400) }))
+    .filter((it) => Number.isInteger(it.no) && it.no > 0 && it.no <= 200 && it.text);
+  if (!items.length) return { ok: true, items: [] };
+  const prompt = [
+    `Ders: ${name}`,
+    '',
+    'Yayınevinin ifadeleri (soru no | ifade):',
+    items.map((it) => `${it.no} | ${it.text}`).join('\n'),
+    '',
+    'MEB kazanım listesi (kod | konu | kazanım):',
+    kaz.map((k) => `${k.code} | ${k.konu || '-'} | ${k.text}`).join('\n'),
+  ].join('\n');
+  const { provider, model, parsed, exhausted } = await ask(body, MATCH_SYSTEM, prompt, [], 'normal');
+  const raw = Array.isArray(parsed.eslesmeler) ? parsed.eslesmeler : [];
+  const allowed = new Map(kaz.map((k) => [codeKey(k.code), k.code]));
+  const wanted = new Set(items.map((it) => it.no));
+  const seen = new Set();
+  const out = [];
+  for (const it of raw.slice(0, 120)) {
+    const no = Number(it && it.no);
+    if (!wanted.has(no) || seen.has(no)) continue;
+    const kod = allowed.get(codeKey(it.kod)) || '';
+    if (!kod) continue;
+    seen.add(no);
+    const g = Math.round(Number(it.guven));
+    out.push({ no, kod, guven: Number.isFinite(g) ? Math.max(0, Math.min(100, g)) : 50 });
+  }
+  return { ok: true, provider, model, items: out, exhausted };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   try {
@@ -577,6 +627,7 @@ export default async function handler(req, res) {
     if (body.action === 'program') return res.status(200).json(await actionProgram(body));
     if (body.action === 'pages') return res.status(200).json(await actionPages(body));
     if (body.action === 'classify') return res.status(200).json(await actionClassify(body));
+    if (body.action === 'match') return res.status(200).json(await actionMatch(body));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
