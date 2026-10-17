@@ -157,5 +157,8 @@ export function describeMatch(subjects: ExamSubject[], stats: Record<string, Mat
     (parts.length ? `Kazanımlar bankadan eşleştirildi: ${parts.join(', ')}.` : '') +
     (noBank.length ? ` Bankada kazanımı olmayan dersler: ${noBank.join(', ')} (önce Kazanım bankasına yükleyin).` : '') +
     (none ? ` ${none} soru eşleşmedi; tablodaki "Sorular" bölümünden elle seçebilir ya da "Kitapçıktan kazanım bul"u kullanabilirsiniz.` : '');
-  return { tone: none ? 'warning' : 'success', text: text.trim() || 'Eşleştirilecek kazanım bilgisi bulunamadı.' };
+  return {
+    tone: none ? 'warning' : 'success',
+    text: text.trim() || 'Dosyada sorulara ait kazanım bilgisi yok; kazanımları "Kitapçıktan kazanım bul" ile ekleyebilir ya da tablodan elle seçebilirsiniz.',
+  };
 }

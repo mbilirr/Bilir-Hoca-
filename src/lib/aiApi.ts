@@ -146,6 +146,16 @@ export function aiMatchKazanim(input: {
   return post({ action: 'match', ...input });
 }
 
+/** Biçimi tanınmayan cevap anahtarı dosyasını çözer (yalnızca dosyanın hücre metni gider) */
+export function aiReadKey(input: {
+  provider: AiProvider;
+  text: string;
+  subjects: Array<{ key: string; name: string; count: number }>;
+  avoid?: string[];
+}): Promise<AiResult> {
+  return post({ action: 'key', ...input });
+}
+
 /** İşleri `concurrency` kadar paralel çalıştırır; `next()` boşalana kadar iş alır (iş sırasında kuyruğa eklenebilir) */
 export async function runPool(concurrency: number, next: () => (() => Promise<void>) | null, stop: () => boolean): Promise<void> {
   const worker = async () => {

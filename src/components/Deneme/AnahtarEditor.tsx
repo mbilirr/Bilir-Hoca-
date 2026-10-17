@@ -6,7 +6,7 @@ import { readKeyExcel, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
-import { aiStatus, type AiProvider } from '../../lib/aiApi';
+import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
 
 // ============================================================================
@@ -92,9 +92,36 @@ export const AnahtarEditor: React.FC<{
     setBusy(true);
     setMsg(null);
     try {
-      const r = await readKeyExcel(file);
+      const r = await readKeyExcel(file, subjects);
+      // Biçim tanınmadıysa: dosyanın hücre metni yapay zekâyla okunur (öğrenci bilgisi yoktur)
+      if (!r.found.length && r.rawText && ai && (ai.keys.gemini || ai.keys.mistral)) {
+        setBusyText('Dosya biçimi tanınmadı; cevap anahtarı yapay zekâ ile okunuyor…');
+        const res = await aiCall(
+          newAiState(ai.provider, true, ai.keys),
+          (p, avoid) => aiReadKey({ provider: p, text: r.rawText || '', subjects: subjects.map((s) => ({ key: s.key, name: s.name, count: s.count })), avoid }),
+          { stop: () => false, onWait: (w) => w && setBusyText(w) }
+        );
+        if (res.ok) {
+          for (const d of (res.items || []) as Array<{ ders: string; sorular: Array<{ no: number; cevap: string; b: number; kazanim: string }> }>) {
+            if (!subjects.some((s) => s.key === d.ders)) continue;
+            r.questions[d.ders] = d.sorular.map((x) => {
+              const q: ExamQuestion = { no: x.no, answer: x.cevap };
+              if (x.b) q.bNo = x.b;
+              if (x.kazanim) q.srcText = x.kazanim.slice(0, 600);
+              return q;
+            });
+          }
+          r.found = Object.keys(r.questions).filter((k) => r.questions[k].length);
+          r.method = 'yz';
+          r.warnings = r.found.length
+            ? ['Dosyanın biçimi tanınmadığı için cevap anahtarı yapay zekâ ile okundu. Lütfen cevapları dosyayla karşılaştırıp kontrol edin.']
+            : ['Yapay zekâ da dosyada cevap anahtarı bulamadı.'];
+        } else {
+          r.warnings.push(`Yapay zekâ ile okunamadı: ${res.error || 'hata'}`);
+        }
+      }
       if (!r.found.length) {
-        setMsg({ tone: 'danger', text: r.warnings.join(' ') });
+        setMsg({ tone: 'danger', text: `${r.warnings.join(' ')} Cevapları elle yazabilirsiniz.` });
         return;
       }
       const next: ExamQuestions = { ...questions };

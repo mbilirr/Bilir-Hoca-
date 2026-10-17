@@ -603,6 +603,55 @@ async function actionMatch(body) {
   return { ok: true, provider, model, items: out, exhausted };
 }
 
+// ----------------------------------------------------------------------------- 5) Cevap anahtarı dosyasını çözme (yalnızca metin)
+const KEY_SYSTEM = [
+  'Sen deneme sınavı cevap anahtarı dosyalarını okuyan dikkatli bir asistansın.',
+  'Sana bir Excel dosyasının hücreleri satır satır metin olarak (hücreler " | " ile ayrılmış) ve denemedeki dersler (sırasıyla, soru sayılarıyla) verilir.',
+  'Görevin: her dersin A kitapçığı cevap anahtarını çıkarmak.',
+  'Kurallar:',
+  '- Ders başlığı yazmıyorsa dersleri sıradan ve soru sayılarından anla (ör. LGS: Türkçe 20, İnkılap 10, Din 10, Yabancı Dil 10, Matematik 20, Fen 20).',
+  '- "no": dersin içindeki A kitapçığı soru numarası (1\'den başlar). "cevap": A, B, C, D ya da E; iptal soru için "X".',
+  '- "b": dosyada B kitapçığı numarası varsa o sorunun B kitapçığındaki numarası; yoksa 0.',
+  '- "kazanim": dosyada o soruya ait kazanım ya da konu yazıyorsa aynen yaz; yoksa boş bırak.',
+  '- Dosyada olmayan bir dersi yazma; cevap uydurma.',
+  '- Yalnızca şu biçimde JSON döndür: {"dersler":[{"ders":"tr","sorular":[{"no":1,"cevap":"A","b":0,"kazanim":""}]}]}',
+].join('\n');
+
+async function actionKey(body) {
+  const text = String(body.text || '').slice(0, 40000);
+  if (text.replace(/\s+/g, '').length < 20) throw new HttpError(400, 'Dosya içeriği boş.');
+  const subjects = (Array.isArray(body.subjects) ? body.subjects : [])
+    .map((s) => ({ key: subjectKeyOf(s && s.key), name: clean(s && s.name, 80), count: Math.max(1, Math.min(100, Number(s && s.count) || 0)) }))
+    .filter((s) => s.key && s.name);
+  if (!subjects.length) throw new HttpError(400, 'Ders bilgisi eksik.');
+  const prompt = [
+    'Denemedeki dersler (sırasıyla):',
+    subjects.map((s) => `${s.key} = ${s.name} (${s.count} soru)`).join('\n'),
+    '',
+    'Dosya:',
+    text,
+  ].join('\n');
+  const { provider, model, parsed, exhausted } = await ask(body, KEY_SYSTEM, prompt, [], 'normal');
+  const byKey = new Map(subjects.map((s) => [s.key, s]));
+  const out = [];
+  for (const d of Array.isArray(parsed.dersler) ? parsed.dersler.slice(0, 10) : []) {
+    const s = byKey.get(subjectKeyOf(d && d.ders));
+    if (!s || out.some((x) => x.ders === s.key)) continue;
+    const seen = new Set();
+    const sorular = [];
+    for (const q of Array.isArray(d.sorular) ? d.sorular.slice(0, 120) : []) {
+      const no = Number(q && q.no);
+      const cevap = clean(q && q.cevap, 5).toUpperCase();
+      if (!Number.isInteger(no) || no < 1 || no > s.count || seen.has(no) || !/^[A-EX]$/.test(cevap)) continue;
+      seen.add(no);
+      const b = Number(q.b);
+      sorular.push({ no, cevap, b: Number.isInteger(b) && b >= 1 && b <= s.count ? b : 0, kazanim: clean(q.kazanim, 400) });
+    }
+    if (sorular.length) out.push({ ders: s.key, sorular: sorular.sort((a, b) => a.no - b.no) });
+  }
+  return { ok: true, provider, model, items: out, exhausted };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   try {
@@ -628,6 +677,7 @@ export default async function handler(req, res) {
     if (body.action === 'pages') return res.status(200).json(await actionPages(body));
     if (body.action === 'classify') return res.status(200).json(await actionClassify(body));
     if (body.action === 'match') return res.status(200).json(await actionMatch(body));
+    if (body.action === 'key') return res.status(200).json(await actionKey(body));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
