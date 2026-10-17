@@ -21,6 +21,9 @@ export interface ExamQuestion {
   kazanim?: string; // MEB kazanım metni
   konu?: string; // konu (yapay zekâ ya da öğretmen)
   alt?: string; // alt kazanım (yapay zekâ ya da öğretmen)
+  kazanimCode2?: string; // Aşama 48: ikincil kazanım (yalnızca bilgi; analizde birincil kullanılır)
+  kazanim2?: string;
+  ai?: string; // Aşama 48: kazanımı yapay zekâ önerdiyse sağlayıcının adı (gemini / mistral)
 }
 
 export type ExamQuestions = Record<string, ExamQuestion[]>;

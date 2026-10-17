@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, ChevronRight, FileBarChart, Plus, ShieldCheck, Users } from 'lucide-react';
+import { BarChart3, BookOpen, ChevronRight, FileBarChart, Plus, ShieldCheck, Users } from 'lucide-react';
 import { EmptyState, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -10,14 +10,15 @@ import { DenemeWizard } from './DenemeWizard';
 import { DenemeSonuclar } from './DenemeSonuclar';
 import { DenemeKarne } from './DenemeKarne';
 import { DenemeEtut } from './DenemeEtut';
+import { KazanimBankasi } from './KazanimBankasi';
 
 // ============================================================================
 // DENEME ANALİZİ (Aşama 47) — ana sayfa
 // Genel yönetici ve bölümü açılmış kurumların yöneticileri kullanır (dataService.canUseDeneme).
-// Sekmeler: Denemeler (yükleme, sonuçlar) · Karneler · Etüt yönlendirme
+// Sekmeler: Denemeler (yükleme, sonuçlar) · Karneler · Etüt yönlendirme · Kazanım bankası (Aşama 48)
 // ============================================================================
 
-type Tab = 'denemeler' | 'karne' | 'etut';
+type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; exam: DenemeExam } | { kind: 'detail'; id: string };
 
 export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[] }> = ({ students, classes }) => {
@@ -105,6 +106,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
             { value: 'denemeler', label: 'Denemeler', icon: BarChart3 },
             { value: 'karne', label: 'Karneler', icon: FileBarChart },
             { value: 'etut', label: 'Etüt yönlendirme', icon: Users },
+            { value: 'kazanim', label: 'Kazanım bankası', icon: BookOpen },
           ]}
         />
       )}
@@ -207,6 +209,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
 
       {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
       {tab === 'etut' && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
+      {tab === 'kazanim' && <KazanimBankasi />}
 
       <p className="text-[11px] text-muted">
         Mahremiyet: TC kimlik numarası okunmaz ve saklanmaz. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.

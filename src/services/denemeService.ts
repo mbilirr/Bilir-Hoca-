@@ -334,3 +334,56 @@ export async function upsertKazanimlar(list: Array<{ code: string; subject: stri
     if (error) fail(error, 'Kazanım bankası güncellenemedi.');
   }
 }
+
+// ----------------------------------------------------------------------------- Kazanım bankası yönetimi (Aşama 48)
+export interface BankRow {
+  code: string;
+  subject: string;
+  grade: string;
+  text: string;
+  konu: string;
+}
+
+/** Bankadaki bütün kazanımlar (MEB kazanımları; kişisel bilgi yok) */
+export async function listKazanimlar(): Promise<BankRow[]> {
+  const out: BankRow[] = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await supabase.from('deneme_kazanimlar').select('code,subject,grade,text,konu').order('code').range(from, from + 999);
+    if (error) fail(error, 'Kazanım bankası yüklenemedi.');
+    for (const r of data || []) out.push({ code: r.code, subject: r.subject || '', grade: r.grade || '', text: r.text || '', konu: r.konu || '' });
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Kazanımları bankaya yazar; aynı kodlu kazanımın metni ve konusu güncellenir */
+export async function saveKazanimBank(list: BankRow[], onProgress?: (done: number, total: number) => void): Promise<number> {
+  const map = new Map<string, any>();
+  for (const k of list) {
+    const code = (k.code || '').trim();
+    if (!code || !k.text || !k.subject) continue;
+    map.set(code, {
+      code: code.slice(0, 60),
+      subject: k.subject.slice(0, 80),
+      grade: (k.grade || '').slice(0, 10) || null,
+      text: k.text.slice(0, 2000),
+      konu: k.konu ? k.konu.slice(0, 300) : null,
+      updated_at: new Date().toISOString(),
+    });
+  }
+  const rows = Array.from(map.values());
+  for (let i = 0; i < rows.length; i += 200) {
+    const { error } = await supabase.from('deneme_kazanimlar').upsert(rows.slice(i, i + 200), { onConflict: 'code' });
+    if (error) fail(error, 'Kazanım bankası kaydedilemedi.');
+    onProgress?.(Math.min(rows.length, i + 200), rows.length);
+  }
+  return rows.length;
+}
+
+/** Verilen kodlardaki kazanımları bankadan siler */
+export async function deleteKazanimlar(codes: string[]): Promise<void> {
+  for (let i = 0; i < codes.length; i += 100) {
+    const { error } = await supabase.from('deneme_kazanimlar').delete().in('code', codes.slice(i, i + 100));
+    if (error) fail(error, 'Kazanımlar silinemedi.');
+  }
+}

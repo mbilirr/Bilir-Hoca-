@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { readKeyExcel, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
+import { KazanimAI } from './KazanimAI';
 
 // ============================================================================
 // Cevap anahtarı ve kazanım düzenleyici (Aşama 47)
@@ -29,6 +30,7 @@ export const AnahtarEditor: React.FC<{
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const setSubject = (key: string, list: ExamQuestion[]) => onChange({ ...questions, [key]: list });
 
@@ -78,8 +80,23 @@ export const AnahtarEditor: React.FC<{
             e.target.value = '';
           }}
         />
-        <span className="text-[11px] text-muted">Yayınevinin "LGS sınav oluşturma şablonu" biçimindeki Excel dosyası.</span>
+        <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setAiOpen(true)} id="deneme-kazanim-ai">
+          <Sparkles /> Kitapçıktan kazanım bul (yapay zekâ)
+        </button>
+        <span className="text-[11px] text-muted">Excel: yayınevinin "LGS sınav oluşturma şablonu". Excel yoksa taranmış kitapçıktan yapay zekâ ile.</span>
       </div>
+      {aiOpen && (
+        <KazanimAI
+          open
+          onClose={() => setAiOpen(false)}
+          subjects={subjects}
+          questions={questions}
+          onApply={(qs, summary) => {
+            onChange(qs);
+            setMsg({ tone: 'success', text: `${summary} Kaydetmeyi unutmayın.` });
+          }}
+        />
+      )}
       {msg && (
         <p
           role="status"
@@ -170,6 +187,11 @@ export const AnahtarEditor: React.FC<{
                             <td className="px-3 py-1.5 tabular-nums text-muted">{q.bNo || '-'}</td>
                             <td className="px-3 py-1.5 text-fg-2">
                               {q.kazanimCode && <span className="ui-chip ui-chip-neutral mr-1">{q.kazanimCode}</span>}
+                              {q.ai && (
+                                <span className="ui-chip ui-chip-info mr-1" title={`Yapay zekâ önerisi (${q.ai === 'mistral' ? 'Mistral' : 'Gemini'})`}>
+                                  YZ
+                                </span>
+                              )}
                               <span className="line-clamp-2">{q.kazanim || <span className="text-subtle">—</span>}</span>
                             </td>
                             <td className="px-3 py-1.5">
@@ -190,8 +212,8 @@ export const AnahtarEditor: React.FC<{
         })}
       </div>
       <p className="text-[11px] text-muted">
-        Excel yoksa kazanım, konu ve alt kazanımlar taranmış kitapçıktan yapay zekâ ile çıkarılacak (MEB kazanım bankası bir kez yüklenir). O bölüm
-        eklenene kadar isterseniz konu ve alt kazanımı elle yazabilirsiniz. "İptal" seçilen soru herkes için doğru sayılır.
+        Excel yoksa "Kitapçıktan kazanım bul" ile taranmış kitapçıktaki sorular yapay zekâ yardımıyla kazanım bankasındaki MEB kazanımlarıyla eşleştirilir; konu ve
+        alt kazanımı her zaman elle de düzeltebilirsiniz. "İptal" seçilen soru herkes için doğru sayılır.
       </p>
     </div>
   );

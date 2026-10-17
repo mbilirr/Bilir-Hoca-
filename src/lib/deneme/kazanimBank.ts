@@ -1,0 +1,293 @@
+// ============================================================================
+// DENEME ANALİZİ (Aşama 48) — MEB KAZANIM BANKASI
+// Kazanımlar bir kez yüklenir. Asıl yol: öğretim programı PDF'inden yapay zekâ ile (gradePages,
+// chunkProgram, mergeProgramItems). İsteğe bağlı: kopyalanan metin ya da Excel/CSV dosyası.
+//   Metin örneği:  "F.8.1. Mevsimler ve İklim"            (başlık: konu olarak kullanılır)
+//                  "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur."   (kazanım)
+//   Excel: "Kod | Kazanım | Konu (ya da Ünite) | Ders | Sınıf" başlıklı sütunlar (yerleri serbest).
+// Kazanım bankasında kişisel bilgi yoktur.
+// ============================================================================
+import { foldTr, guessSubjectKey } from './optik';
+import { LGS_SUBJECTS } from './lgs';
+
+export interface BankKazanim {
+  code: string;
+  subject: string; // ders adı (LGS_SUBJECTS'teki adlardan biri)
+  grade: string;
+  text: string;
+  konu: string;
+}
+
+export interface BankParseResult {
+  rows: BankKazanim[];
+  headers: number; // konu olarak kullanılan başlık sayısı
+  warnings: string[];
+}
+
+// Kod: isteğe bağlı harf öneki (F., T., M., İTA., DKAB., E) + sınıf + nokta ile ayrılmış parçalar
+const CODE_SRC = '(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,6}\\s?\\.?\\s?)?\\d{1,2}(?:\\s?\\.\\s?[A-Za-z]?\\d{1,3}){1,5}';
+const CODE_LINE = new RegExp(`^(${CODE_SRC})\\s?\\.?\\s*[-–:)]?\\s+(.+)$`);
+const CODE_ONLY = new RegExp(`^(${CODE_SRC})\\.?$`);
+
+/** Kodları karşılaştırmak için: boşluksuz, sondaki nokta yok, büyük harf */
+export const codeKey = (c: string) => (c || '').replace(/\s+/g, '').replace(/\.+$/, '').toLocaleUpperCase('tr-TR');
+
+const normCode = (c: string) => (c || '').replace(/\s+/g, '').replace(/\.+$/, '');
+const depthOf = (c: string) => (normCode(c).match(/\d+/g) || []).length;
+const squash = (s: string) => (s || '').replace(/\s+/g, ' ').trim();
+
+/** "MEVSİMLER VE İKLİM" → "Mevsimler ve İklim" (tamamı büyük harfse) */
+function niceTitle(s: string): string {
+  let t = squash(s);
+  // "1. ÜNİTE: …", "ÜNİTE 1: …", "Öğrenme alanı: …" önekleri atılır (Türkçe harfler için katlanmış metinde aranır)
+  const f = foldTr(t);
+  const pre = /^(\d+\s*\.?\s*(unite|ogrenme alani|tema)\s*[:.-]?\s*|(unite|ogrenme alani|tema)\s*\d*\s*[:.-]\s*)/.exec(f);
+  if (pre && f.length === t.length) t = t.slice(pre[0].length);
+  t = t.replace(/[:.]+$/, '').trim();
+  if (!t || t !== t.toLocaleUpperCase('tr-TR')) return t;
+  const small = new Set(['ve', 'ile', 'veya', 'de', 'da', 'ki', 'ya']);
+  return t
+    .toLocaleLowerCase('tr-TR')
+    .split(' ')
+    .map((w, i) => (i > 0 && small.has(w) ? w : w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1)))
+    .join(' ');
+}
+
+/** Bankadaki ders adını LGS ders anahtarına çevirir (tr, mat, fen…) */
+export function bankSubjectKey(subject: string): string | null {
+  const exact = LGS_SUBJECTS.find((s) => s.name === subject || s.key === subject);
+  return exact ? exact.key : guessSubjectKey(subject);
+}
+
+const explanationLine = (s: string) => /^([a-zçğıöşü]\)|[•·▪●\-–*]|\(?[ivx]+\)|not:|açıklama)/i.test(s);
+
+/**
+ * Kopyalanan kazanım metnini çözümler.
+ * Kodlu satırlar arasında en derin kodlar kazanımdır; daha kısa kodlar ve kodsuz kısa satırlar başlıktır (konu).
+ */
+export function parseKazanimText(text: string, subject: string, grade = '8'): BankParseResult {
+  type Entry = { code: string; text: string; depth: number; header?: string };
+  const entries: Array<Entry | { header: string }> = [];
+  const warnings: string[] = [];
+  let skipped = 0;
+  let last: Entry | null = null;
+
+  for (const rawLine of (text || '').split(/\r?\n/)) {
+    const line = rawLine.replace(/ /g, ' ').trim();
+    if (!line) {
+      last = null;
+      continue;
+    }
+    // Excel'den yapıştırılan satırlar (sekme ile ayrılmış): kod | kazanım | konu
+    if (line.includes('\t')) {
+      const cells = line.split('\t').map(squash);
+      if (CODE_ONLY.test(cells[0]) && cells[1]) {
+        const e: Entry = { code: normCode(cells[0]), text: cells[1], depth: depthOf(cells[0]) };
+        if (cells[2]) e.header = niceTitle(cells[2]);
+        entries.push(e);
+        last = e;
+        continue;
+      }
+    }
+    const m = CODE_LINE.exec(line);
+    if (m && !/^\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{4}/.test(line)) {
+      const e: Entry = { code: normCode(m[1]), text: squash(m[2]), depth: depthOf(m[1]) };
+      entries.push(e);
+      last = e;
+      continue;
+    }
+    if (explanationLine(line)) {
+      skipped++;
+      last = null;
+      continue;
+    }
+    // Sayfa numarası ya da tek kelimelik artıklar
+    if (/^\d+$/.test(line) || line.length < 3) continue;
+    // Bir önceki kazanımın satır sonuna taşmış devamı
+    if (last && !/[.!?]$/.test(last.text) && line.length > 0 && line.charAt(0) === line.charAt(0).toLocaleLowerCase('tr-TR')) {
+      last.text = squash(`${last.text} ${line}`);
+      continue;
+    }
+    if (last && !/[.!?]$/.test(last.text) && last.text.length > 30) {
+      last.text = squash(`${last.text} ${line}`);
+      continue;
+    }
+    // Kodsuz kısa satır: başlık
+    if (line.length <= 90) {
+      const h = niceTitle(line);
+      if (h) entries.push({ header: h });
+    }
+    last = null;
+  }
+
+  const coded = entries.filter((e): e is Entry => 'code' in e);
+  if (!coded.length) return { rows: [], headers: 0, warnings: ['Metinde kazanım kodu bulunamadı. Satırlar "F.8.1.1.1. Kazanım metni" biçiminde olmalı.'] };
+  const maxDepth = Math.max(...coded.map((e) => e.depth));
+
+  const rows: BankKazanim[] = [];
+  let header = '';
+  let headers = 0;
+  const seen = new Set<string>();
+  for (const e of entries) {
+    if (!('code' in e)) {
+      header = e.header;
+      continue;
+    }
+    if (e.depth < maxDepth) {
+      const h = niceTitle(e.text);
+      if (h) {
+        header = h;
+        headers++;
+      }
+      continue;
+    }
+    const key = codeKey(e.code);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({
+      code: e.code.slice(0, 60),
+      subject,
+      grade,
+      text: e.text.slice(0, 2000),
+      konu: (e.header || header || '').slice(0, 300),
+    });
+  }
+  if (skipped) warnings.push(`${skipped} açıklama satırı (a), b), • ile başlayan) atlandı.`);
+  if (!rows.some((r) => r.konu)) warnings.push('Konu başlığı bulunamadı; konuları yapay zekâ önerecek.');
+  return { rows, headers, warnings };
+}
+
+// ----------------------------------------------------------------------------- Öğretim programı PDF'i (yapay zekâ ile)
+/**
+ * Programın hangi sayfalarında istenen sınıfın kazanımları var? (ör. F.8.1.1.1., T.8.3.5., E8.1.R1., 8.1.1.)
+ * Kazanım kodu geçen sayfalar ve bir önceki sayfa (ünite başlığı için) seçilir.
+ */
+export function gradePages(pages: string[], grade = '8'): number[] {
+  const g = grade.replace(/\D/g, '') || '8';
+  const re = new RegExp(`(^|[^\\d.])(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,5}\\s?\\.?\\s?)?${g}\\s?\\.\\s?\\d{1,2}\\s?\\.\\s?[A-Za-z]?\\d{1,3}`);
+  const heading = new RegExp(`(^|\\s)${g}\\s?\\.\\s?(sınıf|SINIF|Sınıf)`);
+  const hit = new Set<number>();
+  pages.forEach((t, i) => {
+    if (re.test(t) || heading.test(t)) {
+      hit.add(i);
+      if (i > 0) hit.add(i - 1);
+    }
+  });
+  return Array.from(hit).sort((a, b) => a - b);
+}
+
+/** Seçilen sayfaları yapay zekâya gönderilecek parçalara böler (parçalar bir sayfa üst üste biner) */
+export function chunkProgram(pages: string[], indices: number[], maxChars = 18000): string[] {
+  const chunks: string[] = [];
+  let cur: number[] = [];
+  let len = 0;
+  const flush = () => {
+    if (cur.length) chunks.push(cur.map((i) => `--- Sayfa ${i + 1} ---\n${pages[i].slice(0, maxChars)}`).join('\n'));
+  };
+  for (const i of indices) {
+    const l = Math.min(maxChars, (pages[i] || '').length) + 20;
+    if (cur.length && len + l > maxChars) {
+      flush();
+      const last = cur[cur.length - 1];
+      // bir önceki parçanın son sayfası yeni parçanın başına (yalnızca ardışık sayfalarda)
+      cur = last === i - 1 && (pages[last] || '').length + l <= maxChars ? [last] : [];
+      len = cur.length ? (pages[last] || '').length + 20 : 0;
+    }
+    cur.push(i);
+    len += l;
+  }
+  flush();
+  return chunks;
+}
+
+/** Yapay zekânın çıkardığı kazanımları birleştirir (aynı kodda uzun metin kalır) */
+export function mergeProgramItems(
+  lists: Array<Array<{ ders: string; kod: string; kazanim: string; konu: string }>>,
+  grade = '8'
+): BankKazanim[] {
+  const m = new Map<string, BankKazanim>();
+  for (const list of lists) {
+    for (const it of list) {
+      const s = LGS_SUBJECTS.find((x) => x.key === it.ders);
+      if (!s || !it.kod || !it.kazanim) continue;
+      const k = codeKey(it.kod);
+      const prev = m.get(k);
+      const row: BankKazanim = { code: normCode(it.kod).slice(0, 60), subject: s.name, grade, text: squash(it.kazanim).slice(0, 2000), konu: niceTitle(it.konu || '').slice(0, 300) };
+      if (!prev) m.set(k, row);
+      else m.set(k, { ...prev, text: row.text.length > prev.text.length ? row.text : prev.text, konu: prev.konu || row.konu });
+    }
+  }
+  const order = (c: string) => (c.match(/\d+/g) || []).map((n) => n.padStart(4, '0')).join('.');
+  return Array.from(m.values()).sort((a, b) => a.subject.localeCompare(b.subject, 'tr') || order(a.code).localeCompare(order(b.code)));
+}
+
+const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
+
+/** Excel / CSV dosyasından kazanımlar. Başlık satırı yoksa satırlar metin gibi çözümlenir. */
+export async function readKazanimFile(file: File, defaultSubject: string, grade = '8'): Promise<BankParseResult> {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const rows: BankKazanim[] = [];
+  const warnings: string[] = [];
+  const lines: string[] = [];
+  let usedHeader = false;
+  let otherSubjects = 0;
+
+  for (const name of wb.SheetNames) {
+    const data = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, raw: false, defval: null, blankrows: false });
+    let col: { code: number; text: number; konu: number; subject: number; grade: number } | null = null;
+    for (const row of data) {
+      const cells = (row || []).map(cellText);
+      if (!cells.some(Boolean)) continue;
+      const folded = cells.map(foldTr);
+      if (!col) {
+        const code = folded.findIndex((c) => /^(kazanim )?kod/.test(c));
+        const text = folded.findIndex((c, i) => i !== code && /kazanim/.test(c) && !/kod/.test(c));
+        if (code >= 0 && text >= 0) {
+          col = {
+            code,
+            text,
+            konu: folded.findIndex((c) => /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c)),
+            subject: folded.findIndex((c) => /^ders/.test(c)),
+            grade: folded.findIndex((c) => /^sinif/.test(c)),
+          };
+          usedHeader = true;
+          continue;
+        }
+        lines.push(cells.filter(Boolean).join('\t'));
+        continue;
+      }
+      const code = normCode(cells[col.code] || '');
+      const txt = cells[col.text] || '';
+      if (!code || !txt) continue;
+      let subject = defaultSubject;
+      if (col.subject >= 0 && cells[col.subject]) {
+        const k = bankSubjectKey(cells[col.subject]);
+        const s = k ? LGS_SUBJECTS.find((x) => x.key === k) : null;
+        if (s) subject = s.name;
+        if (s && s.name !== defaultSubject) otherSubjects++;
+      }
+      rows.push({
+        code: code.slice(0, 60),
+        subject,
+        grade: (col.grade >= 0 && cells[col.grade] ? cells[col.grade].replace(/\D+/g, '') : '') || grade,
+        text: txt.slice(0, 2000),
+        konu: col.konu >= 0 ? niceTitle(cells[col.konu] || '').slice(0, 300) : '',
+      });
+    }
+  }
+  if (!usedHeader) return parseKazanimText(lines.join('\n'), defaultSubject, grade);
+  if (otherSubjects) warnings.push(`${otherSubjects} kazanım dosyadaki "Ders" sütununa göre başka derse yazıldı.`);
+  if (!rows.length) warnings.push('Dosyada kazanım satırı bulunamadı.');
+  const seen = new Set<string>();
+  return {
+    rows: rows.filter((r) => {
+      const k = codeKey(r.code);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }),
+    headers: 0,
+    warnings,
+  };
+}
