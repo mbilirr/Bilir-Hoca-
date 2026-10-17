@@ -4,6 +4,7 @@ import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LGS_SCORING, fmtNet, fmtScore, markOf, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, type ExamQuestions } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
+import { topicLabels } from '../../lib/deneme/analiz';
 import { AnahtarEditor } from './AnahtarEditor';
 
 // ============================================================================
@@ -329,8 +330,16 @@ export const DenemeSonuclar: React.FC<{
                               {d} / {y} / {b}
                             </td>
                             <td className="px-3 py-1.5">
-                              <span className="text-fg">{q.konu || q.kazanim || '—'}</span>
-                              {q.alt && <span className="block text-[11px] text-muted">{q.alt}</span>}
+                              {(() => {
+                                // Aşama 48g: karneyle aynı konu / alt kazanım ayrımı
+                                const t = topicLabels(q);
+                                return (
+                                  <>
+                                    <span className="text-fg">{q.konu || q.kazanim ? t.konu : '—'}</span>
+                                    {t.alt && <span className="block text-[11px] text-muted">{t.alt}</span>}
+                                  </>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );

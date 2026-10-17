@@ -57,7 +57,7 @@ export const AnahtarEditor: React.FC<{
   }, []);
 
   const options = useMemo(() => bankOptionsBySubject(bank || []), [bank]);
-  const byCode = useMemo(() => new Map((bank || []).map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu }])), [bank]);
+  const byCode = useMemo(() => new Map((bank || []).map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] }])), [bank]);
 
   const setSubject = (key: string, list: ExamQuestion[]) => onChange({ ...questions, [key]: list });
 
@@ -329,7 +329,24 @@ export const AnahtarEditor: React.FC<{
                               <input className="ui-input py-0.5 text-xs" value={q.konu || ''} maxLength={120} onChange={(e) => set({ konu: e.target.value || undefined })} aria-label={`${q.no}. soru konusu`} />
                             </td>
                             <td className="px-3 py-1.5 align-top">
-                              <input className="ui-input py-0.5 text-xs" value={q.alt || ''} maxLength={160} onChange={(e) => set({ alt: e.target.value || undefined })} aria-label={`${q.no}. soru alt kazanımı`} />
+                              {(() => {
+                                // Aşama 48g: alt kazanım = seçilen kazanımın açıklama maddelerinden biri
+                                const alts = (q.kazanimCode && byCode.get(codeKey(q.kazanimCode))?.alt) || [];
+                                if (!alts.length)
+                                  return <input className="ui-input py-0.5 text-xs" value={q.alt || ''} maxLength={160} onChange={(e) => set({ alt: e.target.value || undefined })} aria-label={`${q.no}. soru alt kazanımı`} />;
+                                const cur = q.alt && !alts.includes(q.alt) ? q.alt : null;
+                                return (
+                                  <select className="ui-input py-0.5 text-xs" value={q.alt || ''} onChange={(e) => set({ alt: e.target.value || undefined })} aria-label={`${q.no}. soru alt kazanımı`}>
+                                    <option value="">— alt kazanım yok —</option>
+                                    {cur && <option value={cur}>{short(cur, 90)} (eski)</option>}
+                                    {alts.map((a, ai) => (
+                                      <option key={ai} value={a}>
+                                        {ai + 1}) {short(a, 90)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                );
+                              })()}
                             </td>
                           </tr>
                         );
@@ -343,7 +360,7 @@ export const AnahtarEditor: React.FC<{
         })}
       </div>
       <p className="text-[11px] text-muted">
-        Kazanımı listeden seçince konusu bankadan otomatik gelir; konu ve alt kazanımı isterseniz elle düzeltebilirsiniz. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
+        Kazanımı listeden seçince konusu bankadan otomatik gelir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
         kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır.
       </p>
     </div>

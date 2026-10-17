@@ -343,16 +343,25 @@ export interface BankRow {
   text: string;
   konu: string;
   updatedAt?: string; // Aşama 48d: yükleme zamanı (yüklemeleri topluca silebilmek için)
+  alt?: string[]; // Aşama 48g: kazanımın açıklama maddeleri (a, b, c …) = alt kazanımlar
 }
 
 /** Bankadaki bütün kazanımlar (MEB kazanımları; kişisel bilgi yok) */
 export async function listKazanimlar(): Promise<BankRow[]> {
   const out: BankRow[] = [];
   for (let from = 0; from < 20000; from += 1000) {
-    const { data, error } = await supabase.from('deneme_kazanimlar').select('code,subject,grade,text,konu,updated_at').order('code').range(from, from + 999);
+    const { data, error } = await supabase.from('deneme_kazanimlar').select('code,subject,grade,text,konu,alt,updated_at').order('code').range(from, from + 999);
     if (error) fail(error, 'Kazanım bankası yüklenemedi.');
     for (const r of data || [])
-      out.push({ code: r.code, subject: r.subject || '', grade: r.grade || '', text: r.text || '', konu: r.konu || '', updatedAt: r.updated_at || '' });
+      out.push({
+        code: r.code,
+        subject: r.subject || '',
+        grade: r.grade || '',
+        text: r.text || '',
+        konu: r.konu || '',
+        updatedAt: r.updated_at || '',
+        alt: Array.isArray(r.alt) ? (r.alt as unknown[]).filter((x): x is string => typeof x === 'string' && !!x.trim()) : [],
+      });
     if (!data || data.length < 1000) break;
   }
   return out;
@@ -371,6 +380,7 @@ export async function saveKazanimBank(list: BankRow[], onProgress?: (done: numbe
       grade: (k.grade || '').slice(0, 10) || null,
       text: k.text.slice(0, 2000),
       konu: k.konu ? k.konu.slice(0, 300) : null,
+      alt: (k.alt || []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 20).map((x) => x.trim().slice(0, 600)),
       updated_at: stamp,
     });
   }
@@ -381,6 +391,63 @@ export async function saveKazanimBank(list: BankRow[], onProgress?: (done: numbe
     onProgress?.(Math.min(rows.length, i + 200), rows.length);
   }
   return rows.length;
+}
+
+/** Aşama 48g: yalnızca konu alanını günceller (kazanım metni ve yükleme zamanı değişmez) */
+export async function updateKazanimKonular(changes: Map<string, string>, onProgress?: (done: number, total: number) => void): Promise<number> {
+  const byKonu = new Map<string, string[]>();
+  for (const [code, konu] of changes) {
+    const k = konu.slice(0, 300);
+    byKonu.set(k, [...(byKonu.get(k) || []), code]);
+  }
+  let done = 0;
+  for (const [konu, codes] of byKonu) {
+    for (let i = 0; i < codes.length; i += 100) {
+      const part = codes.slice(i, i + 100);
+      const { error } = await supabase.from('deneme_kazanimlar').update({ konu }).in('code', part);
+      if (error) fail(error, 'Konular kaydedilemedi.');
+      done += part.length;
+      onProgress?.(done, changes.size);
+    }
+  }
+  return done;
+}
+
+/**
+ * Aşama 48g: kayıtlı denemelerdeki soruların konu ve kazanım metnini bankadaki son hâliyle günceller.
+ * Puanlar ve sonuçlar değişmez (konu analizi bankaya göre yeniden gruplanır).
+ */
+export async function applyBankToSavedExams(bank: BankRow[], onProgress?: (done: number, total: number) => void): Promise<{ exams: number; questions: number }> {
+  const key = (c: string) => (c || '').replace(/\s+/g, '').replace(/\.+$/, '').toLocaleUpperCase('tr-TR');
+  const byCode = new Map(bank.map((r) => [key(r.code), r]));
+  const list = await listExams();
+  const full = await getExamsFull(list.map((e) => e.id));
+  let exams = 0;
+  let questions = 0;
+  for (let i = 0; i < full.length; i++) {
+    const ex = full[i];
+    let changed = 0;
+    const qs: ExamQuestions = {};
+    for (const k of Object.keys(ex.questions || {})) {
+      qs[k] = (ex.questions[k] || []).map((q) => {
+        const b = q.kazanimCode ? byCode.get(key(q.kazanimCode)) : undefined;
+        if (!b) return q;
+        const konu = b.konu || q.konu;
+        // Alt kazanım yalnızca bankadaki açıklama maddelerinden biriyse korunur
+        const alt = q.alt && (b.alt || []).includes(q.alt) ? q.alt : undefined;
+        if (q.konu === konu && q.kazanim === b.text && q.alt === alt) return q;
+        changed++;
+        return { ...q, konu: konu || undefined, kazanim: b.text, alt };
+      });
+    }
+    if (changed) {
+      await saveExam({ ...ex, questions: qs });
+      exams++;
+      questions += changed;
+    }
+    onProgress?.(i + 1, full.length);
+  }
+  return { exams, questions };
 }
 
 /** Verilen kodlardaki kazanımları bankadan siler */

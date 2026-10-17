@@ -24,6 +24,7 @@ export interface AiKazanimInput {
   code: string;
   konu?: string;
   text: string;
+  alt?: string[]; // Aşama 48g: açıklama maddeleri (alt kazanımlar)
 }
 
 export interface AiSuggestion {
@@ -34,6 +35,7 @@ export interface AiSuggestion {
   kod2: string;
   konu: string;
   alt: string;
+  altNo?: number; // Aşama 48g: seçilen kazanımın alt kazanım (açıklama) maddesi, 1'den başlar; 0 = yok
   guven: number;
 }
 
@@ -42,6 +44,7 @@ export interface AiProgramItem {
   kod: string;
   kazanim: string;
   konu: string;
+  aciklamalar?: string[];
 }
 
 export interface AiPageInfo {
@@ -116,7 +119,7 @@ export function aiStatus(): Promise<AiResult> {
 }
 
 /** Öğretim programı metninin bir bölümünden kazanımlar */
-export function aiProgram(input: { provider: AiProvider; text: string; grade: string; subject?: string; avoid?: string[] }): Promise<AiResult> {
+export function aiProgram(input: { provider: AiProvider; text: string; grade: string; subject?: string; avoid?: string[]; images?: AiImage[]; context?: string }): Promise<AiResult> {
   return post({ action: 'program', ...input });
 }
 
@@ -144,6 +147,16 @@ export function aiMatchKazanim(input: {
   avoid?: string[];
 }): Promise<AiResult> {
   return post({ action: 'match', ...input });
+}
+
+/** Kazanımların MEB konu başlıklarını düzenler (yalnızca kazanım listesi gider) */
+export function aiKonular(input: {
+  provider: AiProvider;
+  subject: { name: string };
+  items: Array<{ kod: string; konu: string; kazanim: string }>;
+  avoid?: string[];
+}): Promise<AiResult> {
+  return post({ action: 'konular', ...input });
 }
 
 /** Biçimi tanınmayan cevap anahtarı dosyasını çözer (yalnızca dosyanın hücre metni gider) */

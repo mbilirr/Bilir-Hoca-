@@ -16,6 +16,15 @@ export interface BankKazanim {
   grade: string;
   text: string;
   konu: string;
+  alt?: string[]; // Aşama 48g: açıklama maddeleri (a, b, c …) = alt kazanımlar
+}
+
+/** "1) …\n2) …" ya da "a) … | b) …" → maddeler (numara ve harfler atılır) */
+export function splitAlt(v: string): string[] {
+  return (v || '')
+    .split(/\r?\n|\s\|\s/)
+    .map((x) => x.replace(/^\s*(?:\d{1,2}|[a-zçğıöşü])\s*[).-]\s+/i, '').replace(/^[•·▪●⇨➪➢\-–*]\s*/, '').replace(/\s+/g, ' ').trim())
+    .filter((x) => x.length > 2);
 }
 
 export interface BankParseResult {
@@ -66,7 +75,7 @@ const explanationLine = (s: string) => /^([a-zçğıöşü]\)|[•·▪●\-–*
  * Kodlu satırlar arasında en derin kodlar kazanımdır; daha kısa kodlar ve kodsuz kısa satırlar başlıktır (konu).
  */
 export function parseKazanimText(text: string, subject: string, grade = '8'): BankParseResult {
-  type Entry = { code: string; text: string; depth: number; header?: string };
+  type Entry = { code: string; text: string; depth: number; header?: string; alt?: string[] };
   const entries: Array<Entry | { header: string }> = [];
   const warnings: string[] = [];
   let skipped = 0;
@@ -97,7 +106,11 @@ export function parseKazanimText(text: string, subject: string, grade = '8'): Ba
       continue;
     }
     if (explanationLine(line)) {
-      skipped++;
+      // Aşama 48g: "a) …" açıklamaları son kazanımın alt kazanımı olur
+      const lastCoded = [...entries].reverse().find((e): e is Entry => 'code' in e);
+      const item = splitAlt(line)[0];
+      if (lastCoded && item) (lastCoded.alt = lastCoded.alt || []).push(item);
+      else skipped++;
       last = null;
       continue;
     }
@@ -150,9 +163,10 @@ export function parseKazanimText(text: string, subject: string, grade = '8'): Ba
       grade,
       text: e.text.slice(0, 2000),
       konu: (e.header || header || '').slice(0, 300),
+      alt: e.alt && e.alt.length ? e.alt : undefined,
     });
   }
-  if (skipped) warnings.push(`${skipped} açıklama satırı (a), b), • ile başlayan) atlandı.`);
+  if (skipped) warnings.push(`${skipped} açıklama satırı kazanımla eşleştirilemediği için atlandı.`);
   if (!rows.some((r) => r.konu)) warnings.push('Konu başlığı bulunamadı; konuları yapay zekâ önerecek.');
   return { rows, headers, warnings };
 }
@@ -202,7 +216,7 @@ export function chunkProgram(pages: string[], indices: number[], maxChars = 1800
 
 /** Yapay zekânın çıkardığı kazanımları birleştirir (aynı kodda uzun metin kalır) */
 export function mergeProgramItems(
-  lists: Array<Array<{ ders: string; kod: string; kazanim: string; konu: string }>>,
+  lists: Array<Array<{ ders: string; kod: string; kazanim: string; konu: string; aciklamalar?: string[] }>>,
   grade = '8'
 ): BankKazanim[] {
   const m = new Map<string, BankKazanim>();
@@ -212,15 +226,30 @@ export function mergeProgramItems(
       if (!s || !it.kod || !it.kazanim) continue;
       const k = codeKey(it.kod);
       const prev = m.get(k);
-      const row: BankKazanim = { code: normCode(it.kod).slice(0, 60), subject: s.name, grade, text: squash(it.kazanim).slice(0, 2000), konu: niceTitle(it.konu || '').slice(0, 300) };
+      const alt = (it.aciklamalar || []).map((x) => squash(x)).filter((x) => x.length > 2);
+      const row: BankKazanim = {
+        code: normCode(it.kod).slice(0, 60),
+        subject: s.name,
+        grade,
+        text: squash(it.kazanim).slice(0, 2000),
+        konu: niceTitle(it.konu || '').slice(0, 300),
+        alt: alt.length ? alt : undefined,
+      };
       if (!prev) m.set(k, row);
-      else m.set(k, { ...prev, text: row.text.length > prev.text.length ? row.text : prev.text, konu: prev.konu || row.konu });
+      else
+        m.set(k, {
+          ...prev,
+          text: row.text.length > prev.text.length ? row.text : prev.text,
+          konu: prev.konu || row.konu,
+          alt: (row.alt?.length || 0) > (prev.alt?.length || 0) ? row.alt : prev.alt,
+        });
     }
   }
   const order = (c: string) => (c.match(/\d+/g) || []).map((n) => n.padStart(4, '0')).join('.');
   return Array.from(m.values()).sort((a, b) => a.subject.localeCompare(b.subject, 'tr') || order(a.code).localeCompare(order(b.code)));
 }
 
+const cellRaw = (v: unknown) => (v === null || v === undefined ? '' : String(v));
 const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
 
 /** Excel / CSV dosyasından kazanımlar. Başlık satırı yoksa satırlar metin gibi çözümlenir. */
@@ -235,14 +264,14 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
 
   for (const name of wb.SheetNames) {
     const data = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, raw: false, defval: null, blankrows: false });
-    let col: { code: number; text: number; konu: number; subject: number; grade: number } | null = null;
+    let col: { code: number; text: number; konu: number; subject: number; grade: number; alt: number } | null = null;
     for (const row of data) {
       const cells = (row || []).map(cellText);
       if (!cells.some(Boolean)) continue;
       const folded = cells.map(foldTr);
       if (!col) {
         const code = folded.findIndex((c) => /^(kazanim )?kod/.test(c));
-        const text = folded.findIndex((c, i) => i !== code && /kazanim/.test(c) && !/kod/.test(c));
+        const text = folded.findIndex((c, i) => i !== code && /kazanim/.test(c) && !/kod/.test(c) && !/^alt/.test(c));
         if (code >= 0 && text >= 0) {
           col = {
             code,
@@ -250,6 +279,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
             konu: folded.findIndex((c) => /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c)),
             subject: folded.findIndex((c) => /^ders/.test(c)),
             grade: folded.findIndex((c) => /^sinif/.test(c)),
+            alt: folded.findIndex((c) => /^alt kazanim|^aciklama/.test(c)),
           };
           usedHeader = true;
           continue;
@@ -273,6 +303,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
         grade: (col.grade >= 0 && cells[col.grade] ? cells[col.grade].replace(/\D+/g, '') : '') || grade,
         text: txt.slice(0, 2000),
         konu: col.konu >= 0 ? niceTitle(cells[col.konu] || '').slice(0, 300) : '',
+        alt: col.alt >= 0 ? splitAlt(cellRaw(row[col.alt])) : undefined,
       });
     }
   }
@@ -300,6 +331,7 @@ export interface BankOption {
   code: string;
   text: string;
   konu: string;
+  alt?: string[]; // Aşama 48g: alt kazanımlar (açıklama maddeleri)
 }
 
 export interface BankMatch {
@@ -360,4 +392,59 @@ export function matchToBank(src: { code?: string; text?: string }, options: Bank
   const score = Math.round(best.s * 100);
   if (score >= 75 || (score >= 50 && (!second || best.s - second.s >= 0.08))) return { code: best.o.code, score, by: 'metin' };
   return null;
+}
+
+// ----------------------------------------------------------------------------- Aşama 48g: konu / alt kazanım ayrımı
+// MEB yapısı: ünite (F.8.1) → KONU (F.8.1.1 Mevsimlerin Oluşumu) → kazanım (F.8.1.1.1 …).
+// Bankada "konu" = konu başlığı (parantez içinde gösterilir), "alt" = açıklama maddeleri (alt kazanımlar).
+// Konu alanı boş kalmış ya da kazanım metniyle doldurulmuşsa aynı konu kodundaki kardeş kazanımların konusu kullanılır.
+
+/** Kazanımın üst (konu) kodu: F.8.1.1.1 → F.8.1.1 */
+export function parentCodeKey(code: string): string {
+  const k = codeKey(code);
+  const i = k.lastIndexOf('.');
+  return i > 0 ? k.slice(0, i) : k;
+}
+
+/** Konu alanı gerçekten bir konu başlığı mı, yoksa boş / kazanım cümlesi mi? */
+export function isBadKonu(konu: string, text: string): boolean {
+  const k = squash(konu);
+  if (!k) return true;
+  // Konu, kazanım metninin aynısı ve bir cümleyse (kısa başlıklar, ör. "Paragrafta Anlam", konu sayılır)
+  if (foldTr(k) === foldTr(squash(text)) && (k.length > 45 || /r\.?$/i.test(k))) return true;
+  if (k.length > 70) return true;
+  const words = k.split(' ').length;
+  // "… tahminlerde bulunur", "… açıklar." gibi fiille biten uzun ifadeler kazanımdır
+  if (words >= 5 && /r\.?$/i.test(k)) return true;
+  if (/\.$/.test(k) && words >= 4) return true;
+  return false;
+}
+
+/** Kural ile düzeltme: konusu kötü olan kazanıma aynı üst koddaki kardeşlerin en sık konusu verilir */
+export function fixKonularByCode<T extends { code: string; text: string; konu: string; subject: string }>(rows: T[]): Map<string, string> {
+  const good = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (isBadKonu(r.konu, r.text)) continue;
+    const p = `${r.subject}|${parentCodeKey(r.code)}`;
+    const m = good.get(p) || new Map<string, number>();
+    m.set(r.konu, (m.get(r.konu) || 0) + 1);
+    good.set(p, m);
+  }
+  const out = new Map<string, string>(); // code → yeni konu
+  for (const r of rows) {
+    if (!isBadKonu(r.konu, r.text)) continue;
+    const m = good.get(`${r.subject}|${parentCodeKey(r.code)}`);
+    if (!m) continue;
+    const best = Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0];
+    if (best && best[0] !== r.konu) out.set(r.code, best[0]);
+  }
+  return out;
+}
+
+/** PDF metni bozuk mu? (özel yazı tipi kodlaması: "0dDUSDQODUYH.DWODU" gibi) */
+export function textLooksGarbled(pages: string[]): boolean {
+  const words = pages.join(' ').split(/[^A-Za-zÇĞİÖŞÜçğıöşüÂâÎîÛû]+/).filter((w) => w.length >= 3);
+  if (words.length < 40) return true;
+  const ok = words.filter((w) => /^[A-ZÇĞİÖŞÜÂÎÛ]?[a-zçğıöşüâîû]+$/.test(w) || /^[A-ZÇĞİÖŞÜÂÎÛ]+$/.test(w)).length;
+  return ok / words.length < 0.6;
 }

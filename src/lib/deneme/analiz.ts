@@ -5,6 +5,7 @@
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LGS_SCORING, LGS_SUBJECTS, markOf, round2, type ExamSubject } from './lgs';
+import { isBadKonu } from './kazanimBank';
 
 export type Level = 'iyi' | 'tekrar' | 'etut' | 'kritik';
 
@@ -55,11 +56,24 @@ const finish = (n: TopicNode) => {
 };
 
 /** Bir soru hangi konu ve alt başlık altında raporlanır */
+// Aşama 48g (öğretmenin istediği yapı):
+//   KONU        = MEB kazanımı + parantez içinde konu başlığı
+//                 ör. "F.8.1.1.1 Mevsimlerin oluşumuna yönelik tahminlerde bulunur. (Mevsimlerin Oluşumu)"
+//   ALT KAZANIM = o kazanımın açıklama maddelerinden biri (a, b, c …)
+//                 ör. "Dünya'nın dönme ekseni olduğuna değinilir."
+// Aynı kazanıma ait sorular tek konu altında toplanır; alt kazanımlar onun altında ayrılır.
 export function topicLabels(q: { konu?: string; kazanim?: string; alt?: string; kazanimCode?: string }): { konu: string; alt: string | null } {
-  const konu = (q.konu || q.kazanim || 'Konusu belirtilmemiş').trim();
-  let alt: string | null = (q.alt || '').trim() || null;
-  if (!alt && q.konu && q.kazanim && keyOf(q.kazanim) !== keyOf(q.konu)) alt = q.kazanim.trim();
-  return { konu, alt };
+  const title = (q.konu || '').trim();
+  const kaz = (q.kazanim || '').trim();
+  const code = (q.kazanimCode || '').trim();
+  const alt: string | null = (q.alt || '').trim() || null;
+  if (kaz) {
+    const head = code && !kaz.startsWith(code) ? `${code} ${kaz}` : kaz;
+    const withTitle = title && !isBadKonu(title, kaz) && keyOf(title) !== keyOf(kaz) ? `${head} (${title})` : head;
+    return { konu: withTitle, alt: alt && keyOf(alt) !== keyOf(kaz) ? alt : null };
+  }
+  if (title) return { konu: code && !title.startsWith(code) ? `${code} ${title}` : title, alt };
+  return { konu: 'Konusu belirtilmemiş', alt };
 }
 
 /** Sonuçlardan ders → konu → alt kazanım başarı ağacı (öğrenci için tek sonuç, sınıf için çok sonuç) */
@@ -82,7 +96,7 @@ export function topicAnalysis(exams: DenemeExam[], results: DenemeResult[], subj
         if (!q.answer) return;
         const { konu, alt } = topicLabels(q);
         const tk = keyOf(konu);
-        if (!topics.has(tk)) topics.set(tk, newNode(tk, konu, q.konu ? undefined : q.kazanimCode));
+        if (!topics.has(tk)) topics.set(tk, newNode(tk, konu, q.kazanimCode));
         const t = topics.get(tk)!;
         let c: TopicNode | null = null;
         if (alt) {

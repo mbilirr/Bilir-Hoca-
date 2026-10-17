@@ -2,21 +2,44 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Pause, Search, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { EmptyState, Modal, Panel, cx } from '../ui/kit';
 import { dataService } from '../../services/dataService';
-import { deleteKazanimlar, listKazanimlar, saveKazanimBank, type BankRow } from '../../services/denemeService';
+import {
+  applyBankToSavedExams,
+  deleteKazanimlar,
+  listKazanimlar,
+  saveKazanimBank,
+  updateKazanimKonular,
+  type BankRow,
+} from '../../services/denemeService';
 import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
 import {
   bankSubjectKey,
   chunkProgram,
+  fixKonularByCode,
   gradePages,
+  isBadKonu,
   mergeProgramItems,
   parseKazanimText,
   readKazanimFile,
+  textLooksGarbled,
   type BankKazanim,
   type BankParseResult,
 } from '../../lib/deneme/kazanimBank';
 import { foldTr, guessSubjectKey } from '../../lib/deneme/optik';
-import { extractPdfText } from '../../lib/deneme/kitapcik';
-import { AI_CONCURRENCY, AI_PROVIDERS, DAY_DONE_MSG, aiCall, aiProgram, aiStatus, newAiState, runPool, type AiProgramItem, type AiProvider } from '../../lib/aiApi';
+import { extractPdfText, openKitapcik, type Kitapcik } from '../../lib/deneme/kitapcik';
+import {
+  AI_CONCURRENCY,
+  AI_PROVIDERS,
+  DAY_DONE_MSG,
+  aiCall,
+  aiKonular,
+  aiProgram,
+  aiStatus,
+  newAiState,
+  runPool,
+  type AiImage,
+  type AiProgramItem,
+  type AiProvider,
+} from '../../lib/aiApi';
 
 // ============================================================================
 // Kazanım bankası (Aşama 48)
@@ -50,7 +73,14 @@ interface ProgFile {
   relevant: number[]; // 8. sınıf kazanımı geçen sayfalar (0'dan başlar)
   subject: string; // '' = yapay zekâ belirlesin
   all: boolean; // bütün sayfaları gönder
-  scanned: boolean; // metin yok (taranmış PDF)
+  scanned: boolean; // Aşama 48g: metin yok ya da bozuk → sayfalar RESİM olarak okunur
+  pageCount: number;
+}
+
+/** Aşama 48g: program PDF'inden bulunan kazanımların konularını düzeltir (aynı konu kodundaki kardeşlerden) */
+function withFixedKonular(rows: BankKazanim[]): BankKazanim[] {
+  const fixes = fixKonularByCode(rows);
+  return rows.map((r) => (fixes.has(r.code) ? { ...r, konu: fixes.get(r.code) as string } : r));
 }
 
 /** Zaman aşımında parçayı ikiye böler (sayfa sınırından) */
@@ -74,7 +104,7 @@ function fmtStamp(iso: string): string {
   return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: string }> }> = ({ rows }) => (
+const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: string; alt?: string[] }> }> = ({ rows }) => (
   <table className="w-full text-left text-xs text-fg-2">
     <tbody className="divide-y divide-line">
       {rows.map((r) => (
@@ -85,6 +115,15 @@ const BankTable: React.FC<{ rows: Array<{ code: string; text: string; konu: stri
           <td className="px-3 py-1.5 align-top">
             <p className="text-fg">{r.text}</p>
             {r.konu && <p className="text-[11px] text-muted">Konu: {r.konu}</p>}
+            {r.alt && r.alt.length > 0 && (
+              <ol className="mt-0.5 space-y-0.5 text-[11px] text-fg-2">
+                {r.alt.map((a, ai) => (
+                  <li key={ai}>
+                    <span className="text-muted">Alt {ai + 1})</span> {a}
+                  </li>
+                ))}
+              </ol>
+            )}
           </td>
         </tr>
       ))}
@@ -100,6 +139,13 @@ export const KazanimBankasi: React.FC = () => {
   const [query, setQuery] = useState('');
   const [delTarget, setDelTarget] = useState<{ name: string; codes: string[] } | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  // Aşama 48g: konu başlıklarını düzenleme
+  const [kfBusy, setKfBusy] = useState(false);
+  const [kfAll, setKfAll] = useState(false);
+  const [kfProgress, setKfProgress] = useState('');
+  const [kfMsg, setKfMsg] = useState<Msg>(null);
+  const [kfApplied, setKfApplied] = useState<string | null>(null);
+  const [kfChanges, setKfChanges] = useState<Array<{ code: string; subject: string; text: string; old: string; konu: string; on: boolean }> | null>(null);
   const isHead = dataService.isHeadAdmin();
 
   // Yapay zekâ ile programdan
@@ -179,7 +225,9 @@ export const KazanimBankasi: React.FC = () => {
         setReading(`${file.name} okunuyor…`);
         const pages = await extractPdfText(file, (d, t) => setReading(`${file.name} okunuyor… ${d}/${t}`));
         const chars = pages.reduce((a, p) => a + p.length, 0);
-        const relevant = gradePages(pages, '8');
+        // Metin yoksa (taranmış) ya da bozuksa (özel yazı tipi kodlaması) sayfalar resim olarak okunur
+        const scanned = chars < pages.length * 150 || textLooksGarbled(pages);
+        const relevant = scanned ? [] : gradePages(pages, '8');
         const guess = guessSubjectKey(file.name);
         added.push({
           id: `${file.name}-${file.size}-${Date.now()}`,
@@ -187,8 +235,9 @@ export const KazanimBankasi: React.FC = () => {
           pages,
           relevant,
           subject: guess || '',
-          all: relevant.length === 0,
-          scanned: chars < pages.length * 150,
+          all: !scanned && relevant.length === 0,
+          scanned,
+          pageCount: pages.length,
         });
       } catch (e: any) {
         setMsg({ tone: 'danger', text: e?.message || `${file.name} okunamadı.` });
@@ -199,14 +248,26 @@ export const KazanimBankasi: React.FC = () => {
   };
 
   const runProgram = async () => {
-    const usable = files.filter((f) => !f.scanned);
+    const usable = files;
     if (!usable.length) return;
     stopRef.current = false;
     setRunning(true);
     setNotes([]);
     setExtracted(null);
-    const jobs: Array<{ f: ProgFile; text: string }> = [];
+    type Job = { f: ProgFile; text: string; pages?: number[] };
+    const jobs: Job[] = [];
+    const books = new Map<string, Kitapcik>();
     for (const f of usable) {
+      if (f.scanned) {
+        // Metni okunamayan PDF: sayfalar ikişer ikişer resim olarak gönderilir
+        try {
+          books.set(f.id, await openKitapcik([f.file]));
+        } catch {
+          continue;
+        }
+        for (let p = 1; p <= f.pageCount; p += 2) jobs.push({ f, text: '', pages: p + 1 <= f.pageCount ? [p, p + 1] : [p] });
+        continue;
+      }
       const idx = f.all || !f.relevant.length ? f.pages.map((_, i) => i).filter((i) => f.pages[i].trim()) : f.relevant;
       for (const text of chunkProgram(f.pages, idx)) jobs.push({ f, text });
     }
@@ -219,17 +280,36 @@ export const KazanimBankasi: React.FC = () => {
     const queue = [...jobs];
     const progressOf = () => ({ done, total, label: `Kazanımlar çıkarılıyor (aynı anda ${AI_CONCURRENCY} bölüm)` });
     setProgress(progressOf());
-    const work = (job: { f: ProgFile; text: string }) => async () => {
-      const r = await aiCall(state, (p, avoid) => aiProgram({ provider: p, text: job.text, grade: '8', subject: job.f.subject || undefined, avoid }), {
+    const work = (job: Job) => async () => {
+      let images: AiImage[] | undefined;
+      if (job.pages) {
+        const book = books.get(job.f.id);
+        images = [];
+        for (const p of job.pages) {
+          const img = book ? await book.render(p, 1400, 0.8, 1_400_000).catch(() => null) : null;
+          if (img) images.push({ mime: img.mime, data: img.data, page: p });
+        }
+        if (!images.length) {
+          done++;
+          setProgress(progressOf());
+          return;
+        }
+      }
+      const r = await aiCall(state, (p, avoid) => aiProgram({ provider: p, text: job.text, images, grade: '8', subject: job.f.subject || undefined, avoid }), {
         stop: () => stopRef.current,
         onWait: (w) => setProgress({ ...progressOf(), wait: w }),
         onNote: (n) => note.push(n),
       });
       done++;
-      const parts = !r.ok && (r.code === 'timeout' || r.code === 'long') ? splitChunk(job.text) : null;
+      const parts = !r.ok && !job.pages && (r.code === 'timeout' || r.code === 'long') ? splitChunk(job.text) : null;
+      const pageParts = !r.ok && job.pages && job.pages.length > 1 && (r.code === 'timeout' || r.code === 'long' || r.code === 'size') ? job.pages : null;
       if (r.ok) {
         lists.push((r.items || []) as AiProgramItem[]);
-        setExtracted(mergeProgramItems(lists));
+        setExtracted(withFixedKonular(mergeProgramItems(lists)));
+      } else if (pageParts) {
+        // İki sayfa birden uzun sürdü: sayfalar tek tek yeniden sıraya girer
+        queue.unshift(...pageParts.map((p) => ({ f: job.f, text: '', pages: [p] })));
+        total += pageParts.length;
       } else if (parts) {
         // Uzun bölüm: ikiye bölünüp yeniden sıraya girer
         queue.unshift({ f: job.f, text: parts[0] }, { f: job.f, text: parts[1] });
@@ -250,7 +330,8 @@ export const KazanimBankasi: React.FC = () => {
       },
       () => stopRef.current
     );
-    const merged = mergeProgramItems(lists);
+    for (const b of books.values()) b.destroy();
+    const merged = withFixedKonular(mergeProgramItems(lists));
     setExtracted(merged);
     const subjects = Array.from(new Set(merged.map((r) => r.subject)));
     setPick(Object.fromEntries(subjects.map((s) => [s, true])));
@@ -316,6 +397,112 @@ export const KazanimBankasi: React.FC = () => {
       setMsg({ tone: 'danger', text: e?.message || 'Kaydedilemedi.' });
     } finally {
       setBusy(false);
+    }
+  };
+
+  // ----------------------------------------------------------------------------- Aşama 48g: konu başlıklarını düzenleme
+  const badCount = useMemo(() => rows.filter((r) => isBadKonu(r.konu, r.text)).length, [rows]);
+
+  const runKonuFix = async () => {
+    setKfBusy(true);
+    setKfMsg(null);
+    setKfChanges(null);
+    setKfApplied(null);
+    stopRef.current = false;
+    try {
+      // 1) Kural: aynı konu kodundaki kardeşlerin konusu
+      const det = fixKonularByCode(rows);
+      const cur = rows.map((r) => ({ ...r, konu: det.get(r.code) ?? r.konu }));
+      const next = new Map<string, string>(det);
+      // 2) Yapay zekâ: hâlâ konusu boş/kazanım cümlesi olan ders(ler) için (ya da istenirse hepsi)
+      const notes: string[] = [];
+      if (keys && (keys.gemini || keys.mistral)) {
+        const subjects = LGS_SUBJECTS.filter((s) => cur.some((r) => bankSubjectKey(r.subject) === s.key && (kfAll || isBadKonu(r.konu, r.text))));
+        const state = newAiState(provider, fallback, keys);
+        let i = 0;
+        let done = 0;
+        let stop = false;
+        setKfProgress(`Konular yapay zekâ ile düzenleniyor… 0/${subjects.length} ders`);
+        await runPool(
+          AI_CONCURRENCY,
+          () => {
+            if (stop || i >= subjects.length) return null;
+            const s = subjects[i++];
+            return async () => {
+              const list = cur.filter((r) => bankSubjectKey(r.subject) === s.key);
+              const r = await aiCall(
+                state,
+                (p, avoid) => aiKonular({ provider: p, subject: { name: s.name }, items: list.slice(0, 400).map((x) => ({ kod: x.code, konu: x.konu, kazanim: x.text })), avoid }),
+                { stop: () => stopRef.current, onWait: (w) => w && setKfProgress(w) }
+              );
+              done++;
+              setKfProgress(`Konular yapay zekâ ile düzenleniyor… ${done}/${subjects.length} ders`);
+              if (!r.ok) {
+                notes.push(`${s.name}: ${r.error || 'yapay zekâ ile düzenlenemedi'}`);
+                if (r.code === 'quota-day' || r.code === 'no-key') stop = true;
+                return;
+              }
+              const byCode = new Map(list.map((x) => [x.code, x]));
+              for (const it of (r.items || []) as Array<{ kod: string; konu: string }>) {
+                const row = byCode.get(it.kod);
+                if (!row || !it.konu || isBadKonu(it.konu, row.text)) continue;
+                if (kfAll || isBadKonu(row.konu, row.text)) next.set(row.code, it.konu);
+              }
+            };
+          },
+          () => stopRef.current
+        );
+      } else if (cur.some((r) => isBadKonu(r.konu, r.text))) {
+        notes.push('Yapay zekâ anahtarı tanımlı olmadığı için yalnızca kural ile düzeltme yapıldı.');
+      }
+      // 3) Sonuç: aynı konu kodundaki kazanımlar aynı konuyu alsın
+      const after = rows.map((r) => ({ ...r, konu: next.get(r.code) ?? r.konu }));
+      for (const [code, konu] of fixKonularByCode(after)) next.set(code, konu);
+      const changes = rows
+        .filter((r) => next.has(r.code) && next.get(r.code) !== r.konu)
+        .map((r) => ({ code: r.code, subject: r.subject, text: r.text, old: r.konu, konu: next.get(r.code) as string, on: true }));
+      setKfChanges(changes);
+      setKfMsg({
+        tone: changes.length ? 'success' : 'warning',
+        text: (changes.length ? `${changes.length} kazanımın konusu düzeltilecek. Listeyi kontrol edip "Kaydet" deyin.` : 'Düzeltilecek konu bulunamadı.') + (notes.length ? ' ' + notes.join(' ') : ''),
+      });
+    } catch (e: any) {
+      setKfMsg({ tone: 'danger', text: e?.message || 'Konular düzenlenemedi.' });
+    } finally {
+      setKfBusy(false);
+      setKfProgress('');
+    }
+  };
+
+  const saveKonuFix = async () => {
+    if (!kfChanges) return;
+    const m = new Map(kfChanges.filter((c) => c.on && c.konu.trim()).map((c) => [c.code, c.konu.trim()]));
+    if (!m.size) return;
+    setKfBusy(true);
+    try {
+      const n = await updateKazanimKonular(m, (d, t) => setKfProgress(`Kaydediliyor… ${d}/${t}`));
+      setKfChanges(null);
+      setKfMsg({ tone: 'success', text: `${n} kazanımın konusu kaydedildi. Kayıtlı denemelerin karnelerinde de görünmesi için "Kayıtlı denemelere uygula" deyin.` });
+      await load();
+    } catch (e: any) {
+      setKfMsg({ tone: 'danger', text: e?.message || 'Kaydedilemedi.' });
+    } finally {
+      setKfBusy(false);
+      setKfProgress('');
+    }
+  };
+
+  const applyToExams = async () => {
+    setKfBusy(true);
+    try {
+      const fresh = await listKazanimlar();
+      const r = await applyBankToSavedExams(fresh, (d, t) => setKfProgress(`Denemeler güncelleniyor… ${d}/${t}`));
+      setKfApplied(`${r.exams} denemede ${r.questions} sorunun konu ve kazanımı bankaya göre güncellendi.`);
+    } catch (e: any) {
+      setKfApplied(e?.message || 'Denemeler güncellenemedi.');
+    } finally {
+      setKfBusy(false);
+      setKfProgress('');
     }
   };
 
@@ -403,7 +590,9 @@ export const KazanimBankasi: React.FC = () => {
                   </span>
                   <span className="ui-chip ui-chip-neutral">{f.pages.length} sayfa</span>
                   {f.scanned ? (
-                    <span className="ui-chip ui-chip-danger">Metin yok (taranmış PDF)</span>
+                    <span className="ui-chip ui-chip-warning" title="Metni okunamıyor (taranmış ya da özel yazı tipli PDF); sayfalar resim olarak yapay zekâya okutulacak">
+                      Sayfalar resim olarak okunacak
+                    </span>
                   ) : (
                     <span className={cx('ui-chip', f.relevant.length ? 'ui-chip-success' : 'ui-chip-warning')}>
                       {f.relevant.length ? `8. sınıf: ${f.relevant.length} sayfa` : '8. sınıf kodu bulunamadı'}
@@ -412,7 +601,7 @@ export const KazanimBankasi: React.FC = () => {
                   <select
                     className="ui-input py-1 text-xs w-auto"
                     value={f.subject}
-                    disabled={running || f.scanned}
+                    disabled={running}
                     aria-label={`${f.file.name} dersi`}
                     onChange={(e) => setFiles((l) => l.map((x) => (x.id === f.id ? { ...x, subject: e.target.value } : x)))}
                   >
@@ -441,7 +630,7 @@ export const KazanimBankasi: React.FC = () => {
           )}
           {files.some((f) => f.scanned) && (
             <p className="text-[11px] text-warning-fg">
-              Taranmış PDF'lerde metin yoktur. MEB'in sitesindeki (mufredat.meb.gov.tr) metin içeren program PDF'ini indirip onu seçin.
+              Bazı PDF'lerin metni okunamıyor (taranmış ya da özel yazı tipli). Bu dosyaların sayfaları resim olarak ikişer ikişer yapay zekâya okutulur; biraz daha uzun sürer.
             </p>
           )}
 
@@ -450,7 +639,7 @@ export const KazanimBankasi: React.FC = () => {
               <button
                 type="button"
                 className="ui-btn ui-btn-primary ui-btn-sm"
-                disabled={!files.some((f) => !f.scanned) || !!reading || !!noKeys}
+                disabled={!files.length || !!reading || !!noKeys}
                 onClick={() => void runProgram()}
                 id="kb-program-run"
               >
@@ -623,6 +812,83 @@ export const KazanimBankasi: React.FC = () => {
         )}
       </Panel>
 
+      {isHead && rows.length > 0 && (
+        <Panel
+          icon={Sparkles}
+          title="Konu başlıkları"
+          description='Karnede konu = kazanım ve parantez içinde konu başlığı (ör. F.8.1.1.1 Mevsimlerin oluşumuna yönelik tahminlerde bulunur. (Mevsimlerin Oluşumu)); alt kazanım = o kazanımın açıklama maddeleri. Konu başlığı boş ya da kazanım cümlesi olan kazanımlar burada düzeltilir.'
+        >
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cx('ui-chip', badCount ? 'ui-chip-warning' : 'ui-chip-success')}>
+                {badCount ? `${badCount} kazanımın konusu boş ya da kazanım cümlesi` : 'Bütün kazanımların konusu düzgün görünüyor'}
+              </span>
+              <span className="flex-1" />
+              <label className="flex items-center gap-2 text-xs text-fg-2">
+                <input type="checkbox" checked={kfAll} disabled={kfBusy} onChange={(e) => setKfAll(e.target.checked)} />
+                Bütün konuları yapay zekâyla gözden geçir
+              </label>
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={kfBusy || (!badCount && !kfAll)} onClick={() => void runKonuFix()} id="kb-konu-fix">
+                <Sparkles /> Konuları düzenle
+              </button>
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={kfBusy} onClick={() => void applyToExams()} id="kb-konu-apply-exams">
+                <BookOpen /> Kayıtlı denemelere uygula
+              </button>
+            </div>
+            {kfProgress && <p className="text-xs text-muted">{kfProgress}</p>}
+            <MsgLine msg={kfMsg} />
+            {kfApplied && <p className="text-xs font-semibold rounded-xl px-3 py-2 bg-info-soft text-info-fg">{kfApplied}</p>}
+            {kfChanges && kfChanges.length > 0 && (
+              <div className="rounded-xl border border-line overflow-hidden">
+                <div className="px-3 py-2 bg-surface-2/60 border-b border-line flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-fg flex-1">Önerilen konu değişiklikleri (konuyu düzeltebilirsiniz)</span>
+                  <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setKfChanges(null)} disabled={kfBusy}>
+                    Vazgeç
+                  </button>
+                  <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={kfBusy || !kfChanges.some((c) => c.on)} onClick={() => void saveKonuFix()} id="kb-konu-save">
+                    {kfBusy ? 'Kaydediliyor…' : `${kfChanges.filter((c) => c.on).length} konuyu kaydet`}
+                  </button>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  <table className="w-full text-left text-xs text-fg-2">
+                    <tbody className="divide-y divide-line">
+                      {kfChanges.map((c, i) => (
+                        <tr key={c.code} className={cx(!c.on && 'opacity-55')}>
+                          <td className="pl-3 py-1.5 align-top w-6">
+                            <input
+                              type="checkbox"
+                              checked={c.on}
+                              onChange={(e) => setKfChanges((l) => (l ? l.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)) : l))}
+                              aria-label={`${c.code} değişikliğini uygula`}
+                            />
+                          </td>
+                          <td className="px-3 py-1.5 align-top whitespace-nowrap">
+                            <span className="ui-chip ui-chip-neutral">{c.code}</span>
+                          </td>
+                          <td className="px-3 py-1.5 align-top">
+                            <p className="text-fg">{c.text}</p>
+                            <p className="text-[11px] text-muted">Şu anki konu: {c.old || '—'}</p>
+                          </td>
+                          <td className="px-3 py-1.5 align-top w-64">
+                            <input
+                              className="ui-input py-0.5 text-xs"
+                              value={c.konu}
+                              maxLength={120}
+                              onChange={(e) => setKfChanges((l) => (l ? l.map((x, j) => (j === i ? { ...x, konu: e.target.value } : x)) : l))}
+                              aria-label={`${c.code} yeni konu`}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </Panel>
+      )}
+
       <Panel
         icon={BookOpen}
         title="Bankadaki kazanımlar"
@@ -725,6 +991,16 @@ export const KazanimBankasi: React.FC = () => {
                                 <p className="text-[11px] text-muted">
                                   {[r.konu ? `Konu: ${r.konu}` : '', r.updatedAt ? `Yüklenme: ${fmtStamp(r.updatedAt)}` : ''].filter(Boolean).join(' · ')}
                                 </p>
+                                {r.alt && r.alt.length > 0 && (
+                                    <ol className="mt-0.5 space-y-0.5 text-[11px] text-fg-2">
+                                      {r.alt.map((a, ai) => (
+                                        <li key={ai}>
+                                          <span className="text-muted">Alt {ai + 1})</span> {a}
+                                        </li>
+                                      ))}
+                                    </ol>
+                                  )}
+
                               </td>
                             </tr>
                           ))}

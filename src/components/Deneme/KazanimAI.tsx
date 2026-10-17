@@ -79,7 +79,6 @@ export const KazanimAI: React.FC<{
   const [log, setLog] = useState<string[]>([]);
   const [found, setFound] = useState<Record<string, Record<number, Found>>>({});
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
-  const [altMode, setAltMode] = useState<'meb' | 'ai'>('meb');
   const stopRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const bookRef = useRef<Kitapcik | null>(null);
@@ -303,7 +302,7 @@ export const KazanimAI: React.FC<{
             name: s.name,
             count: s.count,
             hint: hint.trim(),
-            kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text })),
+            kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text, alt: k.alt || [] })),
           };
         });
         const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid }), {
@@ -347,7 +346,8 @@ export const KazanimAI: React.FC<{
           code: f?.sug.kod || '',
           code2: f?.sug.kod2 || '',
           konu: (b && b.konu) || f?.sug.konu || '',
-          alt: f?.sug.alt || '',
+          // Aşama 48g: alt kazanım = seçilen kazanımın açıklama maddesi (yapay zekânın seçtiği numara)
+          alt: b && f && f.sug.altNo ? (b.alt || [])[f.sug.altNo - 1] || '' : '',
         };
       }
     }
@@ -380,7 +380,7 @@ export const KazanimAI: React.FC<{
           kazanimCode: d.code || undefined,
           kazanim: b ? b.text : undefined,
           konu: (d.konu || (b && b.konu) || '').trim().slice(0, 120) || undefined,
-          alt: altMode === 'ai' ? d.alt.trim().slice(0, 160) || undefined : undefined,
+          alt: d.alt && b && (b.alt || []).includes(d.alt) ? d.alt : undefined,
           kazanimCode2: d.code2 || undefined,
           kazanim2: b2 ? b2.text : undefined,
           ai: f ? f.provider : q.ai,
@@ -625,14 +625,10 @@ export const KazanimAI: React.FC<{
                   {log.length > 8 && <p>… {log.length - 8} not daha.</p>}
                 </div>
               )}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-fg-2">Alt kazanım olarak:</span>
-                <select className="ui-input py-1 text-xs w-auto" value={altMode} onChange={(e) => setAltMode(e.target.value as 'meb' | 'ai')} aria-label="Alt kazanım kaynağı">
-                  <option value="meb">MEB kazanım metni (önerilen: denemeler arasında karşılaştırılabilir)</option>
-                  <option value="ai">Yapay zekânın kısa ifadesi</option>
-                </select>
-                <span className="text-[11px] text-muted">Güveni %50'nin altındakiler ve zaten kazanımı olan sorular işaretsiz gelir.</span>
-              </div>
+              <p className="text-[11px] text-muted">
+                Konu = seçilen MEB kazanımı (parantez içinde konu başlığıyla); alt kazanım = o kazanımın açıklama maddelerinden biri. Güveni %50'nin altındakiler ve zaten kazanımı olan
+                sorular işaretsiz gelir.
+              </p>
               {reviewSubjects.map((s) => {
                 const list = questions[s.key] || [];
                 const options = bankBySubject[s.key] || [];
@@ -666,9 +662,8 @@ export const KazanimAI: React.FC<{
                           <tr>
                             <th className="px-2 py-2 font-semibold w-10 text-center">Uygula</th>
                             <th className="px-2 py-2 font-semibold w-10">No</th>
-                            <th className="px-2 py-2 font-semibold min-w-72">Kazanım</th>
-                            <th className="px-2 py-2 font-semibold w-44">Konu</th>
-                            {altMode === 'ai' && <th className="px-2 py-2 font-semibold w-48">Alt kazanım</th>}
+                            <th className="px-2 py-2 font-semibold min-w-72">Konu (kazanım)</th>
+                            <th className="px-2 py-2 font-semibold min-w-56">Alt kazanım</th>
                             <th className="px-2 py-2 font-semibold w-20 text-center">Güven</th>
                           </tr>
                         </thead>
@@ -698,7 +693,7 @@ export const KazanimAI: React.FC<{
                                     onChange={(e) => {
                                       const code = e.target.value;
                                       const b = code ? bankByCode.get(codeKey(code)) : undefined;
-                                      setDec(k, { code, konu: (b && b.konu) || d.konu, apply: !!code || !!d.konu });
+                                      setDec(k, { code, konu: (b && b.konu) || d.konu, alt: '', apply: !!code || !!d.konu });
                                     }}
                                     aria-label={`${s.name} ${q.no}. soru kazanımı`}
                                   >
@@ -720,25 +715,28 @@ export const KazanimAI: React.FC<{
                                   {!f && <p className="text-[11px] text-muted mt-0.5">Yapay zekâ bu soruyu bulamadı; isterseniz elle seçin.</p>}
                                 </td>
                                 <td className="px-2 py-1.5">
-                                  <input
-                                    className="ui-input py-0.5 text-xs"
-                                    value={d.konu}
-                                    maxLength={120}
-                                    onChange={(e) => setDec(k, { konu: e.target.value })}
-                                    aria-label={`${s.name} ${q.no}. soru konusu`}
-                                  />
+                                  {(() => {
+                                    const alts = (d.code && bankByCode.get(codeKey(d.code))?.alt) || [];
+                                    return alts.length ? (
+                                      <select
+                                        className="ui-input py-0.5 text-xs"
+                                        value={alts.includes(d.alt) ? d.alt : ''}
+                                        onChange={(e) => setDec(k, { alt: e.target.value })}
+                                        aria-label={`${s.name} ${q.no}. soru alt kazanımı`}
+                                      >
+                                        <option value="">— alt kazanım yok —</option>
+                                        {alts.map((a, ai) => (
+                                          <option key={ai} value={a}>
+                                            {ai + 1}) {short(a, 90)}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="text-subtle">{d.code ? 'Bu kazanımın alt maddesi yok' : '—'}</span>
+                                    );
+                                  })()}
+                                  {d.konu && <p className="text-[11px] text-muted mt-0.5">Konu başlığı: {d.konu}</p>}
                                 </td>
-                                {altMode === 'ai' && (
-                                  <td className="px-2 py-1.5">
-                                    <input
-                                      className="ui-input py-0.5 text-xs"
-                                      value={d.alt}
-                                      maxLength={160}
-                                      onChange={(e) => setDec(k, { alt: e.target.value })}
-                                      aria-label={`${s.name} ${q.no}. soru alt kazanımı`}
-                                    />
-                                  </td>
-                                )}
                                 <td className="px-2 py-1.5 text-center">
                                   {f ? <span className={cx('ui-chip', confTone(f.sug.guven))}>%{f.sug.guven}</span> : <span className="text-subtle">—</span>}
                                   {f && <p className="text-[10px] text-subtle mt-0.5">s.{f.page}</p>}

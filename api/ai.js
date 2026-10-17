@@ -389,31 +389,39 @@ const SUBJECT_LIST = Object.entries(SUBJECTS)
 // ----------------------------------------------------------------------------- 1) Öğretim programından kazanımlar
 const PROGRAM_SYSTEM = [
   'Sen MEB öğretim programlarını çok iyi bilen bir eğitim uzmanısın.',
-  'Sana bir öğretim programı PDF\'inden çıkarılmış metnin bir bölümü verilir (satırlar bozuk ya da bölünmüş olabilir).',
-  'Görevin: metinde geçen, istenen sınıf düzeyine ait KAZANIMLARI eksiksiz ve aynen çıkarmak.',
+  'Sana bir öğretim programı PDF\'inin bir bölümü verilir: ya metni (satırlar bölünmüş olabilir) ya da sayfa resimleri.',
+  'Görevin: istenen sınıf düzeyine ait KAZANIMLARI eksiksiz ve aynen çıkarmak.',
+  'MEB programlarının yapısı: ÜNİTE (ör. "F.8.1. Mevsimler ve İklim") → KONU (ör. "F.8.1.1. Mevsimlerin Oluşumu") → KAZANIM (ör. "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur.").',
   'Kurallar:',
-  '- Yalnızca metinde gerçekten bulunan kazanımları yaz; kendinden kazanım uydurma.',
+  '- Yalnızca belgede gerçekten bulunan kazanımları yaz; kendinden kazanım uydurma.',
   '- "kod": kazanımın programdaki kodu, aynen (ör. F.8.1.1.1., T.8.3.5., M.8.1.2.3., İTA.8.2.1., 8.1.1., E8.1.R1.).',
-  '- "kazanim": kazanım cümlesinin tamamı; a), b), c) ile başlayan açıklamaları ve sınırlamaları EKLEME.',
-  '- "konu": kazanımın bağlı olduğu konu ya da ünite adı, kısa (ör. "Mevsimler ve İklim", "Çarpanlar ve Katlar", "Söz Varlığı").',
+  '- "kazanim": kazanım cümlesinin tamamı; altındaki açıklamaları buraya EKLEME.',
+  '- "aciklamalar": kazanımın hemen altındaki açıklama maddeleri (a), b), c) … ya da madde işaretli/italik satırlar), her biri ayrı bir metin, harfleri olmadan, aynen. Açıklama yoksa boş liste.',
+  '- "konu": kazanımın hemen üstündeki KONU başlığı, kodsuz ve kısa (ör. "Mevsimlerin Oluşumu", "İklim ve Hava Hareketleri", "Çarpanlar ve Katlar", "Üslü İfadeler").',
+  '  Konu ASLA kazanım cümlesi olamaz ve ünite adı olmamalıdır. Aynı konu başlığı altındaki bütün kazanımlara AYNI konu adını yaz.',
+  '  Türkçe gibi konu başlığı kodlu olmayan derslerde kazanımın üstündeki alt başlığı yaz (ör. "Söz Varlığı", "Anlama", "Yazım ve Noktalama").',
+  '  Belgede konu başlığı yoksa ünite adını yaz.',
   '- "ders": şu anahtarlardan biri: ' + SUBJECT_LIST + '.',
   '- Başka sınıfların kazanımlarını, genel amaçları, açıklamaları ve tabloları alma.',
-  '- Yalnızca şu biçimde JSON döndür: {"kazanimlar":[{"ders":"fen","kod":"","kazanim":"","konu":""}]}',
+  '- Yalnızca şu biçimde JSON döndür: {"kazanimlar":[{"ders":"fen","kod":"","kazanim":"","konu":"","aciklamalar":[""]}]}',
 ].join('\n');
 
 async function actionProgram(body) {
   const text = String(body.text || '').slice(0, MAX_PROGRAM_CHARS);
-  if (text.replace(/\s+/g, '').length < 50) throw new HttpError(400, 'Öğretim programı metni boş.');
+  // Aşama 48g: metni bozuk (özel yazı tipi) ya da taranmış PDF'lerde sayfa resimleri gönderilir
+  const images = Array.isArray(body.images) && body.images.length ? readImages(body.images).slice(0, 3) : [];
+  if (!images.length && text.replace(/\s+/g, '').length < 50) throw new HttpError(400, 'Öğretim programı metni boş.');
   const grade = clean(body.grade, 4) || '8';
   const hint = subjectKeyOf(body.subject);
   const prompt = [
     `Sınıf düzeyi: ${grade}. sınıf. Yalnızca ${grade}. sınıf kazanımlarını çıkar.`,
-    hint ? `Bu metin "${SUBJECTS[hint]}" öğretim programıdır; "ders" alanına "${hint}" yaz.` : 'Dersi metinden anla.',
+    hint ? `Bu belge "${SUBJECTS[hint]}" öğretim programıdır; "ders" alanına "${hint}" yaz.` : 'Dersi belgeden anla.',
     '',
-    'Metin:',
-    text,
+    ...(images.length
+      ? [`Resimler sırasıyla programın şu sayfalarıdır: ${images.map((i) => i.page).join(', ')}.`, body.context ? `Önceki sayfadaki son başlıklar: ${clean(body.context, 300)}` : '']
+      : ['Metin:', text]),
   ].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, PROGRAM_SYSTEM, prompt, []);
+  const { provider, model, parsed, exhausted } = await ask(body, PROGRAM_SYSTEM, prompt, images);
   const raw = Array.isArray(parsed.kazanimlar) ? parsed.kazanimlar : [];
   const seen = new Set();
   const items = [];
@@ -425,7 +433,11 @@ async function actionProgram(body) {
     const k = codeKey(kod);
     if (seen.has(k)) continue;
     seen.add(k);
-    items.push({ ders, kod: kod.replace(/\.+$/, ''), kazanim, konu: clean(it.konu, 200) });
+    const aciklamalar = (Array.isArray(it.aciklamalar) ? it.aciklamalar : [])
+      .map((x) => clean(x, 600).replace(/^(?:[a-zçğıöşü]|\d{1,2})\s*[).-]\s+/i, ''))
+      .filter((x) => x.length > 2)
+      .slice(0, 12);
+    items.push({ ders, kod: kod.replace(/\.+$/, ''), kazanim, konu: clean(it.konu, 200), aciklamalar });
   }
   return { ok: true, provider, model, items, exhausted };
 }
@@ -480,10 +492,11 @@ const CLASSIFY_SYSTEM = [
   '- Soru birden çok kazanımı ölçüyorsa en baskın olanı "kod", ikincisini "kod2" yaz (yoksa boş bırak).',
   '- "no": sorunun dersin KENDİ sırasındaki numarası (ders içinde 1\'den başlar). Kitapçıktaki numara farklıysa verilen eşleştirmeyi kullan.',
   '- "konu": sorunun konusu, kısa (en çok 6 kelime), ör. "Mevsimlerin Oluşumu", "Üslü İfadeler", "Paragrafta Anlam".',
+  '- "alt_no": seçtiğin kazanımın "Alt kazanımlar" listesinde soruyu en iyi anlatan maddenin numarası (1, 2, 3 …); liste yoksa ya da hiçbiri uymuyorsa 0.',
   '- "alt": sorunun ölçtüğü beceriyi anlatan kısa ifade (en çok 12 kelime).',
   '- "guven": seçiminden ne kadar eminsin, 0-100 arası tam sayı.',
   '- Soruyu çözme, cevabı yazma. Sayfada soru yoksa boş liste döndür.',
-  '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"sayfa":1,"ders":"fen","no":1,"kod":"","kod2":"","konu":"","alt":"","guven":0}]}',
+  '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"sayfa":1,"ders":"fen","no":1,"kod":"","kod2":"","alt_no":0,"konu":"","alt":"","guven":0}]}',
 ].join('\n');
 
 async function actionClassify(body) {
@@ -496,7 +509,12 @@ async function actionClassify(body) {
     const count = Math.max(1, Math.min(100, Number(s && s.count) || 20));
     if (!name) continue;
     const kaz = (Array.isArray(s.kazanimlar) ? s.kazanimlar.slice(0, MAX_KAZANIM) : [])
-      .map((k) => ({ code: clean(k && k.code, 60), konu: clean(k && k.konu, 120), text: clean(k && k.text, 400) }))
+      .map((k) => ({
+        code: clean(k && k.code, 60),
+        konu: clean(k && k.konu, 120),
+        text: clean(k && k.text, 400),
+        alt: (Array.isArray(k && k.alt) ? k.alt : []).slice(0, 12).map((x) => clean(x, 300)).filter(Boolean),
+      }))
       .filter((k) => k.code && k.text);
     prepared.push({ key, name, count, kaz, hint: clean(s.hint, 500) });
   }
@@ -508,7 +526,9 @@ async function actionClassify(body) {
       `Bu dersin soruları ders içinde 1-${s.count} arasında numaralıdır.`,
       s.hint ? `Numara bilgisi: ${s.hint}` : '',
       'Kazanım listesi (kod | konu | kazanım):',
-      s.kaz.length ? s.kaz.map((k) => `${k.code} | ${k.konu || '-'} | ${k.text}`).join('\n') : '(liste boş: "kod" alanlarını boş bırak, konu ve alt kazanımı yaz)',
+      s.kaz.length
+        ? s.kaz.map((k) => `${k.code} | ${k.konu || '-'} | ${k.text}${k.alt.length ? ` || Alt kazanımlar: ${k.alt.map((a, i) => `${i + 1}) ${a}`).join(' ; ')}` : ''}`).join('\n')
+        : '(liste boş: "kod" alanlarını boş bırak, konu ve alt kazanımı yaz)',
     ]
       .filter(Boolean)
       .join('\n')
@@ -538,6 +558,9 @@ async function actionClassify(body) {
     if (kod2 === kod) kod2 = '';
     const g = Math.round(Number(it.guven));
     const sp = Number(it.sayfa);
+    const altList = (s.kaz.find((k) => k.code === kod) || { alt: [] }).alt;
+    const an = Math.round(Number(it.alt_no));
+    const altNo = kod && Number.isFinite(an) && an >= 1 && an <= altList.length ? an : 0;
     items.push({
       sayfa: pageNos.includes(sp) ? sp : pageNos[0] || 0,
       ders: s.key,
@@ -546,6 +569,7 @@ async function actionClassify(body) {
       kod2,
       konu: clean(it.konu, 120),
       alt: clean(it.alt, 160),
+      altNo,
       guven: Number.isFinite(g) ? Math.max(0, Math.min(100, g)) : 50,
     });
   }
@@ -652,6 +676,42 @@ async function actionKey(body) {
   return { ok: true, provider, model, items: out, exhausted };
 }
 
+// ----------------------------------------------------------------------------- 6) Kazanımların konu başlıklarını düzenleme (yalnızca metin)
+const KONU_SYSTEM = [
+  'Sen MEB 8. sınıf öğretim programlarını çok iyi bilen bir eğitim uzmanısın.',
+  'MEB programlarının yapısı: ÜNİTE (ör. "F.8.1. Mevsimler ve İklim") → KONU (ör. "F.8.1.1. Mevsimlerin Oluşumu") → KAZANIM (ör. "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur.").',
+  'Sana bir dersin kazanımları (kod | şu anki konu | kazanım) verilir. Şu anki konu boş, yanlış ya da kazanım cümlesinin kendisi olabilir.',
+  'Görevin: her kazanım için doğru KONU başlığını yazmak.',
+  'Kurallar:',
+  '- Konu, kazanımın bağlı olduğu MEB konu başlığıdır; kısa ve kodsuz (ör. "Mevsimlerin Oluşumu", "İklim ve Hava Hareketleri", "Çarpanlar ve Katlar", "Üslü İfadeler", "DNA ve Genetik Kod").',
+  '- Konu ASLA kazanım cümlesi olamaz. Aynı üst koda sahip kazanımlar (ör. F.8.1.1.1 ve F.8.1.1.2) AYNI konu adını almalıdır.',
+  '- Türkçe gibi kodlu konu başlığı olmayan derslerde kazanımı en iyi anlatan alt başlığı yaz (ör. "Söz Varlığı", "Anlama", "Söz Sanatları", "Fiilimsiler", "Cümle Türleri", "Yazım ve Noktalama").',
+  '- Şu anki konu zaten doğru bir konu başlığıysa aynen koru.',
+  '- Yalnızca şu biçimde JSON döndür: {"konular":[{"kod":"","konu":""}]}',
+].join('\n');
+
+async function actionKonular(body) {
+  const name = clean(body.subject && body.subject.name, 80);
+  if (!name) throw new HttpError(400, 'Ders bilgisi eksik.');
+  const items = (Array.isArray(body.items) ? body.items.slice(0, MAX_KAZANIM) : [])
+    .map((k) => ({ kod: clean(k && k.kod, 60), konu: clean(k && k.konu, 160), kazanim: clean(k && k.kazanim, 300) }))
+    .filter((k) => k.kod && k.kazanim);
+  if (!items.length) return { ok: true, items: [] };
+  const prompt = [`Ders: ${name}`, '', 'Kazanımlar (kod | şu anki konu | kazanım):', items.map((k) => `${k.kod} | ${k.konu || '-'} | ${k.kazanim}`).join('\n')].join('\n');
+  const { provider, model, parsed, exhausted } = await ask(body, KONU_SYSTEM, prompt, [], 'normal');
+  const allowed = new Map(items.map((k) => [codeKey(k.kod), k.kod]));
+  const seen = new Set();
+  const out = [];
+  for (const it of Array.isArray(parsed.konular) ? parsed.konular.slice(0, 500) : []) {
+    const kod = allowed.get(codeKey(it && it.kod));
+    const konu = clean(it && it.konu, 120).replace(/^[A-ZÇĞİÖŞÜa-z]{0,5}\.?\d+(\.\d+)*\.?\s*/, '');
+    if (!kod || !konu || seen.has(kod)) continue;
+    seen.add(kod);
+    out.push({ kod, konu });
+  }
+  return { ok: true, provider, model, items: out, exhausted };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   try {
@@ -678,6 +738,7 @@ export default async function handler(req, res) {
     if (body.action === 'classify') return res.status(200).json(await actionClassify(body));
     if (body.action === 'match') return res.status(200).json(await actionMatch(body));
     if (body.action === 'key') return res.status(200).json(await actionKey(body));
+    if (body.action === 'konular') return res.status(200).json(await actionKonular(body));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;

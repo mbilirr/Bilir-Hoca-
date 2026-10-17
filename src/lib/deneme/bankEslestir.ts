@@ -24,7 +24,7 @@ export function bankOptionsBySubject(bank: BankRow[]): Record<string, BankOption
   for (const r of bank) {
     const k = bankSubjectKey(r.subject);
     if (!k) continue;
-    (m[k] = m[k] || []).push({ code: r.code, text: r.text, konu: r.konu });
+    (m[k] = m[k] || []).push({ code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] });
   }
   return m;
 }
@@ -44,7 +44,9 @@ export function applyBank(q: ExamQuestion, b: BankOption | undefined, ai?: strin
     srcText: q.srcText || (src.text ? src.text.slice(0, 600) : undefined),
   };
   if (!b) return { ...base, kazanimCode: undefined, kazanim: undefined, konu: undefined, alt: undefined, kazanimCode2: undefined, kazanim2: undefined, ai: undefined };
-  return { ...base, kazanimCode: b.code, kazanim: b.text, konu: b.konu || undefined, alt: undefined, kazanimCode2: undefined, kazanim2: undefined, ai };
+  // Aşama 48g: alt kazanım = bankadaki açıklama maddelerinden biri (aynı kazanımda kalınırsa seçim korunur)
+  const alt = q.kazanimCode === b.code && q.alt && (b.alt || []).includes(q.alt) ? q.alt : undefined;
+  return { ...base, kazanimCode: b.code, kazanim: b.text, konu: b.konu || undefined, alt, kazanimCode2: undefined, kazanim2: undefined, ai };
 }
 
 /**
@@ -63,7 +65,7 @@ export async function matchQuestionsWithBank(
   }
 ): Promise<{ questions: ExamQuestions; stats: Record<string, MatchStat>; notes: string[] }> {
   const options = bankOptionsBySubject(bank);
-  const byCode = new Map(bank.map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu } as BankOption]));
+  const byCode = new Map(bank.map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] } as BankOption]));
   const out: ExamQuestions = { ...qs };
   const stats: Record<string, MatchStat> = {};
   const notes: string[] = [];
