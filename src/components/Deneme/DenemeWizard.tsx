@@ -5,7 +5,7 @@ import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
 import { AnahtarEditor } from './AnahtarEditor';
 import { OgrenciSecici } from './OgrenciSecici';
-import { checkFields, decodeOptikFile, parseTxt, type OptikField, type TxtParseResult } from '../../lib/deneme/optik';
+import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type TxtParseResult } from '../../lib/deneme/optik';
 import { aliasKeyOf, groupRows, matchGroups, normNumber, type MatchItem } from '../../lib/deneme/eslestir';
 import {
   LGS_SCORING,
@@ -121,6 +121,25 @@ export const DenemeWizard: React.FC<{
   const parsed: TxtParseResult[] = useMemo(() => (checkFields(fields).length ? [] : txtFiles.map((f) => parseTxt(f.text, fields, f.name))), [txtFiles, fields]);
   const allRows = useMemo(() => parsed.flatMap((p) => p.rows), [parsed]);
   const parseErrors = parsed.flatMap((p) => p.errors);
+  // Aşama 49c: TXT seçili formatla uyuşmuyorsa öneri: uyuşan kayıtlı format ya da alanları topluca kaydırma
+  const fixHints = useMemo(
+    () =>
+      txtFiles.map((f, i) => {
+        const p = parsed[i];
+        if (p && !p.errors.length) return null;
+        const fits = formats.filter((x) => x.id !== formatId && formatFitsTxt(f.text, x.fields)).slice(0, 3);
+        const shift = fits.length || !p ? null : suggestShift(f.text, fields);
+        return fits.length || shift !== null ? { fits, shift } : null;
+      }),
+    [txtFiles, parsed, formats, formatId, fields]
+  );
+  const applyShift = (n: number) => {
+    setSequential(false);
+    setFields(shiftFields(fields, n));
+    setFormatMsg(
+      `Alanlar ${Math.abs(n)} karakter ${n > 0 ? 'sağa' : 'sola'} kaydırıldı. Tablodaki "İlk satırda okunan" sütununu kontrol edin; doğruysa "Formatı güncelle" deyin.`
+    );
+  };
   const sampleLine = txtFiles[0]?.text.split(/\r?\n/).find((l) => l.trim());
   const answeredSubjects = useMemo(() => {
     const set = new Set<string>();
@@ -560,6 +579,31 @@ export const DenemeWizard: React.FC<{
                           </>
                         ) : (
                           <p className="text-xs text-warning-fg">Önce optik formatını tamamlayın.</p>
+                        )}
+                        {fixHints[i] && (
+                          <div className="mt-1.5 rounded-xl bg-info-soft px-3 py-2 text-xs text-info-fg space-y-1.5">
+                            {fixHints[i]!.fits.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-semibold">Bu dosya kayıtlı formatla uyuşuyor:</span>
+                                {fixHints[i]!.fits.map((x) => (
+                                  <button key={x.id} type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => pickFormat(x.id)}>
+                                    “{x.name}” formatını kullan
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {fixHints[i]!.shift !== null && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span>
+                                  Alanlar <strong>{Math.abs(fixHints[i]!.shift!)}</strong> karakter {fixHints[i]!.shift! > 0 ? 'sağa' : 'sola'} kaydırılınca dosya formatla
+                                  uyuşuyor (FMT'de TXT'ye yazılmayan ya da tarif edilmeyen bir alan olabilir).
+                                </span>
+                                <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => applyShift(fixHints[i]!.shift!)}>
+                                  Alanları kaydır
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                       <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg" aria-label="Dosyayı kaldır" onClick={() => setTxtFiles((cur) => cur.filter((x) => x.name !== f.name))}>

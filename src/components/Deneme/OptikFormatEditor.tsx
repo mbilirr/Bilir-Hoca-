@@ -6,6 +6,7 @@ import {
   checkFields,
   decodeOptikFile,
   fieldsLength,
+  joinedSubjects,
   newFieldId,
   parseFmt,
   relayoutFields,
@@ -31,6 +32,7 @@ export const OptikFormatEditor: React.FC<{
 }> = ({ fields, onChange, sequential, onSequentialChange, sampleLine }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const errs = checkFields(fields);
+  const joined = joinedSubjects(fields); // Aşama 49c: aynı derse ait birden fazla cevap alanı
 
   const update = (next: OptikField[]) => onChange(sequential ? relayoutFields(next) : next);
   const patch = (id: string, p: Partial<OptikField>) => update(fields.map((f) => (f.id === id ? { ...f, ...p } : f)));
@@ -181,6 +183,16 @@ export const OptikFormatEditor: React.FC<{
         <ul className={cx('text-xs font-semibold text-warning-fg bg-warning-soft rounded-xl px-3 py-2 space-y-0.5')}>
           {errs.map((e) => (
             <li key={e}>• {e}</li>
+          ))}
+        </ul>
+      )}
+      {joined.length > 0 && (
+        <ul className="text-xs text-info-fg bg-info-soft rounded-xl px-3 py-2 space-y-0.5">
+          {joined.map((j) => (
+            <li key={j.subject}>
+              • {LGS_SUBJECTS.find((s) => s.key === j.subject)?.name || j.subject}: {j.widths.length} cevap alanı sırayla birleştirilir ({j.widths.join(' + ')} ={' '}
+              {j.widths.reduce((a, b) => a + b, 0)} soru). Alanlardan biri başka sınıf düzeyine aitse "Kullanılmaz" seçin.
+            </li>
           ))}
         </ul>
       )}
