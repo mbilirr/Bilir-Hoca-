@@ -39,6 +39,7 @@ import { Student, ClassGroup, StudentCredential, StudentAccountFailure } from '.
 import { dataService } from '../../services/dataService';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
+import { ExcelStudentUpdateModal } from './ExcelStudentUpdateModal';
 import { ExcelClassUploadModal } from './ExcelClassUploadModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
@@ -116,6 +117,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Modals
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [isExcelUpdateOpen, setIsExcelUpdateOpen] = useState(false); // Aşama 49
   const [isExcelClassModalOpen, setIsExcelClassModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -1044,6 +1046,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 >
                   <FileSpreadsheet className="w-4 h-4 text-success-fg" />
                   <span>Excel'den Toplu Yükle</span>
+                </button>
+                <button
+                  onClick={() => setIsExcelUpdateOpen(true)}
+                  className="ui-btn ui-btn-secondary"
+                  title="Sistemdeki öğrencilerin bilgilerini Excel'den toplu güncelle (yeni öğrenci eklemez)"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-brand-fg" />
+                  <span>Excel ile Güncelle</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2281,6 +2291,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         onAccountsCreated={(result) =>
           setCredentialsResult({ credentials: result.created, failures: result.failed, title: "Excel'den Eklenen Öğrenciler" })
         }
+      />
+
+      {/* Aşama 49: EXCEL İLE MEVCUT ÖĞRENCİLERİ GÜNCELLEME */}
+      <ExcelStudentUpdateModal
+        isOpen={isExcelUpdateOpen}
+        onClose={() => setIsExcelUpdateOpen(false)}
+        classes={classes}
+        students={students}
+        onDone={(msg) => setStudentSuccessFeedback(msg)}
       />
 
       {/* EXCEL BULK UPLOAD MODAL - CLASSES */}
