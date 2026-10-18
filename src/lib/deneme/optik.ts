@@ -2,7 +2,7 @@
 // DENEME ANALİZİ (Aşama 47) — OPTİK OKUMA
 // FMT (optik okuyucu format dosyası) → alan listesi; TXT (optik sonuç dosyası) → öğrenci satırları.
 //
-// FMT satırı:  satır1=satır2=sütun1=sütun2=K=D|Y=geçerli karakterler=X2=ETİKET=
+// FMT satırı:  satır1=satır2=sütun1=sütun2=K|S=D|Y=geçerli karakterler=X2=ETİKET=
 //   D = bilgi alanı (numara, ad, sınıf…): genişliği sütun sayısı kadardır.
 //   Y = cevap alanı: her satır bir sorudur, genişliği satır sayısı kadardır.
 // TXT'de alanlar FMT'deki sırayla yan yana dizilir (1. karakterden başlayarak).
@@ -89,18 +89,20 @@ export function guessSubjectKey(label: string): string | null {
   const l = foldTr(label).replace(/�/g, '');
   if (/inkilap|sosyal|tarih|ataturk/.test(l)) return 'sos';
   if (/din\b|din kul|ahlak|^dn\b/.test(l)) return 'din';
-  if (/ingiliz|ngl.?z|yabanci|^dil\b|almanca|arapca/.test(l)) return 'ing';
+  if (/ingiliz|ngl.?z|yabanci|^dil\b|^ing\b|almanca|arapca/.test(l)) return 'ing';
   if (/mat/.test(l)) return 'mat';
   if (/fen/.test(l)) return 'fen';
   if (/turk|tur?kce/.test(l)) return 'tr';
   return null;
 }
 
-function guessRole(label: string, kind: 'D' | 'Y', width: number): { role: FieldRole; subject?: string } {
+function guessRole(label: string, kind: 'D' | 'Y', width: number, chars = ''): { role: FieldRole; subject?: string } {
   const l = foldTr(label).replace(/�/g, '').replace(/[^a-z0-9. ]/g, ' ').replace(/\s+/g, ' ').trim();
   if (kind === 'Y') {
     const subject = guessSubjectKey(label);
     if (subject && width > 1) return { role: 'answers', subject };
+    // Aşama 49b: oturum (1/2) alanı kitapçık türü sanılmasın
+    if (/oturum|seans/.test(l)) return { role: 'ignore' };
     if (width === 1 || /kitap|k\.? ?t/.test(l)) return { role: 'booklet' };
     return { role: 'answers', subject: subject || undefined };
   }
@@ -114,6 +116,8 @@ function guessRole(label: string, kind: 'D' | 'Y', width: number): { role: Field
   if (hasSurname && hasName) return { role: 'fullname' };
   if (hasSurname) return { role: 'surname' };
   if (hasName) return { role: 'name' };
+  // Aşama 49b: etiketi okunamayan ("��") yalnızca rakamlı kısa alan = öğrenci numarası
+  if (!l.replace(/[^a-z]/g, '') && /^[0-9]+$/.test(chars.replace(/\s/g, '')) && width <= 12) return { role: 'number' };
   return { role: 'ignore' };
 }
 
@@ -128,7 +132,9 @@ export function parseFmt(text: string): OptikField[] {
     const line = raw.trim();
     if (!line) continue;
     const p = line.split('=');
-    if (p.length < 9 || p[4].trim().toUpperCase() !== 'K') continue; // başlık satırı (form boyutu) ya da bozuk satır
+    // Başlık satırı (form boyutu) ya da bozuk satır atlanır. Aşama 49b: 5. değer "K" ya da "S" olabilir;
+    // ikisi de TXT'ye yazılır (ör. kurum, TC, sınıf "S"). Atlanırsa sonraki alanların yeri kayar.
+    if (p.length < 9) continue;
     const r1 = parseInt(p[0], 10);
     const r2 = parseInt(p[1], 10);
     const c1 = parseInt(p[2], 10);
@@ -137,7 +143,7 @@ export function parseFmt(text: string): OptikField[] {
     if (![r1, r2, c1, c2].every((n) => Number.isFinite(n) && n > 0)) continue;
     const width = kind === 'Y' ? Math.abs(r2 - r1) + 1 : Math.abs(c2 - c1) + 1;
     const label = (p[8] || '').trim() || (kind === 'Y' ? 'Cevaplar' : 'Alan');
-    const g = guessRole(label, kind, width);
+    const g = guessRole(label, kind, width, p[6] || '');
     fields.push({ id: newFieldId(), label, role: g.role, subject: g.subject, start: pos, width });
     pos += width;
   }
