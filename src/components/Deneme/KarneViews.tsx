@@ -23,6 +23,7 @@ import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type Subj
 import { fmtNet, fmtScore, round2 } from '../../lib/deneme/lgs';
 import { dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
 import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
+import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from '../../lib/deneme/lgsYuzdelik';
 
 // ============================================================================
 // Karne görünümleri (Aşama 47): öğrenci, sınıf ve sınıflar arası.
@@ -180,6 +181,35 @@ const Delta: React.FC<{ v: number | null; digits?: 'net' | 'score' }> = ({ v, di
 const markCls = (m: 'D' | 'Y' | 'B') =>
   m === 'D' ? 'bg-success text-white border-success' : m === 'Y' ? 'bg-danger text-white border-danger' : 'bg-surface-2 text-muted border-line';
 
+/** Aşama 51: deneme puanının 2026 / 2025 / 2024 LGS'deki Türkiye geneli yüzdelik karşılığı */
+export const LgsPercentileStrip: React.FC<{ exam: DenemeExam; score: number | null }> = ({ exam, score }) => {
+  const list = isLgsExam(exam) ? lgsPercentiles(score) : [];
+  if (!list.length) return null;
+  const toneOf = (v: number) => (v <= 1 ? 'border-success/30 bg-success-soft text-success-fg' : v <= 10 ? 'border-info/30 bg-info-soft text-info-fg' : 'border-line bg-surface text-fg');
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-3 space-y-2" id="lgs-yuzdelik">
+      <div className="flex flex-wrap items-center gap-2">
+        <Award className="w-4 h-4 text-brand-fg" />
+        <p className="text-sm font-semibold text-fg">Bu puan geçmiş LGS'lerde Türkiye geneli hangi dilimde?</p>
+        <span className="ui-chip ui-chip-neutral tabular-nums">{fmtScore(score)} puan</span>
+      </div>
+      <div className="grid gap-2 grid-cols-1 sm:grid-cols-3">
+        {list.map((p) => (
+          <div key={p.year} className={cx('rounded-xl border px-3 py-2 transition-colors', toneOf(p.value))}>
+            <p className="text-[11px] font-bold uppercase tracking-wider opacity-80">
+              LGS {p.year}
+              {p.estimate && <span className="ml-1 normal-case font-semibold tracking-normal">(tahmini)</span>}
+            </p>
+            <p className="text-2xl font-black tabular-nums leading-tight">{p.text}</p>
+            <p className="text-[11px] opacity-80">{p.below ? 'veri aralığının altında' : 'yüzdelik dilim'}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted">{LGS_PERCENTILE_NOTE}</p>
+    </div>
+  );
+};
+
 export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string; className?: string }> = ({ data, studentName, className }) => {
   const { exam, subjects, topics, rank } = data;
   const pct = percentile(rank);
@@ -233,7 +263,7 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
               </div>
               {pct !== null && (
                 <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                  <p className="text-white/70 text-[10px] uppercase tracking-wider">Yüzdelik dilim</p>
+                  <p className="text-white/70 text-[10px] uppercase tracking-wider">Kurum içi yüzdelik</p>
                   <p className="font-bold tabular-nums">%{pct}</p>
                 </div>
               )}
@@ -283,6 +313,9 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
           {data.kurumMaxScore !== null && <p className="text-[11px] text-muted">En yüksek {fmtScore(data.kurumMaxScore)}</p>}
         </div>
       </div>
+
+      {/* Aşama 51: geçmiş LGS yıllarına göre Türkiye geneli yüzdelik dilim */}
+      <LgsPercentileStrip exam={exam} score={data.score} />
 
       {/* Ders tablosu */}
       <Panel title="Ders sonuçları" description="Öğrencinin neti, sınıf ve kurum ortalamasıyla" icon={TrendingUp} tone="brand" padded={false}>

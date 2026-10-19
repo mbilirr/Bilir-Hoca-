@@ -3,7 +3,7 @@ import { CalendarPlus, Download, Users } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService } from '../../services/dataService';
-import { getExamsFull, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { byUploadOrder, getExamsFull, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, levelOf, studentTopicRows, type StudentTopicRow } from '../../lib/deneme/analiz';
 import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
 import { SCOPES, dateTr, pickScope, scopeLabel, usedSubjects, type ScopeKey } from '../../lib/deneme/karneModel';
@@ -51,7 +51,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
   const [etutSource, setEtutSource] = useState<Etut | null>(null);
 
-  const asc = useMemo(() => exams.slice().sort((a, b) => (a.examDate || '').localeCompare(b.examDate || '') || a.createdAt.localeCompare(b.createdAt)), [exams]);
+  const asc = useMemo(() => exams.slice().sort(byUploadOrder), [exams]); // Aşama 51: yükleniş sırası
   const scoped = useMemo(() => pickScope(asc, scope, (e) => picked.has(e.id)), [asc, scope, picked]);
   const scopedIds = scoped.map((e) => e.id).join(',');
 

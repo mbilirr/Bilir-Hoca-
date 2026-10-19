@@ -7,10 +7,16 @@ import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type Subj
 import { LGS_SUBJECTS, fmtNet, fmtScore, round2, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile, type ExamKarneData } from './karneDetay';
+import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
 
 export const dateTr = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
   return m ? `${m[3]}.${m[2]}.${m[1]}` : '-';
+};
+/** Aşama 51: denemeler yükleniş sırasıyla dizildiğinden tarih aralığı en erken-en geç tarihten hesaplanır */
+export const dateRange = (exams: DenemeExam[]) => {
+  const ds = exams.map((e) => e.examDate || '').filter(Boolean).sort();
+  return ds.length ? `${dateTr(ds[0])} - ${dateTr(ds[ds.length - 1])}` : '-';
 };
 export const examShort = (e: DenemeExam) => (e.name.length > 22 ? `${e.name.slice(0, 21)}…` : e.name);
 
@@ -91,7 +97,23 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
     ['Sınıf sırası', rank ? `${rank.cls} / ${rank.clsCount}` : '-'],
     ['Kurum sırası', rank ? `${rank.overall} / ${rank.overallCount}` : '-'],
   ];
-  if (pct !== null) side.push(['Yüzdelik dilim', `%${pct}`]);
+  if (pct !== null) side.push(['Kurum içi yüzdelik', `%${pct}`]);
+  // Aşama 51: geçmiş LGS yıllarına göre Türkiye geneli yüzdelik tahmini
+  const lgsP = isLgsExam(exam) ? lgsPercentiles(data.score) : [];
+  const lgsBlocks: PdfBlock[] = lgsP.length
+    ? [
+        {
+          kind: 'tiles',
+          items: lgsP.map((p) => ({
+            label: `LGS ${p.year}${p.estimate ? ' (tahmini)' : ''}`,
+            value: p.text,
+            sub: 'Türkiye geneli yüzdelik dilim',
+            tone: p.value <= 1 ? ('success' as const) : p.value <= 10 ? ('info' as const) : ('muted' as const),
+          })),
+        },
+        { kind: 'text', tone: 'muted', text: `Bu puan geçmiş LGS yıllarında Türkiye genelinde yaklaşık bu yüzdelik dilimlere karşılık gelir. ${LGS_PERCENTILE_NOTE}` },
+      ]
+    : [];
   const blocks: PdfBlock[] = [
     {
       kind: 'hero',
@@ -118,6 +140,7 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
         },
       ],
     },
+    ...lgsBlocks,
     { kind: 'heading', text: 'Ders sonuçları' },
     {
       kind: 'table',
@@ -241,7 +264,7 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
       kind: 'kv',
       rows: [
         ['Kapsam', `${inp.scopeLabel} (${exams.length} deneme)`],
-        ['Tarih aralığı', exams.length ? `${dateTr(exams[0].examDate)} - ${dateTr(exams[exams.length - 1].examDate)}` : '-'],
+        ['Tarih aralığı', dateRange(exams)],
         ['Son puan', fmtScore(last?.score)],
         ['Ortalama puan', fmtScore(avg)],
         ['Son sınıf sırası', last?.stats.rank ? `${last.stats.rank.cls} / ${last.stats.rank.clsCount}` : '-'],

@@ -278,6 +278,10 @@ export async function saveAliases(list: Array<{ aliasKey: string; studentId: str
 }
 
 // ----------------------------------------------------------------------------- Karneler için toplu okuma
+/** Aşama 51: grafik ve karnelerde denemeler YÜKLENİŞ sırasıyla (eskiden yeniye) dizilir */
+export const byUploadOrder = (a: { createdAt: string; examDate?: string }, b: { createdAt: string; examDate?: string }) =>
+  (a.createdAt || '').localeCompare(b.createdAt || '') || (a.examDate || '').localeCompare(b.examDate || '');
+
 /** Seçilen denemelerin tamamı (cevap anahtarı ve kazanımlarla) */
 export async function getExamsFull(ids: string[]): Promise<DenemeExam[]> {
   if (!ids.length) return [];
@@ -287,7 +291,7 @@ export async function getExamsFull(ids: string[]): Promise<DenemeExam[]> {
     if (error) fail(error, 'Denemeler yüklenemedi.');
     out.push(...(data || []).map(examFromRow));
   }
-  return out.sort((a, b) => (a.examDate || '').localeCompare(b.examDate || '') || a.createdAt.localeCompare(b.createdAt));
+  return out.sort(byUploadOrder);
 }
 
 /** Denemelerin sonuçları; öğrenci ya da sınıfla süzülebilir (öğrenci oturumunda yalnızca kendi sonuçları gelir) */

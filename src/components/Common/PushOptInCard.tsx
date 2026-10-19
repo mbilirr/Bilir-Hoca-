@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { BellRing, BellOff, Smartphone, X, Share, PlusSquare } from 'lucide-react';
-import { disablePush, enablePush, getPushState, resyncPush, testPush, type PushState } from '../../lib/push';
+import { BellRing, Smartphone, X, Share, PlusSquare } from 'lucide-react';
+import { enablePush, getPushState, resyncPush, testPush, type PushState } from '../../lib/push';
 
 // ============================================================================
 // "Telefonuma bildirim gönder" kartı (Aşama 34) — öğrenci ve öğretmen ana sayfasında
 //  - kapalıysa: kısa açıklama + "Bildirimleri aç" düğmesi ("Şimdi değil" 7 gün gizler)
 //  - iPhone'da Safari sekmesindeyse: "Ana Ekrana Ekle" anlatımı
-//  - açıksa: tek satır "Bu cihazda bildirimler açık" + Deneme / Kapat
+//  - açıksa (Aşama 51): ana sayfada hiçbir şey gösterilmez; açıldığı an kısa onay yazısı 6 sn görünür
 // ============================================================================
 
 const SNOOZE_KEY = 'push_optin_snooze_until';
@@ -40,9 +40,10 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
 
   useEffect(() => {
     if (!msg) return;
-    const t = window.setTimeout(() => setMsg(null), 15000);
+    // Aşama 51: bildirimler açıldıysa onay yazısı 6 sn sonra kaybolur (kart da birlikte gizlenir)
+    const t = window.setTimeout(() => setMsg(null), state === 'on' && msg.tone === 'ok' ? 6000 : 15000);
     return () => window.clearTimeout(t);
-  }, [msg]);
+  }, [msg, state]);
 
   if (!state || state === 'unsupported' || state === 'not-configured') return null;
   if (state !== 'on' && hidden) return null;
@@ -68,19 +69,6 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
       setMsg({ tone: 'err', text: r.error || 'Bildirimler açılamadı.' });
     }
   };
-  const turnOff = async () => {
-    setBusy(true);
-    await disablePush();
-    setBusy(false);
-    setState('off');
-    setMsg({ tone: 'ok', text: 'Bu cihazda bildirimler kapatıldı.' });
-  };
-  const sendTest = async () => {
-    setBusy(true);
-    const r = await testPush();
-    setBusy(false);
-    setMsg(r.ok ? { tone: 'ok', text: 'Deneme bildirimi gönderildi.' } : { tone: 'err', text: r.error || 'Gönderilemedi.' });
-  };
 
   const what =
     role === 'student'
@@ -93,21 +81,13 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
     </p>
   );
 
+  // Aşama 51: bildirimler açıkken ana sayfada kalıcı yazı gösterilmez; yalnızca az önceki işlemin
+  // kısa sonucu (ör. "Bildirimler açıldı") birkaç saniye görünür, sonra kart tamamen kaybolur.
   if (state === 'on') {
+    if (!msg) return null;
     return (
-      <div id="push-optin" data-state="on" className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border border-line bg-surface text-xs">
-        <span className="inline-flex items-center gap-2 text-fg-2">
-          <BellRing className="w-4 h-4 text-success-fg" /> Bu cihazda telefon bildirimleri açık
-        </span>
-        <span className="flex items-center gap-2">
-          <button type="button" disabled={busy} onClick={sendTest} className="ui-btn ui-btn-ghost ui-btn-sm">
-            Deneme gönder
-          </button>
-          <button type="button" disabled={busy} onClick={turnOff} className="ui-btn ui-btn-ghost ui-btn-sm">
-            <BellOff className="w-3.5 h-3.5" /> Kapat
-          </button>
-        </span>
-        {note && <div className="w-full">{note}</div>}
+      <div id="push-optin" data-state="on" className="px-3 py-2 rounded-xl border border-line bg-surface">
+        {note}
       </div>
     );
   }

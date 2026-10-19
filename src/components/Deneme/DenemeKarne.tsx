@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Mail, MessageCircle, Save } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
-import { getExamsFull, getTarget, listResultsFor, setTarget, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { byUploadOrder, getExamsFull, getTarget, listResultsFor, setTarget, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { SCOPES, classKarneBlocks, compareKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, dateTr, type ScopeKey } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
@@ -305,7 +305,7 @@ export const DenemeKarne: React.FC<{
   const [busy, setBusy] = useState(false);
   const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi gösterilen deneme
 
-  const asc = useMemo(() => exams.slice().sort((a, b) => (a.examDate || '').localeCompare(b.examDate || '') || a.createdAt.localeCompare(b.createdAt)), [exams]);
+  const asc = useMemo(() => exams.slice().sort(byUploadOrder), [exams]); // Aşama 51: yükleniş sırası
   const scoped = useMemo(() => pickScope(asc, scope, (e) => picked.has(e.id)), [asc, scope, picked]);
   const scopedIds = scoped.map((e) => e.id).join(',');
 
