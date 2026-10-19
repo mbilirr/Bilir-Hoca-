@@ -30,8 +30,9 @@ export type PdfBlock =
   | {
       kind: 'stack';
       title?: string;
-      items: Array<{ label: string; sub?: string; parts: Array<{ value: number; tone: PdfTone }>; right?: string }>;
-      legend?: Array<{ label: string; tone: PdfTone }>;
+      // Aşama 56: rgb verilirse tonun rengi yerine o renk kullanılır (ör. LGS dilim dağılımı)
+      items: Array<{ label: string; sub?: string; parts: Array<{ value: number; tone: PdfTone; rgb?: [number, number, number] }>; right?: string }>;
+      legend?: Array<{ label: string; tone: PdfTone; rgb?: [number, number, number] }>;
     }
   | { kind: 'line'; title: string; labels: string[]; series: Array<{ name: string; values: Array<number | null> }>; yMin?: number; yMax?: number }
   | { kind: 'bar'; title: string; labels: string[]; series: Array<{ name: string; values: number[] }> }
@@ -399,7 +400,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
           for (const p of it.parts) {
             if (p.value <= 0) continue;
             const w = (barW * p.value) / total;
-            const c = STACK_FILL[p.tone];
+            const c = p.rgb || STACK_FILL[p.tone];
             doc.setFillColor(c[0], c[1], c[2]);
             doc.rect(x, by, w, 4, 'F');
             if (w >= 6) {
@@ -429,7 +430,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
         doc.setFont(F, 'normal');
         doc.setFontSize(7);
         for (const l of b.legend) {
-          const c = STACK_FILL[l.tone];
+          const c = l.rgb || STACK_FILL[l.tone];
           doc.setFillColor(c[0], c[1], c[2]);
           doc.rect(x, y + 1.2, 3, 2.4, 'F');
           doc.setTextColor(55, 65, 81);

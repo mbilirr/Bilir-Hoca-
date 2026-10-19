@@ -10,7 +10,7 @@ import {
   downloadScheduleExcel,
   downloadSchedulePdf,
   downloadTeacherGroupedPdf,
-  buildTeacherPages,
+  buildTeacherPagesFor,
   periodRange,
   todayYmd,
   type ScheduleMeta,
@@ -55,9 +55,13 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
     [etuts, students, classes, range.from, range.to, classId, sort]
   );
   const rows = result.rows;
-  const teacherPages = useMemo(() => (layout === 'teacher' ? buildTeacherPages(rows) : []), [layout, rows]);
   const classLabel = classId === 'all' ? 'Tüm sınıflar' : classOptions.find((o) => o.id === classId)?.label || '-';
   const meta: ScheduleMeta = { classLabel, allClasses: classId === 'all', periodLabel: range.label, period, sort, from: range.from, to: range.to };
+  // Aşama 57: tüm sınıflarda her sayfa yalnızca bir sınıf (önizleme PDF ile aynı)
+  const teacherPages = useMemo(
+    () => (layout === 'teacher' ? buildTeacherPagesFor(rows, { allClasses: classId === 'all', classLabel, sort }) : []),
+    [layout, rows, classId, classLabel, sort]
+  );
 
   const shift = (dir: -1 | 1) => setAnchor((a) => addDaysYmd(a, dir * (period === 'day' ? 1 : 7)));
 
@@ -129,7 +133,8 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
             <p className="text-[11px] text-muted mt-1.5">
               Her ders ve gün ayrı sayfa olur: en üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo
               (öğretmen, etüt saati ve yeri, etüt konusu ve öğrencilerin adı soyadı). Yazdırmaya uygun A4 PDF; her ders/gün listesi
-              tek sayfaya sığdırılır (gerekirse yazı küçültülür ve tablolar iki sütuna dizilir).
+              tek sayfaya sığdırılır (gerekirse yazı küçültülür ve tablolar iki sütuna dizilir). "Tüm sınıflar" seçilirse liste
+              sınıf sınıf ayrılır: her sayfada yalnızca bir sınıfın öğrencileri olur.
             </p>
           )}
         </div>
@@ -207,6 +212,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
                 <div className="text-center py-3 bg-surface-2 border-b border-line">
                   <p className="text-sm font-black tracking-wide text-fg">{p.title}</p>
                   <p className="text-xs text-muted">{p.dateLabel}</p>
+                  {p.classLabel && <p className="mt-0.5 text-xs font-bold text-brand-fg">Sınıf: {p.classLabel}</p>}
                 </div>
                 <div className="p-3 grid gap-3 md:grid-cols-2">
                   {p.blocks.map((b) => (
@@ -280,7 +286,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
           Liste, Etütler sayfasında seçili kapsamdaki etütlerden (Tüm okul / Benim etütlerim) hazırlanır.
           {layout === 'classic'
             ? ' “Tüm sınıflar” seçilirse dosya sınıf sınıf bölünür.'
-            : ' Bir sınıf seçerseniz her öğretmen tablosunda yalnızca o sınıfın öğrencileri yer alır.'}
+            : ' “Tüm sınıflar” seçilirse tek PDF içinde her sayfa bir sınıf olur; bir sınıf seçerseniz yalnızca o sınıfın öğrencileri yer alır.'}
         </p>
       </div>
     </Modal>

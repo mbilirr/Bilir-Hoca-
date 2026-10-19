@@ -259,6 +259,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
   const rows: BankKazanim[] = [];
   const warnings: string[] = [];
   const lines: string[] = [];
+  const rawRows: string[][] = []; // Aşama 57: başlıksız dosyalar için hücre hücre satırlar
   let usedHeader = false;
   let otherSubjects = 0;
 
@@ -270,21 +271,29 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
       if (!cells.some(Boolean)) continue;
       const folded = cells.map(foldTr);
       if (!col) {
+        // Aşama 57: başlık tanıma esnetildi. "Kod" / "Kazanım Kodu" sütunu ve kazanım metni sütunu aranır.
+        // Metin sütunu: önce "Kazanım", "Kazanım Metni" gibi başlıklar; yoksa "Alt Kazanım Kazanım" gibi
+        // "alt" ile başlayan bir kazanım sütunu, o da yoksa "Metin" / "Açıklama" / "Kazanım Adı".
         const code = folded.findIndex((c) => /^(kazanim )?kod/.test(c));
-        const text = folded.findIndex((c, i) => i !== code && /kazanim/.test(c) && !/kod/.test(c) && !/^alt/.test(c));
+        const isText = (c: string, i: number) => i !== code && /kazanim/.test(c) && !/kod/.test(c);
+        let text = folded.findIndex((c, i) => isText(c, i) && !/^alt/.test(c));
+        if (text < 0) text = folded.findIndex((c, i) => isText(c, i));
+        if (text < 0) text = folded.findIndex((c, i) => i !== code && /^(metin|aciklama|kazanim adi|hedef)/.test(c));
         if (code >= 0 && text >= 0) {
+          const alt = folded.findIndex((c, i) => i !== text && /^alt kazanim|^aciklama/.test(c));
           col = {
             code,
             text,
-            konu: folded.findIndex((c) => /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c)),
+            konu: folded.findIndex((c, i) => i !== text && /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c)),
             subject: folded.findIndex((c) => /^ders/.test(c)),
             grade: folded.findIndex((c) => /^sinif/.test(c)),
-            alt: folded.findIndex((c) => /^alt kazanim|^aciklama/.test(c)),
+            alt,
           };
           usedHeader = true;
           continue;
         }
         lines.push(cells.filter(Boolean).join('\t'));
+        rawRows.push(cells);
         continue;
       }
       const code = normCode(cells[col.code] || '');
@@ -307,7 +316,45 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
       });
     }
   }
-  if (!usedHeader) return parseKazanimText(lines.join('\n'), defaultSubject, grade);
+  if (!usedHeader) {
+    // Aşama 57: başlık yoksa önce hücrelere bakılır: bir hücre kazanım koduysa, satırdaki en uzun diğer hücre kazanım metnidir
+    const byCells: BankKazanim[] = [];
+    for (const cells of rawRows) {
+      const ci = cells.findIndex((c) => CODE_ONLY.test(c.trim()));
+      if (ci < 0) continue;
+      let ti = -1;
+      cells.forEach((c, i) => {
+        if (i !== ci && c.length > 15 && (ti < 0 || c.length > cells[ti].length)) ti = i;
+      });
+      if (ti < 0) continue;
+      const others = cells.filter((c, i) => i !== ci && i !== ti && c && c.length <= 120 && !/^\d+$/.test(c));
+      let subject = defaultSubject;
+      for (const c of others) {
+        const k = bankSubjectKey(c);
+        const sub = k ? LGS_SUBJECTS.find((x) => x.key === k) : null;
+        if (sub && foldTr(c).length <= 30) {
+          subject = sub.name;
+          break;
+        }
+      }
+      const konu = others.find((c) => !bankSubjectKey(c) || foldTr(c).length > 30) || '';
+      byCells.push({ code: normCode(cells[ci]).slice(0, 60), subject, grade, text: cells[ti].slice(0, 2000), konu: niceTitle(konu).slice(0, 300) });
+    }
+    if (byCells.length) {
+      const seen0 = new Set<string>();
+      return {
+        rows: byCells.filter((r) => {
+          const k = codeKey(r.code);
+          if (seen0.has(k)) return false;
+          seen0.add(k);
+          return true;
+        }),
+        headers: 0,
+        warnings: ['Dosyada başlık satırı bulunamadı; kod ve metin sütunları satırlardan tahmin edildi. Önizlemeyi kontrol edin.'],
+      };
+    }
+    return parseKazanimText(lines.join('\n'), defaultSubject, grade);
+  }
   if (otherSubjects) warnings.push(`${otherSubjects} kazanım dosyadaki "Ders" sütununa göre başka derse yazıldı.`);
   if (!rows.length) warnings.push('Dosyada kazanım satırı bulunamadı.');
   const seen = new Set<string>();

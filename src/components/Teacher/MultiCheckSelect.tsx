@@ -124,7 +124,7 @@ export const MultiCheckSelect: React.FC<{
                   value={query}
                   autoFocus={finePointer}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Ara…"
+                  placeholder="Numara ya da ad soyad yazın…"
                   className={cx(inputCls, 'pl-8 py-1.5')}
                 />
               </div>

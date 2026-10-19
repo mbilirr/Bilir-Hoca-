@@ -409,7 +409,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     setTaskStudentIds(on ? taskStudentIds.filter((x) => !ids.includes(x)) : Array.from(new Set([...taskStudentIds, ...ids])));
   };
   const taskStudentOptions = useMemo(
-    () => viewStudents.filter((s) => taskClassIds.includes(s.classId)).map((s) => ({ id: s.id, label: s.name, group: className(s.classId) })),
+    () => viewStudents.filter((s) => taskClassIds.includes(s.classId)).map((s) => ({ id: s.id, label: s.name, sub: s.studentNumber ? `No ${s.studentNumber}` : undefined, group: className(s.classId) })), // Aşama 57: numarayla da aranır
     [viewStudents, taskClassIds, className]
   );
   const taskTargets = useMemo(() => taskStudentIds.filter((id) => taskStudentOptions.some((o) => o.id === id)), [taskStudentIds, taskStudentOptions]);

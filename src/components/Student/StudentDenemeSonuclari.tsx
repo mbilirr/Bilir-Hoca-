@@ -3,7 +3,9 @@ import { BarChart3, Download } from 'lucide-react';
 import { EmptyState, PageHeader, Segmented } from '../ui/kit';
 import type { Student } from '../../types';
 import { getTarget, isSetupError, listKazanimlar, loadMyDenemeler, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { SCOPES, kazanimKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, studyPlanKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
+import { SCOPES, kazanimKarneBlocks, oncelikKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, studyPlanKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
+import { priorityKarne } from '../../lib/deneme/veliKurumKarne';
+import { OncelikKarneView } from '../Deneme/VeliKurumKarneleri';
 import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
 import { StudentKarneView } from '../Deneme/KarneViews';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from '../Deneme/KarneIleri';
@@ -75,6 +77,12 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
       const base = { studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, scopeLabel: scopeLabel(scope) };
       if (tur === 'kazanim') await downloadKarnePdf(kazanimKarneBlocks({ ...base, bank }), `${currentStudent.name} kazanım takip karnesi`, `Kazanim-Takip-Karnem-${currentStudent.name}`);
       else if (tur === 'plan') await downloadKarnePdf(studyPlanKarneBlocks(base), `${currentStudent.name} çalışma planı karnesi`, `Calisma-Plani-Karnem-${currentStudent.name}`);
+      else if (tur === 'oncelik')
+        await downloadKarnePdf(
+          oncelikKarneBlocks(priorityKarne(scoped, results), { studentName: base.studentName, className: base.className, scopeLabel: base.scopeLabel, exams: scoped.filter((e) => results.some((r) => r.examId === e.id)) }),
+          `${currentStudent.name} öncelikli konu karnesi`,
+          `Oncelikli-Konular-${currentStudent.name}`
+        );
       else await downloadKarnePdf(studentKarneBlocks({ ...base, target, detailExamId }), `${currentStudent.name} deneme karnesi`, `Deneme-Karnem-${currentStudent.name}`);
     } finally {
       setBusy(false);
@@ -107,7 +115,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI} />
+            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI.filter((t) => t.value !== 'veli')} />
             <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
           </div>
           {scope === 'custom' && (
@@ -139,6 +147,8 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
             <KazanimTakipView exams={scoped} results={results} bank={bank} bankLoading={bank === undefined} />
           ) : tur === 'plan' ? (
             <CalismaPlaniView exams={scoped} results={results} />
+          ) : tur === 'oncelik' ? (
+            <OncelikKarneView pk={priorityKarne(scoped, results)} />
           ) : (
           <StudentKarneView
             exams={scoped}

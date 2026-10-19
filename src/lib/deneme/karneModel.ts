@@ -39,6 +39,7 @@ import {
   type HeatOptions,
   type KazHeat,
 } from './sinifKarne';
+import { LGS_BANDS, TIER_INFO, priorityAdvice, type KurumOzet, type PriorityKarne, type PriorityTier, type VeliKarneData } from './veliKurumKarne';
 
 export const dateTr = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
@@ -1140,5 +1141,222 @@ export function kazanimHeatBlocks(h: KazHeat, o: HeatOptions, scopeLabel: string
       });
     }
   }
+  return blocks;
+}
+
+// ============================================================================ Aşama 56: Veli Karnesi (tek sayfa)
+export function veliKarneBlocks(d: VeliKarneData, opts: { studentName: string; className: string; note: string; teacherName: string }): PdfBlock[] {
+  const r = d.last;
+  const side: Array<[string, string]> = [
+    ['Sınıf sırası', d.rank ? `${d.rank.cls} / ${d.rank.clsCount}` : '-'],
+    ['Okul sırası', d.rank ? `${d.rank.overall} / ${d.rank.overallCount}` : '-'],
+  ];
+  if (d.lgs) side.push([`LGS ${d.lgs.year} dilimi`, d.lgs.text]);
+  const summary: string[] = [d.sentence];
+  if (d.exams.length > 1 && d.avgScore !== null) summary.push(`Seçilen ${d.exams.length} denemedeki ortalama puanı ${fmtScore(d.avgScore)}.`);
+  if (d.clsAvg !== null || d.kurumAvg !== null)
+    summary.push(`Son denemede sınıf ortalaması ${fmtScore(d.clsAvg)}, okul ortalaması ${fmtScore(d.kurumAvg)} puan.`);
+  if (d.target !== null && typeof r.score === 'number')
+    summary.push(r.score >= d.target ? `Hedef puanı (${fmtScore(d.target)}) son denemede aşıldı.` : `Hedef puan ${fmtScore(d.target)}; hedefe ${fmtScore(d.target - r.score)} puan kaldı.`);
+  if (d.lgs) summary.push(`Bu puan ${d.lgs.year} LGS'de Türkiye genelinde yaklaşık ${d.lgs.text} dilimine karşılık gelir (tahmini).`);
+  const series: Array<{ name: string; values: Array<number | null> }> = [{ name: 'Puanı', values: d.trend.map((t) => t.score) }];
+  if (d.trend.some((t) => t.clsAvg !== null)) series.push({ name: 'Sınıf ortalaması', values: d.trend.map((t) => t.clsAvg) });
+  if (d.target !== null) series.push({ name: 'Hedef', values: d.trend.map(() => d.target) });
+  const note = opts.note.trim();
+  return [
+    {
+      kind: 'hero',
+      eyebrow: 'Veli bilgilendirme karnesi',
+      title: opts.studentName,
+      sub: opts.className,
+      chips: [d.lastExam.name, dateTr(d.lastExam.examDate)],
+      score: fmtScore(r.score),
+      scoreLabel: 'Son puan',
+      side,
+    },
+    { kind: 'callout', title: 'Kısaca', tone: 'info', lines: summary },
+    { kind: 'line', title: `Son ${d.trend.length} denemedeki puanı`, labels: d.trend.map((t) => examShort(t.exam)), series },
+    {
+      kind: 'callout',
+      title: 'Güçlü olduğu konular',
+      tone: 'success',
+      lines: d.strong.length ? d.strong.map((t) => ({ label: `${t.subject.name}:`, text: `${t.name} (başarı %${t.rate})`, tone: 'success' as const })) : ['Henüz yeterli soru sorulmadı; sonraki denemelerle belirginleşecek.'],
+    },
+    {
+      kind: 'callout',
+      title: 'Birlikte çalışılması gereken konular',
+      tone: 'warning',
+      lines: d.improve.length ? d.improve.map((t) => ({ label: `${t.subject.name}:`, text: `${t.name} (başarı %${t.rate}). ${t.hint}.`, tone: 'warning' as const })) : ['Belirgin bir eksik konu görünmüyor. Düzenli tekrar ve deneme çözümüyle devam.'],
+    },
+    {
+      kind: 'callout',
+      title: `Öğretmenin notu${opts.teacherName ? ` (${opts.teacherName})` : ''}`,
+      tone: 'muted',
+      lines: note ? note.split(/\n+/).slice(0, 6) : ['.................................................................................................................................', '.................................................................................................................................'],
+    },
+    {
+      kind: 'callout',
+      title: 'Evde nasıl destek olabilirsiniz?',
+      tone: 'muted',
+      // tek sayfaya sığması için kısa tutulur
+      lines: [
+        'Her gün aynı saatte kısa ve düzenli çalışmasını destekleyin. Denemeden sonra puandan çok yanlış yaptığı sorulara birlikte bakın; uyku düzenine dikkat edin ve küçük başarıları da takdir edin.',
+      ],
+    },
+  ];
+}
+
+// ============================================================================ Aşama 56: Öncelikli Konu Karnesi
+export function oncelikKarneBlocks(pk: PriorityKarne, opts: { studentName: string; className: string; scopeLabel: string; exams: DenemeExam[] }): PdfBlock[] {
+  const tiers: PriorityTier[] = [1, 2, 3];
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Öncelikli Konu Karnesi', sub: `${opts.studentName}${opts.className ? ` · ${opts.className}` : ''}` },
+    {
+      kind: 'kv',
+      rows: [
+        ['Kapsam', `${opts.scopeLabel} (${pk.examCount} deneme)`],
+        ['Tarih aralığı', dateRange(opts.exams)],
+        ['Eksik konu', String(pk.rows.length)],
+        ['Kazanılabilecek', `deneme başına yaklaşık +${fmtNet(pk.totalNet)} net (+${fmtScore(pk.totalPoints)} puan)`],
+      ],
+    },
+    {
+      kind: 'tiles',
+      items: tiers.map((t) => ({
+        label: TIER_INFO[t].label,
+        value: `${pk.tiers[t].count} konu`,
+        sub: `düzelirse +${fmtNet(pk.tiers[t].gainNet)} net / +${fmtScore(pk.tiers[t].gainPoints)} puan`,
+        tone: TIER_INFO[t].tone,
+      })),
+    },
+    {
+      kind: 'callout',
+      title: 'Öncelik nasıl belirlenir?',
+      tone: 'info',
+      lines: [
+        'Her konunun deneme başına kaybettirdiği net hesaplanır (yanlış: 1 net + 1/3 net ceza, boş: 1 net) ve ders katsayısıyla puana çevrilir.',
+        ...tiers.map((t) => ({ label: `${TIER_INFO[t].label}:`, text: TIER_INFO[t].desc, tone: TIER_INFO[t].tone })),
+        '"+X net": konu tamamen öğrenilirse bir denemede kazanılacak yaklaşık net. Kazanılmış konular listeye girmez.',
+      ],
+    },
+  ];
+  if (!pk.rows.length) {
+    blocks.push({ kind: 'text', tone: 'success', text: 'Seçilen denemelerde puan kaybettiren eksik konu bulunmadı. Düzenli tekrarla devam.' });
+    return blocks;
+  }
+  for (const t of tiers) {
+    const rows = pk.rows.filter((r) => r.tier === t);
+    if (!rows.length) continue;
+    blocks.push({
+      kind: 'heading',
+      text: `${TIER_INFO[t].label}: ${rows.length} konu`,
+      sub: `${TIER_INFO[t].desc}. Hepsi düzelirse deneme başına yaklaşık +${fmtNet(pk.tiers[t].gainNet)} net (+${fmtScore(pk.tiers[t].gainPoints)} puan).`,
+      minFollow: 24,
+    });
+    blocks.push({
+      kind: 'table',
+      head: ['#', 'Ders', 'Konu / kazanım', 'Başarı', 'Soru / deneme', 'Düzelirse', 'Puan', 'Ne yapmalı?'],
+      rows: rows.map((r, i) => [
+        i + 1,
+        r.subject.short,
+        r.row.label,
+        `%${r.row.lastRate ?? r.row.rate}`,
+        fmtNet(r.perExamQuestions),
+        `+${fmtNet(r.gainNet)} net`,
+        `+${fmtScore(r.gainPoints)}`,
+        priorityAdvice(r),
+      ]),
+      cellTones: rows.map((r) => [null, null, null, levelTone(r.row.lastRate ?? r.row.rate), null, TIER_INFO[t].tone, null, null]),
+      align: ['center', 'left', 'left', 'center', 'center', 'center', 'center', 'left'],
+      widths: [7, 12, 'auto', 14, 15, 20, 14, 44],
+      fontSize: 7.2,
+    });
+  }
+  blocks.push({ kind: 'text', tone: 'muted', text: 'Tahminler seçilen denemelerin ortalamasıdır; gerçek kazanç denemenin soru dağılımına göre değişir.' });
+  return blocks;
+}
+
+// ============================================================================ Aşama 56: Kurum Özeti (yatay)
+export function kurumOzetBlocks(k: KurumOzet, scopeLabel: string): PdfBlock[] {
+  const s = k.summary;
+  const subs = k.subjects;
+  const signedS = (v: number | null) => (v === null ? '-' : `${v > 0 ? '+' : v < 0 ? '-' : ''}${fmtScore(Math.abs(v))}`);
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Kurum Özeti', sub: `${scopeLabel} (${k.exams.length} deneme) · ${dateRange(k.exams)}` },
+    {
+      kind: 'tiles',
+      items: [
+        { label: 'Öğrenci', value: String(s.students), sub: `${s.participants} öğrenci en az bir denemeye girdi` },
+        { label: 'Katılım', value: s.participation !== null ? `%${s.participation}` : '-', sub: 'deneme başına ortalama', tone: 'info' },
+        { label: 'Ortalama puan', value: fmtScore(s.avgScore), sub: `Son deneme ${fmtScore(s.lastAvg)}` },
+        { label: 'İlk → son deneme', value: signedS(s.change), sub: 'kurum ortalaması', tone: s.change === null ? undefined : s.change >= 0 ? 'success' : 'danger' },
+        { label: 'Son denemede ilk %10', value: s.lastTop10 !== null ? String(s.lastTop10) : '-', sub: s.lastTop1 !== null ? `ilk %1'de ${s.lastTop1} öğrenci` : 'LGS türü değil', tone: 'success' },
+      ],
+    },
+    { kind: 'line', title: 'Kurum ortalama puanı', labels: k.exams.map(examShort), series: [{ name: 'Kurum ortalaması', values: k.perExam.map((p) => p.avgScore) }] },
+    { kind: 'heading', text: 'Deneme deneme kurum sonuçları' },
+    {
+      kind: 'table',
+      head: ['Deneme', 'Tarih', 'Katılım', ...subs.map((x) => `${x.short} net`), 'Top. net', 'Ort. puan', 'En yüksek', 'En iyi sınıf'],
+      rows: k.perExam.map((p) => [
+        p.exam.name,
+        dateTr(p.exam.examDate),
+        `${p.n}${p.participation !== null ? ` (%${p.participation})` : ''}`,
+        ...subs.map((x) => fmtNet(p.avgNet[x.key])),
+        fmtNet(p.avgTotalNet),
+        fmtScore(p.avgScore),
+        fmtScore(p.maxScore),
+        p.topClass ? `${p.topClass.name} (${fmtScore(p.topClass.avgScore)})` : '-',
+      ]),
+      align: ['left', 'center', 'center', ...subs.map(() => 'center' as const), 'center', 'center', 'center', 'left'],
+      fontSize: 7.2,
+    },
+  ];
+  const withBands = k.perExam.filter((p) => p.bands);
+  if (withBands.length && k.lgsYear) {
+    blocks.push({ kind: 'heading', text: `LGS yüzdelik dilim dağılımı (${k.lgsYear} LGS'ye göre, tahmini)`, sub: 'Öğrencilerin deneme puanlarının geçmiş LGS yılındaki Türkiye geneli yüzdelik karşılığı' });
+    blocks.push({
+      kind: 'stack',
+      items: withBands.map((p) => ({
+        label: p.exam.name,
+        sub: dateTr(p.exam.examDate),
+        parts: LGS_BANDS.map((b, i) => ({ value: p.bands![i], tone: 'muted' as PdfTone, rgb: b.rgb })),
+        right: `ilk %10: ${p.bands![0] + p.bands![1] + p.bands![2]} öğrenci`,
+      })),
+      legend: LGS_BANDS.map((b) => ({ label: b.label, tone: 'muted' as PdfTone, rgb: b.rgb })),
+    });
+  }
+  blocks.push({ kind: 'heading', text: 'Sınıfların sırası', sub: 'Seçilen denemelerdeki sınıf ortalamalarının ortalamasına göre; "Ort. sıra" denemelerdeki sıralarının ortalamasıdır' });
+  blocks.push({
+    kind: 'table',
+    head: ['Sıra', 'Sınıf', 'Öğrenci', 'Katılım', 'Ort. puan', 'İlk deneme', 'Son deneme', 'Değişim', 'Ort. sıra', 'Son denemede ilk %1'],
+    rows: k.classes.map((c) => [
+      c.rank || '-',
+      c.name,
+      c.students,
+      c.participation !== null ? `%${c.participation}` : '-',
+      fmtScore(c.avgScore),
+      fmtScore(c.firstScore),
+      fmtScore(c.lastScore),
+      signedS(c.change),
+      c.avgRank !== null ? fmtNet(c.avgRank) : '-',
+      c.top1 || '-',
+    ]),
+    cellTones: k.classes.map((c) => [
+      c.rank === 1 ? ('success' as PdfTone) : null,
+      null,
+      null,
+      c.participation !== null && c.participation < 70 ? ('warning' as PdfTone) : null,
+      null,
+      null,
+      null,
+      c.change === null || Math.abs(c.change) < 0.005 ? null : c.change > 0 ? ('success' as PdfTone) : ('danger' as PdfTone),
+      null,
+      null,
+    ]),
+    align: ['center', 'left', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'],
+    fontSize: 7.6,
+  });
+  blocks.push({ kind: 'text', tone: 'muted', text: `Katılım: sonucu olan öğrenci / kayıtlı öğrenci. Katılımı %70'in altındaki sınıflar turuncu gösterilir. ${LGS_PERCENTILE_NOTE}` });
   return blocks;
 }

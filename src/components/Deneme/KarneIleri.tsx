@@ -31,11 +31,13 @@ import {
 // ============================================================================
 
 // Öğrenci karnesinin türü (öğretmen ve öğrenci ekranı ortak)
-export type KarneTur = 'genel' | 'kazanim' | 'plan';
+export type KarneTur = 'genel' | 'kazanim' | 'plan' | 'oncelik' | 'veli';
 export const KARNE_TURLERI: Array<{ value: KarneTur; label: string }> = [
   { value: 'genel', label: 'Birleştirilmiş karne' },
   { value: 'kazanim', label: 'Kazanım takip' },
   { value: 'plan', label: 'Çalışma planı' },
+  { value: 'oncelik', label: 'Öncelikli konular' }, // Aşama 56
+  { value: 'veli', label: 'Veli karnesi' }, // Aşama 56 (yalnızca öğretmen)
 ];
 
 const tableCls = 'w-full text-left text-xs text-fg-2';

@@ -7,6 +7,7 @@ import { normalizeSubject, shortSubjectName, subjectsForLevel, targetSubjectList
 import { loadPlanQuestionCountsMany, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { syncSentPlan } from '../../lib/planToTarget';
+import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
 // ============================================================================
@@ -660,21 +661,16 @@ const TargetFormContent: React.FC<Props> = ({
             {kind === 'student' && (
               <div>
                 <FieldLabel htmlFor="qt-student">Öğrenci</FieldLabel>
-                <select
+                <StudentSearchSelect
                   id="qt-student"
+                  students={classStudents}
                   value={studentId}
                   disabled={isEdit || !classId}
-                  onChange={(e) => setStudentId(e.target.value)}
+                  onChange={setStudentId}
+                  placeholder={classId ? 'Öğrenci seçin' : 'Önce sınıf seçin'}
                   className={inputCls}
-                >
-                  <option value="">{classId ? 'Öğrenci seçin' : 'Önce sınıf seçin'}</option>
-                  {classStudents.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                      {s.studentNumber ? ` (${s.studentNumber})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  showClass={false}
+                />
               </div>
             )}
           </div>

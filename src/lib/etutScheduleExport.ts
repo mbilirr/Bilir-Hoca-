@@ -432,6 +432,8 @@ export interface SubjectDayPage {
   title: string; // "FEN BİLİMLERİ DERSİ ETÜTÜ"
   dateLabel: string; // "13 Ekim 2026 Salı"
   blocks: TeacherBlock[];
+  /** Aşama 57: "Tüm sınıflar" seçiliyken sayfanın sınıfı (her sayfada yalnızca bir sınıf) */
+  classLabel?: string;
 }
 
 /** Ders adından sayfa başlığı: "Fen Bilimleri" → "FEN BİLİMLERİ DERSİ ETÜTÜ" */
@@ -468,6 +470,15 @@ export function buildTeacherPages(rows: ScheduleRow[]): SubjectDayPage[] {
   return list.sort((a, b) => cs(a.dateYmd, b.dateYmd) || tr(a.subject, b.subject));
 }
 
+/**
+ * Aşama 57: "Tüm sınıflar" seçiliyken liste sınıf sınıf bölünür: her sayfada yalnızca BİR sınıfın öğrencileri olur
+ * (sınıf → gün → ders sırasıyla). Tek sınıf seçiliyken eskisi gibi ders/gün sayfaları.
+ */
+export function buildTeacherPagesFor(rows: ScheduleRow[], meta: Pick<ScheduleMeta, 'allClasses' | 'classLabel' | 'sort'>): SubjectDayPage[] {
+  if (!meta.allClasses) return buildTeacherPages(rows);
+  return splitSections(rows, meta).flatMap((sec) => buildTeacherPages(sec.rows).map((p) => ({ ...p, key: `${sec.key}|${p.key}`, classLabel: sec.title })));
+}
+
 export const teacherListFileBase = (m: ScheduleMeta) =>
   `Etut-Ogretmen-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
 
@@ -497,7 +508,7 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     const ok = fonts.registerTurkishPdfFont(d);
     return { d, ok };
   };
-  const pages = buildTeacherPages(rows);
+  const pages = buildTeacherPagesFor(rows, meta); // Aşama 57: tüm sınıflarda her sayfa tek sınıf
   const M = 12;
 
   // Bir ders/gün sayfasını verilen ayarla `doc`un SON sayfasına çizer. Taşma olduysa false döner.
@@ -521,11 +532,20 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     doc.setTextColor(55, 65, 81);
     let top = 20 + 3 * k;
     doc.text(t(p.dateLabel), pageW / 2, top, { align: 'center' });
-    if (!meta.allClasses) {
+    // Aşama 57: sayfanın sınıfı (tüm sınıflarda her sayfa bir sınıf; tek sınıfta seçilen sınıf)
+    const clsLabel = p.classLabel || (!meta.allClasses ? meta.classLabel : '');
+    if (clsLabel) {
       top += 4.5 * k + 1;
-      doc.setFontSize(Math.max(7.5, 9 * k));
-      doc.setTextColor(107, 114, 128);
-      doc.text(t(`Sınıf: ${meta.classLabel}`), pageW / 2, top, { align: 'center' });
+      if (p.classLabel) {
+        doc.setFont(F, 'bold');
+        doc.setFontSize(Math.max(9, 11 * k));
+        doc.setTextColor(67, 56, 202);
+      } else {
+        doc.setFontSize(Math.max(7.5, 9 * k));
+        doc.setTextColor(107, 114, 128);
+      }
+      doc.text(t(`Sınıf: ${clsLabel}`), pageW / 2, top, { align: 'center' });
+      doc.setFont(F, 'normal');
     }
     top += 3;
     doc.setDrawColor(199, 210, 254);

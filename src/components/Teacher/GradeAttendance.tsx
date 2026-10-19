@@ -28,6 +28,7 @@ import { GradeRecord, AttendanceRecord, Student, ClassGroup, AttendanceStatus } 
 import { dataService } from '../../services/dataService';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -1344,17 +1345,15 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
             <form onSubmit={handleSaveGrade} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-fg-2 mb-1">Öğrenci *</label>
-                <select
+                <StudentSearchSelect
+                  students={classStudents}
                   value={gradeStudentId}
-                  onChange={(e) => setGradeStudentId(e.target.value)}
+                  onChange={setGradeStudentId}
+                  placeholder="Öğrenci seçin"
                   className="w-full px-3 py-2 bg-surface-2 border border-line-strong rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
-                >
-                  {classStudents.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      #{s.studentNumber} - {s.name}
-                    </option>
-                  ))}
-                </select>
+                  showClass={false}
+                  ariaLabel="Öğrenci"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

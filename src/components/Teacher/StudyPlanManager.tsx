@@ -62,6 +62,7 @@ import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } 
 import { User as UserIcon, School } from 'lucide-react';
 import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19) — Ödevler bölümünün "Haftalık Plan" sekmesi
@@ -535,15 +536,15 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           </div>
           <div>
             <FieldLabel htmlFor="plan-student">Öğrenci</FieldLabel>
-            <select id="plan-student" value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
-              <option value="">Öğrenci seçiniz</option>
-              {listed.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {classFilter === 'all' && s.className ? ` · ${s.className}` : ''}
-                </option>
-              ))}
-            </select>
+            <StudentSearchSelect
+              id="plan-student"
+              students={listed}
+              value={studentId}
+              onChange={setStudentId}
+              placeholder="Öğrenci seçiniz"
+              className={inputCls}
+              showClass={classFilter === 'all'}
+            />
           </div>
         </div>
         {renderWeekNav({

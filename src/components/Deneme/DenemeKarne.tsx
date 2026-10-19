@@ -3,9 +3,12 @@ import { useHistoryState } from '../../lib/useHistoryState';
 import { Download, Mail, MessageCircle, Save } from 'lucide-react';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
 import { PlanaAktarModal } from './PlanaAktarModal';
+import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { PLAN_SUBJECT_NAME, type StudySuggestion } from '../../lib/deneme/kazanimKarne';
 import { DEFAULT_HEAT_OPTIONS, classCombined, filterHeat, kazanimClassHeat, type HeatOptions } from '../../lib/deneme/sinifKarne';
 import { ClassCombinedView, KazanimIsiHaritasi } from './SinifKarneleri';
+import { KurumOzetView, OncelikKarneView, VeliKarneView } from './VeliKurumKarneleri';
+import { kurumOzet, priorityKarne, veliKarneData } from '../../lib/deneme/veliKurumKarne';
 import { dataService } from '../../services/dataService';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
@@ -16,6 +19,9 @@ import {
   classKarneBlocks,
   compareKarneBlocks,
   kazanimHeatBlocks,
+  kurumOzetBlocks,
+  oncelikKarneBlocks,
+  veliKarneBlocks,
   usedSubjects,
   kazanimKarneBlocks,
   pickScope,
@@ -35,7 +41,7 @@ import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 // Kapsam: son 3 / 5 / 10, tümü ya da tek tek seçilen denemeler.
 // ============================================================================
 
-type Mode = 'ogrenci' | 'sinif' | 'karsilastirma' | 'isi';
+type Mode = 'ogrenci' | 'sinif' | 'karsilastirma' | 'isi' | 'kurum';
 // Aşama 55: sınıf karnesinin türü
 type SinifTur = 'genel' | 'birlesik';
 type PdfOrientation = 'portrait' | 'landscape';
@@ -52,7 +58,20 @@ function branchSubjectKey(): string {
     return 'all';
   }
 }
-const TUR_TITLE: Record<KarneTur, string> = { genel: 'Deneme karnen', kazanim: 'Kazanım takip karnen', plan: 'Çalışma planı karnen' };
+const TUR_TITLE: Record<KarneTur, string> = {
+  genel: 'Deneme karnen',
+  kazanim: 'Kazanım takip karnen',
+  plan: 'Çalışma planı karnen',
+  oncelik: 'Öncelikli konu karnen',
+  veli: 'Veli bilgilendirme karnesi',
+};
+const TUR_NAME: Record<KarneTur, string> = {
+  genel: 'deneme karnesi',
+  kazanim: 'kazanım takip karnesi',
+  plan: 'çalışma planı karnesi',
+  oncelik: 'öncelikli konu karnesi',
+  veli: 'veli bilgilendirme karnesi',
+};
 
 /** Karne PDF'ini paylaşır: telefonda doğrudan WhatsApp'a dosya olarak; olmazsa PDF iner ve WhatsApp mesajı açılır */
 export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fileName: string, message: string, phone?: string, orientation: PdfOrientation = 'portrait') {
@@ -346,6 +365,10 @@ export const DenemeKarne: React.FC<{
   const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined); // undefined: okunmadı · null: okunamadı
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
+  const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
+  useEffect(() => setVeliNote(''), [studentId]);
+  const isAdmin = dataService.isCurrentUserAdmin();
+  const teacherName = dataService.getCurrentTeacher()?.name || '';
   const [sinifTur, setSinifTur] = useHistoryState<SinifTur>('deneme.karne.sinifTur', 'genel'); // Aşama 55
   const [heatOpts, setHeatOpts] = useState<HeatOptions>(() => ({ ...DEFAULT_HEAT_OPTIONS, subjectKey: branchSubjectKey() }));
 
@@ -416,6 +439,10 @@ export const DenemeKarne: React.FC<{
     [mode, sinifTur, fullExams, results]
   );
   const fullHeat = useMemo(() => (mode === 'isi' && results.length ? kazanimClassHeat(fullExams, results, usedSubjects(fullExams)) : null), [mode, fullExams, results]);
+  // Aşama 56
+  const veliData = useMemo(() => (mode === 'ogrenci' && tur === 'veli' && results.length ? veliKarneData(fullExams, results, target, usedSubjects(fullExams)) : null), [mode, tur, fullExams, results, target]);
+  const pk = useMemo(() => (mode === 'ogrenci' && tur === 'oncelik' ? priorityKarne(fullExams, results, usedSubjects(fullExams)) : null), [mode, tur, fullExams, results]);
+  const kurum = useMemo(() => (mode === 'kurum' && results.length ? kurumOzet(fullExams, results, students, usedSubjects(fullExams)) : null), [mode, fullExams, results, students]);
 
   const blocks = (): { blocks: PdfBlock[]; footer: string; file: string; orientation?: PdfOrientation } | null => {
     const label = scopeLabel(scope);
@@ -434,6 +461,26 @@ export const DenemeKarne: React.FC<{
         footer: `${student.name} kazanım takip karnesi`,
         file: `Kazanim-Takip-Karnesi-${student.name}`,
       };
+    }
+    if (mode === 'ogrenci' && student && tur === 'veli') {
+      if (!veliData) return null;
+      return {
+        blocks: veliKarneBlocks(veliData, { studentName: student.name, className: student.className || '', note: veliNote, teacherName }),
+        footer: `${student.name} veli bilgilendirme karnesi`,
+        file: `Veli-Karnesi-${student.name}`,
+      };
+    }
+    if (mode === 'ogrenci' && student && tur === 'oncelik') {
+      if (!pk) return null;
+      return {
+        blocks: oncelikKarneBlocks(pk, { studentName: student.name, className: student.className || '', scopeLabel: label, exams: fullExams.filter((e) => results.some((r) => r.examId === e.id)) }),
+        footer: `${student.name} öncelikli konu karnesi`,
+        file: `Oncelikli-Konular-${student.name}`,
+      };
+    }
+    if (mode === 'kurum') {
+      if (!kurum) return null;
+      return { blocks: kurumOzetBlocks(kurum, label), footer: 'Kurum özeti', file: 'Kurum-Ozeti', orientation: 'landscape' };
     }
     if (mode === 'ogrenci' && student && tur === 'plan') {
       return {
@@ -493,7 +540,7 @@ export const DenemeKarne: React.FC<{
       const last = lastExam ? results.find((r) => r.examId === lastExam.id && (!student || r.studentId === student.id)) : undefined;
       const msg =
         mode === 'ogrenci' && student
-          ? `${student.name} ${tur === 'kazanim' ? 'kazanım takip karnesi' : tur === 'plan' ? 'çalışma planı karnesi' : 'deneme karnesi'} (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
+          ? `${student.name} ${TUR_NAME[tur]} (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
           : `${b.footer} (${scopeLabel(scope)}).`;
       const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, mode === 'ogrenci' ? student?.phone : undefined, b.orientation);
       if (r === 'downloaded') setNotice({ tone: 'success', text: 'PDF indirildi ve WhatsApp açıldı; indirilen dosyayı mesaja ekleyebilirsiniz.' });
@@ -526,6 +573,7 @@ export const DenemeKarne: React.FC<{
               { value: 'sinif', label: 'Sınıf karnesi' },
               { value: 'karsilastirma', label: 'Sınıflar arası' },
               { value: 'isi', label: 'Kazanım ısı haritası' },
+              ...(isAdmin ? [{ value: 'kurum' as Mode, label: 'Kurum özeti' }] : []),
             ]}
           />
           <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
@@ -599,15 +647,7 @@ export const DenemeKarne: React.FC<{
             {mode === 'ogrenci' && (
               <div>
                 <label className="ui-label" htmlFor="karne-student">Öğrenci</label>
-                <select id="karne-student" className="ui-input" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-                  <option value="">Öğrenci seçin</option>
-                  {studentOptions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                      {classId ? '' : ` — ${s.className || 'sınıfsız'}`}
-                    </option>
-                  ))}
-                </select>
+                <StudentSearchSelect id="karne-student" students={studentOptions} value={studentId} onChange={setStudentId} placeholder="Öğrenci seçin" showClass={!classId} />
               </div>
             )}
           </div>
@@ -683,6 +723,12 @@ export const DenemeKarne: React.FC<{
         />
       ) : mode === 'sinif' && cls && sinifTur === 'birlesik' ? (
         <ClassCombinedView data={classData} scopeLabel={scopeLabel(scope)} />
+      ) : mode === 'ogrenci' && tur === 'veli' ? (
+        <VeliKarneView data={veliData} studentName={student?.name || ''} className={student?.className || ''} note={veliNote} onNote={setVeliNote} teacherName={teacherName} />
+      ) : mode === 'ogrenci' && tur === 'oncelik' && pk ? (
+        <OncelikKarneView pk={pk} />
+      ) : mode === 'kurum' ? (
+        <KurumOzetView k={kurum} scopeLabel={scopeLabel(scope)} />
       ) : mode === 'isi' ? (
         <KazanimIsiHaritasi heat={fullHeat} options={heatOpts} onOptions={setHeatOpts} />
       ) : mode === 'sinif' && cls ? (
