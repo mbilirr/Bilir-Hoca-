@@ -14,7 +14,6 @@ import {
   Users,
   AlertCircle,
   FileText,
-  Target,
   RefreshCw,
 } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
@@ -61,7 +60,8 @@ import { StudyPlanClassView } from './StudyPlanClassView';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { User as UserIcon, School } from 'lucide-react';
-import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
+import { transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19) — Ödevler bölümünün "Haftalık Plan" sekmesi
@@ -80,6 +80,13 @@ const SUBJECT_TONES = [
   'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/25',
   'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25',
 ];
+// Aşama 52: gün kutuları (öğrenci ve sınıf görünümü ortak)
+//  - Kutu genişliği en az 15rem; ekrana sığdığı kadar kutu yan yana gelir (geniş ekranda 3-4).
+//  - Ekran küçülünce kutu yayılıp uzun bir şerit olmaz: en-boy oranı kare kalır, görevler kutunun içinde kayar.
+export const PLAN_DAYS_GRID_CLS = 'grid gap-3 grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]';
+export const PLAN_DAY_CARD_CLS = 'ui-card flex flex-col aspect-square min-h-0 overflow-hidden';
+export const PLAN_DAY_BODY_CLS = 'flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 space-y-2';
+
 export const subjectTone = (subject: string) => {
   let h = 0;
   for (const ch of subject) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -95,18 +102,16 @@ const readMode = (): 'student' | 'class' => {
     return 'student';
   }
 };
-const readSaved = () => {
-  try {
-    return sessionStorage.getItem(STORE_KEY) || '';
-  } catch {
-    return '';
-  }
-};
+// Aşama 52: seçili öğrenci yalnızca uygulama açıkken hatırlanır (bölümler arası gidip gelince);
+// sayfa yenilenince / yeniden girişte liste "Öğrenci seçiniz" ile başlar.
+let lastStudentId = '';
+const readSaved = () => lastStudentId;
 const writeSaved = (id: string) => {
+  lastStudentId = id;
   try {
-    sessionStorage.setItem(STORE_KEY, id);
+    sessionStorage.removeItem(STORE_KEY); // eski sürümün kaydı kalmasın
   } catch {
-    /* sessionStorage yoksa seçim hatırlanmaz */
+    /* yoksay */
   }
 };
 
@@ -149,7 +154,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   const ownBook = (b: StudentBook) => !restricted || (!!b.subject && (mySubjects || []).some((m) => subjKey(m) === subjKey(b.subject)));
 
   // Aşama 23: Kime? Öğrenci (tek öğrencinin planı) / Sınıf (bir ya da birden çok sınıf, seçili öğrenciler)
-  const [mode, setMode] = useState<'student' | 'class'>(readMode);
+  const [mode, setMode] = useHistoryState<'student' | 'class'>('plan.mode', readMode); // Aşama 52: geri tuşu
   useEffect(() => {
     try {
       sessionStorage.setItem(MODE_KEY, mode);
@@ -170,18 +175,18 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1], 'tr', { numeric: true }));
   }, [students, classes]);
   const listed = useMemo(() => sortedStudents.filter((s) => classFilter === 'all' || s.classId === classFilter), [sortedStudents, classFilter]);
+  // Aşama 52: sayfa ilk açıldığında öğrenci seçili gelmez ("Öğrenci seçiniz"); öğretmen kendisi seçer.
+  // Seçim bu sekmede hatırlanır (başka bölüme gidip geri gelince aynı öğrenci açılır).
   const [studentId, setStudentId] = useState<string>(() => {
     const saved = readSaved();
     return saved && students.some((s) => s.id === saved) ? saved : '';
   });
   useEffect(() => {
-    // Seçili öğrenci listede yoksa ilk öğrenciyi seç
-    if (!listed.length) return;
-    if (!studentId || !students.some((s) => s.id === studentId)) setStudentId(listed[0].id);
-    else if (!listed.some((s) => s.id === studentId)) setStudentId(listed[0].id);
-  }, [listed, students, studentId]);
+    // Seçili öğrenci (ör. sınıf süzgeci değişince) listede kalmadıysa seçim boşaltılır; otomatik öğrenci seçilmez
+    if (studentId && !listed.some((s) => s.id === studentId)) setStudentId('');
+  }, [listed, studentId]);
   useEffect(() => {
-    if (studentId) writeSaved(studentId);
+    writeSaved(studentId);
   }, [studentId]);
   const student = students.find((s) => s.id === studentId) || null;
   const studentClass = student ? classes.find((c) => c.id === student.classId) : undefined;
@@ -406,39 +411,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     }
   };
 
-  // ---- Soru Kaydet'e aktar: plandaki görevlerin metni (kitap – açıklama) öğrencinin "Soru Kaydet" formundaki
-  //      "Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır; soru sayısı yazılmış görevler gün gün soru hedefine aktarılır (Aşama 43).
-  const transferableCount = plan.items.filter((i) => canSubject(i.subject) && (i.book.trim() || i.note.trim() || i.questionCount > 0)).length;
-  const doTransferToQuestions = async () => {
-    if (!student || busy) return;
-    setBusy(true);
-    try {
-      const r = await transferPlanTopicsToQuestionEntry({ student, weekStart, items: plan.items, canSubject });
-      if (!r.subjects.length) {
-        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap, açıklama ya da soru sayısı yazılı olmalı (ve kendi branşınızdan olmalı).' });
-        return;
-      }
-      const extra = [
-        r.questionTotal ? `Soru hedefi olarak ${r.questionTotal} soru aktarıldı (${r.questionSubjects.join(', ')}).` : '',
-        r.manualKept.length ? `${r.manualKept.join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : '',
-        r.skippedSubjects.length ? `Yetkiniz olmayan dersler aktarılmadı: ${r.skippedSubjects.join(', ')}.` : '',
-        r.emptySubjects.length ? `Kitap/açıklaması boş görevler atlandı: ${r.emptySubjects.join(', ')}.` : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
-      say(
-        {
-          tone: 'success',
-          text: `${r.subjects.join(', ')} görevleri ${student.name} adlı öğrencinin "Soru Kaydet → Çalışılan Konu / Test" kutusuna aktarıldı (${r.days} gün). ${extra}`.trim(),
-        },
-        8000
-      );
-    } catch (e: any) {
-      say({ tone: 'danger', text: e?.message || 'Görevler soru kaydet bölümüne aktarılamadı.' });
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Aşama 52: "Soru Kaydet'e aktar" düğmesi kaldırıldı. Görevler "Öğrenciye ödev olarak gönder" ve "Planı yenile"
+  //           sırasında öğrencinin Soru Kaydet bölümüne (Çalışılan Konu / Test + gün gün soru hedefi) otomatik aktarılır.
 
   // ---- Aşama 36: Planı yenile — gönderildikten sonra yapılan değişiklikler öğrenciye ve Soru Kaydet'e yeniden gider
   const doRefresh = async () => {
@@ -535,6 +509,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           <div>
             <FieldLabel htmlFor="plan-student">Öğrenci</FieldLabel>
             <select id="plan-student" value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              <option value="">Öğrenci seçiniz</option>
               {listed.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -613,16 +588,6 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || shownItems.length === 0} onClick={() => doExport('excel')}>
                 <FileSpreadsheet className="text-success-fg" /> Excel
               </button>
-              <button
-                type="button"
-                id="plan-to-questions"
-                className={planTileCls}
-                disabled={busy || transferableCount === 0}
-                onClick={doTransferToQuestions}
-                title="Görevleri öğrencinin Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır"
-              >
-                <Target className="text-warning-fg" /> Soru Kaydet'e aktar
-              </button>
               <button type="button" id="plan-apply" className={planTileCls} disabled={shownItems.length === 0} onClick={() => setApplyOpen(true)}>
                 <Copy className="text-info-fg" /> Başkalarına / başka haftaya uygula
               </button>
@@ -668,18 +633,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
 
       </div>
 
-      {/* Aşama 23: taslak planda gönder düğmesi daha görünür */}
-      {!sent && shownItems.length > 0 && !loading && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-xl border border-warning/40 bg-warning-soft px-4 py-3" id="plan-draft-callout">
-          <p className="text-sm text-warning-fg font-semibold flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            Plan taslak: öğrenci henüz görmüyor. Görmesi için "Öğrenciye ödev olarak gönder"e basın.
-          </p>
-          <button type="button" id="plan-send-callout" className="ui-btn ui-btn-primary ui-btn-sm shrink-0" disabled={busy} onClick={doSend}>
-            <Send className="w-3.5 h-3.5" /> Öğrenciye ödev olarak gönder
-          </button>
-        </div>
-      )}
+      {/* Aşama 52: taslak uyarısı ve ikinci "Öğrenciye ödev olarak gönder" düğmesi kaldırıldı (üstteki düğme yeterli) */}
 
       {notice && (
         <div
@@ -705,8 +659,13 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         </div>
       )}
 
-      {/* Haftanın 7 günü */}
-      <div className={cx('grid gap-3 sm:grid-cols-2 xl:grid-cols-4', loading && 'opacity-60 transition-opacity')} id="plan-days" aria-busy={loading}>
+      {/* Haftanın 7 günü — Aşama 52: gün kutuları her ekran genişliğinde kare (en-boy orantılı); sığdığı kadar yan yana (3-4) */}
+      {!student ? (
+        <div className="ui-card" id="plan-pick-student">
+          <EmptyState icon={UserIcon} title="Öğrenci seçiniz" description="Planını hazırlamak istediğiniz öğrenciyi yukarıdaki Öğrenci listesinden seçin." />
+        </div>
+      ) : (
+      <div className={cx(PLAN_DAYS_GRID_CLS, loading && 'opacity-60 transition-opacity')} id="plan-days" aria-busy={loading}>
         {itemsByDay.map((list, d) => {
           const date = dateOfDay(weekStart, d);
           const isToday = date === todayStr;
@@ -714,7 +673,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
             <section
               key={d}
               data-day={d}
-              className={cx('ui-card flex flex-col min-h-[9rem]', isToday && 'ring-2 ring-brand/50 border-brand/50')}
+              className={cx(PLAN_DAY_CARD_CLS, isToday && 'ring-2 ring-brand/50 border-brand/50')}
               aria-label={`${planDayName(weekStart, d)} görevleri`}
             >
               <header className={cx('flex items-center justify-between gap-2 px-3 py-2 border-b border-line rounded-t-2xl', isToday ? 'bg-brand-soft' : 'bg-surface-2/60')}>
@@ -736,7 +695,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                   <Plus className="w-4 h-4" />
                 </button>
               </header>
-              <div className="flex-1 p-2 space-y-2">
+              <div className={PLAN_DAY_BODY_CLS}>
                 {list.length === 0 && <p className="text-xs text-subtle px-1 py-2">Görev yok</p>}
                 {list.map((it) => {
                   const editable = canSubject(it.subject);
@@ -783,6 +742,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
           );
         })}
       </div>
+      )}
 
       {/* Pencereler */}
       <StudyPlanTaskModal
@@ -926,6 +886,11 @@ const ApplyPlanModal: React.FC<{
     setError(null);
     try {
       const r = await applyPlan({ items, targetStudentIds: targets, targetWeek, send, senderName, canUseSubject: canSubject });
+      // Aşama 52: hemen gönderildiyse görevler öğrencilerin Soru Kaydet bölümüne de aktarılır
+      if (send) {
+        await transferPlansForStudents(students.filter((s) => targets.includes(s.id)), targetWeek, canSubject);
+        void dataService.syncPlanWeekStarts();
+      }
       setResult(r);
     } catch (e: any) {
       setError(e?.message || 'Plan uygulanamadı.');

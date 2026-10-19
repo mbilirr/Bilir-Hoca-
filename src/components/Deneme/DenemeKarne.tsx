@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useHistoryState } from '../../lib/useHistoryState';
 import { Download, Mail, MessageCircle, Save } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
@@ -290,7 +291,7 @@ export const DenemeKarne: React.FC<{
   students: Student[];
   classes: ClassGroup[];
 }> = ({ exams, students, classes }) => {
-  const [mode, setMode] = useState<Mode>('ogrenci');
+  const [mode, setMode] = useHistoryState<Mode>('deneme.karne.mode', 'ogrenci'); // Aşama 52: geri tuşu
   const [scope, setScope] = useState<ScopeKey>('last5');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [classId, setClassId] = useState('');

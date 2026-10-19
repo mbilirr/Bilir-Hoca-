@@ -377,6 +377,16 @@ const TargetFormContent: React.FC<Props> = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, studentId, classStudentKey, start, end]);
+  // Aşama 52: bilgi kutusundaki günler — 7 günlük (ya da daha kısa) aralıkta her gün; daha uzun aralıkta
+  // yalnızca planda soru olan günler (7'li sıralar halinde)
+  const planGhostDates = useMemo(() => {
+    if (!planCounts) return [] as string[];
+    const s0 = parseYmd(start);
+    if (s0 && days >= 1 && days <= 7) return Array.from({ length: days }, (_, i) => localDateStr(addDays(s0, i)));
+    return Object.keys(planCounts.byDay)
+      .filter((d) => d >= start && d <= end)
+      .sort();
+  }, [planCounts, start, end, days]);
   const ghostText = (bySubject: Record<string, number>) =>
     Object.entries(bySubject)
       .sort((a, b) => b[1] - a[1])
@@ -737,14 +747,41 @@ const TargetFormContent: React.FC<Props> = ({
               title="Öğrencinin haftalık planlarında bu tarihlerde verilmiş soru sayıları (bütün öğretmenler). Hedefi verirken dikkate alın."
             >
               <span className="inline-flex items-center gap-1.5 font-semibold text-brand-fg">
-                <ClipboardList className="w-3.5 h-3.5" /> Haftalık planda:
+                <ClipboardList className="w-3.5 h-3.5" /> Haftalık planda gün gün soru sayıları
               </span>{' '}
               <span className="font-bold text-fg">
-                {kind === 'student' && selectedStudent ? `${selectedStudent.name.split(' ')[0]} — ` : ''}
-                {kind === 'class' && planGhostInfo ? 'öğrenci başına ortalama ' : ''}
-                {ghostText(planCounts.bySubject)} soru
+                {kind === 'student' && selectedStudent ? `— ${selectedStudent.name.split(' ')[0]}` : ''}
+                {kind === 'class' && planGhostInfo ? '— öğrenci başına ortalama' : ''}
               </span>
-              <span className="block text-[11px] text-muted mt-0.5">
+              {/* Aşama 52: ders toplamları yerine 7 eşit parça; her parçada o günün dersleri ve soru sayıları */}
+              <div className="mt-1.5 grid grid-cols-7 gap-1" id="qt-plan-ghost-days">
+                {planGhostDates.map((d) => {
+                  const dt = parseYmd(d);
+                  const map = planCounts.byDay[d] || {};
+                  const list = Object.entries(map).sort((a, b) => b[1] - a[1]);
+                  return (
+                    <div
+                      key={d}
+                      data-testid="qt-plan-ghost-day"
+                      className={`min-w-0 rounded-lg border px-1 py-1 text-center ${list.length ? 'border-brand/30 bg-surface' : 'border-line bg-surface-2/40'}`}
+                      title={list.length ? `${shortTrDate(d)}: ${list.map(([s, n]) => `${s} ${n}`).join(', ')}` : `${shortTrDate(d)}: planda soru yok`}
+                    >
+                      <span className="block text-[10px] font-bold text-fg leading-tight">{dt ? DAY_NAMES[dt.getDay()] : ''}</span>
+                      <span className="block text-[9px] text-muted leading-tight">{shortTrDate(d)}</span>
+                      {list.length ? (
+                        list.map(([s, n]) => (
+                          <span key={s} className="block text-[10px] leading-tight font-semibold text-brand-fg break-words">
+                            {shortSubjectName(s)}:{n}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="block text-[10px] text-subtle">—</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <span className="block text-[11px] text-muted mt-1">
                 {kind === 'class' && planGhostInfo
                   ? `${planGhostInfo.total} öğrencinin ${planGhostInfo.withPlan} tanesinin planında soru var. `
                   : ''}

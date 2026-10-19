@@ -47,10 +47,62 @@ export interface StudyPlanSendModalProps {
   title?: string;
   /** Aşama 35: verilirse gönderimden sonra görevler öğrencinin Soru Kaydet formuna da aktarılır (öğretmenin yetkili olduğu dersler) */
   canSubject?: (subject: string) => boolean;
+  /** Aşama 52: gönderilecek sınıflar pencerede sorulur (sınıf görünümü) */
+  pickClasses?: boolean;
+  /** Aşama 52: sınıf mevcutları (tüm sınıf seçilince sınıf karnesi için) */
+  classSizes?: Record<string, number>;
+  /** Aşama 52: planı daha önce gönderilmiş öğrenciler (sınıf satırında bilgi olarak gösterilir) */
+  sentIds?: string[];
   onClose: (changed: boolean) => void;
 }
 
-export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStart, students, classes, kind, classId, teacherName, title, canSubject, onClose }) => {
+export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
+  weekStart,
+  students: allStudents,
+  classes,
+  kind: kindProp,
+  classId: classIdProp,
+  teacherName,
+  title,
+  canSubject,
+  pickClasses,
+  classSizes,
+  sentIds,
+  onClose,
+}) => {
+  // ---- Aşama 52: sınıf seçimi
+  const classGroups = useMemo(() => {
+    const m = new Map<string, Student[]>();
+    for (const s of allStudents) {
+      const k = s.classId || '';
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(s);
+    }
+    const nameOf = (cid: string) => classes.find((c) => c.id === cid)?.name || m.get(cid)?.[0]?.className || 'Sınıfsız';
+    return Array.from(m.entries())
+      .map(([cid, list]) => ({ cid, name: nameOf(cid), list }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true }));
+  }, [allStudents, classes]);
+  const askClasses = !!pickClasses && allStudents.length > 1;
+  const sentSet = useMemo(() => new Set(sentIds || []), [sentIds]);
+  // Tek sınıf varsa seçili gelir; birden çok sınıf varsa öğretmen seçer
+  const [chosen, setChosen] = useState<Set<string>>(() => (classGroups.length === 1 ? new Set([classGroups[0].cid]) : new Set()));
+  const toggleClass = (cid: string) =>
+    setChosen((cur) => {
+      const n = new Set(cur);
+      if (n.has(cid)) n.delete(cid);
+      else n.add(cid);
+      return n;
+    });
+  const students = useMemo(() => (askClasses ? allStudents.filter((s) => chosen.has(s.classId || '')) : allStudents), [askClasses, allStudents, chosen]);
+  const { kind, classId } = useMemo((): { kind: PlanGroupKind; classId?: string } => {
+    if (!askClasses) return { kind: kindProp, classId: classIdProp };
+    if (students.length <= 1) return { kind: 'student' };
+    const cids = Array.from(chosen);
+    if (cids.length === 1 && classSizes && classSizes[cids[0]] === students.length) return { kind: 'class', classId: cids[0] };
+    return { kind: 'students' };
+  }, [askClasses, kindProp, classIdProp, students, chosen, classSizes]);
+
   const withEmail = useMemo(() => students.filter((s) => isEmail(s.email)).length, [students]);
   const [mail, setMail] = useState(false);
   const [wa, setWa] = useState(false);
@@ -73,7 +125,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
   const patchRow = (id: string, patch: Partial<RowState>) => setRows((cur) => cur.map((r) => (r.student.id === id ? { ...r, ...patch } : r)));
 
   const run = async () => {
-    if (phase !== 'form') return;
+    if (phase !== 'form' || students.length === 0) return;
     setPhase('running');
     setError(null);
     const list: RowState[] = students.map((s) => ({ student: s, items: [], mail: mail ? (isEmail(s.email) ? 'idle' : 'no-email') : 'skipped' }));
@@ -159,15 +211,15 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
       tone="brand"
       size={single ? 'md' : 'lg'}
       title={title || 'Planı öğrenciye gönder'}
-      description={`${single ? students[0].name : `${students.length} öğrenci`} · ${weekRangeLabel(weekStart)}`}
+      description={`${single ? students[0].name : students.length ? `${students.length} öğrenci` : 'Sınıf seçilmedi'} · ${weekRangeLabel(weekStart)}`}
       footer={
         phase === 'form' ? (
           <>
             <button type="button" className="ui-btn ui-btn-secondary" onClick={() => onClose(false)}>
               Vazgeç
             </button>
-            <button type="button" id="plan-send-run" className="ui-btn ui-btn-primary" onClick={run}>
-              <Send className="w-4 h-4" /> Gönder
+            <button type="button" id="plan-send-run" className="ui-btn ui-btn-primary" disabled={students.length === 0} onClick={run}>
+              <Send className="w-4 h-4" /> {askClasses ? (students.length ? `${students.length} öğrenciye gönder` : 'Önce sınıf seçin') : 'Gönder'}
             </button>
           </>
         ) : (
@@ -179,11 +231,60 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({ weekStar
     >
       {phase === 'form' ? (
         <div className="space-y-3">
+          {askClasses && (
+            <div className="rounded-xl border border-brand/30 bg-brand-soft/30 px-3 py-2.5 space-y-2" id="plan-send-classes">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-fg">Hangi sınıflara ödev olarak gönderilsin?</p>
+                {classGroups.length > 1 && (
+                  <button
+                    type="button"
+                    id="plan-send-classes-all"
+                    className="ui-btn ui-btn-ghost ui-btn-sm"
+                    onClick={() => setChosen(chosen.size === classGroups.length ? new Set() : new Set(classGroups.map((g) => g.cid)))}
+                  >
+                    {chosen.size === classGroups.length ? 'Seçimi kaldır' : 'Tümünü seç'}
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Gönderilecek sınıflar">
+                {classGroups.map((g) => {
+                  const on = chosen.has(g.cid);
+                  const sentN = g.list.filter((s) => sentSet.has(s.id)).length;
+                  return (
+                    <button
+                      key={g.cid || 'none'}
+                      type="button"
+                      data-send-class={g.cid}
+                      aria-pressed={on}
+                      onClick={() => toggleClass(g.cid)}
+                      className={cx(
+                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
+                        on ? 'border-brand bg-brand text-white' : 'border-line bg-surface text-fg-2 hover:border-brand/50'
+                      )}
+                    >
+                      {on && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {g.name}
+                      <span className={cx('text-[10px] font-bold', on ? 'text-white/80' : 'text-muted')}>
+                        {g.list.length} öğr.{sentN ? ` · ${sentN} gönderildi` : ''}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted">
+                Yalnızca seçtiğiniz sınıfların öğrencileri planı görür ve görevler onların Soru Kaydet bölümüne aktarılır. Diğer sınıflar taslak kalır; sonra
+                gönderebilirsiniz.
+              </p>
+            </div>
+          )}
           <label className="flex items-start gap-2.5 rounded-xl border border-line bg-surface-2/50 px-3 py-2.5 opacity-90">
             <input type="checkbox" checked disabled className="mt-0.5 w-4 h-4" />
             <span className="text-sm">
-              <span className="font-semibold text-fg">Öğrencinin uygulamasında göster</span>
-              <span className="block text-[11px] text-muted">Öğrenci ana sayfasında her gün "Bugün yapılması gerekenler" olarak görür ve işaretler.</span>
+              <span className="font-semibold text-fg">Öğrencinin uygulamasında göster ve Soru Kaydet'e aktar</span>
+              <span className="block text-[11px] text-muted">
+                Öğrenci ana sayfasında her gün "Bugün yapılması gerekenler" olarak görür ve işaretler. Görevler Soru Kaydet bölümünde ilgili günün ders satırına
+                kendiliğinden yazılır; soru sayıları gün gün soru hedefine eklenir.
+              </span>
             </span>
           </label>
           <label className={cx('flex items-start gap-2.5 cursor-pointer rounded-xl border px-3 py-2.5', mail ? 'border-brand bg-brand-soft/40' : 'border-line')}>

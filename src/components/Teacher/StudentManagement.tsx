@@ -69,6 +69,7 @@ import {
   normalizeAcademicYear,
 } from '../../lib/importNormalize';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 interface StudentManagementProps {
   students: Student[];
@@ -86,7 +87,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [sortOrder, setSortOrder] = useState<'default' | 'name-asc' | 'name-desc' | 'number-asc'>('default');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'students' | 'classes'>('students');
+  const [activeTab, setActiveTab] = useHistoryState<'students' | 'classes'>('students.tab', 'students'); // Aşama 52: geri tuşu
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
 
   // Hızlı arama / ana sayfa kısayolu ile gelindiyse ilgili öğrenciyi, sınıfı veya ekleme formunu aç

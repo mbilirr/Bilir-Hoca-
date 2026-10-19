@@ -7,6 +7,7 @@ import { LGS_SCORING, fmtNet, fmtScore, markOf, normalizeQuestions, rankAndSumma
 import { dateTr } from '../../lib/deneme/karneModel';
 import { topicLabels } from '../../lib/deneme/analiz';
 import { AnahtarEditor } from './AnahtarEditor';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 // ============================================================================
 // Deneme ayrıntısı (Aşama 47): sonuç listesi, soru analizi, öğrencilere açma, anahtar düzeltme.
@@ -24,7 +25,7 @@ export const DenemeSonuclar: React.FC<{
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState('');
-  const [view, setView] = useState<'list' | 'questions'>('list');
+  const [view, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
   const [keyOpen, setKeyOpen] = useState(false);
   const [draftKey, setDraftKey] = useState<ExamQuestions>({});
   const [confirmDelete, setConfirmDelete] = useState(false);

@@ -691,7 +691,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const sameSubject = (a: string, b: string) =>
     normalizeSubject(a).toLocaleLowerCase('tr-TR') === normalizeSubject(b).toLocaleLowerCase('tr-TR');
   const planTaskText = (it: PlanItem) => [it.book, it.note].map((s) => (s || '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' – ');
-  const planTasksFor = (subject: string) => planTasks.filter((it) => sameSubject(it.subject, subject) && planTaskText(it));
+  // Aşama 52: öğretmenin otomatik aktardığı derslerin görevleri tekrar önerilmez (yalnızca aktarılmayanlar)
+  const planTasksFor = (subject: string) => manualPlanTasks.filter((it) => sameSubject(it.subject, subject) && planTaskText(it));
   /** Konu kutusuna görev metnini ekler (kutuda yazı varsa sonuna virgülle eklenir, aynısı tekrar eklenmez) */
   const appendTopic = (current: string, text: string) => {
     const cur = current.trim();
@@ -730,6 +731,13 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     [activeStudent.id, entryDate, allLogs]
   );
   const teacherTopicsSig = teacherTopics.map((x) => `${x.subject}:${x.topic}`).join('|');
+  // Aşama 52: öğretmen planı gönderip görevleri otomatik aktardıysa o derslerin görevleri "günlük planındaki görevler"
+  // kutusunda gösterilmez (zaten ders satırına yazıldı). Aktarılmamış görevler kalırsa kutu çıkar; öğrenci isterse elle ekler.
+  const manualPlanTasks = useMemo(
+    () => planTasks.filter((it) => !teacherTopics.some((x) => sameSubject(x.subject, it.subject))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [planTasks, teacherTopicsSig]
+  );
   const teacherTopicsAppliedRef = useRef<string>('');
   useEffect(() => {
     if (!teacherTopics.length || dateError) return;
@@ -2208,30 +2216,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
           )}
 
-          {/* Öğretmenin günlük plandan aktardığı konular (konu kutularına kendiliğinden yazıldı) */}
-          {teacherTopics.length > 0 && !dateError && (
-            <div
-              id="qe-teacher-topics"
-              role="note"
-              className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 text-xs text-emerald-800 dark:text-emerald-200 space-y-1"
-            >
-              <p className="font-bold flex items-center gap-1.5">
-                <ClipboardList className="w-4 h-4" />
-                Öğretmenin bu gün için aktardığı konular “Çalışılan Konu / Test” kutusuna yazıldı
-              </p>
-              <ul className="list-disc pl-5 space-y-0.5">
-                {teacherTopics.map((x) => (
-                  <li key={x.subject}>
-                    <strong>{x.subject}:</strong> {x.topic}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[11px] opacity-90">Sen yalnızca çözdüğün soru, doğru ve yanlış sayılarını gir.</p>
-            </div>
-          )}
+          {/* Aşama 52: "Öğretmenin bu gün için aktardığı konular" bilgilendirmesi kaldırıldı; konular ders satırına
+              kendiliğinden yazılıyor. */}
 
-          {/* Günlük plandaki görevler: isteğe bağlı olarak "Çalışılan Konu / Test" kutusuna aktarılır */}
-          {planTasks.length > 0 && !dateError && (
+          {/* Günlük plandaki görevler: yalnızca öğretmenin OTOMATİK AKTARMADIĞI görevler varsa çıkar; öğrenci isterse elle ekler */}
+          {manualPlanTasks.length > 0 && !dateError && (
             <div
               id="qe-plan-tasks"
               className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 space-y-2"
@@ -2242,7 +2231,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <span className="font-medium text-indigo-700/80 dark:text-indigo-300/80">(isteğe bağlı · tıklayınca konu kutusuna aktarılır)</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {planTasks.map((it) => {
+                {manualPlanTasks.map((it) => {
                   const text = planTaskText(it);
                   return (
                     <button

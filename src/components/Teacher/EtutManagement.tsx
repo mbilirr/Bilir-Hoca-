@@ -40,6 +40,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useHistoryState } from '../../lib/useHistoryState';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { WeeklyEtutCalendar } from './WeeklyEtutCalendar';
@@ -118,7 +119,7 @@ interface EtutManagementProps {
 }
 
 export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students, classes }) => {
-  const [viewMode, setViewMode] = useState<'calendar' | 'cards' | 'attendance'>('calendar');
+  const [viewMode, setViewMode] = useHistoryState<'calendar' | 'cards' | 'attendance'>('etut.view', 'calendar'); // Aşama 52: geri tuşu
   const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null); // Aşama 21: açık etüt şeridi
   const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');

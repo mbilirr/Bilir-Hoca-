@@ -11,6 +11,7 @@ import { DenemeSonuclar } from './DenemeSonuclar';
 import { DenemeKarne } from './DenemeKarne';
 import { DenemeEtut } from './DenemeEtut';
 import { KazanimBankasi } from './KazanimBankasi';
+import { hasHistoryValue, useHistoryState } from '../../lib/useHistoryState';
 
 // ============================================================================
 // DENEME ANALİZİ (Aşama 47) — ana sayfa
@@ -19,11 +20,21 @@ import { KazanimBankasi } from './KazanimBankasi';
 // ============================================================================
 
 type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
-type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; exam: DenemeExam } | { kind: 'detail'; id: string };
+// Aşama 52: görünüm tarayıcı geçmişine yazılır (yalnızca kimlik tutulur; deneme nesnesi bellekte kalır)
+type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; id: string } | { kind: 'detail'; id: string };
 
 export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[] }> = ({ students, classes }) => {
-  const [tab, setTab] = useState<Tab>('denemeler');
-  const [view, setView] = useState<View>({ kind: 'list' });
+  const [tab, setTab] = useHistoryState<Tab>('deneme.tab', 'denemeler');
+  const [view, setView] = useHistoryState<View>('deneme.view', { kind: 'list' });
+  const [uploadExam, setUploadExam] = useState<DenemeExam | null>(null);
+  // Sayfadaki "Denemelere dön / Vazgeç" düğmeleri: bu görünüme ileri gelindiyse tarayıcıdaki geri ile aynı işi yapar
+  // (geçmişte fazladan kayıt birikmez); sayfa doğrudan açıldıysa hedef görünüme geçer.
+  const goBack = (fallback: View) => {
+    if (hasHistoryValue('deneme.view')) window.history.back();
+    else setView(fallback, { replace: true });
+  };
+  // Yükleme görünümüne geri/ileri ile gelinip deneme bellekte yoksa sonuçlar gösterilir
+  const shownView: View = view.kind === 'upload' && uploadExam?.id !== view.id ? { kind: 'detail', id: view.id } : view;
   const [exams, setExams] = useState<DenemeExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,46 +148,51 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
 
-      {tab === 'denemeler' && view.kind === 'new' && (
+      {tab === 'denemeler' && shownView.kind === 'new' && (
         <DenemeWizard
           students={students}
           classes={classes}
-          onCancel={() => setView({ kind: 'list' })}
+          onCancel={() => goBack({ kind: 'list' })}
           onSaved={(id) => {
             void reload();
-            setView({ kind: 'detail', id });
+            // Kaydedilen sihirbaz ekranı geçmişte kalmasın: aynı kayıt sonuç ekranına çevrilir
+            setView({ kind: 'detail', id }, { replace: true });
           }}
         />
       )}
-      {tab === 'denemeler' && view.kind === 'upload' && (
+      {tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && (
         <DenemeWizard
           students={students}
           classes={classes}
-          existing={view.exam}
+          existing={uploadExam}
           startStep={2}
-          onCancel={() => setView({ kind: 'detail', id: view.exam.id })}
-          onSaved={(id) => {
+          onCancel={() => goBack({ kind: 'detail', id: uploadExam.id })}
+          onSaved={() => {
             void reload();
-            setView({ kind: 'detail', id });
+            // Sonuç ekranından gelindi: geri giderek aynı ekrana dönülür (geçmişte çift kayıt oluşmaz)
+            goBack({ kind: 'detail', id: uploadExam.id });
           }}
         />
       )}
-      {tab === 'denemeler' && view.kind === 'detail' && (
+      {tab === 'denemeler' && shownView.kind === 'detail' && (
         <DenemeSonuclar
-          examId={view.id}
+          examId={shownView.id}
           onBack={() => {
             void reload();
-            setView({ kind: 'list' });
+            goBack({ kind: 'list' });
           }}
-          onUploadMore={(exam) => setView({ kind: 'upload', exam })}
+          onUploadMore={(exam) => {
+            setUploadExam(exam);
+            setView({ kind: 'upload', id: exam.id });
+          }}
           onDeleted={() => {
             void reload();
-            setView({ kind: 'list' });
+            setView({ kind: 'list' }, { replace: true });
           }}
         />
       )}
 
-      {tab === 'denemeler' && view.kind === 'list' && (
+      {tab === 'denemeler' && shownView.kind === 'list' && (
         <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-card">
           {loading ? (
             <p className="px-4 py-8 text-sm text-muted text-center">Yükleniyor…</p>

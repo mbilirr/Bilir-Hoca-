@@ -86,6 +86,7 @@ import {
 } from '../../utils/questionAnalytics';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -99,10 +100,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   students,
 }) => {
   // Sınıf seçimi (varsayılan: boş, "Sınıf Seçiniz")
-  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  // Aşama 52: sınıf ve öğrenci seçimi tarayıcı geçmişine yazılır; "Geri" önceki seçime (ör. öğrenciden sınıfa) döner
+  const [selectedClassId, setSelectedClassId] = useHistoryState<string>('qt.class', '');
 
   // Seçili öğrenci (varsayılan: boş, "Öğrenci Seçiniz")
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [selectedStudentId, setSelectedStudentId] = useHistoryState<string>('qt.student', '');
 
   // Aktif öğrenci (öğrenci seçildiğinde bağımsız olarak atanır)
   const activeStudent = useMemo(() => {

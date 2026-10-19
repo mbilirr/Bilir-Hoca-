@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Target, Trash2, Undo2, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Trash2, Undo2, Users } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
@@ -35,9 +35,9 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, chipCls, classLevel, inputCls } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
-import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
+import { transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { MultiCheckSelect } from './MultiCheckSelect';
-import { subjectTone } from './StudyPlanManager';
+import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 
@@ -292,6 +292,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const allSent = withItems.length > 0 && sentCount === withItems.length;
 
   const [sendModal, setSendModal] = useState<{ students: Student[]; kind: PlanGroupKind; classId?: string; title?: string } | null>(null);
+  // Aşama 52: "Ödev olarak gönder" plandaki her sınıfa kendiliğinden göndermez; açılan pencerede
+  // hangi sınıflara gönderileceği sorulur (birden çok sınıf varsa hiçbiri önceden seçili gelmez).
   const openSend = (title?: string) => {
     const list = withItems;
     if (!list.length) return;
@@ -304,6 +306,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     }
     setSendModal({ students: list, kind, classId, title });
   };
+  const classSizes = useMemo(() => Object.fromEntries(classTotal.entries()) as Record<string, number>, [classTotal]);
   const [busy, setBusy] = useState(false);
   const doUnsend = async () => {
     if (busy) return;
@@ -319,50 +322,13 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     }
   };
 
-  // ---- Aşama 35: Soru Kaydet'e aktar (seçili öğrencilerin hepsi): plandaki görevlerin metni öğrencinin
-  //      "Soru Kaydet → Çalışılan Konu / Test" kutusuna, görevin gününe ve dersine yazılır; soru sayısı yazılmış görevler gün gün soru hedefine aktarılır (Aşama 43).
-  const transferable = withItems.filter((s) => viewItems.some((i) => i.studentId === s.id && canSubject(i.subject) && (i.book.trim() || i.note.trim() || i.questionCount > 0)));
-  const doTransferToQuestions = async () => {
-    if (busy || !transferable.length) return;
-    setBusy(true);
-    let ok = 0;
-    let qTotal = 0;
-    const manual = new Set<string>();
-    const failed: string[] = [];
-    const subjects = new Set<string>();
-    try {
-      for (const s of transferable) {
-        try {
-          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: viewItems.filter((i) => i.studentId === s.id), canSubject });
-          if (r.subjects.length) {
-            ok++;
-            r.subjects.forEach((x) => subjects.add(x));
-          }
-          qTotal += r.questionTotal;
-          r.manualKept.forEach((x) => manual.add(x));
-        } catch {
-          failed.push(s.name);
-        }
-      }
-      if (ok) {
-        say(
-          {
-            tone: failed.length ? 'warning' : 'success',
-            text: `${[...subjects].join(', ')} görevleri ${ok} öğrencinin "Soru Kaydet → Çalışılan Konu / Test" kutusuna aktarıldı.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Aktarılamayan: ${failed.join(', ')}.` : ''}`,
-          },
-          8000
-        );
-      } else {
-        say({ tone: 'warning', text: 'Aktarılacak görev yok. Görevlerde kitap, açıklama ya da soru sayısı yazılı olmalı (ve kendi branşınızdan olmalı).' });
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Aşama 52: "Soru Kaydet'e aktar" düğmesi kaldırıldı. Görevler "Ödev olarak gönder" ve "Planı yenile" sırasında
+  //           yalnızca GÖNDERİLEN öğrencilerin Soru Kaydet bölümüne otomatik aktarılır.
 
   // ---- Aşama 36: Planı yenile — gönderildikten SONRA görev eklendi / değiştirildi / silindiyse:
-  //      plan seçili öğrencilere yeniden gönderilir (yeni eklenen öğrenciler de görür) ve
-  //      görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna yeniden aktarılır.
+  //      plan yeniden gönderilir ve görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna yeniden aktarılır.
+  //      Aşama 52: yalnızca planı DAHA ÖNCE GÖNDERİLMİŞ öğrenciler yenilenir; gönderilmemiş sınıflara plan gitmez
+  //      (onlara "Ödev olarak gönder" ile sınıf seçilerek gönderilir).
   const doRefresh = async () => {
     if (busy || !withItems.length) return;
     setBusy(true);
@@ -371,9 +337,10 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     let qTotal = 0;
     const manual = new Set<string>();
     try {
-      // Görevi olan öğrenciler + görevi sonradan tamamen çıkarılmış ama planı gönderilmiş öğrenciler
-      // (onların Soru Kaydet'teki eski konuları da temizlensin)
-      const targets = viewStudents.filter((s) => withItems.includes(s) || headers[s.id]?.sentAt);
+      // Planı gönderilmiş öğrenciler (görevi sonradan tamamen çıkarılanlar dahil; Soru Kaydet'teki eski konuları da temizlensin)
+      // + planı gönderilmiş SINIFLARDA sonradan görev verilen öğrenciler. Hiç gönderilmemiş sınıflara dokunulmaz.
+      const sentClassIds = new Set(viewStudents.filter((s) => headers[s.id]?.sentAt).map((s) => s.classId));
+      const targets = viewStudents.filter((s) => headers[s.id]?.sentAt || (sentClassIds.has(s.classId) && withItems.includes(s)));
       for (const s of targets) {
         const own = viewItems.filter((i) => i.studentId === s.id);
         try {
@@ -391,7 +358,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       say(
         {
           tone: failed.length ? 'warning' : 'success',
-          text: `Plan ${withItems.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
+          text: `Plan ${targets.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
         },
         8000
       );
@@ -752,16 +719,6 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               <button type="button" id="plan-excel" className={planTileCls} disabled={busy || withItems.length === 0} onClick={() => doExport('excel')}>
                 <FileSpreadsheet className="text-success-fg" /> Excel
               </button>
-              <button
-                type="button"
-                id="plan-to-questions"
-                className={planTileCls}
-                disabled={busy || transferable.length === 0}
-                onClick={doTransferToQuestions}
-                title="Seçili öğrencilerin görevlerini Soru Kaydet formundaki “Çalışılan Konu / Test” kutusuna aktarır"
-              >
-                <Target className="text-warning-fg" /> Soru Kaydet'e aktar
-              </button>
               <button type="button" id="plan-copy-week" className={planTileCls} disabled={withItems.length === 0} onClick={() => setCopyOpen(true)}>
                 <Copy className="text-info-fg" /> Başka haftaya kopyala
               </button>
@@ -806,19 +763,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
         </div>
       )}
 
-      {withItems.length > 0 && !allSent && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between rounded-xl border border-warning/40 bg-warning-soft px-4 py-3" id="plan-draft-callout">
-          <p className="text-sm text-warning-fg font-semibold flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            {sentCount > 0
-              ? `Planı ${withItems.length - sentCount} öğrenci henüz görmüyor. Görmeleri için "Ödev olarak gönder"e basın.`
-              : 'Plan taslak: öğrenciler henüz görmüyor. Görmeleri için "Ödev olarak gönder"e basın.'}
-          </p>
-          <button type="button" id="plan-send-callout" className="ui-btn ui-btn-primary ui-btn-sm shrink-0" disabled={busy} onClick={() => openSend()}>
-            <Send className="w-3.5 h-3.5" /> Ödev olarak gönder
-          </button>
-        </div>
-      )}
+      {/* Aşama 52: taslak uyarısı ve ikinci "Ödev olarak gönder" düğmesi kaldırıldı (üstteki düğme yeterli) */}
 
       {notice && (
         <div
@@ -853,12 +798,12 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           <EmptyState icon={Users} title="Öğrenci seçilmedi" description="Öğrenci listesinden en az bir öğrenciyi işaretleyin." />
         </div>
       ) : (
-        <div className={cx('grid gap-3 sm:grid-cols-2 xl:grid-cols-4', loading && 'opacity-60 transition-opacity')} id="plan-days" aria-busy={loading}>
+        <div className={cx(PLAN_DAYS_GRID_CLS, loading && 'opacity-60 transition-opacity')} id="plan-days" aria-busy={loading}>
           {groupsByDay.map((list, d) => {
             const date = dateOfDay(weekStart, d);
             const isToday = date === todayStr;
             return (
-              <section key={d} data-day={d} className={cx('ui-card flex flex-col min-h-[9rem]', isToday && 'ring-2 ring-brand/50 border-brand/50')} aria-label={`${planDayName(weekStart, d)} görevleri`}>
+              <section key={d} data-day={d} className={cx(PLAN_DAY_CARD_CLS, isToday && 'ring-2 ring-brand/50 border-brand/50')} aria-label={`${planDayName(weekStart, d)} görevleri`}>
                 <header className={cx('flex items-center justify-between gap-2 px-3 py-2 border-b border-line rounded-t-2xl', isToday ? 'bg-brand-soft' : 'bg-surface-2/60')}>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-fg leading-tight">
@@ -878,7 +823,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                     <Plus className="w-4 h-4" />
                   </button>
                 </header>
-                <div className="flex-1 p-2 space-y-2">
+                <div className={PLAN_DAY_BODY_CLS}>
                   {list.length === 0 && <p className="text-xs text-subtle px-1 py-2">Görev yok</p>}
                   {list.map((g) => {
                     const editable = canSubject(g.subject);
@@ -1025,6 +970,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           teacherName={teacherName}
           title={sendModal.title || 'Planı öğrencilere gönder'}
           canSubject={canSubject}
+          pickClasses
+          classSizes={classSizes}
+          sentIds={viewStudents.filter((s) => headers[s.id]?.sentAt).map((s) => s.id)}
           onClose={(changed) => {
             setSendModal(null);
             if (changed) void reload(true);
@@ -1087,6 +1035,11 @@ const CopyWeekModal: React.FC<{
         out.skipped += r.skipped;
         out.failed += r.failed.length;
         r.failed.forEach((f) => out.messages.push(`${s.name}: ${f.message}`));
+      }
+      // Aşama 52: hemen gönderildiyse görevler öğrencilerin Soru Kaydet bölümüne de aktarılır
+      if (send) {
+        await transferPlansForStudents(students, target, canSubject);
+        void dataService.syncPlanWeekStarts();
       }
       setResult(out);
     } catch (e: any) {

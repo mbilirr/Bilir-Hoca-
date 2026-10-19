@@ -1,6 +1,6 @@
 import type { Student, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
-import { addDaysYmd, cleanQuestionCount, dateOfDay, type PlanItem } from '../services/studyPlanService';
+import { addDaysYmd, cleanQuestionCount, dateOfDay, loadPlan, type PlanItem } from '../services/studyPlanService';
 import { normalizeSubject } from './subjects';
 import { isFlexibleTarget, isPendingPlanTarget, isPlanTopicRecord, PLAN_QUESTION_TARGET_NOTE, PLAN_TOPIC_NOTE_PREFIX } from '../utils/targetDays';
 
@@ -164,4 +164,24 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
     }
   }
   return result;
+}
+
+/**
+ * Aşama 52: plan başka öğrencilere / haftaya uygulanıp HEMEN GÖNDERİLDİĞİNDE görevler o öğrencilerin
+ * Soru Kaydet bölümüne de aktarılır ("Soru Kaydet'e aktar" düğmesi kaldırıldığı için).
+ * Hata gönderimi bozmaz; aktarılan öğrenci sayısını döndürür.
+ */
+export async function transferPlansForStudents(students: Student[], weekStart: string, canSubject: (subject: string) => boolean): Promise<number> {
+  let ok = 0;
+  for (const s of students) {
+    try {
+      const p = await loadPlan(s.id, weekStart);
+      if (!p.header?.sentAt || !p.items.length) continue;
+      const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: p.items, canSubject });
+      if (r.subjects.length) ok++;
+    } catch {
+      /* bir öğrencide aktarılamazsa diğerleri sürer; "Planı yenile" ile tekrar aktarılabilir */
+    }
+  }
+  return ok;
 }

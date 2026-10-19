@@ -64,6 +64,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { PageHeader, Segmented } from '../ui/kit';
 import { StudyPlanManager } from './StudyPlanManager';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 interface HomeworkManagementProps {
   homeworks: Homework[];
@@ -85,7 +86,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const submissions: HomeworkSubmission[] = propSubmissions || dataService.getSubmissions() || [];
 
   // View Mode: 'tracker' (Ödev Kontrol Çizelgesi) | 'all' (Tüm Oluşturulan Ödevler)
-  const [activeTab, setActiveTab] = useState<'tracker' | 'all' | 'plan'>('tracker');
+  // Aşama 52: sekme geçmişe yazılır; "Geri" tuşu önceki sekmeye döner
+  const [activeTab, setActiveTab] = useHistoryState<'tracker' | 'all' | 'plan'>('hw.tab', 'tracker');
 
   // Ödev Kontrol Seçimleri
   const [selectedHomeworkId, setSelectedHomeworkId] = useState<string>(''); // Ödev Kontrol'de açık olan şerit

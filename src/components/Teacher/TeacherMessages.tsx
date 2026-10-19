@@ -20,6 +20,7 @@ import { TeacherAnnouncements } from './TeacherAnnouncements';
 import { EtutNotesInbox, useEtutNotes } from './EtutNotesInbox';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
+import { useHistoryState } from '../../lib/useHistoryState';
 
 interface TeacherMessagesProps {
   messages: StudentMessage[];
@@ -34,7 +35,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const [isSendingReply, setIsSendingReply] = useState(false);
   // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
   // Aşama 32: 'etutNotes' = etüt yoklamasında öğrenciye anlatılan farklı konu ve öğrenci notları
-  const [section, setSection] = useState<'inbox' | 'announce' | 'etutNotes'>('inbox');
+  const [section, setSection] = useHistoryState<'inbox' | 'announce' | 'etutNotes'>('messages.section', 'inbox'); // Aşama 52: geri tuşu
   const etutNotes = useEtutNotes();
 
   const filteredMessages = useMemo(() => {
