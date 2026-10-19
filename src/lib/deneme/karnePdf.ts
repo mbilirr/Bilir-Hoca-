@@ -718,13 +718,13 @@ export async function downloadKarnePdf(blocks: PdfBlock[], footerLabel: string, 
   doc.save(`${safeFileName(fileName)}.pdf`);
 }
 
-export async function karnePdfBase64(blocks: PdfBlock[], footerLabel: string): Promise<string> {
-  const doc = await buildKarnePdf(blocks, footerLabel);
+export async function karnePdfBase64(blocks: PdfBlock[], footerLabel: string, orientation: 'portrait' | 'landscape' = 'portrait'): Promise<string> {
+  const doc = await buildKarnePdf(blocks, footerLabel, orientation);
   const uri = doc.output('datauristring');
   return uri.slice(uri.indexOf(',') + 1);
 }
 
-export async function karnePdfBlob(blocks: PdfBlock[], footerLabel: string): Promise<Blob> {
-  const doc = await buildKarnePdf(blocks, footerLabel);
+export async function karnePdfBlob(blocks: PdfBlock[], footerLabel: string, orientation: 'portrait' | 'landscape' = 'portrait'): Promise<Blob> {
+  const doc = await buildKarnePdf(blocks, footerLabel, orientation);
   return doc.output('blob');
 }

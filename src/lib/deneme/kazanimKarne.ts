@@ -40,7 +40,7 @@ export const PLAN_SUBJECT_NAME: Record<string, string> = {
 };
 
 const keyOf = (s: string) => s.toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
-const NO_TOPIC = 'Konusu belirtilmemiş';
+export const NO_TOPIC = 'Konusu belirtilmemiş';
 
 /** Kısa kazanım adı (ısı tablosu, plan görevi): "M.8.1.2.1 Üslü İfadeler" ya da kısaltılmış kazanım metni */
 export function shortKazanim(code: string | undefined, title: string | undefined, text: string | undefined, max = 70): string {
@@ -54,7 +54,7 @@ export function shortKazanim(code: string | undefined, title: string | undefined
 }
 
 /** Kod sırası: "M.8.1.10.2" doğal sayı sırasıyla */
-const codeCompare = (a?: string, b?: string) => {
+export const codeCompare = (a?: string, b?: string) => {
   if (a && b) return a.localeCompare(b, 'tr', { numeric: true });
   if (a) return -1;
   if (b) return 1;
@@ -129,7 +129,7 @@ function trendOf(list: KazAppearance[]): 'up' | 'down' | 'flat' | null {
 }
 
 /** Kazanımın kimliği: kodu varsa kod, yoksa ad */
-const kazKey = (code: string | undefined, label: string) => (code ? `c:${codeKey(code)}` : `k:${keyOf(label)}`);
+export const kazKey = (code: string | undefined, label: string) => (code ? `c:${codeKey(code)}` : `k:${keyOf(label)}`);
 
 /**
  * Öğrencinin seçilen denemelerdeki kazanım durumları (ders ders).

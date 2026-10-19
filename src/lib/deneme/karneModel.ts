@@ -26,6 +26,19 @@ import {
   type StudySuggestion,
 } from './kazanimKarne';
 import type { BankRow } from '../../services/denemeService';
+import {
+  HEAT_MIN_TOTAL,
+  SCORE_BANDS,
+  diffTone,
+  heatInsights,
+  netVsKurumTone,
+  scoreVsClassTone,
+  type ClassCombined,
+  type ClassStudentRow,
+  type HeatCell,
+  type HeatOptions,
+  type KazHeat,
+} from './sinifKarne';
 
 export const dateTr = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
@@ -869,3 +882,263 @@ export function pickScope<T>(sortedAsc: T[], scope: ScopeKey, isPicked: (x: T) =
   return sortedAsc.slice(-n);
 }
 export const scopeLabel = (s: ScopeKey) => (s === 'all' ? 'Tüm denemeler' : s === 'custom' ? 'Seçilen denemeler' : `Son ${s === 'last3' ? 3 : s === 'last5' ? 5 : 10} deneme`);
+
+// ============================================================================ Aşama 55: Sınıf Birleştirilmiş Karnesi (PDF, yatay)
+const sgn = (v: number | null, f: (n: number) => string = fmtScore) => (v === null || !Number.isFinite(v) ? '-' : Math.abs(v) < 0.005 ? '0' : `${v > 0 ? '+' : '-'}${f(Math.abs(v))}`);
+const signTone = (v: number | null): PdfTone | undefined => (v === null || Math.abs(v) < 0.005 ? undefined : v > 0 ? 'success' : 'danger');
+const CC_MAX_EXAMS = 12;
+
+export function classCombinedBlocks(c: ClassCombined, scopeLabel: string): PdfBlock[] {
+  const s = c.summary;
+  const subs = c.subjects;
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Sınıf Birleştirilmiş Karnesi', sub: `${c.className} · ${scopeLabel} (${c.exams.length} deneme) · ${dateRange(c.exams)}` },
+    {
+      kind: 'tiles',
+      items: [
+        { label: 'Ortalama puan', value: fmtScore(s.avgScore), sub: `Kurum ortalaması ${fmtScore(s.kurumScore)}`, tone: 'info' },
+        { label: 'Kuruma göre', value: sgn(s.diff), sub: 'deneme başına ortalama puan farkı', tone: signTone(s.diff) },
+        { label: 'İlk → son deneme', value: sgn(s.change), sub: `${fmtScore(s.firstAvg)} → ${fmtScore(s.lastAvg)}`, tone: signTone(s.change) },
+        { label: 'Kurumdaki sıra', value: s.lastRank ? `${s.lastRank.rank} / ${s.lastRank.of}` : '-', sub: 'son deneme, sınıflar arasında' },
+        { label: 'Katılım', value: s.participation !== null ? `%${s.participation}` : '-', sub: `${s.studentCount} öğrenci, ${c.exams.length} deneme` },
+      ],
+    },
+    {
+      kind: 'line',
+      title: 'Ortalama puan: sınıf ve kurum',
+      labels: c.exams.map(examShort),
+      series: [
+        { name: c.className, values: c.perExam.map((p) => p.avgScore) },
+        { name: 'Kurum ortalaması', values: c.perExam.map((p) => p.kurumScore) },
+      ],
+    },
+    {
+      kind: 'heading',
+      text: 'Deneme deneme sınıf sonuçları',
+      sub: "Ders netlerinde yeşil kurum ortalamasının üstünü, kırmızı altını gösterir (dersin soru sayısının %5'i kadar fark anlamlı sayılır).",
+    },
+    {
+      kind: 'table',
+      head: ['Deneme', 'Tarih', 'Katılım', ...subs.map((x) => `${x.short} net`), 'Top. net', 'Ort. puan', 'Kurum ort.', 'Fark', 'Kurumda sıra', 'En yüksek'],
+      rows: c.perExam.map((p) => [
+        p.exam.name,
+        dateTr(p.exam.examDate),
+        p.n,
+        ...subs.map((x) => fmtNet(p.avgNet[x.key])),
+        fmtNet(p.avgTotalNet),
+        fmtScore(p.avgScore),
+        fmtScore(p.kurumScore),
+        sgn(p.diff),
+        p.rank !== null ? `${p.rank} / ${p.rankOf}` : '-',
+        fmtScore(p.maxScore),
+      ]),
+      cellTones: c.perExam.map((p) => [
+        null,
+        null,
+        null,
+        ...subs.map((x) => netVsKurumTone(p.avgNet[x.key], p.kurumNet[x.key], x.count)),
+        null,
+        null,
+        null,
+        signTone(p.diff) ?? null,
+        p.rank === 1 ? ('success' as PdfTone) : null,
+        null,
+      ]),
+      align: ['left', 'center', 'center', ...subs.map(() => 'center' as const), 'center', 'center', 'center', 'center', 'center', 'center'],
+      fontSize: 7.2,
+    },
+  ];
+  const moverTable = (list: ClassStudentRow[]): PdfBlock => ({
+    kind: 'table',
+    head: ['Öğrenci', 'İlk puan', 'Son puan', 'Değişim', 'Ortalama', 'Girdiği deneme'],
+    rows: list.map((x) => [x.name, fmtScore(x.first), fmtScore(x.last), sgn(x.change), fmtScore(x.avg), `${x.attended} / ${c.exams.length}`]),
+    cellTones: list.map((x) => [null, null, null, signTone(x.change) ?? null, null, null]),
+    align: ['left', 'center', 'center', 'center', 'center', 'center'],
+    widths: ['auto', 28, 28, 26, 28, 30],
+    fontSize: 7.6,
+  });
+  if (c.risers.length || c.fallers.length) {
+    blocks.push({ kind: 'heading', text: 'En çok yükselen öğrenciler', sub: 'Seçilen denemelerde girdiği ilk denemeden son denemesine puan değişimi' });
+    blocks.push(c.risers.length ? moverTable(c.risers) : { kind: 'text', tone: 'muted', text: 'Puanı yükselen öğrenci yok.' });
+    blocks.push({ kind: 'heading', text: 'En çok düşen öğrenciler', sub: 'Rehberlik ve veli görüşmesi için öncelikli liste' });
+    blocks.push(c.fallers.length ? moverTable(c.fallers) : { kind: 'text', tone: 'muted', text: 'Puanı düşen öğrenci yok.' });
+  }
+  // Öğrenci × deneme puan tablosu
+  const from = Math.max(0, c.exams.length - CC_MAX_EXAMS);
+  const ex = c.exams.slice(from);
+  const pe = c.perExam.slice(from);
+  blocks.push({ kind: 'pagebreak' });
+  blocks.push({
+    kind: 'heading',
+    text: 'Öğrenci × deneme puan tablosu',
+    sub: 'Sıra: seçilen denemelerin ortalama puanına göre. Yeşil: o denemede sınıf ortalamasının en az 20 puan üstü · Kırmızı: en az 20 puan altı · "-": denemeye girmedi.',
+  });
+  blocks.push({ kind: 'text', tone: 'muted', text: `Sütunlar: ${ex.map((e, i) => `${i + 1}) ${e.name}`).join('  ')}${from ? ` (son ${ex.length} deneme gösterilir)` : ''}` });
+  blocks.push({
+    kind: 'table',
+    head: ['Sıra', 'Öğrenci', ...ex.map((_, i) => String(i + 1)), 'Ortalama', 'Ort. net', 'İlk → son', 'Girdiği'],
+    rows: [
+      ...c.students.map((st) => [
+        st.rank,
+        st.name,
+        ...st.scores.slice(from).map((v) => (v === null ? '-' : fmtScore(v))),
+        fmtScore(st.avg),
+        fmtNet(st.avgNet),
+        sgn(st.change),
+        `${st.attended}/${c.exams.length}`,
+      ]),
+      ['', 'Sınıf ortalaması', ...pe.map((p) => fmtScore(p.avgScore)), fmtScore(s.avgScore), '', sgn(s.change), ''],
+      ['', 'Kurum ortalaması', ...pe.map((p) => fmtScore(p.kurumScore)), fmtScore(s.kurumScore), '', '', ''],
+    ],
+    cellTones: [
+      ...c.students.map((st) => [
+        null,
+        null,
+        ...st.scores.slice(from).map((v, i) => scoreVsClassTone(v, pe[i].avgScore)),
+        null,
+        null,
+        signTone(st.change) ?? null,
+        st.attended < c.exams.length ? ('warning' as PdfTone) : null,
+      ]),
+      [],
+      [],
+    ],
+    rowTones: [...c.students.map(() => null), 'info', 'muted'],
+    toneColumn: 1,
+    align: ['center', 'left', ...ex.map(() => 'center' as const), 'center', 'center', 'center', 'center'],
+    widths: [10, 'auto', ...ex.map(() => 14), 17, 15, 17, 14],
+    fontSize: 7,
+  });
+  blocks.push({ kind: 'heading', text: 'Puan dağılımı', sub: 'Her denemede hangi puan aralığında kaç öğrenci var?' });
+  blocks.push({
+    kind: 'table',
+    head: ['Puan aralığı', ...ex.map((_, i) => String(i + 1))],
+    rows: SCORE_BANDS.map((b, bi) => [b.label, ...c.bands[bi].slice(from).map((n) => (n ? n : '-'))]),
+    cellTones: SCORE_BANDS.map((_, bi) => [null, ...c.bands[bi].slice(from).map((n) => (n ? (bi <= 1 ? 'success' : bi >= 4 ? 'danger' : 'info') : null) as PdfTone | null)]),
+    align: ['left', ...ex.map(() => 'center' as const)],
+    widths: [32, ...ex.map(() => 16)],
+    fontSize: 7.4,
+  });
+  blocks.push({ kind: 'text', tone: 'muted', text: 'Puanlar yaklaşık LGS puanıdır. Kurum sırası, o denemeye giren sınıfların ortalama puanına göredir.' });
+  return blocks;
+}
+
+// ============================================================================ Aşama 55: Kazanım Isı Haritası (PDF, yatay)
+const HEAT_PDF_COLS = 12;
+const heatModeLabel = (m: HeatOptions['mode']) => (m === 'fark' ? 'Kuruma göre fark (puan)' : 'Başarı yüzdesi');
+const heatSortLabel = (s: HeatOptions['sort']) => (s === 'zayif' ? 'En zayıf kazanım önce' : s === 'fark' ? 'Sınıflar arası fark büyükten küçüğe' : 'Müfredat (kazanım kodu) sırası');
+
+export function kazanimHeatBlocks(h: KazHeat, o: HeatOptions, scopeLabel: string, exams: DenemeExam[]): PdfBlock[] {
+  const ins = heatInsights(h, 6);
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Kazanım Isı Haritası', sub: `${scopeLabel} (${exams.length} deneme) · ${dateRange(exams)}` },
+    {
+      kind: 'kv',
+      rows: [
+        ['Ders', o.subjectKey === 'all' ? 'Bütün dersler' : h.subjects[0]?.subject.name || '-'],
+        ['Görünüm', heatModeLabel(o.mode)],
+        ['Sınıflar', h.classes.map((c) => c.name).join(', ')],
+        ['Sıralama', `${heatSortLabel(o.sort)}${o.onlyWeak ? ' · yalnızca en az bir sınıfta %50 altı' : ''}`],
+      ],
+    },
+    {
+      kind: 'callout',
+      title: 'Nasıl okunur?',
+      tone: 'info',
+      lines: [
+        o.mode === 'fark'
+          ? { label: 'Hücre:', text: 'Sınıfın başarı yüzdesi eksi kurumun başarı yüzdesi. Yeşil +10 ve üstü, mavi +5..+9, turuncu -5..-9, kırmızı -10 ve altı.' }
+          : { label: 'Hücre:', text: 'Sınıfın o kazanımdaki başarısı (doğru / soru). Yeşil %70+ başarılı · Mavi %50-69 tekrar · Turuncu %30-49 takviye · Kırmızı %30 altı kritik.' },
+        { label: 'Fark:', text: 'Sınıflar arasında en yüksek ile en düşük başarı arasındaki fark. 20 puan ve üstü fark, aynı kazanımın sınıflarda farklı işlendiğine işaret edebilir.' },
+        { label: '* ve -:', text: "* 5'ten az cevaba dayanır (sonuç kesin değil). - o sınıfa bu kazanımdan soru düşmedi." },
+      ],
+    },
+  ];
+  // Öne çıkanlar
+  if (ins.weakest.length) {
+    blocks.push({ kind: 'heading', text: 'Kurumun en zayıf kazanımları' });
+    blocks.push({
+      kind: 'table',
+      head: ['Ders', 'Kazanım', 'Kurum başarısı', 'Soru', '%50 altı sınıf'],
+      rows: ins.weakest.map((w) => [w.subject.short, w.row.label, `%${w.row.kurum.rate}`, w.row.questions, `${w.row.weakClasses} / ${h.classes.length}`]),
+      cellTones: ins.weakest.map((w) => [null, null, levelTone(w.row.kurum.rate), null, null]),
+      align: ['left', 'left', 'center', 'center', 'center'],
+      widths: [16, 'auto', 26, 14, 26],
+      fontSize: 7.4,
+    });
+  }
+  if (ins.widest.length) {
+    blocks.push({ kind: 'heading', text: 'Sınıflar arasında en büyük fark olan kazanımlar', sub: 'Zümrede yöntem paylaşımı için' });
+    blocks.push({
+      kind: 'table',
+      head: ['Ders', 'Kazanım', 'Fark', 'En yüksek / en düşük sınıf'],
+      rows: ins.widest.map((w) => [w.subject.short, w.row.label, `${w.rate} puan`, w.note]),
+      align: ['left', 'left', 'center', 'left'],
+      widths: [16, 'auto', 20, 60],
+      fontSize: 7.4,
+    });
+  }
+  const pc = ins.perClass.filter((p) => p.items.length);
+  if (pc.length) {
+    blocks.push({ kind: 'heading', text: 'Her sınıfın en zayıf kazanımları (%50 altı)', sub: 'Ek ders / etüt planlamasına girdi' });
+    const rows: Array<Array<string | number>> = [];
+    const tones: Array<Array<PdfTone | null>> = [];
+    for (const p of pc)
+      p.items.forEach((it, i) => {
+        rows.push([i === 0 ? p.cls.name : '', it.subject.short, it.row.label, `%${it.rate}`, `%${it.row.kurum.rate}`, sgn(it.rate - it.row.kurum.rate, (n) => String(Math.round(n)))]);
+        tones.push([null, null, null, levelTone(it.rate), null, (diffTone(it.rate - it.row.kurum.rate) as PdfTone | null) ?? null]);
+      });
+    blocks.push({
+      kind: 'table',
+      head: ['Sınıf', 'Ders', 'Kazanım', 'Sınıf', 'Kurum', 'Fark'],
+      rows,
+      cellTones: tones,
+      align: ['left', 'left', 'left', 'center', 'center', 'center'],
+      widths: [18, 14, 'auto', 16, 16, 14],
+      fontSize: 7.2,
+    });
+  }
+  // Ders ders ısı haritası (12'den çok sınıf varsa sınıflar parça parça)
+  for (const s of h.subjects) {
+    for (let from = 0; from < Math.max(1, h.classes.length); from += HEAT_PDF_COLS) {
+      const cls = h.classes.slice(from, from + HEAT_PDF_COLS);
+      const part = h.classes.length > HEAT_PDF_COLS ? ` (${from + 1}-${from + cls.length}. sınıflar)` : '';
+      blocks.push({ kind: 'pagebreak' });
+      blocks.push({
+        kind: 'heading',
+        text: `${s.subject.name}${part}`,
+        sub: `${s.rows.length} kazanım · kurum başarısı %${s.kurumTotal.rate} · ${heatModeLabel(o.mode)}`,
+        minFollow: 24,
+      });
+      const cellText = (c: HeatCell | undefined, k: HeatCell) => {
+        if (!c || !c.total) return '-';
+        const star = c.total < HEAT_MIN_TOTAL ? '*' : '';
+        if (o.mode === 'fark') {
+          const d = c.rate - k.rate;
+          return `${d > 0 ? '+' : ''}${d}${star}`;
+        }
+        return `%${c.rate}${star}`;
+      };
+      const cellTone = (c: HeatCell | undefined, k: HeatCell): PdfTone | null => {
+        if (!c || !c.total || c.total < HEAT_MIN_TOTAL) return null;
+        return o.mode === 'fark' ? ((diffTone(c.rate - k.rate) as PdfTone | null) ?? null) : levelTone(c.rate);
+      };
+      blocks.push({
+        kind: 'table',
+        head: ['Kazanım', ...cls.map((c) => c.name), 'Kurum', 'Fark'],
+        rows: [
+          ...s.rows.map((r) => [r.short, ...cls.map((c) => cellText(r.cells[c.id], r.kurum)), `%${r.kurum.rate}`, r.spread === null ? '-' : r.spread]),
+          ['Ders geneli', ...cls.map((c) => cellText(s.classTotals[c.id], s.kurumTotal)), `%${s.kurumTotal.rate}`, ''],
+        ],
+        cellTones: [
+          ...s.rows.map((r) => [null, ...cls.map((c) => cellTone(r.cells[c.id], r.kurum)), levelTone(r.kurum.rate), (r.spread ?? 0) >= 20 ? ('warning' as PdfTone) : null]),
+          [null, ...cls.map((c) => cellTone(s.classTotals[c.id], s.kurumTotal)), levelTone(s.kurumTotal.rate), null],
+        ],
+        align: ['left', ...cls.map(() => 'center' as const), 'center', 'center'],
+        widths: ['auto', ...cls.map(() => 15), 15, 12],
+        fontSize: 6.8,
+      });
+    }
+  }
+  return blocks;
+}

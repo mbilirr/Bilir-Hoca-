@@ -3,14 +3,20 @@ import { useHistoryState } from '../../lib/useHistoryState';
 import { Download, Mail, MessageCircle, Save } from 'lucide-react';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
 import { PlanaAktarModal } from './PlanaAktarModal';
-import type { StudySuggestion } from '../../lib/deneme/kazanimKarne';
+import { PLAN_SUBJECT_NAME, type StudySuggestion } from '../../lib/deneme/kazanimKarne';
+import { DEFAULT_HEAT_OPTIONS, classCombined, filterHeat, kazanimClassHeat, type HeatOptions } from '../../lib/deneme/sinifKarne';
+import { ClassCombinedView, KazanimIsiHaritasi } from './SinifKarneleri';
+import { dataService } from '../../services/dataService';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import {
   SCOPES,
+  classCombinedBlocks,
   classKarneBlocks,
   compareKarneBlocks,
+  kazanimHeatBlocks,
+  usedSubjects,
   kazanimKarneBlocks,
   pickScope,
   scopeLabel,
@@ -29,12 +35,28 @@ import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 // Kapsam: son 3 / 5 / 10, tümü ya da tek tek seçilen denemeler.
 // ============================================================================
 
-type Mode = 'ogrenci' | 'sinif' | 'karsilastirma';
+type Mode = 'ogrenci' | 'sinif' | 'karsilastirma' | 'isi';
+// Aşama 55: sınıf karnesinin türü
+type SinifTur = 'genel' | 'birlesik';
+type PdfOrientation = 'portrait' | 'landscape';
+
+/** Aşama 55: branş öğretmeni ısı haritasını kendi dersiyle açar (yönetici bütün derslerle) */
+function branchSubjectKey(): string {
+  try {
+    if (dataService.isCurrentUserAdmin()) return 'all';
+    const mine = dataService.getMySubjects();
+    if (!mine || !mine.length) return 'all';
+    const hit = Object.entries(PLAN_SUBJECT_NAME).find(([, name]) => mine.includes(name));
+    return hit ? hit[0] : 'all';
+  } catch {
+    return 'all';
+  }
+}
 const TUR_TITLE: Record<KarneTur, string> = { genel: 'Deneme karnen', kazanim: 'Kazanım takip karnen', plan: 'Çalışma planı karnen' };
 
 /** Karne PDF'ini paylaşır: telefonda doğrudan WhatsApp'a dosya olarak; olmazsa PDF iner ve WhatsApp mesajı açılır */
-export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fileName: string, message: string, phone?: string) {
-  const blob = await karnePdfBlob(blocks, footer);
+export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fileName: string, message: string, phone?: string, orientation: PdfOrientation = 'portrait') {
+  const blob = await karnePdfBlob(blocks, footer, orientation);
   const file = new File([blob], `${safeFileName(fileName)}.pdf`, { type: 'application/pdf' });
   const nav: any = navigator;
   if (nav.canShare && nav.canShare({ files: [file] })) {
@@ -324,6 +346,8 @@ export const DenemeKarne: React.FC<{
   const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined); // undefined: okunmadı · null: okunamadı
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
+  const [sinifTur, setSinifTur] = useHistoryState<SinifTur>('deneme.karne.sinifTur', 'genel'); // Aşama 55
+  const [heatOpts, setHeatOpts] = useState<HeatOptions>(() => ({ ...DEFAULT_HEAT_OPTIONS, subjectKey: branchSubjectKey() }));
 
   // Aşama 54: kazanım takip karnesinde "Henüz sorulmadı" için kazanım bankası (bir kez okunur)
   useEffect(() => {
@@ -386,8 +410,24 @@ export const DenemeKarne: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, studentId, classId, scopedIds]);
 
-  const blocks = (): { blocks: PdfBlock[]; footer: string; file: string } | null => {
+  // Aşama 55: sınıf birleştirilmiş karnesi ve kazanım ısı haritası verileri (ekran ve PDF ortak)
+  const classData = useMemo(
+    () => (mode === 'sinif' && sinifTur === 'birlesik' && results.length ? classCombined(fullExams, results, usedSubjects(fullExams)) : null),
+    [mode, sinifTur, fullExams, results]
+  );
+  const fullHeat = useMemo(() => (mode === 'isi' && results.length ? kazanimClassHeat(fullExams, results, usedSubjects(fullExams)) : null), [mode, fullExams, results]);
+
+  const blocks = (): { blocks: PdfBlock[]; footer: string; file: string; orientation?: PdfOrientation } | null => {
     const label = scopeLabel(scope);
+    if (mode === 'sinif' && cls && sinifTur === 'birlesik') {
+      if (!classData) return null;
+      return { blocks: classCombinedBlocks(classData, label), footer: `${cls.name} sınıf birleştirilmiş karnesi`, file: `Sinif-Birlestirilmis-Karne-${cls.name}`, orientation: 'landscape' };
+    }
+    if (mode === 'isi') {
+      if (!fullHeat) return null;
+      const h = filterHeat(fullHeat, heatOpts);
+      return { blocks: kazanimHeatBlocks(h, heatOpts, label, fullExams), footer: 'Kazanım ısı haritası', file: 'Kazanim-Isi-Haritasi', orientation: 'landscape' };
+    }
     if (mode === 'ogrenci' && student && tur === 'kazanim') {
       return {
         blocks: kazanimKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, scopeLabel: label, bank }),
@@ -432,7 +472,7 @@ export const DenemeKarne: React.FC<{
   const onPdf = () =>
     run(async () => {
       const b = blocks();
-      if (b) await downloadKarnePdf(b.blocks, b.footer, b.file);
+      if (b) await downloadKarnePdf(b.blocks, b.footer, b.file, b.orientation);
     });
 
   const onMail = () =>
@@ -455,7 +495,7 @@ export const DenemeKarne: React.FC<{
         mode === 'ogrenci' && student
           ? `${student.name} ${tur === 'kazanim' ? 'kazanım takip karnesi' : tur === 'plan' ? 'çalışma planı karnesi' : 'deneme karnesi'} (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
           : `${b.footer} (${scopeLabel(scope)}).`;
-      const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, mode === 'ogrenci' ? student?.phone : undefined);
+      const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, mode === 'ogrenci' ? student?.phone : undefined, b.orientation);
       if (r === 'downloaded') setNotice({ tone: 'success', text: 'PDF indirildi ve WhatsApp açıldı; indirilen dosyayı mesaja ekleyebilirsiniz.' });
     });
 
@@ -485,10 +525,25 @@ export const DenemeKarne: React.FC<{
               { value: 'ogrenci', label: 'Öğrenci karnesi' },
               { value: 'sinif', label: 'Sınıf karnesi' },
               { value: 'karsilastirma', label: 'Sınıflar arası' },
+              { value: 'isi', label: 'Kazanım ısı haritası' },
             ]}
           />
           <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
         </div>
+        {mode === 'sinif' && (
+          <div className="flex flex-wrap items-center gap-2" id="karne-sinif-tur">
+            <span className="text-xs font-semibold text-muted">Karne türü:</span>
+            <Segmented
+              value={sinifTur}
+              onChange={(v) => setSinifTur(v)}
+              size="sm"
+              items={[
+                { value: 'genel', label: 'Sınıf karnesi' },
+                { value: 'birlesik', label: 'Sınıf birleştirilmiş karnesi' },
+              ]}
+            />
+          </div>
+        )}
         {mode === 'ogrenci' && (
           <div className="flex flex-wrap items-center gap-2" id="karne-tur">
             <span className="text-xs font-semibold text-muted">Karne türü:</span>
@@ -520,7 +575,7 @@ export const DenemeKarne: React.FC<{
             })}
           </div>
         )}
-        {mode !== 'karsilastirma' && (
+        {(mode === 'ogrenci' || mode === 'sinif') && (
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
               <label className="ui-label" htmlFor="karne-class">Sınıf</label>
@@ -626,6 +681,10 @@ export const DenemeKarne: React.FC<{
             </div>
           }
         />
+      ) : mode === 'sinif' && cls && sinifTur === 'birlesik' ? (
+        <ClassCombinedView data={classData} scopeLabel={scopeLabel(scope)} />
+      ) : mode === 'isi' ? (
+        <KazanimIsiHaritasi heat={fullHeat} options={heatOpts} onOptions={setHeatOpts} />
       ) : mode === 'sinif' && cls ? (
         <ClassKarneView exams={fullExams} results={results} className={cls.name} />
       ) : (
