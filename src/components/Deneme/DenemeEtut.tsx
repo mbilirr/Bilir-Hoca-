@@ -221,9 +221,21 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
           ['Ölçüt', `Başarı %${threshold} altında, en az ${minQ} soru`],
           ['Kapsam', `${scopeLabel(scope)} (${fullExams.length} deneme)`],
           [level === 'alt' ? 'Alt kazanım' : 'Konu', topicName || (level === 'alt' ? 'Tüm alt kazanımlar' : 'Tüm konular')],
-          ['Denemeler', fullExams.map((e) => `${e.name} (${dateTr(e.examDate)})`).join(' · ') || '-'],
         ],
       },
+      // Aşama 53b: değerlendirilen denemeler tarihsiz, alt alta, çerçeveli bir tabloda
+      ...(fullExams.length
+        ? [
+            {
+              kind: 'table' as const,
+              head: ['#', 'Değerlendirilen denemeler'],
+              rows: fullExams.map((e, i) => [i + 1, e.name]),
+              align: ['center' as const, 'left' as const],
+              widths: [8, 'auto' as const],
+              fontSize: 8,
+            },
+          ]
+        : []),
       {
         kind: 'tiles',
         items: [
