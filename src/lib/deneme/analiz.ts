@@ -12,7 +12,8 @@ export type Level = 'iyi' | 'tekrar' | 'etut' | 'kritik';
 export const LEVEL_INFO: Record<Level, { label: string; advice: string; tone: 'success' | 'info' | 'warning' | 'danger'; rgb: [number, number, number] }> = {
   iyi: { label: 'Başarılı', advice: 'Konu kazanılmış; düzenli tekrarla korunmalı.', tone: 'success', rgb: [16, 150, 105] },
   tekrar: { label: 'Tekrar', advice: 'Konu tekrarı yapılmalı, soru çözüm taktik ve yöntemleri çalışılmalı.', tone: 'info', rgb: [37, 99, 235] },
-  etut: { label: 'Etüt', advice: 'Etüt verilmeli, soru çözümüyle pekiştirilmeli.', tone: 'warning', rgb: [217, 119, 6] },
+  // Aşama 53c: %30–49 aralığının adı "Takviye" (etüt / takviye çalışması gerektirir)
+  etut: { label: 'Takviye', advice: 'Takviye çalışması (etüt) yapılmalı, soru çözümüyle pekiştirilmeli.', tone: 'warning', rgb: [217, 119, 6] },
   kritik: { label: 'Kritik', advice: 'Konu anlaşılmamış: konu yeniden anlatılmalı ve yoğun soru çözümü yapılmalı.', tone: 'danger', rgb: [220, 38, 38] },
 };
 

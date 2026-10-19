@@ -34,7 +34,7 @@ function topicBlocks(analysis: SubjectTopics[]): PdfBlock[] {
   blocks.push({
     kind: 'text',
     tone: 'muted',
-    text: 'Başarı = doğru / soru. %70 ve üstü başarılı · %50-69 konu tekrarı ve soru taktikleri · %30-49 etüt ve soru çözümü · %30 altı kritik (konu yeniden anlatılmalı, yoğun soru çözümü).',
+    text: 'Başarı = doğru / soru. %70 ve üstü başarılı · %50-69 konu tekrarı ve soru taktikleri · %30-49 takviye (etüt) ve soru çözümü · %30 altı kritik (konu yeniden anlatılmalı, yoğun soru çözümü).',
   });
   for (const st of analysis) {
     const rows: Array<Array<string | number>> = [];
@@ -197,7 +197,7 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
     {
       kind: 'text',
       tone: 'muted',
-      text: 'Çubuk öğrencinin başarısını, dikey çizgi kurumun başarısını gösterir. Yeşil %70+ başarılı · Mavi %50-69 tekrar · Turuncu %30-49 etüt · Kırmızı %30 altı kritik.',
+      text: 'Çubuk öğrencinin başarısını, dikey çizgi kurumun başarısını gösterir. Yeşil %70+ başarılı · Mavi %50-69 tekrar · Turuncu %30-49 takviye · Kırmızı %30 altı kritik.',
     },
   ];
   for (const s of subjects) {

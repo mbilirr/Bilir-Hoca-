@@ -250,9 +250,10 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
         title: 'Durum nasıl belirlenir?',
         tone: 'muted',
         lines: [
+          'Kritik %0–29  |  Takviye %30–49  |  Tekrar %50–69  |  Başarılı %70+',
           'Başarı = öğrencinin o konudaki doğru sayısı / o konuda gördüğü soru sayısı (seçilen denemelerin toplamı). Yanlış ve boş ayrı gösterilir.',
           { label: 'Kritik (%0–29)', text: LEVEL_INFO.kritik.advice, tone: 'danger' },
-          { label: 'Etüt (%30–49)', text: LEVEL_INFO.etut.advice, tone: 'warning' },
+          { label: 'Takviye (%30–49)', text: LEVEL_INFO.etut.advice, tone: 'warning' },
           ...(threshold > 50 ? [{ label: 'Tekrar (%50–69)', text: LEVEL_INFO.tekrar.advice, tone: 'info' as const }] : []),
           { label: 'Başarılı (%70+)', text: LEVEL_INFO.iyi.advice, tone: 'success' },
           'Not sütunu: "Boş bırakmış" konu bilgisinin eksik olduğunu, "Yanlışı çok" kavram yanılgısını gösterebilir. 3\'ten az soruyla verilen sonuç kesin değildir.',
@@ -264,7 +265,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
       blocks.push({ kind: 'heading', text: 'Öncelik sırası', sub: 'Kritik öğrencisi en çok olan konudan başlayarak etüt planlayın. Önerilen grup: en fazla 12 öğrenci.' });
       blocks.push({
         kind: 'table',
-        head: ['#', level === 'alt' ? 'Alt kazanım' : 'Konu', 'Öğrenci', 'Kritik', 'Etüt', 'Ort. başarı', 'Önerilen'],
+        head: ['#', level === 'alt' ? 'Alt kazanım' : 'Konu', 'Öğrenci', 'Kritik', 'Takviye', 'Ort. başarı', 'Önerilen'],
         rows: ordered.map((g, i) => {
           const s = groupStats(g);
           return [i + 1, g.label, g.rows.length, s.kritik, s.etut, `%${s.avg}`, `${Math.max(1, Math.ceil(g.rows.length / 12))} etüt grubu`];
@@ -281,7 +282,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
       const s = groupStats(g);
       const subParts = [
         level === 'alt' && g.konu !== g.label ? `Konu: ${g.konu}` : '',
-        `${g.rows.length} öğrenci (${s.kritik} kritik, ${s.etut} etüt)`,
+        `${g.rows.length} öğrenci (${s.kritik} kritik, ${s.etut} takviye)`,
         `Ortalama başarı %${s.avg}`,
         `Öneri: ${s.kritik >= s.etut ? LEVEL_INFO.kritik.advice : LEVEL_INFO.etut.advice}`,
       ].filter(Boolean);
@@ -437,8 +438,11 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]" id="etut-level-legend">
           <span className="font-semibold text-fg-2">Durum:</span>
           <span className="ui-chip ui-chip-danger" title={LEVEL_INFO.kritik.advice}>Kritik %0–29</span>
-          <span className="ui-chip ui-chip-warning" title={LEVEL_INFO.etut.advice}>Etüt %30–49</span>
+          <span className="text-subtle" aria-hidden>|</span>
+          <span className="ui-chip ui-chip-warning" title={LEVEL_INFO.etut.advice}>Takviye %30–49</span>
+          <span className="text-subtle" aria-hidden>|</span>
           <span className="ui-chip ui-chip-info" title={LEVEL_INFO.tekrar.advice}>Tekrar %50–69</span>
+          <span className="text-subtle" aria-hidden>|</span>
           <span className="ui-chip ui-chip-success" title={LEVEL_INFO.iyi.advice}>Başarılı %70+</span>
           <span className="text-muted">Başarı = doğru ÷ o konudaki soru (seçili denemelerin toplamı)</span>
         </div>
