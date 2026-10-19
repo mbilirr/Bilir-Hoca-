@@ -228,6 +228,11 @@ export interface WeeklyQuestionTarget {
   // Günlük plandan aktarılan konu kaydı (soru hedefi değildir) — lib/planToTarget.ts ve utils/targetDays.ts kullanır
   fromPlan?: boolean;
   dailyTopics?: Record<string, string>; // { 'YYYY-MM-DD': 'Kitap – konu' }
+  /**
+   * Aşama 53: plandan otomatik açılan hedefin SORU SAYILARINI öğretmen elle değiştirdi.
+   * Plan yeniden aktarılınca sayılar korunur, yalnızca konular güncellenir.
+   */
+  planCountsLocked?: boolean;
 }
 
 export type AttendanceStatus = 'present' | 'absent' | 'excused' | 'late';

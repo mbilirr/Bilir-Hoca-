@@ -75,8 +75,8 @@ import {
   type TargetDayRow,
 } from '../../utils/targetDays';
 import { readQuestionSubTab, readStudentTab, pushQuestionSubTab, type QuestionSubTab } from '../../lib/studentRoute';
-import { dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
-import { normalizeSubject } from '../../lib/subjects';
+import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
+import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -440,6 +440,9 @@ const pasteDigitsOnly = (setter: (v: string) => void) => (e: React.ClipboardEven
   setter(digits);
 };
 
+// Aşama 53: öğretmenin aktardığı konu / hedeflerin buluttan en son tazelendiği an (sık istek atılmasın)
+let lastTargetsRefreshAt = 0;
+
 interface StudentQuestionModuleProps {
   currentStudent: Student;
   classes: ClassGroup[];
@@ -738,30 +741,113 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [planTasks, teacherTopicsSig]
   );
+  // ---------------------------------------------------------------------------
+  // Aşama 53: KONULARIN GÜNE DOĞRU YAZILMASI (senkronizasyon hatasının kökten çözümü)
+  // Eski sürümde bir günün konusu ders satırına yazılınca, tarih değiştirildiğinde satırda KALIYORDU:
+  // Pazartesi'nin görevi Salı ve Çarşamba'da da görünüyor, o günlerin (ör. Cuma'nın) kendi görevi ise
+  // "kutu dolu" diye yazılmıyordu. Artık sistemin yazdığı metin hatırlanır:
+  //  * Gün değişince sistemin yazdığı (öğrencinin değiştirmediği) konu silinir, yerine o günün konusu yazılır.
+  //  * Öğrencinin kendi yazdığı ya da o günün kayıtlı girişinden gelen konuya dokunulmaz.
+  //  * Yalnızca plan yüzünden eklenmiş, artık boş kalan ders satırları kaldırılır.
+  // ---------------------------------------------------------------------------
   const teacherTopicsAppliedRef = useRef<string>('');
+  const autoTopicsRef = useRef<Map<string, string>>(new Map()); // ders anahtarı → sistemin yazdığı konu
+  const autoSingleRef = useRef<string>(''); // tek tek giriş modunda sistemin yazdığı konu
+  const lastAutoCtxRef = useRef<string>('');
   useEffect(() => {
-    if (!teacherTopics.length || dateError) return;
-    const sig = `${activeStudent.id}|${entryDate}|${teacherTopicsSig}`;
+    if (dateError) return;
+    const ctx = `${activeStudent.id}|${entryDate}`;
+    const sig = `${ctx}|${existingLogKey}|${teacherTopicsSig}`;
     if (teacherTopicsAppliedRef.current === sig) return;
     teacherTopicsAppliedRef.current = sig;
+    // Yeni güne geçildiyse ve o günün kayıtlı girişi varsa: satırlar kayıttan geldi, onlara dokunulmaz
+    // (yalnızca boş konu kutuları doldurulur). Kayıt yoksa satırlarda önceki günün otomatik konusu kalmış olabilir.
+    const dayChanged = lastAutoCtxRef.current !== ctx;
+    lastAutoCtxRef.current = ctx;
+    const prevAuto = dayChanged && existingLog ? new Map<string, string>() : autoTopicsRef.current;
+    const keyOf = (s: string) => normalizeSubject(s).toLocaleLowerCase('tr-TR');
+    const wanted = new Map<string, { subject: string; topic: string }>();
+    for (const x of teacherTopics) wanted.set(keyOf(x.subject), { subject: x.subject, topic: x.topic.slice(0, 120) });
+    const nextAuto = new Map<string, string>();
     setListRows((prev) => {
-      const next = [...prev];
-      for (const { subject, topic } of teacherTopics) {
-        const idx = next.findIndex((r) => sameSubject(r.subject, subject));
-        if (idx >= 0) {
-          if (!next[idx].topic.trim()) next[idx] = { ...next[idx], topic: topic.slice(0, 120) };
-        } else {
-          // Ders öğrencinin listesinde yoksa yeni satır olarak eklenir (soru sayısını öğrenci yazar)
-          next.push({ ...emptyEntryRow(normalizeSubject(subject)), topic: topic.slice(0, 120) });
+      nextAuto.clear();
+      const next = prev.map((r) => {
+        const k = keyOf(r.subject);
+        const cur = r.topic.trim();
+        const was = prevAuto.get(k);
+        const ownedBySystem = !cur || (was !== undefined && cur === was.trim());
+        if (!ownedBySystem) return r; // öğrencinin yazdığı / kayıttan gelen konu korunur
+        const w = wanted.get(k);
+        if (w) {
+          nextAuto.set(k, w.topic);
+          return cur === w.topic ? r : { ...r, topic: w.topic };
+        }
+        return cur ? { ...r, topic: '' } : r; // önceki günden kalan otomatik konu temizlenir
+      });
+      for (const [k, w] of wanted) {
+        if (next.some((r) => keyOf(r.subject) === k)) continue;
+        // Ders öğrencinin listesinde yoksa yeni satır olarak eklenir (soru sayısını öğrenci yazar)
+        next.push({ ...emptyEntryRow(normalizeSubject(w.subject)), topic: w.topic });
+        nextAuto.set(k, w.topic);
+      }
+      // Yalnızca plan yüzünden eklenmiş ve artık boş kalan satırlar kaldırılır
+      const cleaned = next.filter((r) => activeSubjects.includes(r.subject) || rowHasContent(r));
+      autoTopicsRef.current = new Map(nextAuto);
+      return cleaned;
+    });
+    // Tek tek giriş modu: seçili dersin konu kutusu
+    const singleMatch = wanted.get(keyOf(singleSubject));
+    setSingleTopic((cur) => {
+      const c = cur.trim();
+      const owned = !c || (!(dayChanged && existingLog) && c === autoSingleRef.current.trim());
+      if (!owned) return cur;
+      autoSingleRef.current = singleMatch ? singleMatch.topic : '';
+      return singleMatch ? singleMatch.topic : '';
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStudent.id, entryDate, teacherTopicsSig, dateError, existingLogKey]);
+
+  // Aşama 53: GELECEK HAFTA HEDEFİN — öğretmenin haftalık plandan (ya da elle) verdiği, bugünden sonra başlayan
+  // ilk hedef haftası gün gün: her gün hangi dersten kaç soru ve plandaki konu.
+  const nextWeekPlan = useMemo(() => {
+    const today = todayIso;
+    const list = dataService
+      .getQuestionTargetsForStudent(activeStudent.id, addDaysYmd(today, 1), addDaysYmd(today, 21))
+      .filter((t) => (t.weekStartDate || '') > today);
+    if (!list.length) return null;
+    const start = list.map((t) => t.weekStartDate || '').sort()[0];
+    const dates = Array.from({ length: 7 }, (_, i) => addDaysYmd(start, i));
+    const days = dates.map((d) => {
+      const bySubject = new Map<string, number>();
+      let general = 0;
+      for (const t of list) {
+        const subs = targetSubjectList(t.subject);
+        if (!subs.length) {
+          general = Math.max(general, targetForDay(t, d));
+          continue;
+        }
+        for (const s of subs) {
+          const n = subjectTargetForDay(t, s, d);
+          if (n && n > (bySubject.get(s) || 0)) bySubject.set(s, n);
         }
       }
-      return next;
+      return { date: d, subjects: Array.from(bySubject.entries()), general, topics: dataService.getPlanTopicsForStudentDay(activeStudent.id, d) };
     });
-    // Tek tek giriş modunda: seçili dersin konu kutusu boşsa doldurulur
-    const singleMatch = teacherTopics.find((x) => sameSubject(x.subject, singleSubject));
-    if (singleMatch) setSingleTopic((cur) => (cur.trim() ? cur : singleMatch.topic.slice(0, 120)));
+    if (!days.some((x) => x.subjects.length || x.general > 0)) return null;
+    return { start, end: dates[6], days };
+    // allLogs: veri servisi her değiştiğinde (hedef eklenince/değişince de) yeniden hesaplanır
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeStudent.id, entryDate, teacherTopicsSig, dateError]);
+  }, [activeStudent.id, todayIso, allLogs]);
+
+  // Aşama 53: öğrenci Soru Kaydet'i açınca / gün değiştirince öğretmenin son aktarımları buluttan tazelenir
+  // (telefonda uygulama uzun süre açık kalsa da eski konu / hedef görünmesin). En fazla 20 sn'de bir.
+  useEffect(() => {
+    if (activeTab !== 'entry') return;
+    const now = Date.now();
+    if (now - lastTargetsRefreshAt < 20000) return;
+    lastTargetsRefreshAt = now;
+    void dataService.syncQuestionTargetsFromSupabase(true);
+  }, [activeTab, entryDate]);
 
   const clearMessages = () => {
     setFormError('');
@@ -2257,6 +2343,51 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   {planInfo}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Aşama 53: gelecek hafta hedefi (öğretmenin planından otomatik) */}
+          {nextWeekPlan && (
+            <div
+              id="qe-next-week"
+              className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10 space-y-2"
+            >
+              <p className="text-xs font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-1.5">
+                <Target className="w-4 h-4" />
+                Gelecek hafta hedefin
+                <span className="font-medium text-indigo-700/80 dark:text-indigo-300/80">
+                  ({formatTurkishDate(nextWeekPlan.start)} – {formatTurkishDate(nextWeekPlan.end)})
+                </span>
+              </p>
+              <div className="grid grid-cols-7 gap-1">
+                {nextWeekPlan.days.map((d) => {
+                  const dt = parseIsoDate(d.date);
+                  const empty = !d.subjects.length && d.general <= 0;
+                  return (
+                    <div
+                      key={d.date}
+                      data-testid="qe-next-week-day"
+                      className={`min-w-0 rounded-lg border px-1 py-1 text-center ${empty ? 'border-line bg-surface-2/40' : 'border-indigo-200 dark:border-indigo-500/30 bg-surface'}`}
+                      title={d.topics.map((x) => `${x.subject}: ${x.topic}`).join('\n') || undefined}
+                    >
+                      <span className="block text-[10px] font-bold text-fg leading-tight">
+                        {dt ? ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'][dt.getDay()] : ''}
+                      </span>
+                      <span className="block text-[9px] text-muted leading-tight">{dt ? `${dt.getDate()}.${dt.getMonth() + 1}` : ''}</span>
+                      {d.general > 0 && <span className="block text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">Toplam:{d.general}</span>}
+                      {d.subjects.map(([s, n]) => (
+                        <span key={s} className="block text-[10px] leading-tight font-semibold text-indigo-700 dark:text-indigo-300 break-words">
+                          {shortSubjectName(s)}:{n}
+                        </span>
+                      ))}
+                      {empty && <span className="block text-[10px] text-subtle">—</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted">
+                Öğretmenin planından otomatik oluşturuldu. O gün geldiğinde dersin konusu ve hedefi bu formda ilgili dersin satırına kendiliğinden yazılır.
+              </p>
             </div>
           )}
 

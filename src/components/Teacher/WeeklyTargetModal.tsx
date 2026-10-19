@@ -6,6 +6,7 @@ import { Modal, Segmented } from '../ui/kit';
 import { normalizeSubject, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
 import { loadPlanQuestionCountsMany, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
+import { syncSentPlan } from '../../lib/planToTarget';
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
 
 // ============================================================================
@@ -82,6 +83,9 @@ const TargetFormContent: React.FC<Props> = ({
   onSaved,
 }) => {
   const isEdit = !!editTarget;
+  // Aşama 53: haftalık plandan otomatik açılmış hedef mi?
+  const fromPlanTarget = !!editTarget?.fromPlan;
+  const [restoringPlan, setRestoringPlan] = useState(false);
   // Günlük plandan bu hedefe aktarılmış konular varsa gün kutularının altında gösterilir
   const planTopics = editTarget?.dailyTopics || {};
   const canEdit = !editTarget || dataService.canEditQuestionTarget(editTarget);
@@ -483,6 +487,14 @@ const TargetFormContent: React.FC<Props> = ({
     setIsSaving(true);
     try {
       const toSave: WeeklyQuestionTarget = { ...draft, id: editTarget?.id || conflict?.id };
+      // Aşama 53: plandan otomatik açılan hedefin SAYILARI değiştirildiyse kilitlenir; plan yeniden
+      // aktarılınca öğretmenin sayıları korunur (konular plandan gelmeye devam eder)
+      if (fromPlanTarget && editTarget) {
+        const countsChanged =
+          (Number(editTarget.targetQuestions) || 0) !== (toInt(shownTotal) || 0) ||
+          JSON.stringify(editTarget.dailyTargets || null) !== JSON.stringify(draft.dailyTargets || null);
+        toSave.planCountsLocked = !!editTarget.planCountsLocked || countsChanged;
+      }
       const saved = await dataService.saveQuestionTarget(toSave);
       const base = editTarget || conflict;
       const sig = (t?: WeeklyQuestionTarget | null) =>
@@ -505,6 +517,28 @@ const TargetFormContent: React.FC<Props> = ({
     } catch (e: any) {
       setErrorText(e?.message || 'Hedef kaydedilemedi. Lütfen tekrar deneyin.');
       setIsSaving(false);
+    }
+  };
+
+  // Aşama 53: öğretmenin değiştirdiği sayıları bırakıp plandaki gün gün sayılara geri dön
+  const restorePlanCounts = async () => {
+    if (!editTarget?.id || !editTarget.weekStartDate || restoringPlan) return;
+    const st = students.find((s) => s.id === editTarget.studentId);
+    if (!st) return setErrorText('Öğrenci bulunamadı.');
+    setRestoringPlan(true);
+    setErrorText(null);
+    try {
+      await dataService.saveQuestionTarget({ ...editTarget, planCountsLocked: false });
+      const isAdmin = dataService.isCurrentUserAdmin();
+      const mine = dataService.getMySubjects();
+      const can = (s: string) => isAdmin || !mine || mine.includes(s);
+      const r = await syncSentPlan(st, editTarget.weekStartDate, can);
+      if (!r) setErrorText('Plan öğrenciye gönderilmemiş; sayılar plan gönderilince gelir.');
+      else onClose();
+    } catch (e: any) {
+      setErrorText(e?.message || 'Plandaki sayılar getirilemedi.');
+    } finally {
+      setRestoringPlan(false);
     }
   };
 
@@ -739,6 +773,23 @@ const TargetFormContent: React.FC<Props> = ({
         </FormSection>
 
         <FormSection title="4. Soru hedefi">
+          {fromPlanTarget && (
+            <div id="qt-from-plan-note" role="note" className="rounded-xl border border-brand/30 bg-brand-soft/50 px-3 py-2 text-xs text-fg-2 space-y-1.5">
+              <p className="font-semibold text-brand-fg flex items-center gap-1.5">
+                <ClipboardList className="w-3.5 h-3.5" /> Bu hedef haftalık plandan otomatik açıldı
+              </p>
+              <p>
+                {editTarget?.planCountsLocked
+                  ? 'Sayıları siz değiştirdiniz: plan güncellense de sizin sayılarınız korunur, konular plandan gelmeye devam eder.'
+                  : 'Gün gün sayıları değiştirebilirsiniz. Değiştirirseniz plan güncellense de sizin sayılarınız korunur; konular plandan gelmeye devam eder.'}
+              </p>
+              {editTarget?.planCountsLocked && canEdit && (
+                <button type="button" id="qt-restore-plan" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={restoringPlan || isSaving} onClick={() => void restorePlanCounts()}>
+                  {restoringPlan ? 'Plandaki sayılar getiriliyor…' : 'Plandaki sayılara dön'}
+                </button>
+              )}
+            </div>
+          )}
           {planCounts && (
             <div
               id="qt-plan-ghost"

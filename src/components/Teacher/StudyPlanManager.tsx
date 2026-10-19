@@ -60,7 +60,7 @@ import { StudyPlanClassView } from './StudyPlanClassView';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
 import { User as UserIcon, School } from 'lucide-react';
-import { transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
+import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
 
 // ============================================================================
@@ -315,6 +315,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       setPlan((p) => ({ ...p, items: p.items.map((i) => (i.id === updated.id ? { ...updated, doneAt: i.doneAt } : i)) }));
       setTaskModal(null);
       say({ tone: 'success', text: 'Görev güncellendi.' }, 3000);
+      autoSync();
       return;
     }
     const position = plan.items.filter((i) => i.day === draft.day).reduce((m, i) => Math.max(m, i.position + 1), 0);
@@ -328,6 +329,29 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       setTaskModal(null);
       say({ tone: 'success', text: 'Görev eklendi.' }, 3000);
     }
+    autoSync();
+  };
+
+  // ---- Aşama 53: gönderilmiş planda yapılan her değişiklik öğrencinin Soru Kaydet bölümüne ve
+  //      gün gün soru hedefine KENDİLİĞİNDEN işlenir ("Planı yenile"ye basmak gerekmez).
+  const autoSync = () => {
+    if (!student || !plan.header?.sentAt) return;
+    const st = student;
+    const ws = weekStart;
+    void syncSentPlan(st, ws, canSubject)
+      .then((r) => {
+        if (r) say({ tone: 'info', text: `Değişiklik ${st.name} adlı öğrencinin Soru Kaydet bölümüne de işlendi.` }, 3500);
+      })
+      .catch((e: any) => say({ tone: 'warning', text: `Görev kaydedildi ama Soru Kaydet'e işlenemedi${e?.message ? ` (${e.message})` : ''}. "Planı yenile" ile tekrar deneyin.` }, 8000));
+  };
+  /** Plan geri çekilince / silinince öğrencinin Soru Kaydet'indeki bu haftanın plan konuları ve hedefleri kaldırılır */
+  const clearTransfer = async (st: Student, ws: string) => {
+    try {
+      const p = await loadPlan(st.id, ws);
+      await transferPlanTopicsToQuestionEntry({ student: st, weekStart: ws, items: p.header?.sentAt ? p.items : [], canSubject });
+    } catch {
+      /* temizlenemezse sonraki gönderimde düzelir */
+    }
   };
 
   const [deleteItem, setDeleteItem] = useState<PlanItem | null>(null);
@@ -339,6 +363,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       await deletePlanItem(it.id);
       setPlan((p) => ({ ...p, items: p.items.filter((i) => i.id !== it.id) }));
       say({ tone: 'success', text: 'Görev silindi.' }, 3000);
+      autoSync();
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Görev silinemedi.' });
     }
@@ -362,7 +387,8 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
     try {
       const h = await unsendPlan(student.id, weekStart);
       setPlan((p) => ({ ...p, header: h }));
-      say({ tone: 'info', text: 'Plan geri çekildi; öğrenci artık görmüyor.' });
+      await clearTransfer(student, weekStart); // Aşama 53: Soru Kaydet'teki bu haftanın plan konuları da kalkar
+      say({ tone: 'info', text: 'Plan geri çekildi; öğrenci artık görmüyor. Soru Kaydet bölümündeki plan konuları ve hedefleri de kaldırıldı.' });
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Plan geri çekilemedi.' });
     } finally {
@@ -388,6 +414,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         }
       }
       if (!whole) for (const i of mine) await deletePlanItem(i.id);
+      await clearTransfer(student, weekStart); // Aşama 53: silinen görevler Soru Kaydet'ten de kalkar
       await reload(true);
       say({ tone: 'success', text: 'Plan temizlendi.' }, 3000);
     } catch (e: any) {

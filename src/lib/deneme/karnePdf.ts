@@ -9,7 +9,9 @@ export type PdfTone = 'success' | 'info' | 'warning' | 'danger' | 'muted';
 export type PdfBlock =
   | { kind: 'title'; text: string; sub?: string }
   | { kind: 'kv'; rows: Array<[string, string]> }
-  | { kind: 'heading'; text: string }
+  | { kind: 'heading'; text: string; sub?: string; minFollow?: number }
+  // Aşama 53: renkli bilgi kutusu (açıklama / öneri). lines: her biri ayrı satır (gerekirse alt satıra kayar)
+  | { kind: 'callout'; title: string; lines: Array<string | { label: string; text: string; tone?: PdfTone }>; tone?: PdfTone }
   | { kind: 'text'; text: string; tone?: PdfTone }
   | {
       kind: 'table';
@@ -19,6 +21,8 @@ export type PdfBlock =
       rowTones?: Array<PdfTone | null>;
       widths?: Array<number | 'auto'>;
       fontSize?: number;
+      /** Aşama 53: satır rengiyle yazılacak sütun (verilmezse son sütun) */
+      toneColumn?: number;
     }
   | { kind: 'line'; title: string; labels: string[]; series: Array<{ name: string; values: Array<number | null> }>; yMin?: number; yMax?: number }
   | { kind: 'bar'; title: string; labels: string[]; series: Array<{ name: string; values: number[] }> }
@@ -338,18 +342,21 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       continue;
     }
     if (b.kind === 'title') {
-      ensure(18);
+      // Aşama 53: uzun başlık / alt başlık sayfa dışına taşmaz, alt satıra geçer
       doc.setFont(F, 'bold');
       doc.setFontSize(16);
+      const tl = doc.splitTextToSize(t(b.text), W - 2 * M) as string[];
+      ensure(10 + tl.length * 6.5);
       doc.setTextColor(30, 27, 75);
-      doc.text(t(b.text), M, y + 4);
-      y += 8;
+      doc.text(tl, M, y + 4);
+      y += 4 + tl.length * 6.5;
       if (b.sub) {
         doc.setFont(F, 'normal');
         doc.setFontSize(9.5);
         doc.setTextColor(71, 85, 105);
-        doc.text(t(b.sub), M, y + 2);
-        y += 5;
+        const sl = doc.splitTextToSize(t(b.sub), W - 2 * M) as string[];
+        doc.text(sl, M, y + 1);
+        y += sl.length * 4.2 + 1;
       }
       doc.setDrawColor(199, 210, 254);
       doc.setLineWidth(0.4);
@@ -358,29 +365,101 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       continue;
     }
     if (b.kind === 'kv') {
+      // Aşama 53: değerler ölçülerek yazılır; uzun değer alt satırlara geçer ve satır yüksekliği ona göre büyür
+      // (eskiden uzun değer bir sonraki satırın / başlığın üstüne biniyordu)
       doc.setFontSize(9);
       const colW = (W - 2 * M) / 2;
-      b.rows.forEach(([k, v], i) => {
-        if (i % 2 === 0) ensure(6);
-        const x = M + (i % 2) * colW;
-        doc.setFont(F, 'normal');
-        doc.setTextColor(100, 116, 139);
-        doc.text(t(`${k}:`), x, y + 3);
+      const lineH = 4;
+      for (let i = 0; i < b.rows.length; i += 2) {
+        const pair = b.rows.slice(i, i + 2);
         doc.setFont(F, 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text(t(v), x + 30, y + 3, { maxWidth: colW - 32 });
-        if (i % 2 === 1 || i === b.rows.length - 1) y += 5.5;
-      });
+        const wrapped = pair.map(([, v]) => doc.splitTextToSize(t(v), colW - 32) as string[]);
+        const rowH = Math.max(1, ...wrapped.map((l) => l.length)) * lineH + 1.5;
+        ensure(rowH + 1);
+        pair.forEach(([k], j) => {
+          const x = M + j * colW;
+          doc.setFont(F, 'normal');
+          doc.setTextColor(100, 116, 139);
+          doc.text(t(`${k}:`), x, y + 3);
+          doc.setFont(F, 'bold');
+          doc.setTextColor(15, 23, 42);
+          doc.text(wrapped[j], x + 30, y + 3);
+        });
+        y += rowH;
+      }
       y += 2;
       continue;
     }
     if (b.kind === 'heading') {
-      ensure(12);
+      // Aşama 53: uzun başlık (ör. kazanım metni) sayfa dışına taşmaz, alt satıra geçer.
+      // Başlık sayfanın en altında tek başına kalmasın diye ardından gelecek içerik için de yer aranır.
       doc.setFont(F, 'bold');
-      doc.setFontSize(11.5);
+      doc.setFontSize(11);
+      const hl = doc.splitTextToSize(t(b.text), W - 2 * M) as string[];
+      doc.setFont(F, 'normal');
+      doc.setFontSize(8.2);
+      const sl = b.sub ? (doc.splitTextToSize(t(b.sub), W - 2 * M) as string[]) : [];
+      const h = 3 + hl.length * 4.8 + sl.length * 3.6 + 2;
+      ensure(h + (b.minFollow ?? 18));
+      doc.setFont(F, 'bold');
+      doc.setFontSize(11);
       doc.setTextColor(67, 56, 202);
-      doc.text(t(b.text), M, y + 5);
-      y += 8;
+      doc.text(hl, M, y + 5);
+      y += 3 + hl.length * 4.8;
+      if (sl.length) {
+        doc.setFont(F, 'normal');
+        doc.setFontSize(8.2);
+        doc.setTextColor(100, 116, 139);
+        doc.text(sl, M, y + 2.6);
+        y += sl.length * 3.6;
+      }
+      y += 2;
+      continue;
+    }
+    if (b.kind === 'callout') {
+      const tone = b.tone || 'info';
+      const pad = 3;
+      const innerW = W - 2 * M - 2 * pad;
+      doc.setFontSize(7.8);
+      const prepared = b.lines.map((ln) => {
+        if (typeof ln === 'string') {
+          doc.setFont(F, 'normal');
+          return { label: '', labelW: 0, lines: doc.splitTextToSize(t(ln), innerW) as string[], tone: undefined as PdfTone | undefined };
+        }
+        doc.setFont(F, 'bold');
+        const label = t(ln.label);
+        const labelW = Math.min(40, doc.getTextWidth(label) + 3);
+        doc.setFont(F, 'normal');
+        return { label, labelW, lines: doc.splitTextToSize(t(ln.text), innerW - labelW) as string[], tone: ln.tone };
+      });
+      const bodyH = prepared.reduce((a, p) => a + p.lines.length * 3.5 + 0.8, 0);
+      const h = pad + 5 + bodyH + pad - 1;
+      ensure(h + 3);
+      const fill = TONE_FILL[tone];
+      const txt = TONE_TEXT[tone];
+      doc.setFillColor(fill[0], fill[1], fill[2]);
+      doc.setDrawColor(txt[0], txt[1], txt[2]);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(M, y, W - 2 * M, h, 2.5, 2.5, 'FD');
+      doc.setFont(F, 'bold');
+      doc.setFontSize(8.6);
+      doc.setTextColor(txt[0], txt[1], txt[2]);
+      doc.text(t(b.title), M + pad, y + pad + 3);
+      let yy = y + pad + 7.5;
+      doc.setFontSize(7.8);
+      for (const p of prepared) {
+        if (p.label) {
+          const c = p.tone ? TONE_TEXT[p.tone] : txt;
+          doc.setFont(F, 'bold');
+          doc.setTextColor(c[0], c[1], c[2]);
+          doc.text(p.label, M + pad, yy);
+        }
+        doc.setFont(F, 'normal');
+        doc.setTextColor(51, 65, 85);
+        doc.text(p.lines, M + pad + p.labelW, yy);
+        yy += p.lines.length * 3.5 + 0.8;
+      }
+      y += h + 4;
       continue;
     }
     if (b.kind === 'text') {
@@ -395,7 +474,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       continue;
     }
     if (b.kind === 'table') {
-      ensure(14);
+      ensure(16);
       const columnStyles: Record<number, any> = {};
       b.head.forEach((_, i) => {
         columnStyles[i] = { halign: b.align?.[i] || 'left' };
@@ -408,15 +487,21 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
         head: [b.head.map(t)],
         body: b.rows.map((r) => r.map((c) => t(c))),
         theme: 'grid',
-        styles: { font: F, fontSize: b.fontSize || 8.2, cellPadding: 1.6, textColor: [55, 65, 81], lineColor: [226, 232, 240], lineWidth: 0.15, valign: 'middle' },
+        // Aşama 53: uzun hücre metni alt satıra geçer (sayfa dışına taşmaz); başlık her sayfada tekrarlanır
+        styles: { font: F, fontSize: b.fontSize || 8.2, cellPadding: 1.6, textColor: [55, 65, 81], lineColor: [226, 232, 240], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
         headStyles: { font: F, fillColor: [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
+        showHead: 'everyPage',
+        rowPageBreak: 'avoid',
         columnStyles,
         didParseCell: (data: any) => {
           if (data.section !== 'body' || !b.rowTones) return;
           const tone = b.rowTones[data.row.index];
           if (tone) {
             data.cell.styles.fillColor = TONE_FILL[tone];
-            if (data.column.index === b.head.length - 1) data.cell.styles.textColor = TONE_TEXT[tone];
+            if (data.column.index === (b.toneColumn ?? b.head.length - 1)) {
+              data.cell.styles.textColor = TONE_TEXT[tone];
+              data.cell.styles.fontStyle = 'bold';
+            }
           }
         },
       });

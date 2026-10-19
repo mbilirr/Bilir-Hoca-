@@ -312,9 +312,18 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     if (busy) return;
     setBusy(true);
     try {
+      const wasSent = viewStudents.filter((s) => headers[s.id]?.sentAt);
       const n = await unsendPlans(viewIds, weekStart);
+      // Aşama 53: geri çekilen planların Soru Kaydet'teki konuları ve hedefleri de kaldırılır
+      for (const s of wasSent) {
+        try {
+          await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: [], canSubject });
+        } catch {
+          /* temizlenemezse sonraki gönderimde düzelir */
+        }
+      }
       await reload(true);
-      say({ tone: 'info', text: `${n} öğrencinin planı geri çekildi; artık görmüyorlar.` });
+      say({ tone: 'info', text: `${n} öğrencinin planı geri çekildi; artık görmüyorlar. Soru Kaydet bölümlerindeki plan konuları ve hedefleri de kaldırıldı.` });
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Plan geri çekilemedi.' });
     } finally {
@@ -455,8 +464,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       if (n) parts.push(`${n} öğrencide güncellendi`);
       if (added) parts.push(`${added} öğrenciye eklendi`);
       if (removed) parts.push(`${removed} öğrenciden çıkarıldı`);
-      const sentNote = anySent && (added || removed || n) ? ' Öğrencilere ve Soru Kaydet bölümüne ulaşması için "Planı yenile"ye basın.' : '';
-      say({ tone: 'success', text: `Görev ${parts.join(', ')}.${sentNote}` }, 8000);
+      say({ tone: 'success', text: `Görev ${parts.join(', ')}.` }, 6000);
+      autoSync(Array.from(new Set([...before, ...after])));
       return;
     }
     const targets = taskTargets;
@@ -475,6 +484,22 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       setTaskModal(null);
       say({ tone: 'success', text: `Görev ${created.length} öğrenciye eklendi.` }, 3500);
     }
+    autoSync(targets);
+  };
+
+  // ---- Aşama 53: planı GÖNDERİLMİŞ öğrencilerde yapılan her değişiklik (görev ekleme / düzenleme / taşıma / silme)
+  //      Soru Kaydet bölümüne ve gün gün soru hedefine KENDİLİĞİNDEN işlenir ("Planı yenile"ye basmak gerekmez).
+  //      Planı gönderilmemiş (taslak) öğrencilere dokunulmaz.
+  const autoSync = (studentIds: string[]) => {
+    const list = Array.from(new Set(studentIds))
+      .filter((id) => headers[id]?.sentAt)
+      .map((id) => studentById.get(id))
+      .filter((s): s is Student => !!s);
+    if (!list.length) return;
+    const ws = weekStart;
+    void transferPlansForStudents(list, ws, canSubject)
+      .then(() => say({ tone: 'info', text: `Değişiklik planı gönderilmiş ${list.length} öğrencinin Soru Kaydet bölümüne de işlendi.` }, 3500))
+      .catch(() => say({ tone: 'warning', text: 'Görev kaydedildi ama bazı öğrencilerin Soru Kaydet bölümüne işlenemedi. "Planı yenile" ile tekrar deneyin.' }, 8000));
   };
 
   // Aşama 37: düzenlemede çıkarılacak / eklenecek öğrenciler (uyarı metni için)
@@ -547,6 +572,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       const n = await deletePlanItems(g.items.map((i) => i.id));
       setItems((cur) => cur.filter((i) => !g.items.some((x) => x.id === i.id)));
       say({ tone: 'success', text: `Görev ${n} öğrenciden silindi.` }, 3500);
+      autoSync(g.items.map((i) => i.studentId));
     } catch (e: any) {
       say({ tone: 'danger', text: e?.message || 'Görev silinemedi.' });
     }
@@ -559,6 +585,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     setConfirmClear(false);
     try {
       const n = await deletePlanItems(clearable.map((i) => i.id));
+      autoSync(clearable.map((i) => i.studentId));
       await reload(true);
       say({ tone: 'success', text: `${n} görev silindi.` }, 3500);
     } catch (e: any) {

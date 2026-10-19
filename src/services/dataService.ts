@@ -9774,6 +9774,18 @@ export class DataService {
     );
   }
 
+  /**
+   * Aşama 53: öğrencinin (sınıf kayıtları hariç) verilen tarih aralığına denk gelen TÜM soru kayıtları:
+   * öğretmen hedefleri, plandan gelen hedefler ve konu kayıtları — sahibi kim olursa olsun.
+   * Plan → Soru Kaydet aktarımı aynı hafta/ders için birden çok kayıt (çift kayıt) kalmasın diye kullanır.
+   */
+  public getStudentQuestionRecordsInRange(studentId: string, rangeStart: string, rangeEnd: string): WeeklyQuestionTarget[] {
+    if (!studentId) return [];
+    return this.weeklyQuestionTargets.filter(
+      (t) => !this.isClassQuestionTarget(t) && t.studentId === studentId && this.questionTargetOverlaps(t, rangeStart, rangeEnd)
+    );
+  }
+
   public getStudentQuestionTargets(): WeeklyQuestionTarget[] {
     return this.getWeeklyQuestionTargets().filter((t) => !this.isClassQuestionTarget(t) && !!t.studentId);
   }

@@ -36,6 +36,30 @@ function splitByClass(rows: StudentTopicRow[]): Array<{ className: string; rows:
     .sort((a, b) => a.className.localeCompare(b.className, 'tr', { numeric: true }));
 }
 
+/** Aşama 53: öğrencinin o konudaki cevaplarından kısa tanı notu (öğretmene etütte yol gösterir) */
+export function studentNote(r: StudentTopicRow): string {
+  if (r.total < 3) return 'Az soru: sonuç kesin değil';
+  if (r.d === 0 && r.y === 0) return 'Hiç cevaplamamış: konu eksik';
+  if (r.b >= r.y && r.b > r.d) return 'Çoğunu boş bırakmış: konu bilgisi eksik';
+  if (r.y > r.d) return 'Yanlışı çok: kavram yanılgısı olabilir';
+  return 'Soru çözümüyle pekiştirilmeli';
+}
+
+/** Aşama 53: bir konunun etüt özet sayıları */
+function groupStats(g: TopicGroup) {
+  const kritik = g.rows.filter((r) => levelOf(r.rate) === 'kritik').length;
+  const etut = g.rows.filter((r) => levelOf(r.rate) === 'etut').length;
+  const avg = g.rows.length ? Math.round(g.rows.reduce((a, r) => a + r.rate, 0) / g.rows.length) : 0;
+  return { kritik, etut, avg };
+}
+
+/** Aşama 53: öncelik sırası — kritik öğrencisi çok olan, sonra öğrencisi çok olan, sonra ortalaması düşük olan konu önce */
+function prioritized(groups: TopicGroup[]): TopicGroup[] {
+  return groups
+    .slice()
+    .sort((a, b) => groupStats(b).kritik - groupStats(a).kritik || b.rows.length - a.rows.length || groupStats(a).avg - groupStats(b).avg);
+}
+
 export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; classes: ClassGroup[] }> = ({ exams, students, classes }) => {
   const [scope, setScope] = useState<ScopeKey>('last3');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -169,39 +193,119 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
     setNotice({ tone: sent ? 'success' : 'warning', text: `${base} ${lastText}` });
   };
 
+  // ---------------------------------------------------------------------------------------------
+  // Aşama 53: ETÜT YÖNLENDİRME RAPORU (PDF) — öğretmenin elinde gerçekten kullanacağı bir çalışma belgesi:
+  //  1. Özet: ders, sınıf, ölçüt, denemeler + sayılar (kaç konu, kaç öğrenci, kaç kritik, ortalama başarı)
+  //  2. "Durum nasıl belirlenir?" açıklaması (Kritik / Etüt / Tekrar / Başarılı aralıkları ve anlamları)
+  //  3. Öncelik tablosu: kritik öğrencisi en çok olan konudan başlayarak, önerilen etüt grubu sayısıyla
+  //  4. Her konu / kazanım için sınıf sınıf öğrenci listesi: öğrencinin durumu, kısa tanı notu
+  //     (boş mu bırakıyor, yanlış mı yapıyor) ve etütte doldurulacak "Katıldı / İmza" sütunu
+  //  5. Etüt sonrası izleme önerisi
+  // ---------------------------------------------------------------------------------------------
   const onPdf = async () => {
+    const subjectName = subjectInfo?.name || '';
+    const bazinda = level === 'alt' ? 'alt kazanım' : 'konu';
+    const uniq = new Set(groups.flatMap((g) => g.rows.map((r) => r.studentId)));
+    const kritikSet = new Set(groups.flatMap((g) => g.rows.filter((r) => levelOf(r.rate) === 'kritik').map((r) => r.studentId)));
+    const allRows = groups.flatMap((g) => g.rows);
+    const avg = allRows.length ? Math.round(allRows.reduce((a, r) => a + r.rate, 0) / allRows.length) : 0;
+    const ordered = prioritized(groups);
+
     const blocks: PdfBlock[] = [
-      { kind: 'title', text: 'Etüt Yönlendirme Listesi', sub: `${subjectInfo?.name || ''} · ${level === 'alt' ? 'alt kazanım' : 'konu'} bazında` },
+      { kind: 'title', text: 'Etüt Yönlendirme Raporu', sub: `${subjectName} · ${bazinda} bazında · ${new Date().toLocaleDateString('tr-TR')}` },
       {
         kind: 'kv',
         rows: [
-          ['Ölçüt', `Başarı %${threshold} altında (en az ${minQ} soru)`],
-          ['Kapsam', `${scopeLabel(scope)} (${fullExams.length} deneme)`],
+          ['Ders', subjectName],
           ['Sınıf', classes.find((c) => c.id === classId)?.name || 'Tüm sınıflar'],
-          [level === 'alt' ? 'Alt kazanım' : 'Konu', topicName ? topicName.slice(0, 120) : level === 'alt' ? 'Tüm alt kazanımlar' : 'Tüm konular'],
-          ['Denemeler', fullExams.map((e) => `${e.name} ${dateTr(e.examDate)}`).join(', ').slice(0, 120)],
+          ['Ölçüt', `Başarı %${threshold} altında, en az ${minQ} soru`],
+          ['Kapsam', `${scopeLabel(scope)} (${fullExams.length} deneme)`],
+          [level === 'alt' ? 'Alt kazanım' : 'Konu', topicName || (level === 'alt' ? 'Tüm alt kazanımlar' : 'Tüm konular')],
+          ['Denemeler', fullExams.map((e) => `${e.name} (${dateTr(e.examDate)})`).join(' · ') || '-'],
+        ],
+      },
+      {
+        kind: 'tiles',
+        items: [
+          { label: level === 'alt' ? 'Alt kazanım' : 'Konu', value: String(groups.length), sub: 'etüt gerektiren' },
+          { label: 'Öğrenci', value: String(uniq.size), sub: 'en az bir konuda yönlendirilen', tone: 'info' },
+          { label: 'Kritik öğrenci', value: String(kritikSet.size), sub: 'en az bir konuda %30 altı', tone: 'danger' },
+          { label: 'Ortalama başarı', value: `%${avg}`, sub: 'listedeki öğrencilerin', tone: avg < 30 ? 'danger' : 'warning' },
+        ],
+      },
+      {
+        kind: 'callout',
+        title: 'Durum nasıl belirlenir?',
+        tone: 'muted',
+        lines: [
+          'Başarı = öğrencinin o konudaki doğru sayısı / o konuda gördüğü soru sayısı (seçilen denemelerin toplamı). Yanlış ve boş ayrı gösterilir.',
+          { label: 'Kritik (%0–29)', text: LEVEL_INFO.kritik.advice, tone: 'danger' },
+          { label: 'Etüt (%30–49)', text: LEVEL_INFO.etut.advice, tone: 'warning' },
+          ...(threshold > 50 ? [{ label: 'Tekrar (%50–69)', text: LEVEL_INFO.tekrar.advice, tone: 'info' as const }] : []),
+          { label: 'Başarılı (%70+)', text: LEVEL_INFO.iyi.advice, tone: 'success' },
+          'Not sütunu: "Boş bırakmış" konu bilgisinin eksik olduğunu, "Yanlışı çok" kavram yanılgısını gösterebilir. 3\'ten az soruyla verilen sonuç kesin değildir.',
         ],
       },
     ];
-    for (const g of groups) {
-      blocks.push({ kind: 'heading', text: `${g.label} (${g.rows.length} öğrenci)` });
-      if (level === 'alt' && g.konu !== g.label) blocks.push({ kind: 'text', tone: 'muted', text: `Konu: ${g.konu}` });
+
+    if (ordered.length) {
+      blocks.push({ kind: 'heading', text: 'Öncelik sırası', sub: 'Kritik öğrencisi en çok olan konudan başlayarak etüt planlayın. Önerilen grup: en fazla 12 öğrenci.' });
+      blocks.push({
+        kind: 'table',
+        head: ['#', level === 'alt' ? 'Alt kazanım' : 'Konu', 'Öğrenci', 'Kritik', 'Etüt', 'Ort. başarı', 'Önerilen'],
+        rows: ordered.map((g, i) => {
+          const s = groupStats(g);
+          return [i + 1, g.label, g.rows.length, s.kritik, s.etut, `%${s.avg}`, `${Math.max(1, Math.ceil(g.rows.length / 12))} etüt grubu`];
+        }),
+        rowTones: ordered.map((g) => (groupStats(g).kritik ? 'danger' : 'warning')),
+        toneColumn: 3,
+        align: ['center', 'left', 'center', 'center', 'center', 'center', 'center'],
+        widths: [7, 'auto', 15, 13, 12, 17, 24],
+        fontSize: 7.6,
+      });
+    }
+
+    ordered.forEach((g, gi) => {
+      const s = groupStats(g);
+      const subParts = [
+        level === 'alt' && g.konu !== g.label ? `Konu: ${g.konu}` : '',
+        `${g.rows.length} öğrenci (${s.kritik} kritik, ${s.etut} etüt)`,
+        `Ortalama başarı %${s.avg}`,
+        `Öneri: ${s.kritik >= s.etut ? LEVEL_INFO.kritik.advice : LEVEL_INFO.etut.advice}`,
+      ].filter(Boolean);
+      blocks.push({ kind: 'heading', text: `${gi + 1}. ${g.label}`, sub: subParts.join(' · '), minFollow: 26 });
       // Aşama 50: tüm sınıflarda her sınıf ayrı tablo
       const parts = allClasses ? splitByClass(g.rows) : [{ className: '', rows: g.rows }];
       for (const p of parts) {
-        if (allClasses) blocks.push({ kind: 'text', text: `${p.className} · ${p.rows.length} öğrenci` });
+        if (allClasses) {
+          const pk = p.rows.filter((r) => levelOf(r.rate) === 'kritik').length;
+          blocks.push({ kind: 'text', text: `${p.className} · ${p.rows.length} öğrenci${pk ? ` · ${pk} kritik` : ''}` });
+        }
         blocks.push({
           kind: 'table',
-          head: ['Öğrenci', 'Sınıf', 'Soru', 'D', 'Y', 'B', 'Başarı', 'Durum'],
-          rows: p.rows.map((r) => [r.studentName, r.className, r.total, r.d, r.y, r.b, `%${r.rate}`, LEVEL_INFO[levelOf(r.rate)].label]),
+          head: ['#', 'Öğrenci', 'Sınıf', 'Soru', 'D', 'Y', 'B', 'Başarı', 'Durum', 'Not', 'Katıldı / İmza'],
+          rows: p.rows.map((r, i) => [i + 1, r.studentName, r.className || '-', r.total, r.d, r.y, r.b, `%${r.rate}`, LEVEL_INFO[levelOf(r.rate)].label, studentNote(r), '']),
           rowTones: p.rows.map((r) => LEVEL_INFO[levelOf(r.rate)].tone),
-          align: ['left', 'left', 'center', 'center', 'center', 'center', 'center', 'center'],
-          widths: ['auto', 24, 12, 10, 10, 10, 15, 17],
-          fontSize: 7.8,
+          toneColumn: 8,
+          align: ['center', 'left', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'left', 'center'],
+          widths: [6, 'auto', 12, 10, 7, 7, 7, 12, 13, 36, 20],
+          fontSize: 7.2,
         });
       }
-    }
+    });
+
     if (!groups.length) blocks.push({ kind: 'text', tone: 'success', text: 'Bu ölçütte etüde yönlendirilecek öğrenci yok.' });
+    else
+      blocks.push({
+        kind: 'callout',
+        title: 'Etüt sonrası izleme',
+        tone: 'info',
+        lines: [
+          'Etüdün sonunda aynı konudan 3-5 soruluk kısa bir kontrol yapın; doğru sayısını bu listenin yanına not edin.',
+          'Bir sonraki denemeden sonra bu raporu yeniden alın: öğrencinin durumu Kritik, Etüt, Tekrar sırasıyla yükseliyorsa çalışma işe yarıyor demektir.',
+          'Aynı öğrenci birden çok konuda kritikse önce en çok sorunun geldiği konuya odaklanın; veliyle paylaşmak için öğrenci karnesini kullanın.',
+        ],
+      });
     const fileTopic = topicName ? `-${topicName.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 40)}` : '';
     await downloadKarnePdf(blocks, 'Etüt yönlendirme listesi', `Etut-Listesi-${subjectInfo?.short || ''}${fileTopic}-%${threshold}`);
   };
@@ -317,6 +421,15 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
           </button>
           <span className="text-[11px] text-muted">"En az soru": o konudan en az bu kadar soru çözmüş öğrenciler değerlendirilir (tek soruyla yanlış karar verilmesin).</span>
         </div>
+        {/* Aşama 53: durum etiketlerinin anlamı */}
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]" id="etut-level-legend">
+          <span className="font-semibold text-fg-2">Durum:</span>
+          <span className="ui-chip ui-chip-danger" title={LEVEL_INFO.kritik.advice}>Kritik %0–29</span>
+          <span className="ui-chip ui-chip-warning" title={LEVEL_INFO.etut.advice}>Etüt %30–49</span>
+          <span className="ui-chip ui-chip-info" title={LEVEL_INFO.tekrar.advice}>Tekrar %50–69</span>
+          <span className="ui-chip ui-chip-success" title={LEVEL_INFO.iyi.advice}>Başarılı %70+</span>
+          <span className="text-muted">Başarı = doğru ÷ o konudaki soru (seçili denemelerin toplamı)</span>
+        </div>
         {notice && (
           <p
             role="status"
@@ -366,13 +479,14 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                       <th className="px-2 py-2 font-semibold text-center">Y</th>
                       <th className="px-2 py-2 font-semibold text-center">B</th>
                       <th className="px-3 py-2 font-semibold text-center">Başarı</th>
+                      <th className="px-3 py-2 font-semibold">Not</th>
                     </tr>
                   </thead>
                   {(allClasses ? splitByClass(g.rows) : [{ className: '', rows: g.rows }]).map((p) => (
                     <tbody key={p.className || 'tek'} className="divide-y divide-line">
                       {allClasses && (
                         <tr className="bg-brand-soft/50">
-                          <td colSpan={7} className="px-3 py-1.5">
+                          <td colSpan={8} className="px-3 py-1.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-xs font-bold text-brand-fg">{p.className}</span>
                               <span className="ui-chip ui-chip-neutral">{p.rows.length} öğrenci</span>
@@ -392,8 +506,11 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                           <td className="px-2 py-1.5 text-center tabular-nums text-danger-fg">{r.y}</td>
                           <td className="px-2 py-1.5 text-center tabular-nums text-muted">{r.b}</td>
                           <td className="px-3 py-1.5 text-center">
-                            <span className={`ui-chip ui-chip-${LEVEL_INFO[levelOf(r.rate)].tone}`}>%{r.rate}</span>
+                            <span className={`ui-chip ui-chip-${LEVEL_INFO[levelOf(r.rate)].tone}`} title={LEVEL_INFO[levelOf(r.rate)].label}>
+                              %{r.rate} · {LEVEL_INFO[levelOf(r.rate)].label}
+                            </span>
                           </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted">{studentNote(r)}</td>
                         </tr>
                       ))}
                     </tbody>
