@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { BarChart3, BookOpen, ChevronRight, FileBarChart, Plus, ShieldCheck, Users } from 'lucide-react';
-import { EmptyState, PageHeader, Segmented, cx } from '../ui/kit';
+import { BarChart3, BookOpen, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Users } from 'lucide-react';
+import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
-import { isSetupError, listExams, type DenemeExam } from '../../services/denemeService';
+import { isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
 import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { DenemeWizard } from './DenemeWizard';
@@ -28,6 +28,30 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [setupMissing, setSetupMissing] = useState(false);
+  // Aşama 50: deneme genel bilgilerini düzenleme (kalem düğmesi)
+  const [editExam, setEditExam] = useState<DenemeExam | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', publisher: '', examDate: '' });
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const openEdit = (e: DenemeExam) => {
+    setEditExam(e);
+    setEditForm({ name: e.name, publisher: e.publisher || '', examDate: e.examDate || '' });
+    setEditError(null);
+  };
+  const saveEdit = async () => {
+    if (!editExam) return;
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      await updateExamInfo(editExam.id, editForm);
+      setEditExam(null);
+      await reload();
+    } catch (e: any) {
+      setEditError(e?.message || 'Kaydedilemedi.');
+    } finally {
+      setEditBusy(false);
+    }
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -185,8 +209,24 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                   {exams.map((e) => (
                     <tr key={e.id} className="hover:bg-surface-2/30 transition-colors cursor-pointer" onClick={() => setView({ kind: 'detail', id: e.id })}>
                       <td className="px-4 py-2.5">
-                        <p className="font-semibold text-fg">{e.name}</p>
-                        <p className="text-[11px] text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
+                        <div className="flex items-start gap-1.5">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-fg">{e.name}</p>
+                            <p className="text-[11px] text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 -my-1"
+                            aria-label={`${e.name} bilgilerini düzenle`}
+                            title="Deneme adını, tarihini ve yayınevini düzenle"
+                            onClick={(ev) => {
+                              ev.stopPropagation();
+                              openEdit(e);
+                            }}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">{dateTr(e.examDate)}</td>
                       <td className="px-3 py-2.5 text-center tabular-nums">{e.summary.count ?? 0}</td>
@@ -207,12 +247,51 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         </div>
       )}
 
+      <Modal
+        open={!!editExam}
+        onClose={() => !editBusy && setEditExam(null)}
+        icon={Pencil}
+        tone="brand"
+        size="md"
+        title="Deneme bilgilerini düzenle"
+        description="Ad, tarih ve yayınevi değişir; cevap anahtarı, sonuçlar ve puanlar değişmez."
+        footer={
+          <>
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={editBusy} onClick={() => setEditExam(null)}>
+              İptal
+            </button>
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={editBusy || !editForm.name.trim()} onClick={() => void saveEdit()}>
+              <Save /> {editBusy ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="ui-label" htmlFor="dn-edit-name">Deneme adı</label>
+            <input id="dn-edit-name" className="ui-input" value={editForm.name} maxLength={200} onChange={(ev) => setEditForm((f) => ({ ...f, name: ev.target.value }))} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="ui-label" htmlFor="dn-edit-date">Tarih</label>
+              <input id="dn-edit-date" type="date" className="ui-input" value={editForm.examDate} onChange={(ev) => setEditForm((f) => ({ ...f, examDate: ev.target.value }))} />
+            </div>
+            <div>
+              <label className="ui-label" htmlFor="dn-edit-pub">Yayınevi</label>
+              <input id="dn-edit-pub" className="ui-input" value={editForm.publisher} maxLength={120} onChange={(ev) => setEditForm((f) => ({ ...f, publisher: ev.target.value }))} />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted">Cevap anahtarını ve kazanımları düzenlemek için denemeyi açın.</p>
+          {editError && <p role="alert" className="text-xs font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{editError}</p>}
+        </div>
+      </Modal>
+
       {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
       {tab === 'etut' && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
       {tab === 'kazanim' && <KazanimBankasi />}
 
       <p className="text-[11px] text-muted">
-        Mahremiyet: TC kimlik numarası okunmaz ve saklanmaz. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.
+        Mahremiyet: TC kimlik numarası hiçbir yerde saklanmaz ve gösterilmez; eşleştirme için yalnızca geri çevrilemez parmak izi kullanılır. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.
       </p>
     </div>
   );

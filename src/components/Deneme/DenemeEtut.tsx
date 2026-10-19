@@ -23,6 +23,19 @@ interface TopicGroup {
   rows: StudentTopicRow[];
 }
 
+/** Aşama 50: "Tüm sınıflar" seçiliyken kazanım altındaki öğrenciler sınıf sınıf ayrılır */
+function splitByClass(rows: StudentTopicRow[]): Array<{ className: string; rows: StudentTopicRow[] }> {
+  const m = new Map<string, StudentTopicRow[]>();
+  for (const r of rows) {
+    const k = r.className || 'Sınıfsız';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k)!.push(r);
+  }
+  return Array.from(m.entries())
+    .map(([className, list]) => ({ className, rows: list.slice().sort((a, b) => a.rate - b.rate || a.studentName.localeCompare(b.studentName, 'tr')) }))
+    .sort((a, b) => a.className.localeCompare(b.className, 'tr', { numeric: true }));
+}
+
 export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; classes: ClassGroup[] }> = ({ exams, students, classes }) => {
   const [scope, setScope] = useState<ScopeKey>('last3');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -87,8 +100,10 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
     return list.sort((a, b) => b.rows.length - a.rows.length);
   }, [fullExams, results, subject, level, threshold, minQ]);
 
-  const openEtut = (g: TopicGroup) => {
-    const ids = Array.from(new Set(g.rows.map((r) => r.studentId)));
+  const allClasses = !classId; // Aşama 50: tüm sınıflar seçiliyse sınıf sınıf liste
+
+  const openEtut = (g: TopicGroup, onlyRows?: StudentTopicRow[]) => {
+    const ids = Array.from(new Set((onlyRows || g.rows).map((r) => r.studentId)));
     const pseudo = {
       id: `deneme-etut-${Date.now()}`,
       subject: subjectInfo?.name || '',
@@ -139,15 +154,20 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
     for (const g of groups) {
       blocks.push({ kind: 'heading', text: `${g.label} (${g.rows.length} öğrenci)` });
       if (level === 'alt' && g.konu !== g.label) blocks.push({ kind: 'text', tone: 'muted', text: `Konu: ${g.konu}` });
-      blocks.push({
-        kind: 'table',
-        head: ['Öğrenci', 'Sınıf', 'Soru', 'D', 'Y', 'B', 'Başarı', 'Durum'],
-        rows: g.rows.map((r) => [r.studentName, r.className, r.total, r.d, r.y, r.b, `%${r.rate}`, LEVEL_INFO[levelOf(r.rate)].label]),
-        rowTones: g.rows.map((r) => LEVEL_INFO[levelOf(r.rate)].tone),
-        align: ['left', 'left', 'center', 'center', 'center', 'center', 'center', 'center'],
-        widths: ['auto', 24, 12, 10, 10, 10, 15, 17],
-        fontSize: 7.8,
-      });
+      // Aşama 50: tüm sınıflarda her sınıf ayrı tablo
+      const parts = allClasses ? splitByClass(g.rows) : [{ className: '', rows: g.rows }];
+      for (const p of parts) {
+        if (allClasses) blocks.push({ kind: 'text', text: `${p.className} · ${p.rows.length} öğrenci` });
+        blocks.push({
+          kind: 'table',
+          head: ['Öğrenci', 'Sınıf', 'Soru', 'D', 'Y', 'B', 'Başarı', 'Durum'],
+          rows: p.rows.map((r) => [r.studentName, r.className, r.total, r.d, r.y, r.b, `%${r.rate}`, LEVEL_INFO[levelOf(r.rate)].label]),
+          rowTones: p.rows.map((r) => LEVEL_INFO[levelOf(r.rate)].tone),
+          align: ['left', 'left', 'center', 'center', 'center', 'center', 'center', 'center'],
+          widths: ['auto', 24, 12, 10, 10, 10, 15, 17],
+          fontSize: 7.8,
+        });
+      }
     }
     if (!groups.length) blocks.push({ kind: 'text', tone: 'success', text: 'Bu ölçütte etüde yönlendirilecek öğrenci yok.' });
     await downloadKarnePdf(blocks, 'Etüt yönlendirme listesi', `Etut-Listesi-${subjectInfo?.short || ''}-%${threshold}`);
@@ -296,21 +316,36 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
                       <th className="px-3 py-2 font-semibold text-center">Başarı</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
-                    {g.rows.map((r) => (
-                      <tr key={r.studentId}>
-                        <td className="px-3 py-1.5 font-semibold text-fg">{r.studentName}</td>
-                        <td className="px-2 py-1.5">{r.className || '—'}</td>
-                        <td className="px-2 py-1.5 text-center tabular-nums">{r.total}</td>
-                        <td className="px-2 py-1.5 text-center tabular-nums text-success-fg">{r.d}</td>
-                        <td className="px-2 py-1.5 text-center tabular-nums text-danger-fg">{r.y}</td>
-                        <td className="px-2 py-1.5 text-center tabular-nums text-muted">{r.b}</td>
-                        <td className="px-3 py-1.5 text-center">
-                          <span className={`ui-chip ui-chip-${LEVEL_INFO[levelOf(r.rate)].tone}`}>%{r.rate}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                  {(allClasses ? splitByClass(g.rows) : [{ className: '', rows: g.rows }]).map((p) => (
+                    <tbody key={p.className || 'tek'} className="divide-y divide-line">
+                      {allClasses && (
+                        <tr className="bg-brand-soft/50">
+                          <td colSpan={7} className="px-3 py-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-bold text-brand-fg">{p.className}</span>
+                              <span className="ui-chip ui-chip-neutral">{p.rows.length} öğrenci</span>
+                              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm ml-auto" onClick={() => openEtut(g, p.rows)}>
+                                <CalendarPlus /> Bu sınıfı etüde yönlendir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {p.rows.map((r) => (
+                        <tr key={r.studentId}>
+                          <td className="px-3 py-1.5 font-semibold text-fg">{r.studentName}</td>
+                          <td className="px-2 py-1.5">{r.className || '—'}</td>
+                          <td className="px-2 py-1.5 text-center tabular-nums">{r.total}</td>
+                          <td className="px-2 py-1.5 text-center tabular-nums text-success-fg">{r.d}</td>
+                          <td className="px-2 py-1.5 text-center tabular-nums text-danger-fg">{r.y}</td>
+                          <td className="px-2 py-1.5 text-center tabular-nums text-muted">{r.b}</td>
+                          <td className="px-3 py-1.5 text-center">
+                            <span className={`ui-chip ui-chip-${LEVEL_INFO[levelOf(r.rate)].tone}`}>%{r.rate}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  ))}
                 </table>
               </div>
             </div>

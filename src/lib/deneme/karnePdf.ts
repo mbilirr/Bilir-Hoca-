@@ -22,7 +22,24 @@ export type PdfBlock =
     }
   | { kind: 'line'; title: string; labels: string[]; series: Array<{ name: string; values: Array<number | null> }>; yMin?: number; yMax?: number }
   | { kind: 'bar'; title: string; labels: string[]; series: Array<{ name: string; values: number[] }> }
-  | { kind: 'pagebreak' };
+  | { kind: 'pagebreak' }
+  // Aşama 50: tek deneme karnesi blokları
+  | {
+      kind: 'hero';
+      eyebrow: string;
+      title: string; // öğrenci adı
+      sub: string; // sınıf
+      chips: string[]; // deneme adı, tarih, yayınevi…
+      score: string;
+      scoreLabel: string;
+      side: Array<[string, string]>; // sağdaki küçük kutular (Sınıf sırası, Kurum sırası…)
+    }
+  | { kind: 'tiles'; items: Array<{ label: string; value: string; sub?: string; tone?: PdfTone }> }
+  | {
+      kind: 'answers';
+      rows: Array<{ title: string; cells: Array<{ no: number; given: string; key: string; mark: 'D' | 'Y' | 'B' }> }>;
+    }
+  | { kind: 'rates'; title?: string; items: Array<{ label: string; sub?: string; rate: number; marker?: number | null; tone: PdfTone; right?: string }> };
 
 const PALETTE: Array<[number, number, number]> = [
   [79, 70, 229],
@@ -48,7 +65,7 @@ const TONE_TEXT: Record<PdfTone, [number, number, number]> = {
   muted: [100, 116, 139],
 };
 
-export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string) {
+export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, orientation: 'portrait' | 'landscape' = 'portrait') {
   const [{ jsPDF }, autoTableMod, fonts, analytics] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -56,7 +73,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string) {
     import('../../utils/questionAnalytics'),
   ]);
   const autoTable = autoTableMod.default;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
   const fontOk = fonts.registerTurkishPdfFont(doc);
   const F = fontOk ? fonts.PDF_FONT : 'helvetica';
   const t = (s: unknown) => (fontOk ? analytics.cleanForPdfFont(s) : String(s ?? '').replace(/[^\x20-\x7E]/g, ''));
@@ -114,6 +131,210 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string) {
     if (b.kind === 'pagebreak') {
       doc.addPage();
       y = 16;
+      continue;
+    }
+    // ------------------------------------------------------------------- Aşama 50: başlık bandı
+    if (b.kind === 'hero') {
+      ensure(42);
+      const x0 = M;
+      const w = W - 2 * M;
+      const h = 34;
+      doc.setFillColor(67, 56, 202);
+      doc.roundedRect(x0, y, w, h, 4, 4, 'F');
+      doc.setFillColor(79, 70, 229);
+      doc.roundedRect(x0 + w - 72, y, 72, h, 4, 4, 'F'); // sağ bölüm (puan ve sıralar) biraz açık ton
+      doc.setTextColor(199, 210, 254);
+      doc.setFont(F, 'bold');
+      doc.setFontSize(7.5);
+      doc.text(t(b.eyebrow.toLocaleUpperCase('tr-TR')), x0 + 6, y + 7);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(15);
+      doc.text(t(b.title), x0 + 6, y + 15, { maxWidth: w - 80 });
+      doc.setFont(F, 'normal');
+      doc.setFontSize(9.5);
+      doc.setTextColor(224, 231, 255);
+      doc.text(t(b.sub), x0 + 6, y + 21, { maxWidth: w - 80 });
+      // çipler
+      doc.setFontSize(7.4);
+      let cx0 = x0 + 6;
+      for (const c of b.chips.filter(Boolean)) {
+        const label = t(c);
+        const cw = Math.min(70, doc.getTextWidth(label) + 5);
+        if (cx0 + cw > x0 + w - 78) break;
+        doc.setFillColor(99, 102, 241);
+        doc.roundedRect(cx0, y + 24.5, cw, 5.5, 2.5, 2.5, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text(label, cx0 + 2.5, y + 28.3, { maxWidth: cw - 4 });
+        cx0 += cw + 2;
+      }
+      // puan dairesi
+      const scx = x0 + w - 52;
+      const scy = y + h / 2;
+      doc.setFillColor(255, 255, 255);
+      doc.circle(scx, scy, 13, 'F');
+      doc.setTextColor(100, 116, 139);
+      doc.setFont(F, 'bold');
+      doc.setFontSize(6);
+      doc.text(t(b.scoreLabel.toLocaleUpperCase('tr-TR')), scx, scy - 5, { align: 'center' });
+      doc.setTextColor(67, 56, 202);
+      doc.setFontSize(13);
+      doc.text(t(b.score), scx, scy + 1.5, { align: 'center' });
+      doc.setFont(F, 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(100, 116, 139);
+      doc.text('/ 500', scx, scy + 6, { align: 'center' });
+      // sağ kutular
+      const sx = x0 + w - 34;
+      b.side.slice(0, 3).forEach(([k, v], i) => {
+        const yy = y + 4 + i * 9.5;
+        doc.setFillColor(99, 102, 241);
+        doc.roundedRect(sx, yy, 30, 8.2, 2, 2, 'F');
+        doc.setTextColor(199, 210, 254);
+        doc.setFontSize(5.8);
+        doc.text(t(k.toLocaleUpperCase('tr-TR')), sx + 2.5, yy + 3);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(F, 'bold');
+        doc.setFontSize(8.5);
+        doc.text(t(v), sx + 2.5, yy + 7);
+        doc.setFont(F, 'normal');
+      });
+      y += h + 5;
+      continue;
+    }
+    // ------------------------------------------------------------------- Aşama 50: özet kutuları
+    if (b.kind === 'tiles') {
+      const n = Math.max(1, b.items.length);
+      const gap = 2.5;
+      const tw = (W - 2 * M - gap * (n - 1)) / n;
+      const th = 17;
+      ensure(th + 4);
+      b.items.forEach((it, i) => {
+        const x = M + i * (tw + gap);
+        const fill = it.tone ? TONE_FILL[it.tone] : ([248, 250, 252] as [number, number, number]);
+        const txt = it.tone ? TONE_TEXT[it.tone] : ([15, 23, 42] as [number, number, number]);
+        doc.setFillColor(fill[0], fill[1], fill[2]);
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(x, y, tw, th, 2.5, 2.5, 'FD');
+        doc.setFont(F, 'bold');
+        doc.setFontSize(6.4);
+        doc.setTextColor(100, 116, 139);
+        doc.text(t(it.label.toLocaleUpperCase('tr-TR')), x + 2.5, y + 4.3, { maxWidth: tw - 4 });
+        doc.setFontSize(13);
+        doc.setTextColor(txt[0], txt[1], txt[2]);
+        doc.text(t(it.value), x + 2.5, y + 11);
+        if (it.sub) {
+          doc.setFont(F, 'normal');
+          doc.setFontSize(6.4);
+          doc.setTextColor(100, 116, 139);
+          doc.text(t(it.sub), x + 2.5, y + 15, { maxWidth: tw - 4 });
+        }
+        doc.setFont(F, 'normal');
+      });
+      y += th + 5;
+      continue;
+    }
+    // ------------------------------------------------------------------- Aşama 50: cevap çizelgesi
+    if (b.kind === 'answers') {
+      const cell = 6.6;
+      const perRow = Math.max(1, Math.floor((W - 2 * M - 2) / (cell + 0.6)));
+      for (const r of b.rows) {
+        const lines = Math.ceil(r.cells.length / perRow) || 1;
+        ensure(6 + lines * (cell + 7));
+        doc.setFont(F, 'bold');
+        doc.setFontSize(8.2);
+        doc.setTextColor(30, 27, 75);
+        doc.text(t(r.title), M, y + 3.5);
+        y += 5.5;
+        r.cells.forEach((c, i) => {
+          const col = i % perRow;
+          const row = Math.floor(i / perRow);
+          const x = M + col * (cell + 0.6);
+          const yy = y + row * (cell + 7);
+          doc.setFont(F, 'normal');
+          doc.setFontSize(5.4);
+          doc.setTextColor(148, 163, 184);
+          doc.text(String(c.no), x + cell / 2, yy + 1.8, { align: 'center' });
+          const fill: [number, number, number] = c.mark === 'D' ? [16, 150, 105] : c.mark === 'Y' ? [220, 38, 38] : [241, 245, 249];
+          doc.setFillColor(fill[0], fill[1], fill[2]);
+          doc.setDrawColor(226, 232, 240);
+          doc.roundedRect(x, yy + 2.6, cell, cell, 1.3, 1.3, c.mark === 'B' ? 'FD' : 'F');
+          doc.setFont(F, 'bold');
+          doc.setFontSize(8);
+          if (c.mark === 'B') doc.setTextColor(148, 163, 184);
+          else doc.setTextColor(255, 255, 255);
+          doc.text(t(c.key === 'X' ? '-' : c.given || '-'), x + cell / 2, yy + 2.6 + cell / 2 + 1.3, { align: 'center' });
+          if (c.mark !== 'D') {
+            doc.setFont(F, 'normal');
+            doc.setFontSize(5.6);
+            doc.setTextColor(71, 85, 105);
+            doc.text(t(c.key === 'X' ? 'iptal' : c.key || '-'), x + cell / 2, yy + 2.6 + cell + 2.6, { align: 'center' });
+          }
+        });
+        y += lines * (cell + 7) + 1.5;
+      }
+      doc.setFont(F, 'normal');
+      doc.setFontSize(6.8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(t('Yeşil: doğru · Kırmızı: yanlış · Gri: boş. Kutudaki harf öğrencinin cevabı, altındaki harf doğru cevaptır.'), M, y + 2);
+      y += 6;
+      continue;
+    }
+    // ------------------------------------------------------------------- Aşama 50: başarı çubukları
+    if (b.kind === 'rates') {
+      if (b.title) {
+        ensure(10);
+        doc.setFont(F, 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 27, 75);
+        doc.text(t(b.title), M, y + 3.5);
+        y += 5.5;
+      }
+      const labelW = 96;
+      const barX = M + labelW + 3;
+      const barW = W - M - barX - 26;
+      for (const it of b.items) {
+        doc.setFont(F, 'normal');
+        doc.setFontSize(7.4);
+        const lines = (doc.splitTextToSize(t(it.label), labelW) as string[]).slice(0, 2);
+        const subLines = it.sub ? (doc.splitTextToSize(t(it.sub), labelW) as string[]).slice(0, 1) : [];
+        const rh = Math.max(6, (lines.length + subLines.length) * 3.2 + 1.5);
+        ensure(rh + 1);
+        doc.setTextColor(30, 41, 59);
+        doc.text(lines, M, y + 3);
+        if (subLines.length) {
+          doc.setFontSize(6.2);
+          doc.setTextColor(100, 116, 139);
+          doc.text(subLines, M, y + 3 + lines.length * 3.2);
+        }
+        const by = y + rh / 2 - 1.4;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(barX, by, barW, 2.8, 1.4, 1.4, 'F');
+        const c = TONE_TEXT[it.tone];
+        doc.setFillColor(c[0], c[1], c[2]);
+        doc.roundedRect(barX, by, Math.max(1.2, (barW * Math.max(0, Math.min(100, it.rate))) / 100), 2.8, 1.4, 1.4, 'F');
+        if (it.marker !== null && it.marker !== undefined) {
+          const mx = barX + (barW * Math.max(0, Math.min(100, it.marker))) / 100;
+          doc.setDrawColor(30, 41, 59);
+          doc.setLineWidth(0.5);
+          doc.line(mx, by - 1, mx, by + 3.8);
+        }
+        doc.setFont(F, 'bold');
+        doc.setFontSize(7.6);
+        doc.setTextColor(c[0], c[1], c[2]);
+        doc.text(`%${it.rate}`, barX + barW + 2, by + 2.4);
+        if (it.right) {
+          doc.setFont(F, 'normal');
+          doc.setFontSize(6.4);
+          doc.setTextColor(100, 116, 139);
+          doc.text(t(it.right), W - M, by + 2.4, { align: 'right' });
+        }
+        doc.setDrawColor(241, 245, 249);
+        doc.setLineWidth(0.15);
+        doc.line(M, y + rh, W - M, y + rh);
+        y += rh + 0.8;
+      }
+      y += 3;
       continue;
     }
     if (b.kind === 'title') {
@@ -299,8 +520,8 @@ export const safeFileName = (s: string) =>
     .replace(/\s+/g, '-')
     .slice(0, 60) || 'karne';
 
-export async function downloadKarnePdf(blocks: PdfBlock[], footerLabel: string, fileName: string): Promise<void> {
-  const doc = await buildKarnePdf(blocks, footerLabel);
+export async function downloadKarnePdf(blocks: PdfBlock[], footerLabel: string, fileName: string, orientation: 'portrait' | 'landscape' = 'portrait'): Promise<void> {
+  const doc = await buildKarnePdf(blocks, footerLabel, orientation);
   doc.save(`${safeFileName(fileName)}.pdf`);
 }
 

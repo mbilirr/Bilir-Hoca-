@@ -153,7 +153,9 @@ export const StudentPicker: React.FC<{
   selectedIds: string[];
   onSelectedChange: (ids: string[]) => void;
   idPrefix: string;
-}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix }) => {
+  /** Aşama 50: deneme konusundaki başarı (öğrenci → %). %30 altı kırmızı, %30-49 turuncu, %50-59 mavi. */
+  badges?: Record<string, { rate: number; total: number }> | null;
+}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges }) => {
   const [query, setQuery] = useState('');
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const byClass = useMemo(() => {
@@ -263,16 +265,37 @@ export const StudentPicker: React.FC<{
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {g.list.map((s) => {
                       const on = selected.has(s.id);
+                      const bd = badges ? badges[s.id] : undefined;
+                      const band = bd ? (bd.rate < 30 ? 'red' : bd.rate < 50 ? 'orange' : bd.rate < 60 ? 'blue' : 'ok') : null;
                       return (
                         <label
                           key={s.id}
+                          title={bd ? `Seçilen deneme konusunda başarı %${bd.rate} (${bd.total} soru)` : undefined}
                           className={cx(
                             'flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors',
-                            on ? 'bg-brand-soft border-brand/40 text-fg font-semibold' : 'bg-surface-2/60 border-line text-fg-2 hover:bg-surface-2'
+                            on
+                              ? 'bg-brand-soft border-brand/40 text-fg font-semibold'
+                              : band === 'red'
+                                ? 'bg-danger-soft border-danger/40 text-danger-fg font-semibold'
+                                : band === 'orange'
+                                  ? 'bg-warning-soft border-warning/40 text-warning-fg font-semibold'
+                                  : band === 'blue'
+                                    ? 'bg-info-soft border-info/40 text-info-fg font-semibold'
+                                    : 'bg-surface-2/60 border-line text-fg-2 hover:bg-surface-2'
                           )}
                         >
                           <input type="checkbox" checked={on} onChange={() => toggleStudent(s.id)} className="w-3.5 h-3.5 accent-[var(--color-brand)]" />
                           <span className="truncate flex-1">{s.name}</span>
+                          {bd && (
+                            <span
+                              className={cx(
+                                'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white',
+                                band === 'red' ? 'bg-danger' : band === 'orange' ? 'bg-warning' : band === 'blue' ? 'bg-info' : 'bg-success'
+                              )}
+                            >
+                              %{bd.rate}
+                            </span>
+                          )}
                           {s.studentNumber && !/atan/i.test(s.studentNumber) && (
                             <span className="text-[10px] text-subtle font-mono shrink-0">{s.studentNumber}</span>
                           )}

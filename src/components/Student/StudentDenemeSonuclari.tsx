@@ -23,6 +23,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
   const [scope, setScope] = useState<ScopeKey>('all');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi görülen deneme
 
   useEffect(() => {
     let alive = true;
@@ -56,7 +57,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
     if (busy) return;
     setBusy(true);
     try {
-      const blocks = studentKarneBlocks({ studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, target, scopeLabel: scopeLabel(scope) });
+      const blocks = studentKarneBlocks({ studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, target, scopeLabel: scopeLabel(scope), detailExamId });
       await downloadKarnePdf(blocks, `${currentStudent.name} deneme karnesi`, `Deneme-Karnem-${currentStudent.name}`);
     } finally {
       setBusy(false);
@@ -116,7 +117,15 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
               })}
             </div>
           )}
-          <StudentKarneView exams={scoped} results={results} target={target} />
+          <StudentKarneView
+            exams={scoped}
+            results={results}
+            target={target}
+            studentName={currentStudent.name}
+            className={currentStudent.className || ''}
+            detailExamId={detailExamId}
+            onDetailExamChange={setDetailExamId}
+          />
         </>
       )}
     </div>

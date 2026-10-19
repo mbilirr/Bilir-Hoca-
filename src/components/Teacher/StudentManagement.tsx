@@ -37,6 +37,8 @@ import {
 } from 'lucide-react';
 import { Student, ClassGroup, StudentCredential, StudentAccountFailure } from '../../types';
 import { dataService } from '../../services/dataService';
+import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeService';
+import { hashTcs, validTc } from '../../lib/tcApi';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
 import { ExcelStudentUpdateModal } from './ExcelStudentUpdateModal';
@@ -162,6 +164,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
   const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
   const [studentPhoneError, setStudentPhoneError] = useState<string | null>(null);
+  // Aşama 50: TC kimlik (yalnızca parmak izi saklanır; alan hiçbir zaman dolu gelmez)
+  const canTc = dataService.canUseDeneme();
+  const [studentTc, setStudentTc] = useState('');
+  const [studentTcSaved, setStudentTcSaved] = useState<boolean | null>(null);
+  const [studentTcRemove, setStudentTcRemove] = useState(false);
+  const [studentTcError, setStudentTcError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
   useAutoDismiss(quickClassChangeFeedback, () => setQuickClassChangeFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
   const studentFileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -516,7 +524,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const phoneNorm = normalizeTurkishPhone(studentPhone);
     setStudentEmailError(mailProblem);
     setStudentPhoneError(phoneNorm.valid ? null : PHONE_ERROR);
-    if (mailProblem || !phoneNorm.valid) {
+    const tcDigits = studentTc.replace(/\D/g, '');
+    const tcBad = canTc && !!tcDigits && !validTc(tcDigits);
+    setStudentTcError(tcBad ? 'TC kimlik numarası geçersiz (11 hane, kontrol haneleri tutmuyor).' : null);
+    if (mailProblem || !phoneNorm.valid || tcBad) {
       setStudentFormError('Lütfen işaretli alanları düzeltiniz.');
       return;
     }
@@ -558,6 +569,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
 
     setIsSavingStudent(true);
+    // Aşama 50: TC parmak izi (öğrenci kaydedildikten sonra; TC'nin kendisi gönderilip atılır)
+    const saveTc = async (id: string): Promise<string> => {
+      if (!canTc) return '';
+      try {
+        if (tcDigits) {
+          const h = await hashTcs([tcDigits]);
+          if (!h.ok) return ` TC kaydedilemedi: ${h.error}`;
+          if (!h.hashes[0]) return ' TC geçersiz olduğu için kaydedilmedi.';
+          const r = await setStudentTcHashes([{ id, hash: h.hashes[0] }]);
+          return r.ok ? ' TC parmak izi kaydedildi.' : ' TC kaydedilemedi (yetki).';
+        }
+        if (studentTcRemove) {
+          const r = await setStudentTcHashes([{ id, hash: null }]);
+          return r.ok ? ' TC parmak izi silindi.' : ' TC silinemedi (yetki).';
+        }
+      } catch (e: any) {
+        return ` ${e?.message || 'TC kaydedilemedi.'}`;
+      }
+      return '';
+    };
     try {
       if (editingStudent) {
         await dataService.updateStudent(
@@ -576,7 +607,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         if (payload.password && fresh) {
           setCredentialsResult({ credentials: [{ student: fresh, password: payload.password }], failures: [], title: 'Yeni Giriş Bilgileri' });
         }
-        setStudentSuccessFeedback(`Öğrenci "${payload.name}" başarıyla güncellendi.`);
+        const tcMsg = await saveTc(editingStudent.id);
+        setStudentSuccessFeedback(`Öğrenci "${payload.name}" başarıyla güncellendi.${tcMsg}`);
         setEditingStudent(null);
         setIsAddStudentOpen(false);
       } else {
@@ -589,9 +621,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           avatar: payload.avatar,
           password: payload.password,
         });
+        const tcMsg = credential?.student?.id ? await saveTc(credential.student.id) : '';
         setIsAddStudentOpen(false);
         setCredentialsResult({ credentials: [credential], failures: [], title: 'Öğrenci Eklendi' });
-        setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.`);
+        setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.${tcMsg}`);
       }
       resetStudentForm();
     } catch (err: any) {
@@ -644,9 +677,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentFormError(null);
     setStudentEmailError(null);
     setStudentPhoneError(null);
+    setStudentTc('');
+    setStudentTcSaved(null);
+    setStudentTcRemove(false);
+    setStudentTcError(null);
   };
 
   const openEditStudent = (student: Student) => {
+    // Aşama 50: TC kayıtlı mı? (TC gösterilmez, yalnızca "kayıtlı" bilgisi)
+    setStudentTc('');
+    setStudentTcRemove(false);
+    setStudentTcError(null);
+    setStudentTcSaved(null);
+    if (canTc) {
+      void getStudentTcHash(student.id)
+        .then((h) => setStudentTcSaved(!!h))
+        .catch(() => setStudentTcSaved(null));
+    }
     setEditingStudent(student);
     setStudentName(student.name);
     setStudentEmail(student.email || '');
@@ -1878,6 +1925,41 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               )}
             </div>
           </div>
+
+          {/* Aşama 50: TC kimlik (isteğe bağlı) — yalnızca geri çevrilemez parmak izi saklanır */}
+          {canTc && (
+            <div className="p-3 rounded-xl border border-line bg-surface-2/50 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="student-form-tc" className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> TC Kimlik No (isteğe bağlı, deneme eşleştirmesi için)
+                </label>
+                {studentTcSaved && <span className="ui-chip ui-chip-success">TC kayıtlı</span>}
+              </div>
+              <input
+                autoComplete="off"
+                id="student-form-tc"
+                inputMode="numeric"
+                maxLength={11}
+                value={studentTc}
+                onChange={(e) => {
+                  setStudentTc(e.target.value.replace(/\D/g, '').slice(0, 11));
+                  if (studentTcError) setStudentTcError(null);
+                }}
+                placeholder={studentTcSaved ? 'Değiştirmek için yeni TC yazın' : '11 haneli TC kimlik numarası'}
+                aria-invalid={!!studentTcError}
+                className={cx(inputCls, studentTcError && 'border-danger focus:border-danger')}
+              />
+              {studentTcError && <p className="text-[11px] font-semibold text-danger-fg">{studentTcError}</p>}
+              {studentTcSaved && !studentTc && (
+                <label className="flex items-center gap-1.5 text-[11px] text-fg-2 cursor-pointer">
+                  <input type="checkbox" checked={studentTcRemove} onChange={(e) => setStudentTcRemove(e.target.checked)} /> Kayıtlı TC parmak izini sil
+                </label>
+              )}
+              <p className="text-[11px] text-muted">
+                TC numarası hiçbir yerde saklanmaz ve sonradan görüntülenemez; yalnızca geri çevrilemez parmak izi saklanır ve optikteki TC ile karşılaştırılır.
+              </p>
+            </div>
+          )}
 
           {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
           <div className="p-4 bg-brand-soft rounded-xl space-y-2.5">

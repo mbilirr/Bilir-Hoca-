@@ -3,7 +3,7 @@
 // 1) Sözel ve sayısal TXT'lerdeki satırlar aynı öğrenci için birleştirilir.
 // 2) Sıra: daha önce elle onaylanan eşleştirme → okul numarası → ad soyad; sınıf/şube kontrol edilir.
 // 3) Emin olunamayan satırlar "kontrol" olarak işaretlenir; tahminle puan yazılmaz.
-// TC kimlik numarası kullanılmaz.
+// Aşama 50: TC parmak izi tutan satır en güvenilir eşleşmedir (TC'nin kendisi kaydedilmez).
 // ============================================================================
 import type { ClassGroup, Student } from '../../types';
 import { foldTr, type OptikRow } from './optik';
@@ -11,6 +11,8 @@ import { foldTr, type OptikRow } from './optik';
 export interface RowGroup {
   key: string;
   number: string;
+  /** Aşama 50: optikteki TC (yalnızca bellekte; sonuçlara ve veritabanına yazılmaz) */
+  tc?: string;
   name: string;
   grade: string;
   section: string;
@@ -100,6 +102,13 @@ export function groupRows(rows: OptikRow[]): RowGroup[] {
       } else if (g.answers[k] === undefined) g.answers[k] = r.answers[k];
     }
     if (!g.number && r.number) g.number = r.number;
+    if (r.tc) {
+      if (!g.tc) g.tc = r.tc;
+      else if (g.tc !== r.tc && g.tc !== '-') {
+        g.tc = '-'; // çelişki: TC ile eşleştirme yapılmaz
+        g.warnings.push('TC iki satırda farklı kodlanmış; TC ile eşleştirme kullanılmadı.');
+      }
+    }
     if (r.name.length > g.name.length) g.name = r.name;
     if (!g.grade && r.grade) g.grade = r.grade;
     if (!g.section && r.section) g.section = r.section;
@@ -112,6 +121,7 @@ export function groupRows(rows: OptikRow[]): RowGroup[] {
   const fresh = (r: OptikRow, key: string): RowGroup => ({
     key,
     number: r.number,
+    ...(r.tc ? { tc: r.tc } : {}),
     name: r.name,
     grade: r.grade,
     section: r.section,
@@ -144,6 +154,12 @@ export function groupRows(rows: OptikRow[]): RowGroup[] {
     if (normNumber(r.number)) continue;
     let best: RowGroup | null = null;
     let bestSim = 0;
+    // Aşama 50: numarasız satır, aynı TC'li bir satırla birleştirilir
+    const sameTc = r.tc ? groups.find((g) => g.tc === r.tc && !overlaps(g, r)) : undefined;
+    if (sameTc) {
+      merge(sameTc, r);
+      continue;
+    }
     for (const g of groups) {
       if (overlaps(g, r)) continue;
       const s = nameSimilarity(g.name, r.name);
@@ -178,7 +194,14 @@ export function classMatches(s: Student, classes: ClassGroup[], grade: string, s
   return gradeOk && secOk;
 }
 
-export function matchGroups(groups: RowGroup[], students: Student[], classes: ClassGroup[], aliases: Record<string, string>): MatchItem[] {
+export function matchGroups(
+  groups: RowGroup[],
+  students: Student[],
+  classes: ClassGroup[],
+  aliases: Record<string, string>,
+  /** Aşama 50: TC parmak izi tutan satırlar (satır anahtarı → öğrenci kimliği) */
+  tcMatch?: Map<string, string>
+): MatchItem[] {
   const byId = new Map(students.map((s) => [s.id, s]));
   const nums = new Map<string, Student[]>();
   for (const s of students) {
@@ -192,6 +215,14 @@ export function matchGroups(groups: RowGroup[], students: Student[], classes: Cl
     const remembered = aliases[aliasKeyOf(g)];
     if (remembered && byId.has(remembered)) {
       return { ...base, studentId: remembered, status: 'ok' as MatchStatus, method: 'hafıza', reason: 'Daha önce onayladığınız eşleştirme', candidates: [remembered] };
+    }
+    // Aşama 50: TC parmak izi tuttu (en güvenilir). Ad çok farklıysa yine de kontrole düşer.
+    const byTc = tcMatch?.get(g.key);
+    if (byTc && byId.has(byTc)) {
+      const s = byId.get(byTc)!;
+      const sim = g.name ? nameSimilarity(g.name, s.name) : 1;
+      if (sim >= 0.5) return { ...base, studentId: s.id, status: 'ok' as MatchStatus, method: 'TC', reason: '', candidates: [s.id] };
+      return { ...base, studentId: s.id, status: 'check' as MatchStatus, method: 'TC', reason: 'TC tuttu ama ad soyad çok farklı', candidates: [s.id] };
     }
     const num = normNumber(g.number);
     if (num) {

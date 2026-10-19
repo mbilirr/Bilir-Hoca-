@@ -27,11 +27,13 @@ import {
   saveFormat,
   deleteFormat,
   saveResults,
+  listStudentTcHashes,
   type DenemeExam,
   type DenemeFormat,
   type DenemeResult,
 } from '../../services/denemeService';
 import { newId } from '../../lib/ids';
+import { hashTcs, validTc } from '../../lib/tcApi';
 
 // ============================================================================
 // Yeni deneme / optik yükleme sihirbazı (Aşama 47)
@@ -200,9 +202,44 @@ export const DenemeWizard: React.FC<{
     }
   };
 
-  const runMatching = () => {
+  // Aşama 50: optikte TC varsa ve öğrencilerin TC parmak izi kayıtlıysa önce TC ile eşleştirilir.
+  // TC'ler sunucuda parmak izine çevrilir; TC'nin kendisi kaydedilmez, eşleştirmeden sonra bellekten atılır.
+  const [matching, setMatching] = useState(false);
+  const [tcNote, setTcNote] = useState<string | null>(null);
+  const runMatching = async () => {
     const groups = groupRows(allRows);
-    setMatches(matchGroups(groups, students, classes, aliases));
+    let tcMatch: Map<string, string> | undefined;
+    setTcNote(null);
+    const withTc = groups.filter((g) => !!g.tc && !!validTc(g.tc));
+    if (withTc.length) {
+      try {
+        const existing = await listStudentTcHashes();
+        const allowed = new Set(students.map((s) => s.id));
+        const byHash = new Map<string, string>();
+        const dupHash = new Set<string>();
+        for (const [sid, h] of existing) {
+          if (!allowed.has(sid)) continue;
+          if (byHash.has(h)) dupHash.add(h);
+          else byHash.set(h, sid);
+        }
+        if (byHash.size) {
+          const res = await hashTcs(withTc.map((g) => g.tc || ''));
+          if (res.ok) {
+            tcMatch = new Map();
+            withTc.forEach((g, i) => {
+              const h = res.hashes[i];
+              const sid = h && !dupHash.has(h) ? byHash.get(h) : undefined;
+              if (sid) tcMatch!.set(g.key, sid);
+            });
+            setTcNote(`${tcMatch.size} öğrenci TC ile eşleşti (TC'ler kaydedilmedi).`);
+          } else setTcNote(`TC ile eşleştirme yapılamadı: ${res.error} Numara ve ad soyadla devam edildi.`);
+        }
+      } catch (e: any) {
+        setTcNote(`TC ile eşleştirme yapılamadı: ${e?.message || 'hata'} Numara ve ad soyadla devam edildi.`);
+      }
+    }
+    for (const g of groups) delete g.tc; // TC bellekten atılır
+    setMatches(matchGroups(groups, students, classes, aliases, tcMatch));
     setManual(new Set());
   };
 
@@ -243,8 +280,12 @@ export const DenemeWizard: React.FC<{
       if (keyMissingForAnswered.length) {
         return setError(`TXT'de cevabı olan ama cevap anahtarı eksik dersler var: ${keyMissingForAnswered.map((s) => s.name).join(', ')}. 1. adıma dönüp anahtarı tamamlayın.`);
       }
-      runMatching();
-      setStep(3);
+      if (matching) return;
+      setMatching(true);
+      void runMatching().finally(() => {
+        setMatching(false);
+        setStep(3);
+      });
       return;
     }
     if (step === 3) {
@@ -684,6 +725,7 @@ export const DenemeWizard: React.FC<{
               </button>
             )}
           </div>
+          {tcNote && <p className="text-xs font-semibold rounded-xl px-3 py-2 mb-3 bg-info-soft text-info-fg">{tcNote}</p>}
           {matchMsg && (
             <p role="status" className={cx('text-xs font-semibold rounded-xl px-3 py-2 mb-3', pendingCount ? 'bg-warning-soft text-warning-fg' : 'bg-success-soft text-success-fg')}>
               {matchMsg}
@@ -893,8 +935,8 @@ export const DenemeWizard: React.FC<{
         </button>
         {progress && <span className="text-xs text-muted">{progress}</span>}
         {step < 4 ? (
-          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={next}>
-            Devam <ArrowRight />
+          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={next} disabled={matching}>
+            {matching ? 'Eşleştiriliyor…' : 'Devam'} <ArrowRight />
           </button>
         ) : (
           <button type="button" className="ui-btn ui-btn-success ui-btn-sm" disabled={saving || !computed?.list.length} onClick={() => void doSave()}>

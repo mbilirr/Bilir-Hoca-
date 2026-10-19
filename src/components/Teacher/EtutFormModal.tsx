@@ -5,6 +5,7 @@ import { dataService, type EtutTeacherOption } from '../../services/dataService'
 import { Modal, cx } from '../ui/kit';
 import { normalizeSubject, subjectsForBranch, subjectsForLevel, zumreOf } from '../../lib/subjects';
 import { EtutTeacherSelect, type TeacherGroup } from './EtutTeacherSelect';
+import { DenemeKonuSecici, type KonuRates } from '../Deneme/DenemeKonuSecici';
 import {
   FormSection,
   FieldLabel,
@@ -164,6 +165,7 @@ const EtutFormContent: React.FC<Props> = ({
     return first && classes.some((c) => c.id === first.classId) ? [first.classId] : classes.length === 1 ? [classes[0].id] : [];
   });
   const [selectedIds, setSelectedIds] = useState<string[]>(initial.selected);
+  const [konuRates, setKonuRates] = useState<KonuRates | null>(null); // Aşama 50: deneme konusundaki başarılar
   const [date, setDate] = useState(initial.date);
   const [lessonPeriod, setLessonPeriod] = useState(initial.lessonPeriod);
   const [time, setTime] = useState(initial.time);
@@ -564,6 +566,17 @@ const EtutFormContent: React.FC<Props> = ({
 
         {/* 2. KONU */}
         <FormSection title="2. Konu">
+          {/* Aşama 50: deneme konuları açılır listede; seçilince öğrenciler başarıya göre renklenir */}
+          <DenemeKonuSecici
+            subjectName={effectiveSubject}
+            classIds={filterClassIds}
+            students={students}
+            initialTopic={!isEdit ? initial.topic : undefined}
+            selectedIds={selectedIds}
+            onPickTopic={(label) => setTopic(label)}
+            onRates={setKonuRates}
+            onSelectIds={setSelectedIds}
+          />
           <div>
             <FieldLabel htmlFor="etut-topic">Etüt konusu / kazanım</FieldLabel>
             <input
@@ -601,6 +614,7 @@ const EtutFormContent: React.FC<Props> = ({
             onClassIdsChange={setFilterClassIds}
             selectedIds={selectedIds}
             onSelectedChange={setSelectedIds}
+            badges={konuRates}
           />
         </FormSection>
 

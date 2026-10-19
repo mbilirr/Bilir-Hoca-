@@ -1,11 +1,28 @@
 import React, { useMemo, useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { ChevronDown, ChevronRight, Target, TrendingUp } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+} from 'recharts';
+import { Award, CheckCircle2, ChevronDown, ChevronRight, CircleSlash, Target, TrendingUp, XCircle } from 'lucide-react';
 import { Panel, cx } from '../ui/kit';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from '../../lib/deneme/analiz';
 import { fmtNet, fmtScore, round2 } from '../../lib/deneme/lgs';
 import { dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
+import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
 
 // ============================================================================
 // Karne görünümleri (Aşama 47): öğrenci, sınıf ve sınıflar arası.
@@ -134,19 +151,379 @@ export const TopicAnalysisView: React.FC<{ analysis: SubjectTopics[] }> = ({ ana
   );
 };
 
+// ----------------------------------------------------------------------------- Aşama 50: tek deneme karnesi
+// Başlık bandı, puan ve sıralar, ders tablosu, grafikler, cevap çizelgesi ve konu analizi.
+const LEVEL_BAR: Record<string, string> = { iyi: 'bg-success', tekrar: 'bg-info', etut: 'bg-warning', kritik: 'bg-danger' };
+const LEVEL_TEXT: Record<string, string> = { iyi: 'text-success-fg', tekrar: 'text-info-fg', etut: 'text-warning-fg', kritik: 'text-danger-fg' };
+
+const RateBar: React.FC<{ rate: number; marker?: number | null; label?: string }> = ({ rate, marker, label }) => {
+  const lv = levelOf(rate);
+  return (
+    <div className="flex items-center gap-2 min-w-36">
+      <div className="relative h-2.5 flex-1 rounded-full bg-surface-2 overflow-hidden" aria-label={label || `Başarı yüzde ${rate}`}>
+        <div className={cx('h-full rounded-full transition-all', LEVEL_BAR[lv])} style={{ width: `${Math.max(2, Math.min(100, rate))}%` }} />
+        {marker !== null && marker !== undefined && (
+          <span className="absolute top-[-2px] h-3.5 w-0.5 rounded bg-fg/70" style={{ left: `calc(${Math.max(0, Math.min(100, marker))}% - 1px)` }} title={`Kurum %${marker}`} />
+        )}
+      </div>
+      <span className={cx('text-xs font-bold tabular-nums w-10 text-right', LEVEL_TEXT[lv])}>%{rate}</span>
+    </div>
+  );
+};
+
+const Delta: React.FC<{ v: number | null; digits?: 'net' | 'score' }> = ({ v, digits = 'net' }) => {
+  if (v === null || !Number.isFinite(v) || Math.abs(v) < 0.005) return <span className="text-muted">—</span>;
+  const f = digits === 'score' ? fmtScore(Math.abs(v)) : fmtNet(Math.abs(v));
+  return <span className={cx('font-semibold tabular-nums', v > 0 ? 'text-success-fg' : 'text-danger-fg')}>{v > 0 ? `▲ ${f}` : `▼ ${f}`}</span>;
+};
+
+const markCls = (m: 'D' | 'Y' | 'B') =>
+  m === 'D' ? 'bg-success text-white border-success' : m === 'Y' ? 'bg-danger text-white border-danger' : 'bg-surface-2 text-muted border-line';
+
+export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string; className?: string }> = ({ data, studentName, className }) => {
+  const { exam, subjects, topics, rank } = data;
+  const pct = percentile(rank);
+  const kurumRateOf = (key: string) => {
+    const s = subjects.find((x) => x.subject.key === key);
+    const rs = (s?.answers || []).map((a) => a.kurumRate).filter((x): x is number => x !== null);
+    return rs.length ? Math.round(rs.reduce((a, b) => a + b, 0) / rs.length) : null;
+  };
+  const netData = subjects.map((s) => ({ name: s.subject.short, Öğrenci: s.net, Sınıf: s.clsAvgNet, Kurum: s.kurumAvgNet }));
+  const radarData = subjects.map((s) => ({ name: s.subject.short, Öğrenci: s.rate, Kurum: kurumRateOf(s.subject.key) ?? 0 }));
+  const clsTotal = subjects.reduce((a, s) => a + (s.clsAvgNet ?? 0), 0);
+  const kurumTotal = subjects.reduce((a, s) => a + (s.kurumAvgNet ?? 0), 0);
+  const hasCls = subjects.some((s) => s.clsAvgNet !== null);
+  const ranked = topics.filter((t) => t.konu !== 'Konusu belirtilmemiş').slice().sort((a, b) => b.rate - a.rate || b.questions.length - a.questions.length);
+  const strong = ranked.filter((t) => t.rate >= 70).slice(0, 4);
+  const weak = ranked.filter((t) => t.rate < 50).slice(-5).reverse();
+  const bySubject = subjects.map((s) => ({ s, list: topics.filter((t) => t.subject.key === s.subject.key) })).filter((x) => x.list.length);
+
+  return (
+    <div className="space-y-4" id="exam-karne">
+      {/* Başlık bandı */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-brand to-sky-600 text-white shadow-lg">
+        <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" aria-hidden />
+        <div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-white/5" aria-hidden />
+        <div className="relative grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">Deneme karnesi</p>
+            <h3 className="mt-1 text-xl sm:text-2xl font-extrabold leading-tight truncate">{studentName}</h3>
+            <p className="text-sm text-white/85">{className || data.result.className || 'Sınıf bilgisi yok'}</p>
+            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+              <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{exam.name}</span>
+              <span className="rounded-full bg-white/15 px-2.5 py-1">{dateTr(exam.examDate)}</span>
+              {exam.publisher && <span className="rounded-full bg-white/15 px-2.5 py-1">{exam.publisher}</span>}
+              {data.result.booklet && <span className="rounded-full bg-white/15 px-2.5 py-1">{data.result.booklet} kitapçığı</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white text-brand-fg shadow-xl ring-4 ring-white/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">LGS puanı</span>
+              <span className="text-2xl font-black tabular-nums leading-none mt-0.5">{fmtScore(data.score)}</span>
+              <span className="text-[10px] text-muted mt-0.5">/ 500</span>
+            </div>
+            <div className="grid gap-1.5 text-xs">
+              <div className="rounded-xl bg-white/15 px-3 py-1.5">
+                <p className="text-white/70 text-[10px] uppercase tracking-wider">Sınıf sırası</p>
+                <p className="font-bold tabular-nums">{rank ? `${rank.cls} / ${rank.clsCount}` : '—'}</p>
+              </div>
+              <div className="rounded-xl bg-white/15 px-3 py-1.5">
+                <p className="text-white/70 text-[10px] uppercase tracking-wider">Kurum sırası</p>
+                <p className="font-bold tabular-nums">{rank ? `${rank.overall} / ${rank.overallCount}` : '—'}</p>
+              </div>
+              {pct !== null && (
+                <div className="rounded-xl bg-white/15 px-3 py-1.5">
+                  <p className="text-white/70 text-[10px] uppercase tracking-wider">Yüzdelik dilim</p>
+                  <p className="font-bold tabular-nums">%{pct}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Özet kutuları */}
+      <div className="grid gap-2 grid-cols-2 lg:grid-cols-5">
+        <div className="rounded-2xl border border-line bg-surface p-3">
+          <p className="ui-eyebrow">Toplam net</p>
+          <p className="text-2xl font-black text-fg tabular-nums">{fmtNet(data.totalNet)}</p>
+          <p className="text-[11px] text-muted">
+            {hasCls && <>Sınıf {fmtNet(round2(clsTotal))} · </>}Kurum {fmtNet(round2(kurumTotal))}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-success/30 bg-success-soft p-3">
+          <p className="ui-eyebrow text-success-fg flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Doğru
+          </p>
+          <p className="text-2xl font-black text-success-fg tabular-nums">{data.totals.d}</p>
+          <p className="text-[11px] text-success-fg/80">{data.totals.count} sorudan</p>
+        </div>
+        <div className="rounded-2xl border border-danger/30 bg-danger-soft p-3">
+          <p className="ui-eyebrow text-danger-fg flex items-center gap-1">
+            <XCircle className="w-3.5 h-3.5" /> Yanlış
+          </p>
+          <p className="text-2xl font-black text-danger-fg tabular-nums">{data.totals.y}</p>
+          <p className="text-[11px] text-danger-fg/80">3 yanlış 1 doğruyu götürür</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface-2 p-3">
+          <p className="ui-eyebrow flex items-center gap-1">
+            <CircleSlash className="w-3.5 h-3.5" /> Boş
+          </p>
+          <p className="text-2xl font-black text-fg-2 tabular-nums">{data.totals.b}</p>
+          <p className="text-[11px] text-muted">işaretlenmeyen</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-3 col-span-2 lg:col-span-1">
+          <p className="ui-eyebrow">Ortalamalara göre</p>
+          <p className="text-[12px] text-fg-2 mt-1 flex justify-between gap-2">
+            <span>Sınıf ort. {fmtScore(data.clsAvgScore)}</span> <Delta v={data.score !== null && data.clsAvgScore !== null ? data.score - data.clsAvgScore : null} digits="score" />
+          </p>
+          <p className="text-[12px] text-fg-2 flex justify-between gap-2">
+            <span>Kurum ort. {fmtScore(data.kurumAvgScore)}</span> <Delta v={data.score !== null && data.kurumAvgScore !== null ? data.score - data.kurumAvgScore : null} digits="score" />
+          </p>
+          {data.kurumMaxScore !== null && <p className="text-[11px] text-muted">En yüksek {fmtScore(data.kurumMaxScore)}</p>}
+        </div>
+      </div>
+
+      {/* Ders tablosu */}
+      <Panel title="Ders sonuçları" description="Öğrencinin neti, sınıf ve kurum ortalamasıyla" icon={TrendingUp} tone="brand" padded={false}>
+        <div className="overflow-x-auto">
+          <table className={tableCls}>
+            <thead className={theadCls}>
+              <tr>
+                <th className="px-3 py-2 font-semibold">Ders</th>
+                <th className="px-2 py-2 font-semibold text-center">Soru</th>
+                <th className="px-2 py-2 font-semibold text-center">D</th>
+                <th className="px-2 py-2 font-semibold text-center">Y</th>
+                <th className="px-2 py-2 font-semibold text-center">B</th>
+                <th className="px-2 py-2 font-semibold text-center">Net</th>
+                <th className="px-3 py-2 font-semibold">Başarı</th>
+                {hasCls && <th className="px-2 py-2 font-semibold text-center">Sınıf ort.</th>}
+                <th className="px-2 py-2 font-semibold text-center">Kurum ort.</th>
+                <th className="px-3 py-2 font-semibold text-center">Kuruma göre</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {subjects.map((s) => (
+                <tr key={s.subject.key} className="hover:bg-surface-2/30">
+                  <td className="px-3 py-2 font-semibold text-fg">{s.subject.name}</td>
+                  <td className="px-2 py-2 text-center tabular-nums">{s.count}</td>
+                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-success-fg">{s.d}</td>
+                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-danger-fg">{s.y}</td>
+                  <td className="px-2 py-2 text-center tabular-nums text-muted">{s.b}</td>
+                  <td className="px-2 py-2 text-center tabular-nums font-black text-fg">{fmtNet(s.net)}</td>
+                  <td className="px-3 py-2">
+                    <RateBar rate={s.rate} />
+                  </td>
+                  {hasCls && <td className="px-2 py-2 text-center tabular-nums">{fmtNet(s.clsAvgNet)}</td>}
+                  <td className="px-2 py-2 text-center tabular-nums">{fmtNet(s.kurumAvgNet)}</td>
+                  <td className="px-3 py-2 text-center">
+                    <Delta v={s.kurumAvgNet !== null ? s.net - s.kurumAvgNet : null} />
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-brand-soft/40 font-bold">
+                <td className="px-3 py-2 text-fg">Toplam</td>
+                <td className="px-2 py-2 text-center tabular-nums">{data.totals.count}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-success-fg">{data.totals.d}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-danger-fg">{data.totals.y}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-muted">{data.totals.b}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-fg">{fmtNet(data.totalNet)}</td>
+                <td className="px-3 py-2">
+                  <RateBar rate={data.totals.count ? Math.round((data.totals.d / data.totals.count) * 100) : 0} />
+                </td>
+                {hasCls && <td className="px-2 py-2 text-center tabular-nums">{fmtNet(round2(clsTotal))}</td>}
+                <td className="px-2 py-2 text-center tabular-nums">{fmtNet(round2(kurumTotal))}</td>
+                <td className="px-3 py-2 text-center">
+                  <Delta v={data.totalNet !== null ? data.totalNet - kurumTotal : null} />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      {/* Grafikler */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ChartBox title="Ders netleri: öğrenci, sınıf, kurum">
+          <BarChart data={netData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line, #e2e8f0)" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip formatter={(v: any) => fmtNet(Number(v))} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Bar dataKey="Öğrenci" fill={CHART_COLORS[0]} radius={[6, 6, 0, 0]} />
+            {hasCls && <Bar dataKey="Sınıf" fill={CHART_COLORS[4]} radius={[6, 6, 0, 0]} />}
+            <Bar dataKey="Kurum" fill={CHART_COLORS[6]} radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ChartBox>
+        <ChartBox title="Ders başarı yüzdesi (öğrenci ve kurum)">
+          <RadarChart data={radarData} outerRadius="72%">
+            <PolarGrid stroke="var(--color-line, #e2e8f0)" />
+            <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
+            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+            <Radar name="Öğrenci" dataKey="Öğrenci" stroke={CHART_COLORS[0]} fill={CHART_COLORS[0]} fillOpacity={0.35} />
+            <Radar name="Kurum" dataKey="Kurum" stroke={CHART_COLORS[2]} fill={CHART_COLORS[2]} fillOpacity={0.12} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Tooltip formatter={(v: any) => `%${v}`} />
+          </RadarChart>
+        </ChartBox>
+      </div>
+
+      {/* Güçlü / geliştirilecek konular */}
+      {(strong.length > 0 || weak.length > 0) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-success/30 bg-success-soft/60 p-3">
+            <p className="text-sm font-bold text-success-fg flex items-center gap-1.5">
+              <Award className="w-4 h-4" /> Güçlü olduğun konular
+            </p>
+            {strong.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-fg-2">
+                {strong.map((t) => (
+                  <li key={`${t.subject.key}-${t.konu}`} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      <b>{t.subject.short}</b> · {t.konu}
+                    </span>
+                    <span className="font-bold text-success-fg">%{t.rate}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted">Bu denemede %70 ve üstü başarılı konu yok.</p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-danger/30 bg-danger-soft/60 p-3">
+            <p className="text-sm font-bold text-danger-fg flex items-center gap-1.5">
+              <Target className="w-4 h-4" /> Öncelikle çalışman gereken konular
+            </p>
+            {weak.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-fg-2">
+                {weak.map((t) => (
+                  <li key={`${t.subject.key}-${t.konu}`} className="flex justify-between gap-2">
+                    <span className="min-w-0 truncate">
+                      <b>{t.subject.short}</b> · {t.konu}
+                    </span>
+                    <span className={cx('font-bold', LEVEL_TEXT[levelOf(t.rate)])}>%{t.rate}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted">Başarısı %50'nin altında konu yok. Tebrikler!</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Cevap çizelgesi */}
+      <Panel title="Cevap çizelgesi" description="Kutudaki harf öğrencinin cevabı; altındaki küçük harf doğru cevap">
+        <div className="flex flex-wrap gap-3 text-[11px] mb-3">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-3 w-3 rounded bg-success" /> Doğru
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-3 w-3 rounded bg-danger" /> Yanlış
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-3 w-3 rounded border border-line bg-surface-2" /> Boş
+          </span>
+        </div>
+        <div className="space-y-3">
+          {subjects.map((s) => (
+            <div key={s.subject.key}>
+              <p className="text-xs font-bold text-fg mb-1.5">
+                {s.subject.name}{' '}
+                <span className="font-normal text-muted">
+                  · D {s.d} · Y {s.y} · B {s.b} · Net {fmtNet(s.net)}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {s.answers.map((a) => (
+                  <div key={a.no} className="flex w-8 flex-col items-center" title={`${a.no}. soru · cevap ${a.key || '-'}${a.kurumRate !== null ? ` · kurumda doğru oranı %${a.kurumRate}` : ''}`}>
+                    <span className="text-[9px] text-muted tabular-nums">{a.no}</span>
+                    <span className={cx('flex h-7 w-7 items-center justify-center rounded-lg border text-xs font-black', markCls(a.mark))}>{a.key === 'X' ? '✓' : a.given || '·'}</span>
+                    <span className={cx('text-[9px] font-semibold', a.mark === 'D' ? 'text-transparent' : 'text-fg-2')}>{a.key === 'X' ? 'iptal' : a.key || '-'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      {/* Konu ve kazanım analizi */}
+      <Panel title="Konu ve kazanım analizi" description="Çizgi kurumun başarısını gösterir">
+        <div className="space-y-3">
+          <LevelLegend />
+          {bySubject.map(({ s, list }) => (
+            <div key={s.subject.key} className="rounded-2xl border border-line overflow-hidden">
+              <div className="flex items-center justify-between gap-2 bg-surface-2/60 px-3 py-2">
+                <span className="text-sm font-bold text-fg">{s.subject.name}</span>
+                <span className={chipFor(s.rate)}>%{s.rate} başarı</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className={tableCls}>
+                  <thead className="text-muted border-b border-line">
+                    <tr>
+                      <th className="px-3 py-1.5 font-semibold">Konu / kazanım</th>
+                      <th className="px-2 py-1.5 font-semibold text-center">Sorular</th>
+                      <th className="px-2 py-1.5 font-semibold text-center">D/Y/B</th>
+                      <th className="px-3 py-1.5 font-semibold">Başarı (│ kurum)</th>
+                      <th className="px-3 py-1.5 font-semibold">Öneri</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {list.map((t) => (
+                      <tr key={t.konu}>
+                        <td className="px-3 py-1.5 text-fg">
+                          <p className="font-semibold">{t.konu}</p>
+                          {t.alt && <p className="text-[11px] text-muted">{t.alt}</p>}
+                        </td>
+                        <td className="px-2 py-1.5 text-center tabular-nums text-muted">{t.questions.join(', ')}</td>
+                        <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap">
+                          <span className="text-success-fg font-semibold">{t.d}</span>/<span className="text-danger-fg font-semibold">{t.y}</span>/<span className="text-muted">{t.b}</span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <RateBar rate={t.rate} marker={t.kurumRate} />
+                        </td>
+                        <td className={cx('px-3 py-1.5 text-[11px]', LEVEL_TEXT[levelOf(t.rate)])}>{LEVEL_INFO[levelOf(t.rate)].label}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    </div>
+  );
+};
+
 // ----------------------------------------------------------------------------- Öğrenci karnesi
 export const StudentKarneView: React.FC<{
   exams: DenemeExam[]; // tarih sırasıyla
   results: DenemeResult[];
   target: number | null;
   targetEditor?: React.ReactNode;
-}> = ({ exams: allExams, results, target, targetEditor }) => {
+  studentName?: string;
+  className?: string;
+  /** Aşama 50: ayrıntılı karnesi gösterilen deneme (boşsa en son deneme) */
+  detailExamId?: string;
+  onDetailExamChange?: (id: string) => void;
+}> = ({ exams: allExams, results, target, targetEditor, studentName, className, detailExamId, onDetailExamChange }) => {
   const rByExam = useMemo(() => new Map(results.map((r) => [r.examId, r])), [results]);
   const exams = allExams.filter((e) => rByExam.has(e.id));
   const subs = usedSubjects(exams);
   const analysis = useMemo(() => topicAnalysis(exams, results, subs), [exams, results, subs]);
+  const [localDetail, setLocalDetail] = useState('');
+  const detailId = (detailExamId ?? localDetail) || '';
+  const detailExam = exams.find((e) => e.id === detailId) || exams[exams.length - 1];
+  const detail = useMemo(() => {
+    const r = detailExam ? rByExam.get(detailExam.id) : undefined;
+    return detailExam && r ? examKarneData(detailExam, r) : null;
+  }, [detailExam, rByExam]);
   if (!exams.length) return <p className="text-sm text-muted">Seçilen kapsamda deneme sonucu yok.</p>;
   const last = rByExam.get(exams[exams.length - 1].id)!;
+  const pickDetail = (id: string) => (onDetailExamChange ? onDetailExamChange(id) : setLocalDetail(id));
   const scores = exams.map((e) => rByExam.get(e.id)?.score ?? 0);
   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
   const gap = targetGap(last.score, target);
@@ -160,6 +537,32 @@ export const StudentKarneView: React.FC<{
   });
   return (
     <div className="space-y-4">
+      {detail && (
+        <>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-56">
+              <label className="ui-label" htmlFor="karne-detail-exam">Ayrıntılı karne</label>
+              <select id="karne-detail-exam" className="ui-input" value={detailExam?.id || ''} onChange={(e) => pickDetail(e.target.value)}>
+                {exams
+                  .slice()
+                  .reverse()
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} · {dateTr(e.examDate)}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <span className="text-[11px] text-muted pb-2">Aşağıda seçilen denemenin ayrıntılı karnesi, onun altında kapsamdaki denemelerin gelişimi yer alır.</span>
+          </div>
+          <ExamKarneCard data={detail} studentName={studentName || detail.result.studentName} className={className} />
+          <div className="flex items-center gap-2 pt-2">
+            <span className="h-px flex-1 bg-line" />
+            <span className="text-xs font-bold uppercase tracking-wider text-muted">Gelişim ({exams.length} deneme)</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
       <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
         <Stat label="Son puan" value={fmtScore(last.score)} hint={dateTr(exams[exams.length - 1].examDate)} />
         <Stat label="Ortalama puan" value={fmtScore(avg)} hint={`${exams.length} deneme`} />

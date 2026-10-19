@@ -7,11 +7,13 @@
 //   * Yeni öğrenci eklenmez, sınıf açılmaz, şifre ve hesaplar değişmez.
 //   * Okul numarası değişikliği öğrencinin giriş adını da değiştirdiği için ayrıca işaretlenmelidir.
 // ============================================================================
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, HelpCircle, RefreshCw, Upload, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, HelpCircle, RefreshCw, ShieldCheck, Upload, UserCheck } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
+import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeService';
+import { hashTcs, validTc } from '../../lib/tcApi';
 import { Modal, cx } from '../ui/kit';
 import {
   STUDENT_COLUMNS,
@@ -33,14 +35,18 @@ interface Props {
   onDone?: (message: string) => void;
 }
 
-type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email';
+type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'tc';
 const FIELD_LABEL: Record<Field, string> = {
   name: 'Ad soyad',
   classId: 'Sınıf',
   studentNumber: 'Okul no',
   phone: 'Telefon',
   email: 'E-posta',
+  tc: 'TC kimlik (parmak izi)',
 };
+
+// Aşama 50: TC sütunu başlığı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …)
+const isTcHeader = (h: string) => /^(t ?c|tckn|tc kimlik|t c kimlik|kimlik)( ?(no|numarasi|numara))?$|^tc kimlik (no|numarasi)$/.test(trFold(h).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim());
 
 interface Change {
   field: Field;
@@ -58,7 +64,7 @@ interface Row {
   excelNumber: string;
   excelClass: string;
   student: Student | null;
-  by: 'numara' | 'ad soyad' | '';
+  by: 'numara' | 'ad soyad' | 'TC' | '';
   status: Status;
   reason: string;
   changes: Change[]; // seçili alanlara göre
@@ -153,10 +159,41 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const classes = useMemo(() => allClasses.filter((c) => dataService.canManageClass(c)), [allClasses]);
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
 
-  const [parsed, setParsed] = useState<Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string }>>([]);
+  const [parsed, setParsed] = useState<Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; tc: string }>>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true });
+  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, tc: true });
+  // Aşama 50: TC parmak izleri (TC'nin kendisi yalnızca bu pencere açıkken bellekte durur, ekranda gösterilmez)
+  const canTc = dataService.canUseDeneme();
+  const [tcHashes, setTcHashes] = useState<Array<string | null> | null>(null); // parsed ile aynı sıra
+  const [existingTc, setExistingTc] = useState<Map<string, string>>(new Map());
+  const [tcState, setTcState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const [confirmTcDelete, setConfirmTcDelete] = useState(false);
+  const hasTcColumn = parsed.some((p) => !!p.tc);
+
+  // Excel'de TC sütunu varsa: parmak izleri sunucuda üretilir, kayıtlı parmak izleriyle karşılaştırılır
+  useEffect(() => {
+    let alive = true;
+    setTcHashes(null);
+    if (!canTc || !parsed.some((p) => !!p.tc)) return;
+    setTcState({ busy: true, error: null });
+    (async () => {
+      try {
+        const [ex, h] = await Promise.all([listStudentTcHashes(), hashTcs(parsed.map((p) => p.tc))]);
+        if (!alive) return;
+        setExistingTc(ex);
+        if (h.ok) {
+          setTcHashes(h.hashes);
+          setTcState({ busy: false, error: null });
+        } else setTcState({ busy: false, error: h.error });
+      } catch (e: any) {
+        if (alive) setTcState({ busy: false, error: e?.message || 'TC bilgileri okunamadı.' });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [parsed, canTc]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState<'all' | 'ok' | 'check' | 'none'>('all');
   const [busy, setBusy] = useState(false);
@@ -175,8 +212,18 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     }
     const allByNum = new Map<string, Student>();
     for (const s of allStudents) if (numKey(s.studentNumber)) allByNum.set(numKey(s.studentNumber), s);
+    // Kayıtlı parmak izinden öğrenci (yalnızca yetkili olunanlar)
+    const byTc = new Map<string, Student>();
+    for (const s of students) {
+      const h = existingTc.get(s.id);
+      if (h) byTc.set(h, s);
+    }
+    // Excel'de aynı TC birden fazla satırda mı?
+    const tcCount = new Map<string, number>();
+    (tcHashes || []).forEach((h) => h && tcCount.set(h, (tcCount.get(h) || 0) + 1));
 
     const base: Row[] = parsed.map((p, i) => {
+      const myTc = tcHashes ? tcHashes[i] : null;
       const r: Row = {
         key: `${p.rowNumber}-${i}`,
         rowNumber: p.rowNumber,
@@ -207,6 +254,14 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         const ranked = list.map((s) => ({ s, sim: nameSimilarity(p.name, s.name) })).sort((a, b) => b.sim - a.sim);
         r.student = ranked[0].s;
         r.by = 'numara';
+      } else if (myTc && byTc.has(myTc)) {
+        // Numara yok/bulunamadı ama TC parmak izi kayıtlı bir öğrencininkiyle aynı
+        const s = byTc.get(myTc)!;
+        r.student = s;
+        r.by = 'TC';
+        const sim = p.name ? nameSimilarity(p.name, s.name) : 1;
+        r.status = sim < 0.6 ? 'check' : 'ok';
+        r.reason = sim < 0.6 ? `TC tuttu ama ad farklı (sistemde: ${s.name})` : 'TC ile bulundu';
       } else if (p.name) {
         const ranked = students
           .map((s) => ({ s, sim: nameSimilarity(p.name, s.name) }))
@@ -259,6 +314,19 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           else if (p.email.trim().toLowerCase() !== (s.email || '').trim().toLowerCase())
             r.changes.push({ field: 'email', from: s.email || '—', to: p.email.trim(), value: p.email.trim() });
         }
+        // TC: yalnızca parmak izi yazılır; ekranda TC gösterilmez
+        if (canTc && fields.tc && p.tc) {
+          if (!validTc(p.tc)) r.notes.push('TC geçersiz (11 hane ya da kontrol haneleri tutmuyor); kaydedilmez');
+          else if (tcState.busy || (!tcHashes && !tcState.error)) r.notes.push('TC doğrulanıyor…');
+          else if (tcState.error) r.notes.push(`TC kaydedilemez: ${tcState.error}`);
+          else if (myTc) {
+            const owner = byTc.get(myTc);
+            if ((tcCount.get(myTc) || 0) > 1) r.notes.push("Bu TC Excel'de birden fazla satırda; kaydedilmez");
+            else if (owner && owner.id !== s.id) r.notes.push(`Bu TC başka bir öğrencide kayıtlı (${owner.name}); kaydedilmez`);
+            else if (existingTc.get(s.id) !== myTc)
+              r.changes.push({ field: 'tc', from: existingTc.has(s.id) ? 'kayıtlı (farklı)' : 'yok', to: 'kaydedilecek', value: myTc });
+          }
+        }
         if (r.status === 'ok' && !r.changes.length) r.status = 'same';
       }
       return r;
@@ -274,7 +342,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
       }
     }
     return base;
-  }, [parsed, students, allStudents, classes, fields]);
+  }, [parsed, students, allStudents, classes, fields, tcHashes, existingTc, tcState, canTc]);
 
   const isOn = (r: Row) => (r.status === 'ok' || r.status === 'check') && r.changes.length > 0 && (selected[r.key] ?? r.status === 'ok');
   const toApply = rows.filter(isOn);
@@ -316,8 +384,17 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         const ws = wb.Sheets[wb.SheetNames[0]];
         const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false });
         const { headers, rows: sheetRows } = matrixToRows(matrix, STUDENT_COLUMNS);
+        const tcHeader = headers.find((h) => isTcHeader(h)); // Aşama 50
         const list = extractStudentRows(headers, sheetRows)
-          .map((f) => ({ rowNumber: f.rowNumber, name: f.fullName, number: f.studentNumber, className: f.className, phone: f.phone, email: f.email }))
+          .map((f, i) => ({
+            rowNumber: f.rowNumber,
+            name: f.fullName,
+            number: f.studentNumber,
+            className: f.className,
+            phone: f.phone,
+            email: f.email,
+            tc: tcHeader ? String(sheetRows[i]?.values[tcHeader] || '').replace(/\D/g, '') : '',
+          }))
           .filter((f) => f.name || f.number);
         if (!list.length) {
           setError('Dosyada öğrenci satırı bulunamadı. Başlık satırında "Öğrenci No" ve "Ad Soyad" (veya "Ad", "Soyad") sütunları olmalı.');
@@ -336,7 +413,15 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const downloadCurrent = () => {
     const data = [...students]
       .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true }) || a.name.localeCompare(b.name, 'tr'))
-      .map((s) => ({ 'Öğrenci No': s.studentNumber || '', 'Ad Soyad': s.name, Sınıf: s.className || '', Telefon: s.phone || '', 'E-Posta': s.email || '' }));
+      .map((s) => ({
+        'Öğrenci No': s.studentNumber || '',
+        'Ad Soyad': s.name,
+        Sınıf: s.className || '',
+        Telefon: s.phone || '',
+        'E-Posta': s.email || '',
+        // Aşama 50: TC sütunu boş gelir (TC sistemde saklanmadığı için indirilemez); doldurup yükleyebilirsiniz
+        ...(canTc ? { 'TC Kimlik No': '' } : {}),
+      }));
     const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ 'Öğrenci No': '', 'Ad Soyad': '', Sınıf: '', Telefon: '', 'E-Posta': '' }]);
     ws['!cols'] = [{ wch: 12 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
@@ -352,12 +437,15 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     setProgress({ done: 0, total: list.length });
     let ok = 0;
     const failed: Array<{ name: string; error: string }> = [];
+    const tcList: Array<{ id: string; hash: string; name: string }> = [];
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       const s = r.student!;
       const upd: Partial<Student> = {};
       for (const c of r.changes) {
-        if (c.field === 'classId') {
+        if (c.field === 'tc') {
+          tcList.push({ id: s.id, hash: c.value, name: s.name }); // yalnızca parmak izi
+        } else if (c.field === 'classId') {
           const cls = classes.find((x) => x.id === c.value);
           upd.classId = c.value;
           if (cls) {
@@ -368,12 +456,23 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         } else upd[c.field] = c.value;
       }
       try {
-        await dataService.updateStudent(s.id, upd);
-        ok++;
+        if (Object.keys(upd).length) await dataService.updateStudent(s.id, upd);
+        if (!r.changes.some((c) => c.field === 'tc')) ok++;
       } catch (e: any) {
         failed.push({ name: s.name, error: e?.message || 'Kaydedilemedi' });
+        const k = tcList.findIndex((x) => x.id === s.id);
+        if (k >= 0) tcList.splice(k, 1);
       }
       setProgress({ done: i + 1, total: list.length });
+    }
+    if (tcList.length) {
+      try {
+        const res = await setStudentTcHashes(tcList.map((x) => ({ id: x.id, hash: x.hash })));
+        ok += res.ok;
+        if (res.failed) failed.push({ name: `${res.failed} öğrenci`, error: 'TC parmak izi kaydedilemedi (yetki)' });
+      } catch (e: any) {
+        failed.push({ name: 'TC', error: e?.message || 'TC parmak izleri kaydedilemedi' });
+      }
     }
     setBusy(false);
     setProgress(null);
@@ -384,6 +483,28 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   };
 
   const numberOn = fields.studentNumber;
+
+  // Aşama 50: kayıtlı TC parmak izlerini silme (yetkili olunan öğrenciler)
+  const deleteAllTc = async () => {
+    setConfirmTcDelete(false);
+    setBusy(true);
+    setError(null);
+    try {
+      const ex = await listStudentTcHashes();
+      const ids = students.filter((s) => ex.has(s.id)).map((s) => s.id);
+      if (!ids.length) {
+        onDone?.('Silinecek TC parmak izi yok.');
+        return;
+      }
+      const res = await setStudentTcHashes(ids.map((id) => ({ id, hash: null })));
+      setExistingTc(new Map());
+      onDone?.(`${res.ok} öğrencinin TC parmak izi silindi.${res.failed ? ` ${res.failed} öğrencide silinemedi.` : ''}`);
+    } catch (e: any) {
+      setError(e?.message || 'TC parmak izleri silinemedi.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Modal
@@ -510,7 +631,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <span className="font-semibold text-fg">Güncellenecek bilgiler:</span>
-              {(Object.keys(FIELD_LABEL) as Field[]).map((f) => (
+              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => f !== 'tc' || (canTc && hasTcColumn)).map((f) => (
                 <label key={f} className="flex items-center gap-1.5 cursor-pointer text-fg-2 hover:text-fg">
                   <input
                     type="checkbox"
@@ -522,6 +643,17 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                 </label>
               ))}
             </div>
+            {canTc && hasTcColumn && (
+              <p className="p-2.5 bg-info-soft rounded-lg text-[11px] text-info-fg flex items-start gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Dosyada TC sütunu var. TC numaraları <b>hiçbir yere kaydedilmez ve ekranda gösterilmez</b>: sunucu her TC'den geri çevrilemez bir parmak izi üretir,
+                  yalnızca o saklanır ve deneme optiklerinde öğrenciyi doğru bulmak için kullanılır.
+                  {tcState.busy && ' TC numaraları doğrulanıyor…'}
+                  {tcState.error && <b className="block text-danger-fg mt-0.5">{tcState.error}</b>}
+                </span>
+              </p>
+            )}
             {numberOn && (
               <p className="p-2.5 bg-warning-soft rounded-lg text-[11px] text-warning-fg">
                 Okul numarası öğrencinin <strong>giriş adıdır</strong>. Değişen öğrenciler bundan sonra yeni numarayla giriş yapar; şifreleri değişmez.
@@ -660,7 +792,32 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                 "Kontrol edin" satırları kendiliğinden seçilmez. Örneğin numara tutup ad farklıysa, gözden geçirip kutuyu siz işaretlersiniz.
               </li>
               <li>Yeni öğrenci eklenmez; şifreler, deneme sonuçları ve diğer kayıtlar değişmez.</li>
+              {canTc && (
+                <li>
+                  İsteğe bağlı <strong>TC Kimlik No</strong> sütunu eklenebilir: deneme optiklerinde öğrenciyi kesin bulmak için kullanılır. TC'nin kendisi saklanmaz, yalnızca geri
+                  çevrilemez parmak izi saklanır.
+                </li>
+              )}
             </ul>
+            {canTc && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {confirmTcDelete ? (
+                  <>
+                    <span className="text-[11px] font-semibold text-danger-fg">Yetkili olduğunuz bütün öğrencilerin TC parmak izleri silinsin mi?</span>
+                    <button type="button" className="ui-btn ui-btn-danger-soft ui-btn-sm" disabled={busy} onClick={() => void deleteAllTc()}>
+                      Evet, sil
+                    </button>
+                    <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setConfirmTcDelete(false)}>
+                      Vazgeç
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setConfirmTcDelete(true)}>
+                    <ShieldCheck className="w-3.5 h-3.5" /> Kayıtlı TC parmak izlerini sil
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

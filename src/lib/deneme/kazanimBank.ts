@@ -379,6 +379,23 @@ export function matchToBank(src: { code?: string; text?: string }, options: Bank
       const same = options.filter((o) => digitsKey(o.code) === dk);
       if (same.length === 1) return { code: same[0].code, score: 92, by: 'kod' };
     }
+    // Aşama 49d: kod bankadakinden bir basamak derin ya da sığ olabilir (T.8.3.5.1 ↔ T.8.3.5, F.8.1.1 ↔ F.8.1.1.1).
+    // Üst kod bankada varsa o; alt kodlardan tek biri varsa o; birden çok alt kod varsa metne en yakın olanı.
+    const parts = dk.split('.');
+    for (let n = parts.length - 1; n >= 3; n--) {
+      const up = parts.slice(0, n).join('.');
+      const hit = options.filter((o) => digitsKey(o.code) === up);
+      if (hit.length === 1) return { code: hit[0].code, score: 85, by: 'kod' };
+    }
+    if (parts.length >= 3) {
+      const kids = options.filter((o) => digitsKey(o.code).startsWith(dk + '.'));
+      if (kids.length === 1) return { code: kids[0].code, score: 85, by: 'kod' };
+      if (kids.length > 1 && src.text) {
+        const st0 = tokens(src.text);
+        const ranked = kids.map((o) => ({ o, s: dice(st0, tokens(o.text)) })).sort((x, y) => y.s - x.s);
+        if (ranked[0].s >= 0.35 && (ranked.length < 2 || ranked[0].s - ranked[1].s >= 0.05)) return { code: ranked[0].o.code, score: 80, by: 'kod' };
+      }
+    }
   }
   // Metin: Excel'de kod sütununda metin olabilir; ikisi birlikte değerlendirilir
   const srcText = [src.text, code && !/^\s*[A-Za-zÇĞİÖŞÜ.]{0,6}\s*\d/.test(code) ? code : ''].filter(Boolean).join(' ');

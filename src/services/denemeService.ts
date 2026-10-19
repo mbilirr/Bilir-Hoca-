@@ -137,6 +137,24 @@ export async function saveExam(exam: Omit<DenemeExam, 'createdAt' | 'kurumId'> &
   return examFromRow(data);
 }
 
+/** Aşama 50: denemenin genel bilgilerini günceller (ad, yayınevi, tarih). Cevap anahtarı ve sonuçlar değişmez. */
+export async function updateExamInfo(id: string, info: { name: string; publisher: string; examDate: string }): Promise<void> {
+  const name = info.name.trim().slice(0, 200);
+  if (!name) throw new Error('Deneme adı boş olamaz.');
+  const { data, error } = await supabase
+    .from('deneme_exams')
+    .update({
+      name,
+      publisher: (info.publisher || '').trim().slice(0, 120) || null,
+      exam_date: info.examDate || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) fail(error, 'Deneme bilgileri kaydedilemedi.');
+  if (!data?.length) throw new Error('Deneme bilgileri kaydedilemedi (yetki).');
+}
+
 export async function setExamPublished(id: string, published: boolean): Promise<void> {
   const { data, error } = await supabase.from('deneme_exams').update({ published, updated_at: new Date().toISOString() }).eq('id', id).select('id');
   if (error) fail(error, 'Değişiklik kaydedilemedi.');
@@ -299,6 +317,52 @@ export async function loadMyDenemeler(): Promise<{ exams: DenemeExam[]; results:
   const exams = await getExamsFull(Array.from(new Set(results.map((r) => r.examId))));
   const visible = new Set(exams.map((e) => e.id));
   return { exams, results: results.filter((r) => visible.has(r.examId)) };
+}
+
+// ----------------------------------------------------------------------------- Aşama 50: TC parmak izi
+// Veritabanında TC'nin kendisi değil, sunucuda gizli anahtarla üretilen geri çevrilemez parmak izi durur.
+const TC_SETUP_MSG = "TC eşleştirmesi için 51 numaralı SQL dosyasının (51_ogrenci_tc_parmakizi.sql) Supabase'te çalıştırılması gerekiyor.";
+
+/** Parmak izi kayıtlı öğrenciler: öğrenci kimliği → parmak izi */
+export async function listStudentTcHashes(): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data, error } = await supabase.from('students').select('id,tc_hash').not('tc_hash', 'is', null).order('id').range(from, from + 999);
+    if (error) {
+      if (/tc_hash/.test(String(error.message || '')) || String(error.code || '') === '42703') throw new Error(TC_SETUP_MSG);
+      fail(error, 'TC bilgileri okunamadı.');
+    }
+    for (const r of data || []) if ((r as any).tc_hash) out.set((r as any).id, (r as any).tc_hash);
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Tek öğrencinin parmak izi kayıtlı mı? (parmak izinin kendisi de döner; TC değildir) */
+export async function getStudentTcHash(studentId: string): Promise<string | null> {
+  const { data, error } = await supabase.from('students').select('tc_hash').eq('id', studentId).maybeSingle();
+  if (error) {
+    if (/tc_hash/.test(String(error.message || '')) || String(error.code || '') === '42703') throw new Error(TC_SETUP_MSG);
+    fail(error, 'TC bilgisi okunamadı.');
+  }
+  return (data as any)?.tc_hash || null;
+}
+
+/** Öğrencilerin parmak izlerini yazar (null = siler). Yalnızca yetkili olunan öğrenciler güncellenir. */
+export async function setStudentTcHashes(list: Array<{ id: string; hash: string | null }>, onProgress?: (done: number, total: number) => void): Promise<{ ok: number; failed: number }> {
+  let ok = 0;
+  let failed = 0;
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i];
+    const { data, error } = await supabase.from('students').update({ tc_hash: it.hash }).eq('id', it.id).select('id');
+    if (error) {
+      if (/tc_hash/.test(String(error.message || '')) || String(error.code || '') === '42703') throw new Error(TC_SETUP_MSG);
+      failed++;
+    } else if (!data?.length) failed++;
+    else ok++;
+    onProgress?.(i + 1, list.length);
+  }
+  return { ok, failed };
 }
 
 // ----------------------------------------------------------------------------- Hedef puan

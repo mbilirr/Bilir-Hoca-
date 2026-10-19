@@ -46,6 +46,245 @@ export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fil
   return 'downloaded';
 }
 
+// ----------------------------------------------------------------------------- Aşama 50: sınıfa toplu karne gönderme
+// E-posta: tek tıkla sınıftaki bütün öğrencilere (her öğrenciye yalnızca kendi karnesi; adres sunucuda bulunur).
+// WhatsApp: WhatsApp, uygulama dışından otomatik toplu gönderime izin vermez; bu yüzden sıra listesi hazırlanır ve
+// her öğrenci için tek dokunuşla kendi karnesi açılır ("Sıradakini gönder" bir sonrakine geçer).
+type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
+
+const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStudents: Student[]; scope: ScopeKey }> = ({ examIds, cls, classStudents, scope }) => {
+  const [loaded, setLoaded] = useState<{ exams: DenemeExam[]; results: DenemeResult[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmMail, setConfirmMail] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
+  const [queue, setQueue] = useState<Record<string, QueueState>>({});
+  const [open, setOpen] = useState(false);
+  const key = `${cls.id}|${examIds.join(',')}`;
+
+  useEffect(() => {
+    setLoaded(null);
+    setQueue({});
+    setNotice(null);
+    setConfirmMail(false);
+  }, [key]);
+
+  const load = async () => {
+    if (loaded) return loaded;
+    setLoading(true);
+    try {
+      const [exams, results] = await Promise.all([getExamsFull(examIds), listResultsFor({ examIds, classId: cls.id })]);
+      const v = { exams, results };
+      setLoaded(v);
+      return v;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const withResults = useMemo(() => {
+    if (!loaded) return [] as Student[];
+    const ids = new Set(loaded.results.map((r) => r.studentId));
+    return classStudents.filter((s) => ids.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [loaded, classStudents]);
+
+  const build = async (s: Student, data: { exams: DenemeExam[]; results: DenemeResult[] }) => {
+    let tg: number | null = null;
+    try {
+      tg = await getTarget(s.id);
+    } catch {
+      tg = null;
+    }
+    const rs = data.results.filter((r) => r.studentId === s.id);
+    return {
+      blocks: studentKarneBlocks({ studentName: s.name, className: s.className || cls.name, exams: data.exams, results: rs, target: tg, scopeLabel: scopeLabel(scope) }),
+      footer: `${s.name} deneme karnesi`,
+      file: `Deneme-Karnesi-${s.name}`,
+      last: rs.slice().sort((a, b) => {
+        const ea = data.exams.findIndex((e) => e.id === a.examId);
+        const eb = data.exams.findIndex((e) => e.id === b.examId);
+        return ea - eb;
+      }).slice(-1)[0],
+    };
+  };
+
+  const sendAllMail = async () => {
+    if (busy) return;
+    setBusy(true);
+    setConfirmMail(false);
+    setNotice(null);
+    let sent = 0;
+    let noEmail = 0;
+    let failed = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+    try {
+      const data = await load();
+      const ids = new Set(data.results.map((r) => r.studentId));
+      const list = classStudents.filter((s) => ids.has(s.id));
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i];
+        setProgress(`E-posta hazırlanıyor: ${i + 1}/${list.length} · ${s.name}`);
+        try {
+          const b = await build(s, data);
+          const pdf = await karnePdfBase64(b.blocks, b.footer);
+          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `Deneme karnen (${scopeLabel(scope)})` });
+          if (!r.ok) {
+            failed++;
+            if (r.error) errors.push(`${s.name}: ${r.error}`);
+            if (r.notConfigured || r.authError) break;
+          } else {
+            sent += r.sent || 0;
+            noEmail += r.noEmail || 0;
+            skipped += r.skipped || 0;
+            failed += r.failed || 0;
+            if (r.notConfigured) {
+              setNotice({ tone: 'warning', text: describeMailResult(r).text });
+              return;
+            }
+          }
+        } catch (e: any) {
+          failed++;
+          errors.push(`${s.name}: ${e?.message || 'hazırlanamadı'}`);
+        }
+      }
+      const parts = [`${sent} öğrenciye karne e-postayla gönderildi`];
+      if (skipped) parts.push(`${skipped} öğrenciye daha önce gönderilmişti`);
+      if (noEmail) parts.push(`${noEmail} öğrencinin e-postası kayıtlı değil`);
+      if (failed) parts.push(`${failed} gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
+      setNotice({ tone: failed ? 'danger' : noEmail ? 'warning' : 'success', text: parts.join(' · ') + '.' });
+    } catch (e: any) {
+      setNotice({ tone: 'danger', text: e?.message || 'Gönderim yapılamadı.' });
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const sendWhatsapp = async (s: Student) => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const data = await load();
+      setProgress(`${s.name} karnesi hazırlanıyor…`);
+      const b = await build(s, data);
+      const lastExam = b.last ? data.exams.find((e) => e.id === b.last!.examId) : undefined;
+      const msg = `${s.name} deneme karnesi (${scopeLabel(scope)}).${b.last && lastExam ? ` Son deneme: ${lastExam.name}, puan ${fmtScore(b.last.score)}.` : ''}`;
+      const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, s.phone);
+      setQueue((q) => ({ ...q, [s.id]: r === 'cancelled' ? 'bekliyor' : 'gonderildi' }));
+      if (r === 'downloaded') setNotice({ tone: 'success', text: `${s.name}: PDF indirildi ve WhatsApp açıldı; dosyayı mesaja ekleyip gönderin, sonra "Sıradakini gönder" deyin.` });
+    } catch (e: any) {
+      setQueue((q) => ({ ...q, [s.id]: 'hata' }));
+      setNotice({ tone: 'danger', text: `${s.name}: ${e?.message || 'karne hazırlanamadı'}` });
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const nextInQueue = withResults.find((s) => (queue[s.id] || 'bekliyor') === 'bekliyor');
+  const doneCount = withResults.filter((s) => queue[s.id] === 'gonderildi').length;
+
+  return (
+    <div className="rounded-2xl border border-brand/25 bg-brand-soft/40 p-3 space-y-2" id="karne-toplu">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-bold text-fg">Sınıfa toplu gönder: {cls.name}</span>
+        <span className="text-[11px] text-muted">Her öğrenciye yalnızca kendi karnesi gider.</span>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {confirmMail ? (
+            <>
+              <span className="self-center text-xs font-semibold text-warning-fg">Sınıftaki bütün öğrencilere e-posta gönderilsin mi?</span>
+              <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void sendAllMail()}>
+                <Mail /> Evet, gönder
+              </button>
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setConfirmMail(false)}>
+                Vazgeç
+              </button>
+            </>
+          ) : (
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setConfirmMail(true)}>
+              <Mail /> Tümüne e-posta
+            </button>
+          )}
+          <button
+            type="button"
+            className="ui-btn ui-btn-secondary ui-btn-sm"
+            disabled={busy || loading}
+            onClick={() => {
+              setOpen((o) => !o);
+              void load();
+            }}
+            aria-expanded={open}
+          >
+            <MessageCircle /> WhatsApp sırası
+          </button>
+        </div>
+      </div>
+      {progress && <p className="text-xs text-info-fg">{progress}</p>}
+      {notice && (
+        <p
+          role="status"
+          className={cx(
+            'text-xs font-semibold rounded-xl px-3 py-2',
+            notice.tone === 'success' && 'bg-success-soft text-success-fg',
+            notice.tone === 'warning' && 'bg-warning-soft text-warning-fg',
+            notice.tone === 'danger' && 'bg-danger-soft text-danger-fg'
+          )}
+        >
+          {notice.text}
+        </p>
+      )}
+      {open && (
+        <div className="rounded-xl border border-line bg-surface">
+          {loading ? (
+            <p className="px-3 py-3 text-xs text-muted">Sonuçlar yükleniyor…</p>
+          ) : !withResults.length ? (
+            <p className="px-3 py-3 text-xs text-muted">Bu sınıfta seçilen denemelerde sonucu olan öğrenci yok.</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+                <span className="text-xs text-fg-2">
+                  {doneCount} / {withResults.length} gönderildi
+                </span>
+                <button type="button" className="ui-btn ui-btn-primary ui-btn-sm ml-auto" disabled={busy || !nextInQueue} onClick={() => nextInQueue && void sendWhatsapp(nextInQueue)}>
+                  <MessageCircle /> {nextInQueue ? `Sıradakini gönder: ${nextInQueue.name}` : 'Hepsi tamam'}
+                </button>
+              </div>
+              <ul className="max-h-72 overflow-y-auto divide-y divide-line">
+                {withResults.map((s) => {
+                  const st = queue[s.id] || 'bekliyor';
+                  return (
+                    <li key={s.id} className={cx('flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs', st === 'gonderildi' && 'bg-success-soft/40')}>
+                      <span className="font-semibold text-fg min-w-0 flex-1 truncate">{s.name}</span>
+                      <span className={cx('ui-chip', s.phone ? 'ui-chip-neutral' : 'ui-chip-warning')}>{s.phone ? 'Telefon kayıtlı' : 'Telefon yok'}</span>
+                      <span className={cx('ui-chip', st === 'gonderildi' ? 'ui-chip-success' : st === 'hata' ? 'ui-chip-danger' : st === 'atlandi' ? 'ui-chip-neutral' : 'ui-chip-info')}>
+                        {st === 'gonderildi' ? 'Gönderildi' : st === 'hata' ? 'Hata' : st === 'atlandi' ? 'Atlandı' : 'Bekliyor'}
+                      </span>
+                      <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => void sendWhatsapp(s)}>
+                        Gönder
+                      </button>
+                      {st === 'bekliyor' && (
+                        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setQueue((q) => ({ ...q, [s.id]: 'atlandi' }))}>
+                          Atla
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="px-3 py-2 text-[11px] text-muted">
+                Telefonda dosya doğrudan WhatsApp'a eklenir; bilgisayarda PDF iner ve öğrencinin WhatsApp sohbeti açılır, dosyayı sürükleyip gönderirsiniz. WhatsApp otomatik toplu gönderime izin vermediği için her öğrenci tek dokunuşla gönderilir.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const DenemeKarne: React.FC<{
   exams: DenemeExam[]; // özet liste (en yeni önce)
   students: Student[];
@@ -64,6 +303,7 @@ export const DenemeKarne: React.FC<{
   const [target, setTargetState] = useState<number | null>(null);
   const [targetInput, setTargetInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi gösterilen deneme
 
   const asc = useMemo(() => exams.slice().sort((a, b) => (a.examDate || '').localeCompare(b.examDate || '') || a.createdAt.localeCompare(b.createdAt)), [exams]);
   const scoped = useMemo(() => pickScope(asc, scope, (e) => picked.has(e.id)), [asc, scope, picked]);
@@ -118,7 +358,7 @@ export const DenemeKarne: React.FC<{
     const label = scopeLabel(scope);
     if (mode === 'ogrenci' && student) {
       return {
-        blocks: studentKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, target, scopeLabel: label }),
+        blocks: studentKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, target, scopeLabel: label, detailExamId }),
         footer: `${student.name} deneme karnesi`,
         file: `Deneme-Karnesi-${student.name}`,
       };
@@ -294,6 +534,9 @@ export const DenemeKarne: React.FC<{
             {notice.text}
           </p>
         )}
+        {mode === 'ogrenci' && cls && scoped.length > 0 && (
+          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} />
+        )}
       </div>
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
@@ -310,6 +553,10 @@ export const DenemeKarne: React.FC<{
           exams={fullExams}
           results={results}
           target={target}
+          studentName={student?.name}
+          className={student?.className || ''}
+          detailExamId={detailExamId}
+          onDetailExamChange={setDetailExamId}
           targetEditor={
             <div className="flex flex-wrap items-end gap-2">
               <div>

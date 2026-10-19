@@ -636,7 +636,8 @@ const KEY_SYSTEM = [
   '- Ders başlığı yazmıyorsa dersleri sıradan ve soru sayılarından anla (ör. LGS: Türkçe 20, İnkılap 10, Din 10, Yabancı Dil 10, Matematik 20, Fen 20).',
   '- "no": dersin içindeki A kitapçığı soru numarası (1\'den başlar). "cevap": A, B, C, D ya da E; iptal soru için "X".',
   '- "b": dosyada B kitapçığı numarası varsa o sorunun B kitapçığındaki numarası; yoksa 0.',
-  '- "kazanim": dosyada o soruya ait kazanım ya da konu yazıyorsa aynen yaz; yoksa boş bırak.',
+  '- "kazanim": dosyada o soruya ait kazanım yazıyorsa kodu ve metniyle aynen yaz (ör. "F.8.1.1.1. Mevsimlerin oluşumuna yönelik tahminlerde bulunur."); ayrı bir konu sütunu varsa sonuna parantez içinde ekle (ör. "(Mevsimlerin Oluşumu)"); hiçbiri yoksa boş bırak.',
+  '- Tablo başlıkları farklı olabilir: "A KİTAPÇIĞI" sütunu A cevabı, "B" sütunu B kitapçığındaki soru numarası olabilir; ders adı tablonun başlık satırında ya da her satırdaki "Ders / Alt ders" sütununda yazabilir.',
   '- Dosyada olmayan bir dersi yazma; cevap uydurma.',
   '- Yalnızca şu biçimde JSON döndür: {"dersler":[{"ders":"tr","sorular":[{"no":1,"cevap":"A","b":0,"kazanim":""}]}]}',
 ].join('\n');

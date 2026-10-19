@@ -7,7 +7,8 @@
 //   Y = cevap alanı: her satır bir sorudur, genişliği satır sayısı kadardır.
 // TXT'de alanlar FMT'deki sırayla yan yana dizilir (1. karakterden başlayarak).
 // FMT tarzı değişirse alanlar ekranda elle düzenlenebilir (manuel giriş).
-// TC kimlik numarası OKUNMAZ ve saklanmaz.
+// TC kimlik numarası SAKLANMAZ. Aşama 50: yalnızca eşleştirme sırasında bellekte okunur; sunucuda geri
+// çevrilemez parmak izine çevrilip öğrencinin kayıtlı parmak iziyle karşılaştırılır, sonra atılır.
 // ============================================================================
 
 export type FieldRole = 'number' | 'name' | 'surname' | 'fullname' | 'grade' | 'section' | 'booklet' | 'answers' | 'tc' | 'ignore';
@@ -30,6 +31,8 @@ export interface OptikRow {
   section: string;
   booklet: string; // 'A' | 'B' | ''
   answers: Record<string, string>; // ders → cevap dizisi (kitapçık sırasıyla; boş = ' ')
+  /** Aşama 50: optikteki TC (yalnızca eşleştirme sırasında bellekte; hiçbir yere kaydedilmez) */
+  tc?: string;
 }
 
 export interface TxtParseResult {
@@ -48,7 +51,7 @@ export const ROLE_LABELS: Record<FieldRole, string> = {
   section: 'Şube',
   booklet: 'Kitapçık türü',
   answers: 'Cevaplar',
-  tc: 'TC (okunmaz)',
+  tc: 'TC (yalnızca eşleştirme, saklanmaz)',
   ignore: 'Kullanılmaz',
 };
 
@@ -303,6 +306,16 @@ export function parseTxt(text: string, fields: OptikField[], fileName: string): 
       answers[f.subject] = (answers[f.subject] || '') + out; // aynı dersin birden fazla alanı uç uca
     }
     const bk = get(line, one('booklet')).trim().toLocaleUpperCase('tr-TR').replace(/[^AB]/g, '').slice(0, 1);
+    // Aşama 50: TC (11 haneli olan ilk TC alanı); yalnızca eşleştirmede kullanılır, kaydedilmez
+    let tc = '';
+    for (const f of fields) {
+      if (f.role !== 'tc') continue;
+      const d = get(line, f).replace(/\D/g, '');
+      if (d.length === 11) {
+        tc = d;
+        break;
+      }
+    }
     rows.push({
       file: fileName,
       line: i + 1,
@@ -317,6 +330,7 @@ export function parseTxt(text: string, fields: OptikField[], fileName: string): 
         .toLocaleUpperCase('tr-TR'),
       booklet: bk,
       answers,
+      ...(tc ? { tc } : {}),
     });
   });
   if (!rows.length) errors.push(`${fileName}: dosyada öğrenci satırı bulunamadı.`);

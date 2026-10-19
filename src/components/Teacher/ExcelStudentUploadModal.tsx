@@ -3,6 +3,8 @@ import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, Sc
 import * as XLSX from 'xlsx';
 import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure } from '../../types';
 import { dataService } from '../../services/dataService';
+import { setStudentTcHashes } from '../../services/denemeService';
+import { hashTcs, validTc } from '../../lib/tcApi';
 import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../constants/schoolConstants';
 import { Modal, Segmented, cx } from '../ui/kit';
 import {
@@ -48,7 +50,12 @@ interface ParsedStudentRow {
   isNewClass: boolean;
   isValid: boolean;
   validationError?: string;
+  tc?: string; // Aşama 50: yalnızca bellekte; kayıttan sonra parmak izine çevrilip atılır
 }
+
+// Aşama 50: TC sütunu başlığı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …)
+const isTcHeader = (h: string) =>
+  /^(t ?c|tckn|tc kimlik|t c kimlik|kimlik)( ?(no|numarasi|numara))?$|^tc kimlik (no|numarasi)$/.test(trFold(h).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim());
 
 interface ClassMatch {
   classId: string;
@@ -195,6 +202,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     }
     const fields = extractStudentRows(headers, rows);
     const stamp = Date.now();
+    const tcHeader = dataService.canUseDeneme() ? headers.find((h) => isTcHeader(h)) : undefined;
     const mapped: ParsedStudentRow[] = fields.map((f, index) => {
       const phone = normalizeTurkishPhone(f.phone);
       const base: ParsedStudentRow = {
@@ -212,6 +220,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         password: f.password,
         isNewClass: false,
         isValid: false,
+        tc: tcHeader ? String(rows[index]?.values[tcHeader] || '').replace(/\D/g, '') : '',
       };
       return applyClassMatch(base, f.className);
     });
@@ -381,6 +390,22 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
             )
           : { created: [], failed: [] };
       const merged: StudentAccountResult = { created: result.created, failed: [...classFailed, ...result.failed] };
+
+      // Aşama 50: Excel'de TC sütunu varsa yeni öğrencilerin TC parmak izleri kaydedilir (TC saklanmaz)
+      const tcByNumber = new Map(toCreate.filter((r) => r.tc && validTc(r.tc)).map((r) => [r.studentNumber.trim().toLowerCase(), r.tc as string]));
+      if (tcByNumber.size && merged.created.length) {
+        try {
+          const items = merged.created
+            .map((c) => ({ id: c.student.id, tc: tcByNumber.get((c.student.studentNumber || '').trim().toLowerCase()) || '' }))
+            .filter((x) => x.tc);
+          const h = await hashTcs(items.map((x) => x.tc));
+          if (h.ok) {
+            await setStudentTcHashes(items.map((x, i) => ({ id: x.id, hash: h.hashes[i] })).filter((x): x is { id: string; hash: string } => !!x.hash));
+          }
+        } catch {
+          // TC kaydı öğrenci eklemeyi bozmaz; "Excel ile Güncelle" ile sonradan eklenebilir
+        }
+      }
 
       if (onUploadSuccess) {
         onUploadSuccess(merged.created.map((c) => c.student));
@@ -792,6 +817,12 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               İsteğe bağlı <strong>Şifre</strong> sütunu ekleyebilirsiniz (en az 6 karakter). Boş bırakılırsa sistem her öğrenciye
               rastgele şifre üretir. Aktarım bitince tüm giriş bilgilerini Excel olarak indirebilirsiniz.
             </li>
+            {dataService.canUseDeneme() && (
+              <li>
+                İsteğe bağlı <strong>TC Kimlik No</strong> sütunu: deneme optiklerinde öğrenciyi kesin bulmak için kullanılır. TC'nin kendisi saklanmaz ve
+                ekranda gösterilmez; yalnızca geri çevrilemez parmak izi saklanır.
+              </li>
+            )}
           </ul>
         </div>
       </div>

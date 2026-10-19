@@ -6,6 +6,7 @@ import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from './analiz';
 import { LGS_SUBJECTS, fmtNet, fmtScore, round2, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
+import { examKarneData, percentile, type ExamKarneData } from './karneDetay';
 
 export const dateTr = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
@@ -77,6 +78,137 @@ function adviceBlocks(analysis: SubjectTopics[]): PdfBlock[] {
   ];
 }
 
+// ----------------------------------------------------------------------------- Aşama 50: tek deneme karnesi (PDF)
+export function examKarneBlocks(data: ExamKarneData, studentName: string, className: string): PdfBlock[] {
+  const { exam, subjects, topics, rank } = data;
+  const pct = percentile(rank);
+  const clsTotal = subjects.reduce((a, s) => a + (s.clsAvgNet ?? 0), 0);
+  const kurumTotal = subjects.reduce((a, s) => a + (s.kurumAvgNet ?? 0), 0);
+  const hasCls = subjects.some((s) => s.clsAvgNet !== null);
+  const diff = (a: number | null, b: number | null, f: (n: number) => string) =>
+    a === null || b === null || Math.abs(a - b) < 0.005 ? '-' : `${a - b > 0 ? '+' : '-'}${f(Math.abs(a - b))}`;
+  const side: Array<[string, string]> = [
+    ['Sınıf sırası', rank ? `${rank.cls} / ${rank.clsCount}` : '-'],
+    ['Kurum sırası', rank ? `${rank.overall} / ${rank.overallCount}` : '-'],
+  ];
+  if (pct !== null) side.push(['Yüzdelik dilim', `%${pct}`]);
+  const blocks: PdfBlock[] = [
+    {
+      kind: 'hero',
+      eyebrow: 'Deneme karnesi',
+      title: studentName,
+      sub: className || data.result.className || '',
+      chips: [exam.name, dateTr(exam.examDate), exam.publisher, data.result.booklet ? `${data.result.booklet} kitapçığı` : ''],
+      score: fmtScore(data.score),
+      scoreLabel: 'LGS puanı',
+      side,
+    },
+    {
+      kind: 'tiles',
+      items: [
+        { label: 'Toplam net', value: fmtNet(data.totalNet), sub: `${hasCls ? `Sınıf ${fmtNet(round2(clsTotal))} · ` : ''}Kurum ${fmtNet(round2(kurumTotal))}` },
+        { label: 'Doğru', value: String(data.totals.d), sub: `${data.totals.count} sorudan`, tone: 'success' },
+        { label: 'Yanlış', value: String(data.totals.y), sub: '3 yanlış 1 doğruyu götürür', tone: 'danger' },
+        { label: 'Boş', value: String(data.totals.b), tone: 'muted' },
+        {
+          label: 'Kurum ort. puan',
+          value: fmtScore(data.kurumAvgScore),
+          sub: `Fark ${diff(data.score, data.kurumAvgScore, fmtScore)}${data.clsAvgScore !== null ? ` · Sınıf ort. ${fmtScore(data.clsAvgScore)}` : ''}`,
+          tone: 'info',
+        },
+      ],
+    },
+    { kind: 'heading', text: 'Ders sonuçları' },
+    {
+      kind: 'table',
+      head: ['Ders', 'Soru', 'D', 'Y', 'B', 'Net', 'Başarı', ...(hasCls ? ['Sınıf ort.'] : []), 'Kurum ort.', 'Kuruma göre'],
+      rows: [
+        ...subjects.map((s) => [
+          s.subject.name,
+          s.count,
+          s.d,
+          s.y,
+          s.b,
+          fmtNet(s.net),
+          `%${s.rate}`,
+          ...(hasCls ? [fmtNet(s.clsAvgNet)] : []),
+          fmtNet(s.kurumAvgNet),
+          diff(s.net, s.kurumAvgNet, fmtNet),
+        ]),
+        [
+          'Toplam',
+          data.totals.count,
+          data.totals.d,
+          data.totals.y,
+          data.totals.b,
+          fmtNet(data.totalNet),
+          `%${data.totals.count ? Math.round((data.totals.d / data.totals.count) * 100) : 0}`,
+          ...(hasCls ? [fmtNet(round2(clsTotal))] : []),
+          fmtNet(round2(kurumTotal)),
+          diff(data.totalNet, round2(kurumTotal), fmtNet),
+        ],
+      ],
+      rowTones: [...subjects.map((s) => levelTone(s.rate)), 'info'],
+      align: ['left', 'center', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const] : []), 'center', 'center'],
+      fontSize: 7.8,
+    },
+    {
+      kind: 'bar',
+      title: 'Ders netleri: öğrenci, sınıf ve kurum',
+      labels: subjects.map((s) => s.subject.short),
+      series: [
+        { name: 'Öğrenci', values: subjects.map((s) => s.net) },
+        ...(hasCls ? [{ name: 'Sınıf ortalaması', values: subjects.map((s) => s.clsAvgNet ?? 0) }] : []),
+        { name: 'Kurum ortalaması', values: subjects.map((s) => s.kurumAvgNet ?? 0) },
+      ],
+    },
+    { kind: 'heading', text: 'Cevap çizelgesi' },
+    {
+      kind: 'answers',
+      rows: subjects.map((s) => ({
+        title: `${s.subject.name} · D ${s.d} · Y ${s.y} · B ${s.b} · Net ${fmtNet(s.net)}`,
+        cells: s.answers.map((a) => ({ no: a.no, given: a.given, key: a.key, mark: a.mark })),
+      })),
+    },
+    { kind: 'heading', text: 'Konu ve kazanım analizi' },
+    {
+      kind: 'text',
+      tone: 'muted',
+      text: 'Çubuk öğrencinin başarısını, dikey çizgi kurumun başarısını gösterir. Yeşil %70+ başarılı · Mavi %50-69 tekrar · Turuncu %30-49 etüt · Kırmızı %30 altı kritik.',
+    },
+  ];
+  for (const s of subjects) {
+    const list = topics.filter((t) => t.subject.key === s.subject.key);
+    if (!list.length) continue;
+    blocks.push({
+      kind: 'rates',
+      title: `${s.subject.name} (%${s.rate})`,
+      items: list.map((t) => ({
+        label: t.konu,
+        sub: t.alt ? `${t.alt} · Sorular: ${t.questions.join(', ')}` : `Sorular: ${t.questions.join(', ')}`,
+        rate: t.rate,
+        marker: t.kurumRate,
+        tone: levelTone(t.rate),
+        right: `D${t.d} Y${t.y} B${t.b}`,
+      })),
+    });
+  }
+  const weak = topics.filter((t) => t.rate < 50 && t.konu !== 'Konusu belirtilmemiş').sort((a, b) => a.rate - b.rate);
+  if (weak.length) {
+    blocks.push({ kind: 'heading', text: 'Öncelikle çalışılması gereken konular' });
+    blocks.push({
+      kind: 'table',
+      head: ['Ders', 'Konu', 'Başarı', 'Öneri'],
+      rows: weak.slice(0, 15).map((w) => [w.subject.short, w.konu, `%${w.rate}`, LEVEL_INFO[levelOf(w.rate)].advice]),
+      rowTones: weak.slice(0, 15).map((w) => levelTone(w.rate)),
+      widths: [16, 'auto', 15, 62],
+      align: ['left', 'left', 'center', 'left'],
+      fontSize: 7.4,
+    });
+  }
+  return blocks;
+}
+
 // ----------------------------------------------------------------------------- Öğrenci karnesi
 export interface StudentKarneInput {
   studentName: string;
@@ -85,6 +217,8 @@ export interface StudentKarneInput {
   results: DenemeResult[]; // öğrencinin sonuçları
   target: number | null;
   scopeLabel: string; // "Son 5 deneme" gibi
+  /** Aşama 50: ayrıntılı karnesi PDF'in başına konacak deneme (boşsa en son deneme; 'none' ise konmaz) */
+  detailExamId?: string;
 }
 
 export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
@@ -96,8 +230,13 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
   const valid = scores.filter((s): s is number => s !== null);
   const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
   const gap = targetGap(last?.score ?? null, inp.target);
+  const detailExam = inp.detailExamId === 'none' ? undefined : exams.find((e) => e.id === inp.detailExamId) || exams[exams.length - 1];
+  const detailResult = detailExam ? rByExam.get(detailExam.id) : undefined;
+  const head: PdfBlock[] =
+    detailExam && detailResult ? [...examKarneBlocks(examKarneData(detailExam, detailResult), inp.studentName, inp.className), { kind: 'pagebreak' }] : [];
   const blocks: PdfBlock[] = [
-    { kind: 'title', text: 'Deneme Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''}` },
+    ...head,
+    { kind: 'title', text: head.length ? 'Deneme Gelişimi' : 'Deneme Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''}` },
     {
       kind: 'kv',
       rows: [

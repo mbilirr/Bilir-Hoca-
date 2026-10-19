@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, KeyRound, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Download, Eye, EyeOff, KeyRound, Trash2, Upload } from 'lucide-react';
+import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { LGS_SCORING, fmtNet, fmtScore, markOf, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, type ExamQuestions } from '../../lib/deneme/lgs';
@@ -113,6 +114,83 @@ export const DenemeSonuclar: React.FC<{
     }
   };
 
+  // ----------------------------------------------------------------------------- Aşama 50: sonuç listesi PDF
+  // toplu: tüm öğrenciler tek liste (kurum sırası) · siniflar: her sınıf ayrı sayfada (sınıf sırası) · sinif: yalnızca seçili sınıf
+  const resultsPdf = async (mode: 'toplu' | 'siniflar' | 'sinif') => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const head = ['Sıra', 'Öğrenci', 'Sınıf', 'Kit.', ...subs.map((s) => `${s.short} D/Y/N`), 'Top. net', 'Puan', mode === 'toplu' ? 'Sınıf sırası' : 'Kurum sırası'];
+      const align = ['center', 'left', 'left', 'center', ...subs.map(() => 'center' as const), 'center', 'center', 'center'] as Array<'left' | 'center' | 'right'>;
+      const rowOf = (r: DenemeResult, rank: number | undefined) => [
+        rank ?? '-',
+        r.studentName,
+        r.className || '-',
+        r.booklet || '-',
+        ...subs.map((s) => {
+          const x = r.stats.subjects?.[s.key];
+          return x ? `${x.d}/${x.y}/${fmtNet(x.net)}` : '-';
+        }),
+        fmtNet(r.totalNet),
+        fmtScore(r.score),
+        mode === 'toplu' ? (r.stats.rank ? `${r.stats.rank.cls}/${r.stats.rank.clsCount}` : '-') : r.stats.rank ? `${r.stats.rank.overall}/${r.stats.rank.overallCount}` : '-',
+      ];
+      const sorted = results.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.totalNet ?? 0) - (a.totalNet ?? 0));
+      const info = [exam.publisher, dateTr(exam.examDate), `${exam.grade}. sınıf ${exam.examType}`].filter(Boolean).join(' · ');
+      const classBlock = (id: string, name: string, list: DenemeResult[]): PdfBlock[] => {
+        const c = (sum.classes || {})[id];
+        return [
+          { kind: 'title', text: `${exam.name} — ${name}`, sub: info },
+          {
+            kind: 'kv',
+            rows: [
+              ['Öğrenci', String(list.length)],
+              ['Ortalama puan', fmtScore(c?.avgScore)],
+              ['Ortalama net', fmtNet(c?.avgTotalNet)],
+              ['En yüksek puan', fmtScore(Math.max(0, ...list.map((r) => r.score ?? 0)))],
+              ...subs.map((s) => [`${s.short} ort. net`, fmtNet(c?.avgNet?.[s.key])] as [string, string]),
+            ],
+          },
+          { kind: 'table', head, rows: list.map((r) => rowOf(r, r.stats.rank?.cls)), align, fontSize: 7.4 },
+        ];
+      };
+      let blocks: PdfBlock[] = [];
+      let file = `Sonuc-Listesi-${exam.name}`;
+      if (mode === 'toplu') {
+        blocks = [
+          { kind: 'title', text: `${exam.name} — Sonuç listesi`, sub: info },
+          {
+            kind: 'kv',
+            rows: [
+              ['Öğrenci', String(results.length)],
+              ['Ortalama puan', fmtScore(sum.avgScore)],
+              ['Ortalama net', fmtNet(sum.avgTotalNet)],
+              ['En yüksek puan', fmtScore(sum.maxScore)],
+            ],
+          },
+          { kind: 'table', head, rows: sorted.map((r) => rowOf(r, r.stats.rank?.overall)), align, fontSize: 7.2 },
+        ];
+      } else if (mode === 'siniflar') {
+        classes.forEach(([id, name], i) => {
+          const list = sorted.filter((r) => (r.classId || '-') === id);
+          if (!list.length) return;
+          if (i > 0 && blocks.length) blocks.push({ kind: 'pagebreak' });
+          blocks.push(...classBlock(id, name, list));
+        });
+        file = `Sonuc-Listesi-Sinif-Sinif-${exam.name}`;
+      } else {
+        const name = classes.find(([id]) => id === classFilter)?.[1] || 'Sınıf';
+        blocks = classBlock(classFilter, name, sorted.filter((r) => (r.classId || '-') === classFilter));
+        file = `Sonuc-Listesi-${name}-${exam.name}`;
+      }
+      await downloadKarnePdf(blocks, `${exam.name} sonuç listesi`, file, 'landscape');
+    } catch (e: any) {
+      setNotice(e?.message || 'PDF hazırlanamadı.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const doDelete = async () => {
     setBusy(true);
     try {
@@ -211,6 +289,22 @@ export const DenemeSonuclar: React.FC<{
               </option>
             ))}
           </select>
+        )}
+        {view === 'list' && results.length > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-1.5" id="deneme-sonuc-pdf">
+            <span className="text-[11px] text-muted">PDF:</span>
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void resultsPdf('toplu')} title="Bütün öğrenciler tek listede, kurum sırasıyla">
+              <Download /> Toplu liste
+            </button>
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || classes.length < 1} onClick={() => void resultsPdf('siniflar')} title="Her sınıf ayrı sayfada, sınıf sırasıyla">
+              <Download /> Sınıf sınıf
+            </button>
+            {classFilter && (
+              <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void resultsPdf('sinif')}>
+                <Download /> {classes.find(([id]) => id === classFilter)?.[1] || 'Bu sınıf'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

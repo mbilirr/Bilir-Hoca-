@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
-import { readKeyExcel, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
+import { hasSourceKazanim, readKeyExcel, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
@@ -41,6 +41,9 @@ export const AnahtarEditor: React.FC<{
   const [aiOpen, setAiOpen] = useState(false);
   const [bank, setBank] = useState<BankRow[] | null>(null);
   const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
+  // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
+  const [lastExcel, setLastExcel] = useState<ExcelKeyResult | null>(null);
+  const [offer, setOffer] = useState<{ kind: 'kazanim' | 'all'; subjects: string[] } | null>(null);
 
   // Kazanım bankası ve yapay zekâ durumu (bir kez)
   useEffect(() => {
@@ -87,56 +90,141 @@ export const AnahtarEditor: React.FC<{
     setMsg({ tone: d.tone === 'success' && !r.notes.length ? 'success' : 'warning', text: `${prefix}${d.text}${r.notes.length ? ' ' + r.notes.join(' ') : ''}` });
   };
 
+  // ----------------------------------------------------------------------------- Aşama 50: Excel + yapay zekâ
+  // Önce yazılım okur. Biçim tanınmazsa yapay zekâ kendiliğinden devreye girer. Cevaplar okunup kazanımlar
+  // okunamadıysa (ya da okunanın yanlış olduğunu düşünüyorsanız) "Yapay zekâ ile oku" seçeneği sunulur.
+  // Yapay zekâya yalnızca cevap anahtarı dosyasının hücreleri gider; öğrenci bilgisi yoktur.
+  const aiReady = !!ai && (ai.keys.gemini || ai.keys.mistral);
+
+  /** Dosya metnini yapay zekâyla okur: { ders → sorular } */
+  const aiRead = async (rawText: string) => {
+    if (!ai) return { ok: false as const, error: 'Yapay zekâ ayarlı değil.' };
+    const res = await aiCall(
+      newAiState(ai.provider, true, ai.keys),
+      (p, avoid) => aiReadKey({ provider: p, text: rawText, subjects: subjects.map((s) => ({ key: s.key, name: s.name, count: s.count })), avoid }),
+      { stop: () => false, onWait: (w) => w && setBusyText(w) }
+    );
+    if (!res.ok) return { ok: false as const, error: res.error || 'hata' };
+    const out: ExamQuestions = {};
+    for (const d of (res.items || []) as Array<{ ders: string; sorular: Array<{ no: number; cevap: string; b: number; kazanim: string }> }>) {
+      if (!subjects.some((s) => s.key === d.ders)) continue;
+      out[d.ders] = d.sorular.map((x) => {
+        const q: ExamQuestion = { no: x.no, answer: x.cevap };
+        if (x.b) q.bNo = x.b;
+        if (x.kazanim) {
+          const kz = splitKazanim(x.kazanim, '', '');
+          if (kz.code) q.srcCode = kz.code;
+          if (kz.text) q.srcText = kz.text;
+        }
+        return q;
+      });
+    }
+    return { ok: true as const, questions: out };
+  };
+
+  const applyExcel = async (r: ExcelKeyResult, base: ExamQuestions) => {
+    const next: ExamQuestions = { ...base };
+    for (const k of r.found) next[k] = r.questions[k];
+    onExcelMeta?.(r);
+    const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.name);
+    const missing = subjects.filter((s) => !r.found.includes(s.key)).map((s) => s.name);
+    const prefix =
+      `${r.method === 'yz' ? 'Yapay zekâ ile okundu' : "Excel'den okundu"}: ${names.join(', ')}.` +
+      (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
+      (r.warnings.length ? ' ' + r.warnings.join(' ') : '') +
+      ' ';
+    await runMatch(next, true, prefix);
+    // Cevaplar var ama kazanım okunamadıysa: yapay zekâ seçeneği
+    const noKaz = r.found.filter((k) => !hasSourceKazanim(r.questions[k]));
+    if (r.method !== 'yz' && noKaz.length && (r.textCells || 0) >= 8) {
+      setOffer({ kind: 'kazanim', subjects: noKaz });
+    } else if (r.method !== 'yz') setOffer({ kind: 'all', subjects: [] });
+    else setOffer(null);
+  };
+
   const onExcel = async (file?: File | null) => {
     if (!file) return;
     setBusy(true);
     setMsg(null);
+    setOffer(null);
     try {
       const r = await readKeyExcel(file, subjects);
-      // Biçim tanınmadıysa: dosyanın hücre metni yapay zekâyla okunur (öğrenci bilgisi yoktur)
-      if (!r.found.length && r.rawText && ai && (ai.keys.gemini || ai.keys.mistral)) {
+      setLastExcel(r);
+      // Biçim tanınmadıysa: dosyanın hücre metni yapay zekâyla okunur
+      if (!r.found.length && r.rawText && aiReady) {
         setBusyText('Dosya biçimi tanınmadı; cevap anahtarı yapay zekâ ile okunuyor…');
-        const res = await aiCall(
-          newAiState(ai.provider, true, ai.keys),
-          (p, avoid) => aiReadKey({ provider: p, text: r.rawText || '', subjects: subjects.map((s) => ({ key: s.key, name: s.name, count: s.count })), avoid }),
-          { stop: () => false, onWait: (w) => w && setBusyText(w) }
-        );
+        const res = await aiRead(r.rawText);
         if (res.ok) {
-          for (const d of (res.items || []) as Array<{ ders: string; sorular: Array<{ no: number; cevap: string; b: number; kazanim: string }> }>) {
-            if (!subjects.some((s) => s.key === d.ders)) continue;
-            r.questions[d.ders] = d.sorular.map((x) => {
-              const q: ExamQuestion = { no: x.no, answer: x.cevap };
-              if (x.b) q.bNo = x.b;
-              if (x.kazanim) q.srcText = x.kazanim.slice(0, 600);
-              return q;
-            });
-          }
-          r.found = Object.keys(r.questions).filter((k) => r.questions[k].length);
+          r.questions = res.questions;
+          r.found = Object.keys(res.questions).filter((k) => res.questions[k].length);
           r.method = 'yz';
           r.warnings = r.found.length
             ? ['Dosyanın biçimi tanınmadığı için cevap anahtarı yapay zekâ ile okundu. Lütfen cevapları dosyayla karşılaştırıp kontrol edin.']
             : ['Yapay zekâ da dosyada cevap anahtarı bulamadı.'];
         } else {
-          r.warnings.push(`Yapay zekâ ile okunamadı: ${res.error || 'hata'}`);
+          r.warnings.push(`Yapay zekâ ile okunamadı: ${res.error}`);
         }
       }
       if (!r.found.length) {
-        setMsg({ tone: 'danger', text: `${r.warnings.join(' ')} Cevapları elle yazabilirsiniz.` });
+        // Aşama 50: yapay zekâ denenip olmadıysa (ör. kota) tekrar denemek için seçenek kalır
+        if (r.rawText && aiReady) setOffer({ kind: 'all', subjects: [] });
+        setMsg({
+          tone: 'danger',
+          text: `${r.warnings.join(' ')} ${aiReady ? '' : 'Yapay zekâ ayarlı olmadığı için dosya yapay zekâyla da okunamadı. '}Cevapları elle yazabilirsiniz.`,
+        });
         return;
       }
-      const next: ExamQuestions = { ...questions };
-      for (const k of r.found) next[k] = r.questions[k];
-      onExcelMeta?.(r);
-      const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.name);
-      const missing = subjects.filter((s) => !r.found.includes(s.key)).map((s) => s.name);
-      const prefix =
-        `Excel'den okundu: ${names.join(', ')}.` +
-        (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
-        (r.warnings.length ? ' ' + r.warnings.join(' ') : '') +
-        ' ';
-      await runMatch(next, true, prefix);
+      await applyExcel(r, questions);
     } catch {
       setMsg({ tone: 'danger', text: 'Excel dosyası okunamadı. Dosyanın bozuk olmadığından emin olun.' });
+    } finally {
+      setBusy(false);
+      setBusyText('');
+    }
+  };
+
+  /** Kullanıcının seçimiyle: yapay zekâ ile baştan okuma ya da yalnızca kazanımları tamamlama */
+  const onAiChoice = async (kind: 'all' | 'kazanim') => {
+    if (!lastExcel?.rawText || !aiReady) return;
+    setBusy(true);
+    setMsg(null);
+    setOffer(null);
+    try {
+      setBusyText(kind === 'all' ? 'Cevap anahtarı yapay zekâ ile okunuyor…' : 'Kazanımlar yapay zekâ ile okunuyor…');
+      const res = await aiRead(lastExcel.rawText);
+      if (!res.ok) {
+        setMsg({ tone: 'danger', text: `Yapay zekâ ile okunamadı: ${res.error}` });
+        return;
+      }
+      if (kind === 'all') {
+        const found = Object.keys(res.questions).filter((k) => res.questions[k].length);
+        if (!found.length) {
+          setMsg({ tone: 'warning', text: 'Yapay zekâ dosyada cevap anahtarı bulamadı; Excel okuması olduğu gibi kaldı.' });
+          return;
+        }
+        await applyExcel(
+          { ...lastExcel, questions: res.questions, found, method: 'yz', warnings: ['Cevap anahtarı yapay zekâ ile okundu. Lütfen cevapları dosyayla karşılaştırıp kontrol edin.'] },
+          questions
+        );
+        return;
+      }
+      // Yalnızca kazanımlar: cevaplara dokunulmaz; soru numarasıyla eşleşen sorulara kazanım bilgisi yazılır
+      let n = 0;
+      const next: ExamQuestions = { ...questions };
+      for (const k of Object.keys(res.questions)) {
+        const byNo = new Map(res.questions[k].map((q) => [q.no, q]));
+        next[k] = (questions[k] || []).map((q) => {
+          const a = byNo.get(q.no);
+          if (!a || (!a.srcCode && !a.srcText) || q.srcCode || q.srcText) return q;
+          n++;
+          return { ...q, srcCode: a.srcCode, srcText: a.srcText };
+        });
+      }
+      if (!n) {
+        setMsg({ tone: 'warning', text: 'Yapay zekâ dosyada sorulara ait kazanım bulamadı.' });
+        return;
+      }
+      await runMatch(next, true, `${n} sorunun kazanımı yapay zekâ ile okundu. `);
     } finally {
       setBusy(false);
       setBusyText('');
@@ -211,6 +299,34 @@ export const AnahtarEditor: React.FC<{
         >
           {msg.text}
         </p>
+      )}
+      {offer && lastExcel?.rawText && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand/25 bg-brand-soft/50 px-3 py-2 text-xs" id="deneme-key-ai-offer">
+          <Sparkles className="w-4 h-4 text-brand-fg shrink-0" />
+          {offer.kind === 'kazanim' ? (
+            <span className="text-fg-2">
+              Cevaplar okundu ama <b>{subjects.filter((s) => offer.subjects.includes(s.key)).map((s) => s.short).join(', ')}</b> için dosyadaki kazanımlar okunamadı.
+              {aiReady ? ' Yapay zekâ ile okumayı deneyebilirsiniz.' : ' Yapay zekâ ayarlı değil.'}
+            </span>
+          ) : (
+            <span className="text-fg-2">Excel okuması yanlış görünüyorsa dosyayı yapay zekâ ile baştan okutabilirsiniz.</span>
+          )}
+          {aiReady && (
+            <span className="ml-auto flex flex-wrap gap-1.5">
+              {offer.kind === 'kazanim' && (
+                <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void onAiChoice('kazanim')}>
+                  <Sparkles /> Kazanımları yapay zekâ ile oku
+                </button>
+              )}
+              <button type="button" className={cx('ui-btn ui-btn-sm', offer.kind === 'all' ? 'ui-btn-secondary' : 'ui-btn-ghost')} disabled={busy} onClick={() => void onAiChoice('all')}>
+                <Sparkles /> Yapay zekâ ile baştan oku
+              </button>
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setOffer(null)}>
+                Kapat
+              </button>
+            </span>
+          )}
+        </div>
       )}
 
       <div className="space-y-2">
