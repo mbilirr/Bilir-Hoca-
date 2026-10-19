@@ -23,6 +23,15 @@ export type PdfBlock =
       fontSize?: number;
       /** Aşama 53: satır rengiyle yazılacak sütun (verilmezse son sütun) */
       toneColumn?: number;
+      /** Aşama 54: hücre hücre renk (ısı tablosu, şık dağılımı). Satır rengini o hücrede ezer. */
+      cellTones?: Array<Array<PdfTone | null | undefined>>;
+    }
+  // Aşama 54: yığılmış durum çubuğu (ör. ders ders kazanıldı / gelişiyor / eksik / sorulmadı)
+  | {
+      kind: 'stack';
+      title?: string;
+      items: Array<{ label: string; sub?: string; parts: Array<{ value: number; tone: PdfTone }>; right?: string }>;
+      legend?: Array<{ label: string; tone: PdfTone }>;
     }
   | { kind: 'line'; title: string; labels: string[]; series: Array<{ name: string; values: Array<number | null> }>; yMin?: number; yMax?: number }
   | { kind: 'bar'; title: string; labels: string[]; series: Array<{ name: string; values: number[] }> }
@@ -341,6 +350,98 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       y += 3;
       continue;
     }
+    // ------------------------------------------------------------------- Aşama 54: yığılmış durum çubukları
+    if (b.kind === 'stack') {
+      const STACK_FILL: Record<PdfTone, [number, number, number]> = {
+        success: [16, 150, 105],
+        info: [37, 99, 235],
+        warning: [217, 119, 6],
+        danger: [220, 38, 38],
+        muted: [203, 213, 225],
+      };
+      if (b.title) {
+        ensure(12);
+        doc.setFont(F, 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(30, 27, 75);
+        doc.text(t(b.title), M, y + 3.5);
+        y += 5.5;
+      }
+      const labelW = 52;
+      const barX = M + labelW + 3;
+      const rightW = 46;
+      const barW = W - M - barX - rightW - 2;
+      for (const it of b.items) {
+        doc.setFont(F, 'bold');
+        doc.setFontSize(7.8);
+        const lines = (doc.splitTextToSize(t(it.label), labelW) as string[]).slice(0, 2);
+        doc.setFont(F, 'normal');
+        doc.setFontSize(6.3);
+        const subLines = it.sub ? (doc.splitTextToSize(t(it.sub), labelW) as string[]).slice(0, 2) : [];
+        const rh = Math.max(8, lines.length * 3.4 + subLines.length * 2.9 + 2);
+        ensure(rh + 1);
+        doc.setFont(F, 'bold');
+        doc.setFontSize(7.8);
+        doc.setTextColor(30, 41, 59);
+        doc.text(lines, M, y + 3.2);
+        if (subLines.length) {
+          doc.setFont(F, 'normal');
+          doc.setFontSize(6.3);
+          doc.setTextColor(100, 116, 139);
+          doc.text(subLines, M, y + 3.2 + lines.length * 3.4);
+        }
+        const total = it.parts.reduce((a, p) => a + Math.max(0, p.value), 0);
+        const by = y + rh / 2 - 2;
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(barX, by, barW, 4, 1.2, 1.2, 'F');
+        if (total > 0) {
+          let x = barX;
+          for (const p of it.parts) {
+            if (p.value <= 0) continue;
+            const w = (barW * p.value) / total;
+            const c = STACK_FILL[p.tone];
+            doc.setFillColor(c[0], c[1], c[2]);
+            doc.rect(x, by, w, 4, 'F');
+            if (w >= 6) {
+              doc.setFont(F, 'bold');
+              doc.setFontSize(6.2);
+              if (p.tone === 'muted') doc.setTextColor(71, 85, 105);
+              else doc.setTextColor(255, 255, 255);
+              doc.text(String(p.value), x + w / 2, by + 2.9, { align: 'center' });
+            }
+            x += w;
+          }
+        }
+        if (it.right) {
+          doc.setFont(F, 'bold');
+          doc.setFontSize(7.2);
+          doc.setTextColor(30, 41, 59);
+          doc.text(doc.splitTextToSize(t(it.right), rightW) as string[], W - M - rightW, by + 2.9);
+        }
+        doc.setDrawColor(241, 245, 249);
+        doc.setLineWidth(0.15);
+        doc.line(M, y + rh, W - M, y + rh);
+        y += rh + 0.8;
+      }
+      if (b.legend?.length) {
+        ensure(6);
+        let x = M;
+        doc.setFont(F, 'normal');
+        doc.setFontSize(7);
+        for (const l of b.legend) {
+          const c = STACK_FILL[l.tone];
+          doc.setFillColor(c[0], c[1], c[2]);
+          doc.rect(x, y + 1.2, 3, 2.4, 'F');
+          doc.setTextColor(55, 65, 81);
+          const label = t(l.label);
+          doc.text(label, x + 4, y + 3.4);
+          x += 9 + doc.getTextWidth(label);
+        }
+        y += 6;
+      }
+      y += 3;
+      continue;
+    }
     if (b.kind === 'title') {
       // Aşama 53: uzun başlık / alt başlık sayfa dışına taşmaz, alt satıra geçer
       doc.setFont(F, 'bold');
@@ -494,14 +595,21 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
         rowPageBreak: 'avoid',
         columnStyles,
         didParseCell: (data: any) => {
-          if (data.section !== 'body' || !b.rowTones) return;
-          const tone = b.rowTones[data.row.index];
+          if (data.section !== 'body') return;
+          const tone = b.rowTones?.[data.row.index];
           if (tone) {
             data.cell.styles.fillColor = TONE_FILL[tone];
             if (data.column.index === (b.toneColumn ?? b.head.length - 1)) {
               data.cell.styles.textColor = TONE_TEXT[tone];
               data.cell.styles.fontStyle = 'bold';
             }
+          }
+          // Aşama 54: hücre rengi
+          const ct = b.cellTones?.[data.row.index]?.[data.column.index];
+          if (ct) {
+            data.cell.styles.fillColor = TONE_FILL[ct];
+            data.cell.styles.textColor = TONE_TEXT[ct];
+            data.cell.styles.fontStyle = 'bold';
           }
         },
       });

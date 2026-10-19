@@ -3,10 +3,10 @@ import { ArrowLeft, Download, Eye, EyeOff, KeyRound, Trash2, Upload } from 'luci
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { LGS_SCORING, fmtNet, fmtScore, markOf, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, type ExamQuestions } from '../../lib/deneme/lgs';
+import { LGS_SCORING, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, recomputeFromAnswers, type ExamQuestions } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
-import { topicLabels } from '../../lib/deneme/analiz';
 import { AnahtarEditor } from './AnahtarEditor';
+import { MaddeAnalizi } from './MaddeAnalizi';
 import { useHistoryState } from '../../lib/useHistoryState';
 
 // ============================================================================
@@ -278,10 +278,10 @@ export const DenemeSonuclar: React.FC<{
           onChange={setView}
           items={[
             { value: 'list', label: 'Sonuç listesi' },
-            { value: 'questions', label: 'Soru analizi' },
+            { value: 'questions', label: 'Soru ve çeldirici analizi' },
           ]}
         />
-        {view === 'list' && (
+        {results.length > 0 && (
           <select className="ui-input w-auto py-1 text-xs" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} aria-label="Sınıf">
             <option value="">Tüm sınıflar</option>
             {classes.map(([id, name]) => (
@@ -379,73 +379,8 @@ export const DenemeSonuclar: React.FC<{
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {subs.map((s) => {
-            const qs = exam.questions[s.key] || [];
-            return (
-              <div key={s.key} className="rounded-2xl border border-line bg-surface">
-                <p className="px-3 py-2 border-b border-line text-sm font-semibold text-fg">{s.name}</p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-fg-2">
-                    <thead className="bg-surface-2/60 uppercase tracking-wider text-muted border-b border-line">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold w-12">Soru</th>
-                        <th className="px-2 py-2 font-semibold w-14 text-center">Cevap</th>
-                        <th className="px-2 py-2 font-semibold w-44">Doğru oranı</th>
-                        <th className="px-2 py-2 font-semibold text-center w-24">D / Y / B</th>
-                        <th className="px-3 py-2 font-semibold">Konu / kazanım</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line">
-                      {qs.map((q, i) => {
-                        let d = 0;
-                        let y = 0;
-                        let b = 0;
-                        for (const r of results) {
-                          const m = markOf((r.answers[s.key] || '')[i], q);
-                          if (m === 'D') d++;
-                          else if (m === 'Y') y++;
-                          else b++;
-                        }
-                        const n = d + y + b;
-                        const rate = n ? Math.round((d / n) * 100) : 0;
-                        return (
-                          <tr key={q.no}>
-                            <td className="px-3 py-1.5 font-bold text-fg tabular-nums">{q.no}</td>
-                            <td className="px-2 py-1.5 text-center font-semibold">{q.answer === 'X' ? 'İptal' : q.answer}</td>
-                            <td className="px-2 py-1.5">
-                              <div className="flex items-center gap-2">
-                                <div className="h-2 flex-1 rounded-full bg-surface-2 overflow-hidden">
-                                  <div className={cx('h-full rounded-full', rate >= 70 ? 'bg-success' : rate >= 50 ? 'bg-info' : rate >= 30 ? 'bg-warning' : 'bg-danger')} style={{ width: `${rate}%` }} />
-                                </div>
-                                <span className="tabular-nums w-9 text-right">%{rate}</span>
-                              </div>
-                            </td>
-                            <td className="px-2 py-1.5 text-center tabular-nums">
-                              {d} / {y} / {b}
-                            </td>
-                            <td className="px-3 py-1.5">
-                              {(() => {
-                                // Aşama 48g: karneyle aynı konu / alt kazanım ayrımı
-                                const t = topicLabels(q);
-                                return (
-                                  <>
-                                    <span className="text-fg">{q.konu || q.kazanim ? t.konu : '—'}</span>
-                                    {t.alt && <span className="block text-[11px] text-muted">{t.alt}</span>}
-                                  </>
-                                );
-                              })()}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        // Aşama 54: soru (madde) analizi + çeldirici analizi; sınıf seçilince kurumla karşılaştırma
+        <MaddeAnalizi exam={exam} results={results} classId={classFilter} className={classes.find(([id]) => id === classFilter)?.[1] || 'Sınıf'} />
       )}
 
       <Modal

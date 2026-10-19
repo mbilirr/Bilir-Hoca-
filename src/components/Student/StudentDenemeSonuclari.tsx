@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Download } from 'lucide-react';
 import { EmptyState, PageHeader, Segmented } from '../ui/kit';
 import type { Student } from '../../types';
-import { getTarget, isSetupError, loadMyDenemeler, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { SCOPES, pickScope, scopeLabel, studentKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
+import { getTarget, isSetupError, listKazanimlar, loadMyDenemeler, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { SCOPES, kazanimKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, studyPlanKarneBlocks, type ScopeKey } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf } from '../../lib/deneme/karnePdf';
 import { StudentKarneView } from '../Deneme/KarneViews';
+import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from '../Deneme/KarneIleri';
 
 // ============================================================================
 // Öğrenci: Deneme Sonuçlarım (Aşama 47)
@@ -24,6 +25,20 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi görülen deneme
+  const [tur, setTur] = useState<KarneTur>('genel'); // Aşama 54: birleştirilmiş / kazanım takip / çalışma planı
+  const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined);
+
+  // Aşama 54: "Henüz sorulmadı" için kazanım bankası (okunamazsa yalnızca sorulan kazanımlar gösterilir)
+  useEffect(() => {
+    if (tur !== 'kazanim' || bank !== undefined) return;
+    let alive = true;
+    listKazanimlar()
+      .then((b) => alive && setBank(b))
+      .catch(() => alive && setBank(null));
+    return () => {
+      alive = false;
+    };
+  }, [tur, bank]);
 
   useEffect(() => {
     let alive = true;
@@ -57,8 +72,10 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
     if (busy) return;
     setBusy(true);
     try {
-      const blocks = studentKarneBlocks({ studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, target, scopeLabel: scopeLabel(scope), detailExamId });
-      await downloadKarnePdf(blocks, `${currentStudent.name} deneme karnesi`, `Deneme-Karnem-${currentStudent.name}`);
+      const base = { studentName: currentStudent.name, className: currentStudent.className || '', exams: scoped, results, scopeLabel: scopeLabel(scope) };
+      if (tur === 'kazanim') await downloadKarnePdf(kazanimKarneBlocks({ ...base, bank }), `${currentStudent.name} kazanım takip karnesi`, `Kazanim-Takip-Karnem-${currentStudent.name}`);
+      else if (tur === 'plan') await downloadKarnePdf(studyPlanKarneBlocks(base), `${currentStudent.name} çalışma planı karnesi`, `Calisma-Plani-Karnem-${currentStudent.name}`);
+      else await downloadKarnePdf(studentKarneBlocks({ ...base, target, detailExamId }), `${currentStudent.name} deneme karnesi`, `Deneme-Karnem-${currentStudent.name}`);
     } finally {
       setBusy(false);
     }
@@ -90,6 +107,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
+            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI} />
             <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
           </div>
           {scope === 'custom' && (
@@ -117,6 +135,11 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
               })}
             </div>
           )}
+          {tur === 'kazanim' ? (
+            <KazanimTakipView exams={scoped} results={results} bank={bank} bankLoading={bank === undefined} />
+          ) : tur === 'plan' ? (
+            <CalismaPlaniView exams={scoped} results={results} />
+          ) : (
           <StudentKarneView
             exams={scoped}
             results={results}
@@ -126,6 +149,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
             detailExamId={detailExamId}
             onDetailExamChange={setDetailExamId}
           />
+          )}
         </>
       )}
     </div>

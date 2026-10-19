@@ -24,6 +24,7 @@ import { fmtNet, fmtScore, round2 } from '../../lib/deneme/lgs';
 import { dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
 import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from '../../lib/deneme/lgsYuzdelik';
+import { AveragesPanel, HeatTablePanel } from './KarneIleri';
 
 // ============================================================================
 // Karne görünümleri (Aşama 47): öğrenci, sınıf ve sınıflar arası.
@@ -672,6 +673,9 @@ export const StudentKarneView: React.FC<{
         </div>
       </Panel>
 
+      {/* Aşama 54: seçilen denemelerin ortalaması */}
+      <AveragesPanel exams={exams} results={results} />
+
       <div className="grid gap-3 lg:grid-cols-2">
         <ChartBox title="Puan gelişimi">
           <LineChart data={chartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
@@ -698,6 +702,9 @@ export const StudentKarneView: React.FC<{
           </LineChart>
         </ChartBox>
       </div>
+
+      {/* Aşama 54: konu ısı tablosu (satır kazanım, sütun deneme) */}
+      <HeatTablePanel exams={exams} results={results} />
 
       <Panel title="Konu ve kazanım analizi" description="Seçilen denemelerdeki bütün sorular üzerinden">
         <TopicAnalysisView analysis={analysis} />

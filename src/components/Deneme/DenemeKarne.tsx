@@ -1,10 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { Download, Mail, MessageCircle, Save } from 'lucide-react';
+import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
+import { PlanaAktarModal } from './PlanaAktarModal';
+import type { StudySuggestion } from '../../lib/deneme/kazanimKarne';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
-import { byUploadOrder, getExamsFull, getTarget, listResultsFor, setTarget, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { SCOPES, classKarneBlocks, compareKarneBlocks, pickScope, scopeLabel, studentKarneBlocks, dateTr, type ScopeKey } from '../../lib/deneme/karneModel';
+import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import {
+  SCOPES,
+  classKarneBlocks,
+  compareKarneBlocks,
+  kazanimKarneBlocks,
+  pickScope,
+  scopeLabel,
+  studentKarneBlocks,
+  studyPlanKarneBlocks,
+  dateTr,
+  type ScopeKey,
+} from '../../lib/deneme/karneModel';
 import { downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { fmtScore } from '../../lib/deneme/lgs';
@@ -16,6 +30,7 @@ import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 // ============================================================================
 
 type Mode = 'ogrenci' | 'sinif' | 'karsilastirma';
+const TUR_TITLE: Record<KarneTur, string> = { genel: 'Deneme karnen', kazanim: 'Kazanım takip karnen', plan: 'Çalışma planı karnen' };
 
 /** Karne PDF'ini paylaşır: telefonda doğrudan WhatsApp'a dosya olarak; olmazsa PDF iner ve WhatsApp mesajı açılır */
 export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fileName: string, message: string, phone?: string) {
@@ -305,6 +320,22 @@ export const DenemeKarne: React.FC<{
   const [targetInput, setTargetInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi gösterilen deneme
+  const [tur, setTur] = useHistoryState<KarneTur>('deneme.karne.tur', 'genel'); // Aşama 54
+  const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined); // undefined: okunmadı · null: okunamadı
+  const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
+  const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
+
+  // Aşama 54: kazanım takip karnesinde "Henüz sorulmadı" için kazanım bankası (bir kez okunur)
+  useEffect(() => {
+    if (mode !== 'ogrenci' || tur !== 'kazanim' || bank !== undefined) return;
+    let alive = true;
+    listKazanimlar()
+      .then((b) => alive && setBank(b))
+      .catch(() => alive && setBank(null));
+    return () => {
+      alive = false;
+    };
+  }, [mode, tur, bank]);
 
   const asc = useMemo(() => exams.slice().sort(byUploadOrder), [exams]); // Aşama 51: yükleniş sırası
   const scoped = useMemo(() => pickScope(asc, scope, (e) => picked.has(e.id)), [asc, scope, picked]);
@@ -357,6 +388,20 @@ export const DenemeKarne: React.FC<{
 
   const blocks = (): { blocks: PdfBlock[]; footer: string; file: string } | null => {
     const label = scopeLabel(scope);
+    if (mode === 'ogrenci' && student && tur === 'kazanim') {
+      return {
+        blocks: kazanimKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, scopeLabel: label, bank }),
+        footer: `${student.name} kazanım takip karnesi`,
+        file: `Kazanim-Takip-Karnesi-${student.name}`,
+      };
+    }
+    if (mode === 'ogrenci' && student && tur === 'plan') {
+      return {
+        blocks: studyPlanKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, scopeLabel: label, suggestions: planPicks ?? undefined }),
+        footer: `${student.name} çalışma planı karnesi`,
+        file: `Calisma-Plani-Karnesi-${student.name}`,
+      };
+    }
     if (mode === 'ogrenci' && student) {
       return {
         blocks: studentKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, target, scopeLabel: label, detailExamId }),
@@ -395,7 +440,7 @@ export const DenemeKarne: React.FC<{
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer);
-      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: `Deneme karnen (${scopeLabel(scope)})` });
+      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: `${TUR_TITLE[tur]} (${scopeLabel(scope)})` });
       const d = describeMailResult(r);
       setNotice({ tone: d.tone, text: d.text });
     });
@@ -408,7 +453,7 @@ export const DenemeKarne: React.FC<{
       const last = lastExam ? results.find((r) => r.examId === lastExam.id && (!student || r.studentId === student.id)) : undefined;
       const msg =
         mode === 'ogrenci' && student
-          ? `${student.name} deneme karnesi (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
+          ? `${student.name} ${tur === 'kazanim' ? 'kazanım takip karnesi' : tur === 'plan' ? 'çalışma planı karnesi' : 'deneme karnesi'} (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
           : `${b.footer} (${scopeLabel(scope)}).`;
       const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, mode === 'ogrenci' ? student?.phone : undefined);
       if (r === 'downloaded') setNotice({ tone: 'success', text: 'PDF indirildi ve WhatsApp açıldı; indirilen dosyayı mesaja ekleyebilirsiniz.' });
@@ -444,6 +489,12 @@ export const DenemeKarne: React.FC<{
           />
           <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
         </div>
+        {mode === 'ogrenci' && (
+          <div className="flex flex-wrap items-center gap-2" id="karne-tur">
+            <span className="text-xs font-semibold text-muted">Karne türü:</span>
+            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI} />
+          </div>
+        )}
         {scope === 'custom' && (
           <div className="flex flex-wrap gap-1.5" aria-label="Denemeler">
             {asc.map((e) => {
@@ -549,6 +600,10 @@ export const DenemeKarne: React.FC<{
         <p className="text-sm text-muted">Yükleniyor…</p>
       ) : !hasData ? (
         <p className="text-sm text-muted">Seçilen denemelerde sonuç bulunamadı.</p>
+      ) : mode === 'ogrenci' && tur === 'kazanim' ? (
+        <KazanimTakipView exams={fullExams} results={results} bank={bank} bankLoading={bank === undefined} />
+      ) : mode === 'ogrenci' && tur === 'plan' ? (
+        <CalismaPlaniView exams={fullExams} results={results} editable onChange={setPlanPicks} onTransfer={(list) => setTransfer(list)} />
       ) : mode === 'ogrenci' ? (
         <StudentKarneView
           exams={fullExams}
@@ -575,6 +630,15 @@ export const DenemeKarne: React.FC<{
         <ClassKarneView exams={fullExams} results={results} className={cls.name} />
       ) : (
         <CompareView exams={fullExams} results={results} />
+      )}
+      {student && transfer && (
+        <PlanaAktarModal
+          open
+          student={student}
+          suggestions={transfer}
+          onClose={() => setTransfer(null)}
+          onDone={(text) => setNotice({ tone: 'success', text })}
+        />
       )}
     </div>
   );

@@ -8,6 +8,24 @@ import { LGS_SUBJECTS, fmtNet, fmtScore, round2, type ExamSubject } from './lgs'
 import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile, type ExamKarneData } from './karneDetay';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
+import {
+  FOLLOW_INFO,
+  KAZ_STATUS_INFO,
+  KAZ_STATUS_ORDER,
+  discLabel,
+  fmtDisc,
+  kazanimTracking,
+  selectedAverages,
+  suggestionFollowUp,
+  studySuggestions,
+  topicHeat,
+  trackingTotals,
+  withEk,
+  type ItemSubject,
+  type KazSubject,
+  type StudySuggestion,
+} from './kazanimKarne';
+import type { BankRow } from '../../services/denemeService';
 
 export const dateTr = (d: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || '');
@@ -322,10 +340,397 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
       series: subs.map((s) => ({ name: s.short, values: exams.map((e) => rByExam.get(e.id)?.stats.subjects?.[s.key]?.net ?? null) })),
     });
   }
+  // Aşama 54: seçilen denemelerin ortalaması ve konu ısı tablosu
+  blocks.push(...averageBlocks(exams, inp.results, subs));
+  blocks.push(...heatBlocks(exams, inp.results, subs));
   const analysis = topicAnalysis(exams, inp.results, subs);
   blocks.push(...topicBlocks(analysis));
   blocks.push(...adviceBlocks(analysis));
   blocks.push({ kind: 'text', tone: 'muted', text: 'Puanlar yaklaşık LGS puanıdır (3 yanlış 1 doğruyu götürür; ağırlıklı net × 1,13 + 194,75).' });
+  return blocks;
+}
+
+// ============================================================================ Aşama 54: birleştirilmiş karne ekleri
+const signed = (v: number | null, f: (n: number) => string) => (v === null || Math.abs(v) < 0.005 ? '-' : `${v > 0 ? '+' : '-'}${f(Math.abs(v))}`);
+
+/** Seçilen denemelerin ortalaması (ders ders; sınıf ve kurum ortalamasıyla) */
+export function averageBlocks(exams: DenemeExam[], results: DenemeResult[], subs: ExamSubject[]): PdfBlock[] {
+  const a = selectedAverages(exams, results, subs);
+  if (!a || a.n < 2) return [];
+  const hasCls = a.rows.some((r) => r.clsNet !== null);
+  return [
+    { kind: 'heading', text: `Seçilen ${a.n} denemenin ortalaması`, sub: 'Her ders için denemelerdeki ortalama doğru, yanlış, boş ve net; en iyi ve en düşük net' },
+    {
+      kind: 'tiles',
+      items: [
+        { label: 'Ortalama puan', value: fmtScore(a.score), sub: a.clsScore !== null ? `Sınıf ort. ${fmtScore(a.clsScore)}` : undefined, tone: 'info' },
+        { label: 'Ortalama toplam net', value: fmtNet(a.totalNet) },
+        { label: 'Kurum ort. puan', value: fmtScore(a.kurumScore), sub: `Fark ${signed(a.score !== null && a.kurumScore !== null ? a.score - a.kurumScore : null, fmtScore)}` },
+        { label: 'En iyi deneme', value: fmtScore(a.best?.score), sub: a.best ? a.best.exam.name : undefined, tone: 'success' },
+        { label: 'İlk / son puan', value: `${fmtScore(a.first)} / ${fmtScore(a.last)}`, sub: `Değişim ${signed(a.first !== null && a.last !== null ? a.last - a.first : null, fmtScore)}` },
+      ],
+    },
+    {
+      kind: 'table',
+      head: ['Ders', 'Ort. D', 'Ort. Y', 'Ort. B', 'Ort. net', 'Başarı', ...(hasCls ? ['Sınıf ort.'] : []), 'Kurum ort.', 'Kuruma göre', 'En iyi', 'En düşük'],
+      rows: a.rows.map((r) => [
+        r.subject.name,
+        fmtNet(r.d),
+        fmtNet(r.y),
+        fmtNet(r.b),
+        fmtNet(r.net),
+        `%${r.rate}`,
+        ...(hasCls ? [fmtNet(r.clsNet)] : []),
+        fmtNet(r.kurumNet),
+        signed(r.kurumNet !== null ? r.net - r.kurumNet : null, fmtNet),
+        fmtNet(r.best),
+        fmtNet(r.worst),
+      ]),
+      cellTones: a.rows.map((r) => {
+        const row: Array<PdfTone | null> = [null, null, null, null, null, levelTone(r.rate)];
+        return row;
+      }),
+      align: ['left', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const] : []), 'center', 'center', 'center', 'center'],
+      fontSize: 7.6,
+    },
+  ];
+}
+
+const HEAT_MAX_EXAMS = 8;
+
+/** Konu ısı tablosu: satır kazanım, sütun deneme, hücre başarı rengi */
+export function heatBlocks(examsAll: DenemeExam[], results: DenemeResult[], subs: ExamSubject[]): PdfBlock[] {
+  const done = examsAll.filter((e) => results.some((r) => r.examId === e.id));
+  if (!done.length) return [];
+  const exams = done.slice(-HEAT_MAX_EXAMS);
+  const heat = topicHeat(kazanimTracking(exams, results, subs), exams);
+  if (!heat.length) return [];
+  const blocks: PdfBlock[] = [
+    { kind: 'pagebreak' },
+    {
+      kind: 'heading',
+      text: 'Konu ısı tablosu',
+      sub: 'Satırlar kazanımlar, sütunlar denemeler; hücre o denemedeki başarıdır. Yeşil %70+ · Mavi %50-69 · Turuncu %30-49 · Kırmızı %30 altı · "-" o denemede sorulmadı.',
+    },
+    { kind: 'text', tone: 'muted', text: `Sütunlar: ${exams.map((e, i) => `${i + 1}) ${e.name}`).join('  ')}${done.length > exams.length ? ` (son ${exams.length} deneme gösterilir)` : ''}` },
+  ];
+  for (const h of heat) {
+    blocks.push({ kind: 'heading', text: h.subject.name, minFollow: 24 });
+    const rows: Array<Array<string | number>> = [];
+    const tones: Array<Array<PdfTone | null>> = [];
+    for (const r of h.rows) {
+      rows.push([r.row.short, ...r.cells.map((c) => (c === null ? '-' : `%${c}`)), `%${r.row.rate}`]);
+      tones.push([null, ...r.cells.map((c) => (c === null ? null : levelTone(c))), levelTone(r.row.rate)]);
+    }
+    rows.push(['Ders geneli', ...h.examRates.map((c) => (c === null ? '-' : `%${c}`)), '']);
+    tones.push([null, ...h.examRates.map((c) => (c === null ? null : levelTone(c))), null]);
+    blocks.push({
+      kind: 'table',
+      head: ['Kazanım', ...exams.map((_, i) => String(i + 1)), 'Genel'],
+      rows,
+      cellTones: tones,
+      align: ['left', ...exams.map(() => 'center' as const), 'center'],
+      widths: ['auto', ...exams.map(() => 11), 13],
+      fontSize: 7,
+    });
+  }
+  return blocks;
+}
+
+// ============================================================================ Aşama 54: Kazanım Takip Karnesi
+const statusTone = (k: keyof typeof KAZ_STATUS_INFO): PdfTone => KAZ_STATUS_INFO[k].tone;
+const trendText = (t: 'up' | 'down' | 'flat' | null) => (t === 'up' ? 'Yükseliyor' : t === 'down' ? 'Düşüyor' : t === 'flat' ? 'Sabit' : '-');
+
+export interface KazanimKarneInput {
+  studentName: string;
+  className: string;
+  exams: DenemeExam[];
+  results: DenemeResult[];
+  scopeLabel: string;
+  bank?: BankRow[] | null;
+}
+
+export function kazanimKarneBlocks(inp: KazanimKarneInput): PdfBlock[] {
+  const exams = inp.exams.filter((e) => inp.results.some((r) => r.examId === e.id));
+  const subs = usedSubjects(exams);
+  const tracking: KazSubject[] = kazanimTracking(exams, inp.results, subs, inp.bank);
+  const tot = trackingTotals(tracking);
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Kazanım Takip Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''}` },
+    {
+      kind: 'kv',
+      rows: [
+        ['Kapsam', `${inp.scopeLabel} (${exams.length} deneme)`],
+        ['Tarih aralığı', dateRange(exams)],
+        ['Sorulan kazanım', String(tot.asked)],
+        ['Kazanılan', `${tot.counts.kazanildi} (%${tot.pctAsked})`],
+      ],
+    },
+    {
+      kind: 'tiles',
+      items: KAZ_STATUS_ORDER.filter((k) => k !== 'sorulmadi' || tot.counts.sorulmadi > 0).map((k) => ({
+        label: KAZ_STATUS_INFO[k].label,
+        value: String(tot.counts[k]),
+        sub: k === 'sorulmadi' ? 'kazanım bankasına göre' : `sorulanların ${withEk(tot.asked ? Math.round((tot.counts[k] / tot.asked) * 100) : 0, true)}`,
+        tone: statusTone(k),
+      })),
+    },
+    {
+      kind: 'callout',
+      title: 'Durum nasıl belirlenir?',
+      tone: 'info',
+      lines: [
+        ...KAZ_STATUS_ORDER.map((k) => ({ label: `${KAZ_STATUS_INFO[k].label}:`, text: KAZ_STATUS_INFO[k].rule, tone: statusTone(k) })),
+        'Başarı = doğru / soru. "Son" kazanımın en son sorulduğu denemedeki başarıdır. 3\'ten az soru sorulan kazanımlarda sonuç kesin değildir (*).',
+      ],
+    },
+    {
+      kind: 'stack',
+      title: 'Ders ders ilerleme',
+      items: tracking.map((s) => ({
+        label: s.subject.name,
+        sub: s.pctAll !== null ? `${s.all} kazanımın ${withEk(s.counts.sorulmadi)} henüz sorulmadı` : `${s.asked} kazanım soruldu`,
+        parts: KAZ_STATUS_ORDER.map((k) => ({ value: s.counts[k], tone: statusTone(k) })),
+        right: `%${s.pctAsked} kazanıldı`,
+      })),
+      legend: KAZ_STATUS_ORDER.map((k) => ({ label: KAZ_STATUS_INFO[k].label, tone: statusTone(k) })),
+    },
+  ];
+  for (const s of tracking) {
+    blocks.push({
+      kind: 'heading',
+      text: `${s.subject.name}: kazanımların ${withEk(s.pctAsked, true)} kazanıldı`,
+      sub: `${s.counts.kazanildi} kazanıldı · ${s.counts.gelisiyor} gelişiyor · ${s.counts.eksik} eksik${s.counts.sorulmadi ? ` · ${s.counts.sorulmadi} henüz sorulmadı` : ''}`,
+      minFollow: 24,
+    });
+    blocks.push({
+      kind: 'table',
+      head: ['#', 'Kazanım', 'Soru', 'D/Y/B', 'Genel', 'Son', 'Gidiş', 'Durum', 'Çalıştım'],
+      rows: s.rows.map((r, i) => [
+        i + 1,
+        r.label + (r.fewData ? ' (*)' : ''),
+        r.questions || '-',
+        r.questions ? `${r.d}/${r.y}/${r.b}` : '-',
+        r.questions ? `%${r.rate}` : '-',
+        r.lastRate !== null ? `%${r.lastRate}` : '-',
+        trendText(r.trend),
+        KAZ_STATUS_INFO[r.status].label,
+        '',
+      ]),
+      cellTones: s.rows.map((r) => [
+        null,
+        null,
+        null,
+        null,
+        r.questions ? levelTone(r.rate) : null,
+        r.lastRate !== null ? levelTone(r.lastRate) : null,
+        r.trend === 'up' ? ('success' as PdfTone) : r.trend === 'down' ? ('danger' as PdfTone) : null,
+        statusTone(r.status),
+        null,
+      ]),
+      align: ['center', 'left', 'center', 'center', 'center', 'center', 'center', 'center', 'center'],
+      widths: [7, 'auto', 10, 14, 13, 12, 17, 20, 15],
+      fontSize: 7,
+    });
+  }
+  blocks.push({ kind: 'text', tone: 'muted', text: '"Çalıştım" sütununu öğrenci kontrol listesi olarak kullanabilir: eksik ve gelişen kazanımlar çalışıldıkça işaretlenir; bir sonraki denemede durum yeniden hesaplanır.' });
+  return blocks;
+}
+
+// ============================================================================ Aşama 54: Çalışma Planı Karnesi
+export interface StudyPlanKarneInput {
+  studentName: string;
+  className: string;
+  exams: DenemeExam[];
+  results: DenemeResult[];
+  scopeLabel: string;
+  /** Öğretmenin seçip düzenlediği öneriler (verilmezse otomatik ilk 5) */
+  suggestions?: StudySuggestion[];
+}
+
+export function studyPlanKarneBlocks(inp: StudyPlanKarneInput): PdfBlock[] {
+  const exams = inp.exams.filter((e) => inp.results.some((r) => r.examId === e.id));
+  const subs = usedSubjects(exams);
+  const list = inp.suggestions || studySuggestions(kazanimTracking(exams, inp.results, subs));
+  const rByExam = new Map(inp.results.map((r) => [r.examId, r]));
+  const lastExam = exams[exams.length - 1];
+  const last = lastExam ? rByExam.get(lastExam.id) : undefined;
+  const totalQ = list.reduce((a, s) => a + s.questions, 0);
+  const totalLoss = list.reduce((a, s) => a + s.row.perExamLoss, 0);
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: 'Çalışma Planı Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''} · Gelecek hafta ne çalışmalı?` },
+    {
+      kind: 'kv',
+      rows: [
+        ['Kapsam', `${inp.scopeLabel} (${exams.length} deneme)`],
+        ['Tarih aralığı', dateRange(exams)],
+        ['Son deneme', lastExam ? lastExam.name : '-'],
+        ['Son puan', fmtScore(last?.score)],
+      ],
+    },
+    {
+      kind: 'tiles',
+      items: [
+        { label: 'Öncelikli kazanım', value: String(list.length), sub: 'en çok puan kaybettirenler', tone: 'warning' },
+        { label: 'Haftalık soru hedefi', value: String(totalQ), sub: 'önerilen toplam soru', tone: 'info' },
+        { label: 'Kaybettirdiği puan', value: fmtScore(totalLoss), sub: 'deneme başına, yaklaşık', tone: 'danger' },
+      ],
+    },
+    {
+      kind: 'callout',
+      title: 'Kazanımlar nasıl seçildi?',
+      tone: 'info',
+      lines: [
+        'Seçilen denemelerde her kazanımın deneme başına kaybettirdiği yaklaşık LGS puanı hesaplandı (yanlış: 1 net + 1/3 net ceza, boş: 1 net; Türkçe, Matematik ve Fen 4 katsayılı).',
+        'Kazanılmış kazanımlar listeye girmez. Eksik olanlar ve son denemelerde düşüş gösterenler öne alınır; yükselenler biraz geriye düşer.',
+        'Soru sayısı başarıya göre önerilir: %30 altı 40 soru, %30-49 30 soru, %50-69 20 soru (İnkılap, Din ve Yabancı Dil\'de dörtte üçü).',
+      ],
+    },
+    { kind: 'heading', text: 'Gelecek hafta çalışılacak kazanımlar' },
+  ];
+  if (!list.length) {
+    blocks.push({ kind: 'text', tone: 'success', text: 'Seçilen denemelerde puan kaybettiren eksik kazanım bulunmadı. Düzenli tekrar ve deneme çözümüyle devam.' });
+  } else {
+    blocks.push({
+      kind: 'table',
+      head: ['#', 'Ders', 'Kazanım', 'Son başarı', 'Puan kaybı / deneme', 'Soru', 'Ne yapmalı?'],
+      rows: list.map((s, i) => [i + 1, s.subject.short, s.row.label, `%${s.row.lastRate ?? s.row.rate}`, fmtScore(s.row.perExamLoss), s.questions, s.advice]),
+      cellTones: list.map((s) => [null, null, null, levelTone(s.row.lastRate ?? s.row.rate), null, null, null]),
+      align: ['center', 'left', 'left', 'center', 'center', 'center', 'left'],
+      widths: [7, 13, 'auto', 16, 20, 12, 46],
+      fontSize: 7.4,
+    });
+    blocks.push({ kind: 'heading', text: 'Neden bu kazanımlar?', minFollow: 12 });
+    blocks.push({
+      kind: 'table',
+      head: ['#', 'Kazanım', 'Denemelerdeki sonuç'],
+      rows: list.map((s, i) => [i + 1, s.row.short, s.reason]),
+      align: ['center', 'left', 'left'],
+      widths: [7, 62, 'auto'],
+      fontSize: 7.2,
+    });
+    blocks.push({
+      kind: 'table',
+      head: ['Kazanım', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz', 'Çözülen'],
+      rows: list.map((s) => [s.row.short, '', '', '', '', '', '', '', `/ ${s.questions}`]),
+      align: ['left', 'center', 'center', 'center', 'center', 'center', 'center', 'center', 'center'],
+      widths: ['auto', 11, 11, 11, 11, 11, 11, 11, 17],
+      fontSize: 7.2,
+    });
+    blocks.push({ kind: 'text', tone: 'muted', text: 'Haftalık takip: her gün çözdüğün soru sayısını kutulara yaz; hafta sonunda toplamı "Çözülen" sütununa geçir.' });
+  }
+  const fu = suggestionFollowUp(exams, inp.results, subs);
+  if (fu) {
+    const c = (k: keyof typeof FOLLOW_INFO) => fu.rows.filter((r) => r.verdict === k).length;
+    blocks.push({ kind: 'heading', text: `Önceki önerilerin sonucu: ${fu.exam.name}`, sub: 'Bu denemeden önceki denemelere göre önerilecek kazanımlar, bu denemede nasıl sonuçlandı?' });
+    blocks.push({
+      kind: 'table',
+      head: ['Ders', 'Kazanım', 'Önce', 'Bu deneme', 'Değişim', 'Sonuç'],
+      rows: fu.rows.map((r) => [r.subject.short, r.short, `%${r.before}`, r.after === null ? '-' : `%${r.after}`, r.change === null ? '-' : `${r.change > 0 ? '+' : ''}${r.change}`, FOLLOW_INFO[r.verdict].label]),
+      cellTones: fu.rows.map((r) => [null, null, levelTone(r.before), r.after === null ? null : levelTone(r.after), null, FOLLOW_INFO[r.verdict].tone]),
+      align: ['left', 'left', 'center', 'center', 'center', 'center'],
+      widths: [13, 'auto', 14, 18, 16, 20],
+      fontSize: 7.4,
+    });
+    blocks.push({
+      kind: 'text',
+      tone: 'muted',
+      text: `${fu.rows.length} önerinin ${withEk(c('kazanildi'))} kazanıldı, ${withEk(c('gelisti'))} gelişti, ${withEk(c('ayni'))} değişmedi, ${withEk(c('geriledi'))} geriledi${c('sorulmadi') ? `, ${withEk(c('sorulmadi'))} bu denemede sorulmadı` : ''}.`,
+    });
+  }
+  return blocks;
+}
+
+// ============================================================================ Aşama 54: Soru (madde) analizi PDF
+export function itemAnalysisBlocks(opts: {
+  exam: DenemeExam;
+  data: ItemSubject[];
+  groupName: string; // "Tüm kurum" ya da sınıf adı
+  isGroup: boolean;
+  count: number;
+  kurumCount: number;
+  watch: Array<{ subject: ExamSubject; item: ItemSubject['items'][number] }>;
+}): PdfBlock[] {
+  const { exam, data, isGroup } = opts;
+  const info = [exam.publisher, dateTr(exam.examDate), `${exam.grade}. sınıf ${exam.examType}`].filter(Boolean).join(' · ');
+  const blocks: PdfBlock[] = [
+    { kind: 'title', text: `${exam.name} — Soru (madde) analizi`, sub: `${info} · ${opts.groupName}` },
+    {
+      kind: 'kv',
+      rows: [
+        ['İncelenen grup', `${opts.groupName} (${opts.count} öğrenci)`],
+        ['Kurum', `${opts.kurumCount} öğrenci`],
+      ],
+    },
+    {
+      kind: 'callout',
+      title: 'Nasıl okunur?',
+      tone: 'info',
+      lines: [
+        { label: 'Doğru %:', text: 'Soruyu doğru yapanların oranı (güçlük). %30 altı çok zor, %90 üstü çok kolay.' },
+        { label: 'Şıklar:', text: 'Her şıkkı işaretleyenlerin oranı. Yeşil doğru cevap; kırmızı en çok seçilen yanlış şık (çeldirici).' },
+        { label: 'Ayırt edicilik:', text: 'Derste en başarılı %27 ile en başarısız %27 arasındaki doğru oranı farkı. 0,40+ çok iyi, 0,30-0,39 iyi, 0,20-0,29 orta, 0,20 altı zayıf; eksi değer cevap anahtarı hatasına işaret edebilir.' },
+        ...(isGroup ? [{ label: 'Kurum farkı:', text: 'Sınıfın doğru oranı eksi kurumun doğru oranı. -25 ve altı: sınıf bu soruda belirgin şekilde geride.' }] : []),
+      ],
+    },
+  ];
+  if (opts.watch.length) {
+    blocks.push({ kind: 'heading', text: 'Dikkat edilecek sorular' });
+    blocks.push({
+      kind: 'table',
+      head: ['Ders', 'Soru', 'Doğru %', ...(isGroup ? ['Kurum %'] : []), 'Uyarı', 'Konu / kazanım'],
+      rows: opts.watch.map((w) => [w.subject.short, w.item.no, `%${w.item.rate}`, ...(isGroup ? [`%${w.item.kurumRate}`] : []), w.item.flags.map((f) => f.text).join(' · '), w.item.konu || '-']),
+      cellTones: opts.watch.map((w) => [null, null, levelTone(w.item.rate), ...(isGroup ? [null] : []), w.item.flags[0]?.tone ?? null, null]),
+      align: ['left', 'center', 'center', ...(isGroup ? ['center' as const] : []), 'left', 'left'],
+      widths: [14, 12, 16, ...(isGroup ? [16] : []), 80, 'auto'],
+      fontSize: 7.2,
+    });
+  }
+  for (const s of data) {
+    const head = ['No', 'Cevap', 'D %', 'Y %', 'B %', ...s.options, 'Çeldirici', ...(isGroup ? ['Kurum D %', 'Fark'] : []), 'Ayırt.', 'Konu / kazanım', 'Uyarı'];
+    blocks.push({ kind: 'heading', text: s.subject.name, minFollow: 24 });
+    blocks.push({
+      kind: 'table',
+      head,
+      rows: s.items.map((it) => [
+        it.no,
+        it.cancelled ? 'İptal' : it.answer,
+        `%${it.rate}`,
+        `%${it.wrongRate}`,
+        `%${it.blankRate}`,
+        ...s.options.map((o) => (it.n ? `%${Math.round((it.options[o] / it.n) * 100)}` : '-')),
+        it.topWrong ? `${it.topWrong.option} (%${it.topWrong.pct})` : '-',
+        ...(isGroup ? [`%${it.kurumRate}`, it.diff > 0 ? `+${it.diff}` : String(it.diff)] : []),
+        `${fmtDisc(it.disc)}${it.disc !== null ? ` ${discLabel(it.disc).label}` : ''}`,
+        [it.konu, it.alt].filter(Boolean).join(' / ') || '-',
+        it.flags.map((f) => f.text).join(' · '),
+      ]),
+      cellTones: s.items.map((it) => {
+        const row: Array<PdfTone | null> = [null, null, it.cancelled ? null : levelTone(it.rate), null, null];
+        for (const o of s.options) row.push(!it.cancelled && o === it.answer ? 'success' : it.topWrong && o === it.topWrong.option && it.topWrong.pct >= 15 ? 'danger' : null);
+        row.push(null);
+        if (isGroup) row.push(null, it.diff <= -25 ? 'danger' : it.diff >= 15 ? 'success' : null);
+        row.push(it.disc === null ? null : discLabel(it.disc).tone === 'muted' ? null : discLabel(it.disc).tone);
+        row.push(null, it.flags[0]?.tone === 'muted' ? null : it.flags[0]?.tone ?? null);
+        return row;
+      }),
+      align: head.map((_, i) => (i >= head.length - 2 ? 'left' : 'center') as 'left' | 'center'),
+      widths: [
+        9,
+        11,
+        11,
+        11,
+        11,
+        ...s.options.map(() => 10),
+        17,
+        ...(isGroup ? [14, 11] : []),
+        18,
+        'auto',
+        48,
+      ],
+      fontSize: 6.8,
+    });
+  }
   return blocks;
 }
 
