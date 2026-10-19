@@ -86,19 +86,50 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
   const subjects = usedSubjects(fullExams.length ? fullExams : exams);
   const subjectInfo = LGS_SUBJECTS.find((s) => s.key === subject);
 
+  // Aşama 51: konu / alt kazanım açılır listesi
+  const [topicKey, setTopicKey] = useState('');
+  useEffect(() => {
+    setTopicKey('');
+  }, [subject, level]);
+
+  const allRows = useMemo(() => studentTopicRows(fullExams, results, subject, level), [fullExams, results, subject, level]);
+  const labelOf = (r: StudentTopicRow) => (level === 'alt' && r.alt ? r.alt : r.konu);
+
+  /** Denemelerde geçen tüm konular (ölçütün altında kalan öğrenci sayısıyla) */
+  const topicOptions = useMemo(() => {
+    const m = new Map<string, { key: string; label: string; below: number }>();
+    for (const r of allRows) {
+      const label = labelOf(r);
+      const key = label.toLocaleLowerCase('tr-TR');
+      if (!m.has(key)) m.set(key, { key, label, below: 0 });
+      if (r.total >= minQ && r.rate < threshold) m.get(key)!.below += 1;
+    }
+    return Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label, 'tr', { numeric: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, minQ, threshold, level]);
+
+  // Seçili konu artık listede yoksa (ör. kapsam değişti) "Tüm konular"a dön
+  useEffect(() => {
+    if (topicKey && !topicOptions.some((o) => o.key === topicKey)) setTopicKey('');
+  }, [topicOptions, topicKey]);
+
   const groups: TopicGroup[] = useMemo(() => {
-    const rows = studentTopicRows(fullExams, results, subject, level).filter((r) => r.total >= minQ && r.rate < threshold);
+    const rows = allRows.filter((r) => r.total >= minQ && r.rate < threshold);
     const m = new Map<string, TopicGroup>();
     for (const r of rows) {
-      const label = level === 'alt' && r.alt ? r.alt : r.konu;
+      const label = labelOf(r);
       const k = label.toLocaleLowerCase('tr-TR');
+      if (topicKey && k !== topicKey) continue;
       if (!m.has(k)) m.set(k, { label, konu: r.konu, rows: [] });
       m.get(k)!.rows.push(r);
     }
     const list = Array.from(m.values());
     list.forEach((g) => g.rows.sort((a, b) => a.rate - b.rate || a.studentName.localeCompare(b.studentName, 'tr')));
     return list.sort((a, b) => b.rows.length - a.rows.length);
-  }, [fullExams, results, subject, level, threshold, minQ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, level, threshold, minQ, topicKey]);
+
+  const topicName = topicKey ? topicOptions.find((o) => o.key === topicKey)?.label || '' : '';
 
   const allClasses = !classId; // Aşama 50: tüm sınıflar seçiliyse sınıf sınıf liste
 
@@ -147,6 +178,7 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
           ['Ölçüt', `Başarı %${threshold} altında (en az ${minQ} soru)`],
           ['Kapsam', `${scopeLabel(scope)} (${fullExams.length} deneme)`],
           ['Sınıf', classes.find((c) => c.id === classId)?.name || 'Tüm sınıflar'],
+          [level === 'alt' ? 'Alt kazanım' : 'Konu', topicName ? topicName.slice(0, 120) : level === 'alt' ? 'Tüm alt kazanımlar' : 'Tüm konular'],
           ['Denemeler', fullExams.map((e) => `${e.name} ${dateTr(e.examDate)}`).join(', ').slice(0, 120)],
         ],
       },
@@ -170,7 +202,8 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
       }
     }
     if (!groups.length) blocks.push({ kind: 'text', tone: 'success', text: 'Bu ölçütte etüde yönlendirilecek öğrenci yok.' });
-    await downloadKarnePdf(blocks, 'Etüt yönlendirme listesi', `Etut-Listesi-${subjectInfo?.short || ''}-%${threshold}`);
+    const fileTopic = topicName ? `-${topicName.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 40)}` : '';
+    await downloadKarnePdf(blocks, 'Etüt yönlendirme listesi', `Etut-Listesi-${subjectInfo?.short || ''}${fileTopic}-%${threshold}`);
   };
 
   return (
@@ -258,6 +291,25 @@ export const DenemeEtut: React.FC<{ exams: DenemeExam[]; students: Student[]; cl
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <label className="ui-label" htmlFor="etut-topic">{level === 'alt' ? 'Alt kazanım' : 'Konu'}</label>
+          <select
+            id="etut-topic"
+            className="ui-input"
+            value={topicKey}
+            disabled={loading || !topicOptions.length}
+            onChange={(e) => setTopicKey(e.target.value)}
+          >
+            <option value="">
+              {level === 'alt' ? 'Tüm alt kazanımlar' : 'Tüm konular'} ({topicOptions.length})
+            </option>
+            {topicOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label.length > 110 ? `${o.label.slice(0, 110)}…` : o.label} — {o.below ? `${o.below} öğrenci %${threshold} altında` : 'ölçüt altında öğrenci yok'}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={loading || !fullExams.length} onClick={() => void onPdf()}>
