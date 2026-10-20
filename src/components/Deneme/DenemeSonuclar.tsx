@@ -9,6 +9,10 @@ import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
 import { useHistoryState } from '../../lib/useHistoryState';
 
+// Aşama 59: "Denemelere dön" belirgin düğme (marka renginde çerçeveli; üzerine gelince dolu)
+const BACK_BTN =
+  'ui-btn ui-btn-lg border border-brand/40 bg-brand-soft text-brand-fg shadow-sm hover:bg-brand hover:text-white hover:border-brand focus-visible:ring-2 focus-visible:ring-brand/40';
+
 // ============================================================================
 // Deneme ayrıntısı (Aşama 47): sonuç listesi, soru analizi, öğrencilere açma, anahtar düzeltme.
 // ============================================================================
@@ -64,7 +68,7 @@ export const DenemeSonuclar: React.FC<{
   if (error || !exam)
     return (
       <div className="space-y-3">
-        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onBack}>
+        <button type="button" className={BACK_BTN} onClick={onBack} id="deneme-geri">
           <ArrowLeft /> Denemelere dön
         </button>
         <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error || 'Deneme bulunamadı.'}</p>
@@ -228,7 +232,7 @@ export const DenemeSonuclar: React.FC<{
   return (
     <div className="space-y-4" id="deneme-detail">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onBack}>
+        <button type="button" className={BACK_BTN} onClick={onBack} id="deneme-geri">
           <ArrowLeft /> Denemelere dön
         </button>
         <div className="min-w-0 flex-1">

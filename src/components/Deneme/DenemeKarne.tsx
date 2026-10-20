@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useHistoryState } from '../../lib/useHistoryState';
-import { Download, Mail, MessageCircle, Save } from 'lucide-react';
+import { ChevronDown, Download, Mail, MessageCircle, Save } from 'lucide-react';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
 import { PlanaAktarModal } from './PlanaAktarModal';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -45,6 +45,9 @@ type Mode = 'ogrenci' | 'sinif' | 'karsilastirma' | 'isi' | 'kurum';
 // Aşama 55: sınıf karnesinin türü
 type SinifTur = 'genel' | 'birlesik';
 type PdfOrientation = 'portrait' | 'landscape';
+// Aşama 59: Karneler › Sınıf ve Öğrenci seçim kutuları (ikisi aynı boyda; yazı text-sm, yükseklik 2.5rem)
+const PICKER_BOX = 'w-full sm:w-72';
+const PICKER_CTRL = 'ui-input h-10 text-sm cursor-pointer';
 
 /** Aşama 55: branş öğretmeni ısı haritasını kendi dersiyle açar (yönetici bütün derslerle) */
 function branchSubjectKey(): string {
@@ -623,31 +626,43 @@ export const DenemeKarne: React.FC<{
             })}
           </div>
         )}
+        {/* Aşama 59: Sınıf ve Öğrenci kutuları eşit genişlik ve yükseklikte, yazıyla orantılı (ekran boyunca uzamaz) */}
         {(mode === 'ogrenci' || mode === 'sinif') && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className={PICKER_BOX}>
               <label className="ui-label" htmlFor="karne-class">Sınıf</label>
-              <select
-                id="karne-class"
-                className="ui-input"
-                value={classId}
-                onChange={(e) => {
-                  setClassId(e.target.value);
-                  setStudentId('');
-                }}
-              >
-                <option value="">{mode === 'sinif' ? 'Sınıf seçin' : 'Tüm sınıflar'}</option>
-                {classOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  id="karne-class"
+                  className={cx(PICKER_CTRL, 'appearance-none pr-9')}
+                  value={classId}
+                  onChange={(e) => {
+                    setClassId(e.target.value);
+                    setStudentId('');
+                  }}
+                >
+                  <option value="">{mode === 'sinif' ? 'Sınıf seçin' : 'Tüm sınıflar'}</option>
+                  {classOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" aria-hidden />
+              </div>
             </div>
             {mode === 'ogrenci' && (
-              <div>
+              <div className={PICKER_BOX}>
                 <label className="ui-label" htmlFor="karne-student">Öğrenci</label>
-                <StudentSearchSelect id="karne-student" students={studentOptions} value={studentId} onChange={setStudentId} placeholder="Öğrenci seçin" showClass={!classId} />
+                <StudentSearchSelect
+                  id="karne-student"
+                  students={studentOptions}
+                  value={studentId}
+                  onChange={setStudentId}
+                  placeholder="Öğrenci seçin"
+                  showClass={!classId}
+                  className={PICKER_CTRL}
+                />
               </div>
             )}
           </div>
