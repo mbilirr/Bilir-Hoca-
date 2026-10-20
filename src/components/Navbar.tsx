@@ -400,8 +400,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Öğretmen bölümleri (tablet ve bilgisayar) */}
+          {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
           {isTeacherSession && onSelectTeacherTab && (
-            {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
             <nav aria-label="Bölümler" className="hidden md:flex flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px">
               {navItems.map((item) => {
                 const Icon = item.icon;
