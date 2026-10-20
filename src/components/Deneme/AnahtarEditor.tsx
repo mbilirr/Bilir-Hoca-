@@ -8,6 +8,7 @@ import { codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
 import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
+import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../../lib/deneme/bKitapcik';
 
 // ============================================================================
 // Cevap anahtarı ve kazanım düzenleyici (Aşama 47, 48d)
@@ -44,6 +45,12 @@ export const AnahtarEditor: React.FC<{
   // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
   const [lastExcel, setLastExcel] = useState<ExcelKeyResult | null>(null);
   const [offer, setOffer] = useState<{ kind: 'kazanim' | 'all'; subjects: string[] } | null>(null);
+  // Aşama 62: B kitapçığı soru soru (karışık sıra) — ders başına araçlar
+  const [customB, setCustomB] = useState<Set<string>>(new Set());
+  const [bTools, setBTools] = useState<Record<string, { order: string; dir: 'a2b' | 'b2a'; bKey: string; msg?: { tone: 'success' | 'warning' | 'danger'; text: string } }>>({});
+  const toolOf = (k: string) => bTools[k] || { order: '', dir: 'a2b' as const, bKey: '' };
+  const setTool = (k: string, p: Partial<{ order: string; dir: 'a2b' | 'b2a'; bKey: string; msg?: { tone: 'success' | 'warning' | 'danger'; text: string } }>) =>
+    setBTools((m) => ({ ...m, [k]: { ...toolOf(k), ...p } }));
 
   // Kazanım bankası ve yapay zekâ durumu (bir kez)
   useEffect(() => {
@@ -334,7 +341,25 @@ export const AnahtarEditor: React.FC<{
           const list = questions[s.key] || [];
           const ks = keyString(list);
           const filledCount = list.filter((q) => q.answer).length;
-          const rule = bRuleOf(list, s.count);
+          const rule0 = bRuleOf(list, s.count);
+          const rule = customB.has(s.key) ? 'custom' : rule0;
+          const bProblems = bMapProblems(s, list);
+          const badB = badBNos(s, list);
+          const tool = toolOf(s.key);
+          const bCheck = tool.bKey ? checkWithBKey(list, s.count, tool.bKey) : null;
+          const applyOrder = () => {
+            const r = parseBOrder(tool.order, s.count, tool.dir);
+            if ('error' in r) return setTool(s.key, { msg: { tone: 'danger', text: r.error } });
+            setSubject(
+              s.key,
+              Array.from({ length: s.count }, (_, i) => {
+                const old = list.find((q) => q.no === i + 1);
+                return { ...(old || { no: i + 1, answer: '' }), bNo: r.bNos[i] };
+              })
+            );
+            setCustomB((cur) => new Set(cur).add(s.key));
+            setTool(s.key, { msg: { tone: 'success', text: `${s.count} sorunun B numarası yazıldı. Kaydetmeyi unutmayın.` } });
+          };
           const withKazanim = list.filter((q) => q.kazanimCode && byCode.has(codeKey(q.kazanimCode))).length;
           const unmatched = list.filter((q) => (q.srcCode || q.srcText) && !q.kazanimCode).length;
           const opts = options[s.key] || [];
@@ -348,6 +373,12 @@ export const AnahtarEditor: React.FC<{
                 </span>
                 <span className={cx('ui-chip', withKazanim ? 'ui-chip-info' : 'ui-chip-neutral')}>{withKazanim} kazanım</span>
                 {unmatched > 0 && <span className="ui-chip ui-chip-warning">{unmatched} eşleşmedi</span>}
+                {bProblems.length > 0 && (
+                  <span className="ui-chip ui-chip-danger" title={bProblems.join('\n')}>
+                    B eşleşmesi hatalı ({bProblems.length})
+                  </span>
+                )}
+                {bCheck && bCheck.mismatches.length > 0 && <span className="ui-chip ui-chip-danger">B anahtarıyla {bCheck.mismatches.length} uyuşmazlık</span>}
                 <input
                   className="ui-input py-1 text-xs font-mono tracking-widest flex-1 min-w-48 uppercase"
                   placeholder={`A kitapçığı cevapları (${s.count} harf), örn. CDCDCCAB…`}
@@ -362,19 +393,129 @@ export const AnahtarEditor: React.FC<{
                   value={rule}
                   onChange={(e) => {
                     const v = e.target.value;
-                    if (v === 'reverse' || v === 'same') setSubject(s.key, questionsFromKeyString(ks, s.count, v, list));
+                    if (v === 'reverse' || v === 'same') {
+                      setCustomB((cur) => {
+                        const n = new Set(cur);
+                        n.delete(s.key);
+                        return n;
+                      });
+                      setSubject(s.key, questionsFromKeyString(ks, s.count, v, list));
+                    } else if (v === 'custom') {
+                      // Aşama 62: soru soru B numarası (mevcut numaralar korunur, eksikler A ile aynı doldurulur)
+                      setCustomB((cur) => new Set(cur).add(s.key));
+                      setSubject(
+                        s.key,
+                        Array.from({ length: s.count }, (_, i) => {
+                          const old = list.find((q) => q.no === i + 1);
+                          return { ...(old || { no: i + 1, answer: '' }), bNo: old?.bNo || i + 1 };
+                        })
+                      );
+                      setOpen(s.key);
+                    }
                   }}
                 >
                   <option value="reverse">B kitapçığı: A'nın tersi</option>
                   <option value="same">B kitapçığı: A ile aynı sıra</option>
-                  <option value="custom" disabled={rule !== 'custom'}>
-                    B kitapçığı: Excel'deki karşılıklar
-                  </option>
+                  <option value="custom">B kitapçığı: soru soru (karışık sıra)</option>
                 </select>
                 <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setOpen(isOpen ? null : s.key)} aria-expanded={isOpen}>
                   {isOpen ? <ChevronUp /> : <ChevronDown />} Sorular
                 </button>
               </div>
+              {isOpen && (
+                <div className="border-t border-line px-3 py-2.5 space-y-2 bg-surface-2/40" id={`b-tools-${s.key}`}>
+                  <p className="text-xs font-semibold text-fg">B kitapçığı eşleşmesi</p>
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-fg-2" htmlFor={`b-order-${s.key}`}>
+                        B sırasını yapıştırın
+                      </label>
+                      <textarea
+                        id={`b-order-${s.key}`}
+                        className="ui-input py-1 text-xs font-mono min-h-14"
+                        placeholder={tool.dir === 'a2b' ? `A'nın 1-${s.count}. sorularının B'deki numaraları, ör. 12 5 18 1 …  ya da her satıra "1 12"` : `B'nin 1-${s.count}. sorularının A'daki numaraları, ör. 4 9 1 …`}
+                        value={tool.order}
+                        onChange={(e) => setTool(s.key, { order: e.target.value, msg: undefined })}
+                      />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <select className="ui-input py-1 text-xs w-auto" value={tool.dir} onChange={(e) => setTool(s.key, { dir: e.target.value as 'a2b' | 'b2a', msg: undefined })} aria-label="Liste yönü">
+                          <option value="a2b">Liste: A sorularının B numaraları</option>
+                          <option value="b2a">Liste: B sorularının A numaraları</option>
+                        </select>
+                        <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={!tool.order.trim()} onClick={applyOrder}>
+                          Uygula
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-fg-2" htmlFor={`b-key-${s.key}`}>
+                        B kitapçığının cevap anahtarı (isteğe bağlı, kontrol için)
+                      </label>
+                      <input
+                        id={`b-key-${s.key}`}
+                        className="ui-input py-1 text-xs font-mono tracking-widest uppercase"
+                        placeholder={`B kitapçığı cevapları B sırasıyla (${s.count} harf)`}
+                        value={tool.bKey}
+                        maxLength={s.count + 10}
+                        onChange={(e) => setTool(s.key, { bKey: e.target.value })}
+                      />
+                      {tool.bKey && cleanKey(tool.bKey).length < s.count && (
+                        <p className="text-[11px] text-muted">
+                          {cleanKey(tool.bKey).length}/{s.count} harf
+                        </p>
+                      )}
+                      {bCheck && (
+                        <div className="text-[11px] space-y-1">
+                          {bCheck.mismatches.length === 0 ? (
+                            <p className="font-semibold text-success-fg">✓ {bCheck.checked} sorunun hepsi B anahtarıyla uyuşuyor; eşleşme doğru görünüyor.</p>
+                          ) : (
+                            <p className="font-semibold text-danger-fg">
+                              {bCheck.mismatches.length} soruda uyuşmazlık:{' '}
+                              {bCheck.mismatches
+                                .slice(0, 12)
+                                .map((m) => `${m.no}→B${m.bNo} (A: ${m.a}, B: ${m.b})`)
+                                .join(' · ')}
+                              {bCheck.mismatches.length > 12 ? ' …' : ''}
+                            </p>
+                          )}
+                          {bCheck.mismatches.length > 0 && (bCheck.fitsReverse || bCheck.fitsSame) && (
+                            <button
+                              type="button"
+                              className="ui-btn ui-btn-secondary ui-btn-sm"
+                              onClick={() => {
+                                setCustomB((cur) => {
+                                  const n = new Set(cur);
+                                  n.delete(s.key);
+                                  return n;
+                                });
+                                setSubject(s.key, questionsFromKeyString(ks, s.count, bCheck.fitsReverse ? 'reverse' : 'same', list));
+                              }}
+                            >
+                              Harfler "{bCheck.fitsReverse ? "A'nın tersi" : 'A ile aynı sıra'}" kuralına uyuyor: uygula
+                            </button>
+                          )}
+                          {bCheck.mismatches.length > 0 && !bCheck.fitsReverse && !bCheck.fitsSame && (
+                            <p className="text-muted">
+                              B sırası karışık: eşleşmeyi soldaki kutuya yapıştırın ya da aşağıdaki tabloda "B no" sütununa yazın. Harflerden eşleşme güvenilir şekilde çıkarılamaz.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {tool.msg && (
+                    <p className={cx('text-[11px] font-semibold', tool.msg.tone === 'success' ? 'text-success-fg' : tool.msg.tone === 'warning' ? 'text-warning-fg' : 'text-danger-fg')}>{tool.msg.text}</p>
+                  )}
+                  {bProblems.length > 0 && (
+                    <ul className="text-[11px] text-danger-fg list-disc pl-4 space-y-0.5">
+                      {bProblems.slice(0, 8).map((p, pi) => (
+                        <li key={pi}>{p}</li>
+                      ))}
+                      {bProblems.length > 8 && <li>… {bProblems.length - 8} sorun daha</li>}
+                    </ul>
+                  )}
+                </div>
+              )}
               {isOpen && (
                 <div className="border-t border-line overflow-x-auto">
                   <table className="w-full text-left text-xs text-fg-2">
@@ -406,7 +547,22 @@ export const AnahtarEditor: React.FC<{
                                 <option value="X">İptal</option>
                               </select>
                             </td>
-                            <td className="px-3 py-1.5 tabular-nums text-muted align-top">{q.bNo || '-'}</td>
+                            <td className="px-3 py-1.5 align-top">
+                              {/* Aşama 62: B numarası soru soru yazılabilir */}
+                              <input
+                                className={cx('ui-input py-0.5 px-1 text-xs text-center tabular-nums w-14', badB.has(q.no) && 'border-danger ring-2 ring-danger/30')}
+                                inputMode="numeric"
+                                value={q.bNo ? String(q.bNo) : ''}
+                                placeholder={String(q.no)}
+                                onChange={(e) => {
+                                  const v = e.target.value.replace(/\D/g, '').slice(0, 3);
+                                  setCustomB((cur) => new Set(cur).add(s.key));
+                                  set({ bNo: v ? Number(v) : undefined });
+                                }}
+                                aria-label={`${q.no}. sorunun B kitapçığındaki numarası`}
+                                title={badB.has(q.no) ? 'Bu B numarası geçersiz ya da başka bir soruda da kullanılmış' : undefined}
+                              />
+                            </td>
                             <td className="px-3 py-1.5 text-fg-2 align-top">
                               <select
                                 className="ui-input py-0.5 text-xs"

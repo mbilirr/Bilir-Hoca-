@@ -4,6 +4,7 @@ import { Panel, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
 import { AnahtarEditor } from './AnahtarEditor';
+import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type TxtParseResult } from '../../lib/deneme/optik';
 import { aliasKeyOf, groupRows, matchGroups, normNumber, type MatchItem } from '../../lib/deneme/eslestir';
@@ -269,6 +270,9 @@ export const DenemeWizard: React.FC<{
     if (step === 1) {
       if (!name.trim()) return setError('Deneme adını yazın.');
       if (!completeSubjects.length) return setError('En az bir dersin cevap anahtarı eksiksiz olmalı (Excel yükleyin ya da elle yazın).');
+      // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı (her B numarası bir kez)
+      const bp = keyBProblems(subjects, questions);
+      if (bp.length) return setError(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''} Ders satırındaki "Sorular" bölümünden düzeltin.`);
       setStep(2);
       return;
     }

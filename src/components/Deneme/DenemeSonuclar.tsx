@@ -7,6 +7,7 @@ import { LGS_SCORING, fmtNet, fmtScore, normalizeQuestions, rankAndSummarize, re
 import { dateTr } from '../../lib/deneme/karneModel';
 import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
+import { BOOKLET_MIN, bookletConsistency, keyBProblems } from '../../lib/deneme/bKitapcik';
 import { useHistoryState } from '../../lib/useHistoryState';
 
 // Aşama 59: "Denemelere dön" belirgin düğme (marka renginde çerçeveli; üzerine gelince dolu)
@@ -63,6 +64,9 @@ export const DenemeSonuclar: React.FC<{
     () => results.filter((r) => !classFilter || (r.classId || '-') === classFilter).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
     [results, classFilter]
   );
+  // Aşama 62: B kitapçığı uyum kontrolü (A ve B kitapçıklı öğrencilerin soru soru doğru oranları)
+  const bCheck = useMemo(() => (exam && results.length ? bookletConsistency(exam, results) : null), [exam, results]);
+  const [bOpen, setBOpen] = useState(false);
 
   if (loading) return <p className="text-sm text-muted">Yükleniyor…</p>;
   if (error || !exam)
@@ -101,6 +105,9 @@ export const DenemeSonuclar: React.FC<{
       const qs = normalizeQuestions(subs, draftKey);
       const missing = subs.filter((s) => (qs[s.key] || []).some((q) => !q.answer));
       if (missing.length) throw new Error(`Cevap anahtarı eksik: ${missing.map((s) => s.name).join(', ')}`);
+      // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı
+      const bp = keyBProblems(subs, qs);
+      if (bp.length) throw new Error(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''}`);
       const next = results.map((r) => {
         const re = recomputeFromAnswers(r.answers, r.booklet, subs, qs, exam.scoring && exam.scoring.base ? exam.scoring : LGS_SCORING);
         return { ...r, stats: re.stats, totalNet: re.totalNet, score: re.score };
@@ -267,6 +274,62 @@ export const DenemeSonuclar: React.FC<{
         </button>
       </div>
       {notice && <p role="status" className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2">{notice}</p>}
+
+      {bCheck && bCheck.issues.length > 0 && (
+        <div role="alert" id="b-kitapcik-uyum" className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2.5 text-xs text-warning-fg space-y-1.5">
+          <p className="font-bold">
+            B kitapçığı uyum kontrolü: {bCheck.issues.length} soruda A ve B kitapçıklı öğrencilerin doğru oranları çok farklı. B eşleşmesi yanlış girilmiş olabilir.
+          </p>
+          {bCheck.wholeSubjects.length > 0 && (
+            <p className="font-semibold">
+              {bCheck.wholeSubjects.join(', ')}: sorunların çoğu bu derste; B sırası bütünüyle yanlış seçilmiş olabilir ("A'nın tersi" / "A ile aynı sıra" / soru soru).
+            </p>
+          )}
+          <p className="text-fg-2">
+            A kitapçığı {bCheck.nA}, B kitapçığı {bCheck.nB} öğrenci. Doğru eşleşmede bir sorunun zorluğu iki kitapçıkta da benzer çıkar; yanlış eşleşmede B'deki doğru oranı rastgele seviyesine düşer.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setBOpen((v) => !v)} aria-expanded={bOpen}>
+              {bOpen ? 'Soruları gizle' : 'Soruları göster'}
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn-warning ui-btn-sm"
+              disabled={busy}
+              onClick={() => {
+                setDraftKey(exam.questions);
+                setKeyOpen(true);
+              }}
+            >
+              <KeyRound /> Cevap anahtarını düzelt
+            </button>
+          </div>
+          {bOpen && (
+            <ul className="rounded-lg bg-surface border border-line divide-y divide-line text-fg-2">
+              {bCheck.issues.slice(0, 40).map((it) => (
+                <li key={`${it.subject.key}-${it.no}`} className="px-2.5 py-1.5 flex flex-wrap gap-x-2">
+                  <b className="text-fg">
+                    {it.subject.short} {it.no}. soru (B'de {it.bNo}.)
+                  </b>
+                  <span>
+                    A kitapçığında doğru %{it.rateA} · B kitapçığında %{it.rateB}
+                  </span>
+                  {it.suggest && (
+                    <span className="font-semibold text-info-fg">
+                      Muhtemel B numarası: {it.suggest.bNo} (doğru cevap B'nin {it.suggest.bNo}. sorusunda %{it.suggest.rate} oranında işaretlenmiş)
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {bCheck && !bCheck.enough && bCheck.nB > 0 && (
+        <p className="text-[11px] text-muted">
+          B kitapçığı uyum kontrolü için kitapçık başına en az {BOOKLET_MIN} öğrenci gerekir (A: {bCheck.nA}, B: {bCheck.nB}).
+        </p>
+      )}
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard label="Öğrenci" value={classFilter ? clsSum?.count ?? 0 : sum.count ?? results.length} />
