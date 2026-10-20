@@ -52,7 +52,7 @@ import {
 import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal, Panel, Segmented } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
-import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls } from './FormParts';
+import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import type { PlanGroupKind } from '../../services/studyPlanService';
@@ -522,19 +522,20 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
       {/* Üst çubuk: öğrenci + hafta */}
       <div className="ui-card ui-card-pad space-y-4">
         {modeSwitch}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
+        {/* Aşama 60: Sınıf ve Öğrenci kutuları eşit boyda, yazıyla orantılı */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className={PICKER_BOX_CLS}>
             <FieldLabel htmlFor="plan-class-filter">Sınıf</FieldLabel>
-            <select id="plan-class-filter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className={inputCls}>
+            <SelectBox id="plan-class-filter" value={classFilter} onChange={(e) => setClassFilter(e.target.value)}>
               <option value="all">Tüm sınıflar</option>
               {classOptions.map(([id, name]) => (
                 <option key={id} value={id}>
                   {name}
                 </option>
               ))}
-            </select>
+            </SelectBox>
           </div>
-          <div>
+          <div className={PICKER_BOX_CLS}>
             <FieldLabel htmlFor="plan-student">Öğrenci</FieldLabel>
             <StudentSearchSelect
               id="plan-student"
@@ -542,7 +543,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
               value={studentId}
               onChange={setStudentId}
               placeholder="Öğrenci seçiniz"
-              className={inputCls}
+              className={PICKER_CTRL_CLS}
               showClass={classFilter === 'all'}
             />
           </div>

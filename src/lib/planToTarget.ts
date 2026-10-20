@@ -1,7 +1,7 @@
 import type { Student, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
 import { addDaysYmd, cleanQuestionCount, dateOfDay, loadPlan, type PlanItem } from '../services/studyPlanService';
-import { normalizeSubject, sameTargetSubjects, targetSubjectList } from './subjects';
+import { normalizeSubject, sameSubjectName, sameTargetSubjects, targetSubjectList } from './subjects';
 import { isFlexibleTarget, isPlanTopicRecord, PLAN_QUESTION_TARGET_NOTE, PLAN_TOPIC_NOTE_PREFIX } from '../utils/targetDays';
 
 // ============================================================================
@@ -185,6 +185,50 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
 
     // 3a) Öğretmenin bu ders için ELLE verdiği hedef: sayılarına dokunulmaz, yalnızca bu haftanın konuları yazılır
     const manual = myManual.find((t) => sameTargetSubjects(t.subject, subject));
+    // Aşama 60: öğretmenin bu haftaya GÜN GÜN verdiği birden çok dersli ya da tüm derslere ait hedef bu dersi kapsıyorsa
+    // ("Soru hedefi ver" penceresinde plandaki sayılarla doldurulup kaydedilen hedef) plandaki sayılar ayrıca hedef olmaz
+    // (çift sayılmasın). Plan kaydı yalnızca konuları taşır; Soru Kaydet'teki konular plandan gelmeye devam eder.
+    const covering = manual
+      ? undefined
+      : myManual.find((t) => {
+          if (!isFlexibleTarget(t) || !Object.keys(t.dailyTargets || {}).some(inWeek)) return false;
+          const list = targetSubjectList(t.subject);
+          return list.length === 0 || list.some((x) => sameSubjectName(x, subject));
+        });
+    if (covering) {
+      const topicOnly: WeeklyQuestionTarget = {
+        targetType: 'student',
+        studentId: student.id,
+        studentName: student.name,
+        classId: student.classId,
+        className: student.className,
+        weekStartDate: weekStart,
+        weekEndDate: weekEnd,
+        targetDays: 7,
+        subject,
+        dailyTopics: weekTopics,
+        fromPlan: true,
+        dailyTargets: undefined,
+        targetQuestions: 0,
+        dailyTarget: 0,
+        notes: PLAN_TOPIC_NOTE,
+        planCountsLocked: false,
+        ...(keeper?.id ? { id: keeper.id } : {}),
+      };
+      const same =
+        !!keeper &&
+        sameJson(sorted(keeper.dailyTopics), sorted(weekTopics)) &&
+        !keeper.dailyTargets &&
+        (Number(keeper.targetQuestions) || 0) === 0 &&
+        (keeper.notes || '') === PLAN_TOPIC_NOTE;
+      if (Object.keys(weekTopics).length) {
+        if (!same) await dataService.saveQuestionTarget(topicOnly);
+      } else if (keeper) await safeDelete(keeper);
+      if (total > 0 && !result.manualKept.includes(subject)) result.manualKept.push(subject);
+      result.subjects.push(subject);
+      result.days += Object.keys(weekTopics).length;
+      continue;
+    }
     if (manual) {
       const merged: Record<string, string> = {};
       for (const [d, t] of Object.entries(manual.dailyTopics || {})) if (!inWeek(d)) merged[d] = t;

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, X, Mail, AlertTriangle, Check, Users } from 'lucide-react';
+import { Search, X, Mail, AlertTriangle, Check, Users, ChevronDown } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { cx } from '../ui/kit';
 import { callMail, type MailResult } from '../../lib/mailApi';
@@ -33,6 +33,21 @@ export const FieldLabel: React.FC<{ htmlFor?: string; children: React.ReactNode;
 
 export const inputCls =
   'w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:opacity-60 disabled:cursor-not-allowed';
+
+// Aşama 60: Sınıf / Öğrenci seçim kutuları (Soru hedefi, Haftalık Plan, Karneler aynı ölçüde):
+// iki kutu yan yana aynı genişlik ve yükseklikte; yazı text-sm, yükseklik 2.5rem (ekran boyunca uzamaz)
+export const PICKER_BOX_CLS = 'w-full sm:w-72';
+export const PICKER_CTRL_CLS = `${inputCls} h-10 cursor-pointer`;
+
+/** Açılır liste (select) — sağdaki ok simgesi öğrenci seçicisiyle aynı */
+export const SelectBox: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({ className, children, ...rest }) => (
+  <div className="relative">
+    <select {...rest} className={cx(className || PICKER_CTRL_CLS, 'appearance-none pr-9')}>
+      {children}
+    </select>
+    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" aria-hidden />
+  </div>
+);
 
 export const chipCls = (active: boolean) =>
   cx(

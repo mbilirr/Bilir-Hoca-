@@ -3,12 +3,12 @@ import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide, 
 import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented } from '../ui/kit';
-import { normalizeSubject, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
-import { loadPlanQuestionCountsMany, type PlanQuestionCounts } from '../../services/studyPlanService';
+import { normalizeSubject, sameSubjectName, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
+import { addDaysYmd, loadPlanQuestionCountsMany, weekStartOf, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { syncSentPlan } from '../../lib/planToTarget';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
-import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn } from './FormParts';
+import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
 
 // ============================================================================
 // Soru hedefi ver / düzenle penceresi (Aşama 10)
@@ -142,6 +142,9 @@ const TargetFormContent: React.FC<Props> = ({
   // Soruların günlere dağılımı: 'even' = her gün eşit, 'custom' = her güne ayrı sayı
   const [distMode, setDistMode] = useState<'even' | 'custom'>(initial.distMode);
   const [dayRows, setDayRows] = useState<Record<string, string>>(initial.dayRows);
+  // Aşama 60: gün gün sayılar haftalık plandan otomatik dolduruldu mu / öğretmen sonra elle değiştirdi mi
+  const [planFilled, setPlanFilled] = useState(false);
+  const [planEdited, setPlanEdited] = useState(false);
 
   useEffect(() => {
     if (errorText) document.getElementById('qt-form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -264,6 +267,8 @@ const TargetFormContent: React.FC<Props> = ({
   };
   const switchDistMode = (mode: 'even' | 'custom') => {
     if (mode === distMode) return;
+    setPlanEdited(true); // Aşama 60: öğretmenin seçimi plandan otomatik doldurmayla ezilmesin
+    if (mode === 'even') setPlanFilled(false);
     if (mode === 'custom') {
       // Önceki dağıtımda olmayan günler mevcut toplamdan eşit doldurulur
       const filled = spreadEvenly(toInt(total) || 0);
@@ -297,7 +302,10 @@ const TargetFormContent: React.FC<Props> = ({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangeDates, distMode]);
-  const setDayRow = (d: string, v: string) => setDayRows((r) => ({ ...r, [d]: v.replace(/[^\d]/g, '').slice(0, 4) }));
+  const setDayRow = (d: string, v: string) => {
+    setPlanEdited(true); // Aşama 60: öğretmen bir günü elle değiştirdi; plandan otomatik doldurma artık üzerine yazmaz
+    setDayRows((r) => ({ ...r, [d]: v.replace(/[^\d]/g, '').slice(0, 4) }));
+  };
 
   const today = new Date();
   // Aşama 43: tek öğrenciye hedef verilirken "Bu hafta / Gelecek hafta" öğrencinin haftalık planının
@@ -398,6 +406,43 @@ const TargetFormContent: React.FC<Props> = ({
       .map(([s, n]) => `${shortSubjectName(s)} ${n}`)
       .join(' · ');
 
+  // ---- Aşama 60: HAFTALIK PLANDAKİ GÜN GÜN SORU SAYILARI → "Gün gün farklı" hedef (otomatik)
+  // Yeni hedef verilirken (öğrenciye) seçilen tarihlerde öğrencinin planında soru sayısı varsa, seçili derslerin
+  // (ders seçilmediyse bütün derslerin) o günkü toplamı o günün hedefi olur; planda soru olmayan gün 0 yazılır.
+  // Öğretmen bir günü elle değiştirirse otomatik doldurma durur ("Plandaki sayılarla yeniden doldur" ile geri gelir).
+  const planDaySum = (d: string): number => {
+    const map = planCounts?.byDay[d] || {};
+    return Object.entries(map).reduce((a, [subj, n]) => {
+      const counts = !selectedSubjects.length || selectedSubjects.some((x) => sameSubjectName(x, subj));
+      return a + (counts ? Number(n) || 0 : 0);
+    }, 0);
+  };
+  const planFillRows = (): Record<string, string> | null => {
+    if (!planCounts || !rangeDates.length) return null;
+    const rows = Object.fromEntries(rangeDates.map((d) => [d, String(planDaySum(d))]));
+    return Object.values(rows).some((v) => toInt(v) >= 1) ? rows : null;
+  };
+  const planFillAllowed = !isEdit && kind === 'student' && !!studentId;
+  const fillFromPlan = () => {
+    const rows = planFillRows();
+    if (!rows) return false;
+    setDayRows(rows);
+    setDistMode('custom');
+    setPlanFilled(true);
+    setPlanEdited(false);
+    return true;
+  };
+  const planFillKey = `${planCounts ? Object.keys(planCounts.byDay).length + ':' + planCounts.total : '-'}|${rangeDates.join(',')}|${effectiveSubject}|${studentId}`;
+  useEffect(() => {
+    if (!planFillAllowed || planEdited) return;
+    if (!fillFromPlan() && planFilled) {
+      // seçim değişti ve planda bu derslerde soru yok: otomatik dolan sayılar bırakılır (eşit dağıtıma dönülür)
+      setPlanFilled(false);
+      setDistMode('even');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planFillKey, planFillAllowed]);
+
   // ---- taslak ve çakışma
   const draft: WeeklyQuestionTarget = {
     id: editTarget?.id,
@@ -497,6 +542,21 @@ const TargetFormContent: React.FC<Props> = ({
         toSave.planCountsLocked = !!editTarget.planCountsLocked || countsChanged;
       }
       const saved = await dataService.saveQuestionTarget(toSave);
+      // Aşama 60: öğrenciye gün gün hedef verildiyse o tarihlerdeki gönderilmiş planlar yeniden eşitlenir:
+      // aynı derslerin plandan gelen sayıları ayrıca hedef olarak kalmaz (çift sayılmaz), konular plandan gelmeye devam eder
+      if (kind === 'student' && isCustom && selectedStudent) {
+        try {
+          const isAdmin = dataService.isCurrentUserAdmin();
+          const mine = dataService.getMySubjects();
+          const can = (x: string) => isAdmin || !mine || mine.includes(x);
+          const sd = dataService.getStudentWeekStartDay(selectedStudent.id);
+          for (let ws = weekStartOf(start, sd), i = 0; ws <= end && i < 10; ws = addDaysYmd(ws, 7), i++) {
+            await syncSentPlan(selectedStudent, ws, can);
+          }
+        } catch {
+          /* eşitleme yapılamazsa hedef yine kaydedilmiştir; plan değişince tekrar denenir */
+        }
+      }
       const base = editTarget || conflict;
       const sig = (t?: WeeklyQuestionTarget | null) =>
         t
@@ -637,10 +697,11 @@ const TargetFormContent: React.FC<Props> = ({
               ]}
             />
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+          {/* Aşama 60: Sınıf ve Öğrenci kutuları eşit boyda, yazıyla orantılı */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className={PICKER_BOX_CLS}>
               <FieldLabel htmlFor="qt-class">Sınıf</FieldLabel>
-              <select
+              <SelectBox
                 id="qt-class"
                 value={classId}
                 disabled={isEdit}
@@ -648,7 +709,6 @@ const TargetFormContent: React.FC<Props> = ({
                   setClassId(e.target.value);
                   setStudentId('');
                 }}
-                className={inputCls}
               >
                 <option value="">Sınıf seçin</option>
                 {classes.map((c) => (
@@ -656,10 +716,10 @@ const TargetFormContent: React.FC<Props> = ({
                     {c.name} ({students.filter((s) => s.classId === c.id).length} öğrenci)
                   </option>
                 ))}
-              </select>
+              </SelectBox>
             </div>
             {kind === 'student' && (
-              <div>
+              <div className={PICKER_BOX_CLS}>
                 <FieldLabel htmlFor="qt-student">Öğrenci</FieldLabel>
                 <StudentSearchSelect
                   id="qt-student"
@@ -668,7 +728,7 @@ const TargetFormContent: React.FC<Props> = ({
                   disabled={isEdit || !classId}
                   onChange={setStudentId}
                   placeholder={classId ? 'Öğrenci seçin' : 'Önce sınıf seçin'}
-                  className={inputCls}
+                  className={PICKER_CTRL_CLS}
                   showClass={false}
                 />
               </div>
@@ -836,6 +896,28 @@ const TargetFormContent: React.FC<Props> = ({
               </span>
             </div>
           )}
+          {/* Aşama 60: plandan otomatik doldurma bilgisi */}
+          {planFillAllowed && planFilled && isCustom && (
+            <div id="qt-plan-filled" role="status" className="flex flex-wrap items-start gap-2 rounded-xl border border-success/30 bg-success-soft px-3 py-2 text-xs text-success-fg">
+              <ClipboardList className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                <b>Gün gün sayılar haftalık plandan dolduruldu</b>
+                {effectiveSubject ? ` (${effectiveSubject})` : ' (bütün dersler)'}: planda soru verilmeyen günler 0. İsterseniz değiştirebilirsiniz.
+                Kaydedince hedef öğrenciye gönderilir; bu derslerin plandan gelen sayıları ayrıca sayılmaz.
+                {planEdited && <span className="block mt-0.5 font-semibold">Bazı günleri elle değiştirdiniz.</span>}
+              </span>
+              {planEdited && (
+                <button type="button" id="qt-plan-refill" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => fillFromPlan()}>
+                  Plandaki sayılarla yeniden doldur
+                </button>
+              )}
+            </div>
+          )}
+          {planFillAllowed && !planFilled && planCounts && !isCustom && planFillRows() && (
+            <button type="button" id="qt-plan-fill" className="ui-btn ui-btn-secondary ui-btn-sm self-start" onClick={() => fillFromPlan()}>
+              <ClipboardList className="w-3.5 h-3.5" /> Plandaki gün gün sayıları hedef yap
+            </button>
+          )}
           {/* Günlere dağıtım: eşit ya da gün gün farklı */}
           <div className="flex flex-wrap items-center gap-2" id="qt-dist-mode">
             <span className="text-xs font-semibold text-fg">Günlere dağıtım:</span>
@@ -904,7 +986,10 @@ const TargetFormContent: React.FC<Props> = ({
                 <button
                   type="button"
                   id="qt-day-even"
-                  onClick={() => setDayRows(spreadEvenly(customTotal >= 1 ? customTotal : toInt(total) || 0))}
+                  onClick={() => {
+                    setPlanEdited(true);
+                    setDayRows(spreadEvenly(customTotal >= 1 ? customTotal : toInt(total) || 0));
+                  }}
                   className="ui-btn ui-btn-ghost ui-btn-sm"
                   title="Toplamı günlere eşit böl"
                 >
