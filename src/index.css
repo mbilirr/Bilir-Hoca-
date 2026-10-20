@@ -361,8 +361,29 @@
 /*  - duvarların iç düzeni ekran değil KENDİ genişliğine göre değişir         */
 /*    (Tailwind "@container" / "@3xl:" sınıfları) → yakınlaştırınca bozulmaz   */
 /* ========================================================================= */
+/* Aşama 58: dar pencerede (tablet, küçültülmüş tarayıcı) yazı ve rem ile ölçülen her şey birlikte biraz küçülür:
+   960 px altında 15 px, 1280 px'te 16 px, geniş ekranda en çok 18 px. Telefonda form kutuları 16 px kalır (iOS yakınlaştırmaz). */
 html {
-  font-size: clamp(16px, 0.3vw + 12.2px, 18px);
+  font-size: clamp(15px, 0.3125vw + 12px, 18px);
+}
+/* Aşama 58: içerik ekrandan taşıp kesilmesin
+   - ızgara hücreleri içerikleri (geniş tablo, uzun yazı) yüzünden ekrandan geniş olamaz; tablolar kendi kutusunda kayar
+   - çok uzun kelime / bağlantı satır sonuna sığmazsa bölünür
+   - resim ve gömülü öğeler kutusundan büyük olamaz
+   (base katmanında: bileşenlerde özellikle verilen min-w-… sınıfları yine geçerlidir) */
+@layer base {
+  main .grid > * {
+    min-width: 0;
+  }
+  body {
+    overflow-wrap: break-word;
+  }
+  img,
+  video,
+  canvas,
+  iframe {
+    max-width: 100%;
+  }
 }
 .app-container {
   width: 100%;

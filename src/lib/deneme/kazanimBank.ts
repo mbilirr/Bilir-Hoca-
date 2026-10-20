@@ -27,6 +27,64 @@ export function splitAlt(v: string): string[] {
     .filter((x) => x.length > 2);
 }
 
+/**
+ * Aşama 58: Kazanım cümlesinde noktalı virgülle ayrılmış maddeler alt kazanım olur
+ * ("İklim ile hava olayları arasındaki farkı açıklar; basınç alanlarını değerlendirir." → 2 alt kazanım).
+ * Kazanımın kendisi (kod, metin, konu) değişmez. Parantez içindeki noktalı virgüller bölünmez
+ * ("(etken, edilgen; geçişli, geçişsiz)"). Çok kısa parçalar varsa bölünmez.
+ */
+export function semicolonAlt(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of text || '') {
+    if (ch === '(' || ch === '[') depth++;
+    else if ((ch === ')' || ch === ']') && depth > 0) depth--;
+    if (ch === ';' && depth === 0) {
+      parts.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  parts.push(cur);
+  const clean = parts.map((p) => p.replace(/\s+/g, ' ').trim().replace(/[;,.\s]+$/, '')).filter(Boolean);
+  if (clean.length < 2 || clean.some((p) => p.length < 12)) return [];
+  return clean.map((p) => `${p.charAt(0).toLocaleUpperCase('tr-TR')}${p.slice(1)}.`);
+}
+
+/** Alt kazanımı (açıklama maddesi) verilmemiş kazanımlarda noktalı virgüllü maddeler alt kazanım olur */
+function withAutoAlt<T extends { text: string; alt?: string[] }>(rows: T[]): T[] {
+  return rows.map((r) => {
+    if (r.alt && r.alt.length) return r;
+    const a = semicolonAlt(r.text);
+    return a.length ? { ...r, alt: a } : r;
+  });
+}
+
+/**
+ * Aşama 58: birleşik kodların kapsadığı tek tek kodlar (karşılaştırma anahtarı olarak)
+ *   "M.8.1.2.4-5"   → M.8.1.2.4-5, M.8.1.2.4, M.8.1.2.5
+ *   "E8.4.L1 / SI1" → E8.4.L1/SI1, E8.4.L1, E8.4.SI1
+ */
+export function codeAliases(code: string): string[] {
+  const base = codeKey(code);
+  const out = new Set<string>(base ? [base] : []);
+  const pieces = base.split('/').filter(Boolean);
+  if (!pieces.length) return [...out];
+  const first = pieces[0];
+  const prefix = first.includes('.') ? first.slice(0, first.lastIndexOf('.') + 1) : '';
+  const list = [first, ...pieces.slice(1).map((p) => (p.includes('.') ? p : prefix + p))];
+  for (const c of list) {
+    out.add(c);
+    const m = /^(.*?)(\d+)-(\d+)$/.exec(c);
+    if (m) {
+      const a = Number(m[2]);
+      const b = Number(m[3]);
+      if (b > a && b - a <= 12) for (let n = a; n <= b; n++) out.add(`${m[1]}${n}`);
+    }
+  }
+  return [...out];
+}
+
 export interface BankParseResult {
   rows: BankKazanim[];
   headers: number; // konu olarak kullanılan başlık sayısı
@@ -168,7 +226,7 @@ export function parseKazanimText(text: string, subject: string, grade = '8'): Ba
   }
   if (skipped) warnings.push(`${skipped} açıklama satırı kazanımla eşleştirilemediği için atlandı.`);
   if (!rows.some((r) => r.konu)) warnings.push('Konu başlığı bulunamadı; konuları yapay zekâ önerecek.');
-  return { rows, headers, warnings };
+  return { rows: withAutoAlt(rows), headers, warnings };
 }
 
 // ----------------------------------------------------------------------------- Öğretim programı PDF'i (yapay zekâ ile)
@@ -343,7 +401,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
     if (byCells.length) {
       const seen0 = new Set<string>();
       return {
-        rows: byCells.filter((r) => {
+        rows: withAutoAlt(byCells).filter((r) => {
           const k = codeKey(r.code);
           if (seen0.has(k)) return false;
           seen0.add(k);
@@ -359,7 +417,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
   if (!rows.length) warnings.push('Dosyada kazanım satırı bulunamadı.');
   const seen = new Set<string>();
   return {
-    rows: rows.filter((r) => {
+    rows: withAutoAlt(rows).filter((r) => {
       const k = codeKey(r.code);
       if (seen.has(k)) return false;
       seen.add(k);
@@ -421,6 +479,14 @@ export function matchToBank(src: { code?: string; text?: string }, options: Bank
     const k = codeKey(code);
     const exact = options.find((o) => codeKey(o.code) === k);
     if (exact) return { code: exact.code, score: 100, by: 'kod' };
+    // Aşama 58: bankadaki birleşik kod bu kodu kapsıyor (M.8.1.2.4 ↔ M.8.1.2.4-5, E8.4.L1 ↔ E8.4.L1 / SI1)
+    const covering = options.filter((o) => o.code && codeAliases(o.code).includes(k));
+    if (covering.length === 1) return { code: covering[0].code, score: 96, by: 'kod' };
+    // soru tarafındaki birleşik kodun ilk parçası bankada tek başına varsa
+    for (const a of codeAliases(code).slice(1)) {
+      const hit = options.find((o) => codeKey(o.code) === a);
+      if (hit) return { code: hit.code, score: 90, by: 'kod' };
+    }
     const dk = digitsKey(code);
     if (dk.split('.').length >= 3) {
       const same = options.filter((o) => digitsKey(o.code) === dk);

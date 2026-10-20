@@ -205,7 +205,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   id="navbar-search-btn"
                   onClick={openCommandPalette}
-                  className="hidden md:flex items-center gap-2.5 ml-2 lg:ml-6 w-64 lg:w-80 px-3 py-2 rounded-xl border border-line bg-surface-2 text-sm text-subtle hover:border-line-strong hover:text-muted transition-colors cursor-pointer"
+                  className="hidden md:flex min-w-0 shrink items-center gap-2.5 ml-2 lg:ml-6 w-52 lg:w-64 xl:w-80 px-3 py-2 rounded-xl border border-line bg-surface-2 text-sm text-subtle hover:border-line-strong hover:text-muted transition-colors cursor-pointer"
                   title="Hızlı ara (Ctrl+K)"
                 >
                   <Search className="w-4 h-4 shrink-0" />
@@ -401,7 +401,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Öğretmen bölümleri (tablet ve bilgisayar) */}
           {isTeacherSession && onSelectTeacherTab && (
-            <nav aria-label="Bölümler" className="hidden md:flex items-center gap-1 -mb-px overflow-x-auto [scrollbar-width:none]">
+            {/* Aşama 58: dar pencerede bölümler gizli kaydırma yerine alt satıra geçer (hepsine her zaman ulaşılır) */}
+            <nav aria-label="Bölümler" className="hidden md:flex flex-wrap items-center gap-x-0.5 lg:gap-x-1 -mb-px">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = item.id === activeTeacherTab;
@@ -413,7 +414,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => goTab(item.id)}
                     aria-current={active ? 'page' : undefined}
                     className={cx(
-                      'relative flex items-center gap-2 px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer',
+                      'relative flex items-center gap-1.5 lg:gap-2 px-2 lg:px-3 py-2 text-[13px] lg:text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer',
                       active ? 'border-brand text-fg' : 'border-transparent text-muted hover:text-fg hover:border-line-strong'
                     )}
                   >

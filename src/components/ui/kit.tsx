@@ -169,7 +169,8 @@ export function Segmented<T extends string>({
   return (
     <div
       role="tablist"
-      className={cx('inline-flex items-center gap-1 p-1 rounded-xl bg-surface-2 border border-line max-w-full overflow-x-auto', className)}
+      // Aşama 58: sığmayan sekmeler gizli kaydırma yerine alt satıra geçer (ekran küçülünce hepsi görünür kalır)
+      className={cx('inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface-2 border border-line max-w-full', className)}
     >
       {items.map((it) => {
         const active = it.value === value;

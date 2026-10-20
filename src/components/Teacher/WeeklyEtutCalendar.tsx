@@ -475,7 +475,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
 
       {/* ===== Gün sekmeleri (Gün görünümünde) ===== */}
       {mode === 'day' && (
-        <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex flex-wrap items-stretch gap-1.5 pb-1">
           {weekDays.map((day) => {
             const count = (etutsByDay[day.dateKey] || []).length;
             const sel = day.dateKey === selectedDay.dateKey;
