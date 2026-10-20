@@ -56,6 +56,9 @@ const todayStr = () => {
 };
 
 const filled = (s?: string) => !!s && /[A-E*]/.test(s);
+// Aşama 63: "Denemelere dön" düğmesi deneme sonuçları ekranındakiyle aynı görünümde
+const BACK_BTN =
+  'ui-btn ui-btn-lg border border-brand/40 bg-brand-soft text-brand-fg shadow-sm hover:bg-brand hover:text-white hover:border-brand focus-visible:ring-2 focus-visible:ring-brand/40';
 
 export const DenemeWizard: React.FC<{
   students: Student[];
@@ -477,7 +480,7 @@ export const DenemeWizard: React.FC<{
   return (
     <div className="space-y-4" id="deneme-wizard">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={onCancel}>
+        <button type="button" className={BACK_BTN} onClick={onCancel} id="deneme-wizard-geri">
           <ArrowLeft /> Denemelere dön
         </button>
         <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: optik yükleme` : 'Yeni deneme'}</h2>
