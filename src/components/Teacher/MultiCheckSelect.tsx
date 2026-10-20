@@ -94,7 +94,7 @@ export const MultiCheckSelect: React.FC<{
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={cx(inputCls, 'flex items-center justify-between gap-2 text-left cursor-pointer')}
+        className={cx(inputCls, 'h-10 flex items-center justify-between gap-2 text-left cursor-pointer')}
       >
         <span className={cx('truncate', chosen.length === 0 && 'text-subtle')} data-summary>
           {summary}

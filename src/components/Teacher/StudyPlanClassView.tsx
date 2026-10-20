@@ -32,7 +32,7 @@ import {
 import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal } from '../ui/kit';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
-import { FieldLabel, chipCls, classLevel, inputCls } from './FormParts';
+import { FieldLabel, chipCls, classLevel, inputCls, PICKER_BOX_CLS } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
 import { transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
@@ -647,8 +647,9 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     <div id="study-plan" data-mode="class" className="space-y-4">
       <div className="ui-card ui-card-pad space-y-4">
         {modeSwitch}
-        <div className="grid sm:grid-cols-2 gap-3">
-          <div>
+        {/* Aşama 61: Sınıf ve Öğrenci kutuları öğrenci görünümündekiyle aynı: eşit boyda, yazıyla orantılı */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className={PICKER_BOX_CLS}>
             <FieldLabel htmlFor="plan-classes">Sınıf</FieldLabel>
             <MultiCheckSelect
               id="plan-classes"
@@ -661,7 +662,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               emptyText="Size tanımlı sınıf yok."
             />
           </div>
-          <div>
+          <div className={PICKER_BOX_CLS}>
             <FieldLabel htmlFor="plan-students">Öğrenci</FieldLabel>
             <MultiCheckSelect
               id="plan-students"

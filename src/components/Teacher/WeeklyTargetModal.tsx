@@ -7,6 +7,7 @@ import { normalizeSubject, sameSubjectName, shortSubjectName, subjectsForLevel, 
 import { addDaysYmd, loadPlanQuestionCountsMany, weekStartOf, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { syncSentPlan } from '../../lib/planToTarget';
+import { callMail, describeMailResult } from '../../lib/mailApi';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
 
@@ -145,6 +146,10 @@ const TargetFormContent: React.FC<Props> = ({
   // Aşama 60: gün gün sayılar haftalık plandan otomatik dolduruldu mu / öğretmen sonra elle değiştirdi mi
   const [planFilled, setPlanFilled] = useState(false);
   const [planEdited, setPlanEdited] = useState(false);
+  // Aşama 61: plandan doldurulan hedef kendiliğinden kaydedilip öğrenciye gönderilir (pencere açık kalır, öğretmen düzeltebilir)
+  const [autoSaved, setAutoSaved] = useState<WeeklyQuestionTarget | null>(null);
+  const [autoSavedSig, setAutoSavedSig] = useState('');
+  const [autoStatus, setAutoStatus] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     if (errorText) document.getElementById('qt-form-error')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -445,7 +450,7 @@ const TargetFormContent: React.FC<Props> = ({
 
   // ---- taslak ve çakışma
   const draft: WeeklyQuestionTarget = {
-    id: editTarget?.id,
+    id: editTarget?.id || (autoSaved && autoSaved.studentId === studentId ? autoSaved.id : undefined),
     targetType: kind,
     studentId: kind === 'student' ? studentId : undefined,
     studentName: kind === 'student' ? selectedStudent?.name : undefined,
@@ -481,8 +486,14 @@ const TargetFormContent: React.FC<Props> = ({
     JSON.stringify(showBreakdown ? breakdownTargets : {}) !==
       JSON.stringify(Object.fromEntries(Object.entries(initial.subjectRows).map(([k, v]) => [k, toInt(v) || 0])));
 
+  // Aşama 61: otomatik kayıttan sonra değişiklik yapılmadıysa pencere sormadan kapanır
+  const draftSig = JSON.stringify([draft.studentId || '', start, end, draft.dailyTargets || null, draft.subject || '', notes, draft.subjectTargets || null, shownTotal]);
   const requestClose = () => {
     if (isSaving) return;
+    if (autoSaved && draftSig === autoSavedSig) {
+      onClose();
+      return;
+    }
     if (dirty && !confirmDiscard) {
       setConfirmDiscard(true);
       return;
@@ -524,6 +535,99 @@ const TargetFormContent: React.FC<Props> = ({
     return null;
   };
 
+  // ---- kayıt yardımcıları (elle kayıt ve Aşama 61 otomatik kayıt ortak)
+  const autoForStudent = autoSaved && autoSaved.studentId === studentId ? autoSaved : null;
+  const baseRecord = () => editTarget || autoForStudent || conflict;
+  const buildToSave = (): WeeklyQuestionTarget => {
+    const base = baseRecord();
+    const toSave: WeeklyQuestionTarget = { ...draft, id: base?.id };
+    // Aşama 53: plandan otomatik açılan hedefin SAYILARI değiştirildiyse kilitlenir; plan yeniden
+    // aktarılınca öğretmenin sayıları korunur (konular plandan gelmeye devam eder)
+    if (fromPlanTarget && editTarget) {
+      const countsChanged =
+        (Number(editTarget.targetQuestions) || 0) !== (toInt(shownTotal) || 0) ||
+        JSON.stringify(editTarget.dailyTargets || null) !== JSON.stringify(draft.dailyTargets || null);
+      toSave.planCountsLocked = !!editTarget.planCountsLocked || countsChanged;
+    } else if (base?.fromPlan) {
+      // Aşama 61: güncellenen kayıt plandan gelmişse plan kaydı olarak kalır; sayılar plandakinden farklıysa korunur
+      toSave.fromPlan = true;
+      if (!notes.trim() && base.notes) toSave.notes = base.notes;
+      toSave.planCountsLocked = !!base.planCountsLocked || planEdited || !planFilled;
+    }
+    return toSave;
+  };
+  // Aşama 60: öğrenciye gün gün hedef verildiyse o tarihlerdeki gönderilmiş planlar yeniden eşitlenir:
+  // aynı derslerin plandan gelen sayıları ayrıca hedef olarak kalmaz (çift sayılmaz), konular plandan gelmeye devam eder
+  const syncPlans = async () => {
+    if (!(kind === 'student' && isCustom && selectedStudent)) return;
+    try {
+      const isAdmin = dataService.isCurrentUserAdmin();
+      const mine = dataService.getMySubjects();
+      const can = (x: string) => isAdmin || !mine || mine.includes(x);
+      const sd = dataService.getStudentWeekStartDay(selectedStudent.id);
+      for (let ws = weekStartOf(start, sd), i = 0; ws <= end && i < 10; ws = addDaysYmd(ws, 7), i++) {
+        await syncSentPlan(selectedStudent, ws, can);
+      }
+    } catch {
+      /* eşitleme yapılamazsa hedef yine kaydedilmiştir; plan değişince tekrar denenir */
+    }
+  };
+  const targetSig = (t?: WeeklyQuestionTarget | null) =>
+    t
+      ? JSON.stringify([
+          t.targetType === 'class' ? 'c' : 's',
+          t.studentId || '',
+          t.classId || '',
+          t.weekStartDate,
+          dataService.questionTargetEnd(t),
+          Number(t.targetQuestions || t.weeklyTarget) || 0,
+          Number(t.dailyTarget) || 0,
+          normalizeSubject(t.subject || ''),
+          subjectTargetsOf(t),
+          t.dailyTargets || null,
+          (t.notes || '').trim(),
+        ])
+      : '';
+
+  // ---- Aşama 61: OTOMATİK KAYIT — plandan doldurulan gün gün hedef kendiliğinden kaydedilir ve öğrenciye gönderilir.
+  // Öğretmen günleri elle değiştirirse otomatik kayıt durur; "Hedefi Güncelle" ile kendisi kaydeder.
+  const autoSave = async () => {
+    if (isSaving || validate()) return;
+    setIsSaving(true);
+    setErrorText(null);
+    setAutoStatus({ tone: 'info', text: 'Plandaki sayılarla hedef kaydediliyor…' });
+    try {
+      const base = baseRecord();
+      const sigNow = draftSig;
+      const saved = await dataService.saveQuestionTarget(buildToSave());
+      await syncPlans();
+      setAutoSaved(saved);
+      setAutoSavedSig(sigNow);
+      const changed = !base || targetSig(base) !== targetSig(saved);
+      const done = 'Hedef kaydedildi ve öğrenciye gönderildi.';
+      if (!changed) setAutoStatus({ tone: 'success', text: 'Hedef zaten kayıtlı ve plandaki sayılarla aynı.' });
+      else if (sendMail && saved.id) {
+        setAutoStatus({ tone: 'success', text: `${done} E-posta gönderiliyor…` });
+        callMail('question-target', { targetId: saved.id, mode: base ? 'updated' : 'new' })
+          .then((r) => setAutoStatus({ tone: 'success', text: `${done} ${describeMailResult(r).text}` }))
+          .catch(() => setAutoStatus({ tone: 'warning', text: `${done} E-posta gönderilemedi.` }));
+      } else setAutoStatus({ tone: 'success', text: done });
+    } catch (e: any) {
+      setAutoStatus(null);
+      setErrorText(e?.message || 'Hedef otomatik kaydedilemedi. "Hedefi Kaydet" ile tekrar deneyin.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const autoKey = `${planFillKey}|${planFilled}|${planEdited}|${isCustom}|${JSON.stringify(dayRows)}`;
+  useEffect(() => {
+    if (!planFillAllowed || !planFilled || planEdited || !isCustom || isSaving) return;
+    if (autoSaved && autoSaved.studentId === studentId && draftSig === autoSavedSig) return; // zaten kaydedildi
+    const t = window.setTimeout(() => void autoSave(), 900);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoKey, planFillAllowed]);
+
   const handleSave = async () => {
     if (isSaving) return;
     setConfirmDiscard(false);
@@ -532,49 +636,10 @@ const TargetFormContent: React.FC<Props> = ({
     setErrorText(null);
     setIsSaving(true);
     try {
-      const toSave: WeeklyQuestionTarget = { ...draft, id: editTarget?.id || conflict?.id };
-      // Aşama 53: plandan otomatik açılan hedefin SAYILARI değiştirildiyse kilitlenir; plan yeniden
-      // aktarılınca öğretmenin sayıları korunur (konular plandan gelmeye devam eder)
-      if (fromPlanTarget && editTarget) {
-        const countsChanged =
-          (Number(editTarget.targetQuestions) || 0) !== (toInt(shownTotal) || 0) ||
-          JSON.stringify(editTarget.dailyTargets || null) !== JSON.stringify(draft.dailyTargets || null);
-        toSave.planCountsLocked = !!editTarget.planCountsLocked || countsChanged;
-      }
-      const saved = await dataService.saveQuestionTarget(toSave);
-      // Aşama 60: öğrenciye gün gün hedef verildiyse o tarihlerdeki gönderilmiş planlar yeniden eşitlenir:
-      // aynı derslerin plandan gelen sayıları ayrıca hedef olarak kalmaz (çift sayılmaz), konular plandan gelmeye devam eder
-      if (kind === 'student' && isCustom && selectedStudent) {
-        try {
-          const isAdmin = dataService.isCurrentUserAdmin();
-          const mine = dataService.getMySubjects();
-          const can = (x: string) => isAdmin || !mine || mine.includes(x);
-          const sd = dataService.getStudentWeekStartDay(selectedStudent.id);
-          for (let ws = weekStartOf(start, sd), i = 0; ws <= end && i < 10; ws = addDaysYmd(ws, 7), i++) {
-            await syncSentPlan(selectedStudent, ws, can);
-          }
-        } catch {
-          /* eşitleme yapılamazsa hedef yine kaydedilmiştir; plan değişince tekrar denenir */
-        }
-      }
-      const base = editTarget || conflict;
-      const sig = (t?: WeeklyQuestionTarget | null) =>
-        t
-          ? JSON.stringify([
-              t.targetType === 'class' ? 'c' : 's',
-              t.studentId || '',
-              t.classId || '',
-              t.weekStartDate,
-              dataService.questionTargetEnd(t),
-              Number(t.targetQuestions || t.weeklyTarget) || 0,
-              Number(t.dailyTarget) || 0,
-              normalizeSubject(t.subject || ''),
-              subjectTargetsOf(t),
-              t.dailyTargets || null,
-              (t.notes || '').trim(),
-            ])
-          : '';
-      onSaved({ target: saved, isNew: !base, changed: !base || sig(base) !== sig(saved), sendMail });
+      const base = baseRecord();
+      const saved = await dataService.saveQuestionTarget(buildToSave());
+      await syncPlans();
+      onSaved({ target: saved, isNew: !base, changed: !base || targetSig(base) !== targetSig(saved), sendMail });
     } catch (e: any) {
       setErrorText(e?.message || 'Hedef kaydedilemedi. Lütfen tekrar deneyin.');
       setIsSaving(false);
@@ -671,7 +736,7 @@ const TargetFormContent: React.FC<Props> = ({
               </button>
               <button type="button" id="qt-save" onClick={handleSave} disabled={isSaving || !canEdit} className="ui-btn ui-btn-primary">
                 <Save className="w-4 h-4" />
-                {isSaving ? 'Kaydediliyor…' : isEdit || conflict ? 'Hedefi Güncelle' : 'Hedefi Kaydet'}
+                {isSaving ? 'Kaydediliyor…' : isEdit || conflict || autoForStudent ? 'Hedefi Güncelle' : 'Hedefi Kaydet'}
               </button>
             </span>
           </div>
@@ -903,8 +968,17 @@ const TargetFormContent: React.FC<Props> = ({
               <span className="min-w-0 flex-1">
                 <b>Gün gün sayılar haftalık plandan dolduruldu</b>
                 {effectiveSubject ? ` (${effectiveSubject})` : ' (bütün dersler)'}: planda soru verilmeyen günler 0. İsterseniz değiştirebilirsiniz.
-                Kaydedince hedef öğrenciye gönderilir; bu derslerin plandan gelen sayıları ayrıca sayılmaz.
-                {planEdited && <span className="block mt-0.5 font-semibold">Bazı günleri elle değiştirdiniz.</span>}
+                Hedef <b>kendiliğinden kaydedilip öğrenciye gönderilir</b>; bu derslerin plandan gelen sayıları ayrıca sayılmaz.
+                Düzeltmek isterseniz günleri değiştirip <b>Hedefi Güncelle</b>'ye basın.
+                {planEdited && <span className="block mt-0.5 font-semibold">Bazı günleri elle değiştirdiniz: kaydetmek için Hedefi Güncelle / Kaydet'e basın.</span>}
+                {autoStatus && (
+                  <span
+                    id="qt-auto-status"
+                    className={`block mt-1 font-semibold ${autoStatus.tone === 'danger' ? 'text-danger-fg' : autoStatus.tone === 'warning' ? 'text-warning-fg' : autoStatus.tone === 'info' ? 'text-info-fg' : ''}`}
+                  >
+                    {autoStatus.text}
+                  </span>
+                )}
               </span>
               {planEdited && (
                 <button type="button" id="qt-plan-refill" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => fillFromPlan()}>
