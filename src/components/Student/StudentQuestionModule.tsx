@@ -67,6 +67,8 @@ import {
 import {
   computeTargetDays,
   isFlexibleTarget,
+  isPlanMirrorTarget,
+  isPlanQuestionTarget,
   subjectTargetForDay,
   targetDayStatusText,
   targetForDay,
@@ -111,7 +113,7 @@ export function shortTurkishDate(iso: string): string {
  * toplamıyla karşılaştırılamayacağı için çizgide kullanılmaz.
  */
 export function generalDailyTarget(targets: WeeklyQuestionTarget[]): number {
-  const general = targets.find((t) => !t.subject);
+  const general = targets.find((t) => !t.subject && !isPlanMirrorTarget(t, targets));
   return Math.max(1, Number(general?.dailyTarget) || DEFAULT_DAILY_QUESTION_TARGET);
 }
 
@@ -153,7 +155,10 @@ export function computeMonthlyTargetPlan(studentId: string, year: number, month:
       const flex = monthTargets.find(
         (t) => !t.subject && isFlexibleTarget(t) && (t.weekStartDate || '') <= iso && dataService.questionTargetEnd(t) >= iso
       );
-      if (flex) daily = targetForDay(flex, iso);
+      if (flex && isPlanMirrorTarget(flex, monthTargets)) {
+        // Aşama 64: plandaki sayılarla doldurulmuş hedef: o günün hedefi plandaki ders hedeflerinin toplamı
+        daily = monthTargets.filter((o) => isPlanQuestionTarget(o)).reduce((a, o) => a + targetForDay(o, iso), 0);
+      } else if (flex) daily = targetForDay(flex, iso);
     }
     perDay[formatDateISO(d)] = daily;
     total += daily;
@@ -488,6 +493,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   // Yerel "bugün" (gece yarısından sonra kendiliğinden yenilenir)
   const todayIso = useTodayIso();
   const isNarrow = useIsNarrowScreen();
+  // Aşama 64: grafiğin gün adları 900 px altında kısaltılır (Pzt, Sal …): uzun adlar sığmayıp üst üste binmesin
+  const shortDayLabels = useIsNarrowScreen(899);
 
   // Tarih ve dönem ofsetleri
   const [weekOffset, setWeekOffset] = useState<number>(0);
@@ -1314,8 +1321,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     () => activeTargets.map((t) => ({ t, res: computeTargetDays(t, activeStudent.id, allLogs, todayIso) })),
     [activeTargets, activeStudent.id, allLogs, todayIso]
   );
-  const generalTargetRes = weeklyTargetRows.find((x) => !x.t.subject)?.res || null;
-  const subjectTargetRows = weeklyTargetRows.filter((x) => !!x.t.subject);
+  // Aşama 64: plandaki sayılarla doldurulmuş genel / çok dersli hedef (plan aynası) ayrıca gösterilmez ve sayılmaz;
+  // günün hedefi plandan gelen ders hedeflerinin toplamıdır (tablo, grafik ve gün gün duvarlar aynı sayıyı gösterir)
+  const mirrorTargets = useMemo(() => new Set(activeTargets.filter((t) => isPlanMirrorTarget(t, activeTargets))), [activeTargets]);
+  const generalTargetRes = weeklyTargetRows.find((x) => !x.t.subject && !mirrorTargets.has(x.t))?.res || null;
+  const subjectTargetRows = weeklyTargetRows.filter((x) => !!x.t.subject && !mirrorTargets.has(x.t));
   // Günün hedefi: genel hedef → o günkü sayısı; yoksa o güne denk gelen ders hedeflerinin toplamı; hiçbiri yoksa 0 (hedef yok).
   // Hedef verilmeyen güne varsayılan bir sayı yazılmaz (grafik ve tablo öğretmenin verdiği hedeflerle birebir aynı).
   const dayGoalRow = (ymdStr: string): TargetDayRow | null => weekDayGoal(ymdStr, weeklyTargetRows).generalRow;
@@ -1344,6 +1354,14 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     [weeklyAnalytics, weeklyTargetRows]
   );
   const maxDayGoal = chartDays.reduce((m, d) => Math.max(m, d.dayTarget || 0), 0);
+  // Aşama 64: grafik yazıları kutunun dışına taşmasın: sol boşluk eksi değil, sayı ekseni en büyük sayının
+  // basamak sayısına göre genişler (ör. 150, 1200); sağda ve üstte değer etiketleri için pay bırakılır
+  const chartTopValue = (() => {
+    const top = Math.max(1, maxDayGoal, ...chartDays.map((d) => d.totalQuestions || 0));
+    return top + Math.max(2, Math.ceil(top * 0.15));
+  })();
+  const yAxisWidth = String(chartTopValue).length * (isNarrow ? 6.5 : 7.5) + (isNarrow ? 10 : 14);
+  const CHART_MARGIN = { top: 26, right: isNarrow ? 10 : 18, left: 0, bottom: 4 };
 
   // Looker Studio Custom Popover Tooltip
   const renderLookerTooltip = ({ active, payload }: any) => {
@@ -1671,11 +1689,11 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 {chartVisualType === 'bar' ? (
                   <ComposedChart
                     data={chartDays}
-                    margin={{ top: 28, right: isNarrow ? 4 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
+                    margin={CHART_MARGIN}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis
-                      dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                      dataKey={shortDayLabels ? 'dayShortName' : 'dayName'}
                       interval={0}
                       stroke="var(--color-muted)"
                       fontSize={isNarrow ? 10 : 12}
@@ -1690,6 +1708,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
                       domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
+                      width={yAxisWidth}
                       allowDecimals={false}
                     />
                     <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
@@ -1734,7 +1753,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 ) : (
                   <ComposedChart
                     data={chartDays}
-                    margin={{ top: 28, right: isNarrow ? 8 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}
+                    margin={CHART_MARGIN}
                   >
                     <defs>
                       <linearGradient id="studentNavyGradient" x1="0" y1="0" x2="0" y2="1">
@@ -1744,7 +1763,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis
-                      dataKey={isNarrow ? 'dayShortName' : 'dayName'}
+                      dataKey={shortDayLabels ? 'dayShortName' : 'dayName'}
                       interval={0}
                       stroke="var(--color-muted)"
                       fontSize={isNarrow ? 10 : 12}
@@ -1759,6 +1778,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       tickLine={false}
                       axisLine={{ stroke: 'var(--color-line-strong)' }}
                       domain={[0, (max: number) => { const top = Math.max(max, maxDayGoal, 1); return top + Math.max(2, Math.ceil(top * 0.15)); }]}
+                      width={yAxisWidth}
                       allowDecimals={false}
                     />
                     <Tooltip content={renderLookerTooltip} cursor={CHART_LINE_CURSOR} />
@@ -2155,7 +2175,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </h4>
             <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyAnalytics.weeks} margin={{ top: 25, right: isNarrow ? 4 : 15, left: isNarrow ? -22 : -10, bottom: 5 }}>
+                <BarChart data={monthlyAnalytics.weeks} margin={{ top: 25, right: isNarrow ? 10 : 18, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                   <XAxis
                     dataKey="weekLabel"
@@ -2166,7 +2186,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     fontWeight={600}
                     tickLine={false}
                   />
-                  <YAxis stroke="var(--color-muted)" fontSize={isNarrow ? 10 : 12} fontWeight={600} tickLine={false} allowDecimals={false} />
+                  <YAxis stroke="var(--color-muted)" fontSize={isNarrow ? 10 : 12} fontWeight={600} tickLine={false} allowDecimals={false} width={String(Math.max(1, ...monthlyAnalytics.weeks.map((w) => Number(w.totalQuestions) || 0))).length * (isNarrow ? 6.5 : 7.5) + (isNarrow ? 12 : 16)} />
                   <Tooltip content={<MonthlyBucketTooltip plan={monthlyPlan} />} cursor={CHART_BAR_CURSOR} />
                   <Bar dataKey="totalQuestions" fill="var(--chart-1)" radius={[6, 6, 0, 0]} maxBarSize={60}>
                     <LabelList dataKey="totalQuestions" position="top" fill="var(--color-fg)" fontSize={isNarrow ? 10 : 12} fontWeight={800} offset={8} />

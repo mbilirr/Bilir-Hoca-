@@ -19,7 +19,7 @@ function reportPdfError(e: unknown) {
     window.dispatchEvent(new CustomEvent('app-file-error', { detail: 'PDF raporu oluşturulamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.' }));
   } catch {}
 }
-import { computeTargetDays, targetDayStatusText, targetDayLabel } from './targetDays';
+import { computeTargetDays, targetDayStatusText, targetDayLabel, isPlanMirrorTarget } from './targetDays';
 import type { TargetDayRow, TargetDayStatus } from './targetDays';
 import {
   MIDDLE_SCHOOL_SUBJECTS,
@@ -1353,7 +1353,8 @@ function buildWeeklyPDF(analytics: WeeklyAnalytics, student?: Student | null, op
   const hasData = analytics.totalQuestions > 0;
 
   // Genel (ders seçilmemiş) hedef: günlük tablodaki "Durum" ve grafikteki hedef çizgisi bunun günlük sayısını kullanır
-  const general = targets.find((t) => !t.subject) || null;
+  // Aşama 64: plandaki sayılarla doldurulmuş genel hedef (plan aynası) genel hedef sayılmaz; plan ders ders hedeftir
+  const general = targets.find((t) => !t.subject && !isPlanMirrorTarget(t, targets)) || null;
   const generalRes = general ? computeTargetDays(general, studentId, logs, today) : null;
   const generalRow = (ymd: string) => generalRes?.rows.find((r) => r.ymd === ymd) || null;
 

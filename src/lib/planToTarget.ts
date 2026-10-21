@@ -188,10 +188,26 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
     // Aşama 60: öğretmenin bu haftaya GÜN GÜN verdiği birden çok dersli ya da tüm derslere ait hedef bu dersi kapsıyorsa
     // ("Soru hedefi ver" penceresinde plandaki sayılarla doldurulup kaydedilen hedef) plandaki sayılar ayrıca hedef olmaz
     // (çift sayılmasın). Plan kaydı yalnızca konuları taşır; Soru Kaydet'teki konular plandan gelmeye devam eder.
+    // Aşama 64: hedef yalnızca PLANDAKİ sayılarla doldurulmuşsa (sorusu olan her günü planda da sorulu bir gün) kapsayan
+    // sayılmaz: plan ders ders hedef olarak kalır (öğrencideki gün gün duvarlar ve günlük hedef bunlardan hesaplanır),
+    // o kayıt ekranlarda ayrıca sayılmaz (utils/targetDays.ts › isPlanMirrorTarget). Böylece plan değişince günün hedefi de değişir.
+    const mirrorsPlan = (t: WeeklyQuestionTarget) => {
+      const list = targetSubjectList(t.subject);
+      const days = Object.entries(t.dailyTargets || {})
+        .filter(([d, n]) => inWeek(d) && (Number(n) || 0) > 0)
+        .map(([d]) => d);
+      if (!days.length) return false;
+      return days.every((d) =>
+        Array.from(countsBySubject.entries()).some(
+          ([k, m]) => (m.get(d) || 0) > 0 && (!list.length || list.some((x) => sameSubjectName(x, nameOf.get(k) || k)))
+        )
+      );
+    };
     const covering = manual
       ? undefined
       : myManual.find((t) => {
           if (!isFlexibleTarget(t) || !Object.keys(t.dailyTargets || {}).some(inWeek)) return false;
+          if (t.targetType !== 'class' && mirrorsPlan(t)) return false;
           const list = targetSubjectList(t.subject);
           return list.length === 0 || list.some((x) => sameSubjectName(x, subject));
         });

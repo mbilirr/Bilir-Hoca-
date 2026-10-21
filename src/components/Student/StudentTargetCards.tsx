@@ -5,7 +5,7 @@ import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList, targetSubjectMatcher } from '../../lib/subjects';
 import { formatTurkishDate } from '../../utils/questionAnalytics';
 import { TargetDailyBreakdown } from './TargetDailyBreakdown';
-import { isFlexibleTarget, isPlanQuestionTarget, targetForDay, targetEndDate } from '../../utils/targetDays';
+import { isFlexibleTarget, isPlanMirrorTarget, isPlanQuestionTarget, targetForDay, targetEndDate } from '../../utils/targetDays';
 import { loadSentPlanItemsInRange, type DatedPlanItem } from '../../services/studyPlanService';
 
 // Öğrencinin bu haftaya denk gelen soru hedefleri (Aşama 10)
@@ -376,7 +376,8 @@ export const StudentTargetCards: React.FC<{
   hideDailyBreakdown?: boolean;
 }> = ({ targets, studentId, logs, hideDailyBreakdown }) => {
   const planTargets = targets.filter((t) => isPlanQuestionTarget(t) && isFlexibleTarget(t));
-  const manual = targets.filter((t) => !planTargets.includes(t));
+  // Aşama 64: plandaki sayılarla doldurulmuş genel hedef ayrıca kart olarak gösterilmez (sayıları gün gün duvarlardadır)
+  const manual = targets.filter((t) => !planTargets.includes(t) && !isPlanMirrorTarget(t, targets));
   if (!targets.length) return null;
   return (
     <div className="space-y-3" id="student-target-cards">

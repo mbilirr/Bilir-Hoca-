@@ -1,7 +1,7 @@
 import type { StudentQuestionLog, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
 import { formatDateISO, getWeekStartOf, turkishDayShortOf } from './questionAnalytics';
-import { computeTargetDays, isPendingPlanTarget, weekDayGoal, type TargetDaysResult } from './targetDays';
+import { computeTargetDays, isPendingPlanTarget, isPlanMirrorTarget, weekDayGoal, type TargetDaysResult } from './targetDays';
 
 // ============================================================================
 // ÖĞRENCİ SORU ÖZETİ — TEK HESAP (Aşama 29)
@@ -105,7 +105,7 @@ export function buildStudentQuestionSummary(
     todayGoalSolved = generalRow.solved;
   } else {
     for (const x of targets) {
-      if (!x.t.subject) continue;
+      if (!x.t.subject || isPlanMirrorTarget(x.t, targets.map((y) => y.t))) continue;
       const r = x.res.rows.find((row) => row.ymd === todayYmd);
       if (r && r.target > 0) {
         todayGoalSolved += r.solved;

@@ -233,7 +233,19 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     todayEtuts.length ? `${todayEtuts.length} etüt` : '',
     dueSoon.length ? `${dueSoon.length} ödev teslimi` : '',
     unread.length ? `${unread.length} okunmamış mesaj` : '',
+    unseenSubmissions.length ? `${unseenSubmissions.length} yeni ödev teslimi` : '',
+    unseenQuestionEntries.length ? `${unseenQuestionEntries.length} yeni soru girişi` : '',
   ].filter(Boolean);
+  // Aşama 64: "Bugün" kutusu yeni gelen bilgiyle parlar (mesaj > ödev teslimi > soru girişi rengi)
+  const todayFlash = flashMessages
+    ? 'notify-flash notify-blink-rose'
+    : flashSubmissions
+    ? 'notify-flash notify-blink-emerald'
+    : flashQuestions
+    ? 'notify-flash notify-blink-amber'
+    : undefined;
+  const todayEmpty =
+    todayEtuts.length === 0 && dueSoon.length === 0 && unread.length === 0 && recentSubmissions.length === 0 && recentQuestionEntries.length === 0;
 
   return (
     <div className="space-y-6 @container" id="teacher-home">
@@ -321,14 +333,22 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         <div className="@4xl:col-span-7 space-y-4 sm:space-y-6 min-w-0">
         <Panel
           id="home-today-panel"
-          className={flashMessages ? 'notify-flash notify-blink-rose' : undefined}
+          className={todayFlash}
           icon={Sun}
           tone="warning"
           title="Bugün"
           description={summaryParts.length ? summaryParts.join(' · ') : 'Planlanmış bir iş yok'}
-          actions={unread.length > 0 ? <span className="notify-badge notify-blink-rose">{unread.length} yeni mesaj</span> : undefined}
+          actions={
+            unread.length > 0 || unseenSubmissions.length > 0 || unseenQuestionEntries.length > 0 ? (
+              <span className="flex flex-wrap items-center justify-end gap-1.5">
+                {unread.length > 0 && <span className="notify-badge notify-blink-rose">{unread.length} yeni mesaj</span>}
+                {unseenSubmissions.length > 0 && <span className="notify-badge notify-blink-emerald">{unseenSubmissions.length} yeni teslim</span>}
+                {unseenQuestionEntries.length > 0 && <span className="notify-badge notify-blink-amber">{unseenQuestionEntries.length} yeni giriş</span>}
+              </span>
+            ) : undefined
+          }
         >
-          {todayEtuts.length === 0 && dueSoon.length === 0 && unread.length === 0 ? (
+          {todayEmpty ? (
             <EmptyState
               icon={CheckCircle2}
               title="Bugün için bekleyen bir şey yok"
@@ -450,6 +470,140 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
                 )}
               </section>
 
+              {/* Aşama 64: Yeni ödev teslimleri (son 3 gün; eskiden ayrı kutuydu) */}
+              <section id="home-new-submissions">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
+                  <h3 className="ui-eyebrow flex items-center gap-2">
+                    Yeni ödev teslimleri
+                    {unseenSubmissions.length > 0 && <span className="notify-badge notify-blink-emerald">{unseenSubmissions.length} yeni</span>}
+                  </h3>
+                  <span className="flex items-center gap-3">
+                    {unseenSubmissions.length > 0 && (
+                      <button
+                        type="button"
+                        id="home-submissions-mark-all"
+                        className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                        onClick={() => markSubsSeen(recentSubmissions.map((e) => e.id))}
+                      >
+                        Tümünü okundu yap
+                      </button>
+                    )}
+                    <button type="button" className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('homework')}>
+                      Tümü
+                    </button>
+                  </span>
+                </div>
+                {recentSubmissions.length === 0 ? (
+                  <p className="text-sm text-muted">Son 3 günde ödev teslimi yok.</p>
+                ) : (
+                  <StackGroup
+                    id="home-stack-submissions"
+                    noun="ödev teslimi"
+                    tone="success"
+                    items={recentSubmissions.slice(0, 30).map((e) => {
+                      const isNew = !seenSubIds.has(e.id);
+                      return (
+                        <button
+                          key={e.id}
+                          type="button"
+                          data-submission={e.id}
+                          onClick={() => {
+                            markSubsSeen([e.id]);
+                            go('homework', ['homework', e.homeworkId, e.title]);
+                          }}
+                          title={`${e.name} — ${e.title}`}
+                          className={cx(
+                            'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
+                            isNew && 'notify-blink notify-blink-emerald'
+                          )}
+                        >
+                          <IconBox icon={ClipboardCheck} tone="success" size="sm" />
+                          <span className="flex-1 min-w-0">
+                            <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
+                              {e.name} <span className="font-normal text-muted">teslim etti</span>
+                              {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
+                            </span>
+                            <span className="block text-xs text-muted truncate">
+                              {e.title} · {whenText(e.submittedAt)}
+                              {e.late ? ' · geç teslim' : ''}
+                            </span>
+                          </span>
+                          <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
+                        </button>
+                      );
+                    })}
+                    moreText={recentSubmissions.length > 30 ? `ve ${recentSubmissions.length - 30} teslim daha — Ödevler'e gidin` : undefined}
+                  />
+                )}
+              </section>
+
+              {/* Aşama 64: Öğrenci soru girişleri (son 3 gün; eskiden ayrı kutuydu). Ada tıklayınca öğrencinin Soru Takibi sayfası */}
+              <section id="home-question-entries">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-2">
+                  <h3 className="ui-eyebrow flex items-center gap-2">
+                    Öğrenci soru girişleri
+                    {unseenQuestionEntries.length > 0 && <span className="notify-badge notify-blink-amber">{unseenQuestionEntries.length} yeni</span>}
+                  </h3>
+                  <span className="flex items-center gap-3">
+                    {unseenQuestionEntries.length > 0 && (
+                      <button
+                        type="button"
+                        id="home-qentries-mark-all"
+                        className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
+                        onClick={() => markQLogsSeen(recentQuestionEntries.map((e) => e.id))}
+                      >
+                        Tümünü okundu yap
+                      </button>
+                    )}
+                    <button type="button" className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('question_tracking')}>
+                      Tümü
+                    </button>
+                  </span>
+                </div>
+                {recentQuestionEntries.length === 0 ? (
+                  <p className="text-sm text-muted">Son 3 günde soru girişi yok.</p>
+                ) : (
+                  <StackGroup
+                    id="home-stack-questions"
+                    noun="soru girişi"
+                    tone="warning"
+                    items={recentQuestionEntries.slice(0, 30).map((e) => {
+                      const isNew = !seenQLogIds.has(e.id);
+                      return (
+                        <button
+                          key={e.id}
+                          type="button"
+                          data-qentry={e.studentId}
+                          onClick={() => {
+                            markQLogsSeen([e.id]);
+                            go('question_tracking', ['student', e.studentId, e.name]);
+                          }}
+                          title={`${e.name} — Soru Takibi sayfasını aç`}
+                          className={cx(
+                            'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
+                            isNew && 'notify-blink notify-blink-amber'
+                          )}
+                        >
+                          <IconBox icon={HelpCircle} tone="warning" size="sm" />
+                          <span className="flex-1 min-w-0">
+                            <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
+                              <span className="underline decoration-dotted underline-offset-2">{e.name}</span> {e.total} soru girdi
+                              {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
+                            </span>
+                            <span className="block text-xs text-muted truncate">
+                              {whenText(e.createdAt)}
+                              {e.subjects.length ? ` · ${e.subjects.slice(0, 3).join(', ')}${e.subjects.length > 3 ? ` +${e.subjects.length - 3}` : ''}` : ''}
+                            </span>
+                          </span>
+                          <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
+                        </button>
+                      );
+                    })}
+                    moreText={recentQuestionEntries.length > 30 ? `ve ${recentQuestionEntries.length - 30} giriş daha — Soru Takibi'ne gidin` : undefined}
+                  />
+                )}
+              </section>
+
               {/* Okunmamış mesajlar */}
               <section>
                 <div className="flex items-center justify-between mb-2">
@@ -491,161 +645,6 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
           )}
         </Panel>
 
-        {/* ===== SORU GİRİŞLERİ (Aşama 28): hangi öğrenci kaç soru girdi — ada tıklayınca öğrencinin Soru Takibi sayfası ===== */}
-        <Panel
-          id="home-question-entries"
-          className={flashQuestions ? 'notify-flash notify-blink-amber' : undefined}
-          icon={HelpCircle}
-          tone="warning"
-          title="Öğrenci soru girişleri"
-          description={
-            recentQuestionEntries.length === 0
-              ? 'Son 3 günde soru girişi yok'
-              : unseenQuestionEntries.length > 0
-              ? `${unseenQuestionEntries.length} yeni giriş`
-              : 'Yeni giriş yok'
-          }
-          actions={
-            unseenQuestionEntries.length > 0 ? (
-              <span className="flex items-center gap-2">
-                <span className="notify-badge notify-blink-amber">{unseenQuestionEntries.length} yeni</span>
-                <button
-                  type="button"
-                  id="home-qentries-mark-all"
-                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
-                  onClick={() => markQLogsSeen(recentQuestionEntries.map((e) => e.id))}
-                >
-                  Tümünü okundu yap
-                </button>
-              </span>
-            ) : undefined
-          }
-        >
-          {recentQuestionEntries.length === 0 ? (
-            <p className="text-sm text-muted">Öğrenciler soru sayısı girdiğinde burada adlarıyla görünür.</p>
-          ) : (
-            <ul className="space-y-2">
-              {recentQuestionEntries.slice(0, 8).map((e) => {
-                const isNew = !seenQLogIds.has(e.id);
-                return (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      data-qentry={e.studentId}
-                      onClick={() => {
-                        markQLogsSeen([e.id]);
-                        go('question_tracking', ['student', e.studentId, e.name]);
-                      }}
-                      title={`${e.name} — Soru Takibi sayfasını aç`}
-                      className={cx(
-                        'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
-                        isNew && 'notify-blink notify-blink-amber'
-                      )}
-                    >
-                      <span className={cx('w-2.5 h-2.5 rounded-full shrink-0', isNew ? 'bg-amber-500' : 'bg-transparent')} aria-hidden />
-                      <span className="flex-1 min-w-0">
-                        <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
-                          <span className="underline decoration-dotted underline-offset-2">{e.name}</span> {e.total} soru girdi
-                          {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
-                        </span>
-                        <span className="block text-xs text-muted truncate">
-                          {whenText(e.createdAt)}
-                          {e.subjects.length ? ` · ${e.subjects.slice(0, 3).join(', ')}${e.subjects.length > 3 ? ` +${e.subjects.length - 3}` : ''}` : ''}
-                        </span>
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
-                    </button>
-                  </li>
-                );
-              })}
-              {recentQuestionEntries.length > 8 && (
-                <li className="text-xs pl-1">
-                  <button type="button" className="font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('question_tracking')}>
-                    ve {recentQuestionEntries.length - 8} giriş daha — Soru Takibi'ne git
-                  </button>
-                </li>
-              )}
-            </ul>
-          )}
-        </Panel>
-
-        {/* ===== YENİ ÖDEV TESLİMLERİ (Aşama 29): son 3 gün; görülmemişler yeşil yan-sön ile yanıp söner ===== */}
-        <Panel
-          id="home-new-submissions"
-          className={flashSubmissions ? 'notify-flash notify-blink-emerald' : undefined}
-          icon={ClipboardCheck}
-          tone="success"
-          title="Yeni ödev teslimleri"
-          description={
-            recentSubmissions.length === 0
-              ? 'Son 3 günde teslim yok'
-              : unseenSubmissions.length > 0
-              ? `${unseenSubmissions.length} yeni teslim`
-              : 'Yeni teslim yok'
-          }
-          actions={
-            unseenSubmissions.length > 0 ? (
-              <span className="flex items-center gap-2">
-                <span className="notify-badge notify-blink-emerald">{unseenSubmissions.length} yeni</span>
-                <button
-                  type="button"
-                  id="home-submissions-mark-all"
-                  className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer"
-                  onClick={() => markSubsSeen(recentSubmissions.map((e) => e.id))}
-                >
-                  Tümünü okundu yap
-                </button>
-              </span>
-            ) : undefined
-          }
-        >
-          {recentSubmissions.length === 0 ? (
-            <p className="text-sm text-muted">Öğrenciler ödev teslim ettiğinde burada adlarıyla görünür.</p>
-          ) : (
-            <ul className="space-y-2">
-              {recentSubmissions.slice(0, 6).map((e) => {
-                const isNew = !seenSubIds.has(e.id);
-                return (
-                  <li key={e.id}>
-                    <button
-                      type="button"
-                      data-submission={e.id}
-                      onClick={() => {
-                        markSubsSeen([e.id]);
-                        go('homework', ['homework', e.homeworkId, e.title]);
-                      }}
-                      title={`${e.name} — ${e.title}`}
-                      className={cx(
-                        'w-full flex items-center gap-3 p-3 rounded-xl border border-transparent bg-surface-2 hover:bg-surface-3 text-left cursor-pointer transition-colors',
-                        isNew && 'notify-blink notify-blink-emerald'
-                      )}
-                    >
-                      <span className={cx('w-2.5 h-2.5 rounded-full shrink-0', isNew ? 'bg-emerald-500' : 'bg-transparent')} aria-hidden />
-                      <span className="flex-1 min-w-0">
-                        <span className={cx('block text-sm text-fg truncate', isNew ? 'font-bold' : 'font-medium')}>
-                          {e.name} <span className="font-normal text-muted">teslim etti</span>
-                          {e.className ? <span className="font-normal text-muted"> · {e.className}</span> : null}
-                        </span>
-                        <span className="block text-xs text-muted truncate">
-                          {e.title} · {whenText(e.submittedAt)}
-                          {e.late ? ' · geç teslim' : ''}
-                        </span>
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-subtle shrink-0" />
-                    </button>
-                  </li>
-                );
-              })}
-              {recentSubmissions.length > 6 && (
-                <li className="text-xs pl-1">
-                  <button type="button" className="font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('homework')}>
-                    ve {recentSubmissions.length - 6} teslim daha — Ödevler'e git
-                  </button>
-                </li>
-              )}
-            </ul>
-          )}
-        </Panel>
         </div>
 
         {/* ===== AJANDA ===== */}
@@ -668,8 +667,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
 // 3 ya da daha az bildirim normal liste olarak görünür.
 // ---------------------------------------------------------------------------
 const STACK_LIMIT = 3;
-const STACK_TONE: Record<'info' | 'success' | 'danger', string> = {
+const STACK_TONE: Record<'info' | 'success' | 'danger' | 'warning', string> = {
   info: 'bg-sky-600',
+  warning: 'bg-amber-600',
   success: 'bg-emerald-600',
   danger: 'bg-rose-600',
 };
@@ -678,7 +678,7 @@ const StackGroup: React.FC<{
   id: string;
   /** "etüt", "ödev teslimi", "okunmamış mesaj" */
   noun: string;
-  tone: 'info' | 'success' | 'danger';
+  tone: 'info' | 'success' | 'danger' | 'warning';
   items: React.ReactElement[];
   moreText?: string;
 }> = ({ id, noun, tone, items, moreText }) => {

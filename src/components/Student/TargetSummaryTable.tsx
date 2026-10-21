@@ -5,7 +5,7 @@ import type { WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatDateISO } from '../../utils/questionAnalytics';
-import { computeTargetDays, isFlexibleTarget, weekDayGoal, type TargetDayRow, type TargetDaysResult } from '../../utils/targetDays';
+import { computeTargetDays, isFlexibleTarget, isPlanMirrorTarget, weekDayGoal, type TargetDayRow, type TargetDaysResult } from '../../utils/targetDays';
 import { cx } from '../ui/kit';
 import { loadSentPlanItemsInRange, type DatedPlanItem } from '../../services/studyPlanService';
 
@@ -262,6 +262,11 @@ export const TargetSummaryTable: React.FC<{
                           {t.targetType === 'class' ? ' · Sınıf hedefi' : ''}
                           {isFlexibleTarget(t) ? ' · günlere farklı dağıtıldı' : ` · günde ${res.daily}`}
                         </div>
+                        {isPlanMirrorTarget(t, targets) && (
+                          <div className="text-[11px] text-info-fg mt-1 leading-snug" data-testid="plan-mirror-note">
+                            Haftalık plandaki sayılarla dolduruldu. Günün hedefine ayrıca eklenmez; plandaki ders hedefleri geçerlidir.
+                          </div>
+                        )}
                         {split.length > 0 && (
                           <div className="text-[11px] text-fg-2 mt-1 flex flex-wrap gap-x-2">
                             {split.map(([s, n]) => (

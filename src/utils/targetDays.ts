@@ -196,20 +196,49 @@ export function computeTargetDays(
  *  3. Hiçbir hedef o güne denk gelmiyorsa 0 (hedef yok). Varsayılan bir sayı UYDURULMAZ;
  *     böylece öğretmenin hedef vermediği günde grafikte hedef çizgisi/noktası görünmez.
  */
+/**
+ * Aşama 64: "Soru hedefi ver" penceresinde HAFTALIK PLANDAKİ sayılarla doldurulup kaydedilen gün gün hedef (plan aynası).
+ * Genel (ders seçilmemiş) ya da birden çok dersli, gün gün dağıtılmış bir öğrenci hedefidir ve sorusu olan HER günü,
+ * aynı öğrencinin plandan gelen ders hedeflerinin (Matematik, Biyoloji …) sorusu olan bir günüdür.
+ * Plandaki sayılar zaten ders ders hedef olduğu (ve plan değişince kendiliğinden güncellendiği) için bu kayıt
+ * ayrıca sayılmaz: plan sonradan değişince eski toplamda kalıp (ör. 150) günün hedefini bozmasın, çift de sayılmasın.
+ * Günün hedefi plandaki ders hedeflerinin toplamıdır (ör. Matematik 54 + Biyoloji 89 = 143).
+ */
+export function isPlanMirrorTarget(t: WeeklyQuestionTarget, all: WeeklyQuestionTarget[]): boolean {
+  if (!t || t.targetType === 'class' || !isFlexibleTarget(t) || isPlanTopicRecord(t)) return false;
+  const list = targetSubjectList(t.subject).map((x) => normalizeSubject(x));
+  if (list.length === 1) return false; // tek dersli hedef plan kaydının kendisi ya da öğretmenin elle verdiği hedeftir
+  const days = Object.entries(t.dailyTargets || {})
+    .filter(([, n]) => (Number(n) || 0) > 0)
+    .map(([d]) => d);
+  if (!days.length) return false;
+  const plans = all.filter(
+    (o) =>
+      o !== t &&
+      isPlanQuestionTarget(o) &&
+      o.studentId === t.studentId &&
+      (!list.length || list.includes(normalizeSubject(o.subject || '')))
+  );
+  if (!plans.length) return false;
+  return days.every((d) => plans.some((o) => targetForDay(o, d) > 0));
+}
+
 export function weekDayGoal(
   ymd: string,
   rows: Array<{ t: WeeklyQuestionTarget; res: TargetDaysResult }>
 ): { goal: number; generalRow: TargetDayRow | null } {
+  const all = rows.map((x) => x.t);
+  const mirror = new Set(rows.filter((x) => isPlanMirrorTarget(x.t, all)).map((x) => x.t));
   let generalRow: TargetDayRow | null = null;
   for (const x of rows) {
-    if (x.t.subject) continue;
+    if (x.t.subject || mirror.has(x.t)) continue;
     const r = x.res.rows.find((row) => row.ymd === ymd);
     if (r && (!generalRow || r.target > generalRow.target)) generalRow = r;
   }
   if (generalRow) return { goal: Math.max(0, generalRow.target), generalRow };
   let sum = 0;
   for (const x of rows) {
-    if (!x.t.subject) continue;
+    if (!x.t.subject || mirror.has(x.t)) continue;
     const r = x.res.rows.find((row) => row.ymd === ymd);
     if (r && r.target > 0) sum += r.target;
   }
