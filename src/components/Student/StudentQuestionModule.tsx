@@ -112,6 +112,10 @@ export function shortTurkishDate(iso: string): string {
  * ilk hedefin günlük sayısı; genel hedef yoksa 50. Ders hedefi (ör. yalnızca Matematik) tüm derslerin
  * toplamıyla karşılaştırılamayacağı için çizgide kullanılmaz.
  */
+// Aşama 65: günlük tablo telefonda (768 px altı) kart görünümüne geçer; her hücre solda başlığıyla (data-label) yazılır
+const CELL_LABEL =
+  'max-md:flex max-md:items-start max-md:justify-between max-md:gap-3 max-md:px-0 max-md:py-1 max-md:text-right max-md:before:content-[attr(data-label)] max-md:before:shrink-0 max-md:before:text-[11px] max-md:before:font-semibold max-md:before:text-muted max-md:before:text-left';
+
 export function generalDailyTarget(targets: WeeklyQuestionTarget[]): number {
   const general = targets.find((t) => !t.subject && !isPlanMirrorTarget(t, targets));
   return Math.max(1, Number(general?.dailyTarget) || DEFAULT_DAILY_QUESTION_TARGET);
@@ -1821,8 +1825,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
           </div>
 
           {/* Günlük Veri Tablosu ve Ders Dağılımı */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-surface border border-line rounded-2xl p-5 shadow-sm">
+          {/* Aşama 65: tablo sayfanın tam genişliğinde (7 sütun sığsın); ders dağılımı kutusu altında */}
+          <div className="grid grid-cols-1 gap-6">
+            <div className="min-w-0 bg-surface border border-line rounded-2xl p-4 sm:p-5 shadow-sm">
               {/* Birleşik tablo: eski "Günlük Soru Çözüm ve Başarı Tablosu" + soru hedefi kartlarındaki "Gün gün durum" tablosu */}
               <h4 className="text-sm font-bold text-fg mb-1">Günlük Soru Çözüm, Hedef ve Başarı Tablosu</h4>
               <p className="text-[11px] text-muted mb-4 pb-2 border-b border-line" id="merged-daily-table-summary">
@@ -1834,21 +1839,20 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     ? 'Ders hedeflerinin günlük durumu "Günlük Hedef" sütunundadır.'
                     : 'Bu hafta soru hedefi verilmedi; hedef sütunları boş görünür.'}
               </p>
-              <p className="sm:hidden mb-2 text-[11px] text-muted" data-testid="table-scroll-hint">Tabloyu yana kaydırabilirsin →</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs" id="merged-daily-table">
-                  <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line">
+              <div className="md:overflow-x-auto">
+                <table className="w-full text-left text-xs max-md:block" id="merged-daily-table">
+                  <thead className="bg-surface-2 text-fg-2 font-bold border-b border-line max-md:hidden">
                     <tr>
-                      <th className="px-3 py-2.5">Gün</th>
-                      <th className="px-3 py-2.5 text-center">Çözülen</th>
-                      <th className="px-3 py-2.5 text-center">D / Y</th>
-                      <th className="px-3 py-2.5">Ders Dağılımı</th>
-                      <th className="px-3 py-2.5 text-center">Günlük Hedef</th>
-                      <th className="px-3 py-2.5 text-center">Hedef Durumu</th>
-                      <th className="px-3 py-2.5 text-center">Durum</th>
+                      <th className="px-2 lg:px-3 py-2.5">Gün</th>
+                      <th className="px-2 lg:px-3 py-2.5 text-center">Çözülen</th>
+                      <th className="px-2 lg:px-3 py-2.5 text-center">D / Y</th>
+                      <th className="px-2 lg:px-3 py-2.5">Ders Dağılımı</th>
+                      <th className="px-2 lg:px-3 py-2.5 text-center">Günlük Hedef</th>
+                      <th className="px-2 lg:px-3 py-2.5 text-center">Hedef Durumu</th>
+                      <th className="px-2 lg:px-3 py-2.5 text-center">Durum</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-line">
+                  <tbody className="divide-y divide-line max-md:block max-md:divide-y-0 max-md:space-y-2">
                     {weeklyAnalytics.days.map((d) => {
                       const goalRow = dayGoalRow(d.dateStr);
                       const goal = dayGoal(d.dateStr);
@@ -1898,39 +1902,40 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <tr
                           key={d.dateStr}
                           data-testid="merged-daily-row"
-                          className={`hover:bg-surface-2 transition-colors ${isToday ? 'bg-orange-50/40 dark:bg-orange-500/5' : ''}`}
+                          className={`hover:bg-surface-2 transition-colors max-md:block max-md:rounded-xl max-md:border max-md:border-line max-md:px-3 max-md:py-2 ${isToday ? 'bg-orange-50/40 dark:bg-orange-500/5' : ''}`}
                         >
-                          <td className="px-3 py-2.5 whitespace-nowrap">
+                          <td className="px-2 lg:px-3 py-2.5 whitespace-nowrap max-md:block max-md:px-0 max-md:pt-0 max-md:pb-1.5 max-md:mb-1 max-md:border-b max-md:border-line">
                             <span className="font-bold text-fg">{d.dayName}</span>
                             <span className="block text-[11px] text-muted">
                               {shortTurkishDate(d.dateStr)}
                               {isToday ? ' · bugün' : ''}
                             </span>
                           </td>
-                          <td className="px-3 py-2.5 text-center">
+                          <td data-label="Çözülen" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
                             <span className="font-extrabold text-fg text-sm">{isFuture && !d.hasSolved ? '—' : d.totalQuestions}</span>
                           </td>
-                          <td className="px-3 py-2.5 text-center whitespace-nowrap">
+                          <td data-label="Doğru / Yanlış" className={`px-2 lg:px-3 py-2.5 text-center whitespace-nowrap ${CELL_LABEL}`}>
                             {d.totalCorrect || d.totalWrong ? (
-                              <>
+                              <span>
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300">{d.totalCorrect}</span>
                                 <span className="text-muted"> / </span>
                                 <span className="font-bold text-rose-700 dark:text-rose-300">{d.totalWrong}</span>
-                              </>
+                              </span>
                             ) : (
                               <span className="text-subtle">—</span>
                             )}
                           </td>
-                          <td className="px-3 py-2.5 text-muted min-w-[130px] max-w-[240px] whitespace-normal">
+                          <td data-label="Ders dağılımı" className={`px-2 lg:px-3 py-2.5 text-muted min-w-[8rem] whitespace-normal break-words ${CELL_LABEL}`}>
                             {d.subjectsText || <span className="text-subtle italic">Ders kaydı yok</span>}
                           </td>
-                          <td className="px-3 py-2.5 text-center min-w-[110px]">
+                          <td data-label="Günlük hedef" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
+                            <div>
                             <span className="font-extrabold text-fg">{goal > 0 ? goal : '—'}</span>
                             {goal <= 0 && <span className="block text-[10px] text-muted">hedef yok</span>}
                             {subjectLines.map(({ label, r }) => (
                               <span
                                 key={label}
-                                className={`block text-[10px] font-semibold whitespace-nowrap ${
+                                className={`block text-[10px] font-semibold leading-snug ${
                                   r.status === 'met' ? 'text-emerald-700 dark:text-emerald-300' : r.status === 'future' ? 'text-muted' : 'text-orange-700 dark:text-orange-300'
                                 }`}
                                 title={`${label} hedefi`}
@@ -1939,8 +1944,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                                 {r.status === 'met' ? ' ✓' : ''}
                               </span>
                             ))}
+                            </div>
                           </td>
-                          <td className="px-3 py-2.5 text-center">
+                          <td data-label="Hedef durumu" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
                             <div className="inline-flex items-center gap-1.5">
                               <div className="w-12 bg-surface-3 rounded-full h-1.5 overflow-hidden">
                                 <div
@@ -1951,8 +1957,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               <span className="text-[10px] font-bold text-muted">{hasGoal ? `%${isFuture && !d.hasSolved ? 0 : completionRate}` : '—'}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2.5 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${statusCls}`}>
+                          <td data-label="Durum" className={`px-2 lg:px-3 py-2.5 text-center ${CELL_LABEL}`}>
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold leading-tight border ${statusCls}`}>
                               {statusText}
                             </span>
                           </td>
