@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, School, Trash2, Sparkles, Clipboard, HelpCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure } from '../../types';
+import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure, StudentParent } from '../../types';
+import { cleanParents, extractParents } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
@@ -51,6 +52,7 @@ interface ParsedStudentRow {
   isValid: boolean;
   validationError?: string;
   tc?: string; // Aşama 50: yalnızca bellekte; kayıttan sonra parmak izine çevrilip atılır
+  parents?: StudentParent[]; // Aşama 69: Excel'deki veli sütunları (K12: Veli (1), (2), (3))
 }
 
 // Aşama 50: TC sütunu başlığı ("TC", "T.C. Kimlik No", "TCKN", "Kimlik Numarası" …)
@@ -221,6 +223,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         isNewClass: false,
         isValid: false,
         tc: tcHeader ? String(rows[index]?.values[tcHeader] || '').replace(/\D/g, '') : '',
+        parents: cleanParents(extractParents(headers, rows[index]?.values || {})),
       };
       return applyClassMatch(base, f.className);
     });
@@ -404,6 +407,22 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           }
         } catch {
           // TC kaydı öğrenci eklemeyi bozmaz; "Excel ile Güncelle" ile sonradan eklenebilir
+        }
+      }
+
+      // Aşama 69: Excel'de veli sütunları varsa yeni öğrencilerin velileri kaydedilir
+      const parentsByNumber = new Map(
+        toCreate.filter((r) => r.parents && r.parents.length).map((r) => [r.studentNumber.trim().toLowerCase(), r.parents as StudentParent[]])
+      );
+      if (parentsByNumber.size && merged.created.length) {
+        for (const c of merged.created) {
+          const ps = parentsByNumber.get((c.student.studentNumber || '').trim().toLowerCase());
+          if (!ps || !ps.length) continue;
+          try {
+            await dataService.updateStudent(c.student.id, { parents: ps });
+          } catch {
+            // veli kaydı öğrenci eklemeyi bozmaz; "Excel ile Güncelle" ile sonradan eklenebilir
+          }
         }
       }
 

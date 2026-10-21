@@ -10,7 +10,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, HelpCircle, RefreshCw, ShieldCheck, Upload, UserCheck } from 'lucide-react';
-import type { ClassGroup, Student } from '../../types';
+import type { ClassGroup, Student, StudentParent } from '../../types';
+import { cleanParents, extractParents, mergeParents, parentsKey, parentsSummary } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
@@ -35,13 +36,14 @@ interface Props {
   onDone?: (message: string) => void;
 }
 
-type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'tc';
+type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'parents' | 'tc';
 const FIELD_LABEL: Record<Field, string> = {
   name: 'Ad soyad',
   classId: 'Sınıf',
   studentNumber: 'Okul no',
   phone: 'Telefon',
   email: 'E-posta',
+  parents: 'Veliler', // Aşama 69
   tc: 'TC kimlik (parmak izi)',
 };
 
@@ -126,7 +128,12 @@ function findClass(raw: string, classes: ClassGroup[]): { cls?: ClassGroup; erro
   const text = (raw || '').trim();
   if (!text) return {};
   const parsed = parseClassName(text);
-  if (parsed.grade && !parsed.branch && !parsed.rest) return { error: `Sınıf "${text}": şube yazılmamış` };
+  if (parsed.grade && !parsed.branch && !parsed.rest) {
+    // Aşama 69: yalnızca sınıf düzeyi yazılmışsa ("8") o düzeyin ŞUBESİZ sınıfı ("8. Sınıf") aranır
+    const noBranch = classes.filter((c) => classGradeBranch(c).grade === parsed.grade && !String(c.branch || '').replace(/şube/gi, '').trim());
+    if (noBranch.length === 1) return { cls: noBranch[0] };
+    return { error: `Sınıf "${text}": şube yazılmamış ve bu düzeyin şubesiz sınıfı yok` };
+  }
   const key = normalizeClassKey(text);
   const exact = classes.filter((c) => normalizeClassKey(c.name) === key);
   if (exact.length) {
@@ -159,10 +166,13 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const classes = useMemo(() => allClasses.filter((c) => dataService.canManageClass(c)), [allClasses]);
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
 
-  const [parsed, setParsed] = useState<Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; tc: string }>>([]);
+  const [parsed, setParsed] = useState<
+    Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; tc: string; parents: StudentParent[] }>
+  >([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, tc: true });
+  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, parents: true, tc: true });
+  const hasParentColumn = parsed.some((p) => p.parents.length > 0); // Aşama 69
   // Aşama 50: TC parmak izleri (TC'nin kendisi yalnızca bu pencere açıkken bellekte durur, ekranda gösterilmez)
   const canTc = dataService.canUseDeneme();
   const [tcHashes, setTcHashes] = useState<Array<string | null> | null>(null); // parsed ile aynı sıra
@@ -314,6 +324,12 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           else if (p.email.trim().toLowerCase() !== (s.email || '').trim().toLowerCase())
             r.changes.push({ field: 'email', from: s.email || '—', to: p.email.trim(), value: p.email.trim() });
         }
+        // Aşama 69: veliler (Excel'deki boş hücre kayıtlı veli bilgisini silmez; aynı sıradaki veli güncellenir)
+        if (fields.parents && p.parents.length) {
+          const merged = mergeParents(s.parents, p.parents, r.notes);
+          if (parentsKey(merged) !== parentsKey(s.parents))
+            r.changes.push({ field: 'parents', from: parentsSummary(s.parents), to: parentsSummary(merged), value: JSON.stringify(merged) });
+        }
         // TC: yalnızca parmak izi yazılır; ekranda TC gösterilmez
         if (canTc && fields.tc && p.tc) {
           if (!validTc(p.tc)) r.notes.push('TC geçersiz (11 hane ya da kontrol haneleri tutmuyor); kaydedilmez');
@@ -394,6 +410,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
             phone: f.phone,
             email: f.email,
             tc: tcHeader ? String(sheetRows[i]?.values[tcHeader] || '').replace(/\D/g, '') : '',
+            parents: cleanParents(extractParents(headers, sheetRows[i]?.values || {})),
           }))
           .filter((f) => f.name || f.number);
         if (!list.length) {
@@ -419,6 +436,18 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         Sınıf: s.className || '',
         Telefon: s.phone || '',
         'E-Posta': s.email || '',
+        // Aşama 69: veliler (K12 listesiyle aynı sütun adları; düzenleyip geri yükleyebilirsiniz)
+        ...Object.fromEntries(
+          [0, 1, 2].flatMap((k) => {
+            const pp = cleanParents(s.parents)[k] || {};
+            return [
+              [`Veli (${k + 1}) Tam Adı`, pp.name || ''],
+              [`Veli (${k + 1}) Mesaj Gönderi (Cep Tel)`, pp.phone || ''],
+              [`Veli (${k + 1}) 1. E-Posta Adresi`, pp.email || ''],
+              [`Veli (${k + 1}) Velinin Yakınlığı`, pp.relation || ''],
+            ];
+          })
+        ),
         // Aşama 50: TC sütunu boş gelir (TC sistemde saklanmadığı için indirilemez); doldurup yükleyebilirsiniz
         ...(canTc ? { 'TC Kimlik No': '' } : {}),
       }));
@@ -445,6 +474,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
       for (const c of r.changes) {
         if (c.field === 'tc') {
           tcList.push({ id: s.id, hash: c.value, name: s.name }); // yalnızca parmak izi
+        } else if (c.field === 'parents') {
+          upd.parents = JSON.parse(c.value) as StudentParent[];
         } else if (c.field === 'classId') {
           const cls = classes.find((x) => x.id === c.value);
           upd.classId = c.value;
@@ -453,7 +484,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
             if (cls.gradeLevel) upd.gradeLevel = cls.gradeLevel;
             if (cls.branch) upd.branch = cls.branch;
           }
-        } else upd[c.field] = c.value;
+        } else upd[c.field as 'name' | 'studentNumber' | 'phone' | 'email'] = c.value;
       }
       try {
         if (Object.keys(upd).length) await dataService.updateStudent(s.id, upd);
@@ -631,7 +662,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <span className="font-semibold text-fg">Güncellenecek bilgiler:</span>
-              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => f !== 'tc' || (canTc && hasTcColumn)).map((f) => (
+              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => (f !== 'tc' || (canTc && hasTcColumn)) && (f !== 'parents' || hasParentColumn)).map((f) => (
                 <label key={f} className="flex items-center gap-1.5 cursor-pointer text-fg-2 hover:text-fg">
                   <input
                     type="checkbox"
@@ -783,6 +814,11 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
               <li>
                 Sütunlar: <strong>Öğrenci No</strong>, <strong>Ad Soyad</strong> (ya da <strong>Ad</strong> + <strong>Soyad</strong>), <strong>Sınıf</strong>,{' '}
                 <strong>Telefon</strong>, <strong>E-Posta</strong>. Hepsi zorunlu değil; yalnızca dosyada olan bilgiler güncellenir.
+              </li>
+              <li>
+                <strong>Veliler:</strong> K12 öğrenci listesi olduğu gibi yüklenebilir: <strong>Veli (1)</strong>, <strong>Veli (2)</strong>, <strong>Veli (3)</strong>{' '}
+                Tam Adı, Cep Tel, E-Posta ve Velinin Yakınlığı sütunları velilere yazılır (Anne / Baba Cep Telefonu gibi başlıklar da tanınır).
+                Veli sütunları öğrencinin kendi telefonu / e-postası sayılmaz.
               </li>
               <li>
                 <strong>Boş hücre hiçbir bilgiyi silmez.</strong> Yalnızca büyük/küçük harf farkı olan adlar değişmiş sayılmaz.

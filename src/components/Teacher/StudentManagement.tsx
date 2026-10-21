@@ -35,7 +35,8 @@ import {
   ArrowUpDown,
   ShieldCheck,
 } from 'lucide-react';
-import { Student, ClassGroup, StudentCredential, StudentAccountFailure } from '../../types';
+import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentParent } from '../../types';
+import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
@@ -116,6 +117,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const canAddClasses = dataService.canManageClasses();
   // Öğrencilerin taşınabileceği sınıflar (kurum yöneticisi: yalnızca kendi açtığı sınıflar)
   const manageableClasses = classes.filter((c) => dataService.canManageClass(c));
+  // Aşama 69: ŞUBESİZ SINIF — öğrenci şubeye bağlı olmadan yalnızca sınıf düzeyinde (ör. "8. Sınıf") durabilir.
+  // Şube seçim kutusunda "Şubesiz" seçeneğinin değeri; sınıf kaydında şube boş ('') saklanır.
+  const NO_BRANCH = '__none__';
+  const branchValue = (b: string) => (b === NO_BRANCH ? '' : b);
+  const isNoBranchClass = (c: ClassGroup) => !String(c.branch || '').replace(/şube/gi, '').trim();
+  const gradeNumOf = (c: ClassGroup) => (String(c.gradeLevel || '').match(/\b(1[0-2]|[1-9])\b/) || String(c.name || '').match(/\b(1[0-2]|[1-9])\b/) || [])[1] || '';
+  // Öğrenci formunda: henüz şubesiz sınıfı olmayan sınıf düzeyleri için "8. Sınıf (şubesiz)" seçeneği;
+  // seçilip kaydedilince şubesiz sınıf kendiliğinden açılır (yalnızca sınıf açma yetkisi olanlarda)
+  const PENDING_GRADE = '__grade:';
+  const pendingNoBranchGrades = canAddClasses
+    ? Array.from(
+        new Map(
+          manageableClasses
+            .filter((c) => gradeNumOf(c) && !isNoBranchClass(c))
+            .map((c) => [gradeNumOf(c), c] as const)
+        ).values()
+      )
+        .filter((c) => !classes.some((x) => isNoBranchClass(x) && gradeNumOf(x) === gradeNumOf(c)))
+        .sort((a, b) => Number(gradeNumOf(a)) - Number(gradeNumOf(b)))
+    : [];
 
   // Modals
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
@@ -165,6 +186,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
   const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
   const [studentPhoneError, setStudentPhoneError] = useState<string | null>(null);
+  // Aşama 69: veli iletişim bilgileri (isteğe bağlı)
+  // en çok 3 veli (K12'deki Veli (1), (2), (3)); formda en az bir boş satır görünür
+  const [parents, setParents] = useState<StudentParent[]>([{}]);
+  const [parentErrors, setParentErrors] = useState<Array<string | null>>([]);
+  const setParentField = (i: number, field: keyof StudentParent, value: string) => {
+    setParents((list) => list.map((p, k) => (k === i ? { ...p, [field]: value } : p)));
+    setParentErrors((e) => e.map((x, k) => (k === i ? null : x)));
+  };
   // Aşama 50: TC kimlik (yalnızca parmak izi saklanır; alan hiçbir zaman dolu gelmez)
   const canTc = dataService.canUseDeneme();
   const [studentTc, setStudentTc] = useState('');
@@ -193,6 +222,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     classId: string;
     studentNumber: string;
     phone: string;
+    parents: StudentParent[];
     avatar: string;
     password: string;
   }
@@ -516,8 +546,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setStudentFormError('Öğrenci numarası yalnızca rakam/harf içermelidir (boşluksuz, en fazla 20 karakter).');
       return;
     }
-    const targetClass = classes.find((c) => c.id === studentClassId);
-    if (!targetClass) {
+    // Aşama 69: "8. Sınıf (şubesiz)" seçildiyse sınıf, diğer kontroller geçince açılır
+    const pendingGradeClass = studentClassId.startsWith(PENDING_GRADE)
+      ? pendingNoBranchGrades.find((c) => gradeNumOf(c) === studentClassId.slice(PENDING_GRADE.length)) || null
+      : null;
+    let targetClass = pendingGradeClass ? null : classes.find((c) => c.id === studentClassId);
+    if (!targetClass && !pendingGradeClass) {
       setStudentFormError('Lütfen öğrencinin sınıfını seçiniz.');
       return;
     }
@@ -525,10 +559,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const phoneNorm = normalizeTurkishPhone(studentPhone);
     setStudentEmailError(mailProblem);
     setStudentPhoneError(phoneNorm.valid ? null : PHONE_ERROR);
+    // Aşama 69: veli telefonu / e-postası (boş bırakılabilir)
+    const parentErrs = parents.map((p) => (hasParentInfo(p) ? parentIssue(p) : null));
+    setParentErrors(parentErrs);
+    const parentProblem = parentErrs.some(Boolean);
     const tcDigits = studentTc.replace(/\D/g, '');
     const tcBad = canTc && !!tcDigits && !validTc(tcDigits);
     setStudentTcError(tcBad ? 'TC kimlik numarası geçersiz (11 hane, kontrol haneleri tutmuyor).' : null);
-    if (mailProblem || !phoneNorm.valid || tcBad) {
+    if (mailProblem || !phoneNorm.valid || tcBad || parentProblem) {
       setStudentFormError('Lütfen işaretli alanları düzeltiniz.');
       return;
     }
@@ -542,12 +580,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
 
+    if (pendingGradeClass) {
+      const num = gradeNumOf(pendingGradeClass);
+      try {
+        const { autoAssignedCount, ...created } = await dataService.addClass({
+          name: `${num}. Sınıf`,
+          schoolLevel: pendingGradeClass.schoolLevel || detectSchoolLevelFromGrade(pendingGradeClass.gradeLevel || pendingGradeClass.name) || 'Ortaokul',
+          gradeLevel: pendingGradeClass.gradeLevel || `${num}. Sınıf`,
+          branch: '',
+          academicYear: pendingGradeClass.academicYear || currentAcademicYear(),
+          description: `${num}. sınıf şubesiz öğrenciler`,
+        });
+        void autoAssignedCount;
+        targetClass = created;
+        setStudentClassId(created.id);
+      } catch (err: any) {
+        setStudentFormError(err?.message || 'Şubesiz sınıf açılamadı.');
+        return;
+      }
+    }
+    if (!targetClass) return;
+
     const payload: StudentFormPayload = {
       name: cleanName,
       email: studentEmail.trim(),
       classId: targetClass.id,
       studentNumber: cleanNumber,
       phone: phoneNorm.value,
+      parents: cleanParents(parents),
       avatar:
         studentAvatar ||
         editingStudent?.avatar ||
@@ -600,6 +660,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             classId: payload.classId,
             studentNumber: payload.studentNumber,
             phone: payload.phone,
+            parents: payload.parents,
             avatar: payload.avatar,
           },
           { newPassword: payload.password || undefined }
@@ -623,9 +684,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           password: payload.password,
         });
         const tcMsg = credential?.student?.id ? await saveTc(credential.student.id) : '';
+        // Aşama 69: veli bilgileri hesap açıldıktan sonra öğrencinin kaydına yazılır
+        let parentMsg = '';
+        if (credential?.student?.id && payload.parents.length) {
+          try {
+            await dataService.updateStudent(credential.student.id, { parents: payload.parents });
+          } catch (e: any) {
+            parentMsg = ` Veli bilgileri kaydedilemedi: ${(e?.message || '').replace(/^Öğrenci bilgileri kaydedilemedi:\s*/, '') || 'bağlantı sorunu'}`;
+          }
+        }
         setIsAddStudentOpen(false);
         setCredentialsResult({ credentials: [credential], failures: [], title: 'Öğrenci Eklendi' });
-        setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.${tcMsg}`);
+        setStudentSuccessFeedback(`Öğrenci "${payload.name}" eklendi ve giriş hesabı açıldı.${tcMsg}${parentMsg}`);
       }
       resetStudentForm();
     } catch (err: any) {
@@ -647,6 +717,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           email: newStudentPayload.email,
           classId: newStudentPayload.classId,
           phone: newStudentPayload.phone,
+          parents: newStudentPayload.parents,
           avatar: newStudentPayload.avatar,
         },
         { newPassword: newStudentPayload.password || undefined }
@@ -673,6 +744,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setShowStudentPassword(true);
     setStudentNumber('');
     setStudentPhone('');
+    setParents([{}]);
+    setParentErrors([]);
     setStudentAvatar('');
     setStudentClassId(classes[0]?.id || '');
     setStudentFormError(null);
@@ -703,6 +776,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentClassId(classes.some((c) => c.id === student.classId) ? student.classId : '');
     setStudentNumber(student.studentNumber || '');
     setStudentPhone(student.phone || '');
+    setParents(student.parents && student.parents.length ? cleanParents(student.parents) : [{}]);
+    setParentErrors([]);
     setStudentAvatar(student.avatar || '');
     setStudentFormError(null);
     setStudentEmailError(null);
@@ -909,7 +984,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
     if (!classBranch) {
-      setClassFormError('Lütfen Şube seçimini yapınız.');
+      setClassFormError('Lütfen Şube seçimini yapınız (şubesiz sınıf için "Şubesiz" seçin).');
       return;
     }
     const academicYear = normalizeAcademicYear(classAcademicYear);
@@ -920,12 +995,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     setIsSavingClass(true);
     try {
-      const finalClassName = className.trim() || `${classGradeLevel} - ${classBranch}`;
+      const finalClassName = className.trim() || formatClassDisplayName('', branchValue(classBranch), classGradeLevel);
       const classPayload = {
         name: finalClassName,
         schoolLevel: classSchoolLevel,
         gradeLevel: classGradeLevel,
-        branch: classBranch,
+        branch: branchValue(classBranch),
         academicYear,
         description: classDescription.trim(),
       };
@@ -1050,7 +1125,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     setClassSchoolLevel(detectedSchool);
     setClassGradeLevel(matchedGrade);
-    setClassBranch(cls.branch?.replace(/şube\s*/i, '').trim() || 'A');
+    setClassBranch(isNoBranchClass(cls) ? NO_BRANCH : cls.branch.replace(/şube\s*/i, '').trim());
     setClassAcademicYear(cls.academicYear || currentAcademicYear());
     setClassDescription(cls.description || '');
     setClassFormError(null);
@@ -1655,7 +1730,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             {classes.map((cls) => {
               const classStudents = students.filter((s) => s.classId === cls.id);
               const isOpen = expandedClassId === cls.id;
-              const branchText = `Şube ${cls.branch?.replace(/şube\s*/i, '').trim() || 'A'}`;
+              const branchText = isNoBranchClass(cls) ? 'Şubesiz' : `Şube ${cls.branch.replace(/şube\s*/i, '').trim()}`;
               return (
                 <ExpandableStrip
                   key={cls.id}
@@ -1865,10 +1940,21 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               {manageableClasses.map((cls) => (
                 <option key={cls.id} value={cls.id}>
                   {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                  {isNoBranchClass(cls) ? ' (şubesiz)' : ''}
                 </option>
               ))}
+              {pendingNoBranchGrades.length > 0 && (
+                <optgroup label="Şubesiz (kaydedince açılır)">
+                  {pendingNoBranchGrades.map((c) => (
+                    <option key={`g-${gradeNumOf(c)}`} value={`${PENDING_GRADE}${gradeNumOf(c)}`}>
+                      {gradeNumOf(c)}. Sınıf (şubesiz)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <p className="text-[11px] text-muted">
+              Öğrenciyi şubeden çıkarmak için sınıf olarak <strong>"… Sınıf (şubesiz)"</strong> seçin; öğrenci yalnızca sınıf düzeyinde görünür.{' '}
               {canAddClasses
                 ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
                 : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
@@ -1925,6 +2011,96 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Aşama 69: veliler (isteğe bağlı, en çok 3) — K12'deki Veli (1), (2), (3) ile aynı */}
+          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3" id="student-form-parents">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-brand-fg" />
+                Veliler <span className="font-normal text-muted">(isteğe bağlı, en çok {MAX_PARENTS})</span>
+              </span>
+              {parents.length < MAX_PARENTS && (
+                <button
+                  type="button"
+                  id="student-form-parent-add"
+                  className="ui-btn ui-btn-secondary ui-btn-sm"
+                  onClick={() => setParents((list) => [...list, {}].slice(0, MAX_PARENTS))}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Veli ekle
+                </button>
+              )}
+            </div>
+            <datalist id="parent-relation-options">
+              {PARENT_RELATIONS.map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+            {parents.map((p, i) => (
+              <div key={i} className="rounded-lg border border-line bg-surface p-3 space-y-2" data-testid="student-form-parent-row">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-fg">{i + 1}. veli{p.relation ? ` · ${p.relation}` : ''}</span>
+                  {(parents.length > 1 || hasParentInfo(p)) && (
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-muted hover:text-danger-fg cursor-pointer"
+                      onClick={() => {
+                        setParents((list) => {
+                          const next = list.filter((_, k) => k !== i);
+                          return next.length ? next : [{}];
+                        });
+                        setParentErrors((e) => e.filter((_, k) => k !== i));
+                      }}
+                    >
+                      Kaldır
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[8rem_1fr_10rem_1fr] gap-2">
+                  <input
+                    autoComplete="off"
+                    list="parent-relation-options"
+                    aria-label={`${i + 1}. veli yakınlığı`}
+                    placeholder="Yakınlık (Anne, Baba…)"
+                    value={p.relation || ''}
+                    onChange={(e) => setParentField(i, 'relation', e.target.value)}
+                    className={inputCls}
+                  />
+                  <input
+                    autoComplete="off"
+                    aria-label={`${i + 1}. veli adı soyadı`}
+                    placeholder="Ad soyad"
+                    value={p.name || ''}
+                    onChange={(e) => setParentField(i, 'name', e.target.value)}
+                    className={inputCls}
+                  />
+                  <input
+                    autoComplete="off"
+                    type="tel"
+                    inputMode="tel"
+                    aria-label={`${i + 1}. veli cep telefonu`}
+                    placeholder="Cep telefonu"
+                    value={p.phone || ''}
+                    onChange={(e) => setParentField(i, 'phone', e.target.value)}
+                    onBlur={() => {
+                      const n = normalizeTurkishPhone(p.phone || '');
+                      if (n.valid && n.value !== (p.phone || '')) setParentField(i, 'phone', n.value);
+                    }}
+                    className={cx(inputCls, parentErrors[i] && /telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                  />
+                  <input
+                    autoComplete="off"
+                    type="email"
+                    aria-label={`${i + 1}. veli e-postası`}
+                    placeholder="E-posta"
+                    value={p.email || ''}
+                    onChange={(e) => setParentField(i, 'email', e.target.value)}
+                    className={cx(inputCls, parentErrors[i] && !/telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                  />
+                </div>
+                {parentErrors[i] && <p className="text-[11px] font-semibold text-danger-fg">{parentErrors[i]}</p>}
+              </div>
+            ))}
           </div>
 
           {/* Aşama 50: TC kimlik (isteğe bağlı) — yalnızca geri çevrilemez parmak izi saklanır */}
@@ -2139,7 +2315,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     setClassSchoolLevel(newSchool);
                     const firstGrade = newSchool === 'Lise' ? '9. Sınıf' : '5. Sınıf';
                     setClassGradeLevel(firstGrade);
-                    setClassName(`${firstGrade} - ${classBranch}`);
+                    setClassName(formatClassDisplayName('', branchValue(classBranch), firstGrade));
                   }}
                   className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
                 >
@@ -2160,7 +2336,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   onChange={(e) => {
                     const newGrade = e.target.value;
                     setClassGradeLevel(newGrade);
-                    setClassName(formatClassDisplayName('', classBranch, newGrade));
+                    setClassName(formatClassDisplayName('', branchValue(classBranch), newGrade));
                   }}
                   className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
                 >
@@ -2187,7 +2363,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   onChange={(e) => {
                     const newBranch = e.target.value;
                     setClassBranch(newBranch);
-                    setClassName(formatClassDisplayName('', newBranch, classGradeLevel));
+                    setClassName(formatClassDisplayName('', branchValue(newBranch), classGradeLevel));
                   }}
                   className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
                 >
@@ -2197,6 +2373,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       {b.label}
                     </option>
                   ))}
+                  <option value={NO_BRANCH}>Şubesiz (yalnızca sınıf)</option>
                 </select>
               </div>
             </div>

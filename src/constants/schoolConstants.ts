@@ -193,6 +193,13 @@ export function formatClassDisplayName(
   if (className) {
     const trimmed = className.trim();
 
+    // Aşama 69: şubesiz sınıf ("8. Sınıf", "8. Sınıf (şubesiz)"): şube harfi aranmaz
+    // (eskiden "Sınıf" kelimesinin baş harfi şube sanılıp "8/S" yazılıyordu)
+    const noBranch = trimmed.match(/^(1[0-2]|[1-9])\s*\.?\s*sınıf\s*(?:\(\s*şubesiz\s*\))?$/i);
+    if (noBranch && !branchLetter) {
+      return `${noBranch[1]}. Sınıf`;
+    }
+
     // Already in standard format like "8/A" or "11/B"
     const slashMatch = trimmed.match(/\b(1[0-2]|[1-9])\s*\/\s*([A-Za-zÇĞİÖŞÜçğiöşü])\b/);
     if (slashMatch) {

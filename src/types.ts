@@ -53,6 +53,8 @@ export interface Student {
   branch?: string;
   studentNumber?: string;
   phone?: string;
+  /** Aşama 69: veliler (en çok 3; veritabanında students.parents, 69 numaralı SQL) */
+  parents?: StudentParent[];
   avatar?: string;
   createdAt: string;
   status: 'active' | 'inactive' | 'suspended';
@@ -61,6 +63,16 @@ export interface Student {
   mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
   authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
   kurumId?: string | null; // Aşama 18: öğrencinin kurumu (genel yöneticinin öğrencileri için boş)
+}
+
+/** Aşama 69: velinin yakınlığı (Anne, Baba, Bakıcı, Vasi …; K12'deki "Velinin Yakınlığı" olduğu gibi; boş = belirtilmedi) */
+export type ParentRelation = string;
+/** Aşama 69: veli iletişim bilgisi */
+export interface StudentParent {
+  relation?: ParentRelation;
+  name?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface UnifiedUser {

@@ -55,6 +55,7 @@ import {
   currentAcademicYear,
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
+import { cleanParents } from '../lib/parents';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
 
@@ -1444,6 +1445,7 @@ export class DataService {
           classId: row.class_id || cur.classId,
           email: cleanRemoteEmail || cur.email,
           phone: row.phone || cur.phone,
+          parents: 'parents' in row ? cleanParents(row.parents) : cur.parents,
           avatar: row.avatar || cur.avatar,
           schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
           kurumId: 'kurum_id' in row ? row.kurum_id || null : cur.kurumId,
@@ -1462,6 +1464,7 @@ export class DataService {
           classId: row.class_id || 'class-default',
           studentNumber: row.student_number || '',
           phone: row.phone || '',
+          parents: cleanParents(row.parents),
           avatar:
             row.avatar ||
             `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(row.name)}`,
@@ -2316,7 +2319,18 @@ export class DataService {
       email: s.email || null,
       phone: s.phone || null,
       avatar: s.avatar || null,
+      // Aşama 69: veliler (en çok 3). Sütun yoksa patchStudentRow bunu çıkarıp tekrar dener.
+      parents: cleanParents(s.parents),
     };
+  }
+
+  /** Aşama 69: 69 numaralı SQL çalıştırılmadıysa students tablosunda veli sütunları yoktur */
+  private static parentColumnsMissing = false;
+  private static readonly PARENT_SQL_MSG =
+    "Veli bilgileri için 69 numaralı SQL dosyasının (69_veli_iletisim.sql) Supabase'te çalıştırılması gerekiyor.";
+  private isMissingParentColumn(error: any): boolean {
+    const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
+    return /\bparents\b/i.test(msg) && /PGRST204|42703|column|schema cache/i.test(msg);
   }
 
   // Mevcut öğrenci satırlarını günceller. (Eskiden "upsert" kullanılıyordu; öğretmen ve öğrenci
@@ -2343,8 +2357,23 @@ export class DataService {
 
   private async patchStudentRow(id: string, patch: Record<string, unknown>): Promise<{ success: boolean; error?: any }> {
     try {
+      // Aşama 69: veli sütunları yoksa yazılmaz; yalnızca veli bilgisi değiştiyse SQL uyarısı verilir
+      if (DataService.parentColumnsMissing && 'parents' in patch) {
+        const { parents, ...rest } = patch as Record<string, unknown>;
+        if (Object.keys(rest).length === 0) return { success: false, error: { message: DataService.PARENT_SQL_MSG } };
+        if (Array.isArray(parents) && parents.length) this.showFloatingErrorToast(`Diğer bilgiler kaydedildi; veli bilgileri kaydedilmedi. ${DataService.PARENT_SQL_MSG}`);
+        patch = rest;
+      }
       if (Object.keys(patch).length === 0) return { success: true };
-      const { data, error } = await supabase.from('students').update(patch).eq('id', id).select('id');
+      let { data, error } = await supabase.from('students').update(patch).eq('id', id).select('id');
+      if (error && this.isMissingParentColumn(error)) {
+        DataService.parentColumnsMissing = true;
+        const { parents, ...rest } = patch as Record<string, unknown>;
+        if (Object.keys(rest).length === 0) return { success: false, error: { message: DataService.PARENT_SQL_MSG } };
+        if (Array.isArray(parents) && parents.length) this.showFloatingErrorToast(`Diğer bilgiler kaydedildi; veli bilgileri kaydedilmedi. ${DataService.PARENT_SQL_MSG}`);
+        patch = rest;
+        ({ data, error } = await supabase.from('students').update(patch).eq('id', id).select('id'));
+      }
       if (error) {
         console.warn('[StudentSync] Öğrenci güncellenemedi:', error);
         return { success: false, error };
@@ -2431,6 +2460,7 @@ export class DataService {
             classId: rs.class_id || existing.classId,
             email: cleanRemoteEmail || '',
             phone: rs.phone || '',
+            parents: 'parents' in rs ? cleanParents(rs.parents) : existing.parents,
             avatar: rs.avatar || existing.avatar,
             auth_user_id: rs.auth_user_id || undefined,
             status: remoteSuspended ? 'suspended' : 'active',
@@ -2452,6 +2482,7 @@ export class DataService {
             classId: rs.class_id || 'class-default',
             studentNumber: rs.student_number || '',
             phone: rs.phone || '',
+            parents: cleanParents(rs.parents),
             avatar:
               rs.avatar ||
               `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(rs.name)}`,
@@ -6664,7 +6695,8 @@ export class DataService {
     const after = this.studentToRow(next);
     const patch: Record<string, unknown> = {};
     (Object.keys(after) as Array<keyof typeof after>).forEach((k) => {
-      if (after[k] !== before[k]) patch[k] = after[k];
+      // Aşama 69: veliler bir dizi olduğu için içerik olarak karşılaştırılır
+      if (JSON.stringify(after[k]) !== JSON.stringify(before[k])) patch[k] = after[k];
     });
     const numberChanged = 'student_number' in patch;
 

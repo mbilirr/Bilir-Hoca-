@@ -165,6 +165,8 @@ export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
     exact: [
       'ad soyad', 'adı soyadı', 'ad soyadı', 'adı soyad', 'ad-soyad', 'öğrenci adı soyadı', 'öğrenci ad soyad',
       'öğrencinin adı soyadı', 'isim soyisim', 'isim soyad', 'tam ad', 'tam adı', 'full name', 'name',
+      // Aşama 69: K12 öğrenci listesi
+      'öğrenci tam adı', 'öğrencinin tam adı',
     ],
     partial: ['adısoyadı', 'adsoyad', 'isimsoyisim'],
   },
@@ -179,11 +181,15 @@ export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
     exact: [
       'öğrenci no', 'öğrenci numarası', 'öğr no', 'okul no', 'okul numarası', 'numara', 'numarası', 'no', 'number',
       'student no', 'student number', 'id',
+      'öğrenci numara', // Aşama 69: K12
     ],
     partial: ['öğrencino', 'öğrencinumara', 'okulno', 'okulnumara', 'numara'],
   },
   className: {
-    exact: ['sınıf', 'sınıfı', 'şube', 'şubesi', 'sınıf şube', 'sınıf/şube', 'sınıfı şubesi', 'sınıf adı', 'class', 'grade', 'alan'],
+    exact: [
+      'sınıf', 'sınıfı', 'şube', 'şubesi', 'sınıf şube', 'sınıf/şube', 'sınıfı şubesi', 'sınıf adı', 'class', 'grade', 'alan',
+      'öğrenci şube', 'öğrenci şubesi', 'öğrenci sınıf', 'öğrenci sınıfı', 'öğrenci sınıf şube', // Aşama 69: K12
+    ],
     partial: ['sınıf', 'şube'],
   },
   email: {
@@ -191,7 +197,8 @@ export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
     partial: ['eposta', 'email', 'mail'],
   },
   phone: {
-    exact: ['telefon', 'tel', 'telefon no', 'telefon numarası', 'cep', 'cep telefonu', 'gsm', 'phone', 'veli telefonu', 'veli tel'],
+    // Aşama 69: "Veli Telefonu" artık öğrencinin telefonu sayılmaz; veli sütunları velilere yazılır (lib/parents.ts)
+    exact: ['telefon', 'tel', 'telefon no', 'telefon numarası', 'cep', 'cep telefonu', 'gsm', 'phone', 'öğrenci telefonu', 'öğrenci cep telefonu'],
     partial: ['telefon', 'gsm', 'tel'],
   },
   password: {
@@ -214,8 +221,17 @@ export interface ParsedStudentFields {
 
 // Satırdan öğrenci alanlarını çıkarır. Ad soyad tek sütundaysa o kullanılır;
 // ayrı "Ad" ve "Soyad" sütunları varsa birleştirilir. İsim yoksa fullName boş kalır (satır hatası olur).
+/**
+ * Aşama 69: veli / anne / baba sütunu mu? Bu sütunlar öğrencinin kendi alanlarıyla eşleştirilmez
+ * (K12'deki "Veli (1) Mesaj Gönderi (Cep Tel)" öğrencinin telefonu, "Veli (1) 1. E-Posta Adresi" öğrencinin e-postası sanılmasın).
+ */
+export const isGuardianHeader = (h: string) => /\b(veli|velinin|velisi|anne|annesi|baba|babasi)\b/.test(trFold(h).replace(/[^a-z0-9]+/g, ' '));
+
 export function extractStudentRows(headers: string[], rows: SheetRow[]): ParsedStudentFields[] {
-  const cols = resolveColumns(headers, STUDENT_COLUMNS);
+  const cols = resolveColumns(
+    headers.filter((h) => !isGuardianHeader(h)),
+    STUDENT_COLUMNS
+  );
   const get = (row: SheetRow, field: StudentField) => {
     const key = cols[field];
     return key ? (row.values[key] || '').trim().replace(/\s+/g, ' ') : '';
