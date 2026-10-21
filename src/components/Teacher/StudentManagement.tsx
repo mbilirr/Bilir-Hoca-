@@ -1871,6 +1871,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         closeOnBackdrop={false}
         icon={UserPlus}
         tone="brand"
+        size="xl"
         title={editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
         footer={
           <>
@@ -1891,9 +1892,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         )}
 
         <form id="student-form" onSubmit={handleSaveStudent} noValidate className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1">Ad Soyad *</label>
+          {/* Aşama 70: Ad Soyad, Öğrenci No ve Sınıf yan yana, eşit genişlikte ve aynı yükseklikte */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="student-form-main">
+            <div className="min-w-0">
+              <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1 truncate">Ad Soyad *</label>
               <input autoComplete="off"
                 id="student-form-name"
                 type="text"
@@ -1901,11 +1903,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 placeholder="Örn: Ahmet Yılmaz"
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
-                className={inputCls}
+                className={cx(inputCls, 'h-10')}
               />
             </div>
-            <div>
-              <label htmlFor="student-form-number" className="block text-xs font-bold text-fg-2 mb-1">
+            <div className="min-w-0">
+              <label htmlFor="student-form-number" className="block text-xs font-bold text-fg-2 mb-1 truncate">
                 Öğrenci No * <span className="font-medium text-muted">(giriş adı)</span>
               </label>
               <input autoComplete="off"
@@ -1918,47 +1920,39 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 value={studentNumber}
                 onChange={(e) => setStudentNumber(e.target.value)}
                 placeholder="Örn: 1042"
-                className={inputCls}
+                className={cx(inputCls, 'h-10')}
               />
             </div>
-          </div>
-
-          {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
-          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-2">
-            <label htmlFor="student-form-class" className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
-              <School className="w-4 h-4 text-brand-fg" />
-              <span>Sınıf *</span>
-            </label>
-            <select
-              id="student-form-class"
-              required
-              value={studentClassId}
-              onChange={(e) => setStudentClassId(e.target.value)}
-              className={cx(inputCls, 'font-semibold cursor-pointer')}
-            >
-              <option value="">Sınıf seçiniz *</option>
-              {manageableClasses.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
-                  {isNoBranchClass(cls) ? ' (şubesiz)' : ''}
-                </option>
-              ))}
-              {pendingNoBranchGrades.length > 0 && (
-                <optgroup label="Şubesiz (kaydedince açılır)">
-                  {pendingNoBranchGrades.map((c) => (
-                    <option key={`g-${gradeNumOf(c)}`} value={`${PENDING_GRADE}${gradeNumOf(c)}`}>
-                      {gradeNumOf(c)}. Sınıf (şubesiz)
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <p className="text-[11px] text-muted">
-              Öğrenciyi şubeden çıkarmak için sınıf olarak <strong>"… Sınıf (şubesiz)"</strong> seçin; öğrenci yalnızca sınıf düzeyinde görünür.{' '}
-              {canAddClasses
-                ? 'Listede olmayan bir sınıf için önce "Sınıflar" sekmesinden yeni sınıf ekleyiniz.'
-                : 'Yalnızca yetkili olduğunuz sınıflar listelenir. Yeni sınıfı yönetici açar.'}
-            </p>
+            <div className="min-w-0">
+              <label htmlFor="student-form-class" className="block text-xs font-bold text-fg-2 mb-1 truncate">
+                Sınıf *
+              </label>
+              {/* Sınıf Seçimi (yalnızca sistemde kayıtlı / yetkili sınıflar) */}
+              <select
+                id="student-form-class"
+                required
+                value={studentClassId}
+                onChange={(e) => setStudentClassId(e.target.value)}
+                className={cx(inputCls, 'h-10 font-semibold cursor-pointer')}
+              >
+                <option value="">Sınıf seçiniz *</option>
+                {manageableClasses.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                    {isNoBranchClass(cls) ? ' (şubesiz)' : ''}
+                  </option>
+                ))}
+                {pendingNoBranchGrades.length > 0 && (
+                  <optgroup label="Şubesiz (kaydedince açılır)">
+                    {pendingNoBranchGrades.map((c) => (
+                      <option key={`g-${gradeNumOf(c)}`} value={`${PENDING_GRADE}${gradeNumOf(c)}`}>
+                        {gradeNumOf(c)}. Sınıf (şubesiz)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2056,23 +2050,26 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[8rem_1fr_10rem_1fr] gap-2">
+                {/* Aşama 70: geniş ekranda bir velinin bilgileri tek satırda (yakınlık · ad soyad · cep · e-posta), taşmadan */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(6.5rem,0.6fr)_minmax(9rem,1.2fr)_minmax(9rem,0.9fr)_minmax(11rem,1.5fr)] gap-2">
                   <input
                     autoComplete="off"
                     list="parent-relation-options"
                     aria-label={`${i + 1}. veli yakınlığı`}
                     placeholder="Yakınlık (Anne, Baba…)"
                     value={p.relation || ''}
+                    title={p.relation || undefined}
                     onChange={(e) => setParentField(i, 'relation', e.target.value)}
-                    className={inputCls}
+                    className={cx(inputCls, 'h-10 min-w-0')}
                   />
                   <input
                     autoComplete="off"
                     aria-label={`${i + 1}. veli adı soyadı`}
                     placeholder="Ad soyad"
                     value={p.name || ''}
+                    title={p.name || undefined}
                     onChange={(e) => setParentField(i, 'name', e.target.value)}
-                    className={inputCls}
+                    className={cx(inputCls, 'h-10 min-w-0')}
                   />
                   <input
                     autoComplete="off"
@@ -2086,7 +2083,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       const n = normalizeTurkishPhone(p.phone || '');
                       if (n.valid && n.value !== (p.phone || '')) setParentField(i, 'phone', n.value);
                     }}
-                    className={cx(inputCls, parentErrors[i] && /telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                    className={cx(inputCls, 'h-10 min-w-0', parentErrors[i] && /telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
                   />
                   <input
                     autoComplete="off"
@@ -2094,8 +2091,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     aria-label={`${i + 1}. veli e-postası`}
                     placeholder="E-posta"
                     value={p.email || ''}
+                    title={p.email || undefined}
                     onChange={(e) => setParentField(i, 'email', e.target.value)}
-                    className={cx(inputCls, parentErrors[i] && !/telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                    className={cx(inputCls, 'h-10 min-w-0', parentErrors[i] && !/telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
                   />
                 </div>
                 {parentErrors[i] && <p className="text-[11px] font-semibold text-danger-fg">{parentErrors[i]}</p>}
