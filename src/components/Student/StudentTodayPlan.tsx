@@ -109,8 +109,12 @@ export const StudentTodayPlan: React.FC<{
     try {
       const before = dataService.getPlanTaskQuestionShare(it.id);
       if (next && it.questionCount > 0 && !before) {
-        const r = await dataService.setPlanTaskQuestions({ itemId: it.id, subject: it.subject, date: dateOfDay(weekStart, it.day), count: it.questionCount });
-        showInfo(`${r.subject}: ${r.count} soru, ${dayText(r.date)} soru kaydına eklendi. Fazlasını çözdüysen "Düzenle" ile güncelleyebilirsin.`);
+        const req = { itemId: it.id, subject: it.subject, date: dateOfDay(weekStart, it.day), count: it.questionCount };
+        let r = await dataService.setPlanTaskQuestions(req);
+        // Aşama 67: aktarım kaydedildikten sonra pay görünmüyorsa (art arda işaretlemede gecikmiş eşitleme) bir kez daha
+        // yazılır. İşlem tekrarlansa da sorular iki kez eklenmez: görevin payı varsa yalnızca aynı sayıya güncellenir.
+        if (!dataService.getPlanTaskQuestionShare(it.id)) r = await dataService.setPlanTaskQuestions(req);
+        showInfo(`${r.subject}: ${r.count} soru, ${dayText(r.date)} soru kaydına otomatik eklendi ve kaydedildi. Fazlasını çözdüysen "Düzenle" ile güncelleyebilirsin.`);
       } else if (!next && before) {
         await dataService.setPlanTaskQuestions({ itemId: it.id, subject: it.subject, date: before.date, count: 0 });
         if (editId === it.id) setEditId(null);

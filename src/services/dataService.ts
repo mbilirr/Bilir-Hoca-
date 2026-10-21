@@ -997,6 +997,12 @@ export class DataService {
   public deletedHomeworkIds: Set<string> = new Set();
   public deletedEtutIds: Set<string> = new Set();
   public deletedQuestionLogIds: Set<string> = new Set();
+  // Aşama 67: bu cihazın az önce buluta yazdığı soru kayıtları (kimlik → içerik imzası, zaman).
+  // Art arda iki yazmada (ör. iki plan görevine peş peşe tik) ilk yazmanın gecikmiş gerçek zamanlı yankısı,
+  // ikinci yazmanın yerel sonucunu ezip eklenen soruyu "aktarılmadı" gösteriyordu. Kısa süre içinde gelen ve
+  // son yazdığımızdan farklı olan kopya eski yankı sayılır; yerel kayıt korunur, süre dolunca buluttan doğrulanır.
+  private recentQuestionLogWrites = new Map<string, { sig: string; at: number }>();
+  private static readonly QLOG_ECHO_WINDOW_MS = 20000;
 
   private syncPollInterval: number | null = null;
   private classSyncInterval: number | null = null;
@@ -1785,7 +1791,13 @@ export class DataService {
       const row = payload?.new;
       if (!row || !row.id) return this.scheduleTableRefetch('question_logs');
       if (this.deletedQuestionLogIds?.has(row.id)) return;
-      this.mergeQuestionLogs([this.questionLogFromRow(row)], null);
+      const incoming = this.questionLogFromRow(row);
+      if (this.isStaleQuestionLogCopy(incoming)) {
+        // Aşama 67: önceki yazmanın gecikmiş yankısı; yerel kayıt korunur, süre dolunca buluttan doğrulanır
+        this.verifyQuestionLogLater(row.id);
+        return;
+      }
+      this.mergeQuestionLogs([incoming], null);
       this.persistQuestionLogsLocal();
       this.notify();
     } catch {
@@ -2702,8 +2714,60 @@ export class DataService {
     const base = replaceFrom === null ? this.questionLogs : replaceFrom === '' ? [] : this.questionLogs.filter((l) => (l.date || '') < replaceFrom);
     const byId = new Map<string, StudentQuestionLog>();
     for (const l of base) byId.set(l.id, l);
-    for (const l of incoming) if (!this.deletedQuestionLogIds?.has(l.id)) byId.set(l.id, l);
+    for (const l of incoming) {
+      if (this.deletedQuestionLogIds?.has(l.id)) continue;
+      // Aşama 67: az önce yazdığımız kaydın eski kopyası gelirse yerel (en yeni) kayıt korunur
+      const local = this.isStaleQuestionLogCopy(l) ? this.questionLogs.find((x) => x.id === l.id) : undefined;
+      byId.set(l.id, local || l);
+    }
     this.questionLogs = DataService.sortLogsDesc(Array.from(byId.values()));
+  }
+
+  /** Aşama 67: kaydın içerik imzası (ders, sayılar, plan payları; JSON anahtar sırasından bağımsız) */
+  private questionLogSig(l: StudentQuestionLog): string {
+    const entries = (Array.isArray(l.entries) ? l.entries : [])
+      .map((e: any) => [
+        String(e?.subject || ''),
+        Number(e?.questionCount) || 0,
+        Number(e?.correctCount) || 0,
+        Number(e?.wrongCount) || 0,
+        (Array.isArray(e?.planItems) ? e.planItems : [])
+          .map((p: any) => `${p?.id}:${Number(p?.count) || 0}`)
+          .sort()
+          .join(','),
+      ])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    return JSON.stringify([l.date, entries, String(l.notes || '').trim()]);
+  }
+
+  private noteQuestionLogWrite(l: StudentQuestionLog): void {
+    this.recentQuestionLogWrites.set(l.id, { sig: this.questionLogSig(l), at: Date.now() });
+  }
+
+  /** Az önce yazdığımız kaydın (kısa süre içinde gelen) farklı, yani eski bir kopyası mı? */
+  private isStaleQuestionLogCopy(l: StudentQuestionLog): boolean {
+    const w = this.recentQuestionLogWrites.get(l.id);
+    if (!w) return false;
+    if (Date.now() - w.at > DataService.QLOG_ECHO_WINDOW_MS) {
+      this.recentQuestionLogWrites.delete(l.id);
+      return false;
+    }
+    return this.questionLogSig(l) !== w.sig;
+  }
+
+  /** Süre dolunca kaydın buluttaki son hâli okunur (başka cihazdan gerçek bir değişiklik olduysa alınır) */
+  private verifyQuestionLogLater(id: string): void {
+    window.setTimeout(async () => {
+      try {
+        const { data, error } = await supabase.from('question_logs').select('*').eq('id', id).maybeSingle();
+        if (error || !data || this.deletedQuestionLogIds?.has(id)) return;
+        this.mergeQuestionLogs([this.questionLogFromRow(data)], null);
+        this.persistQuestionLogsLocal();
+        this.notify();
+      } catch {
+        /* sonraki eşitlemede düzelir */
+      }
+    }, DataService.QLOG_ECHO_WINDOW_MS + 1500);
   }
 
   public async syncQuestionLogsFromSupabase(isBackground = false): Promise<StudentQuestionLog[]> {
@@ -9415,6 +9479,7 @@ export class DataService {
 
     await this.runCloudWrite(
       async () => {
+        this.noteQuestionLogWrite(saved);
         let res = await supabase.from('question_logs').upsert(this.questionLogToRow(saved), { onConflict: 'id' });
         if (res.error?.code === '23505') {
           // Aynı gün için başka bir cihazdan açılmış kayıt var: o kayıt güncellenir
@@ -9431,9 +9496,11 @@ export class DataService {
             this.questionLogs = this.questionLogs
               .filter((q) => q.id !== other.id)
               .map((q) => (q.id === oldId ? merged : q));
+            this.noteQuestionLogWrite(saved);
             res = await supabase.from('question_logs').upsert(this.questionLogToRow(saved), { onConflict: 'id' });
           }
         }
+        if (res.error) this.recentQuestionLogWrites.delete(saved.id);
         return { error: this.questionLogDbError(res.error) };
       },
       () => {

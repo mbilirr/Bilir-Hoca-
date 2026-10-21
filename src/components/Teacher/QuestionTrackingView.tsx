@@ -58,7 +58,7 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailNoticeBar } from './FormParts';
 import { periodOf, targetPeriodText, ownerText } from './TargetListParts';
 import { TargetSummaryTable } from '../Student/TargetSummaryTable';
-import { PlanWallGrid, PlanWeekSummary, usePlanWallData } from '../Student/StudentTargetCards';
+import { PlanWallGrid, usePlanWallData } from '../Student/StudentTargetCards';
 import { isFlexibleTarget as isFlexTarget, isPlanCountTarget, isPlanMirrorTarget } from '../../utils/targetDays';
 import {
   generalDailyTarget,
@@ -1816,31 +1816,74 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
                 </div>
 
-                {/* 4. Öğrenci Başarı Durumu & Doğruluk Oranı */}
-                <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between text-muted text-xs font-semibold">
-                    <span>Başarı & Doğruluk Oranı</span>
-                    <span className="p-1.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-300">
-                      <Award className="w-4 h-4" />
-                    </span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-3xl font-black text-[#1e3a8a] dark:text-blue-200 tracking-tight">
-                      %{weeklyAnalytics.accuracyPercentage}
-                    </span>
-                    <span className="text-xs font-semibold text-muted">Net Başarı</span>
-                  </div>
+                {/* 4. Öğrenci Başarı Durumu & Doğruluk Oranı
+                    Aşama 67: öğrencinin haftalık planı varsa duvarın yeri ve boyu korunur, içinde "Haftalık soru dağılımı" gösterilir
+                    (ders ders haftalık soru, çözülen ve dolan çubuk). Plan yoksa eski başarı / doğruluk bilgisi görünür. */}
+                <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
+                  {planWall.walls.length > 0 ? (
+                    (() => {
+                      const wTotal = planWall.weekly.reduce((a, x) => a + x.target, 0);
+                      const wSolved = planWall.weekly.reduce((a, x) => a + x.solved, 0);
+                      const wPct = wTotal ? Math.min(100, Math.round((wSolved / wTotal) * 100)) : 0;
+                      return (
+                        <div id="teacher-plan-week-summary" data-testid="plan-week-summary">
+                          <div className="flex items-center justify-between text-muted text-xs font-semibold">
+                            <span>Haftalık soru dağılımı</span>
+                            <span className="p-1.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-300">
+                              <Award className="w-4 h-4" />
+                            </span>
+                          </div>
+                          <div className="flex items-baseline gap-2 mt-2">
+                            <span className="text-3xl font-black text-[#1e3a8a] dark:text-blue-200 tracking-tight tabular-nums">{wSolved}</span>
+                            <span className="text-xs font-semibold text-muted">/ {wTotal} soru · %{wPct}</span>
+                          </div>
+                          <div className="w-full bg-surface-2 rounded-full h-2 mt-3 overflow-hidden">
+                            <div className={`h-2 rounded-full transition-all duration-500 ${wPct >= 100 ? 'bg-success' : 'bg-orange-500'}`} style={{ width: `${wPct}%` }} />
+                          </div>
+                          <ul className="mt-2 space-y-0.5 max-h-24 overflow-y-auto pr-1 text-[11px]">
+                            {planWall.weekly.map((w) => {
+                              const ok = w.solved >= w.target;
+                              return (
+                                <li key={w.subject} className="flex items-center justify-between gap-2">
+                                  <span className={`truncate font-semibold ${ok ? 'text-success-fg' : 'text-fg-2'}`}>{w.subject}</span>
+                                  <span className={`shrink-0 tabular-nums ${ok ? 'text-success-fg font-bold' : 'text-muted'}`}>
+                                    {w.solved}/<strong className={ok ? '' : 'text-fg'}>{w.target}</strong>
+                                    {ok ? ' ✓' : ''}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between text-muted text-xs font-semibold">
+                        <span>Başarı & Doğruluk Oranı</span>
+                        <span className="p-1.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-300">
+                          <Award className="w-4 h-4" />
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className="text-3xl font-black text-[#1e3a8a] dark:text-blue-200 tracking-tight">
+                          %{weeklyAnalytics.accuracyPercentage}
+                        </span>
+                        <span className="text-xs font-semibold text-muted">Net Başarı</span>
+                      </div>
 
-                  <div className="mt-3 flex items-center gap-1.5">
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-fg text-surface">
-                      {weeklyAnalytics.statusAssessment.badgeText}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-[11px] text-muted flex gap-2">
-                    <span className="text-emerald-600 dark:text-emerald-300 font-semibold">D: {weeklyAnalytics.totalCorrect}</span>
-                    <span className="text-rose-600 dark:text-rose-300 font-semibold">Y: {weeklyAnalytics.totalWrong}</span>
-                    <span className="text-muted">B: {weeklyAnalytics.totalEmpty}</span>
-                  </div>
+                      <div className="mt-3 flex items-center gap-1.5">
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-fg text-surface">
+                          {weeklyAnalytics.statusAssessment.badgeText}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-[11px] text-muted flex gap-2">
+                        <span className="text-emerald-600 dark:text-emerald-300 font-semibold">D: {weeklyAnalytics.totalCorrect}</span>
+                        <span className="text-rose-600 dark:text-rose-300 font-semibold">Y: {weeklyAnalytics.totalWrong}</span>
+                        <span className="text-muted">B: {weeklyAnalytics.totalEmpty}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1858,8 +1901,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   hideTarget={planWall.walls.length > 0 ? hidePlanRow : undefined}
                 />
               )}
-              {/* Aşama 66: haftalık soru dağılımı (ders ders haftalık toplam) tablonun altında */}
-              {activeStudent && planWall.walls.length > 0 && <PlanWeekSummary data={planWall} id="teacher-plan-week-summary" />}
 
               {/* ========================================================================= */}
               {/* GOOGLE LOOKER STUDIO ANA GRAFİĞİ (HAFİF GRİ ARKA PLAN, KOYU GRİ METİNLER) */}
