@@ -67,8 +67,8 @@ import {
 import {
   computeTargetDays,
   isFlexibleTarget,
+  isPlanCountTarget,
   isPlanMirrorTarget,
-  isPlanQuestionTarget,
   subjectTargetForDay,
   targetDayStatusText,
   targetForDay,
@@ -157,7 +157,7 @@ export function computeMonthlyTargetPlan(studentId: string, year: number, month:
       );
       if (flex && isPlanMirrorTarget(flex, monthTargets)) {
         // Aşama 64: plandaki sayılarla doldurulmuş hedef: o günün hedefi plandaki ders hedeflerinin toplamı
-        daily = monthTargets.filter((o) => isPlanQuestionTarget(o)).reduce((a, o) => a + targetForDay(o, iso), 0);
+        daily = monthTargets.filter((o) => isPlanCountTarget(o)).reduce((a, o) => a + targetForDay(o, iso), 0);
       } else if (flex) daily = targetForDay(flex, iso);
     }
     perDay[formatDateISO(d)] = daily;

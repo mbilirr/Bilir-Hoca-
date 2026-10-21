@@ -197,7 +197,7 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
         .filter(([d, n]) => inWeek(d) && (Number(n) || 0) > 0)
         .map(([d]) => d);
       if (!days.length) return false;
-      return days.every((d) =>
+      return days.some((d) =>
         Array.from(countsBySubject.entries()).some(
           ([k, m]) => (m.get(d) || 0) > 0 && (!list.length || list.some((x) => sameSubjectName(x, nameOf.get(k) || k)))
         )

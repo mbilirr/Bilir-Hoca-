@@ -198,12 +198,22 @@ export function computeTargetDays(
  */
 /**
  * Aşama 64: "Soru hedefi ver" penceresinde HAFTALIK PLANDAKİ sayılarla doldurulup kaydedilen gün gün hedef (plan aynası).
- * Genel (ders seçilmemiş) ya da birden çok dersli, gün gün dağıtılmış bir öğrenci hedefidir ve sorusu olan HER günü,
- * aynı öğrencinin plandan gelen ders hedeflerinin (Matematik, Biyoloji …) sorusu olan bir günüdür.
+ * Genel (ders seçilmemiş) ya da birden çok dersli, gün gün dağıtılmış bir öğrenci hedefidir ve sorulu günlerinden en az biri
+ * aynı öğrencinin plandan gelen ders hedeflerinin (Matematik, Biyoloji …) sorulu bir günüdür.
  * Plandaki sayılar zaten ders ders hedef olduğu (ve plan değişince kendiliğinden güncellendiği) için bu kayıt
  * ayrıca sayılmaz: plan sonradan değişince eski toplamda kalıp (ör. 150) günün hedefini bozmasın, çift de sayılmasın.
  * Günün hedefi plandaki ders hedeflerinin toplamıdır (ör. Matematik 54 + Biyoloji 89 = 143).
  */
+/**
+ * Aşama 64b: plandan gelen, soru sayısı taşıyan TEK DERSLİ hedef (Matematik 179 …). Öğretmen sayılarını ya da notunu
+ * "Soru hedefi ver" penceresinde değiştirmiş olsa da plandan geldiği (fromPlan) için plan hedefi sayılır.
+ */
+export function isPlanCountTarget(t: WeeklyQuestionTarget | null | undefined): boolean {
+  if (!t) return false;
+  if (isPlanQuestionTarget(t)) return true;
+  return !!t.fromPlan && targetSubjectList(t.subject).length === 1 && (Number(t.targetQuestions ?? t.weeklyTarget) || 0) >= 1;
+}
+
 export function isPlanMirrorTarget(t: WeeklyQuestionTarget, all: WeeklyQuestionTarget[]): boolean {
   if (!t || t.targetType === 'class' || !isFlexibleTarget(t) || isPlanTopicRecord(t)) return false;
   const list = targetSubjectList(t.subject).map((x) => normalizeSubject(x));
@@ -215,12 +225,14 @@ export function isPlanMirrorTarget(t: WeeklyQuestionTarget, all: WeeklyQuestionT
   const plans = all.filter(
     (o) =>
       o !== t &&
-      isPlanQuestionTarget(o) &&
+      isPlanCountTarget(o) &&
       o.studentId === t.studentId &&
       (!list.length || list.includes(normalizeSubject(o.subject || '')))
   );
   if (!plans.length) return false;
-  return days.every((d) => plans.some((o) => targetForDay(o, d) > 0));
+  // Aşama 64b: sorulu günlerinden BİRİ bile planda sorulu bir günse plan toplamıdır. Plan sonradan değişip bir günün
+  // sorusu kalktıysa eski sayıda kalan o gün de sayılmaz (plan verilmeyen günde hedef 0).
+  return days.some((d) => plans.some((o) => targetForDay(o, d) > 0));
 }
 
 export function weekDayGoal(

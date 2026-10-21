@@ -328,12 +328,14 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         />
       </div>
 
-      <div className="grid grid-cols-1 @4xl:grid-cols-12 gap-4 sm:gap-6 items-start">
+      {/* Aşama 64: "Bugün" ve takvim eşit genişlikte, yan yana aynı yükseklikte (simetrik) */}
+      <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-4 sm:gap-6 items-stretch" id="home-today-agenda">
         {/* ===== BUGÜN ===== */}
-        <div className="@4xl:col-span-7 space-y-4 sm:space-y-6 min-w-0">
+        <div className="min-w-0 flex flex-col">
         <Panel
           id="home-today-panel"
-          className={todayFlash}
+          className={cx('flex-1 flex flex-col', todayFlash)}
+          bodyClassName="flex-1 min-h-0 @4xl:max-h-[46rem] @4xl:overflow-y-auto"
           icon={Sun}
           tone="warning"
           title="Bugün"
@@ -648,7 +650,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
         </div>
 
         {/* ===== AJANDA ===== */}
-        <AgendaCalendar className="@4xl:col-span-5 min-w-0" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
+        <AgendaCalendar className="min-w-0 h-full flex flex-col" etuts={etuts} homeworks={homeworks} todayStr={todayStr} onOpen={go} />
       </div>
 
       {classes.length === 0 && (
@@ -794,6 +796,7 @@ const AgendaCalendar: React.FC<{
     <Panel
       id="home-agenda"
       className={className}
+      bodyClassName="flex-1 min-h-0 flex flex-col"
       icon={CalendarDays}
       tone="brand"
       title={`${MONTHS[viewMonth]} ${viewYear}`}
@@ -867,7 +870,7 @@ const AgendaCalendar: React.FC<{
         </span>
       </div>
 
-      <div className="ui-divider mt-3 pt-3">
+      <div className="ui-divider mt-3 pt-3 flex-1 min-h-0 flex flex-col">
         <p className="text-xs font-semibold text-fg-2 mb-2">
           {longDate(selected)}
           {selected === todayStr && <span className="ui-chip ui-chip-brand ml-2">Bugün</span>}
@@ -875,7 +878,7 @@ const AgendaCalendar: React.FC<{
         {dayEtuts.length === 0 && dayHws.length === 0 ? (
           <p className="text-xs text-muted">Bu gün için kayıt yok.</p>
         ) : (
-          <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+          <ul className="space-y-1.5 flex-1 min-h-0 max-h-40 @4xl:max-h-none overflow-y-auto">
             {dayEtuts.map((e) => (
               <li key={e.id}>
                 <button
