@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { User, Search, Plus, Target } from 'lucide-react';
+import { User, Search, Plus, Target, ChevronDown, BarChart3 } from 'lucide-react';
 import type { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented, EmptyState } from '../ui/kit';
 import { inputCls, localDateStr } from './FormParts';
-import { targetForDay } from '../../utils/targetDays';
+import { targetForDay, isPlanMirrorTarget } from '../../utils/targetDays';
 import { PERIOD_ITEMS, TargetPeriodFilter, periodOf, targetPeriodText, ownerText, ProgressBar, TargetRowActions } from './TargetListParts';
 
 // Öğrenci soru hedefleri listesi (Aşama 10)
@@ -27,6 +27,8 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
   const [onlyMine, setOnlyMine] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  // Aşama 66: hafta satırında ders ders hedefleri açılan öğrenci + hafta
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   // Aşama 15: kayıtlar öğrenciye göre bir kez gruplanır (her hedef için tüm kayıtlar taranmaz)
   const byStudent = useMemo(() => {
     const m = new Map<string, StudentQuestionLog[]>();
@@ -74,6 +76,26 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
     }
     return Array.from(m.values()).sort((a, b) => a.start.localeCompare(b.start) || a.name.localeCompare(b.name, 'tr'));
   })();
+  // Aşama 66: öğrencinin aynı haftaya ait bütün hedefleri (ders ders) TEK SATIRDA özetlenir
+  const weekGroups = (() => {
+    const m = new Map<string, { key: string; studentId: string; name: string; className: string; start: string; list: typeof rows }>();
+    for (const r of rows) {
+      const k = `${r.t.studentId}|${r.t.weekStartDate}`;
+      if (!m.has(k)) m.set(k, { key: k, studentId: r.t.studentId || '', name: r.name, className: r.className, start: r.t.weekStartDate || '', list: [] });
+      m.get(k)!.list.push(r);
+    }
+    return Array.from(m.values()).map((g) => {
+      const targets = g.list.map((x) => x.t);
+      // plan toplamı olan genel hedef ayrıca sayılmaz (çift sayılmasın)
+      const counted = g.list.filter((x) => !isPlanMirrorTarget(x.t, targets));
+      const total = counted.reduce((a, x) => a + (x.p.total || 0), 0);
+      const solved = counted.reduce((a, x) => a + Math.min(x.p.solved || 0, x.p.total || 0), 0);
+      const percent = total ? Math.min(100, Math.round((solved / total) * 100)) : 0;
+      const owners = Array.from(new Set(g.list.map((x) => ownerText(x.t))));
+      const end = g.list.reduce((a, x) => (dataService.questionTargetEnd(x.t) > a ? dataService.questionTargetEnd(x.t) : a), '');
+      return { ...g, counted, total, solved, percent, done: total > 0 && solved >= total, owners, end };
+    });
+  })();
   const GUN = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
   const weekDatesOf = (start: string) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(start);
@@ -90,7 +112,7 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
       tone="warning"
       size="lg"
       title="Öğrenci Soru Hedefleri"
-      description={`${rows.length} hedef · ${studentCount} öğrenci`}
+      description={period === 'plan' ? `${rows.length} hedef · ${studentCount} öğrenci` : `${weekGroups.length} haftalık hedef · ${studentCount} öğrenci`}
     >
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row gap-2">
@@ -199,50 +221,99 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
           <EmptyState icon={Target} title="Hedef bulunamadı" description="Bu filtreye uyan öğrenci hedefi yok. Yeni Hedef ile hedef verebilirsiniz." />
         ) : (
           <ul className="space-y-2" id="student-target-list">
-            {rows.map(({ t, name, className, p }) => (
-              <li key={t.id} className="p-3 rounded-xl border border-line bg-surface-2/60 flex flex-col sm:flex-row sm:items-center gap-3" data-testid="student-target-row">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-semibold text-fg truncate">{name}</span>
-                    {className && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{className}</span>}
-                    <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
-                  </div>
-                  <div className="text-[11px] text-muted mt-0.5">
-                    {targetPeriodText(t)} · {t.targetQuestions} soru ({t.dailyTarget}/gün) · Veren: {ownerText(t)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 sm:shrink-0">
-                  <div className="w-32">
-                    <div className="flex justify-between text-[11px] mb-1">
-                      <span className="text-muted">%{p.percent}</span>
-                      <span className="font-semibold text-fg">
-                        {p.solved}/{p.total}
-                      </span>
+            {weekGroups.map((g) => {
+              const open = openGroup === g.key;
+              return (
+                <li key={g.key} className="rounded-xl border border-line bg-surface-2/60" data-testid="student-target-row">
+                  <div className="p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-sm font-semibold text-fg truncate">{g.name}</span>
+                        {g.className && <span className="text-[10px] font-semibold px-1.5 py-px rounded bg-surface-3 text-fg-2">{g.className}</span>}
+                        <span className="text-[11px] text-muted">{targetPeriodText(g.list[0].t)}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {g.counted.map(({ t, p }) => (
+                          <span
+                            key={t.id}
+                            className={`text-[10px] font-semibold px-1.5 py-px rounded tabular-nums ${p.done ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg'}`}
+                            title={`${t.subject || 'Tüm dersler'}: ${p.solved}/${p.total} soru`}
+                          >
+                            {t.subject || 'Tüm dersler'} {t.targetQuestions}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-[11px] text-muted mt-1">
+                        Toplam {g.total} soru · {g.counted.length} ders hedefi · Veren: {g.owners.join(', ')}
+                      </div>
                     </div>
-                    <ProgressBar percent={p.percent} done={p.done} />
-                  </div>
-                  <TargetRowActions
-                    target={t}
-                    confirming={confirmId === t.id}
-                    onConfirmChange={(v) => setConfirmId(v ? t.id || null : null)}
-                    analyzeTitle="Öğrencinin soru grafiğine git"
-                    onAnalyze={
-                      t.studentId
-                        ? () => {
+                    <div className="flex items-center gap-2 sm:shrink-0">
+                      <div className="w-32">
+                        <div className="flex justify-between text-[11px] mb-1">
+                          <span className="text-muted">%{g.percent}</span>
+                          <span className="font-semibold text-fg">
+                            {g.solved}/{g.total}
+                          </span>
+                        </div>
+                        <ProgressBar percent={g.percent} done={g.done} />
+                      </div>
+                      {g.studentId && (
+                        <button
+                          type="button"
+                          className="ui-btn ui-btn-ghost ui-btn-icon"
+                          title="Öğrencinin soru grafiğine git"
+                          aria-label="Öğrencinin soru grafiğine git"
+                          onClick={() => {
                             onClose();
-                            onSelectStudentToAnalyze(t.studentId!);
-                          }
-                        : undefined
-                    }
-                    onEdit={() => {
-                      onClose();
-                      onEdit(t);
-                    }}
-                    onDeleted={() => setTick((n) => n + 1)}
-                  />
-                </div>
-              </li>
-            ))}
+                            onSelectStudentToAnalyze(g.studentId);
+                          }}
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="ui-btn ui-btn-secondary ui-btn-sm"
+                        aria-expanded={open}
+                        onClick={() => setOpenGroup(open ? null : g.key)}
+                        data-testid="student-target-row-toggle"
+                      >
+                        Dersler <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+                  {open && (
+                    <ul className="border-t border-line px-3 py-2 space-y-1.5" data-testid="student-target-row-details">
+                      {g.list.map(({ t, p }) => {
+                        const mirror = !g.counted.some((x) => x.t === t);
+                        return (
+                          <li key={t.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg bg-surface border border-line px-2.5 py-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[11px] font-bold px-1.5 py-px rounded bg-warning-soft text-warning-fg">{t.subject || 'Tüm dersler'}</span>
+                              <span className="ml-1.5 text-[11px] text-muted">
+                                {t.targetQuestions} soru ({t.dailyTarget}/gün) · {p.solved}/{p.total} çözüldü · {ownerText(t)}
+                                {mirror ? ' · plan toplamı, ayrıca sayılmaz' : ''}
+                              </span>
+                            </div>
+                            <TargetRowActions
+                              target={t}
+                              confirming={confirmId === t.id}
+                              onConfirmChange={(v) => setConfirmId(v ? t.id || null : null)}
+                              analyzeTitle="Öğrencinin soru grafiğine git"
+                              onEdit={() => {
+                                onClose();
+                                onEdit(t);
+                              }}
+                              onDeleted={() => setTick((n) => n + 1)}
+                            />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

@@ -58,6 +58,8 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailNoticeBar } from './FormParts';
 import { periodOf, targetPeriodText, ownerText } from './TargetListParts';
 import { TargetSummaryTable } from '../Student/TargetSummaryTable';
+import { PlanWallGrid, PlanWeekSummary, usePlanWallData } from '../Student/StudentTargetCards';
+import { isFlexibleTarget as isFlexTarget, isPlanCountTarget, isPlanMirrorTarget } from '../../utils/targetDays';
 import {
   generalDailyTarget,
   computeMonthlyTargetPlan,
@@ -395,6 +397,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
     return dataService.getQuestionTargetsForStudent(activeStudent.id, currentWeekStartDate, currentWeekEndDate);
   }, [activeStudent, currentWeekStartDate, currentWeekEndDate, targetUpdateTrigger, allLogs]);
   const activeWeeklyTarget = activeTargets[0] || null;
+  // Aşama 66: plandan gelen ders hedefleri gün gün duvarlarda gösterilir (öğrencinin Soru Sayısı bölümüyle aynı);
+  // tablodaki hedef satırlarından çıkarılır. Plan toplamı olan genel hedef (plan aynası) de satır olarak gösterilmez.
+  const planWallTargets = useMemo(() => activeTargets.filter((t) => isPlanCountTarget(t) && isFlexTarget(t)), [activeTargets]);
+  const planWall = usePlanWallData(planWallTargets, activeStudent?.id || '', activeLogs);
+  const hidePlanRow = React.useCallback(
+    (t: WeeklyQuestionTarget) => planWallTargets.includes(t) || isPlanMirrorTarget(t, activeTargets),
+    [planWallTargets, activeTargets]
+  );
   const myActiveTarget = activeTargets.find((t) => dataService.isMyQuestionTarget(t) && dataService.canEditQuestionTarget(t)) || null;
   // Günlük hedef çizgisi: bu haftanın GENEL (ders seçilmemiş) hedefinin günlük sayısı, yoksa 50.
   // Ders hedefi (ör. yalnızca Matematik) tüm derslerin toplamıyla karşılaştırılmaz. Öğrenci ekranıyla aynı kural.
@@ -960,11 +970,13 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 </button>
               )}
             </label>
+            {/* Aşama 66: sınıf kutusu öğrenci seçimi kutusuyla aynı biçim ve boyutta (h-9, aynı kenar, ok simgesi) */}
+            <div className="relative">
             <select
               id="looker-filter-class"
               value={selectedClassId}
               onChange={(e) => handleSelectClass(e.target.value)}
-              className="w-full bg-surface border border-line-strong text-xs font-semibold text-fg rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer"
+              className="w-full h-9 appearance-none bg-surface border border-line-strong text-xs font-semibold text-fg rounded-lg pl-3 pr-8 py-0 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer shadow-2xs hover:border-line-strong transition-colors truncate"
             >
               <option value="">Sınıf Seçiniz</option>
               <option value="all">Tüm Sınıflar (Tüm Okul - {students.length} Öğrenci)</option>
@@ -977,6 +989,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 );
               })}
             </select>
+            <ChevronDown className="w-3.5 h-3.5 text-subtle absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            </div>
           </div>
 
           {/* 2. Öğrenci Seçimi (Arama Kutulu & Renk Vurgulu Özel Açılır Menü) */}
@@ -1004,7 +1018,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 setIsStudentDropdownOpen((prev) => !prev);
                 setStudentSearchQuery('');
               }}
-              className="w-full bg-surface border border-line-strong text-xs rounded-lg px-3 py-1.5 flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
+              className="w-full h-9 bg-surface border border-line-strong text-xs font-semibold rounded-lg pl-3 pr-3 py-0 flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 cursor-pointer text-left shadow-2xs hover:border-line-strong transition-colors"
             >
               {activeStudent ? (
                 <div className="flex items-center gap-1.5 truncate">
@@ -1832,6 +1846,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
               {/* Aşama 30: bu haftaya denk gelen BÜTÜN hedefler (öğrenci + sınıf) tek tabloda.
                   Eskiden her hedef ayrı kart + ayrı gün gün tablo olarak gösteriliyordu. */}
+              {/* Aşama 66: gün gün duvarlar (plandaki dersler, sayfalar, o günün soru sayısı, dolan çubuk) */}
+              {activeStudent && planWall.walls.length > 0 && <PlanWallGrid data={planWall} id="teacher-plan-day-walls" />}
               {activeStudent && activeTargets.length > 0 && (
                 <TargetSummaryTable
                   targets={activeTargets}
@@ -1839,8 +1855,11 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   logs={activeLogs}
                   weekStart={currentWeekStartDate}
                   onEditTarget={openEditTarget}
+                  hideTarget={planWall.walls.length > 0 ? hidePlanRow : undefined}
                 />
               )}
+              {/* Aşama 66: haftalık soru dağılımı (ders ders haftalık toplam) tablonun altında */}
+              {activeStudent && planWall.walls.length > 0 && <PlanWeekSummary data={planWall} id="teacher-plan-week-summary" />}
 
               {/* ========================================================================= */}
               {/* GOOGLE LOOKER STUDIO ANA GRAFİĞİ (HAFİF GRİ ARKA PLAN, KOYU GRİ METİNLER) */}

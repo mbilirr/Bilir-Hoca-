@@ -17,7 +17,7 @@ import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from
 // sınıf ortalaması ve sıralaması yalnızca sayı olarak görünür.
 // ============================================================================
 
-export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ currentStudent }) => {
+export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student; /** Aşama 66: açılışta gösterilecek karne türü */ initialTur?: KarneTur }> = ({ currentStudent, initialTur }) => {
   const [exams, setExams] = useState<DenemeExam[]>([]);
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [target, setTarget] = useState<number | null>(null);
@@ -27,7 +27,7 @@ export const StudentDenemeSonuclari: React.FC<{ currentStudent: Student }> = ({ 
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi görülen deneme
-  const [tur, setTur] = useState<KarneTur>('genel'); // Aşama 54: birleştirilmiş / kazanım takip / çalışma planı
+  const [tur, setTur] = useState<KarneTur>(initialTur || 'genel'); // Aşama 54: birleştirilmiş / kazanım takip / çalışma planı
   const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined);
 
   // Aşama 54: "Henüz sorulmadı" için kazanım bankası (okunamazsa yalnızca sorulan kazanımlar gösterilir)

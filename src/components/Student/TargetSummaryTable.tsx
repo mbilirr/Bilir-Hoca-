@@ -65,7 +65,12 @@ export const TargetSummaryTable: React.FC<{
   /** Öğretmen ekranı: hedef satırına "düzenle" düğmesi */
   onEditTarget?: (t: WeeklyQuestionTarget) => void;
   id?: string;
-}> = ({ targets, studentId, logs, weekStart, onEditTarget, id = 'target-summary-table' }) => {
+  /**
+   * Aşama 66: bu hedeflerin satırı gösterilmez (öğretmen Soru Takibi'nde plandan gelen hedefler gün gün duvarlarda).
+   * "Günün hedefi" ve "Çözülen" satırları yine BÜTÜN hedeflerle hesaplanır.
+   */
+  hideTarget?: (t: WeeklyQuestionTarget) => boolean;
+}> = ({ targets, studentId, logs, weekStart, onEditTarget, id = 'target-summary-table', hideTarget }) => {
   const today = formatDateISO(new Date());
 
   const days = useMemo(() => {
@@ -204,7 +209,11 @@ export const TargetSummaryTable: React.FC<{
               Soru hedefleri
             </h3>
             <p className="text-xs text-muted">
-              {targets.length} hedef · {shortDate(days[0] || '')} – {shortDate(days[6] || '')} haftası · bu hafta {weekSolved} soru
+              {(() => {
+                const shown = hideTarget ? targets.filter((t) => !hideTarget(t)).length : targets.length;
+                return shown ? `${shown} hedef` : 'Plan hedefleri yukarıdaki gün gün duvarlarda';
+              })()}{' '}
+              · {shortDate(days[0] || '')} – {shortDate(days[6] || '')} haftası · bu hafta {weekSolved} soru
               {weekGoal > 0 ? ` / ${weekGoal} hedef` : ''}
             </p>
           </div>
@@ -243,7 +252,7 @@ export const TargetSummaryTable: React.FC<{
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {rows.map(({ t, res }) => {
+            {rows.filter(({ t }) => !hideTarget || !hideTarget(t)).map(({ t, res }) => {
               const done = res.solved >= res.total;
               const remaining = Math.max(0, res.total - res.solved);
               const split = subjectSplit(t);

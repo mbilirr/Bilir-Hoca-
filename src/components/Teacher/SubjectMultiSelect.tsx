@@ -44,8 +44,9 @@ export const SubjectMultiSelect: React.FC<{
         ? value.join(', ')
         : `${value.length} ders: ${value.slice(0, 2).join(', ')}…`;
 
+  // Aşama 66: kutu yazıyla orantılı: en az sınıf/öğrenci kutuları kadar (18rem), seçilen dersler uzadıkça genişler
   return (
-    <div className="relative" ref={boxRef}>
+    <div className="relative w-full sm:w-fit sm:min-w-72 max-w-full" ref={boxRef}>
       <button
         type="button"
         id={id}
@@ -53,7 +54,7 @@ export const SubjectMultiSelect: React.FC<{
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          'w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-surface text-left cursor-pointer transition-colors',
+          'w-full h-10 flex items-center gap-2.5 px-3 rounded-xl border bg-surface text-left cursor-pointer transition-colors',
           open ? 'border-brand ring-2 ring-brand/20' : 'border-line hover:border-line-strong'
         )}
       >

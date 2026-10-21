@@ -43,9 +43,8 @@ import { removeStoredFiles, safeHttpUrl, storedPathsOf } from '../../lib/fileSto
 import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
 import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
-import { StudentHeroBanner, StudentTabType } from './StudentHeroBanner';
-import { StudentStatsOverview } from './StudentStatsOverview';
-import { StudentTodayPlan } from './StudentTodayPlan';
+import type { StudentTabType } from './StudentHeroBanner';
+import { StudentHomeToday } from './StudentHomeToday';
 import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
@@ -91,6 +90,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const selfList = useMemo(() => [currentStudent], [currentStudent]);
+  // Aşama 66: ana sayfadaki zayıf kazanıma tıklanınca Deneme Sonuçlarım "Çalışma planı" karnesiyle açılır
+  const [denemeTur, setDenemeTur] = useState<'genel' | 'plan'>('genel');
+  useEffect(() => {
+    if (activeTab !== 'deneme') setDenemeTur('genel');
+  }, [activeTab]);
 
   // Profile and Avatar Modals state
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
@@ -569,8 +573,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           {/* Aşama 34: telefon bildirimleri (kapalıysa açma kartı, açıksa tek satır) */}
           <PushOptInCard role="student" />
 
-          {/* Wall 1: Duyurular (bugünün etüdü, ödevi, soru hedefi, notları) + kompakt takvim */}
-          <StudentHeroBanner
+          {/* Aşama 66: "Bugün" (soru hedefi, plan görevleri, ödev/etüt, duyurular) ve "Bu hafta"
+              (gün gün mini görünüm, haftanın durumu, son deneme, notlar) yan yana eş duvarlar */}
+          <StudentHomeToday
             student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
             homeworks={myHomeworks}
             etuts={myEtuts}
@@ -578,21 +583,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             grades={myGrades}
             announcements={myAnnouncements}
             onNavigateTab={(tab) => setActiveTab(tab)}
+            onOpenStudyPlan={() => {
+              setDenemeTur('plan');
+              setActiveTab('deneme');
+              window.scrollTo({ top: 0 });
+            }}
             onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
-            onOpenProfileModal={() => setIsProfileModalOpen(true)}
-            onOpenPasswordModal={() => setIsPasswordModalOpen(true)}
-          />
-
-          {/* Wall 2: "Durumum" — Ödevlerim/Etütlerim alt alta, Soru Çözümüm/Notlarım alt alta;
-              yanında küçültülmüş "Bugün yapılması gerekenler" paneli (Aşama 19 planı) */}
-          <StudentStatsOverview
-            student={currentStudent}
-            homeworks={myHomeworks}
-            submissions={getSubmissionsList()}
-            etuts={myEtuts}
-            grades={myGrades}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            sidePanel={<StudentTodayPlan compact />}
           />
         </div>
       )}
@@ -1152,7 +1148,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {activeTab === 'deneme' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <Suspense fallback={<PageLoading />}>
-            <StudentDenemeSonuclari currentStudent={currentStudent} />
+            <StudentDenemeSonuclari key={denemeTur} currentStudent={currentStudent} initialTur={denemeTur} />
           </Suspense>
         </div>
       )}

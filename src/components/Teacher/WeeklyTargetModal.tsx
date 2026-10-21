@@ -187,7 +187,9 @@ const TargetFormContent: React.FC<Props> = ({
   const fixedSubject = !allowGeneral && subjectOptions.length <= 1;
   // Ders dağılımı: birden çok ders seçildiyse o dersler, hiç seçilmediyse (tüm dersler) eklenen dersler
   const multi = selectedSubjects.length > 1;
-  const showBreakdown = selectedSubjects.length !== 1;
+  // Aşama 66: "Ders dağılımı (isteğe bağlı)" bölümü kaldırıldı; hedefe ders ders ayrı sayı yazılmaz
+  // (birden çok ders seçilen hedef, seçilen derslerin toplamına sayılır). Düzenlenen eski hedefteki dağılım da kaldırılır.
+  const showBreakdown = false;
   const breakdownRows: Array<[string, string]> = multi
     ? selectedSubjects.map((s) => [s, multiRows[s] ?? ''])
     : Object.entries(subjectRows);
@@ -1107,86 +1109,6 @@ const TargetFormContent: React.FC<Props> = ({
               <p className="text-[11px] font-semibold text-fg" id="qt-day-sum">
                 Toplam: {customTotal} soru · ortalama günde {days >= 1 ? Math.round(customTotal / days) : 0}
               </p>
-            </div>
-          )}
-
-          {showBreakdown && (
-            <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2" id="qt-breakdown">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-semibold text-fg">Ders dağılımı (isteğe bağlı)</div>
-                {breakdownRows.length > 1 && (
-                  <button type="button" id="qt-breakdown-even" onClick={distributeEvenly} className="ui-btn ui-btn-ghost ui-btn-sm">
-                    <Divide className="w-3.5 h-3.5" /> Eşit dağıt
-                  </button>
-                )}
-              </div>
-              <p className="text-[11px] text-muted">
-                {multi
-                  ? 'Seçtiğiniz derslerin her biri için ayrı soru sayısı yazabilirsiniz. Boş bırakılan derse ayrı hedef konmaz.'
-                  : 'İsterseniz bazı dersler için ayrı soru sayısı belirleyin. Boş bırakılan derse ayrı hedef konmaz.'}
-              </p>
-              {breakdownRows.map(([s, v]) => (
-                <div key={s} className="flex items-center gap-2" data-testid="qt-breakdown-row">
-                  <span className="flex-1 text-sm text-fg truncate">{s}</span>
-                  <div className="relative w-32 shrink-0">
-                    <input
-                      aria-label={`${s} hedefi`}
-                      inputMode="numeric"
-                      value={v}
-                      placeholder="-"
-                      onChange={(e) => setRow(s, e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-                      className={`${inputCls} text-center pr-10`}
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-muted">soru</span>
-                  </div>
-                  {!multi && (
-                    <button
-                      type="button"
-                      aria-label={`${s} kaldır`}
-                      onClick={() =>
-                        setSubjectRows((r) => {
-                          const c = { ...r };
-                          delete c[s];
-                          return c;
-                        })
-                      }
-                      className="ui-btn ui-btn-ghost ui-btn-icon"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {breakdownRows.length > 0 && (
-                <p className="text-[11px] text-muted" id="qt-breakdown-sum">
-                  Dağıtılan: {Object.values(breakdownTargets).reduce((a, b) => a + b, 0)} / {toInt(shownTotal) || 0} soru
-                </p>
-              )}
-              {!multi && breakdownSubjects.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select id="qt-breakdown-subject" value={subjectToAdd} onChange={(e) => setSubjectToAdd(e.target.value)} className={inputCls}>
-                    <option value="">Ders ekle…</option>
-                    {breakdownSubjects.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    id="qt-breakdown-add"
-                    disabled={!subjectToAdd}
-                    onClick={() => {
-                      if (!subjectToAdd) return;
-                      setSubjectRows((r) => ({ ...r, [subjectToAdd]: '' }));
-                      setSubjectToAdd('');
-                    }}
-                    className="ui-btn ui-btn-secondary shrink-0"
-                  >
-                    <Plus className="w-4 h-4" /> Ekle
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </FormSection>

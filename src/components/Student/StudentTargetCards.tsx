@@ -131,13 +131,13 @@ const itemText = (it: Pick<DatedPlanItem, 'book' | 'note'>) =>
     .filter(Boolean)
     .join(' – ');
 
-interface DaySubject {
+export interface DaySubject {
   subject: string;
   target: number;
   solved: number;
   topics: Array<{ text: string; done: boolean }>;
 }
-interface DayWall {
+export interface DayWall {
   ymd: string;
   dayName: string;
   dateText: string;
@@ -146,7 +146,19 @@ interface DayWall {
   solved: number; // derslerin hedefini aşan sorular sayılmaz (çubuk ders ders dolar)
 }
 
-const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: string; logs: StudentQuestionLog[] }> = ({ targets, studentId, logs }) => {
+export interface PlanWallData {
+  walls: DayWall[];
+  weekly: Array<{ subject: string; target: number; solved: number }>;
+  teacher: string;
+  range: { from: string; to: string };
+  today: string;
+}
+
+/**
+ * Aşama 66: plandan gelen ders hedeflerinin gün gün duvar verisi (öğrenci Soru Sayısı ve öğretmen Soru Takibi aynı hesabı kullanır).
+ * targets: yalnızca plandan gelen, gün gün dağıtılmış ders hedefleri (isPlanCountTarget + isFlexibleTarget).
+ */
+export function usePlanWallData(targets: WeeklyQuestionTarget[], studentId: string, logs: StudentQuestionLog[]): PlanWallData {
   const range = useMemo(() => {
     let from = '';
     let to = '';
@@ -234,15 +246,18 @@ const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: strin
     return { walls, weekly: Array.from(weeklyMap.values()), teacher };
   }, [targets, items, logs, studentId, range.from, range.to]);
 
+  return { walls, weekly, teacher, range, today };
+}
+
+/** Haftalık soru dağılımı: gri kutu ("Haftalık Rehberlik Tavsiyesi" kutusuyla aynı görünüm) */
+export const PlanWeekSummary: React.FC<{ data: PlanWallData; id?: string }> = ({ data, id }) => {
+  const { walls, weekly, teacher, range } = data;
   if (!walls.length) return null;
   const weekTarget = weekly.reduce((a, x) => a + x.target, 0);
   const weekSolved = weekly.reduce((a, x) => a + x.solved, 0);
   const weekPct = weekTarget ? Math.min(100, Math.round((weekSolved / weekTarget) * 100)) : 0;
-
   return (
-    <div className="space-y-3" id="student-plan-day-walls">
-      {/* Haftalık soru dağılımı (Haftalık Rehberlik Tavsiyesi kutusuyla aynı görünüm) */}
-      <div className="p-3.5 bg-surface-2 rounded-xl border border-line text-xs text-fg-2 space-y-2.5" data-testid="plan-week-summary">
+      <div id={id} className="p-3.5 bg-surface-2 rounded-xl border border-line text-xs text-fg-2 space-y-2.5" data-testid="plan-week-summary">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-fg">
             <Award className="w-3.5 h-3.5 text-orange-600 dark:text-orange-300" />
@@ -279,9 +294,15 @@ const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: strin
           </span>
         </div>
       </div>
+  );
+};
 
-      {/* Gün gün duvarlar */}
-      <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,14.5rem),1fr))]">
+/** Gün gün duvarlar: plandaki dersler, kitap / sayfa açıklamaları, yalnızca o günün soru sayısı ve dolan çubuk */
+export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string }> = ({ data, id }) => {
+  const { walls, today } = data;
+  if (!walls.length) return null;
+  return (
+      <div id={id} className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,14.5rem),1fr))]">
         {walls.map((w) => {
           const pct = w.target ? Math.min(100, Math.round((w.solved / w.target) * 100)) : 0;
           const done = w.solved >= w.target;
@@ -364,6 +385,16 @@ const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: strin
           );
         })}
       </div>
+  );
+};
+
+const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: string; logs: StudentQuestionLog[] }> = ({ targets, studentId, logs }) => {
+  const data = usePlanWallData(targets, studentId, logs);
+  if (!data.walls.length) return null;
+  return (
+    <div className="space-y-3" id="student-plan-day-walls">
+      <PlanWeekSummary data={data} />
+      <PlanWallGrid data={data} />
     </div>
   );
 };

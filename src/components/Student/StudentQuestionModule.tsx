@@ -607,6 +607,24 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const isEditMode = !!existingLog;
   const existingLogKey = existingLog ? existingLog.id : '';
 
+  // Aşama 66: kaydın İÇERİĞİ (ders ve sayılar). Ana sayfada plan görevi "yaptım" işaretlenince görevin soruları
+  // aynı günün kaydına eklenir; kaydın kimliği değişmediği için form eskiden yenilenmiyordu (Fizik 48 görünmüyordu,
+  // öğrenci formu kaydederse eklenen sorular siliniyordu). İçerik değişince form da güncellenir (aşağıdaki etki).
+  const existingContentSig = useMemo(
+    () =>
+      JSON.stringify(
+        mergeSubjectEntries(sameDayLogs.flatMap((l) => l.entries || [])).map((e) => [
+          e.subject,
+          Number(e.questionCount) || 0,
+          Number(e.correctCount) || 0,
+          Number(e.wrongCount) || 0,
+        ])
+      ),
+    [sameDayLogs]
+  );
+  const loadedRowsRef = useRef<EntryRow[]>([]);
+  const loadedSigRef = useRef<string>('');
+
   // Tarih (veya öğrenci) değişince: o günün kaydı varsa derslerini forma yükle; kayıt yoksa ve
   // form başka bir günün kaydını gösteriyorsa formu boşalt. Yazılmakta olan yeni giriş korunur.
   const loadedLogIdRef = useRef<string | null>(null);
@@ -623,11 +641,15 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       setSingleEntries(merged);
       setEntryNotes(existingLog.notes || '');
       loadedLogIdRef.current = existingLog.id;
+      loadedRowsRef.current = buildEntryRows(activeSubjects, merged);
+      loadedSigRef.current = existingContentSig;
     } else if (loadedLogIdRef.current) {
       setListRows(activeSubjects.map((s) => emptyEntryRow(s)));
       setSingleEntries([]);
       setEntryNotes('');
       loadedLogIdRef.current = null;
+      loadedRowsRef.current = [];
+      loadedSigRef.current = '';
     }
     setSubmitAttempted(false);
     setFormError('');
@@ -635,6 +657,42 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
     setSingleInfo('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStudent.id, entryDate, existingLogKey]);
+
+  // Aşama 66: aynı günün kaydı başka yerden değişti (ör. ana sayfada plan görevi işaretlendi → Fizik 48 eklendi).
+  // Öğrencinin formda DEĞİŞTİRMEDİĞİ dersler kayıttaki yeni sayılarla güncellenir, kayıtta olup formda olmayan ders eklenir;
+  // öğrencinin o anda yazdığı (kaydetmediği) sayılara dokunulmaz.
+  useEffect(() => {
+    if (!existingLog || loadedLogIdRef.current !== existingLog.id) return;
+    if (loadedSigRef.current === existingContentSig) return;
+    const merged = mergeSubjectEntries(sameDayLogs.flatMap((l) => l.entries || []));
+    const fresh = buildEntryRows(activeSubjects, merged);
+    const before = loadedRowsRef.current;
+    loadedRowsRef.current = fresh;
+    loadedSigRef.current = existingContentSig;
+    if (savingRef.current) return; // kendi kaydımız: form zaten bu içeriği gösteriyor
+    const same = (a?: EntryRow, b?: EntryRow) =>
+      (a?.questionCount || '') === (b?.questionCount || '') && (a?.correctCount || '') === (b?.correctCount || '') && (a?.wrongCount || '') === (b?.wrongCount || '');
+    setListRows((prev) => {
+      const next = prev.map((r) => {
+        const old = before.find((x) => x.subject === r.subject);
+        const nw = fresh.find((x) => x.subject === r.subject);
+        if (!same(r, old)) return r; // öğrenci bu satırı değiştirmiş: korunur
+        return nw
+          ? { ...r, questionCount: nw.questionCount, correctCount: nw.correctCount, wrongCount: nw.wrongCount, topic: r.topic || nw.topic }
+          : { ...r, questionCount: '', correctCount: '', wrongCount: '' };
+      });
+      for (const nw of fresh) if (!next.some((r) => r.subject === nw.subject)) next.push(nw);
+      return next;
+    });
+    setSingleEntries((prev) => {
+      const prevSig = JSON.stringify(prev.map((e) => [e.subject, Number(e.questionCount) || 0]));
+      const beforeSig = JSON.stringify(
+        before.filter((r) => r.questionCount).map((r) => [r.subject, Number(r.questionCount) || 0])
+      );
+      return prevSig === beforeSig ? merged : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingContentSig]);
 
   // Satır doğrulaması (her değişiklikte)
   const rowChecks = useMemo(() => listRows.map((r) => checkEntryRow(r)), [listRows]);
