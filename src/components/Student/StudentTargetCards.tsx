@@ -297,93 +297,110 @@ export const PlanWeekSummary: React.FC<{ data: PlanWallData; id?: string }> = ({
   );
 };
 
-/** Gün gün duvarlar: plandaki dersler, kitap / sayfa açıklamaları, yalnızca o günün soru sayısı ve dolan çubuk */
+/**
+ * Gün gün duvarlar: plandaki dersler, kitap / sayfa açıklamaları, yalnızca o günün soru sayısı ve dolan çubuk.
+ * Aşama 72: duvarlar TEK SATIRDA yan yana (6 günlük plan → 6 duvar, 7 günlük → 7 duvar), yazılar küçük.
+ * Dar ekranda satır yana kaydırılır; 7'den fazla gün varsa her 7 gün yeni satıra geçer.
+ */
 export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string }> = ({ data, id }) => {
   const { walls, today } = data;
   if (!walls.length) return null;
+  const rows: DayWall[][] = [];
+  for (let i = 0; i < walls.length; i += 7) rows.push(walls.slice(i, i + 7));
   return (
-      <div id={id} className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(min(100%,14.5rem),1fr))]">
-        {walls.map((w) => {
-          const pct = w.target ? Math.min(100, Math.round((w.solved / w.target) * 100)) : 0;
-          const done = w.solved >= w.target;
-          const isToday = w.ymd === today;
-          const past = w.ymd < today;
-          const left = Math.max(0, w.target - w.solved);
-          return (
+      <div id={id} className="space-y-2">
+        {rows.map((row, ri) => (
+          <div key={ri} className="overflow-x-auto -mx-1 px-1 pb-1">
             <div
-              key={w.ymd}
-              data-testid="plan-day-wall"
-              className={`flex flex-col rounded-2xl border p-3.5 space-y-2.5 min-w-0 ${
-                done
-                  ? 'border-success/40 bg-success-soft/50'
-                  : isToday
-                    ? 'border-warning/50 bg-warning-soft/60 ring-2 ring-warning/25'
-                    : 'border-line bg-surface'
-              }`}
+              className="grid gap-1.5"
+              style={{ gridTemplateColumns: `repeat(${row.length}, minmax(6.5rem, 1fr))` }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-sm font-bold text-fg">
-                    <CalendarDays className="w-4 h-4 text-warning-fg shrink-0" />
-                    <span className="truncate">{w.dayName}</span>
-                  </div>
-                  <div className="text-[11px] text-muted">
-                    {w.dateText}
-                    {isToday ? ' · Bugün' : ''}
-                  </div>
-                </div>
-                <span
-                  className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                    done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
-                  }`}
-                >
-                  {w.target} soru
-                </span>
-              </div>
+              {row.map((w) => {
+                const pct = w.target ? Math.min(100, Math.round((w.solved / w.target) * 100)) : 0;
+                const done = w.solved >= w.target;
+                const isToday = w.ymd === today;
+                const past = w.ymd < today;
+                const left = Math.max(0, w.target - w.solved);
+                return (
+                  <div
+                    key={w.ymd}
+                    data-testid="plan-day-wall"
+                    className={`flex flex-col rounded-xl border p-2 gap-1.5 min-w-0 ${
+                      done
+                        ? 'border-success/40 bg-success-soft/50'
+                        : isToday
+                          ? 'border-warning/50 bg-warning-soft/60 ring-2 ring-warning/25'
+                          : 'border-line bg-surface'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-fg leading-tight">
+                          <CalendarDays className="w-3 h-3 text-warning-fg shrink-0" />
+                          <span className="truncate">{w.dayName}</span>
+                        </div>
+                        <div className="text-[10px] text-muted leading-tight">
+                          {w.dateText}
+                          {isToday ? ' · Bugün' : ''}
+                        </div>
+                      </div>
+                      <span
+                        className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight ${
+                          done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
+                        }`}
+                      >
+                        {w.target}
+                      </span>
+                    </div>
 
-              <ul className="space-y-2 flex-1">
-                {w.subjects.map((s) => {
-                  const ok = s.solved >= s.target;
-                  return (
-                    <li key={s.subject} className="text-xs min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-fg truncate">{s.subject}</span>
-                        <span className={`shrink-0 tabular-nums font-bold inline-flex items-center gap-1 ${ok ? 'text-success-fg' : 'text-fg'}`}>
-                          {Math.min(s.solved, s.target)}/{s.target}
-                          {ok && <Check className="w-3.5 h-3.5" />}
+                    <ul className="space-y-1 flex-1">
+                      {w.subjects.map((s) => {
+                        const ok = s.solved >= s.target;
+                        return (
+                          <li key={s.subject} className="text-[10px] min-w-0 leading-tight">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-semibold text-fg truncate" title={s.subject}>
+                                {s.subject}
+                              </span>
+                              <span className={`shrink-0 tabular-nums font-bold inline-flex items-center gap-0.5 ${ok ? 'text-success-fg' : 'text-fg'}`}>
+                                {Math.min(s.solved, s.target)}/{s.target}
+                                {ok && <Check className="w-2.5 h-2.5" />}
+                              </span>
+                            </div>
+                            {s.topics.length > 0 && (
+                              <ul className="mt-0.5 space-y-px">
+                                {s.topics.map((tp, i) => (
+                                  <li key={i} className="flex items-start gap-1 text-[9.5px] text-muted leading-snug">
+                                    <span className={`mt-[0.28rem] w-1 h-1 rounded-full shrink-0 ${tp.done ? 'bg-success' : 'bg-subtle'}`} />
+                                    <span className={`min-w-0 break-words ${tp.done ? 'line-through decoration-success/60' : ''}`}>{tp.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    <div className="space-y-0.5">
+                      <div className="w-full h-1.5 rounded-full bg-surface-2 overflow-hidden border border-line/60">
+                        <div className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-warning'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between gap-1 text-[10px] text-muted leading-tight">
+                        <span className="tabular-nums">
+                          <strong className="text-fg">{w.solved}</strong>/{w.target}
+                        </span>
+                        <span className={`font-semibold truncate ${done ? 'text-success-fg' : past ? 'text-danger-fg' : ''}`}>
+                          {done ? 'Tamam' : past ? `${left} eksik` : `%${pct}`}
                         </span>
                       </div>
-                      {s.topics.length > 0 && (
-                        <ul className="mt-0.5 space-y-0.5">
-                          {s.topics.map((tp, i) => (
-                            <li key={i} className="flex items-start gap-1 text-[11px] text-muted leading-snug">
-                              <span className={`mt-[0.3rem] w-1 h-1 rounded-full shrink-0 ${tp.done ? 'bg-success' : 'bg-subtle'}`} />
-                              <span className={`min-w-0 break-words ${tp.done ? 'line-through decoration-success/60' : ''}`}>{tp.text}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-
-              <div className="space-y-1">
-                <div className="w-full h-2 rounded-full bg-surface-2 overflow-hidden border border-line/60">
-                  <div className={`h-full rounded-full transition-all ${done ? 'bg-success' : 'bg-warning'}`} style={{ width: `${pct}%` }} />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-muted">
-                  <span className="tabular-nums">
-                    Çözülen: <strong className="text-fg">{w.solved}</strong> / {w.target}
-                  </span>
-                  <span className={`font-semibold ${done ? 'text-success-fg' : past ? 'text-danger-fg' : ''}`}>
-                    {done ? 'Tamam' : past ? `${left} eksik` : `%${pct}`}
-                  </span>
-                </div>
-              </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
   );
 };

@@ -78,6 +78,9 @@ interface StudentManagementProps {
   onSelectStudentForHomework?: (student: Student) => void;
 }
 
+/** Aşama 72: öğrenci bilgileri penceresindeki kutular küçük ve sıkı (pencere dikdörtgen kalır) */
+const SF = 'h-8 text-xs px-2.5 py-1 rounded-lg';
+
 export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
   classes,
@@ -1871,7 +1874,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         closeOnBackdrop={false}
         icon={UserPlus}
         tone="brand"
-        size="xl"
+        size="lg"
         title={editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
         footer={
           <>
@@ -1885,15 +1888,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         }
       >
         {studentFormError && (
-          <div role="alert" className="mb-4 p-3 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
+          <div role="alert" className="mb-2.5 p-2.5 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{studentFormError}</span>
           </div>
         )}
 
-        <form id="student-form" onSubmit={handleSaveStudent} noValidate className="space-y-4">
+        <form id="student-form" onSubmit={handleSaveStudent} noValidate className="space-y-2.5">
           {/* Aşama 70: Ad Soyad, Öğrenci No ve Sınıf yan yana, eşit genişlikte ve aynı yükseklikte */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" id="student-form-main">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="student-form-main">
             <div className="min-w-0">
               <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1 truncate">Ad Soyad *</label>
               <input autoComplete="off"
@@ -1903,7 +1906,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 placeholder="Örn: Ahmet Yılmaz"
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
-                className={cx(inputCls, 'h-10')}
+                className={cx(inputCls, SF)}
               />
             </div>
             <div className="min-w-0">
@@ -1920,7 +1923,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 value={studentNumber}
                 onChange={(e) => setStudentNumber(e.target.value)}
                 placeholder="Örn: 1042"
-                className={cx(inputCls, 'h-10')}
+                className={cx(inputCls, SF)}
               />
             </div>
             <div className="min-w-0">
@@ -1933,7 +1936,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 required
                 value={studentClassId}
                 onChange={(e) => setStudentClassId(e.target.value)}
-                className={cx(inputCls, 'h-10 font-semibold cursor-pointer')}
+                className={cx(inputCls, SF, 'font-semibold cursor-pointer')}
               >
                 <option value="">Sınıf seçiniz *</option>
                 {manageableClasses.map((cls) => (
@@ -1955,7 +1958,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label htmlFor="student-form-email" className="block text-xs font-bold text-fg-2 mb-1">E-Posta</label>
               <input autoComplete="off"
@@ -1970,7 +1973,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 placeholder="ogrenci@okul.com"
                 aria-invalid={!!studentEmailError}
                 aria-describedby={studentEmailError ? 'student-form-email-error' : undefined}
-                className={cx(inputCls, studentEmailError && 'border-danger focus:border-danger')}
+                className={cx(inputCls, SF, studentEmailError && 'border-danger focus:border-danger')}
               />
               {studentEmailError && (
                 <p id="student-form-email-error" className="mt-1 text-[11px] font-semibold text-danger-fg">
@@ -1997,7 +2000,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 placeholder="0555 123 4567"
                 aria-invalid={!!studentPhoneError}
                 aria-describedby={studentPhoneError ? 'student-form-phone-error' : undefined}
-                className={cx(inputCls, studentPhoneError && 'border-danger focus:border-danger')}
+                className={cx(inputCls, SF, studentPhoneError && 'border-danger focus:border-danger')}
               />
               {studentPhoneError && (
                 <p id="student-form-phone-error" className="mt-1 text-[11px] font-semibold text-danger-fg">
@@ -2008,7 +2011,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
 
           {/* Aşama 69: veliler (isteğe bağlı, en çok 3) — K12'deki Veli (1), (2), (3) ile aynı */}
-          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3" id="student-form-parents">
+          <div className="p-2.5 bg-surface-2 rounded-xl border border-line space-y-2" id="student-form-parents">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
                 <Users className="w-4 h-4 text-brand-fg" />
@@ -2031,7 +2034,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               ))}
             </datalist>
             {parents.map((p, i) => (
-              <div key={i} className="rounded-lg border border-line bg-surface p-3 space-y-2" data-testid="student-form-parent-row">
+              <div key={i} className="rounded-lg border border-line bg-surface p-2 space-y-1.5" data-testid="student-form-parent-row">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-bold text-fg">{i + 1}. veli{p.relation ? ` · ${p.relation}` : ''}</span>
                   {(parents.length > 1 || hasParentInfo(p)) && (
@@ -2051,7 +2054,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   )}
                 </div>
                 {/* Aşama 70: geniş ekranda bir velinin bilgileri tek satırda (yakınlık · ad soyad · cep · e-posta), taşmadan */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(6.5rem,0.6fr)_minmax(9rem,1.2fr)_minmax(9rem,0.9fr)_minmax(11rem,1.5fr)] gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-[minmax(5.5rem,0.6fr)_minmax(8rem,1.2fr)_minmax(7.5rem,0.9fr)_minmax(9rem,1.5fr)] gap-1.5">
                   <input
                     autoComplete="off"
                     list="parent-relation-options"
@@ -2060,7 +2063,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={p.relation || ''}
                     title={p.relation || undefined}
                     onChange={(e) => setParentField(i, 'relation', e.target.value)}
-                    className={cx(inputCls, 'h-10 min-w-0')}
+                    className={cx(inputCls, SF, 'min-w-0')}
                   />
                   <input
                     autoComplete="off"
@@ -2069,7 +2072,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={p.name || ''}
                     title={p.name || undefined}
                     onChange={(e) => setParentField(i, 'name', e.target.value)}
-                    className={cx(inputCls, 'h-10 min-w-0')}
+                    className={cx(inputCls, SF, 'min-w-0')}
                   />
                   <input
                     autoComplete="off"
@@ -2083,7 +2086,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       const n = normalizeTurkishPhone(p.phone || '');
                       if (n.valid && n.value !== (p.phone || '')) setParentField(i, 'phone', n.value);
                     }}
-                    className={cx(inputCls, 'h-10 min-w-0', parentErrors[i] && /telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                    className={cx(inputCls, SF, 'min-w-0', parentErrors[i] && /telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
                   />
                   <input
                     autoComplete="off"
@@ -2093,7 +2096,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     value={p.email || ''}
                     title={p.email || undefined}
                     onChange={(e) => setParentField(i, 'email', e.target.value)}
-                    className={cx(inputCls, 'h-10 min-w-0', parentErrors[i] && !/telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
+                    className={cx(inputCls, SF, 'min-w-0', parentErrors[i] && !/telefon/i.test(parentErrors[i] || '') && 'border-danger focus:border-danger')}
                   />
                 </div>
                 {parentErrors[i] && <p className="text-[11px] font-semibold text-danger-fg">{parentErrors[i]}</p>}
@@ -2103,7 +2106,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Aşama 50: TC kimlik (isteğe bağlı) — yalnızca geri çevrilemez parmak izi saklanır */}
           {canTc && (
-            <div className="p-3 rounded-xl border border-line bg-surface-2/50 space-y-1.5">
+            <div className="p-2.5 rounded-xl border border-line bg-surface-2/50 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="student-form-tc" className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> TC Kimlik No (isteğe bağlı, deneme eşleştirmesi için)
@@ -2122,7 +2125,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 }}
                 placeholder={studentTcSaved ? 'Değiştirmek için yeni TC yazın' : '11 haneli TC kimlik numarası'}
                 aria-invalid={!!studentTcError}
-                className={cx(inputCls, studentTcError && 'border-danger focus:border-danger')}
+                className={cx(inputCls, SF, studentTcError && 'border-danger focus:border-danger')}
               />
               {studentTcError && <p className="text-[11px] font-semibold text-danger-fg">{studentTcError}</p>}
               {studentTcSaved && !studentTc && (
@@ -2137,7 +2140,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           )}
 
           {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
-          <div className="p-4 bg-brand-soft rounded-xl space-y-2.5">
+          <div className="p-2.5 bg-brand-soft rounded-xl space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <label htmlFor="student-form-password" className="text-xs font-bold text-fg flex items-center gap-1.5">
                 <Key className="w-3.5 h-3.5 text-brand-fg" />
@@ -2166,7 +2169,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 value={studentPassword}
                 onChange={(e) => setStudentPassword(e.target.value)}
                 placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
-                className={cx(inputCls, 'pr-10 font-mono font-bold tracking-wider', !showStudentPassword && 'pw-mask')}
+                className={cx(inputCls, SF, 'pr-10 font-mono font-bold tracking-wider', !showStudentPassword && 'pw-mask')}
               />
               <button
                 type="button"
@@ -2186,7 +2189,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
 
           {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
-          <div className="p-3.5 bg-surface-2 rounded-xl border border-line space-y-2">
+          <div className="p-2.5 bg-surface-2 rounded-xl border border-line space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
                 <Camera className="w-3.5 h-3.5 text-brand-fg" />
@@ -2196,11 +2199,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
                 {studentAvatar ? (
                   <img loading="lazy" decoding="async" src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
                 ) : (
-                  <Users className="w-6 h-6 text-subtle" />
+                  <Users className="w-5 h-5 text-subtle" />
                 )}
               </div>
 

@@ -21,6 +21,7 @@
 // ============================================================================
 import tls from 'node:tls';
 import crypto from 'node:crypto';
+import { loadPolicy, allowed, MAIL_EVENT_CATEGORY } from './_notifyPolicy.js';
 
 export const config = { maxDuration: 60 };
 
@@ -940,6 +941,69 @@ async function openSmtp(sender) {
 }
 
 // items: [{ event, refId, refTitle, to, toName, role, subject, html, text }]
+// ----------------------------------------------------------------------------- Aşama 72: bildirim izinleri
+// Yöneticinin "Bildirim izinleri" ayarına göre: kapalı olan e-postalar gönderilmez; veliye e-posta açıksa
+// öğrenciye giden e-postanın bir kopyası öğrencinin kayıtlı velilerine (students.parents) gönderilir.
+const VELI_NOTE = 'Bu e-posta, velisi olduğunuz öğrenciye gönderilen bilgilendirmenin bir kopyasıdır.';
+async function studentParentsMap(ids) {
+  const map = new Map();
+  const list = [...new Set(ids.filter(Boolean).map(String))];
+  for (let i = 0; i < list.length; i += 100) {
+    const part = list.slice(i, i + 100);
+    try {
+      const rows = await rest(`students?select=id,name,parents&id=in.${inList(part)}`, { token: 'service' });
+      for (const r of rows || []) map.set(String(r.id), { name: r.name || '', parents: Array.isArray(r.parents) ? r.parents : [] });
+    } catch {
+      // "parents" sütunu yoksa (Aşama 69 SQL'i çalışmadıysa) veliye gönderilmez
+    }
+  }
+  return map;
+}
+function veliCopy(it, parent, studentName) {
+  const who = String((parent && parent.name) || '').trim() || 'Sayın Veli';
+  const html = typeof it.html === 'string'
+    ? it.html.replace(
+        '<tr><td style="padding:24px 24px 8px">',
+        `<tr><td style="padding:12px 24px 0"><p style="margin:0;padding:10px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;font-size:13px;color:#9a3412">${esc(VELI_NOTE)}${studentName ? ` (${esc(studentName)})` : ''}</p></td></tr><tr><td style="padding:24px 24px 8px">`,
+      )
+    : it.html;
+  return {
+    ...it,
+    to: String(parent.email || '').trim(),
+    toName: `${who}${studentName ? ` (${studentName} velisi)` : ''}`.slice(0, 120),
+    role: 'veli',
+    subject: `[Veli] ${it.subject || ''}`.slice(0, 250),
+    text: `${VELI_NOTE}${studentName ? ` (${studentName})` : ''}\n\n${it.text || ''}`,
+    html,
+  };
+}
+async function applyMailPolicy(items) {
+  const policy = await loadPolicy(rest);
+  const out = [];
+  const veliFor = [];
+  for (const it of items) {
+    const cat = MAIL_EVENT_CATEGORY[it.event];
+    const role = it.role === 'ogrenci' ? 'ogrenci' : it.role === 'veli' ? 'veli' : 'ogretmen';
+    if (allowed(policy, cat, role, 'email')) out.push(it);
+    if (cat && role === 'ogrenci' && it.studentId && allowed(policy, cat, 'veli', 'email')) veliFor.push(it);
+  }
+  if (veliFor.length) {
+    const map = await studentParentsMap(veliFor.map((it) => it.studentId));
+    for (const it of veliFor) {
+      const st = map.get(String(it.studentId));
+      if (!st) continue;
+      const seen = new Set();
+      for (const p of st.parents) {
+        const em = String((p && p.email) || '').trim().toLowerCase();
+        if (!isEmail(em) || seen.has(em) || em === String(it.to || '').trim().toLowerCase()) continue;
+        seen.add(em);
+        out.push(veliCopy(it, p, st.name || it.toName || ''));
+      }
+    }
+  }
+  return out;
+}
+
 async function deliver(sender, senderMeta, items, deadline) {
   const summary = {
     sent: 0,
@@ -951,6 +1015,7 @@ async function deliver(sender, senderMeta, items, deadline) {
     errors: [],
     via: sender ? sender.via : null,
   };
+  items = await applyMailPolicy(items);
   const valid = [];
   for (const it of items) {
     if (!isEmail(it.to)) {
@@ -1388,6 +1453,7 @@ async function actionHomeworkCreated(caller, body, req, deadline) {
     to: s.email,
     toName: s.name,
     role: 'ogrenci',
+    studentId: s.id,
     ...homeworkMail(hw, s, teacherName, url, false),
   }));
   const sender = await resolveSender(caller);
@@ -1460,6 +1526,7 @@ async function sendScheduledEtut(row, url, deadline) {
     to: s.email,
     toName: s.name,
     role: 'ogrenci',
+    studentId: s.id,
     ...etutStudentMail(etut, s, teacherName, url, true),
   }));
   for (const t of teachers) {
@@ -1661,6 +1728,7 @@ async function actionEtutCreated(caller, body, req, deadline) {
     to: s.email,
     toName: s.name,
     role: 'ogrenci',
+    studentId: s.id,
     ...etutStudentMail(etut, s, teacherName, url),
   }));
   const teacherResults = [];
@@ -1850,6 +1918,7 @@ async function actionQuestionTarget(caller, body, req, deadline) {
     to: s.email,
     toName: s.name,
     role: 'ogrenci',
+    studentId: s.id,
     ...questionTargetMail(t, s, teacherName, url, updated),
   }));
   const sender = await resolveSender(caller);
@@ -2130,6 +2199,7 @@ async function actionReminders(req, deadline) {
         to: s.email,
         toName: s.name,
         role: 'ogrenci',
+        studentId: s.id,
         ...homeworkMail(hw, s, teacher.name, url, true),
       }));
       const sender = await resolveSender(teacher);
@@ -2404,6 +2474,7 @@ async function actionPlanMail(caller, body, req, deadline) {
         to: student.email,
         toName: student.name,
         role: 'ogrenci',
+        studentId: student.id || studentId,
         repeatLimit: 3,
         attachments,
         ...mail,
@@ -2462,6 +2533,7 @@ async function actionDenemeKarne(caller, body, req, deadline) {
         to: student.email,
         toName: student.name,
         role: 'ogrenci',
+        studentId: student.id || studentId,
         repeatLimit: 5,
         attachments: [{ filename: `Deneme-Karnesi-${safe || 'ogrenci'}.pdf`, contentType: 'application/pdf', content: buf }],
         subject: title,

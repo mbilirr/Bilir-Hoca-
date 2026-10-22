@@ -47,6 +47,7 @@ const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttend
 const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(() => import('./components/Deneme/DenemeAnalizi'), 'DenemeAnalizi');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
+const NotificationPolicyPanel = lazyNamed(() => import('./components/Admin/NotificationPolicyPanel'), 'NotificationPolicyPanel');
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
@@ -559,6 +560,7 @@ export default function App() {
                         }
                       />
                       <AdminMaintenancePanel />
+                      <NotificationPolicyPanel />
                       <UserCredentialsExport classes={classes} />
                       {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
                     </div>

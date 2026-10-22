@@ -26,6 +26,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY  (zaten tanımlı)
 // ============================================================================
 import crypto from 'node:crypto';
+import { loadPolicy, allowed } from './_notifyPolicy.js';
 
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
@@ -231,8 +232,10 @@ async function claim(key) {
  * payload: { title, body, url, tag }
  * dedupe: verilirse her kullanıcı için `${dedupe}:${kullanıcı}` anahtarıyla en fazla bir kez gönderilir.
  */
-export async function sendToUsers(userIds, payload, { dedupe, deadline } = {}) {
+export async function sendToUsers(userIds, payload, { dedupe, deadline, policy } = {}) {
   const out = { users: 0, devices: 0, sent: 0, failed: 0, removed: 0, lastError: '' };
+  // Aşama 72: yöneticinin "Bildirim izinleri" ayarı (policy: [kategori, alıcı]); kapalıysa gönderilmez
+  if (policy && !allowed(await loadPolicy(rest), policy[0], policy[1], 'push')) return out;
   if (!ensureVapid()) {
     out.lastError = vapidProblem || 'VAPID anahtarları okunamadı';
     return out;
@@ -390,11 +393,11 @@ async function tickEtutSoon(now, deadline) {
     if (left > ETUT_SOON_FROM || left < ETUT_SOON_TO) continue;
     const payload = { title: `Etüdün ${left} dk sonra başlıyor`, body: etutLine(e), tag: `etut-${e.id}` };
     const stu = await studentAuthIds(e.studentIds);
-    out = addOut(out, await sendToUsers(stu, { ...payload, url: '/#/student/etuts' }, { dedupe: `etut-soon:${e.id}`, deadline }));
+    out = addOut(out, await sendToUsers(stu, { ...payload, url: '/#/student/etuts' }, { dedupe: `etut-soon:${e.id}`, deadline, policy: ['etut', 'ogrenci'] }));
     const tch = await teacherAuthIds(e.teacherIds);
     out = addOut(
       out,
-      await sendToUsers(tch, { ...payload, title: `Etüdünüz ${left} dk sonra başlıyor`, url: '/#/teacher/etuts' }, { dedupe: `etut-soon:${e.id}`, deadline })
+      await sendToUsers(tch, { ...payload, title: `Etüdünüz ${left} dk sonra başlıyor`, url: '/#/teacher/etuts' }, { dedupe: `etut-soon:${e.id}`, deadline, policy: ['etut', 'ogretmen'] })
     );
   }
   return out;
@@ -418,7 +421,7 @@ async function tickNoAttendance(now, deadline) {
       await sendToUsers(
         tch,
         { title: 'Etüt yoklaması alınmadı', body: `${shortTr(e.date)} ${etutLine(e)} — yoklamayı girmeyi unutmayın.`, url: '/#/teacher/etuts', tag: `noatt-${e.id}` },
-        { dedupe: `etut-noatt:${e.id}`, deadline }
+        { dedupe: `etut-noatt:${e.id}`, deadline, policy: ['yoklama', 'ogretmen'] }
       )
     );
   }
@@ -472,7 +475,7 @@ async function tickHomeworkDue(now, deadline) {
             url: '/#/student/homework',
             tag: `hw-${hw.id}`,
           },
-          { dedupe: `${c.key}:${hw.id}`, deadline }
+          { dedupe: `${c.key}:${hw.id}`, deadline, policy: ['odev', 'ogrenci'] }
         )
       );
     }
@@ -682,7 +685,7 @@ async function tickPlanDaily(now, deadline) {
     const users = authOf.has(studentId) ? [authOf.get(studentId)] : await studentAuthIds([studentId]);
     out = addOut(
       out,
-      await sendToUsers(users, { title, body: clip(body, 180), url: subjects.length ? '/#/student' : '/#/student/questions', tag: `plan-${now.date}` }, { dedupe: `plan-day:${now.date}`, deadline })
+      await sendToUsers(users, { title, body: clip(body, 180), url: subjects.length ? '/#/student' : '/#/student/questions', tag: `plan-${now.date}` }, { dedupe: `plan-day:${now.date}`, deadline, policy: ['plan', 'ogrenci'] })
     );
   }
   return out;
@@ -738,7 +741,7 @@ async function tickQuestionDaily(now, deadline) {
         : { title: `Hedefe ${leftTotal} soru kaldı`, body: `Bugün ${done.total} soru girdin. Kalan: ${left.map((x) => `${x.label} ${x.n}`).join(' · ')}` };
     out = addOut(
       out,
-      await sendToUsers([st.auth_user_id], { ...payload, url: '/#/student/questions', tag: `soru-${now.date}` }, { dedupe: `soru-gun:${now.date}`, deadline })
+      await sendToUsers([st.auth_user_id], { ...payload, url: '/#/student/questions', tag: `soru-${now.date}` }, { dedupe: `soru-gun:${now.date}`, deadline, policy: ['soru', 'ogrenci'] })
     );
   }
   if (plain.length) {
@@ -747,7 +750,7 @@ async function tickQuestionDaily(now, deadline) {
       await sendToUsers(
         plain,
         { title: 'Bugünkü soru sayını girdin mi?', body: 'Bugün çözdüğün soruları girmeyi unutma.', url: '/#/student/questions', tag: `soru-${now.date}` },
-        { dedupe: `soru-gun:${now.date}`, deadline }
+        { dedupe: `soru-gun:${now.date}`, deadline, policy: ['soru', 'ogrenci'] }
       )
     );
   }
@@ -809,7 +812,7 @@ export async function notifyHomeworkCreated(caller, body, deadline) {
       url: '/#/student/homework',
       tag: `hw-${hw.id}`,
     },
-    { dedupe: `hw-new:${hw.id}`, deadline }
+    { dedupe: `hw-new:${hw.id}`, deadline, policy: ['odev', 'ogrenci'] }
   );
 }
 
@@ -833,7 +836,7 @@ export async function notifyAnnouncement(caller, body, deadline) {
   return sendToUsers(
     users,
     { title, body: first.kind === 'note' ? `${first.subject ? `${first.subject} — ` : ''}${first.text || ''}` : first.text || '', url: '/#/student', tag: `ann-${groupId}` },
-    { dedupe: `ann:${groupId}`, deadline }
+    { dedupe: `ann:${groupId}`, deadline, policy: ['mesaj', 'ogrenci'] }
   );
 }
 
@@ -847,7 +850,7 @@ export async function notifyMessageReply(caller, body, deadline) {
   return sendToUsers(
     users,
     { title: `Sorunuza cevap geldi: ${m.subject || ''}`, body: m.teacher_reply, url: '/#/student/messages', tag: `msg-${id}` },
-    { dedupe: `reply:${id}:${m.replied_at || ''}`, deadline }
+    { dedupe: `reply:${id}:${m.replied_at || ''}`, deadline, policy: ['mesaj', 'ogrenci'] }
   );
 }
 
@@ -862,7 +865,7 @@ export async function notifyPraise(caller, body, deadline) {
   return sendToUsers(
     users,
     { title: `👏 ${n.teacher_name || 'Öğretmenin'} seni tebrik etti`, body: n.message || '', url: '/#/student', tag: `praise-${id}` },
-    { dedupe: `praise:${id}`, deadline }
+    { dedupe: `praise:${id}`, deadline, policy: ['tebrik', 'ogrenci'] }
   );
 }
 
@@ -899,7 +902,7 @@ export async function notifyMessageNew(caller, body, deadline) {
   return sendToUsers(
     users,
     { title: `Yeni öğrenci mesajı: ${m.student_name || 'Öğrenci'}`, body: `${m.student_class ? `${m.student_class} · ` : ''}${m.subject || ''}: ${m.text || ''}`, url: '/#/teacher/messages', tag: `msg-${id}` },
-    { dedupe: `msg-new:${id}`, deadline }
+    { dedupe: `msg-new:${id}`, deadline, policy: ['mesaj', 'ogretmen'] }
   );
 }
 
