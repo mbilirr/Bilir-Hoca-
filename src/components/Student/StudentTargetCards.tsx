@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Target, Check, Sparkles, Award, CalendarDays } from 'lucide-react';
+import { Target, Check, Sparkles, Award, CalendarDays, X } from 'lucide-react';
+import { GhostTip } from './TargetSummaryTable';
 import type { WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { normalizeSubject, targetSubjectList, targetSubjectMatcher } from '../../lib/subjects';
@@ -144,6 +145,8 @@ export interface DayWall {
   subjects: DaySubject[];
   target: number;
   solved: number; // derslerin hedefini aşan sorular sayılmaz (çubuk ders ders dolar)
+  /** Aşama 74: o gün plan dışında çözülen dersler (hayalet özet kartı için) */
+  offPlan: Array<{ subject: string; count: number }>;
 }
 
 export interface PlanWallData {
@@ -231,6 +234,18 @@ export function usePlanWallData(targets: WeeklyQuestionTarget[], studentId: stri
         weeklyMap.set(subject, w);
       }
       if (!subjects.length) continue; // plandan soru verilmeyen güne duvar açılmaz
+      // Aşama 74: plan dışında çözülen dersler (hayalet özet kartında siyah yazılır)
+      const planSubj = new Set(subjects.map((x) => x.subject));
+      const offMap = new Map<string, number>();
+      for (const l of logs) {
+        if (l.studentId !== studentId || l.date !== ymd) continue;
+        for (const e of Array.isArray(l.entries) ? l.entries : []) {
+          const n = Number(e.questionCount) || 0;
+          const sub = normalizeSubject(e.subject || '');
+          if (n <= 0 || !sub || planSubj.has(sub) || subjects.some((x) => targetSubjectMatcher(x.subject)(e.subject))) continue;
+          offMap.set(sub, (offMap.get(sub) || 0) + n);
+        }
+      }
       const d = parseYmd(ymd)!;
       walls.push({
         ymd,
@@ -239,6 +254,7 @@ export function usePlanWallData(targets: WeeklyQuestionTarget[], studentId: stri
         subjects,
         target: subjects.reduce((a, x) => a + x.target, 0),
         solved: subjects.reduce((a, x) => a + Math.min(x.solved, x.target), 0),
+        offPlan: Array.from(offMap, ([subject, count]) => ({ subject, count })),
       });
     }
     const t0 = targets[0];
@@ -302,7 +318,7 @@ export const PlanWeekSummary: React.FC<{ data: PlanWallData; id?: string }> = ({
  * Aşama 72: duvarlar TEK SATIRDA yan yana (6 günlük plan → 6 duvar, 7 günlük → 7 duvar), yazılar küçük.
  * Dar ekranda satır yana kaydırılır; 7'den fazla gün varsa her 7 gün yeni satıra geçer.
  */
-export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string }> = ({ data, id }) => {
+export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string; ghost?: boolean }> = ({ data, id, ghost }) => {
   const { walls, today } = data;
   if (!walls.length) return null;
   const rows: DayWall[][] = [];
@@ -344,13 +360,25 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string }> = ({ da
                           {isToday ? ' · Bugün' : ''}
                         </div>
                       </div>
-                      <span
-                        className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight ${
-                          done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
-                        }`}
-                      >
-                        {w.target}
-                      </span>
+                      {ghost ? (
+                        <GhostTip
+                          label={`${w.dateText} özeti: ${w.target} soru`}
+                          content={() => <DayGhost wall={w} />}
+                          className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight cursor-help outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                            done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
+                          }`}
+                        >
+                          {w.target}
+                        </GhostTip>
+                      ) : (
+                        <span
+                          className={`shrink-0 px-1.5 py-px rounded-full text-[10px] font-bold leading-tight ${
+                            done ? 'bg-success text-white' : isToday ? 'bg-warning text-white' : 'bg-surface-2 border border-line text-fg'
+                          }`}
+                        >
+                          {w.target}
+                        </span>
+                      )}
                     </div>
 
                     <ul className="space-y-1 flex-1">
@@ -404,6 +432,44 @@ export const PlanWallGrid: React.FC<{ data: PlanWallData; id?: string }> = ({ da
       </div>
   );
 };
+
+/**
+ * Aşama 74: gün duvarının sağ üstündeki soru sayısının hayalet özet kartı (eski "Soru hedefleri" tablosundaki ile aynı):
+ * planda olup o dersten soru çözüldüyse YEŞİL ✓, çözülmediyse KIRMIZI ✗, plan dışı çözülen ders SİYAH.
+ */
+const DayGhost: React.FC<{ wall: DayWall }> = ({ wall }) => (
+  <div className="space-y-1">
+    <div className="text-[11px] font-semibold text-muted pb-1 border-b border-line">
+      {wall.dayName} {wall.dateText}
+    </div>
+    <ul className="space-y-0.5 leading-snug">
+      {wall.subjects.map((s) => {
+        const solved = s.solved > 0;
+        const task = s.topics.map((t) => t.text).join(', ');
+        const short = task.length > 60 ? `${task.slice(0, 59)}…` : task;
+        return (
+          <li
+            key={s.subject}
+            className={`flex items-start gap-1.5 font-semibold ${solved ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
+          >
+            {solved ? <Check className="w-3.5 h-3.5 shrink-0 mt-px" /> : <X className="w-3.5 h-3.5 shrink-0 mt-px" />}
+            <span className="min-w-0">
+              {s.subject}
+              {short ? ` – ${short}` : ''}
+              {solved && <span className="ml-1 font-black tabular-nums">· {s.solved}</span>}
+            </span>
+          </li>
+        );
+      })}
+      {wall.offPlan.map((o) => (
+        <li key={`x-${o.subject}`} className="font-semibold text-fg pl-5">
+          {o.subject}
+          <span className="ml-1 font-black tabular-nums">· {o.count}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 const PlanDayWalls: React.FC<{ targets: WeeklyQuestionTarget[]; studentId: string; logs: StudentQuestionLog[] }> = ({ targets, studentId, logs }) => {
   const data = usePlanWallData(targets, studentId, logs);

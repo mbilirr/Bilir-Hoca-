@@ -440,7 +440,12 @@ const planTaskShort = (it: { book: string; note: string }) => {
 // ---------------------------------------------------------------------------
 const GHOST_HALF_WIDTH = 170;
 
-const GhostTip: React.FC<{ label: string; content: () => React.ReactNode; children: React.ReactNode }> = ({ label, content, children }) => {
+export const GhostTip: React.FC<{ label: string; content: () => React.ReactNode; children: React.ReactNode; className?: string }> = ({
+  label,
+  content,
+  children,
+  className,
+}) => {
   const ref = useRef<HTMLSpanElement | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number; below: boolean } | null>(null);
 
@@ -481,7 +486,7 @@ const GhostTip: React.FC<{ label: string; content: () => React.ReactNode; childr
       onFocus={show}
       onBlur={hide}
       onClick={() => (pos ? hide() : show())}
-      className="cursor-help underline decoration-dotted decoration-2 underline-offset-4 rounded px-1 outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className={className || "cursor-help underline decoration-dotted decoration-2 underline-offset-4 rounded px-1 outline-none focus-visible:ring-2 focus-visible:ring-brand"}
     >
       {children}
       {pos &&

@@ -1890,8 +1890,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               {/* Aşama 30: bu haftaya denk gelen BÜTÜN hedefler (öğrenci + sınıf) tek tabloda.
                   Eskiden her hedef ayrı kart + ayrı gün gün tablo olarak gösteriliyordu. */}
               {/* Aşama 66: gün gün duvarlar (plandaki dersler, sayfalar, o günün soru sayısı, dolan çubuk) */}
-              {activeStudent && planWall.walls.length > 0 && <PlanWallGrid data={planWall} id="teacher-plan-day-walls" />}
-              {activeStudent && activeTargets.length > 0 && (
+              {activeStudent && planWall.walls.length > 0 && <PlanWallGrid data={planWall} id="teacher-plan-day-walls" ghost />}
+              {/* Aşama 74: gün duvarları varken "Soru hedefleri" tablosu gösterilmez (aynı bilgiler duvarlarda) */}
+              {activeStudent && activeTargets.length > 0 && planWall.walls.length === 0 && (
                 <TargetSummaryTable
                   targets={activeTargets}
                   studentId={activeStudent.id}
