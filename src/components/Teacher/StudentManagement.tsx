@@ -120,6 +120,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const canAddClasses = dataService.canManageClasses();
   // Öğrencilerin taşınabileceği sınıflar (kurum yöneticisi: yalnızca kendi açtığı sınıflar)
   const manageableClasses = classes.filter((c) => dataService.canManageClass(c));
+  // Aşama 76: yeni öğrencinin eklenebileceği sınıflar (kurum yöneticisi: kendi açtığı + kurumuna izin verilen sınıflar)
+  // ve "Sınıfsız" seçeneği (öğrenci kuruma kayıtlı olur, sonradan bir sınıfa aktarılabilir)
+  const studentClassOptions = classes.filter((c) => dataService.canAddStudentToClass(c));
+  const NO_CLASS = 'class-default';
   // Aşama 69: ŞUBESİZ SINIF — öğrenci şubeye bağlı olmadan yalnızca sınıf düzeyinde (ör. "8. Sınıf") durabilir.
   // Şube seçim kutusunda "Şubesiz" seçeneğinin değeri; sınıf kaydında şube boş ('') saklanır.
   const NO_BRANCH = '__none__';
@@ -181,7 +185,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [showStudentPassword, setShowStudentPassword] = useState(false);
   const [studentSuccessFeedback, setStudentSuccessFeedback] = useState<string | null>(null);
   useAutoDismiss(studentSuccessFeedback, () => setStudentSuccessFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
-  const [studentClassId, setStudentClassId] = useState(classes[0]?.id || '');
+  const [studentClassId, setStudentClassId] = useState(studentClassOptions[0]?.id || '');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [studentAvatar, setStudentAvatar] = useState<string>('');
@@ -553,7 +557,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const pendingGradeClass = studentClassId.startsWith(PENDING_GRADE)
       ? pendingNoBranchGrades.find((c) => gradeNumOf(c) === studentClassId.slice(PENDING_GRADE.length)) || null
       : null;
-    let targetClass = pendingGradeClass ? null : classes.find((c) => c.id === studentClassId);
+    // Aşama 76: yalnızca bu kullanıcının öğrenci ekleyebildiği sınıflar (düzenlemede öğrencinin mevcut sınıfı da geçerli)
+    const noClassChosen = studentClassId === NO_CLASS;
+    let targetClass: ClassGroup | null | undefined =
+      pendingGradeClass || noClassChosen
+        ? null
+        : studentClassOptions.find((c) => c.id === studentClassId) ||
+          (editingStudent && editingStudent.classId === studentClassId ? classes.find((c) => c.id === studentClassId) : undefined);
+    if (noClassChosen) targetClass = { id: NO_CLASS, name: 'Sınıfsız' } as ClassGroup;
     if (!targetClass && !pendingGradeClass) {
       setStudentFormError('Lütfen öğrencinin sınıfını seçiniz.');
       return;
@@ -750,7 +761,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setParents([{}]);
     setParentErrors([]);
     setStudentAvatar('');
-    setStudentClassId(classes[0]?.id || '');
+    setStudentClassId(studentClassOptions[0]?.id || '');
     setStudentFormError(null);
     setStudentEmailError(null);
     setStudentPhoneError(null);
@@ -776,7 +787,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentEmail(student.email || '');
     setStudentPassword('');
     setShowStudentPassword(true);
-    setStudentClassId(classes.some((c) => c.id === student.classId) ? student.classId : '');
+    setStudentClassId(
+      student.classId === NO_CLASS || !student.classId
+        ? NO_CLASS
+        : classes.some((c) => c.id === student.classId)
+          ? student.classId
+          : ''
+    );
     setStudentNumber(student.studentNumber || '');
     setStudentPhone(student.phone || '');
     setParents(student.parents && student.parents.length ? cleanParents(student.parents) : [{}]);
@@ -1821,7 +1838,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" /> Öğrenci Aktar
                         </button>
                       )}
-                      {dataService.canManageClass(cls) && (
+                      {dataService.canAddStudentToClass(cls) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1939,7 +1956,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 className={cx(inputCls, SF, 'font-semibold cursor-pointer')}
               >
                 <option value="">Sınıf seçiniz *</option>
-                {manageableClasses.map((cls) => (
+                {canAddStudents && <option value={NO_CLASS}>Sınıfsız (sınıfa bağlı değil)</option>}
+                {editingStudent &&
+                  studentClassId &&
+                  studentClassId !== NO_CLASS &&
+                  !studentClassOptions.some((c) => c.id === studentClassId) &&
+                  classes
+                    .filter((c) => c.id === studentClassId)
+                    .map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
+                      </option>
+                    ))}
+                {studentClassOptions.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
                     {isNoBranchClass(cls) ? ' (şubesiz)' : ''}
@@ -2771,7 +2800,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {dataService.canManageClass(viewingClassStudents) && (
+                  {dataService.canAddStudentToClass(viewingClassStudents) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2841,7 +2870,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       "{viewingClassStudents.name}" sınıfına henüz hiçbir öğrenci kaydedilmemiş. Hemen yeni bir öğrenci ekleyebilir veya sistemdeki öğrencileri bu sınıfa aktarabilirsiniz.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2.5">
-                      {dataService.canManageClass(viewingClassStudents) && (
+                      {dataService.canAddStudentToClass(viewingClassStudents) && (
                       <button
                         type="button"
                         onClick={() => {

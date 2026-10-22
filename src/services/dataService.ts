@@ -3801,6 +3801,21 @@ export class DataService {
     return this.canManageStudents() && !!cls.kurumId && cls.kurumId === this.myKurum.kurumId;
   }
 
+  /**
+   * Aşama 76: Bu sınıfa YENİ ÖĞRENCİ eklenebilir mi?
+   * Kurum yöneticisi: kendi kurumunun açtığı sınıflar + genel yöneticinin kurumuna izin verdiği sınıflar.
+   * (Sınıfı düzenleme / silme yetkisi ayrıdır: canManageClass.)
+   */
+  public canAddStudentToClass(cls?: ClassGroup | null): boolean {
+    if (!cls) return false;
+    if (!this.myKurum.supported) return this.canManageStudents();
+    if (this.isHeadAdmin()) return true;
+    if (!this.canManageStudents()) return false;
+    const own = !!cls.kurumId && cls.kurumId === this.myKurum.kurumId;
+    const granted = (this.myKurum.grantedClassIds || []).includes(cls.id);
+    return own || granted;
+  }
+
   // Bu öğrenci düzenlenebilir/silinebilir mi?
   public canManageStudent(student?: Student | null): boolean {
     if (!student) return false;
@@ -6473,6 +6488,10 @@ export class DataService {
   // Öğrenci satırı eklenir, ardından sunucu fonksiyonu giriş hesabını açar.
   // Hesap açılamayan öğrencinin satırı geri silinir: "hesabı olmayan öğrenci" oluşmaz.
   // =========================================================================
+  /** Aşama 76: sınıfa bağlı olmayan öğrencinin sınıf kimliği ve görünen adı */
+  public static readonly NO_CLASS_ID = 'class-default';
+  public static readonly NO_CLASS_NAME = 'Sınıfsız';
+
   public async createStudentsWithAccounts(items: StudentAccountInput[]): Promise<StudentAccountResult> {
     const session = this.getAuthSession();
     if (session?.role !== 'teacher') {
@@ -6498,8 +6517,10 @@ export class DataService {
       if (clash) { fail(`Bu numara "${clash.name}" adlı öğrenciye ait.`); continue; }
       const password = (item.password || '').trim() || this.generatePassword();
       if (password.length < DataService.MIN_PASSWORD_LENGTH) { fail(`Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`); continue; }
-      const cls = this.classes.find((c) => c.id === item.classId);
-      if (!cls) { fail('Sınıf seçilmedi veya sınıf bulunamadı.'); continue; }
+      // Aşama 76: sınıfsız öğrenci (class-default) — kurumuna kayıtlı, henüz bir sınıfa bağlı değil
+      const noClass = item.classId === DataService.NO_CLASS_ID;
+      const cls = noClass ? null : this.classes.find((c) => c.id === item.classId);
+      if (!cls && !noClass) { fail('Sınıf seçilmedi veya sınıf bulunamadı.'); continue; }
       seenNumbers.add(numKey);
 
       const student: Student = {
@@ -6507,11 +6528,11 @@ export class DataService {
         name,
         username: studentNumber,
         email: cleanStudentEmail(item.email),
-        classId: cls.id,
-        className: cls.name,
-        schoolLevel: item.schoolLevel || cls.schoolLevel,
-        gradeLevel: item.gradeLevel || cls.gradeLevel,
-        branch: item.branch || cls.branch,
+        classId: cls ? cls.id : DataService.NO_CLASS_ID,
+        className: cls ? cls.name : DataService.NO_CLASS_NAME,
+        schoolLevel: item.schoolLevel || cls?.schoolLevel,
+        gradeLevel: item.gradeLevel || cls?.gradeLevel,
+        branch: item.branch || cls?.branch,
         studentNumber,
         phone: (item.phone || '').trim(),
         avatar: item.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
@@ -6519,6 +6540,8 @@ export class DataService {
         status: 'active',
         createdTeacherId: currentTeacherId,
         mustChangePassword: true,
+        // Aşama 76: kurum yöneticisinin eklediği öğrenci kurumunundur (veritabanı da aynısını yazar)
+        kurumId: this.getMyKurumId(),
       };
       prepared.push({ student, password });
     }
@@ -6673,6 +6696,7 @@ export class DataService {
     if (updates.classId) {
       const cls = this.classes.find((c) => c.id === updates.classId);
       if (cls) next.className = cls.name;
+      else if (updates.classId === DataService.NO_CLASS_ID) next.className = DataService.NO_CLASS_NAME; // Aşama 76
     }
     if (
       updates.studentNumber !== undefined &&
