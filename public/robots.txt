@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://bilir-hoca.vercel.app/sitemap.xml
+Sitemap: https://pusulaedu.vercel.app/sitemap.xml
