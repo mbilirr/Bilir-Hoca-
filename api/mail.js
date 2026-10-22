@@ -21,7 +21,32 @@
 // ============================================================================
 import tls from 'node:tls';
 import crypto from 'node:crypto';
-import { loadPolicy, allowed, MAIL_EVENT_CATEGORY } from './_notifyPolicy.js';
+// Aşama 75: yardımcı dosyalar (bildirim izinleri, SMS) GÜVENLİ yüklenir. Dosya eksik ya da hatalıysa
+// e-posta sistemi çökmez; izinler varsayılan (eski davranış) kalır, SMS gönderilmez. Hata Vercel günlüğüne yazılır.
+let policyModCache;
+let smsModCache;
+async function policyMod() {
+  if (policyModCache === undefined) {
+    try {
+      policyModCache = await import('./_notifyPolicy.js');
+    } catch (err) {
+      console.error('[mail] api/_notifyPolicy.js yüklenemedi:', err && err.message);
+      policyModCache = null;
+    }
+  }
+  return policyModCache;
+}
+async function smsMod() {
+  if (smsModCache === undefined) {
+    try {
+      smsModCache = await import('./_sms.js');
+    } catch (err) {
+      console.error('[mail] api/_sms.js yüklenemedi:', err && err.message);
+      smsModCache = null;
+    }
+  }
+  return smsModCache;
+}
 
 export const config = { maxDuration: 60 };
 
@@ -951,8 +976,8 @@ async function studentParentsMap(ids) {
   for (let i = 0; i < list.length; i += 100) {
     const part = list.slice(i, i + 100);
     try {
-      const rows = await rest(`students?select=id,name,parents&id=in.${inList(part)}`, { token: 'service' });
-      for (const r of rows || []) map.set(String(r.id), { name: r.name || '', parents: Array.isArray(r.parents) ? r.parents : [] });
+      const rows = await rest(`students?select=id,name,phone,parents&id=in.${inList(part)}`, { token: 'service' });
+      for (const r of rows || []) map.set(String(r.id), { name: r.name || '', phone: r.phone || '', parents: Array.isArray(r.parents) ? r.parents : [] });
     } catch {
       // "parents" sütunu yoksa (Aşama 69 SQL'i çalışmadıysa) veliye gönderilmez
     }
@@ -977,8 +1002,124 @@ function veliCopy(it, parent, studentName) {
     html,
   };
 }
+// ----------------------------------------------------------------------------- Aşama 73: SMS
+// Bildirim izinlerinde SMS açık olan bilgi, ilgili kişinin cep telefonuna kısa bir cümle + site bağlantısı olarak gider.
+// Öğrenci: öğrenci kaydındaki telefon · Veli: kayıttaki velilerin cep telefonları · Öğretmen: öğretmen kaydındaki telefon.
+async function sendPolicySms(items, policy) {
+  const pm = await policyMod();
+  const sm = await smsMod();
+  if (!pm || !sm) return null;
+  const { allowed, MAIL_EVENT_CATEGORY } = pm;
+  const { dispatchSms, smsTextFor, smsConfigured } = sm;
+  if (!smsConfigured()) return null;
+  const want = [];
+  for (const it of items) {
+    const cat = MAIL_EVENT_CATEGORY[it.event];
+    if (!cat) continue;
+    const role = it.role === 'ogrenci' ? 'ogrenci' : 'ogretmen';
+    if (role === 'ogrenci' && it.studentId) {
+      const toStudent = allowed(policy, cat, 'ogrenci', 'sms');
+      const toVeli = allowed(policy, cat, 'veli', 'sms');
+      if (toStudent || toVeli) want.push({ it, toStudent, toVeli });
+    } else if (role === 'ogretmen' && allowed(policy, cat, 'ogretmen', 'sms') && isEmail(it.to)) {
+      want.push({ it, toTeacher: true });
+    }
+  }
+  if (!want.length) return null;
+  const url = env().appUrl;
+  const students = await studentParentsMap(want.filter((w) => w.it.studentId).map((w) => w.it.studentId));
+  const teacherEmails = [...new Set(want.filter((w) => w.toTeacher).map((w) => w.it.to.trim().toLowerCase()))];
+  const teacherPhone = new Map();
+  for (let i = 0; i < teacherEmails.length; i += 50) {
+    try {
+      const rows = await rest(`teachers?select=email,phone&email=in.${inList(teacherEmails.slice(i, i + 50))}`, { token: 'service' });
+      for (const r of rows || []) if (r.email) teacherPhone.set(String(r.email).toLowerCase(), r.phone || '');
+    } catch {
+      // öğretmen telefonu okunamazsa öğretmene SMS gitmez
+    }
+  }
+  const jobs = [];
+  for (const w of want) {
+    const it = w.it;
+    const base = { event: it.event, refId: it.refId, once: ONCE_EVENTS.has(it.event) };
+    if (w.toTeacher) {
+      const ph = teacherPhone.get(it.to.trim().toLowerCase());
+      if (ph) jobs.push({ ...base, role: 'ogretmen', phone: ph, text: smsTextFor(it.event, 'ogretmen', url) });
+      continue;
+    }
+    const st = students.get(String(it.studentId));
+    if (!st) continue;
+    if (w.toStudent && st.phone) jobs.push({ ...base, role: 'ogrenci', phone: st.phone, text: smsTextFor(it.event, 'ogrenci', url) });
+    if (w.toVeli) {
+      for (const p of st.parents) {
+        if (p && p.phone) jobs.push({ ...base, role: 'veli', phone: p.phone, text: smsTextFor(it.event, 'veli', url) });
+      }
+    }
+  }
+  const r = await dispatchSms(rest, jobs);
+  if (r.errors.length) console.error('[sms]', r.errors.join(' | '));
+  return r;
+}
+
+async function actionSmsStatus(caller) {
+  if (!caller.isAdmin) throw new HttpError(403, 'SMS ayarlarını yalnızca yönetici görebilir.');
+  const sm = await smsMod();
+  if (!sm) throw new HttpError(503, 'SMS dosyası (api/_sms.js) sunucuda bulunamadı. Dosyayı GitHub\'da api klasörüne yükleyin.');
+  return { ok: true, sms: await sm.smsStatus(rest) };
+}
+
+async function actionSmsTest(caller, body) {
+  if (!caller.isAdmin) throw new HttpError(403, 'SMS sınamasını yalnızca yönetici yapabilir.');
+  const sm = await smsMod();
+  if (!sm) throw new HttpError(503, 'SMS dosyası (api/_sms.js) sunucuda bulunamadı. Dosyayı GitHub\'da api klasörüne yükleyin.');
+  const { smsEnv, smsConfigured, normPhone, providerSend } = sm;
+  const e = smsEnv();
+  if (!smsConfigured(e)) throw new HttpError(400, 'SMS sağlayıcı bilgileri Vercel ortam değişkenlerinde eksik.');
+  const phone = normPhone(body.phone);
+  if (!phone) throw new HttpError(400, 'Geçerli bir cep telefonu yazın (ör. 0532 123 45 67).');
+  // Sınama gerçek bir SMS gönderir (deneme modunda da); günde en çok 5 kez
+  try {
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const used = await rest(`sms_log?select=id&event=eq.sms-test&created_at=gte.${encodeURIComponent(since)}&limit=6`, { token: 'service' });
+    if ((used || []).length >= 5) throw new HttpError(429, 'Bugün yeterince sınama yapıldı (en çok 5). Yarın tekrar deneyin.');
+  } catch (err) {
+    if (err instanceof HttpError) throw err;
+    throw new HttpError(503, 'SMS kayıt tablosu bulunamadı. Supabase SQL Editor\'de sql/73_sms.sql dosyasını çalıştırın.');
+  }
+  const text = `${e.appName}: SMS bağlantısı çalışıyor. Bu bir deneme mesajıdır.`;
+  const r = await providerSend([phone], text, e);
+  try {
+    await rest('sms_log', {
+      token: 'service',
+      method: 'POST',
+      prefer: 'return=minimal',
+      body: {
+        dedupe_key: `sms-test|${Date.now()}|${Math.random().toString(36).slice(2, 8)}`,
+        event: 'sms-test',
+        recipient_role: 'ogretmen',
+        phone_masked: `0${phone.slice(0, 3)}***${phone.slice(-4)}`,
+        status: r.ok ? 'sent' : 'failed',
+        provider: e.provider,
+        provider_id: r.ok ? r.id : null,
+        error: r.ok ? null : String(r.error || '').slice(0, 300),
+      },
+    });
+  } catch {}
+  if (!r.ok) return { ok: false, error: r.error || 'SMS gönderilemedi.' };
+  return { ok: true, sent: 1 };
+}
+
 async function applyMailPolicy(items) {
+  const pm = await policyMod();
+  if (!pm) return items; // izin dosyası yoksa eski davranış: e-postalar olduğu gibi gider
+  const { loadPolicy, allowed, MAIL_EVENT_CATEGORY } = pm;
   const policy = await loadPolicy(rest);
+  // Aşama 73: SMS (yönetici izin verdiyse) — e-postadan bağımsız; hata olsa da e-posta devam eder
+  try {
+    await sendPolicySms(items, policy);
+  } catch (err) {
+    console.error('[sms] gönderim hazırlanamadı', err && err.message);
+  }
   const out = [];
   const veliFor = [];
   for (const it of items) {
@@ -2902,6 +3043,12 @@ export default async function handler(req, res) {
         break;
       case 'deneme-karne':
         result = await actionDenemeKarne(caller, body, req, deadline);
+        break;
+      case 'sms-status':
+        result = await actionSmsStatus(caller);
+        break;
+      case 'sms-test':
+        result = await actionSmsTest(caller, body);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

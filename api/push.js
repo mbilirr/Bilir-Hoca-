@@ -26,7 +26,19 @@
 //   SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY  (zaten tanımlı)
 // ============================================================================
 import crypto from 'node:crypto';
-import { loadPolicy, allowed } from './_notifyPolicy.js';
+// Aşama 75: izin dosyası güvenli yüklenir; eksikse bildirimler eskisi gibi gider
+let policyModCache;
+async function policyMod() {
+  if (policyModCache === undefined) {
+    try {
+      policyModCache = await import('./_notifyPolicy.js');
+    } catch (err) {
+      console.error('[push] api/_notifyPolicy.js yüklenemedi:', err && err.message);
+      policyModCache = null;
+    }
+  }
+  return policyModCache;
+}
 
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
@@ -235,7 +247,10 @@ async function claim(key) {
 export async function sendToUsers(userIds, payload, { dedupe, deadline, policy } = {}) {
   const out = { users: 0, devices: 0, sent: 0, failed: 0, removed: 0, lastError: '' };
   // Aşama 72: yöneticinin "Bildirim izinleri" ayarı (policy: [kategori, alıcı]); kapalıysa gönderilmez
-  if (policy && !allowed(await loadPolicy(rest), policy[0], policy[1], 'push')) return out;
+  if (policy) {
+    const pm = await policyMod();
+    if (pm && !pm.allowed(await pm.loadPolicy(rest), policy[0], policy[1], 'push')) return out;
+  }
   if (!ensureVapid()) {
     out.lastError = vapidProblem || 'VAPID anahtarları okunamadı';
     return out;
