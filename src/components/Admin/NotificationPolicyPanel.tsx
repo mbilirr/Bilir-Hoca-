@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info, MessageSquareText, Send, RefreshCw } from 'lucide-react';
+import { callMail } from '../../lib/mailApi';
 import { supabase } from '../../lib/supabase';
 import { dataService } from '../../services/dataService';
 import { Panel, Segmented, cx } from '../ui/kit';
@@ -227,6 +228,8 @@ export const NotificationPolicyPanel: React.FC = () => {
             </table>
           </div>
 
+          <SmsStatusBox />
+
           <ul className="text-[11px] text-muted space-y-1">
             <li className="flex gap-1.5">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -244,8 +247,9 @@ export const NotificationPolicyPanel: React.FC = () => {
             <li className="flex gap-1.5">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
-                <b>SMS</b> ve <b>WhatsApp</b> seçimleri saklanır; otomatik gönderim için ücretli bir SMS / WhatsApp hizmeti bağlanması
-                gerekir. Hizmet bağlanana kadar bu yollardan bir şey gönderilmez.
+                <b>SMS</b>, e-postası olan bilgilerle birlikte (ödev, etüt, plan, soru hedefi, deneme karnesi, yoklama) kısa bir cümle ve
+                site bağlantısı olarak gider; öğrenci adı ya da puan yazılmaz. Öğretmen "e-posta gönder" dediğinde ve otomatik
+                hatırlatmalarda çalışır. <b>WhatsApp</b> seçimi saklanır; otomatik gönderim için ayrı hizmet gerekir.
               </span>
             </li>
             <li className="flex gap-1.5">
@@ -269,5 +273,173 @@ export const NotificationPolicyPanel: React.FC = () => {
         </div>
       )}
     </Panel>
+  );
+};
+
+// ============================================================================
+// Aşama 73: SMS durumu ve sınama (sağlayıcı, deneme modu, bugünkü sayılar, son kayıtlar)
+// ============================================================================
+const EVENT_LABEL: Record<string, string> = {
+  'homework-created': 'Yeni ödev',
+  'homework-reminder': 'Ödev hatırlatma',
+  'etut-created': 'Yeni etüt',
+  'etut-scheduled': 'Etüt hatırlatma',
+  'etut-changed': 'Etüt değişti',
+  'etut-cancelled': 'Etüt iptal',
+  'etut-attendance': 'Yoklama bağlantısı',
+  'etut-no-attendance': 'Yoklama uyarısı',
+  'question-target': 'Soru hedefi',
+  'plan-sent': 'Haftalık plan',
+  'plan-report': 'Plan raporu',
+  'deneme-karne': 'Deneme karnesi',
+  'sms-test': 'Sınama',
+};
+const ROLE_LABEL: Record<string, string> = { ogrenci: 'Öğrenci', veli: 'Veli', ogretmen: 'Öğretmen' };
+const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
+  sent: { text: 'Gönderildi', cls: 'ui-chip ui-chip-success' },
+  dry: { text: 'Deneme (gitmedi)', cls: 'ui-chip ui-chip-info' },
+  sending: { text: 'Gönderiliyor', cls: 'ui-chip ui-chip-neutral' },
+  failed: { text: 'Hata', cls: 'ui-chip ui-chip-danger' },
+};
+
+interface SmsStatus {
+  provider: string | null;
+  sender: string | null;
+  configured: boolean;
+  live: boolean;
+  dailyLimit: number;
+  today: { sent: number; dry: number; failed: number };
+  recent: Array<{ created_at: string; event: string; recipient_role: string; phone_masked: string; status: string; error: string | null }>;
+  tableMissing: boolean;
+}
+
+const SmsStatusBox: React.FC = () => {
+  const [st, setSt] = useState<SmsStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  useAutoDismiss(testMsg, () => setTestMsg(null));
+
+  const load = async () => {
+    setLoading(true);
+    setErr(null);
+    const r = await callMail('sms-status');
+    if (r.ok && r.sms) setSt(r.sms as SmsStatus);
+    else setErr(r.error || 'SMS durumu okunamadı.');
+    setLoading(false);
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleTest = async () => {
+    if (testBusy) return;
+    setTestBusy(true);
+    setTestMsg(null);
+    const r = await callMail('sms-test', { phone });
+    setTestMsg(r.ok ? { type: 'ok', text: 'Deneme SMS\'i gönderildi. Birkaç dakika içinde telefonunuza gelmeli.' } : { type: 'err', text: r.error || 'SMS gönderilemedi.' });
+    setTestBusy(false);
+    load();
+  };
+
+  const providerName = st?.provider === 'netgsm' ? 'Netgsm' : st?.provider === 'iletimerkezi' ? 'İleti Merkezi' : '—';
+
+  return (
+    <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2.5" id="admin-sms-status">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-bold text-fg flex items-center gap-1.5">
+          <MessageSquareText className="w-4 h-4 text-brand-fg" /> SMS durumu
+        </span>
+        <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={load} disabled={loading}>
+          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Yenile
+        </button>
+      </div>
+
+      {err && <p className="text-[11px] font-semibold text-danger-fg">{err}</p>}
+
+      {st && (
+        <>
+          <div className="flex flex-wrap gap-1.5 text-[11px]">
+            <span className={st.configured ? 'ui-chip ui-chip-success' : 'ui-chip ui-chip-warning'}>
+              {st.configured ? `Sağlayıcı: ${providerName}` : 'Sağlayıcı ayarlanmamış'}
+            </span>
+            {st.sender && <span className="ui-chip ui-chip-neutral">Başlık: {st.sender}</span>}
+            <span className={st.live ? 'ui-chip ui-chip-danger' : 'ui-chip ui-chip-info'}>{st.live ? 'Gerçek gönderim açık' : 'Deneme modu (SMS gitmez)'}</span>
+            <span className="ui-chip ui-chip-neutral">
+              Bugün: {st.today.sent} gönderildi · {st.today.dry} deneme · {st.today.failed} hata · sınır {st.dailyLimit}
+            </span>
+          </div>
+
+          {!st.configured && (
+            <p className="text-[11px] text-muted">
+              Vercel › Settings › Environment Variables bölümüne <b>SMS_PROVIDER</b>, <b>SMS_SENDER</b> ve sağlayıcının bilgilerini ekleyip
+              siteyi yeniden yayınlayın (rehberde adım adım yazıyor).
+            </p>
+          )}
+          {st.tableMissing && (
+            <p className="text-[11px] font-semibold text-warning-fg">SMS kayıt tablosu yok: Supabase SQL Editor'de sql/73_sms.sql dosyasını çalıştırın.</p>
+          )}
+
+          {st.configured && (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Kendi cep telefonunuz"
+                aria-label="Sınama için cep telefonu"
+                className="ui-input h-8 text-xs px-2.5 py-1 rounded-lg w-44"
+              />
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={handleTest} disabled={testBusy || !phone.trim()}>
+                {testBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} SMS bağlantısını sına
+              </button>
+              <span className="text-[10.5px] text-muted">Sınama, deneme modunda da gerçek bir SMS gönderir (günde en çok 5).</span>
+            </div>
+          )}
+          {testMsg && (
+            <p className={cx('text-[11px] font-semibold', testMsg.type === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>{testMsg.text}</p>
+          )}
+
+          {st.recent.length > 0 && (
+            <div className="overflow-x-auto rounded-lg border border-line bg-surface">
+              <table className="w-full text-[11px] min-w-[30rem]">
+                <thead className="text-fg-2 bg-surface-2">
+                  <tr>
+                    <th className="text-left font-bold px-2 py-1.5">Zaman</th>
+                    <th className="text-left font-bold px-2 py-1.5">Bilgi</th>
+                    <th className="text-left font-bold px-2 py-1.5">Alıcı</th>
+                    <th className="text-left font-bold px-2 py-1.5">Numara</th>
+                    <th className="text-left font-bold px-2 py-1.5">Durum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {st.recent.map((r, i) => {
+                    const s = STATUS_LABEL[r.status] || { text: r.status, cls: 'ui-chip ui-chip-neutral' };
+                    return (
+                      <tr key={i} className="border-t border-line align-top">
+                        <td className="px-2 py-1.5 whitespace-nowrap tabular-nums text-muted">
+                          {new Date(r.created_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="px-2 py-1.5">{EVENT_LABEL[r.event] || r.event}</td>
+                        <td className="px-2 py-1.5">{ROLE_LABEL[r.recipient_role] || r.recipient_role || '—'}</td>
+                        <td className="px-2 py-1.5 tabular-nums">{r.phone_masked || '—'}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={s.cls}>{s.text}</span>
+                          {r.error && <div className="mt-0.5 text-danger-fg break-words">{r.error}</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 };

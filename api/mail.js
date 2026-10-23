@@ -55,7 +55,7 @@ const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta 
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
-const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report']);
+const ONCE_EVENTS = new Set(['homework-created', 'homework-reminder', 'etut-created', 'etut-scheduled', 'etut-no-attendance', 'question-target', 'plan-report', 'parent-announce']);
 // Öğretmen hesap bildirimleri (Aşama 11): yöneticinin yaptığı değişiklikler; günde aynı türden en fazla bu kadar
 const TEACHER_EVENTS = {
   created: 'teacher-created',
@@ -1107,6 +1107,136 @@ async function actionSmsTest(caller, body) {
   } catch {}
   if (!r.ok) return { ok: false, error: r.error || 'SMS gönderilemedi.' };
   return { ok: true, sent: 1 };
+}
+
+// ----------------------------------------------------------------------------- Aşama 73: Veli duyurusu
+// Öğretmen / yönetici, seçtiği öğrencilerin velilerine (students.parents) e-posta ve/veya SMS ile serbest metinli duyuru gönderir.
+// Alıcılar SUNUCUDA bulunur: yalnızca çağıranın kendi oturumuyla görebildiği öğrencilerin velilerine gider (veritabanı kuralları denetler).
+// Aynı gönderim kimliği (sendId) tekrar gönderilirse daha önce giden kişilere ikinci kez gitmez.
+const ANNOUNCE_MAX_STUDENTS = 400;
+const ANNOUNCE_SUBJECT_MAX = 100;
+const ANNOUNCE_TEXT_MAX = 1500;
+const ANNOUNCE_SMS_MAX = 270;
+
+async function actionParentAnnounce(caller, body, deadline) {
+  const sendId = String(body.sendId || '');
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(sendId)) throw new HttpError(400, 'Gönderim kimliği eksik. Sayfayı yenileyip tekrar deneyin.');
+  const ids = [...new Set(arr(body.studentIds))];
+  if (!ids.length) throw new HttpError(400, 'Alıcı seçilmedi.');
+  if (ids.length > ANNOUNCE_MAX_STUDENTS) throw new HttpError(400, `Bir seferde en çok ${ANNOUNCE_MAX_STUDENTS} öğrencinin velisine gönderilebilir.`);
+  const subject = clean(body.subject).slice(0, ANNOUNCE_SUBJECT_MAX);
+  if (!subject) throw new HttpError(400, 'Başlık yazın.');
+  const message = String(body.message == null ? '' : body.message).replace(/\r\n/g, '\n').trim();
+  if (!message) throw new HttpError(400, 'Mesaj yazın.');
+  if (message.length > ANNOUNCE_TEXT_MAX) throw new HttpError(400, `Mesaj en çok ${ANNOUNCE_TEXT_MAX} karakter olabilir.`);
+  const ch = body.channels && typeof body.channels === 'object' ? body.channels : {};
+  const wantMail = !!ch.email;
+  const wantSms = !!ch.sms;
+  if (!wantMail && !wantSms) throw new HttpError(400, 'En az bir gönderim yolu seçin (e-posta veya SMS).');
+  if (wantSms && message.length > ANNOUNCE_SMS_MAX) throw new HttpError(400, `SMS için mesaj en çok ${ANNOUNCE_SMS_MAX} karakter olabilir. Mesajı kısaltın ya da yalnızca e-posta seçin.`);
+
+  // Çağıranın görebildiği öğrenciler (kendi oturumuyla)
+  const visible = await studentsByIds(ids, caller.token);
+  if (!visible.length) throw new HttpError(404, 'Seçilen öğrencilere erişiminiz yok ya da öğrenci bulunamadı.');
+  const pmap = await studentParentsMap(visible.map((s) => s.id));
+  const sm = wantSms ? await smsMod() : null;
+
+  const byMail = new Map(); // e-posta -> { name, students: [] }
+  const phones = new Set();
+  const noContact = [];
+  for (const s of visible) {
+    const info = pmap.get(String(s.id));
+    const parents = info ? info.parents : [];
+    let any = false;
+    for (const p of parents) {
+      const em = String((p && p.email) || '').trim().toLowerCase();
+      if (wantMail && isEmail(em)) {
+        any = true;
+        const cur = byMail.get(em) || { name: clean(p.name), studentId: s.id, students: [] };
+        if (!cur.name) cur.name = clean(p.name);
+        if (!cur.students.includes(s.name)) cur.students.push(s.name);
+        byMail.set(em, cur);
+      }
+      const ph = sm ? sm.normPhone(p && p.phone) : '';
+      if (wantSms && ph) {
+        any = true;
+        phones.add(ph);
+      }
+    }
+    if (!any) noContact.push(s.name || '—');
+  }
+
+  // SMS (önce: hızlıdır; hata olsa da e-posta devam eder)
+  let smsRes = null;
+  if (wantSms) {
+    if (!sm) smsRes = { available: false, error: 'SMS dosyası (api/_sms.js) sunucuda bulunamadı.' };
+    else if (!sm.smsConfigured()) smsRes = { available: false, error: 'SMS sağlayıcı bilgileri Vercel ayarlarında eksik.' };
+    else {
+      const e = sm.smsEnv();
+      const text = `${e.appName}: ${message}`.slice(0, 300);
+      const jobs = [...phones].map((phone) => ({ event: 'parent-announce', refId: sendId, once: true, role: 'veli', phone, text }));
+      const r = await sm.dispatchSms(rest, jobs);
+      smsRes = {
+        available: true,
+        live: e.live,
+        recipients: jobs.length,
+        sent: r.sent,
+        dry: r.dry,
+        failed: r.failed,
+        skipped: r.skipped,
+        limited: r.limited,
+        errors: (r.errors || []).slice(0, 3),
+      };
+    }
+  }
+
+  // E-posta
+  let mailRes = { sent: 0, failed: 0, skipped: 0, remaining: 0, errors: [] };
+  if (wantMail && byMail.size) {
+    const sender = await resolveSender(caller);
+    const items = [];
+    for (const [em, v] of byMail) {
+      const who = v.name || 'Veli';
+      const { html, text } = layout({
+        heading: subject,
+        greeting: `Sayın ${who},`,
+        rows: [
+          [v.students.length > 1 ? 'Öğrenciler' : 'Öğrenci', v.students.join(', ')],
+          ['Gönderen', caller.name],
+        ],
+        extraHtml: `<p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:#334155;white-space:pre-wrap">${esc(message)}</p>`,
+        extraText: message,
+        footer: 'Bu e-posta, öğrencinizin velisi olarak kayıtlı e-posta adresinize öğretmeniniz tarafından gönderilmiştir. E-postayı yanıtlarsanız yanıtınız göndericiye ulaşır.',
+      });
+      items.push({
+        event: 'parent-announce',
+        refId: sendId,
+        refTitle: subject,
+        to: em,
+        toName: `${who} (${v.students[0]} velisi)`.slice(0, 120),
+        role: 'veli',
+        studentId: v.studentId,
+        subject,
+        html,
+        text,
+      });
+    }
+    mailRes = await deliver(sender, caller, items, deadline);
+  }
+
+  return {
+    ok: true,
+    ...mailRes,
+    announce: {
+      students: visible.length,
+      notVisible: ids.length - visible.length,
+      mailRecipients: byMail.size,
+      smsRecipients: phones.size,
+      noContact: noContact.length,
+      noContactNames: noContact.slice(0, 40),
+    },
+    sms: smsRes,
+  };
 }
 
 async function applyMailPolicy(items) {
@@ -3043,6 +3173,9 @@ export default async function handler(req, res) {
         break;
       case 'deneme-karne':
         result = await actionDenemeKarne(caller, body, req, deadline);
+        break;
+      case 'parent-announce':
+        result = await actionParentAnnounce(caller, body, deadline);
         break;
       case 'sms-status':
         result = await actionSmsStatus(caller);

@@ -14,9 +14,11 @@ import {
   Inbox,
   Megaphone,
   NotebookPen,
+  Users,
 } from 'lucide-react';
 import { PageHeader, Segmented } from '../ui/kit';
 import { TeacherAnnouncements } from './TeacherAnnouncements';
+import { ParentAnnouncements } from './ParentAnnouncements';
 import { EtutNotesInbox, useEtutNotes } from './EtutNotesInbox';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -35,7 +37,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const [isSendingReply, setIsSendingReply] = useState(false);
   // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
   // Aşama 32: 'etutNotes' = etüt yoklamasında öğrenciye anlatılan farklı konu ve öğrenci notları
-  const [section, setSection] = useHistoryState<'inbox' | 'announce' | 'etutNotes'>('messages.section', 'inbox'); // Aşama 52: geri tuşu
+  const [section, setSection] = useHistoryState<'inbox' | 'announce' | 'parents' | 'etutNotes'>('messages.section', 'inbox'); // Aşama 52: geri tuşu
   const etutNotes = useEtutNotes();
 
   const filteredMessages = useMemo(() => {
@@ -100,10 +102,12 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
             id: 'messages-section-etut-notes',
           },
           { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
+          { value: 'parents', label: 'Veli Duyurusu', icon: Users, id: 'messages-section-parents' },
         ]}
       />
 
       {section === 'announce' && <TeacherAnnouncements />}
+      {section === 'parents' && <ParentAnnouncements />}
       {section === 'etutNotes' && <EtutNotesInbox notes={etutNotes} />}
 
       {/* Main Split Inbox View */}

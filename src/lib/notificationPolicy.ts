@@ -21,13 +21,14 @@ export const POLICY_RECIPIENTS: { id: PolicyRecipient; label: string }[] = [
 export const POLICY_CHANNELS: { id: PolicyChannel; label: string; short: string; live: boolean }[] = [
   { id: 'email', label: 'E-posta', short: 'E-posta', live: true },
   { id: 'push', label: 'Telefon bildirimi (uygulama)', short: 'Bildirim', live: true },
-  { id: 'sms', label: 'SMS', short: 'SMS', live: false },
+  { id: 'sms', label: 'SMS', short: 'SMS', live: true },
   { id: 'whatsapp', label: 'WhatsApp', short: 'WhatsApp', live: false },
 ];
 
 /**
  * Her kategori için: açıklama ve hangi alıcıya hangi kanalların SİSTEMDE karşılığı olduğu.
- * SMS ve WhatsApp her alıcı için ayarlanabilir (gönderim hizmeti bağlanınca kullanılır).
+ * Aşama 73: SMS, e-postası olan bilgiler için çalışır (mesaj ve tebrik yalnızca uygulama bildirimiyle gider).
+ * WhatsApp seçimi saklanır; otomatik gönderim için ayrı hizmet gerekir.
  * Veliye telefon bildirimi yoktur (velinin uygulama hesabı yok).
  */
 export const POLICY_CATEGORIES: {
@@ -76,13 +77,13 @@ export const POLICY_CATEGORIES: {
     id: 'mesaj',
     label: 'Mesaj ve duyuru',
     hint: 'Duyuru, öğretmen notu, soru cevabı, öğrenciden gelen mesaj',
-    channels: { ogrenci: ['push', 'sms', 'whatsapp'], veli: ['sms', 'whatsapp'], ogretmen: ['push', 'sms', 'whatsapp'] },
+    channels: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: ['push', 'whatsapp'] },
   },
   {
     id: 'tebrik',
     label: 'Tebrik',
     hint: 'Öğretmenin tebrik mesajı',
-    channels: { ogrenci: ['push', 'sms', 'whatsapp'], veli: ['sms', 'whatsapp'], ogretmen: [] },
+    channels: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: [] },
   },
 ];
 

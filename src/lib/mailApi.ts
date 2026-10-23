@@ -20,6 +20,9 @@ export type MailAction =
   | 'plan-group'
   | 'plan-mail'
   | 'deneme-karne' // Aşama 47: deneme karnesi (PDF ekli) öğrenciye
+  | 'parent-announce' // Aşama 73: velilere e-posta / SMS duyurusu
+  | 'sms-status' // Aşama 73: SMS ayar durumu (yönetici)
+  | 'sms-test' // Aşama 73: SMS sınaması (yönetici)
   | 'reminders';
 
 export interface MailResult {

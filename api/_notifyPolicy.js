@@ -13,8 +13,8 @@ const CHANNELS = {
   plan: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: ['email', 'sms', 'whatsapp'] },
   soru: { ogrenci: ['email', 'push', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
   deneme: { ogrenci: ['email', 'sms', 'whatsapp'], veli: ['email', 'sms', 'whatsapp'], ogretmen: [] },
-  mesaj: { ogrenci: ['push', 'sms', 'whatsapp'], veli: ['sms', 'whatsapp'], ogretmen: ['push', 'sms', 'whatsapp'] },
-  tebrik: { ogrenci: ['push', 'sms', 'whatsapp'], veli: ['sms', 'whatsapp'], ogretmen: [] },
+  mesaj: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: ['push', 'whatsapp'] },
+  tebrik: { ogrenci: ['push', 'whatsapp'], veli: ['whatsapp'], ogretmen: [] },
 };
 
 /** E-posta olayı → kategori. Listede olmayanlar (hesap bilgisi, deneme e-postası) her zaman gönderilir. */
@@ -61,7 +61,8 @@ export async function loadPolicy(restFn) {
 export function allowed(policy, cat, rec, ch) {
   if (!cat || !CHANNELS[cat]) return true; // kategorisiz bilgi: her zaman
   const list = CHANNELS[cat][rec] || [];
-  if (!list.includes(ch)) return rec !== 'veli' ? true : false; // sistemde karşılığı yoksa eski davranış
+  // sistemde karşılığı yoksa eski davranış (e-posta / bildirim gider); SMS ve WhatsApp yalnızca açıkça izin verilirse
+  if (!list.includes(ch)) return rec !== 'veli' && (ch === 'email' || ch === 'push');
   const v = policy && policy[cat] && policy[cat][rec] ? policy[cat][rec][ch] : undefined;
   return typeof v === 'boolean' ? v : defaultValue(cat, rec, ch);
 }
