@@ -48,6 +48,7 @@ const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/Questi
 const DenemeAnalizi = lazyNamed(() => import('./components/Deneme/DenemeAnalizi'), 'DenemeAnalizi');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const NotificationPolicyPanel = lazyNamed(() => import('./components/Admin/NotificationPolicyPanel'), 'NotificationPolicyPanel');
+const TeacherRolesPanel = lazyNamed(() => import('./components/Admin/TeacherRolesPanel'), 'TeacherRolesPanel'); // Aşama 81
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
@@ -563,6 +564,7 @@ export default function App() {
                       <NotificationPolicyPanel />
                       <UserCredentialsExport classes={classes} />
                       {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
+                      <TeacherRolesPanel />
                     </div>
                   )}
 
@@ -575,6 +577,7 @@ export default function App() {
                         description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
                       />
                       <UserCredentialsExport classes={classes} />
+                      <TeacherRolesPanel />
                     </div>
                   )}
 
