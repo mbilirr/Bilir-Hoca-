@@ -1,22 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import {
-  X,
-  Upload,
-  FileText,
-  FileSpreadsheet,
-  FileCode,
-  CheckCircle2,
-  AlertCircle,
-  Sparkles,
-  Layers,
-  Calendar,
-  BookOpen,
-  Info,
-  Save,
-  GraduationCap,
-  Building2,
-  School,
-} from 'lucide-react';
+import { Upload, FileText, FileSpreadsheet, AlertCircle, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import confetti from 'canvas-confetti';
@@ -25,6 +8,23 @@ import { dataService } from '../../../services/dataService';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
 import { ORTAOKUL_SUBJECTS, LISE_SUBJECTS, ALL_SUBJECTS } from '../../../lib/subjects';
 import { MAX_UPLOAD_BYTES, UPLOAD_LIMIT_MESSAGE, formatBytes } from '../../../lib/fileStorage';
+import { Modal } from '../../ui/kit';
+import { SelectBox, inputCls } from '../FormParts';
+
+// Aşama 80: pencere sistemdeki diğer pencerelerle aynı (Modal); tüm kutular aynı yükseklik ve yazı boyutunda
+const FIELD_CLS = `${inputCls} h-10`;
+const SELECT_CLS = `${inputCls} h-10 cursor-pointer`;
+type SchoolType = '' | 'Ortaokul' | 'Lise' | 'Diğer';
+const ORTA_GRADES = ['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'];
+const LISE_GRADES = ['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'];
+const CATEGORY_OPTIONS: Array<{ value: DocumentCategory; label: string }> = [
+  { value: 'yearly_plan', label: 'Yıllık Ders Planı' },
+  { value: 'weekly_plan', label: 'Haftalık Ders Planı' },
+  { value: 'sample_exam', label: 'Örnek Yazılılar & Denemeler' },
+  { value: 'meeting_minutes', label: 'Zümre Tutanakları & Kurul Kararları' },
+  { value: 'curriculum', label: 'Müfredat & Kazanım Çizelgesi' },
+  { value: 'other', label: 'Diğer Eğitim Dokümanları' },
+];
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
@@ -33,6 +33,8 @@ interface UploadDocumentModalProps {
   onUploadSuccess: (newDoc: Omit<TeacherDocument, 'id' | 'uploadedAt'>, file: File) => Promise<void>;
   // Varsayılan branş (öğretmenin kendi branşı veya arşivde seçili branş)
   defaultSubject?: string;
+  // Aşama 80: arşivde seçili bölüm (kategori) yeni belgede de seçili gelir
+  defaultCategory?: DocumentCategory;
 }
 
 // Pencere kapalıyken içerik bileşeni hiç kurulmaz; böylece React hook'ları her render'da aynı sırada çalışır.
@@ -46,17 +48,17 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
   onClose,
   onUploadSuccess,
   defaultSubject,
+  defaultCategory,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const initialSubject = defaultSubject && defaultSubject !== 'all' ? defaultSubject : 'Fen Bilgisi';
+  // Öğretmenin branşı (ya da arşivde seçili ders): okul seçilince listede varsa kendiliğinden seçilir
+  const initialSubject = defaultSubject && defaultSubject !== 'all' ? defaultSubject : '';
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<DocumentCategory>('yearly_plan');
-  const [schoolType, setSchoolType] = useState<'Ortaokul' | 'Lise' | 'Diğer'>(() =>
-    ORTAOKUL_SUBJECTS.includes(initialSubject) ? 'Ortaokul' : LISE_SUBJECTS.includes(initialSubject) ? 'Lise' : 'Diğer'
-  );
-  const [subject, setSubject] = useState(initialSubject);
-  const [gradeLevel, setGradeLevel] = useState('5. Sınıf');
+  const [category, setCategory] = useState<DocumentCategory | ''>(() => defaultCategory || '');
+  const [schoolType, setSchoolType] = useState<SchoolType>('');
+  const [subject, setSubject] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('');
   const [academicYear, setAcademicYear] = useState('2026-2027');
   const [description, setDescription] = useState('');
   const [tagsInput, setTagsInput] = useState('');
@@ -68,37 +70,27 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Available classes in system
-  const systemClasses = useMemo(() => dataService.getClasses(), []);
-
-  // Switch school type and adapt subject / grade automatically
-  const handleSchoolTypeChange = (newSchool: 'Ortaokul' | 'Lise' | 'Diğer') => {
-    setSchoolType(newSchool);
-    if (newSchool === 'Ortaokul') {
-      if (!ORTAOKUL_SUBJECTS.includes(subject)) {
-        setSubject(ORTAOKUL_SUBJECTS.includes(initialSubject) ? initialSubject : 'Fen Bilgisi');
-      }
-      if (['9. Sınıf', '10. Sınıf', '11. Sınıf', '12. Sınıf'].includes(gradeLevel)) {
-        setGradeLevel('5. Sınıf');
-      }
-    } else if (newSchool === 'Lise') {
-      if (!LISE_SUBJECTS.includes(subject)) {
-        setSubject(LISE_SUBJECTS.includes(initialSubject) ? initialSubject : 'Matematik');
-      }
-      if (['5. Sınıf', '6. Sınıf', '7. Sınıf', '8. Sınıf'].includes(gradeLevel)) {
-        setGradeLevel('9. Sınıf');
-      }
-    }
+  const subjectsFor = (school: SchoolType): string[] => {
+    if (!school) return [];
+    const base = school === 'Ortaokul' ? ORTAOKUL_SUBJECTS : school === 'Lise' ? LISE_SUBJECTS : ALL_SUBJECTS;
+    // Öğretmenin listede olmayan branşı da seçilebilsin
+    return initialSubject && !base.includes(initialSubject) ? [initialSubject, ...base] : base;
   };
+  const gradesFor = (school: SchoolType): string[] =>
+    school === 'Ortaokul' ? ORTA_GRADES : school === 'Lise' ? LISE_GRADES : school === 'Diğer' ? [...ORTA_GRADES, ...LISE_GRADES] : [];
 
-  const baseSubjects =
-    schoolType === 'Ortaokul'
-      ? ORTAOKUL_SUBJECTS
-      : schoolType === 'Lise'
-      ? LISE_SUBJECTS
-      : ALL_SUBJECTS;
-  // Öğretmenin listede olmayan branşı da seçilebilsin
-  const availableSubjects = baseSubjects.includes(subject) ? baseSubjects : [subject, ...baseSubjects];
+  const availableSubjects = useMemo(() => subjectsFor(schoolType), [schoolType]); // eslint-disable-line react-hooks/exhaustive-deps
+  const availableGrades = useMemo(() => gradesFor(schoolType), [schoolType]);
+
+  // Okul seçilince sınıf ve ders listeleri ona göre gelir; listede olmayan seçim temizlenir
+  const handleSchoolTypeChange = (next: SchoolType) => {
+    setSchoolType(next);
+    const grades = gradesFor(next);
+    if (gradeLevel && gradeLevel !== 'Tüm Sınıflar' && !grades.includes(gradeLevel)) setGradeLevel('');
+    const subjects = subjectsFor(next);
+    if (subject && !subjects.includes(subject)) setSubject('');
+    if (!subject && initialSubject && subjects.includes(initialSubject)) setSubject(initialSubject);
+  };
 
   // Auto file processor
   const handleProcessFile = async (file: File) => {
@@ -157,6 +149,26 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
       setErrorMsg('Lütfen belge için bir başlık girin.');
       return;
     }
+    if (!academicYear.trim()) {
+      setErrorMsg('Lütfen eğitim öğretim yılını yazın.');
+      return;
+    }
+    if (!schoolType) {
+      setErrorMsg('Lütfen okul seçiniz.');
+      return;
+    }
+    if (!gradeLevel) {
+      setErrorMsg('Lütfen sınıf seçiniz.');
+      return;
+    }
+    if (!subject) {
+      setErrorMsg('Lütfen ders seçiniz.');
+      return;
+    }
+    if (!category) {
+      setErrorMsg('Lütfen kategori seçiniz.');
+      return;
+    }
 
     setIsProcessing(true);
     setErrorMsg(null);
@@ -207,13 +219,13 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
       await onUploadSuccess({
         title: title.trim(),
         description: description.trim() || undefined,
-        category,
+        category: category as DocumentCategory,
         fileFormat,
         fileName: selectedFile.name,
         fileSize: fileSizeStr,
         uploadedBy: 'Öğretmen',
-        academicYear,
-        schoolType,
+        academicYear: academicYear.trim(),
+        schoolType: schoolType as 'Ortaokul' | 'Lise' | 'Diğer',
         subject,
         gradeLevel,
         tags: tags.length > 0 ? tags : [subject, category, schoolType, gradeLevel],
@@ -236,301 +248,195 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-surface border border-line rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
-        {/* HEADER */}
-        <div className="px-6 py-4 bg-canvas border-b border-line flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30">
-              <Upload className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-fg">Yeni Plan / Zümre Belgesi Yükle</h2>
-              <p className="text-xs text-muted">
-                Word (.docx), PDF veya Excel (.xlsx) formatında evrak ekleyin
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      icon={Upload}
+      title="Yeni Belge Yükle"
+      description="Word (.docx), PDF veya Excel (.xlsx) formatında plan / zümre evrakı ekleyin"
+      size="md"
+      closeOnBackdrop={false}
+      id="upload-document-modal"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary h-10">
+            İptal
           </button>
+          <button type="submit" form="upload-document-form" disabled={isProcessing || !selectedFile} className="ui-btn ui-btn-primary h-10">
+            {isProcessing ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden />
+                <span>Yükleniyor...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Belgeyi Arşive Kaydet</span>
+              </>
+            )}
+          </button>
+        </>
+      }
+    >
+      <form id="upload-document-form" onSubmit={handleSubmit} className="space-y-3.5">
+        {errorMsg && (
+          <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* Sıra: Eğitim Öğretim Yılı → Okul → Sınıf → Ders → Kategori */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="doc-year" className="ui-label">
+              Eğitim Öğretim Yılı *
+            </label>
+            <input id="doc-year" type="text" value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} placeholder="Örn: 2026-2027" className={FIELD_CLS} />
+          </div>
+          <div>
+            <label htmlFor="doc-school" className="ui-label">
+              Okul *
+            </label>
+            <SelectBox id="doc-school" value={schoolType} onChange={(e) => handleSchoolTypeChange(e.target.value as SchoolType)} className={SELECT_CLS}>
+              <option value="">Okul seçiniz</option>
+              <option value="Ortaokul">Ortaokul</option>
+              <option value="Lise">Lise</option>
+              <option value="Diğer">Diğer / Tümü</option>
+            </SelectBox>
+          </div>
+          <div>
+            <label htmlFor="doc-grade" className="ui-label">
+              Sınıf *
+            </label>
+            <SelectBox id="doc-grade" value={gradeLevel} onChange={(e) => setGradeLevel(e.target.value)} disabled={!schoolType} className={SELECT_CLS}>
+              <option value="">{schoolType ? 'Sınıf seçiniz' : 'Sınıf seçiniz (önce okul)'}</option>
+              {availableGrades.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+              {schoolType && <option value="Tüm Sınıflar">Tüm Sınıflar (Genel)</option>}
+            </SelectBox>
+          </div>
+          <div>
+            <label htmlFor="doc-subject" className="ui-label">
+              Ders *
+            </label>
+            <SelectBox id="doc-subject" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={!schoolType} className={SELECT_CLS}>
+              <option value="">{schoolType ? 'Ders seçiniz' : 'Ders seçiniz (önce okul)'}</option>
+              {availableSubjects.map((subj) => (
+                <option key={subj} value={subj}>
+                  {subj}
+                </option>
+              ))}
+            </SelectBox>
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="doc-category" className="ui-label">
+              Kategori *
+            </label>
+            <SelectBox id="doc-category" value={category} onChange={(e) => setCategory(e.target.value as DocumentCategory | '')} className={SELECT_CLS}>
+              <option value="">Kategori seçiniz</option>
+              {CATEGORY_OPTIONS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </SelectBox>
+          </div>
         </div>
 
-        {/* BODY */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {errorMsg && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* FILE DROPZONE */}
-          <div>
-            <label className="block text-xs font-semibold text-fg-2 mb-1.5">
-              Belge Dosyası (.docx, .pdf, .xlsx) *
-            </label>
-            <div
-              onDragOver={(e) => {
+        {/* Belge dosyası */}
+        <div>
+          <span className="ui-label">Belge Dosyası (.docx, .pdf, .xlsx) *</span>
+          <div
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
-                isDragOver
-                  ? 'border-indigo-500 bg-indigo-500/10'
-                  : selectedFile
-                  ? 'border-emerald-500/50 bg-emerald-500/5'
-                  : 'border-line bg-canvas/60 hover:border-line-strong'
-              }`}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".docx,.doc,.pdf,.xlsx,.xls"
-                className="hidden"
-              />
-
-              {selectedFile ? (
-                <div className="flex items-center justify-center space-x-3">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                    {fileFormat === 'xlsx' ? (
-                      <FileSpreadsheet className="w-6 h-6" />
-                    ) : (
-                      <FileText className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-fg">{selectedFile.name}</p>
-                    <p className="text-[11px] text-muted">
-                      {fileSizeStr} • {fileFormat.toUpperCase()} • Dosyayı değiştirmek için tıklayın
-                    </p>
-                  </div>
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-colors ${
+              isDragOver ? 'border-brand bg-brand-soft/40' : selectedFile ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-line bg-surface-2/50 hover:border-line-strong'
+            }`}
+          >
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".docx,.doc,.pdf,.xlsx,.xls" className="hidden" />
+            {selectedFile ? (
+              <div className="flex items-center justify-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                  {fileFormat === 'xlsx' ? <FileSpreadsheet className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                 </div>
-              ) : (
-                <div>
-                  <Upload className="w-8 h-8 text-muted mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-fg mb-1">
-                    Dosyayı buraya sürükleyin veya seçmek için tıklayın
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    Desteklenenler: Word (.docx), PDF (.pdf), Excel (.xlsx, .xls) — en fazla 10 MB
+                <div className="text-left min-w-0">
+                  <p className="text-sm font-semibold text-fg truncate">{selectedFile.name}</p>
+                  <p className="text-xs text-muted">
+                    {fileSizeStr} • {fileFormat.toUpperCase()} • Değiştirmek için tıklayın
                   </p>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div>
+                <Upload className="w-6 h-6 text-muted mx-auto mb-1.5" />
+                <p className="text-sm font-semibold text-fg">Dosyayı sürükleyin veya seçmek için tıklayın</p>
+                <p className="text-xs text-muted mt-0.5">Word (.docx), PDF (.pdf), Excel (.xlsx, .xls) — en fazla 10 MB</p>
+              </div>
+            )}
           </div>
+        </div>
 
-          {/* DOCUMENT TITLE */}
-          <div>
-            <label className="block text-xs font-semibold text-fg-2 mb-1">
-              Belge Başlığı *
-            </label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Örn: 2026-2027 Fen Bilgisi 8. Sınıf Yıllık Planı"
-              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+        {/* Belge başlığı */}
+        <div>
+          <label htmlFor="doc-title" className="ui-label">
+            Belge Başlığı *
+          </label>
+          <input
+            id="doc-title"
+            type="text"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Örn: 2026-2027 Fen Bilgisi 8. Sınıf Yıllık Planı"
+            className={FIELD_CLS}
+          />
+        </div>
 
-          {/* OKUL BUTONLARI (School Type Selector) */}
-          <div className="p-3 bg-canvas/80 border border-line rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-fg flex items-center space-x-1.5">
-                <School className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Okul / Kademe Seçimi *</span>
-              </label>
-              <span className="text-[11px] text-muted">
-                Seçime göre ders ve sınıf listesi otomatik güncellenir
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => handleSchoolTypeChange('Ortaokul')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
-                  schoolType === 'Ortaokul'
-                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
-                }`}
-              >
-                <span>🏫 Ortaokul</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSchoolTypeChange('Lise')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
-                  schoolType === 'Lise'
-                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
-                }`}
-              >
-                <span>🎓 Lise</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSchoolTypeChange('Diğer')}
-                className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
-                  schoolType === 'Diğer'
-                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-900/40'
-                    : 'bg-surface text-fg-2 border-line hover:bg-surface-2'
-                }`}
-              >
-                <span>🏛️ Diğer / Tümü</span>
-              </button>
-            </div>
-          </div>
-
-          {/* CATEGORY & DERSLER (SUBJECT) GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-fg-2 mb-1">
-                Kategori *
-              </label>
-              <select
-                aria-label="Kategori"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as DocumentCategory)}
-                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
-              >
-                <option value="yearly_plan">Yıllık Ders Planı</option>
-                <option value="weekly_plan">Haftalık Ders Planı</option>
-                <option value="sample_exam">Örnek Yazılılar & Denemeler</option>
-                <option value="meeting_minutes">Zümre Tutanakları & Kurul Kararları</option>
-                <option value="curriculum">Müfredat & Kazanım Çizelgesi</option>
-                <option value="other">Diğer Eğitim Dokümanları</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-fg-2 mb-1 flex items-center justify-between">
-                <span>Branş / Ders *</span>
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-300 font-normal">
-                  Belge bu branşın klasörüne kaydedilir
-                </span>
-              </label>
-              <select
-                aria-label="Branş / Ders"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
-              >
-                {availableSubjects.map((subj) => (
-                  <option key={subj} value={subj}>
-                    {subj}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* SINIF AÇILIR PENCERESİ & EĞİTİM ÖĞRETİM YILI */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-fg-2 mb-1">
-                Sınıf Açılır Penceresi *
-              </label>
-              <select
-                value={gradeLevel}
-                onChange={(e) => setGradeLevel(e.target.value)}
-                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
-              >
-                {/* 5.Sınıf - 12.Sınıf tam listesi */}
-                <optgroup label="Ortaokul Sınıfları (5-8)">
-                  <option value="5. Sınıf">5. Sınıf</option>
-                  <option value="6. Sınıf">6. Sınıf</option>
-                  <option value="7. Sınıf">7. Sınıf</option>
-                  <option value="8. Sınıf">8. Sınıf</option>
-                </optgroup>
-                <optgroup label="Lise Sınıfları (9-12)">
-                  <option value="9. Sınıf">9. Sınıf</option>
-                  <option value="10. Sınıf">10. Sınıf</option>
-                  <option value="11. Sınıf">11. Sınıf</option>
-                  <option value="12. Sınıf">12. Sınıf</option>
-                </optgroup>
-                <option value="Tüm Sınıflar">Tüm Sınıflar (Genel)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-fg-2 mb-1">
-                Eğitim Öğretim Yılı
-              </label>
-              <input
-                type="text"
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg focus:outline-none focus:border-indigo-500 font-medium"
-              />
-            </div>
-          </div>
-
-          {/* DESCRIPTION & TAGS */}
-          <div>
-            <label className="block text-xs font-semibold text-fg-2 mb-1">
-              Açıklama / Zümre Notu
-            </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Örn: 1. Dönem yazılı tarihleri ve soru dağılım tablosunu içerir..."
-              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-fg-2 mb-1">
-              Etiketler (Virgülle ayırın)
-            </label>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="Örn: Yıllık Plan, Yazılı, Senaryo 1, Zümre Kararı"
-              className="w-full bg-canvas border border-line rounded-xl px-3.5 py-2 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-
-          {/* FOOTER BUTTONS */}
-          <div className="pt-3 border-t border-line flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors cursor-pointer"
-            >
-              İptal
-            </button>
-            <button
-              type="submit"
-              disabled={isProcessing || !selectedFile}
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
-            >
-              {isProcessing ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Yükleniyor...</span>
-                </>
-              ) : (
-                <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Belgeyi Arşive Kaydet</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {/* Açıklama ve etiketler */}
+        <div>
+          <label htmlFor="doc-desc" className="ui-label">
+            Açıklama / Zümre Notu
+          </label>
+          <textarea
+            id="doc-desc"
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Örn: 1. Dönem yazılı tarihleri ve soru dağılım tablosunu içerir..."
+            className={`${inputCls} resize-none`}
+          />
+        </div>
+        <div>
+          <label htmlFor="doc-tags" className="ui-label">
+            Etiketler (virgülle ayırın)
+          </label>
+          <input
+            id="doc-tags"
+            type="text"
+            value={tagsInput}
+            onChange={(e) => setTagsInput(e.target.value)}
+            placeholder="Örn: Yıllık Plan, Yazılı, Senaryo 1, Zümre Kararı"
+            className={FIELD_CLS}
+          />
+        </div>
+      </form>
+    </Modal>
   );
 };
-

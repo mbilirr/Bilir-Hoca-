@@ -6,6 +6,7 @@ import { useDataVersion } from '../../lib/useDataVersion';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { cx } from '../ui/kit';
+import { SelectBox, inputCls } from './FormParts';
 
 // ============================================================================
 // ETÜT NOTLARI (Aşama 32) — Mesajlar bölümünde ayrı sekme
@@ -93,12 +94,19 @@ export function useEtutNotes() {
 export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }> = ({ notes }) => {
   const { items, seen, markSeen, unseen } = notes;
   const [q, setQ] = useState('');
+  // Aşama 80: öğretmene göre süzme ('' = tüm öğretmenler)
+  const [teacher, setTeacher] = useState('');
+  const teacherOptions = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((x) => etutTeacherNames(x.etut).forEach((n) => set.add(n)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [items]);
   const term = q.toLocaleLowerCase('tr-TR').trim();
-  const list = term
-    ? items.filter((x) =>
-        [x.studentName, x.className, x.etut.subject, x.etut.topic, x.topic, x.note].some((v) => (v || '').toLocaleLowerCase('tr-TR').includes(term))
-      )
-    : items;
+  const list = items.filter((x) => {
+    if (teacher && !etutTeacherNames(x.etut).includes(teacher)) return false;
+    if (!term) return true;
+    return [x.studentName, x.className, x.etut.subject, x.etut.topic, x.topic, x.note].some((v) => (v || '').toLocaleLowerCase('tr-TR').includes(term));
+  });
 
   return (
     <section className="ui-card overflow-hidden" id="etut-notes-inbox">
@@ -110,19 +118,29 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
             {unseen > 0 ? ` · ${unseen} yeni` : ''}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full sm:w-56">
+            <SelectBox id="etut-notes-teacher" aria-label="Öğretmen" value={teacher} onChange={(e) => setTeacher(e.target.value)} className={`${inputCls} h-10 cursor-pointer`}>
+              <option value="">Öğretmen seçiniz</option>
+              {teacherOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </SelectBox>
+          </div>
+          <div className="relative w-full sm:w-56">
+            <Search className="w-4 h-4 text-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Öğrenci, ders, not ara…"
-              className="w-48 sm:w-60 bg-surface-2 border border-line rounded-xl pl-8 pr-3 py-1.5 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+              className={`${inputCls} h-10 pl-9`}
             />
           </div>
           {unseen > 0 && (
-            <button type="button" id="etut-notes-mark-all" onClick={() => markSeen(items.map((x) => x.id))} className="ui-btn ui-btn-secondary ui-btn-sm">
+            <button type="button" id="etut-notes-mark-all" onClick={() => markSeen(items.map((x) => x.id))} className="ui-btn ui-btn-secondary h-10">
               <CheckCheck className="w-3.5 h-3.5" /> Tümünü okundu yap
             </button>
           )}
@@ -133,7 +151,9 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
         <p className="px-5 py-10 text-center text-sm text-muted">
           {items.length === 0
             ? 'Henüz etüt notu yok. Etüt yoklamasında bir öğrenciye farklı konu ya da not yazıldığında burada görünür.'
-            : 'Aramanıza uygun not yok.'}
+            : teacher
+              ? 'Seçilen öğretmene ait, aramanıza uygun not yok.'
+              : 'Aramanıza uygun not yok.'}
         </p>
       ) : (
         <ul className="divide-y divide-line max-h-[600px] overflow-y-auto">

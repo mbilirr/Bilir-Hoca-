@@ -44,6 +44,7 @@ import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
 import { ExcelStudentUpdateModal } from './ExcelStudentUpdateModal';
 import { ExcelClassUploadModal } from './ExcelClassUploadModal';
+import { StudentListExportModal } from './StudentListExportModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
@@ -149,6 +150,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isExcelUpdateOpen, setIsExcelUpdateOpen] = useState(false); // Aşama 49
+  const [isListExportOpen, setIsListExportOpen] = useState(false); // Aşama 80: öğrenci listesi al
   const [isExcelClassModalOpen, setIsExcelClassModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
@@ -1180,7 +1182,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         description="Öğrenci hesapları ve sınıflar"
         actions={
           activeTab === 'students' ? (
-            canAddStudents ? (
+            <>
+            <button
+              type="button"
+              onClick={() => setIsListExportOpen(true)}
+              className="ui-btn ui-btn-secondary"
+              id="student-list-export-btn"
+              title="Sınıf ya da tüm sınıflar için öğrenci listesini Excel olarak al"
+            >
+              <Download className="w-4 h-4 text-brand-fg" />
+              <span>Liste Al</span>
+            </button>
+            {canAddStudents ? (
               <>
                 <button
                   onClick={() => setIsExcelModalOpen(true)}
@@ -1215,7 +1228,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 Öğrenci ekleme ve çıkarma yöneticiye aittir
               </span>
-            )
+            )}
+            </>
           ) : canAddClasses ? (
             <>
               <button
@@ -1920,7 +1934,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 id="student-form-name"
                 type="text"
                 required
-                placeholder="Örn: Ahmet Yılmaz"
                 value={studentName}
                 onChange={(e) => setStudentName(e.target.value)}
                 className={cx(inputCls, SF)}
@@ -1939,7 +1952,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 spellCheck={false}
                 value={studentNumber}
                 onChange={(e) => setStudentNumber(e.target.value)}
-                placeholder="Örn: 1042"
                 className={cx(inputCls, SF)}
               />
             </div>
@@ -1999,7 +2011,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   if (studentEmailError) setStudentEmailError(null);
                 }}
                 onBlur={() => setStudentEmailError(emailIssue(studentEmail))}
-                placeholder="ogrenci@okul.com"
                 aria-invalid={!!studentEmailError}
                 aria-describedby={studentEmailError ? 'student-form-email-error' : undefined}
                 className={cx(inputCls, SF, studentEmailError && 'border-danger focus:border-danger')}
@@ -2026,7 +2037,6 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   if (n.valid) setStudentPhone(n.value);
                   setStudentPhoneError(n.valid ? null : PHONE_ERROR);
                 }}
-                placeholder="0555 123 4567"
                 aria-invalid={!!studentPhoneError}
                 aria-describedby={studentPhoneError ? 'student-form-phone-error' : undefined}
                 className={cx(inputCls, SF, studentPhoneError && 'border-danger focus:border-danger')}
@@ -2584,6 +2594,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       />
 
       {/* Aşama 49: EXCEL İLE MEVCUT ÖĞRENCİLERİ GÜNCELLEME */}
+      {isListExportOpen && (
+        <StudentListExportModal open={isListExportOpen} onClose={() => setIsListExportOpen(false)} students={students} classes={classes} />
+      )}
       <ExcelStudentUpdateModal
         isOpen={isExcelUpdateOpen}
         onClose={() => setIsExcelUpdateOpen(false)}

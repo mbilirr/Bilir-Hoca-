@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://biliredu.vercel.app/sitemap.xml
+Sitemap: https://www.biliredu.com/sitemap.xml

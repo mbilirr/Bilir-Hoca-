@@ -20,7 +20,7 @@
 // ============================================================================
 import crypto from 'node:crypto';
 
-const DEFAULT_APP_URL = 'https://biliredu.vercel.app';
+const DEFAULT_APP_URL = 'https://www.biliredu.com';
 
 export function smsEnv() {
   const provider = String(process.env.SMS_PROVIDER || '').trim().toLowerCase();

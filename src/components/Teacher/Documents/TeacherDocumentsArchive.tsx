@@ -34,6 +34,10 @@ import { UploadDocumentModal } from './UploadDocumentModal';
 import { ConfirmDeleteModal } from '../../Common/ConfirmDeleteModal';
 import { normalizeBranch } from '../../../lib/subjects';
 import { getSignedFileUrl, dataUrlToBlobUrl } from '../../../lib/fileStorage';
+import { SelectBox, inputCls } from '../FormParts';
+
+// Aşama 80: arşivdeki tüm açılır kutular, arama kutusu ve düğmeler aynı yükseklik ve yazı boyutunda
+const FIELD_CLS = `${inputCls} h-10 cursor-pointer`;
 
 interface TeacherDocumentsArchiveProps {
   documents: TeacherDocument[];
@@ -111,7 +115,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
   // Belgeler her zaman güncel listeden okunur (başka öğretmen belge ekleyince ekran kendiliğinden yenilenir)
   const documents: TeacherDocument[] = initialDocs || dataService.getTeacherDocuments();
 
-  // Branş klasörleri: varsayılan olarak öğretmenin kendi branşı açılır
+  // Ders (branş) süzgeci: varsayılan olarak öğretmenin kendi branşı seçili gelir
   const teacherBranch = useMemo(() => normalizeBranch(dataService.getCurrentTeacher()?.branch), []);
   const [selectedBranch, setSelectedBranch] = useState<string>(() => teacherBranch || 'all');
   const branchCounts = useMemo(() => {
@@ -384,46 +388,6 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
         }
       />
 
-      {/* BRANŞ KLASÖRLERİ */}
-      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-fg flex items-center space-x-1.5">
-            <GraduationCap className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span>Branş Klasörleri</span>
-          </span>
-          <span className="text-[11px] text-muted hidden sm:inline">Belgeler yüklendikleri branşın klasöründe durur</span>
-        </div>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Branş seçimi">
-          <button
-            type="button"
-            onClick={() => setSelectedBranch('all')}
-            aria-pressed={selectedBranch === 'all'}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-              selectedBranch === 'all'
-                ? 'bg-indigo-600 text-white border-indigo-400'
-                : 'bg-canvas text-fg-2 border-line hover:border-indigo-500'
-            }`}
-          >
-            Tüm Branşlar ({documents.length})
-          </button>
-          {branchCounts.map(([branch, count]) => (
-            <button
-              key={branch}
-              type="button"
-              onClick={() => setSelectedBranch(branch)}
-              aria-pressed={selectedBranch === branch}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                selectedBranch === branch
-                  ? 'bg-indigo-600 text-white border-indigo-400'
-                  : 'bg-canvas text-fg-2 border-line hover:border-indigo-500'
-              }`}
-            >
-              {branch} ({count}){branch === teacherBranch ? ' · Branşım' : ''}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {actionError && (
         <div role="alert" className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
           <span>{actionError}</span>
@@ -433,77 +397,73 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
         </div>
       )}
 
-      {/* SEARCH & FILTERS BAR */}
-      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+      {/* ARAMA VE AÇILIR KUTULAR (Aşama 80: hepsi aynı ölçüde; sıra: Arşiv · Kademe · Ders · Format) */}
+      <div className="bg-surface border border-line rounded-2xl p-3.5 shadow-md space-y-2.5">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Belge adı, zümre, konu veya etiket ara..."
-            className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3 py-1.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
+            className={`${inputCls} h-10 pl-9`}
           />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Archive Category Filter ("Arşiv Seç" Açılır Menüsü) */}
-          <div className="flex items-center space-x-1.5 bg-canvas border border-indigo-500/40 rounded-xl px-2.5 py-1">
-            <FolderArchive className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <select
-              value={selectedArchiveCategory}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedArchiveCategory(val);
-                if (val) {
-                  const nextState: Record<string, boolean> = {
-                    yearly_plan: false,
-                    weekly_plan: false,
-                    sample_exam: false,
-                    meeting_minutes: false,
-                    curriculum: false,
-                  };
-                  nextState[val] = true;
-                  setExpandedCategories(nextState);
-                }
-              }}
-              className="bg-transparent text-indigo-600 dark:text-indigo-200 text-xs font-bold focus:outline-none cursor-pointer"
-            >
-              <option value="" className="bg-surface text-fg-2">📂 Arşiv Seç</option>
-              <option value="yearly_plan" className="bg-surface text-fg">Yıllık Planlar</option>
-              <option value="weekly_plan" className="bg-surface text-fg">Haftalık Planlar</option>
-              <option value="sample_exam" className="bg-surface text-fg">Örnek Yazılılar</option>
-              <option value="meeting_minutes" className="bg-surface text-fg">Zümre Tutanakları</option>
-              <option value="curriculum" className="bg-surface text-fg">Müfredat & Kazanım</option>
-            </select>
-          </div>
-
-          {/* School Kademe Filter */}
-          <select
-            value={selectedSchool}
-            onChange={(e) => setSelectedSchool(e.target.value)}
-            className="bg-canvas border border-line text-fg-2 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <SelectBox
+            aria-label="Arşiv"
+            value={selectedArchiveCategory}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedArchiveCategory(val);
+              if (val) {
+                const nextState: Record<string, boolean> = {
+                  yearly_plan: false,
+                  weekly_plan: false,
+                  sample_exam: false,
+                  meeting_minutes: false,
+                  curriculum: false,
+                };
+                nextState[val] = true;
+                setExpandedCategories(nextState);
+              }
+            }}
+            className={FIELD_CLS}
           >
-            <option value="all">Tüm Kademeler</option>
-            <option value="Ortaokul">🏫 Ortaokul</option>
-            <option value="Lise">🎓 Lise</option>
-          </select>
+            <option value="">Arşiv seçiniz</option>
+            <option value="yearly_plan">Yıllık Planlar</option>
+            <option value="weekly_plan">Haftalık Planlar</option>
+            <option value="sample_exam">Örnek Yazılılar</option>
+            <option value="meeting_minutes">Zümre Tutanakları</option>
+            <option value="curriculum">Müfredat & Kazanım</option>
+          </SelectBox>
 
-          {/* Format Filter */}
-          <select
-            value={selectedFormat}
-            onChange={(e) => setSelectedFormat(e.target.value)}
-            className="bg-canvas border border-line text-fg-2 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
-          >
-            <option value="all">Tüm Formatlar</option>
+          <SelectBox aria-label="Kademe" value={selectedSchool} onChange={(e) => setSelectedSchool(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Kademe seçiniz</option>
+            <option value="Ortaokul">Ortaokul</option>
+            <option value="Lise">Lise</option>
+          </SelectBox>
+
+          <SelectBox aria-label="Ders" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Ders seçiniz</option>
+            {branchCounts.map(([branch, count]) => (
+              <option key={branch} value={branch}>
+                {branch} ({count}){branch === teacherBranch ? ' · Branşım' : ''}
+              </option>
+            ))}
+          </SelectBox>
+
+          <SelectBox aria-label="Format" value={selectedFormat} onChange={(e) => setSelectedFormat(e.target.value)} className={FIELD_CLS}>
+            <option value="all">Format seçiniz</option>
             <option value="pdf">PDF</option>
             <option value="docx">Word (.docx)</option>
             <option value="xlsx">Excel (.xlsx)</option>
-          </select>
+          </SelectBox>
+        </div>
 
-          {(searchQuery || selectedArchiveCategory || selectedFormat !== 'all' || selectedSchool !== 'all') && (
+        {(searchQuery || selectedArchiveCategory || selectedFormat !== 'all' || selectedSchool !== 'all' || selectedBranch !== (teacherBranch || 'all')) && (
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={() => {
@@ -511,6 +471,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                 setSelectedArchiveCategory('');
                 setSelectedFormat('all');
                 setSelectedSchool('all');
+                setSelectedBranch(teacherBranch || 'all');
                 setWeeklyPlanSelectedClass('');
                 setExpandedCategories({
                   yearly_plan: false,
@@ -520,12 +481,12 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                   curriculum: false,
                 });
               }}
-              className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 px-2 py-1 underline font-medium cursor-pointer"
+              className="ui-btn ui-btn-secondary h-10"
             >
               Sıfırla
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* SEÇİLEN BELGE TÜRÜ AÇILIR (SADECE SEÇİLEN KATEGORİ) */}
@@ -654,25 +615,19 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          <select
-                            value={weeklyPlanSelectedClass}
-                            onChange={(e) => setWeeklyPlanSelectedClass(e.target.value)}
-                            className="bg-canvas border border-cyan-500/50 text-cyan-700 dark:text-cyan-200 text-xs rounded-xl px-3 py-2 font-bold focus:outline-none focus:border-cyan-400 cursor-pointer min-w-[180px]"
-                          >
-                            <option value="">📋 Sınıf Seç (Planları Gör)</option>
-                            {distinctWeeklyPlanClasses.map((cls) => (
-                              <option key={cls} value={cls}>
-                                {cls}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="w-full sm:w-56">
+                            <SelectBox aria-label="Sınıf" value={weeklyPlanSelectedClass} onChange={(e) => setWeeklyPlanSelectedClass(e.target.value)} className={FIELD_CLS}>
+                              <option value="">Sınıf seçiniz</option>
+                              {distinctWeeklyPlanClasses.map((cls) => (
+                                <option key={cls} value={cls}>
+                                  {cls}
+                                </option>
+                              ))}
+                            </SelectBox>
+                          </div>
 
                           {weeklyPlanSelectedClass && (
-                            <button
-                              type="button"
-                              onClick={() => setWeeklyPlanSelectedClass('')}
-                              className="text-xs text-cyan-700 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 underline font-medium px-1 cursor-pointer"
-                            >
+                            <button type="button" onClick={() => setWeeklyPlanSelectedClass('')} className="ui-btn ui-btn-secondary h-10 shrink-0">
                               Tüm Sınıflar
                             </button>
                           )}
@@ -688,7 +643,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
                           Haftalık Planlar Kapalı Durumda
                         </p>
                         <p className="text-[11px] text-muted max-w-md mx-auto mb-3">
-                          Planları görüntülemek için yukarıdaki <strong>"Sınıf Seç"</strong> açılır penceresinden ilgili sınıfı seçin veya aşağıdaki hızlı butonlara tıklayın.
+                          Planları görüntülemek için yukarıdaki <strong>"Sınıf seçiniz"</strong> açılır penceresinden ilgili sınıfı seçin veya aşağıdaki hızlı butonlara tıklayın.
                         </p>
                         <div className="flex flex-wrap justify-center gap-1.5 max-w-xl mx-auto">
                           {distinctWeeklyPlanClasses.map((cls) => (
@@ -878,6 +833,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
           onClose={() => setIsUploadModalOpen(false)}
           onUploadSuccess={handleCreateDocument}
           defaultSubject={selectedBranch !== 'all' ? selectedBranch : teacherBranch || undefined}
+          defaultCategory={(selectedArchiveCategory || undefined) as DocumentCategory | undefined}
         />
       )}
 
