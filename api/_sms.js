@@ -1,12 +1,13 @@
 // ============================================================================
-// Aşama 73: SMS (Netgsm veya İleti Merkezi) — sunucu tarafı, api/mail.js kullanır.
+// Aşama 73/78: SMS (Gold Mesaj, Netgsm veya İleti Merkezi) — sunucu tarafı, api/mail.js kullanır.
 // Adı "_" ile başladığı için Vercel bunu ayrı bir adres olarak yayınlamaz.
 //
 // Vercel › Settings › Environment Variables:
-//   SMS_PROVIDER        netgsm | iletimerkezi
+//   SMS_PROVIDER        goldmesaj | netgsm | iletimerkezi
 //   SMS_SENDER          onaylı gönderici başlığı (ör. BILIREDU)
 //   SMS_MODE            live  → gerçek gönderim. Başka her değer (ya da boş) = DENEME MODU: SMS gitmez, yalnızca kayıt tutulur.
 //   SMS_DAILY_LIMIT     günde en çok kaç SMS (varsayılan 200)
+//   Gold Mesaj:         GOLDMESAJ_USERNAME (API kullanıcı kodu), GOLDMESAJ_PASSWORD (API şifresi)
 //   Netgsm:             NETGSM_USERCODE, NETGSM_PASSWORD
 //   İleti Merkezi:      ILETIMERKEZI_KEY, ILETIMERKEZI_HASH  (panel › Ayarlar › API'de görünen anahtar ve hash)
 //
@@ -24,10 +25,12 @@ const DEFAULT_APP_URL = 'https://biliredu.vercel.app';
 export function smsEnv() {
   const provider = String(process.env.SMS_PROVIDER || '').trim().toLowerCase();
   return {
-    provider: provider === 'netgsm' || provider === 'iletimerkezi' ? provider : '',
+    provider: provider === 'goldmesaj' || provider === 'netgsm' || provider === 'iletimerkezi' ? provider : '',
     sender: String(process.env.SMS_SENDER || '').trim(),
     live: String(process.env.SMS_MODE || '').trim().toLowerCase() === 'live',
     dailyLimit: Math.max(1, Math.min(100000, Number(process.env.SMS_DAILY_LIMIT) || 200)),
+    gmUser: String(process.env.GOLDMESAJ_USERNAME || '').trim(),
+    gmPass: String(process.env.GOLDMESAJ_PASSWORD || '').trim(),
     netgsmUser: String(process.env.NETGSM_USERCODE || '').trim(),
     netgsmPass: String(process.env.NETGSM_PASSWORD || '').trim(),
     imKey: String(process.env.ILETIMERKEZI_KEY || '').trim(),
@@ -39,6 +42,7 @@ export function smsEnv() {
 /** Sağlayıcı bilgileri eksiksiz mi */
 export function smsConfigured(e = smsEnv()) {
   if (!e.provider || !e.sender) return false;
+  if (e.provider === 'goldmesaj') return !!(e.gmUser && e.gmPass);
   if (e.provider === 'netgsm') return !!(e.netgsmUser && e.netgsmPass);
   return !!(e.imKey && e.imHash);
 }
@@ -93,6 +97,104 @@ const IM_ERRORS = {
 
 const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+// ----------------------------------------------------------------------------- Gold Mesaj (apiv3.goldmesaj.net)
+// İstekler JSON; kullanıcı kodu ve şifre isteğin içinde gider (ayrı bir token gerekmez).
+//   POST /api/sendSMS            { username, password, sdate:"", vperiod:"48", message:{ sender, text, utf8:"1", gsm:[...] } }
+//   POST /api/kredi/get          { username, password }
+//   POST /api/alfanumerik/getList { username, password }
+// Cevap biçimi belgede yazmadığı için cevap TEMKİNLİ yorumlanır: açık bir başarı işareti yoksa SMS "doğrulanamadı"
+// sayılır ve (şifresiz) ham cevap hata kaydına yazılır; böylece gerçek cevap görülüp kod kesinleştirilebilir.
+const GOLD_BASE = 'https://apiv3.goldmesaj.net/api';
+export const GOLD_BATCH = 50; // bir istekte en çok numara (sağlayıcının sınırı belgede yazmıyor; temkinli)
+
+function goldSnippet(raw, e) {
+  let t = String(raw || '').replace(/\s+/g, ' ').trim();
+  for (const secret of [e.gmUser, e.gmPass]) if (secret && secret.length > 2) t = t.split(secret).join('***');
+  return t.slice(0, 300);
+}
+async function goldPost(path, payload, e) {
+  const res = await fetchWithTimeout(`${GOLD_BASE}/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: e.gmUser, password: e.gmPass, ...payload }),
+  });
+  const raw = await res.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = null;
+  }
+  return { status: res.status, httpOk: res.ok, raw: goldSnippet(raw, e), data };
+}
+// Boş değerler (null, '', [], {}) "yok" sayılır; böylece "errors": [] gibi boş alanlar hata sanılmaz
+const goldHas = (v) =>
+  v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0) && !(typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
+const goldPick = (o, keys) => {
+  if (!o || typeof o !== 'object') return undefined;
+  for (const k of keys) if (goldHas(o[k])) return o[k];
+  return undefined;
+};
+/** Cevabı yorumlar: { verdict: 'ok' | 'fail' | 'unknown', id, message } */
+function goldVerdict(r) {
+  const d = r.data && typeof r.data === 'object' ? r.data : null;
+  if (!r.httpOk) {
+    const hint = r.status === 401 || r.status === 403 ? ' (kullanıcı kodu / şifre hatalı olabilir)' : '';
+    return { verdict: 'fail', message: `HTTP ${r.status}${hint}` };
+  }
+  if (!d) return { verdict: 'unknown', message: 'cevap okunamadı' };
+  const flags = [d.success, d.isSuccess, d.basarili, d.ok].filter((x) => x !== undefined);
+  const word = String(goldPick(d, ['status', 'result', 'durum', 'sonuc']) ?? '').toLowerCase();
+  const errVal = goldPick(d, ['error', 'hata', 'errors', 'errorMessage']);
+  const msgVal = goldPick(d, ['message', 'mesaj', 'description', 'aciklama', 'detail']);
+  if (flags.some((x) => x === false || String(x).toLowerCase() === 'false') || errVal || /^(error|fail|failed|hata|basarisiz|başarısız)/.test(word)) {
+    return { verdict: 'fail', message: String(errVal && typeof errVal !== 'object' ? errVal : msgVal || 'sağlayıcı hata döndürdü').slice(0, 160) };
+  }
+  const nested = d.data && typeof d.data === 'object' ? d.data : null;
+  const id = goldPick(d, ['bulkId', 'bulk_id', 'messageId', 'message_id', 'jobid', 'jobId', 'paketId', 'packageId', 'id']) ?? goldPick(nested, ['bulkId', 'bulk_id', 'messageId', 'jobid', 'jobId', 'paketId', 'id']);
+  if (flags.some((x) => x === true || String(x).toLowerCase() === 'true') || /^(success|ok|basarili|başarılı|true)$/.test(word) || id !== undefined) {
+    return { verdict: 'ok', id: id !== undefined ? String(id).slice(0, 60) : '' };
+  }
+  return { verdict: 'unknown', message: 'cevap başarı olarak doğrulanamadı' };
+}
+async function goldSend(list, text, e) {
+  const r = await goldPost('sendSMS', { sdate: '', vperiod: '48', message: { sender: e.sender, text, utf8: '1', gsm: list } }, e);
+  const v = goldVerdict(r);
+  if (v.verdict === 'ok') return { ok: true, id: v.id || '', raw: r.raw };
+  return { ok: false, error: `Gold Mesaj: ${v.message} — cevap: ${r.raw || '(boş)'}`.slice(0, 320), raw: r.raw };
+}
+/** Yönetici sınaması: kalan kontör ve onaylı başlıklar. Hata fırlatmaz. */
+export async function providerInfo(e = smsEnv()) {
+  if (e.provider !== 'goldmesaj' || !smsConfigured(e)) return null;
+  const out = { credit: null, creditRaw: '', senderListed: null, sendersRaw: '', error: '' };
+  try {
+    const k = await goldPost('kredi/get', {}, e);
+    out.creditRaw = k.raw;
+    const find = (o, depth = 0) => {
+      if (!o || typeof o !== 'object' || depth > 3) return undefined;
+      for (const [key, val] of Object.entries(o)) {
+        if (/kredi|credit|bakiye|balance/i.test(key) && (typeof val === 'number' || (typeof val === 'string' && /^-?\d+([.,]\d+)?$/.test(val.trim())))) return val;
+        const inner = typeof val === 'object' ? find(val, depth + 1) : undefined;
+        if (inner !== undefined) return inner;
+      }
+      return undefined;
+    };
+    const c = find(k.data);
+    out.credit = c === undefined ? null : c;
+    if (!k.httpOk) out.error = `Kontör sorgusu HTTP ${k.status}`;
+  } catch (err) {
+    out.error = `Kontör sorgulanamadı: ${(err && err.name === 'AbortError' ? 'zaman aşımı' : (err && err.message) || err)}`.slice(0, 200);
+  }
+  try {
+    const a = await goldPost('alfanumerik/getList', {}, e);
+    out.sendersRaw = a.raw;
+    if (a.httpOk && e.sender) out.senderListed = JSON.stringify(a.data ?? a.raw).toLowerCase().includes(e.sender.toLowerCase());
+  } catch (err) {
+    out.error = out.error || `Başlık listesi alınamadı: ${(err && err.name === 'AbortError' ? 'zaman aşımı' : (err && err.message) || err)}`.slice(0, 200);
+  }
+  return out;
+}
+
 /**
  * Sağlayıcıya gönderir. numbers: "5XXXXXXXXX" listesi (en çok 100). Hata fırlatmaz.
  * Dönüş: { ok, id, error }
@@ -102,6 +204,7 @@ export async function providerSend(numbers, text, e = smsEnv()) {
   const list = [...new Set(numbers.filter(Boolean))].slice(0, 100);
   if (!list.length) return { ok: false, error: 'Alıcı yok' };
   try {
+    if (e.provider === 'goldmesaj') return await goldSend(list.slice(0, GOLD_BATCH), text, e);
     if (e.provider === 'netgsm') {
       const res = await fetchWithTimeout('https://api.netgsm.com.tr/sms/rest/v2/send', {
         method: 'POST',
@@ -225,8 +328,9 @@ export async function dispatchSms(rest, jobs) {
     const groups = new Map();
     for (const r of todo) groups.set(r.text, [...(groups.get(r.text) || []), r]);
     for (const [text, list] of groups) {
-      for (let i = 0; i < list.length; i += 100) {
-        const part = list.slice(i, i + 100);
+      const size = e.provider === 'goldmesaj' ? GOLD_BATCH : 100;
+      for (let i = 0; i < list.length; i += size) {
+        const part = list.slice(i, i + size);
         const r = await providerSend(
           part.map((x) => x.p),
           text,
@@ -258,6 +362,26 @@ export async function dispatchSms(rest, jobs) {
   return out;
 }
 
+/** Eksik ayarların adları + SMS_PROVIDER'ın ham değeri (gizli bilgi değildir). Şifre / kullanıcı kodu asla döndürülmez. */
+export function smsDiag(e = smsEnv()) {
+  const rawProvider = String(process.env.SMS_PROVIDER || '').trim();
+  const missing = [];
+  if (!rawProvider) missing.push('SMS_PROVIDER');
+  else if (!e.provider) missing.push('SMS_PROVIDER (değer tanınmıyor)');
+  if (!e.sender) missing.push('SMS_SENDER');
+  if (e.provider === 'goldmesaj' || rawProvider.toLowerCase() === 'goldmesaj') {
+    if (!e.gmUser) missing.push('GOLDMESAJ_USERNAME');
+    if (!e.gmPass) missing.push('GOLDMESAJ_PASSWORD');
+  } else if (e.provider === 'netgsm') {
+    if (!e.netgsmUser) missing.push('NETGSM_USERCODE');
+    if (!e.netgsmPass) missing.push('NETGSM_PASSWORD');
+  } else if (e.provider === 'iletimerkezi') {
+    if (!e.imKey) missing.push('ILETIMERKEZI_KEY');
+    if (!e.imHash) missing.push('ILETIMERKEZI_HASH');
+  }
+  return { providerValue: rawProvider.slice(0, 30), missing };
+}
+
 /** Yönetici ekranı için durum: ayarlar + bugünkü sayılar + son kayıtlar */
 export async function smsStatus(rest) {
   const e = smsEnv();
@@ -270,6 +394,8 @@ export async function smsStatus(rest) {
     today: { sent: 0, dry: 0, failed: 0 },
     recent: [],
     tableMissing: false,
+    // Aşama 78: sunucunun gördüğü ayarların durumu (değerler gösterilmez; yalnızca SMS_PROVIDER değeri ve eksik ayarların adları)
+    diag: smsDiag(e),
   };
   try {
     const rows = await rest(`sms_log?select=created_at,event,recipient_role,phone_masked,status,error&created_at=gte.${encodeURIComponent(istanbulMidnightIso())}&order=created_at.desc&limit=500`, { token: 'service' });

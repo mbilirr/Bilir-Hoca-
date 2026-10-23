@@ -1105,8 +1105,19 @@ async function actionSmsTest(caller, body) {
       },
     });
   } catch {}
-  if (!r.ok) return { ok: false, error: r.error || 'SMS gönderilemedi.' };
-  return { ok: true, sent: 1 };
+  if (!r.ok) return { ok: false, error: r.error || 'SMS gönderilemedi.', raw: r.raw || '' };
+  return { ok: true, sent: 1, raw: r.raw || '' };
+}
+
+// Aşama 78: SMS göndermeden kalan kontör ve onaylı gönderen başlıklarını sorgular (şimdilik yalnızca Gold Mesaj)
+async function actionSmsInfo(caller) {
+  if (!caller.isAdmin) throw new HttpError(403, 'SMS bilgisini yalnızca yönetici görebilir.');
+  const sm = await smsMod();
+  if (!sm) throw new HttpError(503, 'SMS dosyası (api/_sms.js) sunucuda bulunamadı. Dosyayı GitHub\'da api klasörüne yükleyin.');
+  const e = sm.smsEnv();
+  if (!sm.smsConfigured(e)) throw new HttpError(400, 'SMS sağlayıcı bilgileri Vercel ortam değişkenlerinde eksik.');
+  if (e.provider !== 'goldmesaj') throw new HttpError(400, 'Kontör sorgusu şimdilik yalnızca Gold Mesaj için kullanılabilir.');
+  return { ok: true, info: await sm.providerInfo(e) };
 }
 
 // ----------------------------------------------------------------------------- Aşama 73: Veli duyurusu
@@ -3182,6 +3193,9 @@ export default async function handler(req, res) {
         break;
       case 'sms-test':
         result = await actionSmsTest(caller, body);
+        break;
+      case 'sms-info':
+        result = await actionSmsInfo(caller);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

@@ -23,6 +23,7 @@ export type MailAction =
   | 'parent-announce' // Aşama 73: velilere e-posta / SMS duyurusu
   | 'sms-status' // Aşama 73: SMS ayar durumu (yönetici)
   | 'sms-test' // Aşama 73: SMS sınaması (yönetici)
+  | 'sms-info' // Aşama 78: kalan kontör ve onaylı başlıklar (yönetici)
   | 'reminders';
 
 export interface MailResult {

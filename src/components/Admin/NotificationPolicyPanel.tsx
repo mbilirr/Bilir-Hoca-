@@ -311,6 +311,7 @@ interface SmsStatus {
   today: { sent: number; dry: number; failed: number };
   recent: Array<{ created_at: string; event: string; recipient_role: string; phone_masked: string; status: string; error: string | null }>;
   tableMissing: boolean;
+  diag?: { providerValue: string; missing: string[] };
 }
 
 const SmsStatusBox: React.FC = () => {
@@ -319,8 +320,10 @@ const SmsStatusBox: React.FC = () => {
   const [err, setErr] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
   const [testBusy, setTestBusy] = useState(false);
-  const [testMsg, setTestMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  useAutoDismiss(testMsg, () => setTestMsg(null));
+  const [testMsg, setTestMsg] = useState<{ type: 'ok' | 'err'; text: string; raw?: string } | null>(null);
+  useAutoDismiss(testMsg, () => setTestMsg(null), 90_000);
+  const [infoBusy, setInfoBusy] = useState(false);
+  const [info, setInfo] = useState<{ credit: string | number | null; creditRaw: string; senderListed: boolean | null; sendersRaw: string; error: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -339,12 +342,26 @@ const SmsStatusBox: React.FC = () => {
     setTestBusy(true);
     setTestMsg(null);
     const r = await callMail('sms-test', { phone });
-    setTestMsg(r.ok ? { type: 'ok', text: 'Deneme SMS\'i gönderildi. Birkaç dakika içinde telefonunuza gelmeli.' } : { type: 'err', text: r.error || 'SMS gönderilemedi.' });
+    setTestMsg(
+      r.ok
+        ? { type: 'ok', text: 'Deneme SMS\'i gönderildi. Birkaç dakika içinde telefonunuza gelmeli.', raw: r.raw ? String(r.raw) : undefined }
+        : { type: 'err', text: r.error || 'SMS gönderilemedi.', raw: r.raw ? String(r.raw) : undefined }
+    );
     setTestBusy(false);
     load();
   };
 
-  const providerName = st?.provider === 'netgsm' ? 'Netgsm' : st?.provider === 'iletimerkezi' ? 'İleti Merkezi' : '—';
+  const handleInfo = async () => {
+    if (infoBusy) return;
+    setInfoBusy(true);
+    setInfo(null);
+    const r = await callMail('sms-info');
+    if (r.ok && r.info) setInfo(r.info as any);
+    else setTestMsg({ type: 'err', text: r.error || 'Kontör bilgisi alınamadı.' });
+    setInfoBusy(false);
+  };
+
+  const providerName = st?.provider === 'goldmesaj' ? 'Gold Mesaj' : st?.provider === 'netgsm' ? 'Netgsm' : st?.provider === 'iletimerkezi' ? 'İleti Merkezi' : '—';
 
   return (
     <div className="rounded-xl border border-line bg-surface-2/60 p-3 space-y-2.5" id="admin-sms-status">
@@ -372,6 +389,12 @@ const SmsStatusBox: React.FC = () => {
             </span>
           </div>
 
+          {!st.configured && st.diag && (
+            <p className="text-[11px] font-semibold text-warning-fg">
+              Sunucunun gördüğü: SMS_PROVIDER = "{st.diag.providerValue || 'boş'}".{' '}
+              {st.diag.missing.length ? `Eksik ya da hatalı: ${st.diag.missing.join(', ')}.` : ''}
+            </p>
+          )}
           {!st.configured && (
             <p className="text-[11px] text-muted">
               Vercel › Settings › Environment Variables bölümüne <b>SMS_PROVIDER</b>, <b>SMS_SENDER</b> ve sağlayıcının bilgilerini ekleyip
@@ -400,8 +423,41 @@ const SmsStatusBox: React.FC = () => {
               <span className="text-[10.5px] text-muted">Sınama, deneme modunda da gerçek bir SMS gönderir (günde en çok 5).</span>
             </div>
           )}
+          {st.configured && st.provider === 'goldmesaj' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={handleInfo} disabled={infoBusy}>
+                {infoBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Kontör ve başlığı sorgula
+              </button>
+              <span className="text-[10.5px] text-muted">SMS göndermez; kalan kontörü ve gönderen başlığınızın onaylı olup olmadığını gösterir.</span>
+            </div>
+          )}
+          {info && (
+            <div className="rounded-lg border border-line bg-surface p-2 text-[11px] space-y-1">
+              <p className="text-fg">
+                <b>Kalan kontör:</b> {info.credit !== null ? String(info.credit) : 'okunamadı (aşağıdaki ham cevaba bakın)'}
+              </p>
+              <p className="text-fg">
+                <b>Gönderen başlığı{st.sender ? ` (${st.sender})` : ''}:</b>{' '}
+                {info.senderListed === true ? 'onaylı listede bulundu' : info.senderListed === false ? 'listede BULUNAMADI, Gold Mesaj panelinden başlığı kontrol edin' : 'kontrol edilemedi'}
+              </p>
+              {info.error && <p className="text-danger-fg">{info.error}</p>}
+              <details className="text-muted">
+                <summary className="cursor-pointer font-semibold">Sağlayıcının ham cevabı (şifre içermez)</summary>
+                <p className="break-all mt-1">Kontör: {info.creditRaw || '—'}</p>
+                <p className="break-all mt-1">Başlıklar: {info.sendersRaw || '—'}</p>
+              </details>
+            </div>
+          )}
           {testMsg && (
-            <p className={cx('text-[11px] font-semibold', testMsg.type === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>{testMsg.text}</p>
+            <div className="space-y-1">
+              <p className={cx('text-[11px] font-semibold', testMsg.type === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>{testMsg.text}</p>
+              {testMsg.raw && (
+                <details className="text-[11px] text-muted">
+                  <summary className="cursor-pointer font-semibold">Sağlayıcının ham cevabı (şifre içermez)</summary>
+                  <p className="break-all mt-1">{testMsg.raw}</p>
+                </details>
+              )}
+            </div>
           )}
 
           {st.recent.length > 0 && (
