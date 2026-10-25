@@ -32,6 +32,7 @@ import { useSeenIds } from '../../lib/useSeenIds';
 import { useArrivalFlash } from '../../lib/useArrivalFlash';
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { PushOptInCard } from '../Common/PushOptInCard';
+import { KurumNameBadge } from './KurumNameBadge';
 
 // ============================================================================
 // ÖĞRETMEN ANA SAYFASI (Aşama 8)
@@ -252,6 +253,8 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
       {/* ===== Selamlama ve hızlı işlemler ===== */}
       <div className="flex flex-col @3xl:flex-row @3xl:items-end justify-between gap-4">
         <div className="min-w-0">
+          {/* Aşama 86: kurumun adı (kurum yöneticisi kalemle değiştirir) */}
+          <KurumNameBadge />
           <p className="text-sm text-muted">{longDate(todayStr)} · {branch}</p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg mt-1">
             {timeGreeting()} {firstName ? `${firstName} öğretmenim` : 'öğretmenim'}
