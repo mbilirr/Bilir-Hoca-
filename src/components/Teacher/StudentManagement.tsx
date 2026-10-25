@@ -1460,15 +1460,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setStudentToDelete(std)}
-                            className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg"
-                            aria-label="Öğrenciyi Sil"
-                            title="Öğrenciyi Sil"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {dataService.canDeleteStudent(std) && (
+                            <button
+                              type="button"
+                              onClick={() => setStudentToDelete(std)}
+                              className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg"
+                              aria-label="Öğrenciyi Sil"
+                              title="Öğrenciyi Sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -1718,14 +1720,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setStudentToDelete(std)}
-                            className="p-2 bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 dark:hover:text-rose-300 border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
-                            title="Öğrenciyi Sil"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {dataService.canDeleteStudent(std) && (
+                            <button
+                              type="button"
+                              onClick={() => setStudentToDelete(std)}
+                              className="p-2 bg-surface-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-muted hover:text-rose-600 dark:hover:text-rose-300 border border-line rounded-lg transition-colors cursor-pointer shadow-xs"
+                              title="Öğrenciyi Sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                         )}
                       </td>

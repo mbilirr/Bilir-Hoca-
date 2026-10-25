@@ -21,9 +21,9 @@ import {
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
-// UNVANLAR VE ROLLER PANELİ (Aşama 81 — 1. aşama)
+// UNVANLAR VE ROLLER PANELİ (Aşama 81, 82)
 // Genel yönetici herkese, kurum yöneticisi kendi kurumundaki kişilere rol (unvan) verir.
-// Bu aşamada roller yalnızca kaydedilir ve görüntülenir; kimsenin yetkisi değişmez.
+// Roller, kurumda "Rol yetkileri" açıkken uygulanır (Kurum Ayarları; sql/82).
 // Tüm kutu ve düğmeler aynı yükseklikte (2rem) ve aynı yazı boyutunda; düğmeler eşit genişlikte.
 // ============================================================================
 
@@ -131,8 +131,8 @@ export const TeacherRolesPanel: React.FC = () => {
         <div className="flex items-start gap-2 rounded-lg bg-info-soft text-info-fg px-3 py-2 text-xs">
           <Info className="w-4 h-4 shrink-0 mt-px" />
           <span>
-            Bu aşamada roller <b>kaydedilir ve görüntülenir</b>; kimsenin bugünkü yetkisi değişmez. Rollere göre görme ve düzenleme
-            kuralları sonraki aşamalarda devreye girecek. Ayrıntılar için <b>Yetki tablosu</b>na bakın.
+            Roller, kurumda <b>Rol yetkileri</b> açıkken uygulanır (Kurum Ayarları bölümü; yalnızca genel yönetici açar). Kapalıyken roller
+            kayıtlı kalır, kimsenin yetkisi değişmez. Kim neyi görür: <b>Yetki tablosu</b>.
           </span>
         </div>
 
@@ -269,7 +269,7 @@ export const TeacherRolesPanel: React.FC = () => {
         />
       )}
 
-      <Modal open={matrixOpen} onClose={() => setMatrixOpen(false)} icon={Table2} title="Yetki tablosu" description="Rollere göre kim neyi görebilir / yapabilir (sonraki aşamalarda uygulanacak)" size="xl" id="roles-matrix-modal">
+      <Modal open={matrixOpen} onClose={() => setMatrixOpen(false)} icon={Table2} title="Yetki tablosu" description="Rollere göre kim neyi görebilir / yapabilir (kurumda rol yetkileri açıkken uygulanır)" size="xl" id="roles-matrix-modal">
         <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full min-w-[46rem] text-[11px]">
             <thead className="bg-surface-2 text-fg-2">

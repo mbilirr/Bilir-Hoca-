@@ -56,6 +56,7 @@ import {
 } from '../lib/importNormalize';
 import { newId } from '../lib/ids';
 import { cleanParents } from '../lib/parents';
+import { setKurumBrand } from '../lib/kurumBrand';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
 
@@ -162,6 +163,12 @@ interface MyKurumState {
   kurumAdmin: boolean;
   modules: Partial<Record<KurumModule, boolean>>;
   grantedClassIds: string[];
+  /** Aşama 82: kurumda rol yetkileri açık mı, oturumdaki kişinin rolleri, rol ayarları, kurum logosu, kurum maili */
+  rolesEnabled: boolean;
+  roles: string[];
+  roleSettings: { rehberlik_ogrenci_ekle?: boolean };
+  logo: string;
+  hasMail: boolean;
 }
 const EMPTY_KURUM_STATE: MyKurumState = {
   loaded: false,
@@ -172,6 +179,11 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   kurumAdmin: false,
   modules: {},
   grantedClassIds: [],
+  rolesEnabled: false,
+  roles: [],
+  roleSettings: {},
+  logo: '',
+  hasMail: false,
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
 function loadMyKurumCache(): Partial<MyKurumState> {
@@ -2274,7 +2286,9 @@ export class DataService {
       this.lastSessionHash = `${raw.length}:${h}`;
     }
     const acc = this.myTeacherAccess;
-    return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}`;
+    const k = this.myKurum;
+    const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}` : '';
+    return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}|${roleKey}`;
   }
   private lastSessionRaw = '';
   private lastSessionHash = '';
@@ -3530,7 +3544,10 @@ export class DataService {
   // e-postasıyla giriş yapan öğretmen. Veritabanındaki is_admin() kuralıyla aynıdır.
   public isTeacherAdmin(teacher?: Teacher | null): boolean {
     if (!teacher) return false;
-    return Boolean(teacher.isAdmin || (teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL);
+    if (teacher.isAdmin || (teacher.email || '').trim().toLowerCase() === ADMIN_EMAIL) return true;
+    // Aşama 82: Müdür / Müdür Yardımcısı rolüyle kurum yöneticisi olan oturum sahibi (veritabanı is_kurum_admin ile aynı)
+    const s = this.getAuthSession();
+    return !!(this.myKurum && this.myKurum.kurumAdmin && s?.role === 'teacher' && s.user && s.user.id === teacher.id);
   }
 
   public isCurrentUserAdmin(): boolean {
@@ -3629,6 +3646,11 @@ export class DataService {
         kurumAdmin: !!d.kurum_admin,
         modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
         grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
+        rolesEnabled: d.roles_enabled === true,
+        roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
+        roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
+        logo: typeof d.logo === 'string' ? d.logo : '',
+        hasMail: d.has_mail === true,
       };
       this.setMyKurum(next);
       // Genel yönetici: kurum adları listelerde etiket olarak gösterilir
@@ -3641,6 +3663,8 @@ export class DataService {
   private setMyKurum(next: MyKurumState) {
     const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
     this.myKurum = next;
+    // Aşama 82: kurum adı ve logosu (karne PDF'leri ve üst menü)
+    setKurumBrand(next.kurumId ? { name: next.kurumName, logo: next.logo } : null);
     try {
       sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
     } catch {}
@@ -3667,6 +3691,91 @@ export class DataService {
   // Kurum yöneticisi (kendi kurumunu yönetir)
   public isKurumAdmin(): boolean {
     return this.myKurum.supported && !this.isHeadAdmin() && this.myKurum.kurumAdmin;
+  }
+
+  // ===========================================================================
+  // Aşama 82: ROLLERE GÖRE YETKİLER (kurumda "rol yetkileri" açıkken). Veritabanı kurallarının ekrandaki karşılığı;
+  // asıl denetim veritabanındadır (82 numaralı SQL). Anahtar kapalıysa bugünkü davranış aynen sürer.
+  // ===========================================================================
+  /** Rol yetkileri bu oturumda geçerli mi */
+  public rolesActive(): boolean {
+    return this.myKurum.supported && !this.isHeadAdmin() && !!this.myKurum.kurumId && this.myKurum.rolesEnabled === true;
+  }
+  public hasRole(role: string): boolean {
+    return this.rolesActive() && (this.myKurum.roles || []).includes(role);
+  }
+  /** Kurumdaki tüm öğrencileri gören roller (Rehberlik, Ölçme Değerlendirme) */
+  public roleWideView(): boolean {
+    return this.hasRole('rehberlik') || this.hasRole('olcme_degerlendirme');
+  }
+  /** Başka öğretmenlerin çalışmalarını GÖREN roller (Rehberlik: tüm kurum, Zümre Başkanı: zümresi) */
+  public roleSeesOthersWork(): boolean {
+    return this.hasRole('rehberlik') || this.hasRole('zumre_baskani');
+  }
+  /** Yalnızca Etüt Öğretmeni rolü olan kişi */
+  public roleEtutOnly(): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return false;
+    const r = this.myKurum.roles || [];
+    return r.length > 0 && r.every((x) => x === 'etut_ogretmeni');
+  }
+  /** Ders verebilir mi (ödev, etüt, plan, soru hedefi) — rolü olmayan öğretmen bugünkü gibi verir */
+  public roleCanTeach(): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    const r = this.myKurum.roles || [];
+    return r.length === 0 || r.some((x) => x === 'rehberlik' || x === 'zumre_baskani' || x === 'ogretmen');
+  }
+  /** Görünürlüğü veritabanı belirler (yüklenen kayıtların hepsi bu kişiye açıktır) */
+  private roleTrustsDb(): boolean {
+    return this.roleWideView() || this.hasRole('zumre_baskani') || this.roleEtutOnly();
+  }
+  /** Veli iletişim bilgilerini görebilir mi (anahtar açıkken: yönetici, Rehberlik, Ölçme Değerlendirme) */
+  public canSeeParentContacts(): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    return this.roleWideView();
+  }
+  /** Veli duyurusu (e-posta / SMS) gönderebilir mi — rol yetkileri açıkken yönetici, Rehberlik, Ölçme Değerlendirme */
+  public canSendParentAnnouncements(): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    return this.roleWideView();
+  }
+  /** Mesajlar › Etüt Notları sekmesi açık mı (Ölçme Değerlendirme gibi etütle ilgisi olmayan roller görmez) */
+  public canSeeEtutNotesTab(): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    const r = this.myKurum.roles || [];
+    return r.length === 0 || r.some((x) => x === 'rehberlik' || x === 'ogretmen' || x === 'zumre_baskani' || x === 'etut_ogretmeni');
+  }
+  /** Rol menüsü: bu sekme rollerime açık mı (anahtar kapalıysa her sekme açık; kurum bölüm izinleri ayrıca uygulanır) */
+  private roleAllowsTab(tab: TeacherTabType): boolean {
+    if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    const roles = this.myKurum.roles || [];
+    if (roles.length === 0) return true; // rolü verilmemiş öğretmen: bugünkü gibi
+    const allowed = new Set<TeacherTabType>();
+    const add = (...tabs: TeacherTabType[]) => tabs.forEach((t) => allowed.add(t));
+    if (roles.includes('rehberlik')) add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme');
+    if (roles.includes('olcme_degerlendirme')) add('home', 'students', 'messages', 'archive', 'deneme');
+    if (roles.includes('ogretmen') || roles.includes('zumre_baskani'))
+      add('home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme');
+    if (roles.includes('etut_ogretmeni')) add('etuts');
+    return allowed.has(tab);
+  }
+  /** Deneme sonuçlarını okuyup düzenleyebilir mi (Genel yönetici, kurum yöneticisi, Ölçme Değerlendirme) */
+  public canManageDeneme(): boolean {
+    if (this.isHeadAdmin()) return true;
+    const mod = this.myKurum.modules?.deneme === true;
+    return mod && (this.isKurumAdmin() || this.hasRole('olcme_degerlendirme'));
+  }
+  /** Öğrenci düzenleyebilir mi (yönetici, Rehberlik, Ölçme Değerlendirme) */
+  public canEditStudents(): boolean {
+    if (!this.myKurum.supported) return this.canManageStudents();
+    if (this.isHeadAdmin()) return true;
+    return (this.isKurumAdmin() || this.roleWideView()) && this.canUseModule('manage_students');
+  }
+  /** Bu öğrenci silinebilir mi (yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik) */
+  public canDeleteStudent(student?: Student | null): boolean {
+    if (!student) return false;
+    if (!this.myKurum.supported) return this.canManageStudents();
+    if (this.isHeadAdmin()) return true;
+    return this.canManageStudents() && !!student.kurumId && student.kurumId === this.myKurum.kurumId;
   }
 
   // ===========================================================================
@@ -3706,6 +3815,18 @@ export class DataService {
     if (session?.role !== 'teacher') return false;
     if (this.isHeadAdmin()) return true;
     if (this.isMyEtut(e)) return true;
+    // Aşama 82: Rehberlik / Zümre Başkanı — veritabanı tam kaydı verdiyse ayrıntıyı görür (değiştiremez)
+    if (this.roleSeesOthersWork() && !e.privacyRedacted && !this.isRedactedRow(e)) return true;
+    return this.ownersInMyKurum([e.createdById, e.teacherId, ...(e.teacherIds || [])]);
+  }
+  /** Ortak takvimden gelen (ayrıntısı silinmiş) etüt satırı mı */
+  private isRedactedRow(e: Etut): boolean {
+    return !!(e as any).__redacted__;
+  }
+  /** Etüdü değiştirebilir mi (sahibi, genel yönetici, kurum yöneticisi) */
+  private canEditEtut(e: Etut): boolean {
+    if (this.isHeadAdmin()) return true;
+    if (this.isMyEtut(e)) return true;
     return this.ownersInMyKurum([e.createdById, e.teacherId, ...(e.teacherIds || [])]);
   }
   /** Başka öğretmenin etüdü: yalnızca gün / saat / öğretmen / sınıf / ders / yer görünür (konu, not, görüş, yoklama silinir) */
@@ -3723,8 +3844,17 @@ export class DataService {
   }
   private assertEtutEditable(id: string): void {
     const e = this.etuts.find((x) => x.id === id);
-    if (e && this.getAuthSession()?.role === 'teacher' && (e.privacyRedacted || !this.canSeeEtutDetails(e))) {
+    if (e && this.getAuthSession()?.role === 'teacher' && (e.privacyRedacted || !this.canEditEtut(e))) {
       throw new Error('Bu etüt başka bir öğretmene ait; yalnızca etüdü veren öğretmen ve yönetici değiştirebilir.');
+    }
+  }
+  /** Aşama 82: Rehberlik / Zümre Başkanı başkasının ödevini yalnızca görür; değiştiremez */
+  private assertHomeworkEditable(hw: Homework): void {
+    if (this.getAuthSession()?.role !== 'teacher' || this.isHeadAdmin() || this.isKurumAdmin()) return;
+    if (this.roleSeesOthersWork() && !this.isMyHomework(hw)) {
+      const msg = 'Bu ödev başka bir öğretmene ait; yalnızca görüntüleyebilirsiniz. Değişikliği ödevi veren öğretmen yapabilir.';
+      this.showFloatingErrorToast(msg);
+      throw new Error(msg);
     }
   }
   /** Ödevin sahibi öğretmen mi */
@@ -3758,6 +3888,7 @@ export class DataService {
   public canUseTab(tab: TeacherTabType): boolean {
     const mod = TAB_MODULES[tab];
     if (tab === 'user_management') return this.canAccessUserManagement();
+    if (!this.roleAllowsTab(tab)) return false; // Aşama 82: rol menüsü
     if (tab === 'deneme') return this.canUseDeneme();
     return mod ? this.canUseModule(mod) : true;
   }
@@ -3766,18 +3897,26 @@ export class DataService {
   // (kurumsuz ya da yönetici olmayan öğretmenlere hiçbir zaman açılmaz)
   public canUseDeneme(): boolean {
     if (this.isHeadAdmin()) return true;
-    return this.isKurumAdmin() && this.myKurum.modules?.deneme === true;
+    if (this.myKurum.modules?.deneme !== true) return false;
+    if (this.isKurumAdmin()) return true;
+    // Aşama 82: Ölçme (düzenler), Rehberlik / Öğretmen / Zümre Başkanı (salt okunur)
+    return ['olcme_degerlendirme', 'rehberlik', 'ogretmen', 'zumre_baskani'].some((r) => this.hasRole(r));
   }
 
   // Öğrenci ve sınıf ekleme/çıkarma/düzenleme
   public canManageStudents(): boolean {
     if (!this.myKurum.supported) return this.isCurrentUserAdmin() || this.getClasses().length > 0;
     if (this.isHeadAdmin()) return true;
-    return this.isKurumAdmin() && this.canUseModule('manage_students');
+    // Aşama 82: öğrenci ekle / sil — yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik
+    const roleAdder =
+      this.hasRole('olcme_degerlendirme') || (this.hasRole('rehberlik') && this.myKurum.roleSettings?.rehberlik_ogrenci_ekle === true);
+    return (this.isKurumAdmin() || roleAdder) && this.canUseModule('manage_students');
   }
 
   public canManageClasses(): boolean {
     if (!this.myKurum.supported) return this.isCurrentUserAdmin();
+    // Aşama 82: rol yetkileri açıkken sınıf ekle / sil / düzenle yalnızca Müdür / Müdür Yardımcısı
+    if (this.rolesActive()) return this.isKurumAdmin() && this.canUseModule('manage_students');
     return this.canManageStudents();
   }
 
@@ -3798,7 +3937,7 @@ export class DataService {
     if (!cls) return false;
     if (!this.myKurum.supported) return this.canManageStudents();
     if (this.isHeadAdmin()) return true;
-    return this.canManageStudents() && !!cls.kurumId && cls.kurumId === this.myKurum.kurumId;
+    return this.canManageClasses() && !!cls.kurumId && cls.kurumId === this.myKurum.kurumId;
   }
 
   /**
@@ -3821,7 +3960,8 @@ export class DataService {
     if (!student) return false;
     if (!this.myKurum.supported) return this.canManageStudents();
     if (this.isHeadAdmin()) return true;
-    return this.canManageStudents() && !!student.kurumId && student.kurumId === this.myKurum.kurumId;
+    // Aşama 82: düzenleme — yönetici, Rehberlik, Ölçme Değerlendirme (silme ayrı: canDeleteStudent)
+    return this.canEditStudents() && !!student.kurumId && student.kurumId === this.myKurum.kurumId;
   }
 
   // Bu öğretmen hesabı yönetilebilir mi? (kurum yöneticisi: kendi kurumunun yönetici olmayan öğretmenleri)
@@ -7095,6 +7235,7 @@ export class DataService {
       this.showFloatingErrorToast(`Hata: ${msg}`);
       throw new Error(msg);
     }
+    this.assertHomeworkEditable(existing);
     const merged: Homework = { ...existing, ...updates };
     const { classIds, studentIds } = this.homeworkTargets(merged);
     merged.targetClassIds = classIds;
@@ -7142,6 +7283,8 @@ export class DataService {
   }
 
   public async deleteHomework(id: string): Promise<void> {
+    const target = this.homeworks.find((h) => h.id === id);
+    if (target) this.assertHomeworkEditable(target);
     const prevHomeworks = JSON.parse(JSON.stringify(this.homeworks));
     const prevSubmissions = JSON.parse(JSON.stringify(this.submissions));
     const prevDeletedHomeworkIds = new Set(this.deletedHomeworkIds);
@@ -8109,6 +8252,14 @@ export class DataService {
         return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       }
 
+      // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı / Etüt Öğretmeni — veritabanının açtığı kayıtlar; veli bilgisi role göre
+      if (!forTeacherId && this.roleTrustsDb()) {
+        const hideParents = !this.canSeeParentContacts();
+        return this.students
+          .filter((s) => !this.deletedStudentIds.has(s.id))
+          .map((s) => (hideParents && s.parents && s.parents.length ? { ...s, parents: [] } : s));
+      }
+
       // Normal öğretmen: İzinli sınıflardaki öğrencileri VEYA bireysel olarak yetkilendirildiği öğrencileri görebilir
       const permittedClasses = this.getClasses(teacherId);
       const permittedClassIds = new Set(permittedClasses.map((c) => c.id));
@@ -8116,6 +8267,7 @@ export class DataService {
         permittedClasses.map((c) => (c.name || '').trim().toLowerCase().replace(/[\s\-_/\\.]/g, ''))
       );
 
+      const hideParentsForRole = !forTeacherId && !this.canSeeParentContacts();
       return this.students.filter((s) => {
         if (this.deletedStudentIds.has(s.id)) return false;
         if (this.myTeacherAccess.studentIds.has(s.id)) return true;
@@ -8130,7 +8282,7 @@ export class DataService {
           if (permittedClassNames.has(normS)) return true;
         }
         return false;
-      });
+      }).map((s) => (hideParentsForRole && s.parents && s.parents.length ? { ...s, parents: [] } : s));
     }
 
     // Öğrenci oturumu: öğrenci YALNIZCA kendi bilgilerini görebilir, diğer öğrencileri göremez
@@ -8162,6 +8314,12 @@ export class DataService {
       // Yönetici bu öğretmene önceden eklenmiş sınıf listelerini görme izni vermişse görebilir
       if (teacher?.canViewAllStudentsAndClasses) {
         return this.deduplicateClasses(this.classes);
+      }
+
+      // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı — veritabanının açtığı sınıflar; Etüt Öğretmeni sınıf görmez
+      if (!forTeacherId && this.roleTrustsDb()) {
+        if (this.roleEtutOnly()) return [];
+        return this.deduplicateClasses(this.classes.filter((c) => !this.deletedClassIds.has(c.id)));
       }
 
       // Normal öğretmen: SADECE admin'in yetkilendirdiği (authorizedTeacherIds veya assignedClassIds içinde bulunan) sınıfları görebilir
@@ -8311,6 +8469,11 @@ export class DataService {
         return [...this.homeworks];
       }
 
+      // Aşama 82: Rehberlik (tüm kurum) ve Zümre Başkanı (zümresi) — veritabanının açtığı ödevler (salt görüntüleme)
+      if (!forTeacherId && session?.role === 'teacher' && this.roleSeesOthersWork()) {
+        return [...this.homeworks];
+      }
+
       // Normal öğretmen daha önce veya başka öğretmenlerin verdiği ödevleri GÖREMEZ. YALNIZCA KENDİ verdiği ödevleri görebilir.
       return this.homeworks.filter((hw) => {
         return (
@@ -8342,7 +8505,20 @@ export class DataService {
     if (forTeacherId || session?.role === 'teacher') {
       // Aşama 40: başka öğretmenin etüdünde yalnızca gün / saat / öğretmen / sınıf bilgisi görünür
       if (session?.role === 'teacher' && !this.isHeadAdmin()) {
-        return this.etuts.map((e) => (!e.privacyRedacted && this.canSeeEtutDetails(e) ? e : e.privacyRedacted ? e : this.redactEtut(e)));
+        // Aşama 82: Zümre Başkanı başkasının etüdünü görür ama öğrenci notlarını / anlatılan konuyu görmez (yetki tablosu)
+        const stripNotes = this.hasRole('zumre_baskani') && !this.hasRole('rehberlik') && !this.isKurumAdmin();
+        return this.etuts.map((e) => {
+          if (e.privacyRedacted) return e;
+          if (!this.canSeeEtutDetails(e)) return this.redactEtut(e);
+          if (stripNotes && !this.isMyEtut(e) && e.studentAttendance) {
+            const att: Record<string, any> = {};
+            Object.entries(e.studentAttendance).forEach(([sid, rec]) => {
+              att[sid] = rec ? { ...rec, note: '', topic: '' } : rec;
+            });
+            return { ...e, studentAttendance: att, teacherFeedback: '' };
+          }
+          return e;
+        });
       }
       return [...this.etuts];
     }

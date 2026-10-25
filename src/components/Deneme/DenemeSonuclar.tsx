@@ -23,7 +23,9 @@ export const DenemeSonuclar: React.FC<{
   onBack: () => void;
   onUploadMore: (exam: DenemeExam) => void;
   onDeleted: () => void;
-}> = ({ examId, onBack, onUploadMore, onDeleted }) => {
+  /** Aşama 82: salt okunur (Rehberlik / Öğretmen / Zümre Başkanı) — düzenleme düğmeleri gizlenir */
+  readOnly?: boolean;
+}> = ({ examId, onBack, onUploadMore, onDeleted, readOnly = false }) => {
   const [exam, setExam] = useState<DenemeExam | null>(null);
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -251,6 +253,12 @@ export const DenemeSonuclar: React.FC<{
         <span className={cx('ui-chip', exam.published ? 'ui-chip-success' : 'ui-chip-neutral')}>{exam.published ? 'Öğrencilere açık' : 'Öğrencilere kapalı'}</span>
       </div>
 
+      {readOnly && (
+        <p className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2" id="deneme-readonly-note">
+          Bu denemeyi yalnızca görüntüleyebilirsiniz; optik yükleme, cevap anahtarı ve silme işlemlerini Ölçme Değerlendirme ve yöneticiler yapar.
+        </p>
+      )}
+      {!readOnly && (
       <div className="flex flex-wrap gap-2">
         <button type="button" className={cx('ui-btn ui-btn-sm', exam.published ? 'ui-btn-secondary' : 'ui-btn-success')} disabled={busy} onClick={() => void togglePublish()}>
           {exam.published ? <EyeOff /> : <Eye />} {exam.published ? 'Öğrencilerden gizle' : 'Öğrencilere aç'}
@@ -273,9 +281,10 @@ export const DenemeSonuclar: React.FC<{
           <Trash2 /> Denemeyi sil
         </button>
       </div>
+      )}
       {notice && <p role="status" className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2">{notice}</p>}
 
-      {bCheck && bCheck.issues.length > 0 && (
+      {!readOnly && bCheck && bCheck.issues.length > 0 && (
         <div role="alert" id="b-kitapcik-uyum" className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2.5 text-xs text-warning-fg space-y-1.5">
           <p className="font-bold">
             B kitapçığı uyum kontrolü: {bCheck.issues.length} soruda A ve B kitapçıklı öğrencilerin doğru oranları çok farklı. B eşleşmesi yanlış girilmiş olabilir.
@@ -434,9 +443,11 @@ export const DenemeSonuclar: React.FC<{
                       <td className="px-2 py-1.5 text-center tabular-nums font-semibold text-fg">{fmtNet(r.totalNet)}</td>
                       <td className="px-2 py-1.5 text-center tabular-nums font-bold text-fg">{fmtScore(r.score)}</td>
                       <td className="px-3 py-1.5 text-right">
-                        <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg" title="Bu öğrenciyi denemeden çıkar" aria-label="Bu öğrenciyi denemeden çıkar" onClick={() => setRemoveTarget(r)}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!readOnly && (
+                          <button type="button" className="ui-btn ui-btn-ghost ui-btn-icon hover:text-danger-fg" title="Bu öğrenciyi denemeden çıkar" aria-label="Bu öğrenciyi denemeden çıkar" onClick={() => setRemoveTarget(r)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))

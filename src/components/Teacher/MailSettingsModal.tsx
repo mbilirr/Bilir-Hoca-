@@ -95,6 +95,15 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2">
+            {status?.kurumAccount && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-info-soft text-info-fg text-xs" id="mail-status-kurum">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  Kurumunuzun e-posta adresi kullanılıyor: <b>{(status.kurumAccount as { gmail: string }).gmail}</b>. Bütün e-postalar bu adresten
+                  sizin adınızla gider, yanıtlar size gelir; aşağıdaki kendi Gmail bağlantınız kullanılmaz.
+                </span>
+              </div>
+            )}
             <div className="flex items-start gap-3 p-3 rounded-xl border border-line bg-surface-2/50" id="mail-status-own">
               <User className="w-5 h-5 text-brand-fg shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs">

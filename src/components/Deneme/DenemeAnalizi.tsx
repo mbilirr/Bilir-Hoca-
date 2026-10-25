@@ -24,6 +24,8 @@ type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; id: string } | { kind: 'detail'; id: string };
 
 export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[] }> = ({ students, classes }) => {
+  // Aşama 82: Rehberlik / Öğretmen / Zümre Başkanı denemeleri yalnızca görür (ekleme, düzenleme, silme yok)
+  const readOnly = !dataService.canManageDeneme();
   const [tab, setTab] = useHistoryState<Tab>('deneme.tab', 'denemeler');
   const [view, setView] = useHistoryState<View>('deneme.view', { kind: 'list' });
   const [uploadExam, setUploadExam] = useState<DenemeExam | null>(null);
@@ -103,7 +105,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       title="Deneme Analizi"
       description="Optik sonuçları, LGS puanı, kazanım analizi, karneler ve etüt yönlendirme"
       actions={
-        tab === 'denemeler' && view.kind === 'list' && !setupMissing ? (
+        tab === 'denemeler' && view.kind === 'list' && !setupMissing && !readOnly ? (
           <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
             <Plus /> Yeni deneme
           </button>
@@ -141,14 +143,14 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
             { value: 'denemeler', label: 'Denemeler', icon: BarChart3 },
             { value: 'karne', label: 'Karneler', icon: FileBarChart },
             { value: 'etut', label: 'Etüt yönlendirme', icon: Users },
-            { value: 'kazanim', label: 'Kazanım bankası', icon: BookOpen },
+            ...(readOnly ? [] : [{ value: 'kazanim' as Tab, label: 'Kazanım bankası', icon: BookOpen }]),
           ]}
         />
       )}
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
 
-      {tab === 'denemeler' && shownView.kind === 'new' && (
+      {tab === 'denemeler' && shownView.kind === 'new' && !readOnly && (
         <DenemeWizard
           students={students}
           classes={classes}
@@ -160,7 +162,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           }}
         />
       )}
-      {tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && (
+      {tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && !readOnly && (
         <DenemeWizard
           students={students}
           classes={classes}
@@ -176,6 +178,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       )}
       {tab === 'denemeler' && shownView.kind === 'detail' && (
         <DenemeSonuclar
+          readOnly={readOnly}
           examId={shownView.id}
           onBack={() => {
             void reload();
@@ -202,9 +205,11 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
               title="Henüz deneme yok"
               description="Yeni deneme ekleyin: cevap anahtarı Excel'ini, optik formatını (FMT) ve optik sonuç dosyalarını (TXT) yükleyin."
               action={
-                <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })}>
-                  <Plus /> Yeni deneme
-                </button>
+                readOnly ? undefined : (
+                  <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })}>
+                    <Plus /> Yeni deneme
+                  </button>
+                )
               }
             />
           ) : (
@@ -230,6 +235,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                             <p className="font-semibold text-fg">{e.name}</p>
                             <p className="text-[11px] text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
                           </div>
+                          {!readOnly && (
                           <button
                             type="button"
                             className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 -my-1"
@@ -242,6 +248,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">{dateTr(e.examDate)}</td>
@@ -304,7 +311,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
 
       {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
       {tab === 'etut' && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
-      {tab === 'kazanim' && <KazanimBankasi />}
+      {tab === 'kazanim' && !readOnly && <KazanimBankasi />}
 
       <p className="text-[11px] text-muted">
         Mahremiyet: TC kimlik numarası hiçbir yerde saklanmaz ve gösterilmez; eşleştirme için yalnızca geri çevrilemez parmak izi kullanılır. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.

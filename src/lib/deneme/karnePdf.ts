@@ -3,6 +3,7 @@
 // Karne, bloklardan oluşan bir modelden çizilir: başlık, bilgi satırları, tablo, çizgi ve sütun grafiği, not.
 // Türkçe karakterler için uygulamanın gömülü yazı tipi kullanılır.
 // ============================================================================
+import { getKurumBrand } from '../kurumBrand';
 
 export type PdfTone = 'success' | 'info' | 'warning' | 'danger' | 'muted';
 
@@ -695,8 +696,27 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
   }
 
   const pages = doc.getNumberOfPages();
+  // Aşama 82: kurum adı ve logosu her sayfanın sağ üst köşesinde (kurum tanımlıysa)
+  const brand = getKurumBrand();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
+    if (brand.name || brand.logo) {
+      let right = W - M;
+      if (brand.logo) {
+        try {
+          doc.addImage(brand.logo, brand.logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', W - M - 9, 3, 9, 9);
+          right = W - M - 11;
+        } catch {
+          /* logo okunamazsa yalnızca ad yazılır */
+        }
+      }
+      if (brand.name) {
+        doc.setFont(F, 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(75, 85, 99);
+        doc.text(t(brand.name), right, 8.6, { align: 'right' });
+      }
+    }
     doc.setFont(F, 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(156, 163, 175);

@@ -49,6 +49,7 @@ const DenemeAnalizi = lazyNamed(() => import('./components/Deneme/DenemeAnalizi'
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const NotificationPolicyPanel = lazyNamed(() => import('./components/Admin/NotificationPolicyPanel'), 'NotificationPolicyPanel');
 const TeacherRolesPanel = lazyNamed(() => import('./components/Admin/TeacherRolesPanel'), 'TeacherRolesPanel'); // Aşama 81
+const KurumSettingsPanel = lazyNamed(() => import('./components/Admin/KurumSettingsPanel'), 'KurumSettingsPanel'); // Aşama 82
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
@@ -340,6 +341,13 @@ export default function App() {
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens
+  // Aşama 82: yalnızca Etüt Öğretmeni rolü olan kişi doğrudan Etütler bölümünde açılır (ana sayfa öğrenci özetleri içerir)
+  useEffect(() => {
+    if (role === 'teacher' && teacherTab === 'home' && dataService.roleEtutOnly() && dataService.canUseTab('etuts')) {
+      setTeacherTab('etuts');
+    }
+  });
+
   if (!authSession) {
     return (
       <div className="relative min-h-screen">
@@ -457,7 +465,7 @@ export default function App() {
             )}
 
             {/* ANA SAYFA: selamlama, "Bugün" özeti, özet kartları ve ajanda */}
-            {teacherTab === 'home' && (
+            {teacherTab === 'home' && !dataService.roleEtutOnly() && (
               <Suspense fallback={<PageLoading />}>
               <TeacherHome
                 currentTeacher={currentTeacher}
@@ -485,9 +493,11 @@ export default function App() {
                   {!dataService.canUseTab(teacherTab) ? (
                     <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="module-locked">
                       <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
-                      <h2 className="text-lg font-bold text-fg">Bu bölüm kurumunuz için kapalı</h2>
+                      <h2 className="text-lg font-bold text-fg">{dataService.rolesActive() ? 'Bu bölüm rolünüze açık değil' : 'Bu bölüm kurumunuz için kapalı'}</h2>
                       <p className="text-sm text-muted">
-                        "{findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümünü kullanma izni genel yönetici tarafından verilmemiş.
+                        {dataService.rolesActive()
+                          ? `"${findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümü size verilen unvanın (rolün) yetkileri içinde değil. Gerekirse kurum yöneticinize başvurun.`
+                          : `"${findTeacherNav(teacherTab)?.title || 'Bu bölüm'}" bölümünü kullanma izni genel yönetici tarafından verilmemiş.`}
                       </p>
                       <button type="button" onClick={() => setTeacherTab('home')} className="ui-btn ui-btn-secondary">
                         Ana sayfaya dön
@@ -564,6 +574,7 @@ export default function App() {
                       <NotificationPolicyPanel />
                       <UserCredentialsExport classes={classes} />
                       {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
+                      <KurumSettingsPanel />
                       <TeacherRolesPanel />
                     </div>
                   )}
@@ -577,6 +588,7 @@ export default function App() {
                         description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
                       />
                       <UserCredentialsExport classes={classes} />
+                      <KurumSettingsPanel />
                       <TeacherRolesPanel />
                     </div>
                   )}

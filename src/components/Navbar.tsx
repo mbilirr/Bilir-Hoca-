@@ -170,18 +170,29 @@ export const Navbar: React.FC<NavbarProps> = ({
     fn();
   };
 
+  // Aşama 82: kurum öğretmenlerinde kurumun adı ve logosu görünür
+  const myKurum = isTeacherSession ? dataService.getMyKurum() : null;
+  const brandName = myKurum && myKurum.kurumId && myKurum.kurumName ? myKurum.kurumName : 'Eğitim Takip';
+  const brandLogo = myKurum && myKurum.kurumId && myKurum.logo ? myKurum.logo : '';
+
   const brand = (
     <button
       type="button"
       onClick={() => goTab('home')}
       title="Ana Sayfa"
-      className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors"
+      className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors min-w-0"
     >
-      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-1.5 flex items-center justify-center shadow-sm">
-        <img src="/logo.svg" alt="" className="w-full h-full object-contain" />
-      </span>
-      <span className="hidden sm:block text-left leading-tight">
-        <span className="block text-sm font-bold text-fg tracking-tight">Eğitim Takip</span>
+      {brandLogo ? (
+        <span className="w-9 h-9 rounded-xl bg-white border border-line p-1 flex items-center justify-center shadow-sm overflow-hidden">
+          <img src={brandLogo} alt="" className="w-full h-full object-contain" />
+        </span>
+      ) : (
+        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-1.5 flex items-center justify-center shadow-sm">
+          <img src="/logo.svg" alt="" className="w-full h-full object-contain" />
+        </span>
+      )}
+      <span className="hidden sm:block text-left leading-tight min-w-0">
+        <span className="block text-sm font-bold text-fg tracking-tight truncate max-w-[14rem]">{brandName}</span>
         <span className="block text-[11px] text-muted">{isStudentSession ? 'Öğrenci Portalı' : 'Öğretmen Paneli'}</span>
       </span>
     </button>

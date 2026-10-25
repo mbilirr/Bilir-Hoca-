@@ -177,6 +177,15 @@ async function getCaller(req) {
   if (!t && !isAdmin) throw new HttpError(403, 'Bu işlemi yalnızca öğretmenler yapabilir.');
   if (t && t.status && t.status !== 'approved' && !isAdmin) throw new HttpError(403, 'Öğretmen hesabınız onaylı değil.');
   const kurumId = kurumSupported && t && t.kurum_id ? String(t.kurum_id) : null;
+  // Aşama 82: Müdür / Müdür Yardımcısı rolüyle (rol yetkileri açık kurumda) kurum yöneticisi olanlar
+  let roleKurumAdmin = false;
+  if (!isAdmin && kurumId && !(t && t.is_admin)) {
+    try {
+      roleKurumAdmin = (await rest('rpc/is_kurum_admin', { token, method: 'POST', body: {} })) === true;
+    } catch {
+      roleKurumAdmin = false;
+    }
+  }
   return {
     token,
     authId: user.id,
@@ -185,7 +194,7 @@ async function getCaller(req) {
     email: ((t && t.email) || user.email || '').trim(),
     // Tam yetki: genel yönetici. Kurum yöneticisi yalnızca kendi kurumunun öğretmenleri adına işlem yapabilir.
     isAdmin,
-    isKurumAdmin: !isAdmin && !!kurumId && !!(t && t.is_admin),
+    isKurumAdmin: !isAdmin && !!kurumId && (!!(t && t.is_admin) || roleKurumAdmin),
     kurumId,
   };
 }
@@ -921,8 +930,51 @@ async function actionEtutAttendanceLink(caller, body, req, deadline) {
 }
 
 // ----------------------------------------------------------------------------- Gönderen hesap
+// Aşama 82: KURUM GÖNDERİM HESABI — kurumun bir gönderim Gmail'i tanımlıysa o kurumdaki bütün e-postalar
+// bu tek adresten gider (öğretmenin kendi Gmail'i kullanılmaz); "Yanıtla" öğretmene gider. Genel yönetici ve
+// kurumsuz öğretmenler eskisi gibi (öğretmenin Gmail'i ya da okul hesabı) gönderir.
+const kurumOfAuthCache = new Map();
+async function kurumIdForSender(teacher) {
+  if (teacher && teacher.kurumId !== undefined) return teacher.kurumId || null;
+  if (teacher && teacher.kurum_id !== undefined) return teacher.kurum_id || null;
+  const auth = (teacher && (teacher.authId || teacher.auth_user_id)) || null;
+  if (!auth) return null;
+  if (kurumOfAuthCache.has(auth)) return kurumOfAuthCache.get(auth);
+  let kid = null;
+  try {
+    const rows = await rest(`teachers?select=kurum_id&auth_user_id=eq.${encodeURIComponent(auth)}`, { token: 'service' });
+    kid = (rows && rows[0] && rows[0].kurum_id) || null;
+  } catch {
+    kid = null; // kurum sütunu yoksa (eski kurulum) kurum hesabı kullanılmaz
+  }
+  kurumOfAuthCache.set(auth, kid);
+  return kid;
+}
+async function kurumSender(teacher) {
+  const kid = await kurumIdForSender(teacher);
+  if (!kid) return null;
+  try {
+    const rows = await rest(`kurum_mail_accounts?select=gmail,secret&kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+    const row = rows && rows[0];
+    const pass = row ? decryptSecret(row.secret) : null;
+    if (!row || !pass) return null;
+    let brandName = '';
+    try {
+      const k = await rest(`kurumlar?select=name&id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+      brandName = (k && k[0] && k[0].name) || '';
+    } catch {}
+    const gmail = String(row.gmail || '').toLowerCase();
+    const replyTo = isEmail(teacher.email) && String(teacher.email).toLowerCase() !== gmail ? teacher.email : null;
+    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName };
+  } catch {
+    return null; // tablo yoksa (82 numaralı SQL çalışmadıysa) eski davranış
+  }
+}
+
 async function resolveSender(teacher) {
   const e = env();
+  const ks = await kurumSender(teacher || {});
+  if (ks) return ks;
   if (teacher.authId) {
     try {
       const rows = await rest(`teacher_mail_accounts?select=gmail,secret&teacher_auth_id=eq.${teacher.authId}`, {
@@ -1146,6 +1198,20 @@ async function actionParentAnnounce(caller, body, deadline) {
   if (!wantMail && !wantSms) throw new HttpError(400, 'En az bir gönderim yolu seçin (e-posta veya SMS).');
   if (wantSms && message.length > ANNOUNCE_SMS_MAX) throw new HttpError(400, `SMS için mesaj en çok ${ANNOUNCE_SMS_MAX} karakter olabilir. Mesajı kısaltın ya da yalnızca e-posta seçin.`);
 
+  // Aşama 82: rol yetkileri açık kurumda veli duyurusunu yalnızca yönetici, Rehberlik ve Ölçme Değerlendirme gönderir
+  if (!caller.isAdmin && !caller.isKurumAdmin && caller.kurumId) {
+    let rolesOn = false;
+    try {
+      rolesOn = (await rest('rpc/kurum_roles_on', { token: caller.token, method: 'POST', body: {} })) === true;
+    } catch {
+      rolesOn = false; // 82 numaralı SQL yoksa eski davranış
+    }
+    if (rolesOn) {
+      const ok = await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false);
+      if (ok !== true) throw new HttpError(403, 'Veli duyurusunu yalnızca Müdür, Müdür Yardımcısı, Rehberlik ve Ölçme Değerlendirme gönderebilir.');
+    }
+  }
+
   // Çağıranın görebildiği öğrenciler (kendi oturumuyla)
   const visible = await studentsByIds(ids, caller.token);
   if (!visible.length) throw new HttpError(404, 'Seçilen öğrencilere erişiminiz yok ya da öğrenci bulunamadı.');
@@ -1365,6 +1431,13 @@ async function deliver(sender, senderMeta, items, deadline) {
       summary.errors.push(`Saatlik e-posta sınırına ulaşıldı (${HOURLY_LIMIT_PER_SENDER}). Bir saat sonra tekrar deneyin.`);
       return summary;
     }
+  }
+
+  // Aşama 82: kurum hesabından gidenlerde e-posta başlığındaki okul adı yerine kurumun adı yazılır
+  if (sender.brandName) {
+    const from = `letter-spacing:.3px">${esc(env().schoolName)}</td>`;
+    const to = `letter-spacing:.3px">${esc(sender.brandName)}</td>`;
+    for (const it of queue) if (typeof it.html === 'string') it.html = it.html.replace(from, to);
   }
 
   let client;
@@ -1626,12 +1699,21 @@ async function actionStatus(caller) {
     if (rows && rows[0]) own = { gmail: rows[0].gmail, updatedAt: rows[0].updated_at };
   } catch {}
   const schoolConfigured = !!(e.gmailUser && e.gmailPass);
+  // Aşama 82: kurumun gönderim hesabı varsa bütün e-postalar oradan gider
+  let kurumAccount = null;
+  if (caller.kurumId) {
+    try {
+      const rows = await rest(`kurum_mail_accounts?select=gmail&kurum_id=eq.${encodeURIComponent(caller.kurumId)}`, { token: 'service' });
+      if (rows && rows[0]) kurumAccount = { gmail: rows[0].gmail };
+    } catch {}
+  }
   return {
     ok: true,
+    kurumAccount,
     schoolConfigured,
     schoolAddress: schoolConfigured ? e.gmailUser : null,
     own,
-    canSend: schoolConfigured || !!own,
+    canSend: schoolConfigured || !!own || !!kurumAccount,
     teacherEmail: caller.email || null,
     isAdmin: caller.isAdmin,
   };
@@ -1667,6 +1749,59 @@ async function actionConnectGmail(caller, body) {
     },
   });
   return { ok: true, own: { gmail } };
+}
+
+// ----------------------------------------------------------------------------- Aşama 82: kurum gönderim hesabı
+async function kurumIdForAdmin(caller, body) {
+  if (caller.isAdmin) {
+    const id = String((body && body.kurumId) || '');
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, 'Kurum seçiniz.');
+    return id;
+  }
+  if (caller.isKurumAdmin && caller.kurumId) return caller.kurumId;
+  throw new HttpError(403, 'Kurum e-posta ayarını yalnızca kurum yöneticisi (Müdür / Müdür Yardımcısı) değiştirebilir.');
+}
+async function actionKurumMailStatus(caller, body) {
+  const kid = await kurumIdForAdmin(caller, body);
+  try {
+    const rows = await rest(`kurum_mail_accounts?select=gmail,updated_at&kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+    const r = rows && rows[0];
+    return { ok: true, account: r ? { gmail: r.gmail, updatedAt: r.updated_at } : null };
+  } catch {
+    throw new HttpError(503, 'Kurum e-posta tablosu bulunamadı. Supabase SQL Editor\'de sql/82 numaralı dosyayı çalıştırın.');
+  }
+}
+async function actionKurumMailConnect(caller, body) {
+  const kid = await kurumIdForAdmin(caller, body);
+  const gmail = clean(body.gmail).toLowerCase();
+  const pass = String(body.appPassword || '').replace(/\s+/g, '');
+  if (!isEmail(gmail)) throw new HttpError(400, 'Geçerli bir e-posta adresi yazın.');
+  if (!/^[a-zA-Z]{16}$/.test(pass)) throw new HttpError(400, 'Uygulama şifresi 16 harften oluşur (boşluklar önemli değil).');
+  const client = new SmtpClient({ host: env().smtpHost, port: env().smtpPort, insecure: env().smtpInsecure });
+  try {
+    await client.connect();
+    await client.login(gmail, pass);
+  } catch (err) {
+    throw new HttpError(400, err.auth ? err.message : `Gmail'e bağlanılamadı: ${err.message}`);
+  } finally {
+    await client.quit();
+  }
+  try {
+    await rest('kurum_mail_accounts?on_conflict=kurum_id', {
+      token: 'service',
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates,return=minimal',
+      body: { kurum_id: kid, gmail, secret: encryptSecret(pass), updated_at: new Date().toISOString(), updated_by: caller.authId },
+    });
+  } catch {
+    throw new HttpError(503, 'Kurum e-posta tablosu bulunamadı. Supabase SQL Editor\'de sql/82 numaralı dosyayı çalıştırın.');
+  }
+  return { ok: true, account: { gmail } };
+}
+async function actionKurumMailDisconnect(caller, body) {
+  const kid = await kurumIdForAdmin(caller, body);
+  await rest(`kurum_mail_accounts?kurum_id=eq.${encodeURIComponent(kid)}`, { token: 'service', method: 'DELETE', prefer: 'return=minimal' });
+  return { ok: true, account: null };
 }
 
 async function actionDisconnectGmail(caller) {
@@ -3187,6 +3322,15 @@ export default async function handler(req, res) {
         break;
       case 'parent-announce':
         result = await actionParentAnnounce(caller, body, deadline);
+        break;
+      case 'kurum-mail-status':
+        result = await actionKurumMailStatus(caller, body);
+        break;
+      case 'kurum-mail-connect':
+        result = await actionKurumMailConnect(caller, body);
+        break;
+      case 'kurum-mail-disconnect':
+        result = await actionKurumMailDisconnect(caller, body);
         break;
       case 'sms-status':
         result = await actionSmsStatus(caller);

@@ -1,9 +1,8 @@
 import { supabase } from './supabase';
 
 // ============================================================================
-// UNVANLAR VE ROLLER (Aşama 81 — 1. aşama)
-// Roller tanımlanır ve kişilere atanır. Bu aşamada kimsenin yetkisi değişmez; aşağıdaki yetki tablosu
-// sonraki aşamalarda uygulanacak kuralların onaylanmış hâlidir (ekranda bilgi olarak gösterilir).
+// UNVANLAR VE ROLLER (Aşama 81, 82)
+// Roller tanımlanır ve kişilere atanır. Kurumda "Rol yetkileri" açıkken (sql/82) aşağıdaki yetki tablosu uygulanır.
 // Veritabanı: teacher_roles, teacher_role_log, set_teacher_roles() — sql/81_unvan_rolleri.sql
 // ============================================================================
 

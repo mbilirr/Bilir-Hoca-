@@ -95,20 +95,26 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         onChange={setSection}
         items={[
           { value: 'inbox', label: `Gelen Mesajlar${messages.filter((m) => !m.read).length ? ` (${messages.filter((m) => !m.read).length})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
-          {
-            value: 'etutNotes',
-            label: `Etüt Notları${etutNotes.unseen ? ` (${etutNotes.unseen} yeni)` : ''}`,
-            icon: NotebookPen,
-            id: 'messages-section-etut-notes',
-          },
+          ...(dataService.canSeeEtutNotesTab()
+            ? [
+                {
+                  value: 'etutNotes' as const,
+                  label: `Etüt Notları${etutNotes.unseen ? ` (${etutNotes.unseen} yeni)` : ''}`,
+                  icon: NotebookPen,
+                  id: 'messages-section-etut-notes',
+                },
+              ]
+            : []),
           { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
-          { value: 'parents', label: 'Veli Duyurusu', icon: Users, id: 'messages-section-parents' },
+          ...(dataService.canSendParentAnnouncements()
+            ? [{ value: 'parents' as const, label: 'Veli Duyurusu', icon: Users, id: 'messages-section-parents' }]
+            : []),
         ]}
       />
 
       {section === 'announce' && <TeacherAnnouncements />}
-      {section === 'parents' && <ParentAnnouncements />}
-      {section === 'etutNotes' && <EtutNotesInbox notes={etutNotes} />}
+      {section === 'parents' && dataService.canSendParentAnnouncements() && <ParentAnnouncements />}
+      {section === 'etutNotes' && dataService.canSeeEtutNotesTab() && <EtutNotesInbox notes={etutNotes} />}
 
       {/* Main Split Inbox View */}
       {section === 'inbox' && (
