@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, CalendarCheck, Check, ChevronDown, ChevronUp, PartyPopper, AlertTriangle, ListChecks } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { cx } from '../ui/kit';
+import { cx, IconBox } from '../ui/kit';
 import { dataService } from '../../services/dataService';
 import {
   PLAN_DAYS,
@@ -21,6 +21,9 @@ import {
 // Öğrenci ana sayfası: "Bugün yapılması gerekenler" (Aşama 19)
 // Öğretmenin ödev olarak gönderdiği haftalık çalışma planının bugünkü görevleri.
 // Öğrenci her görevi "yaptım" diye işaretleyebilir; geçen günlerden kalanlar ayrıca uyarılır.
+// Aşama 87: sistemin kart tasarımına uyumlu sade görünüm (mor degrade kaldırıldı). Bugünün görevleri öne
+// çıkar; geçen günlerden kalanlar uyarı renginde ve gün etiketiyle; haftalık görünümde geçmiş günler soluk,
+// bugün vurgulu. Hız: bulanık arka plan ve büyük gölge kaldırıldı, ilerleme çubuğu yalnızca transform ile çizilir.
 // ============================================================================
 
 export const StudentTodayPlan: React.FC<{
@@ -167,33 +170,44 @@ export const StudentTodayPlan: React.FC<{
 
   const dateText = today.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
 
+  // Satırın türü: bugün / geçen günden kalan / haftalık görünümde geçmiş, bugün ya da gelecek gün
+  type RowKind = 'today' | 'overdue' | 'past' | 'future';
+
+  const header = (
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <IconBox icon={CalendarCheck} tone="brand" size="sm" />
+        <div className="min-w-0">
+          <p className={cx('font-semibold text-fg leading-tight', compact ? 'text-sm' : 'text-base')}>Bugün yapılması gerekenler</p>
+          <p className="text-[11px] text-muted capitalize leading-tight mt-0.5">{dateText}</p>
+        </div>
+      </div>
+      {todayItems.length > 0 && (
+        <div className="text-right shrink-0" id="student-today-count">
+          <p className={cx('font-bold leading-none tabular-nums', allDone ? 'text-success-fg' : 'text-fg', compact ? 'text-base' : 'text-xl')}>
+            {doneToday}/{todayItems.length}
+          </p>
+          <p className="text-[10px] text-muted mt-0.5">görev tamamlandı</p>
+        </div>
+      )}
+    </div>
+  );
+
   // Plan hiç gönderilmemişse (ya da bu hafta görev yoksa): normal görünümde kart hiç görünmez,
   // küçük görünümde (ana sayfa yan paneli) yerleşim bozulmasın diye sade bir bilgi kartı gösterilir
   if (items.length === 0) {
     if (!compact) return null;
     return (
-      <section
-        id="student-today-plan"
-        aria-label="Bugün yapılması gerekenler"
-        className="rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white p-3 shadow-md border border-indigo-300/40"
-      >
-        <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl bg-white/20 border border-white/30 flex items-center justify-center shrink-0">
-            <CalendarCheck className="w-4 h-4" />
-          </span>
-          <div className="min-w-0">
-            <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-black bg-white text-indigo-800 uppercase tracking-wider">
-              Bugün yapılması gerekenler
-            </span>
-            <p className="text-[11px] font-bold mt-0.5 capitalize">{dateText}</p>
-          </div>
-        </div>
-        <p className="text-xs font-semibold text-indigo-50 mt-2" id="student-today-empty">
+      <section id="student-today-plan" aria-label="Bugün yapılması gerekenler" className="rounded-xl border border-line bg-surface p-3 space-y-2">
+        {header}
+        <p className="text-xs text-muted" id="student-today-empty">
           Bu hafta için gönderilmiş çalışma planın yok.
         </p>
       </section>
     );
   }
+
+  const smallBtn = 'inline-flex items-center justify-center h-7 w-20 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 
   // Yapılan görevin soru kaydındaki payı: "Soru kaydında: 40 soru · Düzenle"
   const renderShare = (it: PlanItem) => {
@@ -209,7 +223,7 @@ export const StudentTodayPlan: React.FC<{
             void saveEdit(it);
           }}
         >
-          <label className="text-[11px] font-bold" htmlFor={`share-${it.id}`}>
+          <label className="text-[11px] font-semibold text-fg-2" htmlFor={`share-${it.id}`}>
             Çözdüğün soru:
           </label>
           <input
@@ -220,44 +234,31 @@ export const StudentTodayPlan: React.FC<{
             maxLength={4}
             value={editValue}
             onChange={(e) => setEditValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            className="w-16 h-7 min-h-0 rounded-lg border border-white/60 bg-white px-2 py-0 text-xs font-black text-indigo-900 outline-none focus:ring-2 focus:ring-white"
+            className="w-16 h-7 min-h-0 rounded-md border border-line-strong bg-surface px-2 py-0 text-xs font-semibold text-fg tabular-nums outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             autoFocus
           />
-          <button
-            type="submit"
-            disabled={editSaving}
-            className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-indigo-800 hover:bg-indigo-50 disabled:opacity-60 cursor-pointer"
-          >
+          <button type="submit" disabled={editSaving} className={cx(smallBtn, 'bg-brand text-white hover:bg-brand-hover')}>
             {editSaving ? 'Kaydediliyor…' : 'Kaydet'}
           </button>
-          <button
-            type="button"
-            disabled={editSaving}
-            onClick={() => setEditId(null)}
-            className="rounded-lg border border-white/50 px-2 py-0.5 text-[11px] font-bold hover:bg-white/15 cursor-pointer"
-          >
+          <button type="button" disabled={editSaving} onClick={() => setEditId(null)} className={cx(smallBtn, 'border border-line bg-surface text-fg hover:bg-surface-2')}>
             Vazgeç
           </button>
         </form>
       );
     }
     return (
-      <div data-task-share className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] font-bold text-indigo-50">
+      <div data-task-share className="flex flex-wrap items-center gap-1.5 pt-0.5 text-[11px] text-muted">
         <ListChecks className="w-3.5 h-3.5 shrink-0" />
         {share ? (
           <span data-task-share-count>
-            Soru kaydında: {share.count} soru{share.date !== ymd(new Date()) ? ` (${shortDayLabel(share.date)})` : ''}
+            Soru kaydında: <span className="font-semibold text-fg-2">{share.count} soru</span>
+            {share.date !== ymd(new Date()) ? ` (${shortDayLabel(share.date)})` : ''}
           </span>
         ) : (
           <span>{busy ? 'Soru kaydına aktarılıyor…' : 'Soru kaydına aktarılmadı'}</span>
         )}
         {!busy && (
-          <button
-            type="button"
-            data-task-share-btn
-            onClick={() => startEdit(it)}
-            className="rounded-md bg-white/20 px-1.5 py-0.5 font-black hover:bg-white/30 cursor-pointer"
-          >
+          <button type="button" data-task-share-btn onClick={() => startEdit(it)} className="font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer">
             {share ? 'Düzenle' : 'Soru kaydına ekle'}
           </button>
         )}
@@ -265,17 +266,27 @@ export const StudentTodayPlan: React.FC<{
     );
   };
 
-  const renderRow = (it: PlanItem) => {
+  const renderRow = (it: PlanItem, kind: RowKind) => {
     const done = !!it.doneAt;
+    const late = kind === 'overdue' || (kind === 'past' && !done);
     return (
       <li
         key={it.id}
         data-today-task={it.id}
         data-done={done ? '1' : '0'}
+        data-kind={kind}
         className={cx(
-          'flex items-start rounded-xl border transition-colors',
-          compact ? 'gap-2 px-2 py-1.5' : 'gap-3 px-3 py-3',
-          done ? 'bg-white/8 border-white/15' : 'bg-white/15 border-white/30'
+          'flex items-start rounded-lg border transition-colors',
+          compact ? 'gap-2 px-2 py-1.5' : 'gap-3 px-3 py-2.5',
+          done
+            ? 'bg-surface-2 border-line'
+            : kind === 'today'
+            ? 'bg-surface border-line hover:border-line-strong'
+            : kind === 'overdue'
+            ? 'bg-surface border-warning/30'
+            : kind === 'past'
+            ? 'bg-surface-2 border-line'
+            : 'bg-surface border-dashed border-line-strong'
         )}
       >
         <button
@@ -285,31 +296,40 @@ export const StudentTodayPlan: React.FC<{
           aria-label={done ? 'Yapıldı işaretini kaldır' : 'Yaptım olarak işaretle'}
           onClick={() => toggle(it)}
           className={cx(
-            'mt-0.5 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all active:scale-90',
-            compact ? 'w-6 h-6' : 'w-8 h-8',
-            done ? 'bg-white border-white text-indigo-700' : 'border-white/80 text-transparent hover:bg-white/20'
+            'mt-0.5 shrink-0 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors',
+            compact ? 'w-6 h-6' : 'w-7 h-7',
+            done
+              ? 'bg-success border-success text-white'
+              : late
+              ? 'border-warning text-transparent hover:bg-warning-soft hover:text-warning-fg'
+              : 'border-line-strong text-transparent hover:border-brand hover:bg-brand-soft hover:text-brand-fg'
           )}
         >
-          <Check className={compact ? 'w-3.5 h-3.5' : 'w-5 h-5'} strokeWidth={3} />
+          <Check className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} strokeWidth={3} />
         </button>
         <div className={cx('min-w-0 flex-1', compact ? 'space-y-0.5' : 'space-y-1')}>
-          <div className={cx(compact ? 'space-y-0.5' : 'space-y-1', done && 'opacity-70')}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className={cx('inline-flex px-2 py-0.5 rounded-full bg-white/25 font-black tracking-wide', compact ? 'text-[10px]' : 'text-[11px]')}>{it.subject}</span>
-            {it.book && (
-              <span className={cx('inline-flex items-center gap-1 font-bold', compact ? 'text-[11px]' : 'text-xs')}>
-                <BookOpen className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} /> {it.book}
-              </span>
+          <div className={cx(compact ? 'space-y-0.5' : 'space-y-1', (done || kind === 'past') && 'opacity-75')}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {kind === 'overdue' && (
+                <span className="ui-chip ui-chip-warning !text-[10px] !leading-4" data-task-day>
+                  {shortDayLabel(dateOfDay(weekStart, it.day))}
+                </span>
+              )}
+              <span className="ui-chip ui-chip-neutral !text-[10px] !leading-4">{it.subject}</span>
+              {it.book && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+                  <BookOpen className="w-3 h-3" /> {it.book}
+                </span>
+              )}
+              {it.questionCount > 0 && (
+                <span className="ui-chip ui-chip-brand !text-[10px] !leading-4" data-task-qcount>
+                  {it.questionCount} soru
+                </span>
+              )}
+            </div>
+            {it.note && (
+              <p className={cx('whitespace-pre-wrap break-words', compact ? 'text-xs' : 'text-sm', done ? 'line-through text-muted' : 'text-fg font-medium')}>{it.note}</p>
             )}
-            {it.questionCount > 0 && (
-              <span className={cx('inline-flex px-2 py-0.5 rounded-full bg-white text-indigo-800 font-black', compact ? 'text-[10px]' : 'text-[11px]')} data-task-qcount>
-                {it.questionCount} soru
-              </span>
-            )}
-          </div>
-          {it.note && (
-            <p className={cx('font-medium whitespace-pre-wrap break-words', compact ? 'text-xs' : 'text-sm', done && 'line-through')}>{it.note}</p>
-          )}
           </div>
           {done && it.questionCount > 0 && renderShare(it)}
         </div>
@@ -317,129 +337,105 @@ export const StudentTodayPlan: React.FC<{
     );
   };
 
+  const pct = todayItems.length ? doneToday / todayItems.length : 0;
+
   return (
     <section
       id="student-today-plan"
       aria-label="Bugün yapılması gerekenler"
-      className={cx(
-        'relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white border-indigo-300/40',
-        compact ? 'p-3 shadow-md border' : 'p-4 sm:p-6 shadow-xl shadow-indigo-500/25 border-2'
-      )}
+      className={cx('rounded-xl border border-line bg-surface', compact ? 'p-3 space-y-2.5' : 'p-4 sm:p-5 space-y-3 shadow-sm')}
     >
-      <div className={cx('absolute bg-white/10 rounded-full blur-2xl pointer-events-none', compact ? '-right-6 -top-6 w-20 h-20' : '-right-8 -top-8 w-40 h-40')} />
-      <div className={cx('relative z-10', compact ? 'space-y-2.5' : 'space-y-4')}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className={cx(
-                'bg-white/20 border border-white/30 flex items-center justify-center shrink-0',
-                compact ? 'w-8 h-8 rounded-xl' : 'w-11 h-11 rounded-2xl'
-              )}
-            >
-              <CalendarCheck className={compact ? 'w-4 h-4' : 'w-6 h-6'} />
-            </span>
-            <div className="min-w-0">
-              <span
-                className={cx(
-                  'inline-block rounded-full font-black bg-white text-indigo-800 uppercase tracking-wider',
-                  compact ? 'px-2 py-0.5 text-[9px]' : 'px-2.5 py-0.5 text-[10px]'
-                )}
-              >
-                Bugün yapılması gerekenler
-              </span>
-              <p className={cx('font-bold capitalize', compact ? 'text-[11px] mt-0.5' : 'text-sm mt-1')}>{dateText}</p>
-            </div>
-          </div>
-          {todayItems.length > 0 && (
-            <div className="text-right" id="student-today-count">
-              <p className={cx('font-black leading-none tabular-nums', compact ? 'text-base' : 'text-2xl')}>
-                {doneToday}/{todayItems.length}
-              </p>
-              <p className={cx('font-semibold text-indigo-100', compact ? 'text-[10px]' : 'text-[11px]')}>görev tamamlandı</p>
-            </div>
-          )}
+      {header}
+
+      {todayItems.length > 0 && (
+        <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden" aria-hidden>
+          <div
+            className={cx('h-full w-full rounded-full origin-left transition-transform duration-500', allDone ? 'bg-success' : 'bg-brand')}
+            style={{ transform: `scaleX(${pct})` }}
+          />
         </div>
+      )}
 
-        {todayItems.length > 0 && (
-          <div className="h-2 rounded-full bg-white/25 overflow-hidden" aria-hidden>
-            <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${Math.round((doneToday / todayItems.length) * 100)}%` }} />
-          </div>
-        )}
+      {allDone && (
+        <div id="student-today-alldone" className="flex items-center gap-1.5 rounded-lg bg-success-soft text-success-fg px-2.5 py-1.5 text-xs font-semibold">
+          <PartyPopper className="w-4 h-4 shrink-0" /> Harika! Bugünkü görevlerin tamam.
+        </div>
+      )}
 
-        {allDone && (
-          <div id="student-today-alldone" className={cx('flex items-center gap-2 rounded-xl bg-white/20 font-bold', compact ? 'px-2 py-1.5 text-xs' : 'px-3 py-2 text-sm')}>
-            <PartyPopper className="w-4 h-4" /> Harika! Bugünkü görevlerin tamam.
-          </div>
-        )}
+      {todayItems.length > 0 ? (
+        <ul className={cx('space-y-1.5', compact && 'max-h-80 overflow-y-auto pr-0.5')} id="student-today-list">
+          {todayItems.map((it) => renderRow(it, 'today'))}
+        </ul>
+      ) : (
+        <p className="text-xs text-muted" id="student-today-empty">
+          Bugün için planlanmış görevin yok.
+        </p>
+      )}
 
-        {todayItems.length > 0 ? (
-          <ul className={cx('space-y-2', compact && 'space-y-1.5 max-h-80 overflow-y-auto pr-0.5')} id="student-today-list">
-            {todayItems.map((it) => renderRow(it))}
-          </ul>
-        ) : (
-          <p className="text-sm font-semibold text-indigo-50" id="student-today-empty">
-            Bugün için planlanmış görevin yok.
+      {overdue.length > 0 && (
+        <div className="rounded-lg border border-warning/30 bg-warning-soft/50 p-2 space-y-1.5" id="student-today-overdue">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-warning-fg">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Geçen günlerden kalan {overdue.length} görev
           </p>
-        )}
+          <ul className="space-y-1.5">{overdue.map((it) => renderRow(it, 'overdue'))}</ul>
+        </div>
+      )}
 
-        {overdue.length > 0 && (
-          <div className="rounded-xl bg-amber-400/20 border border-amber-200/50 p-3 space-y-2" id="student-today-overdue">
-            <p className="flex items-center gap-1.5 text-xs font-black text-amber-100">
-              <AlertTriangle className="w-4 h-4" /> Geçen günlerden kalan {overdue.length} görev
-            </p>
-            <ul className="space-y-2">
-              {overdue.map((it) => renderRow(it))}
-            </ul>
-          </div>
-        )}
+      {info && (
+        <p role="status" id="student-today-info" className="text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-success-soft text-success-fg">
+          {info}
+        </p>
+      )}
 
-        {info && (
-          <p role="status" id="student-today-info" className="text-xs font-bold bg-emerald-500/80 rounded-lg px-3 py-2">
-            {info}
-          </p>
-        )}
+      {error && (
+        <p role="alert" className="text-xs font-semibold rounded-lg px-2.5 py-1.5 bg-danger-soft text-danger-fg">
+          {error}
+        </p>
+      )}
 
-        {error && (
-          <p role="alert" className="text-xs font-bold bg-rose-500/80 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        <div>
-          <button
-            type="button"
-            id="student-plan-week-toggle"
-            aria-expanded={showWeek}
-            onClick={() => setShowWeek((v) => !v)}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-50 hover:text-white underline-offset-2 hover:underline cursor-pointer"
-          >
-            {showWeek ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Bu haftanın planı ({weekRangeLabel(weekStart)})
-          </button>
-          {showWeek && (
-            <div id="student-plan-week" className="mt-3 space-y-3">
-              {PLAN_DAYS.map((_, d) => {
-                const name = planDayName(weekStart, d);
-                const list = items.filter((i) => i.day === d);
-                if (!list.length) return null;
-                const date = dateOfDay(weekStart, d);
-                return (
-                  <div key={d} data-week-day={d}>
-                    <p className={cx('text-xs font-black uppercase tracking-wide mb-1.5', date === todayStr ? 'text-white' : 'text-indigo-100')}>
+      <div className="pt-0.5">
+        <button
+          type="button"
+          id="student-plan-week-toggle"
+          aria-expanded={showWeek}
+          onClick={() => setShowWeek((v) => !v)}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer"
+        >
+          {showWeek ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          Bu haftanın planı ({weekRangeLabel(weekStart)})
+        </button>
+        {showWeek && (
+          <div id="student-plan-week" className="mt-2.5 space-y-2.5">
+            {PLAN_DAYS.map((_, d) => {
+              const list = items.filter((i) => i.day === d);
+              if (!list.length) return null;
+              const name = planDayName(weekStart, d);
+              const date = dateOfDay(weekStart, d);
+              const kind: RowKind = date === todayStr ? 'today' : date < todayStr ? 'past' : 'future';
+              const dayDone = list.filter((i) => i.doneAt).length;
+              return (
+                <div key={d} data-week-day={d} data-day-kind={kind} className={cx(kind === 'today' && 'rounded-lg border border-brand/25 bg-brand-soft/40 p-2')}>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className={cx('text-[11px] font-semibold uppercase tracking-wide', kind === 'today' ? 'text-brand-fg' : kind === 'past' ? 'text-muted' : 'text-fg-2')}>
                       {name} · {shortDayLabel(date)}
-                      {date === todayStr && ' (bugün)'}
                     </p>
-                    <ul className="space-y-2">
-                      {list.map((it) => renderRow(it))}
-                    </ul>
+                    <span
+                      className={cx(
+                        'ui-chip !text-[10px] !leading-4',
+                        kind === 'today' ? 'ui-chip-brand' : dayDone === list.length ? 'ui-chip-success' : kind === 'past' ? 'ui-chip-warning' : 'ui-chip-neutral'
+                      )}
+                    >
+                      {kind === 'today' ? 'Bugün' : kind === 'past' ? (dayDone === list.length ? 'Tamamlandı' : 'Geçti') : 'Sıradaki'} · {dayDone}/{list.length}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        {sentBy && <p className="text-[11px] text-indigo-100/90">Planı hazırlayan: {sentBy}</p>}
+                  <ul className="space-y-1.5">{list.map((it) => renderRow(it, kind))}</ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {sentBy && <p className="text-[11px] text-muted">Planı hazırlayan: {sentBy}</p>}
     </section>
   );
 };

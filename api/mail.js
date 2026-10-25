@@ -82,7 +82,11 @@ function env() {
       process.env.APP_URL ||
       (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '')
     ).replace(/\/+$/, ''),
-    schoolName: process.env.SCHOOL_NAME || 'Eğitim & Öğrenci Takip Sistemi',
+    // Aşama 87: SCHOOL_NAME ayarına yanlışlıkla bir site adresi yazılmışsa (ör. bilir-hoca.vercel.app) e-postada görünmez
+    schoolName: (() => {
+      const n = String(process.env.SCHOOL_NAME || '').trim();
+      return n && !/vercel\.app|https?:\/\/|\.(com|net|org|app)\b/i.test(n) ? n : 'Eğitim & Öğrenci Takip Sistemi';
+    })(),
     cronSecret: process.env.CRON_SECRET || '',
   };
 }
@@ -1183,7 +1187,7 @@ async function sendPolicySms(items, policy) {
     }
   }
   if (!want.length) return null;
-  const url = env().appUrl;
+  const url = appUrl(null);
   const students = await studentParentsMap(want.filter((w) => w.it.studentId).map((w) => w.it.studentId));
   const teacherEmails = [...new Set(want.filter((w) => w.toTeacher).map((w) => w.it.to.trim().toLowerCase()))];
   const teacherPhone = new Map();
@@ -1814,12 +1818,27 @@ async function fetchVisible(table, id, token) {
     );
   return rows[0];
 }
+// Aşama 87: e-posta ve SMS bağlantıları her zaman sitenin asıl adresine gider.
+// Eski / yedek Vercel adresleri (ör. bilir-hoca.vercel.app, *.vercel.app deneme adresleri) hiç kullanılmaz;
+// APP_URL ayarı eski bir adres gösterse bile www.biliredu.com kullanılır. Yerel denemede (localhost) yerel adres kalır.
+const MAIN_APP_URL = 'https://www.biliredu.com';
+function hostOf(u) {
+  try {
+    return new URL(u).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+function isLocalHost(h) {
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(h);
+}
 function appUrl(req) {
   const e = env();
-  if (e.appUrl) return e.appUrl;
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  return host ? `${proto}://${host}` : '';
+  const envHost = e.appUrl ? hostOf(e.appUrl) : '';
+  if (envHost && !envHost.endsWith('.vercel.app')) return e.appUrl;
+  const host = req && req.headers ? String(req.headers['x-forwarded-host'] || req.headers.host || '') : '';
+  if (host && isLocalHost(hostOf(`http://${host}`))) return `http://${host}`;
+  return MAIN_APP_URL;
 }
 function mergeSummaries(a, b) {
   if (!a) return b;

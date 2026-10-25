@@ -5462,8 +5462,10 @@ export class DataService {
     if (!clean.includes('@') || clean.endsWith('@okul.internal.net')) {
       throw new Error('Şifre sıfırlama bağlantısı yalnızca gerçek bir e-posta adresine gönderilebilir.');
     }
+    // Aşama 87: site eski / yedek bir Vercel adresinden açılmışsa bağlantı yine asıl adrese (www.biliredu.com) gider
+    const origin = /\.vercel\.app$/i.test(window.location.hostname) ? 'https://www.biliredu.com' : window.location.origin;
     const { error } = await supabase.auth.resetPasswordForEmail(clean, {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: `${origin}/`,
     });
     if (error) {
       throw new Error(this.translatePasswordError(error.message));
