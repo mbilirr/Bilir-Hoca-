@@ -170,10 +170,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     fn();
   };
 
-  // Aşama 82: kurum öğretmenlerinde kurumun adı ve logosu görünür
-  const myKurum = isTeacherSession ? dataService.getMyKurum() : null;
-  const brandName = myKurum && myKurum.kurumId && myKurum.kurumName ? myKurum.kurumName : 'Eğitim Takip';
-  const brandLogo = myKurum && myKurum.kurumId && myKurum.logo ? myKurum.logo : '';
+  // Aşama 82-83: öğretmende ve öğrencide kendi kurumunun adı ve logosu görünür
+  const kurumBrand = dataService.getBrand();
+  const brandName = kurumBrand.name || 'Eğitim Takip';
+  const brandLogo = kurumBrand.logo || '';
 
   const brand = (
     <button

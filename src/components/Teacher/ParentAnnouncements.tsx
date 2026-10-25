@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Search, Users, CheckCircle2, AlertCircle, School, Mail, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Send, Search, Users, CheckCircle2, AlertCircle, School, Mail, MessageSquare, AlertTriangle, UserRound, GraduationCap } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { callMail } from '../../lib/mailApi';
 import type { MailResult } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
-// VELİ DUYURUSU (Aşama 73)
-// Öğretmen, seçtiği sınıf ya da öğrencilerin velilerine e-posta ve/veya SMS ile duyuru gönderir.
+// VELİ / ÖĞRENCİ DUYURUSU (Aşama 73, 83)
+// Öğretmen, seçtiği sınıf ya da öğrencilerin velilerine ve/veya öğrencilerin kendilerine e-posta ve/veya SMS ile duyuru gönderir.
+// Aşama 83: alıcı olarak "Öğrenciler" de seçilebilir (öğrenci kaydındaki e-posta ve telefon).
 // Veli bilgileri öğrenci kaydındaki "Veliler" bölümünden alınır. Alıcıları sunucu bulur ve yetkiyi denetler.
 // ============================================================================
 
@@ -39,6 +40,11 @@ const mailKey = (raw?: string) => {
   const e = String(raw || '').trim().toLowerCase();
   return /^[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(e) ? e : '';
 };
+// Sistemin ürettiği giriş adresleri (std_…@okul.internal.net) gerçek e-posta değildir
+const studentMailKey = (raw?: string) => {
+  const e = mailKey(raw);
+  return e && !/@(okul\.internal\.net|school\.internal|student\.school\.internal)$/.test(e) ? e : '';
+};
 
 export const ParentAnnouncements: React.FC = () => {
   const [tick, setTick] = useState(0);
@@ -51,6 +57,8 @@ export const ParentAnnouncements: React.FC = () => {
   const [message, setMessage] = useState('');
   const [useMail, setUseMail] = useState(true);
   const [useSms, setUseSms] = useState(false);
+  const [toParents, setToParents] = useState(true);
+  const [toStudents, setToStudents] = useState(false);
   const [target, setTarget] = useState<Target>('class');
   const [classIds, setClassIds] = useState<string[]>([]);
   const [studentIds, setStudentIds] = useState<string[]>([]);
@@ -77,14 +85,26 @@ export const ParentAnnouncements: React.FC = () => {
     return students.filter((s) => set.has(s.id));
   }, [target, students, classIds, studentIds]);
 
-  // Önizleme: kaç veliye gidecek, hangi öğrencilerin uygun veli bilgisi yok
+  // Önizleme: kaç kişiye gidecek, hangi öğrencilerin uygun iletişim bilgisi yok
   const preview = useMemo(() => {
     const mails = new Set<string>();
     const phones = new Set<string>();
     const noContact: string[] = [];
     for (const s of recipients) {
       let any = false;
-      for (const p of s.parents || []) {
+      if (toStudents) {
+        const em = studentMailKey(s.email);
+        const ph = mobileKey(s.phone);
+        if (useMail && em) {
+          mails.add(em);
+          any = true;
+        }
+        if (useSms && ph) {
+          phones.add(ph);
+          any = true;
+        }
+      }
+      for (const p of toParents ? s.parents || [] : []) {
         const em = mailKey(p.email);
         const ph = mobileKey(p.phone);
         if (useMail && em) {
@@ -99,7 +119,8 @@ export const ParentAnnouncements: React.FC = () => {
       if (!any) noContact.push(`${s.name}${s.className ? ` (${s.className})` : ''}`);
     }
     return { mails: mails.size, phones: phones.size, noContact };
-  }, [recipients, useMail, useSms]);
+  }, [recipients, useMail, useSms, toParents, toStudents]);
+  const whoWord = toParents && toStudents ? 'kişiye' : toStudents ? 'öğrenciye' : 'veliye';
 
   const visibleStudents = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('tr-TR');
@@ -114,7 +135,7 @@ export const ParentAnnouncements: React.FC = () => {
   // Gönderim kimliği: form değişmediği sürece aynı kalır (çift tıklamada aynı kişiye iki kez gitmez).
   // Metin, başlık, alıcı ya da yol değişirse yeni bir duyuru sayılır.
   const sendIdRef = useRef<string>(newSendId());
-  const formKey = `${subject}|${message}|${useMail}|${useSms}|${recipients.map((s) => s.id).join(',')}`;
+  const formKey = `${subject}|${message}|${useMail}|${useSms}|${toParents}|${toStudents}|${recipients.map((s) => s.id).join(',')}`;
   const lastKeyRef = useRef(formKey);
   if (lastKeyRef.current !== formKey) {
     lastKeyRef.current = formKey;
@@ -126,6 +147,7 @@ export const ParentAnnouncements: React.FC = () => {
   const canAsk =
     !sending &&
     (useMail || useSms) &&
+    (toParents || toStudents) &&
     subject.trim().length > 0 &&
     message.trim().length > 0 &&
     !smsTooLong &&
@@ -147,8 +169,8 @@ export const ParentAnnouncements: React.FC = () => {
         tone = 'danger';
       } else {
         const parts: string[] = [];
-        if (r.sent) parts.push(`${r.sent} veliye e-posta gönderildi`);
-        if (r.skipped) parts.push(`${r.skipped} veliye bu duyuru zaten gönderilmişti`);
+        if (r.sent) parts.push(`${r.sent} ${whoWord} e-posta gönderildi`);
+        if (r.skipped) parts.push(`${r.skipped} ${whoWord} bu duyuru zaten gönderilmişti`);
         if (r.failed) {
           parts.push(`${r.failed} e-posta gönderilemedi${r.errors && r.errors[0] ? ` (${r.errors[0]})` : ''}`);
           tone = 'danger';
@@ -158,7 +180,7 @@ export const ParentAnnouncements: React.FC = () => {
           tone = 'danger';
         }
         if (parts.length) lines.push(parts.join(' · ') + '.');
-        else if (r.announce && r.announce.mailRecipients === 0) lines.push('E-posta adresi kayıtlı veli bulunamadı.');
+        else if (r.announce && r.announce.mailRecipients === 0) lines.push('E-posta adresi kayıtlı kişi bulunamadı.');
       }
     }
     if (useSms) {
@@ -169,7 +191,7 @@ export const ParentAnnouncements: React.FC = () => {
         if (tone === 'success') tone = 'warning';
       } else {
         const parts: string[] = [];
-        if (s.sent) parts.push(`${s.sent} veliye SMS gönderildi`);
+        if (s.sent) parts.push(`${s.sent} ${whoWord} SMS gönderildi`);
         if (s.dry) {
           parts.push(`${s.dry} SMS DENEME MODUNDA kaydedildi (gerçekte gitmedi)`);
           if (tone === 'success') tone = 'warning';
@@ -189,7 +211,7 @@ export const ParentAnnouncements: React.FC = () => {
     }
     if (r.announce && r.announce.noContact) {
       lines.push(
-        `${r.announce.noContact} öğrencinin seçtiğiniz yola uygun veli bilgisi yok${
+        `${r.announce.noContact} öğrencinin seçtiğiniz yola uygun iletişim bilgisi yok${
           r.announce.noContactNames && r.announce.noContactNames.length ? `: ${r.announce.noContactNames.slice(0, 8).join(', ')}${r.announce.noContact > 8 ? '…' : ''}` : ''
         }.`
       );
@@ -211,6 +233,7 @@ export const ParentAnnouncements: React.FC = () => {
         subject: subject.trim(),
         message: message.trim(),
         channels: { email: useMail, sms: useSms },
+        audience: { parents: toParents, students: toStudents },
       });
       const res = buildResult(r);
       setFeedback(res);
@@ -240,10 +263,38 @@ export const ParentAnnouncements: React.FC = () => {
     <div className="max-w-3xl" id="parent-announcements">
       <div className="bg-surface border border-line rounded-2xl p-4 sm:p-6 shadow-card space-y-5">
         <div>
-          <h3 className="text-base font-bold text-fg">Velilere duyuru gönder</h3>
+          <h3 className="text-base font-bold text-fg">Veli / öğrenci duyurusu gönder</h3>
           <p className="text-xs text-muted mt-0.5">
-            Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) e-posta ve/veya SMS ile gider. Veli bilgisi olmayan öğrenciler atlanır.
+            Mesaj, seçtiğiniz öğrencilerin velilerine (öğrenci kaydındaki Veliler bölümü) ve/veya öğrencilerin kendilerine (kayıtlı e-posta ve telefon) e-posta
+            ve/veya SMS ile gider. İletişim bilgisi olmayanlar atlanır.
           </p>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-semibold text-fg-2">Kime gitsin?</span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toParents ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+            >
+              <input type="checkbox" checked={toParents} onChange={(e) => setToParents(e.target.checked)} className="accent-indigo-600" id="pa-to-parents" />
+              <UserRound className="w-5 h-5 shrink-0 text-fg-2" />
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-fg">Veliler</span>
+                <span className="block text-[11px] text-muted">Öğrenci kaydındaki veli e-posta ve telefonları</span>
+              </span>
+            </label>
+            <label
+              className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${toStudents ? 'border-indigo-500 bg-indigo-500/10' : 'border-line bg-surface-2/50 hover:bg-surface-2'}`}
+            >
+              <input type="checkbox" checked={toStudents} onChange={(e) => setToStudents(e.target.checked)} className="accent-indigo-600" id="pa-to-students" />
+              <GraduationCap className="w-5 h-5 shrink-0 text-fg-2" />
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-fg">Öğrenciler</span>
+                <span className="block text-[11px] text-muted">Öğrencinin kendi e-postası ve telefonu</span>
+              </span>
+            </label>
+          </div>
+          {!toParents && !toStudents && <p className="text-[11px] text-rose-600">En az bir alıcı seçin.</p>}
         </div>
 
         <div className="space-y-2">
@@ -307,7 +358,7 @@ export const ParentAnnouncements: React.FC = () => {
               maxLength={TEXT_MAX}
               rows={5}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Velilerin okuyacağı metni yazın…"
+              placeholder="Duyuru metnini yazın…"
               className="w-full px-3 py-2.5 bg-surface-2 border border-line rounded-xl text-sm text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
             />
             {smsTooLong && <p className="text-[11px] text-rose-600 mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
@@ -316,7 +367,7 @@ export const ParentAnnouncements: React.FC = () => {
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-fg-2">Hangi öğrencilerin velilerine?</span>
+            <span className="text-xs font-semibold text-fg-2">Hangi öğrenciler?</span>
             <div className="inline-flex p-1 rounded-xl bg-surface-2 border border-line" role="tablist">
               {(
                 [
@@ -437,14 +488,14 @@ export const ParentAnnouncements: React.FC = () => {
                 {useMail && (
                   <>
                     {' '}
-                    <strong className="text-fg">{preview.mails}</strong> veliye e-posta
+                    <strong className="text-fg">{preview.mails}</strong> {whoWord} e-posta
                   </>
                 )}
                 {useMail && useSms && ','}
                 {useSms && (
                   <>
                     {' '}
-                    <strong className="text-fg">{preview.phones}</strong> veliye SMS
+                    <strong className="text-fg">{preview.phones}</strong> {whoWord} SMS
                   </>
                 )}{' '}
                 gidecek.
@@ -452,7 +503,7 @@ export const ParentAnnouncements: React.FC = () => {
               {preview.noContact.length > 0 && (
                 <details className="text-amber-800 dark:text-amber-300">
                   <summary className="cursor-pointer font-semibold">
-                    {preview.noContact.length} öğrencinin seçtiğiniz yola uygun veli bilgisi yok (gönderilmeyecek)
+                    {preview.noContact.length} öğrencinin seçtiğiniz yola uygun iletişim bilgisi yok (gönderilmeyecek)
                   </summary>
                   <p className="mt-1 text-[11px] leading-relaxed">{preview.noContact.join(', ')}</p>
                 </details>
@@ -475,9 +526,18 @@ export const ParentAnnouncements: React.FC = () => {
         {confirming ? (
           <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-indigo-500/40 bg-indigo-500/10 p-3">
             <span className="text-xs text-fg">
-              {useMail && <strong>{preview.mails} veliye e-posta</strong>}
+              {useMail && (
+                <strong>
+                  {preview.mails} {whoWord} e-posta
+                </strong>
+              )}
               {useMail && useSms && ' ve '}
-              {useSms && <strong>{preview.phones} veliye SMS</strong>} gönderilecek. Onaylıyor musunuz?
+              {useSms && (
+                <strong>
+                  {preview.phones} {whoWord} SMS
+                </strong>
+              )}{' '}
+              gönderilecek. Onaylıyor musunuz?
             </span>
             <span className="flex items-center gap-2">
               <button type="button" className="ui-btn" onClick={() => setConfirming(false)} id="pa-cancel">
@@ -499,7 +559,7 @@ export const ParentAnnouncements: React.FC = () => {
               className="ui-btn ui-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
-              <span>{sending ? 'Gönderiliyor…' : 'Velilere Gönder'}</span>
+              <span>{sending ? 'Gönderiliyor…' : 'Gönder'}</span>
             </button>
           </div>
         )}

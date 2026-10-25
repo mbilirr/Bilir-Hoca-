@@ -348,6 +348,12 @@ export default function App() {
     }
   });
 
+  // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
+  const brandTitle = authSession ? dataService.getBrand().name : '';
+  useEffect(() => {
+    document.title = brandTitle ? `${brandTitle} · Eğitim Takip` : 'Eğitim & Öğrenci Takip Sistemi';
+  }, [brandTitle]);
+
   if (!authSession) {
     return (
       <div className="relative min-h-screen">

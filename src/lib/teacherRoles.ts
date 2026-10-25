@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 // ============================================================================
-// UNVANLAR VE ROLLER (Aşama 81, 82)
+// UNVANLAR VE ROLLER (Aşama 81, 82, 83)
 // Roller tanımlanır ve kişilere atanır. Kurumda "Rol yetkileri" açıkken (sql/82) aşağıdaki yetki tablosu uygulanır.
 // Veritabanı: teacher_roles, teacher_role_log, set_teacher_roles() — sql/81_unvan_rolleri.sql
 // ============================================================================
@@ -32,7 +32,66 @@ export const ROLE_BY_CODE: Record<TeacherRole, RoleDef> = ROLE_DEFS.reduce(
   {} as Record<TeacherRole, RoleDef>
 );
 
-export const roleLabel = (code: string) => (ROLE_BY_CODE as Record<string, RoleDef>)[code]?.label || code;
+export const roleLabel = (code: string) => {
+  // Aşama 83: kişiye özel bölüm izni kayıtları (bolum+homework / bolum-deneme)
+  const m = /^bolum([+-])(.+)$/.exec(code);
+  if (m) return `${sectionLabel(m[2])} bölümü ${m[1] === '+' ? 'açık' : 'kapalı'}`;
+  return (ROLE_BY_CODE as Record<string, RoleDef>)[code]?.label || code;
+};
+
+// ----------------------------------------------------------------------------- Aşama 83: kişiye özel bölüm izni
+export type SectionKey = 'home' | 'students' | 'homework' | 'etuts' | 'messages' | 'archive' | 'grades' | 'question_tracking' | 'deneme';
+export type SectionMode = 'role' | 'allow' | 'deny';
+export interface SectionAccess {
+  allow: SectionKey[];
+  deny: SectionKey[];
+}
+export const SECTION_DEFS: Array<{ key: SectionKey; label: string }> = [
+  { key: 'home', label: 'Ana Sayfa' },
+  { key: 'students', label: 'Öğrenciler' },
+  { key: 'homework', label: 'Ödevler ve Plan' },
+  { key: 'etuts', label: 'Etütler' },
+  { key: 'question_tracking', label: 'Soru Takibi' },
+  { key: 'grades', label: 'Not & Yoklama' },
+  { key: 'messages', label: 'Mesajlar' },
+  { key: 'archive', label: 'Arşiv' },
+  { key: 'deneme', label: 'Deneme Analizi' },
+];
+export const sectionLabel = (key: string) => SECTION_DEFS.find((d) => d.key === key)?.label || key;
+
+/** Rolün bu bölümü açıp açmadığı (veritabanındaki role_section_ok ile aynı) */
+export function roleOpensSection(roles: string[], key: SectionKey): boolean {
+  if (roles.length === 0) return true;
+  if (roles.includes('mudur') || roles.includes('mudur_yardimcisi')) return true;
+  const all: SectionKey[] = ['home', 'students', 'homework', 'etuts', 'messages', 'archive', 'grades', 'question_tracking', 'deneme'];
+  if (roles.includes('rehberlik') && all.includes(key)) return true;
+  if (roles.includes('olcme_degerlendirme') && (['home', 'students', 'messages', 'archive', 'deneme'] as SectionKey[]).includes(key)) return true;
+  if ((roles.includes('ogretmen') || roles.includes('zumre_baskani')) && all.includes(key)) return true;
+  if (roles.includes('etut_ogretmeni') && key === 'etuts') return true;
+  return false;
+}
+
+const sectionsMissingMsg = 'Bölüm izni tablosu bulunamadı. Supabase SQL Editor\'de sql/83_mahremiyet_bolum_izni_kurum.sql dosyasını çalıştırın.';
+const isSectionsMissing = (e: { message?: string; code?: string } | null) =>
+  !!e && (/teacher_section_access|set_teacher_sections|schema cache|does not exist/i.test(e.message || '') || e.code === '42P01' || e.code === 'PGRST202' || e.code === 'PGRST205');
+
+/** Görülebilen kişiye özel bölüm izinleri: öğretmen kimliği -> izinler */
+export async function fetchTeacherSections(): Promise<Map<string, SectionAccess>> {
+  const { data, error } = await supabase.from('teacher_section_access').select('teacher_id,allow_sections,deny_sections');
+  if (error) throw new Error(isSectionsMissing(error) ? sectionsMissingMsg : error.message);
+  const map = new Map<string, SectionAccess>();
+  for (const r of (data || []) as Array<{ teacher_id: string; allow_sections: SectionKey[] | null; deny_sections: SectionKey[] | null }>) {
+    map.set(r.teacher_id, { allow: r.allow_sections || [], deny: r.deny_sections || [] });
+  }
+  return map;
+}
+
+export async function saveTeacherSections(teacherId: string, access: SectionAccess): Promise<SectionAccess> {
+  const { data, error } = await supabase.rpc('set_teacher_sections', { p_teacher_id: teacherId, p_allow: access.allow, p_deny: access.deny });
+  if (error) throw new Error(isSectionsMissing(error) ? sectionsMissingMsg : error.message);
+  const d = (data || {}) as { allow?: SectionKey[]; deny?: SectionKey[] };
+  return { allow: Array.isArray(d.allow) ? d.allow : access.allow, deny: Array.isArray(d.deny) ? d.deny : access.deny };
+}
 
 /** Onaylanan yetki tablosu (sütun sırası: Müdür/Müdür Yrd., Rehberlik, Ölçme Değ., Zümre Bşk., Öğretmen, Etüt Öğr.) */
 export const MATRIX_COLUMNS = ['Müdür / Müdür Yrd.', 'Rehberlik', 'Ölçme Değ.', 'Zümre Bşk.', 'Öğretmen', 'Etüt Öğr.'];
@@ -53,12 +112,14 @@ export const PERMISSION_MATRIX: Array<{ area: string; cells: string[] }> = [
   { area: 'Öğrenci listesi alma', cells: ['Tümü', 'Tümü', 'Tümü', 'Zümresinin sınıfları', 'Sınıfları', '—'] },
   { area: 'Arşiv', cells: ['Tümü', 'Görür', 'Görür', 'Zümresini düzenler', 'Görür · kendi yüklediğini düzenler', '—'] },
   { area: 'Kurum ayarları (mail, logo, isim)', cells: ['Evet', '—', '—', '—', '—', '—'] },
+  { area: 'Not & yoklama', cells: ['Tümü', 'Tümünü görür', 'Tümünü görür', 'Zümresini görür', 'Yalnızca kendi girdiği', '—'] },
 ];
 export const MATRIX_NOTES = [
   'Bir kişiye birden fazla rol verilebilir; yetkiler toplanır, en geniş olan geçerli olur.',
   'Zümre başkanı öğretmen rolüyle birlikte verilir; zümresi öğretmenin kayıtlı branşıdır.',
   'Müdür rolünü yalnızca genel yönetici verebilir; kimse kendinde olmayan bir yetkiyi veremez.',
   'Kim, kime, hangi rolü ne zaman verdi kaydı tutulur.',
+  'Müdür / Müdür Yrd. bir kişiye rolünden bağımsız bir bölümü açabilir ya da kapatabilir (Bölümler düğmesi).',
 ];
 
 // ----------------------------------------------------------------------------- veri

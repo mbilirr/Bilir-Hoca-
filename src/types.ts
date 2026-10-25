@@ -260,6 +260,8 @@ export interface AttendanceRecord {
     status: AttendanceStatus;
     note?: string;
   }[];
+  /** Aşama 83: kaydı giren öğretmenin giriş hesabı (veritabanı doldurur) */
+  createdBy?: string;
 }
 
 export interface GradeRecord {
@@ -273,6 +275,8 @@ export interface GradeRecord {
   maxScore?: number;
   date: string;
   remarks?: string;
+  /** Aşama 83: notu giren öğretmenin giriş hesabı (veritabanı doldurur) */
+  createdBy?: string;
 }
 
 export interface StudentMessage {

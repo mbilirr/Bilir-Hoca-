@@ -169,6 +169,8 @@ interface MyKurumState {
   roleSettings: { rehberlik_ogrenci_ekle?: boolean };
   logo: string;
   hasMail: boolean;
+  /** Aşama 83: kişiye özel bölüm izinleri (rolden bağımsız açılan / kapatılan bölümler) */
+  sections: { allow: string[]; deny: string[] };
 }
 const EMPTY_KURUM_STATE: MyKurumState = {
   loaded: false,
@@ -184,6 +186,7 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   roleSettings: {},
   logo: '',
   hasMail: false,
+  sections: { allow: [], deny: [] },
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
 function loadMyKurumCache(): Partial<MyKurumState> {
@@ -1857,6 +1860,7 @@ export class DataService {
         date: row.date,
         subject: row.subject || 'Genel',
         records: Array.isArray(row.records) ? row.records : [],
+        createdBy: row.created_by || undefined,
       };
 
       const exIdx = this.attendance.findIndex((a) => a.id === row.id);
@@ -2653,6 +2657,7 @@ export class DataService {
           date: ra.date,
           subject: ra.subject || 'Genel',
           records: Array.isArray(ra.records) ? ra.records : [],
+          createdBy: ra.created_by || undefined,
         }));
 
         this.attendance.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
@@ -3348,6 +3353,7 @@ export class DataService {
       examType: rg.exam_type || '1. Yazılı',
       date: rg.date,
       remarks: rg.remarks || undefined,
+      createdBy: rg.created_by || undefined,
     };
   }
 
@@ -3508,6 +3514,7 @@ export class DataService {
         this.refreshPendingApplicationCount(),
         this.syncMyTeacherAccess(),
         this.syncMyKurum(),
+        this.syncStudentBrand(),
         this.backgroundDue('planWeekStarts', isBackground) ? this.syncPlanWeekStarts() : Promise.resolve(),
         this.syncStudentNotifications(),
       ]);
@@ -3651,6 +3658,10 @@ export class DataService {
         roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
         logo: typeof d.logo === 'string' ? d.logo : '',
         hasMail: d.has_mail === true,
+        sections: {
+          allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
+          deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
+        },
       };
       this.setMyKurum(next);
       // Genel yönetici: kurum adları listelerde etiket olarak gösterilir
@@ -3673,6 +3684,48 @@ export class DataService {
 
   public getMyKurum(): Readonly<MyKurumState> {
     return this.myKurum;
+  }
+
+  // ===========================================================================
+  // Aşama 83: KURUM ADI VE LOGOSU — öğrenci ekranında da kendi kurumunun adı ve logosu görünür (sql/83: student_my_kurum)
+  // ===========================================================================
+  private static STUDENT_BRAND_KEY = 'edu_student_brand_v1';
+  private studentBrand: { name: string; logo: string } = (() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(DataService.STUDENT_BRAND_KEY) || '{}');
+      return { name: String(v?.name || ''), logo: String(v?.logo || '') };
+    } catch {
+      return { name: '', logo: '' };
+    }
+  })();
+  public async syncStudentBrand(): Promise<void> {
+    if (this.getAuthSession()?.role !== 'student') return;
+    try {
+      const { data, error } = await supabase.rpc('student_my_kurum');
+      if (error) return; // 83 numaralı SQL çalıştırılmadıysa varsayılan ad kalır
+      let d: any = Array.isArray(data) ? data[0] : data;
+      if (d && typeof d === 'object' && 'student_my_kurum' in d) d = d.student_my_kurum;
+      const next = { name: String(d?.name || ''), logo: typeof d?.logo === 'string' ? d.logo : '' };
+      setKurumBrand(next.name || next.logo ? next : null);
+      if (JSON.stringify(next) === JSON.stringify(this.studentBrand)) return;
+      this.studentBrand = next;
+      try {
+        sessionStorage.setItem(DataService.STUDENT_BRAND_KEY, JSON.stringify(next));
+      } catch {}
+      this.notify();
+    } catch {
+      /* bağlantı sorunu: bir sonraki eşitlemede tekrar denenir */
+    }
+  }
+  /** Ekranda gösterilecek kurum adı ve logosu (öğretmen: kendi kurumu, öğrenci: kayıtlı olduğu kurum; yoksa boş) */
+  public getBrand(): { name: string; logo: string } {
+    const role = this.getAuthSession()?.role;
+    if (role === 'teacher') {
+      const k = this.myKurum;
+      return k.kurumId ? { name: k.kurumName || '', logo: k.logo || '' } : { name: '', logo: '' };
+    }
+    if (role === 'student') return this.studentBrand;
+    return { name: '', logo: '' };
   }
 
   public isKurumSupported(): boolean {
@@ -3719,6 +3772,10 @@ export class DataService {
     return r.length > 0 && r.every((x) => x === 'etut_ogretmeni');
   }
   /** Ders verebilir mi (ödev, etüt, plan, soru hedefi) — rolü olmayan öğretmen bugünkü gibi verir */
+  /** Aşama 83: bu bölüm bana kişiye özel AÇILMIŞ mı */
+  public sectionExplicitAllow(tab: string): boolean {
+    return this.rolesActive() && (this.myKurum.sections?.allow || []).includes(tab);
+  }
   public roleCanTeach(): boolean {
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
     const r = this.myKurum.roles || [];
@@ -3747,6 +3804,10 @@ export class DataService {
   /** Rol menüsü: bu sekme rollerime açık mı (anahtar kapalıysa her sekme açık; kurum bölüm izinleri ayrıca uygulanır) */
   private roleAllowsTab(tab: TeacherTabType): boolean {
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
+    // Aşama 83: müdürün kişiye özel kapattığı / açtığı bölüm rolden önce gelir
+    const sec = this.myKurum.sections || { allow: [], deny: [] };
+    if ((sec.deny || []).includes(tab)) return false;
+    if ((sec.allow || []).includes(tab)) return true;
     const roles = this.myKurum.roles || [];
     if (roles.length === 0) return true; // rolü verilmemiş öğretmen: bugünkü gibi
     const allowed = new Set<TeacherTabType>();
@@ -3900,6 +3961,9 @@ export class DataService {
     if (this.myKurum.modules?.deneme !== true) return false;
     if (this.isKurumAdmin()) return true;
     // Aşama 82: Ölçme (düzenler), Rehberlik / Öğretmen / Zümre Başkanı (salt okunur)
+    // Aşama 83: müdürün kişiye özel açtığı kişi de görür (salt okunur); kapattıysa göremez
+    if (this.rolesActive() && (this.myKurum.sections?.deny || []).includes('deneme')) return false;
+    if (this.sectionExplicitAllow('deneme')) return true;
     return ['olcme_degerlendirme', 'rehberlik', 'ogretmen', 'zumre_baskani'].some((r) => this.hasRole(r));
   }
 
@@ -5814,8 +5878,11 @@ export class DataService {
     this.unsubscribeAllRealtime();
     this.myTeacherAccess = { classIds: new Set(), studentIds: new Set(), loaded: false };
     this.myKurum = { ...EMPTY_KURUM_STATE };
+    this.studentBrand = { name: '', logo: '' };
+    setKurumBrand(null);
     try {
       sessionStorage.removeItem(MY_KURUM_KEY);
+      sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);
     } catch {}
     this.questionLogsFrom = null;
     this.questionLogsLoadedAt = 0;
@@ -7791,10 +7858,12 @@ export class DataService {
     const existingIndex = this.attendance.findIndex(
       (a) => a.date === attData.date && a.classId === attData.classId && a.subject === attData.subject
     );
+    if (existingIndex >= 0) this.assertOwnedRecord(this.attendance[existingIndex], 'yoklama');
 
     const record: AttendanceRecord = {
       ...attData,
       id: existingIndex >= 0 ? this.attendance[existingIndex].id : newId('att'),
+      createdBy: existingIndex >= 0 ? this.attendance[existingIndex].createdBy : this.getCurrentTeacher()?.auth_user_id || undefined,
     };
 
     const prevAttendance = this.attendance;
@@ -7820,6 +7889,7 @@ export class DataService {
   }
 
   public async deleteAttendance(id: string): Promise<void> {
+    this.assertOwnedRecord(this.attendance.find((a) => a.id === id), 'yoklama');
     const prevAttendance = this.attendance;
     this.attendance = this.attendance.filter((a) => a.id !== id);
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
@@ -7839,6 +7909,7 @@ export class DataService {
     const toDelete = this.attendance.filter(
       (a) => a.date === date && a.classId === classId && (!subject || a.subject === subject)
     );
+    toDelete.forEach((a) => this.assertOwnedRecord(a, 'yoklama'));
     this.attendance = this.attendance.filter(
       (a) => !(a.date === date && a.classId === classId && (!subject || a.subject === subject))
     );
@@ -7857,6 +7928,7 @@ export class DataService {
   }
 
   public async deleteAttendanceStudentRecord(attendanceId: string, studentId: string): Promise<void> {
+    this.assertOwnedRecord(this.attendance.find((a) => a.id === attendanceId), 'yoklama');
     const prevAttendance = this.attendance;
     this.attendance = this.attendance.map((att) => {
       if (att.id === attendanceId) {
@@ -7883,6 +7955,27 @@ export class DataService {
     }
   }
 
+  // ===========================================================================
+  // Aşama 83: NOT & YOKLAMA MAHREMİYETİ — rol yetkileri açıkken notu / yoklamayı yalnızca giren öğretmen ve
+  // yönetici değiştirir (Rehberlik, Ölçme, zümre başkanı görür ama değiştiremez). Asıl denetim veritabanındadır.
+  // ===========================================================================
+  /** Bu not / yoklama kaydını değiştirebilir miyim */
+  public canEditOwnedRecord(rec?: { createdBy?: string } | null): boolean {
+    if (!rec || !rec.createdBy) return true;
+    if (this.getAuthSession()?.role !== 'teacher' || !this.rolesActive() || this.isKurumAdmin()) return true;
+    const me = this.getCurrentTeacher();
+    return !!me?.auth_user_id && me.auth_user_id === rec.createdBy;
+  }
+  private assertOwnedRecord(rec: { createdBy?: string } | null | undefined, what: 'not' | 'yoklama'): void {
+    if (this.canEditOwnedRecord(rec)) return;
+    const msg =
+      what === 'not'
+        ? 'Bu notu başka bir öğretmen girmiş; yalnızca görüntüleyebilirsiniz. Değişikliği notu giren öğretmen yapabilir.'
+        : 'Bu yoklamayı başka bir öğretmen almış; yalnızca görüntüleyebilirsiniz. Değişikliği yoklamayı alan öğretmen yapabilir.';
+    this.showFloatingErrorToast(msg);
+    throw new Error(msg);
+  }
+
   // --- GRADES ---
   public async addGrade(gradeData: Omit<GradeRecord, 'id'>): Promise<GradeRecord> {
     const student = this.students.find((s) => s.id === gradeData.studentId);
@@ -7890,6 +7983,7 @@ export class DataService {
       ...gradeData,
       id: newId('gr'),
       studentName: student?.name,
+      createdBy: this.getCurrentTeacher()?.auth_user_id || undefined,
     };
     const prevGrades = this.grades;
     this.grades = [newGrade, ...this.grades].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -7909,6 +8003,7 @@ export class DataService {
   }
 
   public async updateGrade(id: string, updates: Partial<GradeRecord>): Promise<void> {
+    this.assertOwnedRecord(this.grades.find((g) => g.id === id), 'not');
     const prevGrades = this.grades;
     this.grades = this.grades
       .map((g) => (g.id === id ? { ...g, ...updates } : g))
@@ -7931,6 +8026,7 @@ export class DataService {
   }
 
   public async deleteGrade(id: string): Promise<void> {
+    this.assertOwnedRecord(this.grades.find((g) => g.id === id), 'not');
     const prevGrades = this.grades;
     this.grades = this.grades.filter((g) => g.id !== id);
     saveData(STORAGE_KEYS.GRADES, this.grades);

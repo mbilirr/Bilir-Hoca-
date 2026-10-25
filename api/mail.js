@@ -411,7 +411,7 @@ const b64lines = (s) =>
     .toString('base64')
     .replace(/.{1,76}/g, '$&\r\n');
 
-function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, text, html, attachments }) {
+function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, text, html, attachments, inline }) {
   const boundary = 'b_' + crypto.randomBytes(12).toString('hex');
   const files = (attachments || []).filter((a) => a && a.content && a.filename);
   const domain = (fromAddr.split('@')[1] || 'mail.local').replace(/[^\w.-]/g, '');
@@ -428,8 +428,29 @@ function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, te
     `--${boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(text)}` +
     `--${boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64lines(html)}` +
     `--${boundary}--\r\n`;
+  // Aşama 83: e-posta içindeki görseller (kurum logosu) — multipart/related, Content-ID ile
+  const pics = (inline || []).filter((p) => p && p.cid && p.content && /^image\/(png|jpeg)$/.test(String(p.contentType || '')));
+  let bodyType = `multipart/alternative; boundary="${boundary}"`;
+  let body = alternative;
+  if (pics.length) {
+    const rel = 'r_' + crypto.randomBytes(12).toString('hex');
+    body =
+      `--${rel}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}` +
+      pics
+        .map((p, i) => {
+          const name = `logo${i ? i + 1 : ''}.${p.contentType === 'image/png' ? 'png' : 'jpg'}`;
+          return (
+            `--${rel}\r\nContent-Type: ${p.contentType}; name="${name}"\r\nContent-Transfer-Encoding: base64\r\n` +
+            `Content-ID: <${String(p.cid).replace(/[<>\s]/g, '')}>\r\nContent-Disposition: inline; filename="${name}"\r\n\r\n` +
+            Buffer.from(p.content).toString('base64').replace(/.{1,76}/g, '$&\r\n')
+          );
+        })
+        .join('') +
+      `--${rel}--\r\n`;
+    bodyType = `multipart/related; boundary="${rel}"; type="multipart/alternative"`;
+  }
   if (!files.length) {
-    return headers.join('\r\n') + `\r\nContent-Type: multipart/alternative; boundary="${boundary}"` + '\r\n\r\n' + alternative;
+    return headers.join('\r\n') + `\r\nContent-Type: ${bodyType}` + '\r\n\r\n' + body;
   }
   // Aşama 22: ekli dosya (ör. haftalık plan PDF'i) — multipart/mixed
   const mixed = 'm_' + crypto.randomBytes(12).toString('hex');
@@ -448,7 +469,7 @@ function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, te
     headers.join('\r\n') +
     `\r\nContent-Type: multipart/mixed; boundary="${mixed}"` +
     '\r\n\r\n' +
-    `--${mixed}\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n${alternative}` +
+    `--${mixed}\r\nContent-Type: ${bodyType}\r\n\r\n${body}` +
     parts +
     `--${mixed}--\r\n`
   );
@@ -950,6 +971,29 @@ async function kurumIdForSender(teacher) {
   kurumOfAuthCache.set(auth, kid);
   return kid;
 }
+// Aşama 83: kurumun adı ve logosu (e-posta başlığı) — kısa süre önbellekte tutulur
+const kurumBrandCache = new Map();
+async function kurumBrandFor(kid) {
+  if (!kid) return null;
+  const hit = kurumBrandCache.get(kid);
+  if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.v;
+  let v = null;
+  try {
+    let k;
+    try {
+      k = await rest(`kurumlar?select=name,logo&id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+    } catch {
+      k = await rest(`kurumlar?select=name&id=eq.${encodeURIComponent(kid)}`, { token: 'service' }); // logo sütunu yoksa (82 öncesi)
+    }
+    const r = k && k[0];
+    if (r) v = { name: String(r.name || ''), logo: typeof r.logo === 'string' ? r.logo : '' };
+  } catch {
+    v = null;
+  }
+  kurumBrandCache.set(kid, { at: Date.now(), v });
+  return v;
+}
+
 async function kurumSender(teacher) {
   const kid = await kurumIdForSender(teacher);
   if (!kid) return null;
@@ -958,20 +1002,29 @@ async function kurumSender(teacher) {
     const row = rows && rows[0];
     const pass = row ? decryptSecret(row.secret) : null;
     if (!row || !pass) return null;
-    let brandName = '';
-    try {
-      const k = await rest(`kurumlar?select=name&id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
-      brandName = (k && k[0] && k[0].name) || '';
-    } catch {}
+    const brand = await kurumBrandFor(kid);
+    const brandName = (brand && brand.name) || '';
+    const brandLogo = (brand && brand.logo) || '';
     const gmail = String(row.gmail || '').toLowerCase();
     const replyTo = isEmail(teacher.email) && String(teacher.email).toLowerCase() !== gmail ? teacher.email : null;
-    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName };
+    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName, brandLogo };
   } catch {
     return null; // tablo yoksa (82 numaralı SQL çalışmadıysa) eski davranış
   }
 }
 
+// Aşama 83: kurum öğretmeninin e-postası hangi hesaptan giderse gitsin başlıkta kendi kurumunun adı ve logosu görünür
 async function resolveSender(teacher) {
+  const s = await resolveSenderAccount(teacher || {});
+  if (!s || s.via === 'kurum') return s;
+  try {
+    const brand = await kurumBrandFor(await kurumIdForSender(teacher || {}));
+    if (brand && (brand.name || brand.logo)) return { ...s, brandName: brand.name, brandLogo: brand.logo };
+  } catch {}
+  return s;
+}
+
+async function resolveSenderAccount(teacher) {
   const e = env();
   const ks = await kurumSender(teacher || {});
   if (ks) return ks;
@@ -1197,6 +1250,11 @@ async function actionParentAnnounce(caller, body, deadline) {
   const wantSms = !!ch.sms;
   if (!wantMail && !wantSms) throw new HttpError(400, 'En az bir gönderim yolu seçin (e-posta veya SMS).');
   if (wantSms && message.length > ANNOUNCE_SMS_MAX) throw new HttpError(400, `SMS için mesaj en çok ${ANNOUNCE_SMS_MAX} karakter olabilir. Mesajı kısaltın ya da yalnızca e-posta seçin.`);
+  // Aşama 83: alıcılar — veliler ve/veya öğrencilerin kendileri (eski sürüm yalnızca velilere gönderir)
+  const au = body.audience && typeof body.audience === 'object' ? body.audience : { parents: true };
+  const toParents = au.parents !== false;
+  const toStudents = au.students === true;
+  if (!toParents && !toStudents) throw new HttpError(400, 'Alıcı seçin (veliler ve/veya öğrenciler).');
 
   // Aşama 82: rol yetkileri açık kurumda veli duyurusunu yalnızca yönetici, Rehberlik ve Ölçme Değerlendirme gönderir
   if (!caller.isAdmin && !caller.isKurumAdmin && caller.kurumId) {
@@ -1208,7 +1266,7 @@ async function actionParentAnnounce(caller, body, deadline) {
     }
     if (rolesOn) {
       const ok = await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false);
-      if (ok !== true) throw new HttpError(403, 'Veli duyurusunu yalnızca Müdür, Müdür Yardımcısı, Rehberlik ve Ölçme Değerlendirme gönderebilir.');
+      if (ok !== true) throw new HttpError(403, 'Veli / öğrenci duyurusunu yalnızca Müdür, Müdür Yardımcısı, Rehberlik ve Ölçme Değerlendirme gönderebilir.');
     }
   }
 
@@ -1218,18 +1276,36 @@ async function actionParentAnnounce(caller, body, deadline) {
   const pmap = await studentParentsMap(visible.map((s) => s.id));
   const sm = wantSms ? await smsMod() : null;
 
-  const byMail = new Map(); // e-posta -> { name, students: [] }
-  const phones = new Set();
+  const byMail = new Map(); // e-posta -> { name, students: [], kind: 'veli' | 'ogrenci' }
+  const phones = new Map(); // telefon -> 'veli' | 'ogrenci'
   const noContact = [];
+  let studentMailCount = 0;
+  let studentSmsCount = 0;
+  const realMail = (em) => isEmail(em) && !/@(okul\.internal\.net|school\.internal|student\.school\.internal)$/i.test(em);
   for (const s of visible) {
     const info = pmap.get(String(s.id));
-    const parents = info ? info.parents : [];
+    const parents = toParents && info ? info.parents : [];
     let any = false;
+    // Aşama 83: öğrencinin kendi e-postası / telefonu
+    if (toStudents) {
+      const sem = String(s.email || '').trim().toLowerCase();
+      if (wantMail && realMail(sem) && !byMail.has(sem)) {
+        any = true;
+        studentMailCount += 1;
+        byMail.set(sem, { name: clean(s.name), studentId: s.id, students: [s.name], kind: 'ogrenci' });
+      }
+      const sph = sm ? sm.normPhone(info && info.phone) : '';
+      if (wantSms && sph && !phones.has(sph)) {
+        any = true;
+        studentSmsCount += 1;
+        phones.set(sph, 'ogrenci');
+      }
+    }
     for (const p of parents) {
       const em = String((p && p.email) || '').trim().toLowerCase();
       if (wantMail && isEmail(em)) {
         any = true;
-        const cur = byMail.get(em) || { name: clean(p.name), studentId: s.id, students: [] };
+        const cur = byMail.get(em) || { name: clean(p.name), studentId: s.id, students: [], kind: 'veli' };
         if (!cur.name) cur.name = clean(p.name);
         if (!cur.students.includes(s.name)) cur.students.push(s.name);
         byMail.set(em, cur);
@@ -1237,7 +1313,7 @@ async function actionParentAnnounce(caller, body, deadline) {
       const ph = sm ? sm.normPhone(p && p.phone) : '';
       if (wantSms && ph) {
         any = true;
-        phones.add(ph);
+        if (!phones.has(ph)) phones.set(ph, 'veli');
       }
     }
     if (!any) noContact.push(s.name || '—');
@@ -1251,7 +1327,7 @@ async function actionParentAnnounce(caller, body, deadline) {
     else {
       const e = sm.smsEnv();
       const text = `${e.appName}: ${message}`.slice(0, 300);
-      const jobs = [...phones].map((phone) => ({ event: 'parent-announce', refId: sendId, once: true, role: 'veli', phone, text }));
+      const jobs = [...phones].map(([phone, role]) => ({ event: 'parent-announce', refId: sendId, once: true, role, phone, text }));
       const r = await sm.dispatchSms(rest, jobs);
       smsRes = {
         available: true,
@@ -1273,25 +1349,30 @@ async function actionParentAnnounce(caller, body, deadline) {
     const sender = await resolveSender(caller);
     const items = [];
     for (const [em, v] of byMail) {
-      const who = v.name || 'Veli';
+      const isStudent = v.kind === 'ogrenci';
+      const who = v.name || (isStudent ? 'Öğrenci' : 'Veli');
       const { html, text } = layout({
         heading: subject,
-        greeting: `Sayın ${who},`,
-        rows: [
-          [v.students.length > 1 ? 'Öğrenciler' : 'Öğrenci', v.students.join(', ')],
-          ['Gönderen', caller.name],
-        ],
+        greeting: isStudent ? `Merhaba ${who},` : `Sayın ${who},`,
+        rows: isStudent
+          ? [['Gönderen', caller.name]]
+          : [
+              [v.students.length > 1 ? 'Öğrenciler' : 'Öğrenci', v.students.join(', ')],
+              ['Gönderen', caller.name],
+            ],
         extraHtml: `<p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:#334155;white-space:pre-wrap">${esc(message)}</p>`,
         extraText: message,
-        footer: 'Bu e-posta, öğrencinizin velisi olarak kayıtlı e-posta adresinize öğretmeniniz tarafından gönderilmiştir. E-postayı yanıtlarsanız yanıtınız göndericiye ulaşır.',
+        footer: isStudent
+          ? 'Bu e-posta, kayıtlı e-posta adresinize öğretmeniniz tarafından gönderilmiştir. E-postayı yanıtlarsanız yanıtınız göndericiye ulaşır.'
+          : 'Bu e-posta, öğrencinizin velisi olarak kayıtlı e-posta adresinize öğretmeniniz tarafından gönderilmiştir. E-postayı yanıtlarsanız yanıtınız göndericiye ulaşır.',
       });
       items.push({
         event: 'parent-announce',
         refId: sendId,
         refTitle: subject,
         to: em,
-        toName: `${who} (${v.students[0]} velisi)`.slice(0, 120),
-        role: 'veli',
+        toName: (isStudent ? who : `${who} (${v.students[0]} velisi)`).slice(0, 120),
+        role: isStudent ? 'ogrenci' : 'veli',
         studentId: v.studentId,
         subject,
         html,
@@ -1309,6 +1390,8 @@ async function actionParentAnnounce(caller, body, deadline) {
       notVisible: ids.length - visible.length,
       mailRecipients: byMail.size,
       smsRecipients: phones.size,
+      studentMailRecipients: studentMailCount,
+      studentSmsRecipients: studentSmsCount,
       noContact: noContact.length,
       noContactNames: noContact.slice(0, 40),
     },
@@ -1433,11 +1516,20 @@ async function deliver(sender, senderMeta, items, deadline) {
     }
   }
 
-  // Aşama 82: kurum hesabından gidenlerde e-posta başlığındaki okul adı yerine kurumun adı yazılır
-  if (sender.brandName) {
+  // Aşama 82-83: kurum öğretmenlerinin e-postalarında başlıktaki okul adı yerine kurumun adı ve logosu görünür
+  if (sender.brandName || sender.brandLogo) {
+    const m = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(String(sender.brandLogo || ''));
+    const logo = m ? { cid: 'kurum-logo@biliredu', contentType: m[1], content: Buffer.from(m[2], 'base64') } : null;
     const from = `letter-spacing:.3px">${esc(env().schoolName)}</td>`;
-    const to = `letter-spacing:.3px">${esc(sender.brandName)}</td>`;
-    for (const it of queue) if (typeof it.html === 'string') it.html = it.html.replace(from, to);
+    const img = logo
+      ? `<img src="cid:${logo.cid}" alt="" width="28" height="28" style="display:inline-block;vertical-align:middle;width:28px;height:28px;border:0;border-radius:6px;background:#ffffff;padding:2px;margin-right:10px;object-fit:contain">`
+      : '';
+    const to = `letter-spacing:.3px">${img}<span style="vertical-align:middle">${esc(sender.brandName || env().schoolName)}</span></td>`;
+    for (const it of queue) {
+      if (typeof it.html !== 'string' || !it.html.includes(from)) continue;
+      it.html = it.html.replace(from, to);
+      if (logo) it.inline = [logo];
+    }
   }
 
   let client;
@@ -1478,6 +1570,7 @@ async function deliver(sender, senderMeta, items, deadline) {
           text: it.text,
           html: it.html,
           attachments: it.attachments,
+          inline: it.inline,
         });
         await client.sendRaw(sender.user, it.to, msg);
         summary.sent++;

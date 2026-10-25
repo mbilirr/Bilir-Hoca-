@@ -107,7 +107,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
             : []),
           { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
           ...(dataService.canSendParentAnnouncements()
-            ? [{ value: 'parents' as const, label: 'Veli Duyurusu', icon: Users, id: 'messages-section-parents' }]
+            ? [{ value: 'parents' as const, label: 'Veli / Öğrenci Duyurusu', icon: Users, id: 'messages-section-parents' }]
             : []),
         ]}
       />
