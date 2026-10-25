@@ -18,8 +18,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // =============================================================================
 
 // GÜVENLİK: Yalnızca uygulamanın kendi adreslerinden gelen tarayıcı isteklerine izin verilir.
-const ALLOWED_ORIGIN_PATTERN = /^https:\/\/bilir-hoca(-[a-z0-9-]+)?\.vercel\.app$/;
-const DEFAULT_ORIGIN = 'https://bilir-hoca.vercel.app';
+// Aşama 79: ana adres www.biliredu.com (ve www'suz biliredu.com). Vercel yedek adresleri: biliredu.vercel.app,
+// pusulaedu.vercel.app ve bunların deneme (preview) adresleri. bilir-hoca.vercel.app silindiği için artık KABUL EDİLMEZ
+// (boşa çıkan ad başkası tarafından alınabilir).
+const ALLOWED_ORIGIN_PATTERN = /^https:\/\/((www\.)?biliredu\.com|(biliredu|pusulaedu)(-[a-z0-9-]+)?\.vercel\.app)$/;
+const DEFAULT_ORIGIN = 'https://www.biliredu.com';
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const MIN_PASSWORD_LENGTH = 6;
 const MAX_PASSWORD_LENGTH = 72;
