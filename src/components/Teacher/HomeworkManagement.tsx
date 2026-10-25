@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useDeferredValue } from 'react';
 import { ExpandableStrip, StripAction, StripProgress } from '../ui/ExpandableStrip';
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
 import {
   BookOpen,
   Plus,
@@ -413,6 +414,60 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     if (diff <= 3) return { label: `${diff} gün kaldı`, cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300' };
     return { label: `${diff} gün kaldı`, cls: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300' };
   };
+
+  // HIZ (Aşama 84): ödev başına teslimler ve hedef öğrenciler bir kez hesaplanır (her tuş vuruşunda
+  // tüm ödevler × tüm öğrenciler yeniden taranmaz). Veri değişince kendiliğinden yenilenir.
+  const submissionsByHw = useMemo(() => {
+    const m = new Map<string, HomeworkSubmission[]>();
+    for (const sub of submissions) {
+      const list = m.get(sub.homeworkId);
+      if (list) list.push(sub);
+      else m.set(sub.homeworkId, [sub]);
+    }
+    return m;
+  }, [submissions]);
+  const hwStudentsCache = useMemo(() => new Map<string, Student[]>(), [homeworks, students]);
+  const studentsForHw = (hw: Homework): Student[] => {
+    let list = hwStudentsCache.get(hw.id);
+    if (!list) {
+      list = students.filter((std) => dataService.isHomeworkForStudent(hw, std));
+      hwStudentsCache.set(hw.id, list);
+    }
+    return list;
+  };
+  const deferredHwSearch = useDeferredValue(hwSearchQuery);
+  // "Tüm Ödevler" listesi: süzme bir kez yapılır, liste 50'şer çizilir ("Daha fazla göster")
+  const allTabHomeworks = useMemo(
+    () =>
+      homeworks.filter((hw) => {
+        if (hwFilterSubject !== 'all' && hw.subject !== hwFilterSubject) {
+          return false;
+        }
+        if (hwFilterClassId !== 'all') {
+          if (hw.targetClassIds && hw.targetClassIds.length > 0) {
+            if (!hw.targetClassIds.includes(hwFilterClassId)) return false;
+          }
+        }
+        if (deferredHwSearch.trim()) {
+          const q = deferredHwSearch.toLowerCase();
+          const matchTitle = hw.title.toLowerCase().includes(q);
+          const matchSubj = hw.subject.toLowerCase().includes(q);
+          const matchDesc = hw.description?.toLowerCase().includes(q);
+          const matchOutcomes = hw.outcomes?.some((o) => o.toLowerCase().includes(q));
+          if (!matchTitle && !matchSubj && !matchDesc && !matchOutcomes) {
+            return false;
+          }
+        }
+        return true;
+      }),
+    [homeworks, hwFilterSubject, hwFilterClassId, deferredHwSearch]
+  );
+  const pagedAllHw = usePagedList(allTabHomeworks, `${deferredHwSearch}|${hwFilterSubject}|${hwFilterClassId}`);
+  // Açık (genişletilmiş) ödev sayfanın dışında kaldıysa yine gösterilir
+  const visibleAllHw =
+    !expandedHwId || pagedAllHw.visible.some((h) => h.id === expandedHwId)
+      ? pagedAllHw.visible
+      : [...pagedAllHw.visible, ...allTabHomeworks.filter((h) => h.id === expandedHwId)];
 
   // Is any class or student selected? (Açılır pencerelerden biri seçilmeden sayfa altında ödev bilgileri çıkmasın)
   const isSelectionActive = Boolean(
@@ -1219,27 +1274,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 {/* TAB 2: ALL CREATED HOMEWORKS */}
       {activeTab === 'all' && (() => {
         const availableSubjects = Array.from(new Set(homeworks.map((h) => h.subject))).filter(Boolean);
-        const filteredHomeworks = homeworks.filter((hw) => {
-          if (hwFilterSubject !== 'all' && hw.subject !== hwFilterSubject) {
-            return false;
-          }
-          if (hwFilterClassId !== 'all') {
-            if (hw.targetClassIds && hw.targetClassIds.length > 0) {
-              if (!hw.targetClassIds.includes(hwFilterClassId)) return false;
-            }
-          }
-          if (hwSearchQuery.trim()) {
-            const q = hwSearchQuery.toLowerCase();
-            const matchTitle = hw.title.toLowerCase().includes(q);
-            const matchSubj = hw.subject.toLowerCase().includes(q);
-            const matchDesc = hw.description?.toLowerCase().includes(q);
-            const matchOutcomes = hw.outcomes?.some((o) => o.toLowerCase().includes(q));
-            if (!matchTitle && !matchSubj && !matchDesc && !matchOutcomes) {
-              return false;
-            }
-          }
-          return true;
-        });
+        const filteredHomeworks = allTabHomeworks;
 
         const isFiltered = hwSearchQuery.trim() !== '' || hwFilterSubject !== 'all' || hwFilterClassId !== 'all';
 
@@ -1360,12 +1395,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </button>
               </div>
             ) : (
+              <>
               <div className="space-y-2" id="hw-all-strips">
-                {filteredHomeworks.map((hw) => {
-                  const hwSubmissions = submissions.filter((s) => s.homeworkId === hw.id);
+                {visibleAllHw.map((hw) => {
+                  const hwSubmissions = submissionsByHw.get(hw.id) || [];
                   const isExpanded = expandedHwId === hw.id;
 
-                  const hwStudents = students.filter((std) => dataService.isHomeworkForStudent(hw, std));
+                  const hwStudents = studentsForHw(hw);
                   const assignedCount = hwStudents.length;
 
                   const isOverdue = new Date() > new Date(hw.dueDate);
@@ -1539,6 +1575,15 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   );
                 })}
               </div>
+              <ShowMoreBar
+                id="hw-all-show-more"
+                remaining={pagedAllHw.remaining}
+                total={pagedAllHw.total}
+                shown={pagedAllHw.visible.length}
+                onMore={pagedAllHw.showMore}
+                onAll={pagedAllHw.showAll}
+              />
+              </>
             )}
           </div>
         );

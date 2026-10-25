@@ -880,6 +880,73 @@ function isAlreadyInitialized(): boolean {
 }
 
 // ============================================================================
+// HIZ (Aşama 84): AYNI VERİYİ YENİDEN KULLAN
+// Buluttan gelen liste öncekiyle aynıysa eski liste (ve değişmeyen her kayıt) aynen kullanılır.
+// Böylece arka plan eşitlemesi, değişiklik yoksa ekranı yeniden çizdirmez ve önbelleğe yazmaz;
+// değişiklik varsa yalnızca değişen kayıtlar yeni olur (React yalnız onları çizer).
+// ============================================================================
+// Aynı eşzamanlı çalışma (tek çizim / tek olay) boyunca geçerli sayaç: iş bitince bir sonraki adımda artar
+let runEpoch = 0;
+let runEpochQueued = false;
+const currentEpoch = (): number => {
+  if (!runEpochQueued) {
+    runEpochQueued = true;
+    Promise.resolve().then(() => {
+      runEpochQueued = false;
+      runEpoch++;
+    });
+  }
+  return runEpoch;
+};
+function sameData(a: any, b: any, depth = 0): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+    return typeof a === 'number' && typeof b === 'number' && a !== a && b !== b; // NaN
+  }
+  if (depth > 8) return false; // çok derin: değişmiş say (güvenli taraf)
+  const aa = Array.isArray(a);
+  if (aa !== Array.isArray(b)) return false;
+  if (aa) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i], depth + 1)) return false;
+    return true;
+  }
+  // Yalnızca düz nesneler karşılaştırılır (Date, Map gibi özel nesneler: değişmiş say — güvenli taraf)
+  const pa = Object.getPrototypeOf(a);
+  if ((pa !== Object.prototype && pa !== null) || Object.getPrototypeOf(b) !== pa) return false;
+  const ka = Object.keys(a);
+  if (ka.length !== Object.keys(b).length) return false;
+  for (const k of ka) {
+    if (!Object.prototype.hasOwnProperty.call(b, k) || !sameData(a[k], b[k], depth + 1)) return false;
+  }
+  return true;
+}
+/** Yeni listede öncekiyle aynı olan kayıtları eski nesneleriyle değiştirir; hiçbir şey değişmediyse eski listeyi döndürür */
+function adoptList<T>(prev: T[] | null | undefined, next: T[]): T[] {
+  if (!prev || prev === next) return next;
+  const byId = new Map<unknown, T>();
+  for (const p of prev) {
+    const id = p && typeof p === 'object' ? (p as any).id : undefined;
+    if (id !== undefined && id !== null) byId.set(id, p);
+  }
+  let allSame = prev.length === next.length;
+  const out = new Array<T>(next.length);
+  for (let i = 0; i < next.length; i++) {
+    const n = next[i];
+    const id = n && typeof n === 'object' ? (n as any).id : undefined;
+    const p = id !== undefined && id !== null ? byId.get(id) : prev[i];
+    if (p !== undefined && sameData(p, n)) {
+      out[i] = p;
+      if (allSame && prev[i] !== p) allSame = false;
+    } else {
+      out[i] = n;
+      allSame = false;
+    }
+  }
+  return allSame ? prev : out;
+}
+
+// ============================================================================
 // HIZ (Aşama 15): Büyük listeler sekme önbelleğine hemen değil, tarayıcı boşken toplu yazılır.
 // Çok büyük listeler (ör. binlerce soru kaydı) önbelleğe hiç yazılmaz: yazmak telefonu dondurur,
 // sekme önbelleğinin sınırını (yaklaşık 5 MB) aşar ve zaten her açılışta buluttan gelir.
@@ -2261,9 +2328,16 @@ export class DataService {
 
   // Görünüm önbelleği: aynı veriyle tekrar tekrar yeni dizi üretilmez (ekranlar boşuna yeniden hesaplamaz).
   // Veri değişince (bildirim/kayıt) ya da kaynak dizide herhangi bir öğe değişince yeniden hesaplanır.
-  private viewCache = new Map<string, { v: number; key: string; srcs: any[][]; copies: any[][]; val: any }>();
+  private viewCache = new Map<string, { v: number; key: string; srcs: any[][]; copies: any[][]; val: any; ep: number }>();
   private memoView<T>(name: string, srcs: any[][], key: string, compute: () => T): T {
     const c = this.viewCache.get(name);
+    // Aşama 84: aynı çizim sırasında tekrar tekrar istenen görünüm, kaynak listeler baştan sona
+    // yeniden karşılaştırılmadan verilir (değişiklikler zaten sürüm numarasını artırır)
+    if (c && c.v === this.dataVersion && c.key === key && c.srcs.length === srcs.length && c.ep === currentEpoch()) {
+      let sameRefs = true;
+      for (let i = 0; i < srcs.length; i++) if (c.srcs[i] !== srcs[i] || srcs[i].length !== c.copies[i].length) { sameRefs = false; break; }
+      if (sameRefs) return c.val as T;
+    }
     if (c && c.v === this.dataVersion && c.key === key && c.srcs.length === srcs.length) {
       let same = true;
       for (let i = 0; i < srcs.length && same; i++) {
@@ -2272,10 +2346,18 @@ export class DataService {
         if (c.srcs[i] !== a || a.length !== b.length) same = false;
         else for (let j = 0; j < a.length; j++) if (a[j] !== b[j]) { same = false; break; }
       }
-      if (same) return c.val as T;
+      if (same) {
+        c.ep = currentEpoch();
+        return c.val as T;
+      }
     }
-    const val = compute();
-    this.viewCache.set(name, { v: this.dataVersion, key, srcs, copies: srcs.map((a) => a.slice()), val });
+    let val = compute();
+    // Aşama 84: sonuç öncekiyle aynıysa önceki sonuç verilir (ekranlar boşuna yeniden çizilmez)
+    if (c && c.key === key) {
+      if (Array.isArray(val) && Array.isArray(c.val)) val = adoptList(c.val, val) as unknown as T;
+      else if (sameData(c.val, val)) val = c.val as T;
+    }
+    this.viewCache.set(name, { v: this.dataVersion, key, srcs, copies: srcs.map((a) => a.slice()), val, ep: currentEpoch() });
     return val;
   }
   private viewKey(extra = ''): string {
@@ -2516,11 +2598,10 @@ export class DataService {
         }
       });
 
-      this.students = Array.from(mergedStudentMap.values());
+      const nextStudents = adoptList(this.students, Array.from(mergedStudentMap.values()));
+      if (nextStudents === this.students) return this.students; // Aşama 84: değişiklik yok
+      this.students = nextStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
 
       return this.students;
@@ -2562,12 +2643,18 @@ export class DataService {
             new Date(a.createdAt || a.dueDate || 0).getTime()
         );
 
-        this.homeworks = validHws;
+        // Aşama 84: değişmeyen ödevler ve teslimler aynen kalır; hiçbir şey değişmediyse kayıt / yeniden çizim yok
+        const nextHws = adoptList(this.homeworks, validHws);
         const ids = new Set(validHws.map((h) => h.id));
-        this.submissions = this.submissions.filter((s) => ids.has(s.homeworkId));
-        saveData(STORAGE_KEYS.HOMEWORK, this.homeworks);
-        saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-        this.notify();
+        const keptSubs = this.submissions.filter((s) => ids.has(s.homeworkId));
+        const nextSubs = keptSubs.length === this.submissions.length ? this.submissions : keptSubs;
+        if (nextHws !== this.homeworks || nextSubs !== this.submissions) {
+          if (nextHws !== this.homeworks) saveData(STORAGE_KEYS.HOMEWORK, nextHws);
+          if (nextSubs !== this.submissions) saveData(STORAGE_KEYS.SUBMISSIONS, nextSubs);
+          this.homeworks = nextHws;
+          this.submissions = nextSubs;
+          this.notify();
+        }
       }
 
       return this.homeworks;
@@ -2599,15 +2686,21 @@ export class DataService {
         if (incremental) {
           if (data.some((r: any) => !r || typeof r.updated_at !== 'string' || r.updated_at > incremental)) {
             const ids = new Set(rows.map((r) => r.id));
-            this.submissions = [...rows, ...this.submissions.filter((x) => !ids.has(x.id))];
+            const nextSubs = adoptList(this.submissions, [...rows, ...this.submissions.filter((x) => !ids.has(x.id))]);
+            if (nextSubs !== this.submissions) {
+              this.submissions = nextSubs;
+              saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
+              this.notify();
+            }
+          }
+        } else {
+          this.submissionsFullAt = Date.now();
+          const nextSubs = adoptList(this.submissions, rows);
+          if (nextSubs !== this.submissions) {
+            this.submissions = nextSubs;
             saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
             this.notify();
           }
-        } else {
-          this.submissions = rows;
-          this.submissionsFullAt = Date.now();
-          saveData(STORAGE_KEYS.SUBMISSIONS, this.submissions);
-          this.notify();
         }
         // işaret, sunucunun saatine göre (cihaz saati yanlış olabilir): en son değişen teslimin zamanı
         let mark = incremental;
@@ -2651,7 +2744,7 @@ export class DataService {
       }
 
       if (remoteAtt && Array.isArray(remoteAtt)) {
-        this.attendance = remoteAtt.map((ra: any) => ({
+        const nextAtt: AttendanceRecord[] = remoteAtt.map((ra: any) => ({
           id: ra.id,
           classId: ra.class_id,
           date: ra.date,
@@ -2659,10 +2752,13 @@ export class DataService {
           records: Array.isArray(ra.records) ? ra.records : [],
           createdBy: ra.created_by || undefined,
         }));
-
-        this.attendance.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-        this.notify();
+        nextAtt.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+        const adopted = adoptList(this.attendance, nextAtt); // Aşama 84
+        if (adopted !== this.attendance) {
+          this.attendance = adopted;
+          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+          this.notify();
+        }
       }
 
       return this.attendance;
@@ -2685,11 +2781,14 @@ export class DataService {
       }
 
       if (remoteGrades && Array.isArray(remoteGrades)) {
-        this.grades = remoteGrades.map((rg: any) => this.gradeFromRow(rg));
-
-        this.grades.sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : (a.date || '') > (b.date || '') ? -1 : 0));
-        saveData(STORAGE_KEYS.GRADES, this.grades);
-        this.notify();
+        const nextGrades = remoteGrades.map((rg: any) => this.gradeFromRow(rg));
+        nextGrades.sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : (a.date || '') > (b.date || '') ? -1 : 0));
+        const adopted = adoptList(this.grades, nextGrades); // Aşama 84
+        if (adopted !== this.grades) {
+          this.grades = adopted;
+          saveData(STORAGE_KEYS.GRADES, this.grades);
+          this.notify();
+        }
       }
 
       return this.grades;
@@ -2712,13 +2811,14 @@ export class DataService {
       }
 
       if (remoteMsgs && Array.isArray(remoteMsgs)) {
-        this.messages = remoteMsgs.map((rm: any) => this.rowToMessage(rm));
-
-        this.messages.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        saveData(STORAGE_KEYS.MESSAGES, this.messages);
-        this.notify();
+        const nextMsgs = remoteMsgs.map((rm: any) => this.rowToMessage(rm));
+        nextMsgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        const adopted = adoptList(this.messages, nextMsgs); // Aşama 84
+        if (adopted !== this.messages) {
+          this.messages = adopted;
+          saveData(STORAGE_KEYS.MESSAGES, this.messages);
+          this.notify();
+        }
       }
 
       return this.messages;
@@ -2760,7 +2860,7 @@ export class DataService {
       return x < y ? 1 : x > y ? -1 : 0;
     });
   }
-  private mergeQuestionLogs(incoming: StudentQuestionLog[], replaceFrom: string | null): void {
+  private mergeQuestionLogs(incoming: StudentQuestionLog[], replaceFrom: string | null): boolean {
     const base = replaceFrom === null ? this.questionLogs : replaceFrom === '' ? [] : this.questionLogs.filter((l) => (l.date || '') < replaceFrom);
     const byId = new Map<string, StudentQuestionLog>();
     for (const l of base) byId.set(l.id, l);
@@ -2770,7 +2870,11 @@ export class DataService {
       const local = this.isStaleQuestionLogCopy(l) ? this.questionLogs.find((x) => x.id === l.id) : undefined;
       byId.set(l.id, local || l);
     }
-    this.questionLogs = DataService.sortLogsDesc(Array.from(byId.values()));
+    // Aşama 84: değişmeyen kayıtlar aynen kalır; hiçbir şey değişmediyse liste de aynı kalır
+    const next = adoptList(this.questionLogs, DataService.sortLogsDesc(Array.from(byId.values())));
+    const changed = next !== this.questionLogs;
+    this.questionLogs = next;
+    return changed;
   }
 
   /** Aşama 67: kaydın içerik imzası (ders, sayılar, plan payları; JSON anahtar sırasından bağımsız) */
@@ -2839,7 +2943,7 @@ export class DataService {
         return this.questionLogs;
       }
       if (Array.isArray(data)) {
-        this.mergeQuestionLogs(
+        const changed = this.mergeQuestionLogs(
           data.map((r: any) => this.questionLogFromRow(r)),
           from
         );
@@ -2847,8 +2951,10 @@ export class DataService {
           this.questionLogsFrom = from;
           this.questionLogsLoadedAt = Date.now();
         }
-        this.persistQuestionLogsLocal();
-        this.notify();
+        if (changed) {
+          this.persistQuestionLogsLocal();
+          this.notify();
+        }
       }
       return this.questionLogs;
     } catch (e) {
@@ -2925,9 +3031,12 @@ export class DataService {
         return this.weeklyQuestionTargets;
       }
       if (Array.isArray(data)) {
-        this.weeklyQuestionTargets = data.map((r: any) => this.questionTargetFromRow(r));
-        saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
-        this.notify();
+        const next = adoptList(this.weeklyQuestionTargets, data.map((r: any) => this.questionTargetFromRow(r))); // Aşama 84
+        if (next !== this.weeklyQuestionTargets) {
+          this.weeklyQuestionTargets = next;
+          saveData(STORAGE_KEYS.WEEKLY_QUESTION_TARGETS, this.weeklyQuestionTargets);
+          this.notify();
+        }
       }
       return this.weeklyQuestionTargets;
     } catch (e) {
@@ -2986,7 +3095,9 @@ export class DataService {
         if (!isBackground) console.warn('[DocumentsSync] Error:', error);
         return this.documents;
       }
-      this.documents = (rows || []).map((r: any) => this.documentFromRow(r));
+      const nextDocs = adoptList(this.documents, (rows || []).map((r: any) => this.documentFromRow(r)));
+      if (nextDocs === this.documents) return this.documents; // Aşama 84: değişiklik yok
+      this.documents = nextDocs;
       this.persistDocumentsLocal();
       this.notify();
       return this.documents;
@@ -3494,6 +3605,7 @@ export class DataService {
   }
 
   private async runFullSync(isBackground: boolean): Promise<void> {
+    const versionBefore = this.dataVersion;
     try {
       this.ensureRealtime();
       this.startPeriodicSync();
@@ -3519,7 +3631,9 @@ export class DataService {
         this.syncStudentNotifications(),
       ]);
       this.lastFullSyncAt = Date.now();
-      this.notify();
+      // Aşama 84: arka plan eşitlemesinde hiçbir veri değişmediyse ekran yeniden çizdirilmez
+      if (!isBackground || this.dataVersion !== versionBefore) this.notify();
+      else this.lastSyncTimestamp = Date.now();
     } catch (e) {
       if (!isBackground) console.warn('[RevalidateAndSyncAll] Error:', e);
     }
@@ -5785,11 +5899,70 @@ export class DataService {
     return student;
   }
 
+  // ===========================================================================
+  // HIZ (Aşama 84): oturum bilgisi her çağrıda yeniden çözülmez. Saklanan oturum ve kişinin kaydı
+  // değişmediyse AYNI nesne verilir: ekranlar her bildirimde "oturum değişti" sanıp baştan çizilmez.
+  // ===========================================================================
+  private authCache: {
+    raw: string;
+    profileKey: string;
+    profile: string | null;
+    list: unknown[];
+    len: number;
+    idx: number;
+    ref: unknown;
+    val: AuthSession;
+    ep: number;
+  } | null = null;
   public getAuthSession(): AuthSession | null {
+    const fast = this.authCache;
+    // Aynı çizim sırasında depolama yeniden okunmaz; oturum yalnızca setAuthSession / çıkış ile değişir
+    if (fast && fast.ep === currentEpoch()) {
+      const list = fast.val.role === 'teacher' ? this.teachers : this.students;
+      if (list === fast.list && list.length === fast.len && (fast.idx < 0 || list[fast.idx] === fast.ref)) return fast.val;
+    }
+    let raw: string | null = null;
+    try {
+      raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
+    } catch {
+      raw = null;
+    }
+    const c = this.authCache;
+    if (raw && c && c.raw === raw) {
+      let profile: string | null = null;
+      if (c.profileKey) {
+        try {
+          profile = localStorage.getItem(c.profileKey);
+        } catch {}
+      }
+      const list = c.val.role === 'teacher' ? this.teachers : this.students;
+      if (profile === c.profile && list === c.list && list.length === c.len && (c.idx < 0 || list[c.idx] === c.ref)) {
+        c.ep = currentEpoch();
+        return c.val;
+      }
+    }
+    this.authCache = null;
+    const val = this.readAuthSession(raw);
+    if (raw && val && val.user) {
+      const list = (val.role === 'teacher' ? this.teachers : this.students) as unknown[];
+      const id = (val.user as any).id;
+      const idx = list.findIndex((x: any) => x && x.id === id);
+      const profileKey = val.role === 'teacher' ? `edu_sys_teacher_custom_profile_${id}` : '';
+      let profile: string | null = null;
+      if (profileKey) {
+        try {
+          profile = localStorage.getItem(profileKey);
+        } catch {}
+      }
+      this.authCache = { raw, profileKey, profile, list, len: list.length, idx, ref: idx >= 0 ? list[idx] : null, val, ep: currentEpoch() };
+    }
+    return val;
+  }
+
+  private readAuthSession(raw: string | null): AuthSession | null {
     // Sayfa kapatılıp açıldığında oturumu kapatmak için sessionStorage kullanılır
     let saved: AuthSession | null = null;
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEYS.AUTH_SESSION);
       if (raw) {
         saved = JSON.parse(raw);
       }
@@ -5853,6 +6026,7 @@ export class DataService {
   }
 
   public setAuthSession(session: AuthSession | null): void {
+    this.authCache = null; // Aşama 84
     if (session) {
       try {
         sessionStorage.setItem(STORAGE_KEYS.AUTH_SESSION, JSON.stringify(session));
@@ -6674,12 +6848,10 @@ export class DataService {
 
       // The central database is the single source of truth:
       // Any class deleted on computer is cleanly removed from local state on all devices!
-      const deduplicatedClasses = this.deduplicateClasses(Array.from(remoteMap.values()));
+      const deduplicatedClasses = adoptList(this.classes, this.deduplicateClasses(Array.from(remoteMap.values())));
+      if (deduplicatedClasses === this.classes) return this.classes; // Aşama 84: değişiklik yok
       this.classes = deduplicatedClasses;
       saveData(STORAGE_KEYS.CLASSES, this.classes);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
 
       return this.classes;
@@ -10102,7 +10274,14 @@ export class DataService {
   // Aşama 30: günlük plandan aktarılan KONU kayıtları (soru sayısı 0/1) hedef değildir; hiçbir hedef
   // listesinde, tabloda, grafikte ya da hesapta görünmez. Konular getPlanTopicsForStudentDay ile okunur.
   public getWeeklyQuestionTargets(): WeeklyQuestionTarget[] {
-    return this.visibleQuestionTargetRecords().filter((t) => !isPendingPlanTarget(t));
+    // Aşama 84: aynı veriyle defalarca istendiğinde (aylık / haftalık hesaplar) her seferinde yeniden süzülmez
+    const k = this.myKurum;
+    return this.memoView(
+      'WeeklyQuestionTargets',
+      [this.weeklyQuestionTargets, this.teachers, this.classes, this.students],
+      this.viewKey(`${k.head ? 1 : 0}${k.kurumAdmin ? 1 : 0}${k.kurumId || ''}${k.rolesEnabled ? 1 : 0}`),
+      () => this.visibleQuestionTargetRecords().filter((t) => !isPendingPlanTarget(t))
+    );
   }
 
   // Oturumdaki kullanıcının görebildiği TÜM kayıtlar (hedefler + plan konu kayıtları)

@@ -4,8 +4,27 @@
  * hem yerel Türkçe kurallarına hem de esnek normalize edilmiş aramalara göre kusursuz eşleştirir.
  */
 
+// HIZ (Aşama 84): aynı metin tekrar tekrar normalleştirilmez (aramada her tuşta yüzlerce öğrenci adı)
+const NORM_MAX = 5000;
+const normCache = new Map<string, string>();
+const lowerCache = new Map<string, string>();
+const trLowerCache = new Map<string, string>();
+function cached(map: Map<string, string>, key: string, make: (k: string) => string): string {
+  let v = map.get(key);
+  if (v === undefined) {
+    if (map.size >= NORM_MAX) map.clear();
+    v = make(key);
+    map.set(key, v);
+  }
+  return v;
+}
+
 export function normalizeTurkish(text: string): string {
   if (!text) return '';
+  return cached(normCache, text, normalizeTurkishRaw);
+}
+
+function normalizeTurkishRaw(text: string): string {
   return text
     .replace(/İ/g, 'i')
     .replace(/I/g, 'ı')
@@ -41,11 +60,13 @@ export function matchTurkishSearch(
   const rawT = target.trim();
 
   // 1. Standart toLowerCase
-  if (rawT.toLowerCase().includes(rawQ.toLowerCase())) return true;
+  const lower = (k: string) => k.toLowerCase();
+  if (cached(lowerCache, rawT, lower).includes(cached(lowerCache, rawQ, lower))) return true;
 
   // 2. Türkçe yerel toLocaleLowerCase ('tr-TR')
   try {
-    if (rawT.toLocaleLowerCase('tr-TR').includes(rawQ.toLocaleLowerCase('tr-TR'))) {
+    const trLower = (k: string) => k.toLocaleLowerCase('tr-TR');
+    if (cached(trLowerCache, rawT, trLower).includes(cached(trLowerCache, rawQ, trLower))) {
       return true;
     }
   } catch {}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense, startTransition } from 'react';
 import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { PageHeader } from './components/ui/kit';
 import { Navbar } from './components/Navbar';
@@ -16,7 +16,7 @@ import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
-import { lazyNamed, PageLoading } from './lib/lazyLoad';
+import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 import { supabase } from './lib/supabase';
 import {
   Student,
@@ -36,16 +36,33 @@ import {
 } from './types';
 
 // Aşama 15: sayfalar ilk açıldıklarında yüklenir (giriş ekranı ve öğrenci telefonu hızlı açılır)
-const StudentManagement = lazyNamed(() => import('./components/Teacher/StudentManagement'), 'StudentManagement');
-const HomeworkManagement = lazyNamed(() => import('./components/Teacher/HomeworkManagement'), 'HomeworkManagement');
-const EtutManagement = lazyNamed(() => import('./components/Teacher/EtutManagement'), 'EtutManagement');
-const TeacherMessages = lazyNamed(() => import('./components/Teacher/TeacherMessages'), 'TeacherMessages');
-const TeacherHome = lazyNamed(() => import('./components/Teacher/TeacherHome'), 'TeacherHome');
-const TeacherDocumentsArchive = lazyNamed(() => import('./components/Teacher/Documents/TeacherDocumentsArchive'), 'TeacherDocumentsArchive');
+// Aşama 84: sayfa parçalarının yükleyicileri ortak: menüden açılırken de, önceden indirilirken de aynı parça kullanılır
+const PAGE_LOADERS = {
+  home: () => import('./components/Teacher/TeacherHome'),
+  students: () => import('./components/Teacher/StudentManagement'),
+  homework: () => import('./components/Teacher/HomeworkManagement'),
+  etuts: () => import('./components/Teacher/EtutManagement'),
+  messages: () => import('./components/Teacher/TeacherMessages'),
+  archive: () => import('./components/Teacher/Documents/TeacherDocumentsArchive'),
+  grades: () => import('./components/Teacher/GradeAttendance'),
+  question_tracking: () => import('./components/Teacher/QuestionTrackingView'),
+  deneme: () => import('./components/Deneme/DenemeAnalizi'),
+} as const;
+const STUDENT_LOADERS = [
+  () => import('./components/Student/StudentPortal'),
+  () => import('./components/Student/StudentQuestionModule'),
+  () => import('./components/Student/StudentDenemeSonuclari'),
+];
+const StudentManagement = lazyNamed(PAGE_LOADERS.students, 'StudentManagement');
+const HomeworkManagement = lazyNamed(PAGE_LOADERS.homework, 'HomeworkManagement');
+const EtutManagement = lazyNamed(PAGE_LOADERS.etuts, 'EtutManagement');
+const TeacherMessages = lazyNamed(PAGE_LOADERS.messages, 'TeacherMessages');
+const TeacherHome = lazyNamed(PAGE_LOADERS.home, 'TeacherHome');
+const TeacherDocumentsArchive = lazyNamed(PAGE_LOADERS.archive, 'TeacherDocumentsArchive');
 const KurumManagement = lazyNamed(() => import('./components/Admin/KurumManagement'), 'KurumManagement');
-const GradeAttendance = lazyNamed(() => import('./components/Teacher/GradeAttendance'), 'GradeAttendance');
-const QuestionTrackingView = lazyNamed(() => import('./components/Teacher/QuestionTrackingView'), 'QuestionTrackingView');
-const DenemeAnalizi = lazyNamed(() => import('./components/Deneme/DenemeAnalizi'), 'DenemeAnalizi');
+const GradeAttendance = lazyNamed(PAGE_LOADERS.grades, 'GradeAttendance');
+const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
+const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
 const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
 const NotificationPolicyPanel = lazyNamed(() => import('./components/Admin/NotificationPolicyPanel'), 'NotificationPolicyPanel');
 const TeacherRolesPanel = lazyNamed(() => import('./components/Admin/TeacherRolesPanel'), 'TeacherRolesPanel'); // Aşama 81
@@ -53,7 +70,7 @@ const KurumSettingsPanel = lazyNamed(() => import('./components/Admin/KurumSetti
 const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
-const StudentPortal = lazyNamed(() => import('./components/Student/StudentPortal'), 'StudentPortal');
+const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
 
 // URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
 // Component dışında tanımlı, her render'da yeniden oluşturulmaz.
@@ -111,6 +128,7 @@ export default function App() {
   const [documents, setDocuments] = useState<TeacherDocument[]>(dataService.getTeacherDocuments());
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(dataService.getQuestionLogs());
   const [pendingApplications, setPendingApplications] = useState<number>(dataService.getPendingApplicationCount());
+  const [, setDataRev] = useState(0);
 
   // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
@@ -119,6 +137,9 @@ export default function App() {
     dataService.revalidateAndSyncAll(true);
 
     const unsubscribe = dataService.subscribe(() => {
+      // Aşama 84: oturum nesnesi artık değişmedikçe aynı kalır; sayfalar dataService'ten okuduklarını
+      // güncel göstersin diye her bildirimde bir kez yeniden çizilir (eskisi gibi)
+      setDataRev((n) => n + 1);
       setStudents(dataService.getStudents());
       setClasses(dataService.getClasses());
       setHomeworks(dataService.getHomeworks());
@@ -341,6 +362,15 @@ export default function App() {
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens
+  // Aşama 84: giriş yapıldıktan sonra kişinin açabileceği bölümlerin parçaları tarayıcı boşken önceden indirilir
+  const sessionRole = authSession?.role || null;
+  useEffect(() => {
+    if (sessionRole === 'student') return prefetchModules(STUDENT_LOADERS);
+    if (sessionRole !== 'teacher') return;
+    const order: Array<keyof typeof PAGE_LOADERS> = ['home', 'students', 'homework', 'etuts', 'messages', 'grades', 'question_tracking', 'deneme', 'archive'];
+    return prefetchModules(order.filter((t) => t === 'home' || dataService.canUseTab(t as TeacherTabType)).map((t) => PAGE_LOADERS[t]));
+  }, [sessionRole]);
+
   // Aşama 82: yalnızca Etüt Öğretmeni rolü olan kişi doğrudan Etütler bölümünde açılır (ana sayfa öğrenci özetleri içerir)
   useEffect(() => {
     if (role === 'teacher' && teacherTab === 'home' && dataService.roleEtutOnly() && dataService.canUseTab('etuts')) {
@@ -378,7 +408,8 @@ export default function App() {
   // Üst menü, alt menü ve hızlı aramadan bölüm değiştirme
   const selectTeacherTab = (tab: TeacherTabType) => {
     setRole('teacher');
-    setTeacherTab(tab);
+    // Aşama 84: yeni bölüm arka planda hazırlanır; o sırada ekran donmaz, önceki bölüm görünür kalır
+    startTransition(() => setTeacherTab(tab));
     setStudents(dataService.getStudents());
     setClasses(dataService.getClasses());
     setHomeworks(dataService.getHomeworks());

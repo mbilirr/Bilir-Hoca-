@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, startTransition } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 // ============================================================================
@@ -9,17 +9,24 @@ import { ChevronDown } from 'lucide-react';
 
 export const LIST_STEP = 50;
 
-export function usePagedList<T>(list: T[], resetKey: unknown, step = LIST_STEP) {
-  const [count, setCount] = useState(step);
+// Aşama 84: firstPaint verilirse sayfa önce o kadar satırla açılır, kalan satırlar hemen ardından arka planda
+// eklenir (ekran beklemeden görünür; sonuçta yine `step` kadar satır gösterilir)
+export function usePagedList<T>(list: T[], resetKey: unknown, step = LIST_STEP, firstPaint?: number) {
+  const initial = firstPaint && firstPaint < step ? firstPaint : step;
+  const [count, setCount] = useState(initial);
   useEffect(() => {
-    setCount(step);
-  }, [resetKey, step]);
+    setCount(initial);
+    if (initial >= step) return;
+    const t = setTimeout(() => startTransition(() => setCount((c) => Math.max(c, step))), 30);
+    return () => clearTimeout(t);
+  }, [resetKey, step, initial]);
   const visible = list.length > count ? list.slice(0, count) : list;
   return {
     visible,
-    remaining: Math.max(0, list.length - visible.length),
+    // ilk açılışta kalan satırlar eklenirken "Daha fazla göster" çubuğu zıplamasın
+    remaining: Math.max(0, list.length - Math.max(count, step)),
     total: list.length,
-    showMore: () => setCount((c) => c + step),
+    showMore: () => setCount((c) => Math.max(c, step) + step),
     showAll: () => setCount(list.length),
   };
 }

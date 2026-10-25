@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, startTransition } from 'react';
 import {
   HelpCircle,
   Plus,
@@ -232,6 +232,10 @@ export const TargetLineLabel: React.FC<{ viewBox?: { x?: number; y?: number }; t
   );
 };
 
+// HIZ (Aşama 84): dokunmatik cihazlarda (telefon / tablet) grafik çubukları "büyüyerek gelme" animasyonu olmadan
+// çizilir. Animasyon 1,5 sn boyunca grafiği her karede yeniden çizip bölümün açılışını kasıyordu. Bilgisayarda aynen kalır.
+const CHART_ANIMATE = !(typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches);
+
 /** Grafiklerde imleç arka planı (koyu temada parlak gri blok yerine tema rengi) */
 export const CHART_BAR_CURSOR = { fill: 'var(--color-surface-3)', opacity: 0.55 };
 export const CHART_LINE_CURSOR = { stroke: 'var(--color-line-strong)', strokeWidth: 1.5 };
@@ -458,6 +462,23 @@ interface StudentQuestionModuleProps {
   students: Student[];
 }
 
+// HIZ (Aşama 84): grafikler bölüm ekrana geldikten hemen sonra çizilir (yeri önceden ayrılır, sayfa zıplamaz).
+// Grafik kütüphanesinin hesabı bölümün açılışını bekletmez; telefonda Sorular bölümü beklemeden açılır.
+function useChartsAfterPaint(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => startTransition(() => setReady(true)));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, []);
+  return ready;
+}
+
 export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   currentStudent,
   classes,
@@ -479,6 +500,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   // Görünüm sekmeleri: 'entry' (Soru Girişi) | 'weekly' (Haftalık Analiz) | 'monthly' (Aylık Analiz) | 'history' (Geçmiş Kayıtlar)
   // Alt sekme adreste tutulur (#/student/questions/entry): "Geri" tuşu önceki alt sekmeye döner
   const [activeTab, setActiveTabState] = useState<QuestionSubTab>(() => readQuestionSubTab() || 'weekly');
+  const chartsReady = useChartsAfterPaint(); // Aşama 84
   const setActiveTab = (tab: QuestionSubTab) => {
     setActiveTabState(tab);
     pushQuestionSubTab(tab);
@@ -1747,6 +1769,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             </div>
 
             <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
+              {chartsReady && (
               <ResponsiveContainer width="100%" height="100%">
                 {chartVisualType === 'bar' ? (
                   <ComposedChart
@@ -1774,7 +1797,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       allowDecimals={false}
                     />
                     <Tooltip content={renderLookerTooltip} cursor={CHART_BAR_CURSOR} />
-                    <Bar dataKey="totalQuestions" radius={[6, 6, 0, 0]} maxBarSize={55} minPointSize={4}>
+                    <Bar dataKey="totalQuestions" radius={[6, 6, 0, 0]} maxBarSize={55} minPointSize={4} isAnimationActive={CHART_ANIMATE}>
                       <LabelList
                         dataKey="totalQuestions"
                         position="top"
@@ -1852,6 +1875,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       fillOpacity={1}
                       fill="url(#studentNavyGradient)"
                       dot={{ r: 5, fill: 'var(--chart-1)', stroke: 'var(--color-surface)', strokeWidth: 2 }}
+                      isAnimationActive={CHART_ANIMATE}
                     >
                       <LabelList
                         dataKey="totalQuestions"
@@ -1879,6 +1903,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   </ComposedChart>
                 )}
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 
@@ -2238,6 +2263,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               Aylık Hafta Bazında Soru Çözüm Grafiği
             </h4>
             <div className="h-72 sm:h-80 w-full bg-surface-2 rounded-xl p-2 sm:p-3 border border-line">
+              {chartsReady && (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyAnalytics.weeks} margin={{ top: 25, right: isNarrow ? 10 : 18, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
@@ -2252,11 +2278,12 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   />
                   <YAxis stroke="var(--color-muted)" fontSize={isNarrow ? 10 : 12} fontWeight={600} tickLine={false} allowDecimals={false} width={String(Math.max(1, ...monthlyAnalytics.weeks.map((w) => Number(w.totalQuestions) || 0))).length * (isNarrow ? 6.5 : 7.5) + (isNarrow ? 12 : 16)} />
                   <Tooltip content={<MonthlyBucketTooltip plan={monthlyPlan} />} cursor={CHART_BAR_CURSOR} />
-                  <Bar dataKey="totalQuestions" fill="var(--chart-1)" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                  <Bar dataKey="totalQuestions" fill="var(--chart-1)" radius={[6, 6, 0, 0]} maxBarSize={60} isAnimationActive={CHART_ANIMATE}>
                     <LabelList dataKey="totalQuestions" position="top" fill="var(--color-fg)" fontSize={isNarrow ? 10 : 12} fontWeight={800} offset={8} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>

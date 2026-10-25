@@ -82,6 +82,52 @@ interface StudentManagementProps {
 /** Aşama 72: öğrenci bilgileri penceresindeki kutular küçük ve sıkı (pencere dikdörtgen kalır) */
 const SF = 'h-8 text-xs px-2.5 py-1 rounded-lg';
 
+// HIZ (Aşama 84): tablo satırındaki "sınıf değiştir" kutusu, kişi kutuya dokunana / tıklayana kadar yalnızca
+// mevcut sınıfı içerir; seçenekler o anda eklenir. 50 satır × tüm sınıflar yüzlerce gereksiz öğe demekti
+// (sayfanın ilk açılışını yavaşlatıyordu). Görünüm ve kullanım aynıdır.
+type QuickClassOption = { id: string; label: string; manageable: boolean };
+const QuickClassSelect: React.FC<{
+  value: string;
+  options: QuickClassOption[];
+  className: string;
+  title: string;
+  onPick: (classId: string) => void;
+}> = ({ value, options, className, title, onPick }) => {
+  const [armed, setArmed] = useState(false);
+  const arm = () => {
+    if (!armed) setArmed(true);
+  };
+  const current = options.find((o) => o.id === value);
+  return (
+    <select
+      value={value}
+      onChange={(e) => onPick(e.target.value)}
+      onPointerDown={arm}
+      onMouseDown={arm}
+      onTouchStart={arm}
+      onFocus={arm}
+      onKeyDown={arm}
+      className={className}
+      title={title}
+    >
+      {armed ? (
+        <>
+          <option value="unassigned">Yok</option>
+          {options
+            .filter((o) => o.id === value || o.manageable)
+            .map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+        </>
+      ) : (
+        <option value={value}>{current ? current.label : 'Yok'}</option>
+      )}
+    </select>
+  );
+};
+
 export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
   classes,
@@ -488,7 +534,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   }, [students, classes, deferredSearch, selectedClassFilter, sortOrder, duplicateStudentGroups]);
   // Aşama 15: liste parça parça çizilir; telefonda yalnız kart listesi, bilgisayarda yalnız tablo çizilir
   const isPhoneList = useMediaQuery('(max-width: 767px)');
-  const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${selectedClassFilter}|${sortOrder}`);
+  // Aşama 84: satırlardaki sınıf seçiminin seçenekleri bir kez hazırlanır (her satırda yeniden süzülmez)
+  const quickClassOptions: QuickClassOption[] = classes.map((cls) => ({
+    id: cls.id,
+    label: formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel),
+    manageable: dataService.canManageClass(cls),
+  }));
+  // Aşama 84: liste önce 15 satırla açılır, kalan satırlar hemen ardından eklenir (ilk açılış hızlanır)
+  const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${selectedClassFilter}|${sortOrder}`, undefined, 15);
 
   // Çoklu öğrenci seçimi mantığı
   const allFilteredSelected = useMemo(() => {
@@ -1429,7 +1482,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 const isSelected = selectedStudentIds.includes(std.id);
                 const suspended = std.isSuspended || std.status === 'suspended';
                 return (
-                  <li key={std.id} className={`px-4 py-3 ${isSelected ? 'bg-brand-soft' : ''}`}>
+                  <li key={std.id} className={`cv-row px-4 py-3 ${isSelected ? 'bg-brand-soft' : ''}`}>
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -1618,9 +1671,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         {!dataService.canManageStudent(std) ? (
                           <span className="text-xs font-semibold text-fg-2">{std.className || 'Yok'}</span>
                         ) : (
-                        <select
+                        <QuickClassSelect
                           value={std.classId || 'unassigned'}
-                          onChange={(e) => handleQuickChangeStudentClass(std, e.target.value)}
+                          options={quickClassOptions}
+                          onPick={(v) => handleQuickChangeStudentClass(std, v)}
                           className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
                             isStudentUnassigned(std)
                               ? 'bg-surface-2 text-fg-2 border-line-strong hover:border-line-strong'
@@ -1629,14 +1683,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                               : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/15'
                           }`}
                           title="Öğrencinin sınıfını anında değiştirmek için seçiniz"
-                        >
-                          <option value="unassigned">Yok</option>
-                          {classes.filter((cls) => cls.id === std.classId || dataService.canManageClass(cls)).map((cls) => (
-                            <option key={cls.id} value={cls.id}>
-                              {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)}
-                            </option>
-                          ))}
-                        </select>
+                        />
                         )}
                       </td>
 

@@ -263,21 +263,32 @@
   animation: qeBlink 1s linear infinite;
 }
 
+/* HIZ (Aşama 84): yanıp sönen ışık yalnızca saydamlık ve ölçek ile çizilir (ekran kartı yapar);
+   gölge / renk / parlaklık her karede yeniden boyanmaz — telefonda sayfa kaydırırken takılma olmaz. */
 @keyframes beaconGlow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.8), 0 0 24px 6px rgba(129, 140, 248, 0.7);
-    border-color: rgba(224, 231, 255, 0.95);
-    filter: brightness(1.2);
+    opacity: 1;
+    transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0), 0 0 5px 0px rgba(99, 102, 241, 0.2);
-    border-color: rgba(99, 102, 241, 0.4);
-    filter: brightness(0.92);
+    opacity: 0.15;
+    transform: scale(1.06);
   }
 }
 
 .animate-beacon {
+  position: relative;
+  box-shadow: 0 0 10px 2px rgba(129, 140, 248, 0.55);
+}
+.animate-beacon::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.55), 0 0 22px 6px rgba(129, 140, 248, 0.7);
   animation: beaconGlow 1.4s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 
 /* ========================================================================= */
@@ -335,20 +346,24 @@
   }
 }
 
-.hover-glow-amber:hover {
-  animation: studentGlowAmber 0.85s ease-in-out infinite !important;
-}
+/* Aşama 84: parlama yalnızca fareli cihazlarda; telefonda / tablette dokununca "üzerinde" durumu takılı kalıp
+   sürekli ağır animasyon çalıştırıyordu (sayfa kaydırırken takılma) */
+@media (hover: hover) and (pointer: fine) {
+  .hover-glow-amber:hover {
+    animation: studentGlowAmber 0.85s ease-in-out infinite !important;
+  }
 
-.hover-glow-blue:hover {
-  animation: studentGlowBlue 0.85s ease-in-out infinite !important;
-}
+  .hover-glow-blue:hover {
+    animation: studentGlowBlue 0.85s ease-in-out infinite !important;
+  }
 
-.hover-glow-emerald:hover {
-  animation: studentGlowEmerald 0.85s ease-in-out infinite !important;
-}
+  .hover-glow-emerald:hover {
+    animation: studentGlowEmerald 0.85s ease-in-out infinite !important;
+  }
 
-.hover-glow-purple:hover {
-  animation: studentGlowPurple 0.85s ease-in-out infinite !important;
+  .hover-glow-purple:hover {
+    animation: studentGlowPurple 0.85s ease-in-out infinite !important;
+  }
 }
 
 /* ========================================================================= */
@@ -409,7 +424,23 @@ html {
   --nb: 245 158 11;
   position: relative;
   border-color: rgb(var(--nb) / 0.9) !important;
+  /* Aşama 84: sabit zemin + üstte yalnızca saydamlığı değişen parlama katmanı (her karede boyama yok) */
+  background-color: rgb(var(--nb) / 0.1);
+  box-shadow: inset 4px 0 0 0 rgb(var(--nb));
+  isolation: isolate;
+}
+.notify-blink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: rgb(var(--nb) / 0.32);
+  box-shadow: 0 0 16px 3px rgb(var(--nb) / 0.55);
+  opacity: 0;
+  z-index: -1;
   animation: notifyBlink 1.15s ease-in-out infinite;
+  will-change: opacity;
 }
 .notify-blink-amber { --nb: 245 158 11; }
 .notify-blink-rose { --nb: 244 63 94; }
@@ -418,12 +449,10 @@ html {
 
 @keyframes notifyBlink {
   0%, 100% {
-    background-color: rgb(var(--nb) / 0.10);
-    box-shadow: inset 4px 0 0 0 rgb(var(--nb)), 0 0 0 0 rgb(var(--nb) / 0);
+    opacity: 0;
   }
   50% {
-    background-color: rgb(var(--nb) / 0.42);
-    box-shadow: inset 4px 0 0 0 rgb(var(--nb)), 0 0 16px 3px rgb(var(--nb) / 0.55);
+    opacity: 1;
   }
 }
 
@@ -441,13 +470,15 @@ html {
   color: #fff;
   background-color: rgb(var(--nb));
   animation: notifyBadge 1s ease-in-out infinite;
+  will-change: opacity, transform;
 }
 .notify-badge.notify-blink-amber { --nb: 217 119 6; }
 .notify-badge.notify-blink-rose { --nb: 225 29 72; }
 .notify-badge.notify-blink-emerald { --nb: 5 150 105; }
+/* Aşama 84: rozet yalnızca saydamlık ve ölçekle yanıp söner (gölge her karede boyanmaz) */
 @keyframes notifyBadge {
-  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgb(var(--nb) / 0.7); }
-  50% { opacity: 0.55; transform: scale(1.08); box-shadow: 0 0 0 8px rgb(var(--nb) / 0); }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.08); }
 }
 
 /* Panel çerçevesi: yeni bilgi AZ ÖNCE geldiyse kısa süre güçlü parlama (React ~8 sn sonra sınıfı kaldırır) */
@@ -534,4 +565,11 @@ html, body {
 .pw-mask {
   -webkit-text-security: disc;
   text-security: disc;
+}
+
+/* HIZ (Aşama 84): uzun listelerde ekranın dışında kalan satırlar çizilmez (kaydırınca çizilir).
+   Görünüm aynıdır; telefonda sayfanın ilk açılışı ve kaydırma hafifler. */
+.cv-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
 }

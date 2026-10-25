@@ -6,6 +6,10 @@ import { UpdateAvailableBanner } from './components/Common/UpdateAvailableBanner
 import './index.css';
 import { installAvatarGuard } from './lib/localAvatar';
 import { installEscClose } from './lib/escClose';
+import { installIntlCache } from './lib/intlCache';
+
+// Aşama 84: tarih biçimlendirme ve Türkçe sıralama için kurulan biçimlendiriciler tekrar kullanılır (listeler hızlanır)
+installIntlCache();
 
 // Aşama 17: avatarlar dış servise gitmeden tarayıcıda çizilir; eski pencereler Esc ile kapanır
 installAvatarGuard();
