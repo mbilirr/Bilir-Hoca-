@@ -37,6 +37,23 @@ async function fetchAllRows(table: string, columns = '*', apply?: (q: any) => an
 // ---------------------------------------------------------------------------
 // 1) YEDEKLEME
 // ---------------------------------------------------------------------------
+// Aşama 85: öğrencilerin e-posta / telefon / veli bilgisi korumalı tablodadır (student_contacts);
+// yedekte öğrenci satırına eskisi gibi eklenir. 85 numaralı SQL çalıştırılmadıysa eski yol.
+async function fetchStudentsForBackup(): Promise<any[]> {
+  let contacts: any[] | null = null;
+  try {
+    contacts = await fetchAllRows('student_contacts', 'id,email,phone,parents');
+  } catch {
+    contacts = null;
+  }
+  if (!contacts) return fetchAllRows('students', '*');
+  const rows = await fetchAllRows('students', 'id,name,student_number,class_id,class_name,avatar,registered_at,auth_user_id,status,kurum_id,tc_hash');
+  const byId = new Map(contacts.map((c) => [String(c.id), c]));
+  return rows.map((r) => {
+    const c = byId.get(String(r.id));
+    return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents : [] };
+  });
+}
 interface BackupTableDef {
   table: string;
   sheet: string;
@@ -118,7 +135,7 @@ export async function createFullBackup(
     const def = BACKUP_TABLES[i];
     onProgress?.(i, BACKUP_TABLES.length, def.sheet);
     try {
-      let rows = await fetchAllRows(def.table, def.columns || '*', def.apply);
+      let rows = def.table === 'students' ? await fetchStudentsForBackup() : await fetchAllRows(def.table, def.columns || '*', def.apply);
       if (def.table === 'homeworks') rows = rows.filter((r) => !String(r.id || '').startsWith('__'));
       json[def.table] = rows;
       counts[def.table] = rows.length;

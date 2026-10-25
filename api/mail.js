@@ -1075,16 +1075,68 @@ async function openSmtp(sender) {
 // Yöneticinin "Bildirim izinleri" ayarına göre: kapalı olan e-postalar gönderilmez; veliye e-posta açıksa
 // öğrenciye giden e-postanın bir kopyası öğrencinin kayıtlı velilerine (students.parents) gönderilir.
 const VELI_NOTE = 'Bu e-posta, velisi olduğunuz öğrenciye gönderilen bilgilendirmenin bir kopyasıdır.';
+// ----------------------------------------------------------------------------- Aşama 85: iletişim bilgisi
+// Veli bilgisi ile öğrencinin e-postası / telefonu korumalı tablodadır (student_contacts, sql/85).
+// Sunucu bu bilgiyi yalnızca service yetkisiyle okur; kime gideceği her işlemde ayrıca denetlenir.
+// Tablo yoksa (85 çalıştırılmadıysa) eski sütunlar okunur; tabloda boş kalan bilgi için de eski sütun yedek olur.
+let contactsTableMissing = false;
+async function studentContactsMap(ids) {
+  const map = new Map();
+  const list = [...new Set((ids || []).filter(Boolean).map(String))];
+  for (let i = 0; i < list.length; i += 100) {
+    const part = list.slice(i, i + 100);
+    let legacy = [];
+    try {
+      legacy = (await rest(`students?select=id,email,phone,parents&id=in.${inList(part)}`, { token: 'service' })) || [];
+    } catch {
+      try {
+        legacy = (await rest(`students?select=id,email,phone&id=in.${inList(part)}`, { token: 'service' })) || []; // veli sütunu yoksa
+      } catch {
+        legacy = [];
+      }
+    }
+    for (const r of legacy) {
+      map.set(String(r.id), { email: r.email || '', phone: r.phone || '', parents: Array.isArray(r.parents) ? r.parents : [] });
+    }
+    if (contactsTableMissing) continue;
+    try {
+      const rows = (await rest(`student_contacts?select=id,email,phone,parents&id=in.${inList(part)}`, { token: 'service' })) || [];
+      for (const c of rows) {
+        const old = map.get(String(c.id)) || { email: '', phone: '', parents: [] };
+        map.set(String(c.id), {
+          email: c.email || old.email || '',
+          phone: c.phone || old.phone || '',
+          parents: Array.isArray(c.parents) && c.parents.length ? c.parents : old.parents,
+        });
+      }
+    } catch {
+      contactsTableMissing = true; // 85 numaralı SQL çalıştırılmadı: eski sütunlar yeterli
+    }
+  }
+  return map;
+}
+/** Öğrenci satırlarına e-posta adresini ekler (service ile; satırlar çağıranın kendi yetkisiyle okunmuştur) */
+async function withStudentEmails(rows) {
+  const list = rows || [];
+  if (!list.length) return list;
+  const cmap = await studentContactsMap(list.map((s) => s.id));
+  return list.map((s) => ({ ...s, email: (cmap.get(String(s.id)) || {}).email || '' }));
+}
+
 async function studentParentsMap(ids) {
   const map = new Map();
   const list = [...new Set(ids.filter(Boolean).map(String))];
+  const cmap = await studentContactsMap(list);
   for (let i = 0; i < list.length; i += 100) {
     const part = list.slice(i, i + 100);
     try {
-      const rows = await rest(`students?select=id,name,phone,parents&id=in.${inList(part)}`, { token: 'service' });
-      for (const r of rows || []) map.set(String(r.id), { name: r.name || '', phone: r.phone || '', parents: Array.isArray(r.parents) ? r.parents : [] });
+      const rows = await rest(`students?select=id,name&id=in.${inList(part)}`, { token: 'service' });
+      for (const r of rows || []) {
+        const c = cmap.get(String(r.id)) || { phone: '', parents: [] };
+        map.set(String(r.id), { name: r.name || '', phone: c.phone || '', parents: Array.isArray(c.parents) ? c.parents : [] });
+      }
     } catch {
-      // "parents" sütunu yoksa (Aşama 69 SQL'i çalışmadıysa) veliye gönderilmez
+      // öğrenci okunamadı: veliye gönderilmez
     }
   }
   return map;
@@ -1662,15 +1714,15 @@ async function studentsByIds(ids, token) {
   const out = [];
   for (let i = 0; i < ids.length; i += 100) {
     const part = ids.slice(i, i + 100);
-    const rows = await rest(`students?select=id,name,email,class_id,class_name,status&id=in.${inList(part)}`, { token });
+    const rows = await rest(`students?select=id,name,class_id,class_name,status&id=in.${inList(part)}`, { token });
     out.push(...(rows || []));
   }
-  return out.filter((s) => !s.status || s.status === 'active');
+  return withStudentEmails(out.filter((s) => !s.status || s.status === 'active')); // Aşama 85
 }
 async function studentsByClasses(classIds, token) {
   if (!classIds.length) return [];
-  const rows = await rest(`students?select=id,name,email,class_id,class_name,status&class_id=in.${inList(classIds)}`, { token });
-  return (rows || []).filter((s) => !s.status || s.status === 'active');
+  const rows = await rest(`students?select=id,name,class_id,class_name,status&class_id=in.${inList(classIds)}`, { token });
+  return withStudentEmails((rows || []).filter((s) => !s.status || s.status === 'active')); // Aşama 85
 }
 // Ödevin hedefi yalnızca veritabanının denetlediği target_* sütunlarından okunur
 async function homeworkStudents(hw, token) {
@@ -3009,7 +3061,7 @@ async function actionDenemeKarne(caller, body, req, deadline) {
   // Yöneticinin bu öğrencinin sonucunu görme yetkisi var mı? (kendi oturumuyla; veritabanı kuralları denetler)
   const vis = await rest(`deneme_results?select=id&student_id=eq.${encodeURIComponent(studentId)}&limit=1`, { token: caller.token });
   if (!vis || !vis.length) throw new HttpError(404, 'Bu öğrencinin size açık bir deneme sonucu yok.');
-  const rows = await rest(`students?select=id,name,email,status&id=eq.${encodeURIComponent(studentId)}`, { token: 'service' });
+  const rows = await withStudentEmails(await rest(`students?select=id,name,status&id=eq.${encodeURIComponent(studentId)}`, { token: 'service' }));
   const student = rows && rows[0];
   if (!student || (student.status && student.status !== 'active')) throw new HttpError(404, 'Öğrenci bulunamadı.');
   if (typeof body.pdf !== 'string' || !body.pdf) throw new HttpError(400, 'Karne PDF dosyası eksik.');

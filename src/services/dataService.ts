@@ -1559,10 +1559,9 @@ export class DataService {
         this.students.push(newStd);
       }
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
+      // Aşama 85: anlık bildirimde iletişim sütunları gelmez; izin varsa korumalı tablodan okunur
+      this.scheduleContactRefresh(row.id);
     } catch (err) {
       console.warn('Error handling student realtime event:', err);
     }
@@ -2177,6 +2176,23 @@ export class DataService {
         } catch {
           /* fonksiyon yoksa ya da ağ hatası: yalnızca kendi etütleri */
         }
+        // Aşama 85: Zümre Başkanı zümresinin etütlerini veritabanından öğrenci notları silinmiş olarak alır
+        if (this.hasRole('zumre_baskani') && !this.hasRole('rehberlik') && !this.isKurumAdmin()) {
+          try {
+            const peer = await supabase.rpc('etut_zumre_rows');
+            if (!peer.error && Array.isArray(peer.data) && peer.data.length) {
+              const byId = new Map<string, any>(remoteEtuts.map((r: any) => [r.id, r]));
+              for (const r of peer.data as any[]) {
+                const cur = byId.get(r.id);
+                // ortak takvimden gelen (ayrıntısız) satırın yerine zümre görünümü konur; kendi etüdü olduğu gibi kalır
+                if (!cur || (typeof cur.notes === 'string' && cur.notes.includes('"__redacted__":true'))) byId.set(r.id, r);
+              }
+              remoteEtuts = Array.from(byId.values());
+            }
+          } catch {
+            /* 85 numaralı SQL yoksa: önceki davranış */
+          }
+        }
       }
       if (remoteEtuts) {
         let etutsChanged = false;
@@ -2410,8 +2426,8 @@ export class DataService {
 
   // --- STUDENTS SUPABASE SYNC (CENTRAL DB IS SINGLE SOURCE OF TRUTH) ---
   // Öğrenci kaydının bulut satırındaki karşılığı (yalnızca tabloda bulunan sütunlar)
-  private studentToRow(s: Student) {
-    return {
+  private studentToRow(s: Student, isNew = false) {
+    const row: Record<string, unknown> = {
       name: s.name,
       student_number: s.studentNumber || '',
       class_id: s.classId || 'class-default',
@@ -2422,6 +2438,96 @@ export class DataService {
       // Aşama 69: veliler (en çok 3). Sütun yoksa patchStudentRow bunu çıkarıp tekrar dener.
       parents: cleanParents(s.parents),
     };
+    // Aşama 85: iletişim bilgisi korumalı tablodaysa (sql/85)
+    //  - bilgisini göremediğimiz öğrencide bu alanlar hiç gönderilmez (boş değerle ezilmez)
+    //  - silinen e-posta / telefon boş metin olarak gönderilir (veritabanı "silindi" olarak anlar)
+    if (DataService.contactsMode === 'table') {
+      if (!isNew && !this.contactKnown.has(s.id)) {
+        delete row.email;
+        delete row.phone;
+        delete row.parents;
+      } else if (!isNew) {
+        row.email = s.email || '';
+        row.phone = s.phone || '';
+      }
+    }
+    return row;
+  }
+
+  // ===========================================================================
+  // Aşama 85: VELİ / ÖĞRENCİ İLETİŞİM BİLGİSİ KORUMALI TABLODA (student_contacts, sql/85)
+  // students tablosunun email / phone / parents sütunları uygulama kullanıcılarına kapalıdır; bilgi
+  // student_contacts'tan, veritabanının izin verdiği kadar okunur. SQL çalıştırılmadıysa eski yol sürer.
+  // ===========================================================================
+  private static readonly STUDENT_SAFE_COLUMNS = 'id,name,student_number,class_id,class_name,avatar,registered_at,auth_user_id,status,kurum_id';
+  private static contactsMode: 'unknown' | 'table' | 'legacy' = 'unknown';
+  /** İletişim bilgisi veritabanından okunabilen öğrenciler (yalnızca bunların bilgisi geri yazılır) */
+  private contactKnown = new Set<string>();
+  private isMissingTable(error: any): boolean {
+    const msg = `${error?.code || ''} ${error?.message || ''}`;
+    return /PGRST205|PGRST202|42P01|Could not find the table|schema cache|does not exist/i.test(msg);
+  }
+  /** Öğrenci satırlarını iletişim bilgisiyle birlikte okur (korumalı tablo varsa ondan) */
+  private async fetchStudentRowsWithContacts(): Promise<{ data: any[] | null; error: any }> {
+    if (DataService.contactsMode !== 'legacy') {
+      // hız: iki okuma aynı anda yapılır
+      const [contacts, rows] = await Promise.all([
+        this.fetchAllRows('student_contacts', undefined, { columns: 'id,email,phone,parents' }),
+        this.fetchAllRows('students', undefined, { columns: DataService.STUDENT_SAFE_COLUMNS }),
+      ]);
+      if (!contacts.error) {
+        DataService.contactsMode = 'table';
+        if (rows.error) return rows;
+        const byId = new Map<string, any>((contacts.data || []).map((c: any) => [String(c.id), c]));
+        const known = new Set<string>();
+        const merged = (rows.data || []).map((r: any) => {
+          const c = byId.get(String(r.id));
+          if (c) known.add(String(r.id));
+          return { ...r, email: c ? c.email : null, phone: c ? c.phone : null, parents: c ? c.parents || [] : [] };
+        });
+        this.contactKnown = known;
+        return { data: merged, error: null };
+      }
+      if (!this.isMissingTable(contacts.error)) return { data: null, error: contacts.error };
+      DataService.contactsMode = 'legacy'; // 85 numaralı SQL henüz çalıştırılmadı: eski yol
+    }
+    return this.fetchAllRows('students');
+  }
+  /** Tek öğrencinin iletişim bilgisini yeniler (anlık güncelleme sonrası; kısa bekleme ile toplu) */
+  private contactRefreshIds = new Set<string>();
+  private contactRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private scheduleContactRefresh(id: string): void {
+    if (DataService.contactsMode !== 'table' || !id) return;
+    this.contactRefreshIds.add(id);
+    if (this.contactRefreshTimer) return;
+    this.contactRefreshTimer = setTimeout(async () => {
+      this.contactRefreshTimer = null;
+      const ids = Array.from(this.contactRefreshIds);
+      this.contactRefreshIds.clear();
+      try {
+        const { data, error } = await supabase.from('student_contacts').select('id,email,phone,parents').in('id', ids);
+        if (error || !Array.isArray(data)) return;
+        const byId = new Map<string, any>(data.map((c: any) => [String(c.id), c]));
+        let changed = false;
+        const next = this.students.map((st) => {
+          if (!ids.includes(st.id)) return st;
+          const c = byId.get(st.id);
+          if (!c) return st;
+          this.contactKnown.add(st.id);
+          const upd = { ...st, email: cleanStudentEmail(c.email) || '', phone: c.phone || '', parents: cleanParents(c.parents) };
+          if (sameData(upd, st)) return st;
+          changed = true;
+          return upd;
+        });
+        if (changed) {
+          this.students = next;
+          saveData(STORAGE_KEYS.STUDENTS, this.students);
+          this.notify();
+        }
+      } catch {
+        /* bir sonraki eşitlemede gelir */
+      }
+    }, 600);
   }
 
   /** Aşama 69: 69 numaralı SQL çalıştırılmadıysa students tablosunda veli sütunları yoktur */
@@ -2526,7 +2632,7 @@ export class DataService {
       await this.syncTombstonesFromCloud();
 
       // 1. Fetch individual rows from students table
-      const { data: remoteStudents, error: errStd } = await this.fetchAllRows('students');
+      const { data: remoteStudents, error: errStd } = await this.fetchStudentRowsWithContacts(); // Aşama 85
       if (errStd) {
         console.warn('Error fetching students from Supabase:', errStd);
         return this.students;
@@ -5848,11 +5954,26 @@ export class DataService {
     }
 
     // Öğrencinin kendi kaydını veritabanından oku (sınıf, numara, durum güncel gelir)
-    const { data: row, error: rowError } = await supabase
+    // Aşama 85: iletişim bilgisi korumalı tablodan (sql/85); SQL çalıştırılmadıysa eski yol
+    const first = await supabase
       .from('students')
-      .select('*')
+      .select(DataService.STUDENT_SAFE_COLUMNS)
       .eq('auth_user_id', authUser.id)
       .maybeSingle();
+    let row: any = first.data;
+    const rowError = first.error;
+    if (row && !rowError) {
+      const own = await supabase.from('student_contacts').select('email,phone').eq('id', (row as any).id).maybeSingle();
+      if (!own.error) {
+        DataService.contactsMode = 'table';
+        this.contactKnown.add((row as any).id);
+        row = { ...(row as any), email: own.data?.email || null, phone: own.data?.phone || null };
+      } else if (this.isMissingTable(own.error)) {
+        DataService.contactsMode = 'legacy';
+        const legacy = await supabase.from('students').select('email,phone').eq('id', (row as any).id).maybeSingle();
+        if (!legacy.error && legacy.data) row = { ...(row as any), ...(legacy.data as any) };
+      }
+    }
 
     if (rowError || !row) {
       await supabase.auth.signOut();
@@ -6932,7 +7053,7 @@ export class DataService {
       const { error } = await supabase.from('students').insert(
         chunk.map(({ student }) => ({
           id: student.id,
-          ...this.studentToRow(student),
+          ...this.studentToRow(student, true),
           registered_at: student.createdAt,
         }))
       );
@@ -6946,6 +7067,7 @@ export class DataService {
         chunk.forEach(({ student }) => failed.push({ name: student.name, studentNumber: student.studentNumber || '', error: `Kayıt eklenemedi: ${reason}` }));
       } else {
         inserted.push(...chunk);
+        chunk.forEach(({ student }) => this.contactKnown.add(student.id)); // Aşama 85
       }
     }
 
@@ -7095,6 +7217,8 @@ export class DataService {
 
     // Yalnızca değişen sütunlar
     const before = this.studentToRow(current);
+    // Aşama 85: formda iletişim bilgisi açıkça girildiyse yazılır
+    if (updates.email !== undefined || updates.phone !== undefined || updates.parents !== undefined) this.contactKnown.add(id);
     const after = this.studentToRow(next);
     const patch: Record<string, unknown> = {};
     (Object.keys(after) as Array<keyof typeof after>).forEach((k) => {
