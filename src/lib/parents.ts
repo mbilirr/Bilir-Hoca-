@@ -13,14 +13,21 @@ export const PARENT_RELATIONS: ParentRelation[] = ['Anne', 'Baba', 'Vasi', 'Bak�
 const clean = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim();
 
 /** Yakınlık yazısı: "BABA" → "Baba", "bakıcı" → "Bakıcı" (en çok 30 harf) */
+// Aşama 88: aynı yakınlık yazısı (Anne, Baba…) her eşitlemede binlerce kez tekrar dönüştürülmez
+const relationCache = new Map<string, string>();
 export function cleanRelation(v: unknown): ParentRelation {
   const t = clean(v).slice(0, 30);
   if (!t) return '';
-  return t
+  const hit = relationCache.get(t);
+  if (hit !== undefined) return hit;
+  const out = t
     .toLocaleLowerCase('tr-TR')
     .split(' ')
     .map((w) => (w ? w.charAt(0).toLocaleUpperCase('tr-TR') + w.slice(1) : w))
     .join(' ');
+  if (relationCache.size > 500) relationCache.clear();
+  relationCache.set(t, out);
+  return out;
 }
 
 /** Velide hiç bilgi var mı (yakınlık tek başına bilgi sayılmaz) */

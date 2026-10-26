@@ -947,6 +947,28 @@ function adoptList<T>(prev: T[] | null | undefined, next: T[]): T[] {
 }
 
 // ============================================================================
+// HIZ (Aşama 88): büyük listelerde zamana göre sıralama. Eskiden karşılaştırmanın her adımında tarih metni
+// yeniden çözülüyordu (40.000 mesajda ~1,2 milyon tarih çözümü). Artık her kayıt için bir kez çözülür ve
+// kayıt nesnesi değişmedikçe hatırlanır. Sıralama sonucu eskisiyle birebir aynıdır (kararlı sıralama).
+// ============================================================================
+const timeKeyCache = new WeakMap<object, { s: string; t: number }>();
+function timeKeyOf(o: object, iso: string | undefined | null): number {
+  const s = iso || '';
+  const c = timeKeyCache.get(o);
+  if (c && c.s === s) return c.t;
+  const p = Date.parse(s);
+  const t = Number.isNaN(p) ? 0 : p;
+  timeKeyCache.set(o, { s, t });
+  return t;
+}
+/** En yeni üstte; eşit zamanlıların sırası korunur */
+function sortByTimeDesc<T extends object>(list: T[], get: (x: T) => string | undefined | null): T[] {
+  const keyed = list.map((x, i) => ({ x, i, t: timeKeyOf(x, get(x)) }));
+  keyed.sort((a, b) => b.t - a.t || a.i - b.i);
+  return keyed.map((k) => k.x);
+}
+
+// ============================================================================
 // HIZ (Aşama 15): Büyük listeler sekme önbelleğine hemen değil, tarayıcı boşken toplu yazılır.
 // Çok büyük listeler (ör. binlerce soru kaydı) önbelleğe hiç yazılmaz: yazmak telefonu dondurur,
 // sekme önbelleğinin sınırını (yaklaşık 5 MB) aşar ve zaten her açılışta buluttan gelir.
@@ -1421,6 +1443,9 @@ export class DataService {
       if (entry.checkTimer) { clearTimeout(entry.checkTimer); entry.checkTimer = undefined; }
       // Bağlantı koptuysa arada kaçan değişiklikler için yalnız bu tablo yeniden okunur
       if (isReconnect) {
+        // Aşama 88: artımlı okumada arada silinen satırlar da hemen bulunsun (kimlik listesi beklemeden okunur)
+        const ds = this.deltaState.get(table);
+        if (ds) ds.idsAt = 0;
         try { resync(); } catch {}
       }
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -1904,109 +1929,139 @@ export class DataService {
     }, 400);
   }
 
+  // ===========================================================================
+  // HIZ (Aşama 88): ANLIK DEĞİŞİKLİKLER TOPLU İŞLENİR
+  // Bir duyuru her öğrenci için ayrı satırdır: 300 öğrenciye giden duyuru, açık her ekrana 300 ayrı olay
+  // olarak gelir. Eskiden her olayda bütün liste baştan sıralanıp önbelleğe yazılıyordu (büyük kurumda
+  // ekran onlarca saniye donuyordu). Artık kısa sürede gelen olaylar biriktirilir ve tek seferde işlenir:
+  // tek sıralama, tek önbellek yazımı, tek ekran yenilemesi. Ekranda zaten aynısı olan kayıt gelirse
+  // (ör. gönderenin kendi ekranına dönen yankı) hiçbir şey yeniden çizilmez. Sonuç eskisiyle aynıdır.
+  // ===========================================================================
+  private rtQueue: { messages: any[]; grades: any[]; attendance: any[] } = { messages: [], grades: [], attendance: [] };
+  private rtFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private static readonly RT_BATCH_MS = 80;
+
+  private queueRealtime(table: 'messages' | 'grades' | 'attendance', payload: any): void {
+    this.rtQueue[table].push(payload);
+    if (!this.rtFlushTimer) this.rtFlushTimer = setTimeout(() => this.flushRealtimeQueue(), DataService.RT_BATCH_MS);
+  }
+
+  private flushRealtimeQueue(): void {
+    this.rtFlushTimer = null;
+    const q = this.rtQueue;
+    this.rtQueue = { messages: [], grades: [], attendance: [] };
+    let changed = false;
+    if (q.messages.length) {
+      const next = this.applyRealtimeBatch(this.messages, q.messages, (row) => this.rowToMessage(row), (m) => m.createdAt, 'MessageRealtime');
+      if (next) {
+        this.messages = next;
+        saveData(STORAGE_KEYS.MESSAGES, this.messages);
+        changed = true;
+      }
+    }
+    if (q.grades.length) {
+      const next = this.applyRealtimeBatch(this.grades, q.grades, (row) => this.gradeFromRow(row), (g) => g.date, 'GradeRealtime');
+      if (next) {
+        this.grades = next;
+        saveData(STORAGE_KEYS.GRADES, this.grades);
+        changed = true;
+      }
+    }
+    if (q.attendance.length) {
+      const next = this.applyRealtimeBatch(
+        this.attendance,
+        q.attendance,
+        (row): AttendanceRecord => ({
+          id: row.id,
+          classId: row.class_id,
+          date: row.date,
+          subject: row.subject || 'Genel',
+          records: Array.isArray(row.records) ? row.records : [],
+          createdBy: row.created_by || undefined,
+        }),
+        (a) => a.date,
+        'AttendanceRealtime'
+      );
+      if (next) {
+        this.attendance = next;
+        saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+        changed = true;
+      }
+    }
+    if (changed) this.notify();
+  }
+
+  /**
+   * Biriken olayları sırayla uygular (ekleme / güncelleme / silme). Eski davranışla aynı sonuç: güncellenen kayıt
+   * yerinde kalır, yeni kayıt başa eklenir, sonra liste zamana göre (en yeni üstte) sıralanır.
+   * Hiçbir şey değişmediyse null döner.
+   */
+  private applyRealtimeBatch<T extends { id: string }>(
+    list: T[],
+    payloads: any[],
+    build: (row: any) => T,
+    timeOf: (x: T) => string | undefined,
+    tag: string
+  ): T[] | null {
+    const cur = new Map<string, T>();
+    for (const x of list) cur.set(x.id, x);
+    const fresh: string[] = [];
+    let changed = false;
+    let anyUpsert = false;
+    for (const p of payloads) {
+      try {
+        if (p?.eventType === 'DELETE') {
+          const id = p.old?.id;
+          if (id && cur.delete(id)) changed = true;
+          continue;
+        }
+        const row = p?.new;
+        if (!row || !row.id) continue;
+        const item = build(row);
+        const prev = cur.get(row.id);
+        if (prev !== undefined && sameData(prev, item)) continue; // aynısı zaten ekranda
+        if (prev === undefined) fresh.push(row.id);
+        cur.set(row.id, item);
+        changed = true;
+        anyUpsert = true;
+      } catch (e) {
+        console.warn(`[${tag}] Error:`, e);
+      }
+    }
+    if (!changed) return null;
+    const freshSet = new Set(fresh);
+    const out: T[] = [];
+    const seen = new Set<string>();
+    for (let i = fresh.length - 1; i >= 0; i--) {
+      const id = fresh[i];
+      const x = cur.get(id);
+      if (x !== undefined && !seen.has(id)) {
+        seen.add(id);
+        out.push(x);
+      }
+    }
+    for (const x of list) {
+      if (freshSet.has(x.id)) continue;
+      const y = cur.get(x.id);
+      if (y !== undefined) out.push(y);
+    }
+    // yalnız silme olduysa sıra zaten doğrudur
+    return anyUpsert ? sortByTimeDesc(out, timeOf) : out;
+  }
+
   // --- ATTENDANCE REALTIME EVENT HANDLER ---
   public handleRemoteAttendanceRealtimeEvent(payload: any) {
-    try {
-      const eventType = payload.eventType;
-      if (eventType === 'DELETE') {
-        const oldRow = payload.old;
-        if (oldRow?.id) {
-          this.attendance = this.attendance.filter((a) => a.id !== oldRow.id);
-          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-          this.notify();
-        }
-        return;
-      }
-      const row = payload.new;
-      if (!row || !row.id) return;
-
-      const record: AttendanceRecord = {
-        id: row.id,
-        classId: row.class_id,
-        date: row.date,
-        subject: row.subject || 'Genel',
-        records: Array.isArray(row.records) ? row.records : [],
-        createdBy: row.created_by || undefined,
-      };
-
-      const exIdx = this.attendance.findIndex((a) => a.id === row.id);
-      if (exIdx !== -1) {
-        this.attendance[exIdx] = record;
-      } else {
-        this.attendance.unshift(record);
-      }
-      this.attendance.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
-      this.notify();
-    } catch (e) {
-      console.warn('[AttendanceRealtime] Error:', e);
-    }
+    this.queueRealtime('attendance', payload);
   }
 
   // --- GRADES REALTIME EVENT HANDLER ---
   public handleRemoteGradeRealtimeEvent(payload: any) {
-    try {
-      const eventType = payload.eventType;
-      if (eventType === 'DELETE') {
-        const oldRow = payload.old;
-        if (oldRow?.id) {
-          this.grades = this.grades.filter((g) => g.id !== oldRow.id);
-          saveData(STORAGE_KEYS.GRADES, this.grades);
-          this.notify();
-        }
-        return;
-      }
-      const row = payload.new;
-      if (!row || !row.id) return;
-
-      const grade: GradeRecord = this.gradeFromRow(row);
-
-      const exIdx = this.grades.findIndex((g) => g.id === row.id);
-      if (exIdx !== -1) {
-        this.grades[exIdx] = grade;
-      } else {
-        this.grades.unshift(grade);
-      }
-      this.grades.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      saveData(STORAGE_KEYS.GRADES, this.grades);
-      this.notify();
-    } catch (e) {
-      console.warn('[GradeRealtime] Error:', e);
-    }
+    this.queueRealtime('grades', payload);
   }
 
   // --- MESSAGES REALTIME EVENT HANDLER ---
   public handleRemoteMessageRealtimeEvent(payload: any) {
-    try {
-      const eventType = payload.eventType;
-      if (eventType === 'DELETE') {
-        const oldRow = payload.old;
-        if (oldRow?.id) {
-          this.messages = this.messages.filter((m) => m.id !== oldRow.id);
-          saveData(STORAGE_KEYS.MESSAGES, this.messages);
-          this.notify();
-        }
-        return;
-      }
-      const row = payload.new;
-      if (!row || !row.id) return;
-
-      const msg: StudentMessage = this.rowToMessage(row);
-
-      const exIdx = this.messages.findIndex((m) => m.id === row.id);
-      if (exIdx !== -1) {
-        this.messages[exIdx] = msg;
-      } else {
-        this.messages.unshift(msg);
-      }
-      this.messages.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      saveData(STORAGE_KEYS.MESSAGES, this.messages);
-      this.notify();
-    } catch (e) {
-      console.warn('[MessageRealtime] Error:', e);
-    }
+    this.queueRealtime('messages', payload);
   }
 
   public handleRemoteTombstonesPayload(raw: string) {
@@ -2648,11 +2703,14 @@ export class DataService {
       }
 
       const mergedStudentMap = new Map<string, Student>();
+      // Aşama 88: mevcut öğrenciler kimliğe göre bir kez dizinlenir (her satırda liste baştan taranmaz)
+      const localById = new Map<string, Student>();
+      for (const s of this.students) if (s && !localById.has(s.id)) localById.set(s.id, s);
 
       // Populate from remote map
       remoteStudentMap.forEach((rs: any, id: string) => {
         if (this.deletedStudentIds.has(id)) return;
-        const existing = this.students.find((s) => s.id === id);
+        const existing = localById.get(id);
         const cleanRemoteEmail = cleanStudentEmail(rs.email);
 
         const remoteSuspended = rs.status === 'suspended';
@@ -2835,29 +2893,170 @@ export class DataService {
     }
   }
 
+  // ===========================================================================
+  // HIZ (Aşama 88): ARTIMLI EŞİTLEME (mesajlar / duyurular, notlar, yoklama)
+  // İlk açılışta ve elle yenilemede tablonun tamamı okunur (eskisi gibi). Arka plandaki yenilemelerde
+  // (sekmeye dönüş, 5 dakikalık güvenlik kontrolü) sql/88 kuruluysa yalnızca son değişen satırlar okunur;
+  // silinen ya da yeni görünür olan satırlar 10 dakikada bir yalnızca kimlik listesiyle bulunur.
+  // Büyük kurumda bir yenileme ~47 MB yerine birkaç KB indirir. sql/88 yoksa her şey eskisi gibi tam okunur.
+  // ===========================================================================
+  private deltaReady: Set<string> | null = null;
+  private deltaReadyAt = 0;
+  private deltaReadyPromise: Promise<Set<string>> | null = null;
+  private deltaState = new Map<string, { mark: string; idsAt: number }>();
+  private static readonly DELTA_RECONCILE_MS = 10 * 60000;
+
+  /** sql/88 ile "değişim zamanı" tutulan tablolar (yarım saatte bir yeniden sorulur) */
+  private async deltaTables(): Promise<Set<string>> {
+    if (this.deltaReady && Date.now() - this.deltaReadyAt < 30 * 60000) return this.deltaReady;
+    if (!this.deltaReadyPromise) {
+      this.deltaReadyPromise = (async () => {
+        let set = new Set<string>();
+        try {
+          const { data, error } = await supabase.rpc('sync_delta_tables');
+          if (!error && Array.isArray(data)) set = new Set(data.map((x: any) => String(x)));
+        } catch {
+          /* işlev yoksa: tam okuma */
+        }
+        this.deltaReady = set;
+        this.deltaReadyAt = Date.now();
+        this.deltaReadyPromise = null;
+        return set;
+      })();
+    }
+    return this.deltaReadyPromise;
+  }
+
+  private async fetchTableSmart(
+    table: 'messages' | 'grades' | 'attendance',
+    isBackground: boolean,
+    localIds: () => Iterable<string>,
+    opts: { order?: string; ascending?: boolean },
+    full: () => Promise<{ data: any[] | null; error: any }>
+  ): Promise<{ mode: 'full'; data: any[] } | { mode: 'delta'; data: any[]; removed: Set<string> | null } | { mode: 'error'; error: any }> {
+    const runFull = async () => {
+      const r = await full();
+      if (r.error || !Array.isArray(r.data)) return { mode: 'error' as const, error: r.error };
+      // işaret, sunucunun saatine göre (cihaz saati yanlış olabilir): en son değişen satırın zamanı
+      let mark = '';
+      for (const row of r.data) if (row && typeof row.updated_at === 'string' && row.updated_at > mark) mark = row.updated_at;
+      this.deltaState.set(table, { mark, idsAt: Date.now() });
+      return { mode: 'full' as const, data: r.data };
+    };
+    const st = this.deltaState.get(table);
+    if (!isBackground || !st || !st.mark || this.getAuthSession()?.role === 'student') return runFull();
+    if (!(await this.deltaTables()).has(table)) return runFull();
+    const markMs = Date.parse(st.mark);
+    if (Number.isNaN(markMs)) return runFull();
+    // 1 dakika geriden başlanır: o sırada kaydı süren işlemler kaçmaz (aynı satırın tekrar gelmesi zararsızdır)
+    const since = new Date(markMs - 60000).toISOString();
+    const d = await this.fetchAllRows(table, (q: any) => q.gte('updated_at', since), opts);
+    if (d.error || !Array.isArray(d.data)) return runFull();
+    let rows: any[] = d.data;
+    let removed: Set<string> | null = null;
+    if (Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
+      const ids = await this.fetchAllRows(table, undefined, { columns: 'id' });
+      if (!ids.error && Array.isArray(ids.data)) {
+        const server = new Set<string>(ids.data.map((r: any) => String(r.id)));
+        const local = new Set<string>(localIds());
+        removed = new Set<string>();
+        for (const id of local) if (!server.has(id)) removed.add(id);
+        const got = new Set<string>(rows.map((r: any) => String(r.id)));
+        const missing: string[] = [];
+        for (const id of server) if (!local.has(id) && !got.has(id)) missing.push(id);
+        let ok = true;
+        for (let i = 0; i < missing.length && ok; i += 150) {
+          const part = await this.fetchAllRows(table, (q: any) => q.in('id', missing.slice(i, i + 150)), opts);
+          if (part.error || !Array.isArray(part.data)) ok = false;
+          else rows = rows.concat(part.data);
+        }
+        if (!ok) return runFull();
+        st.idsAt = Date.now();
+      }
+    }
+    let mark = st.mark;
+    for (const row of rows) if (row && typeof row.updated_at === 'string' && row.updated_at > mark) mark = row.updated_at;
+    st.mark = mark;
+    return { mode: 'delta', data: rows, removed };
+  }
+
+  /** Değişen satırları listeye uygular (aynı kalan kayıt eski nesnesiyle kalır). Değişiklik yoksa null. */
+  private mergeDelta<T extends { id: string }>(list: T[], rows: T[], removed: Set<string> | null): T[] | null {
+    if (!rows.length && !(removed && removed.size)) return null;
+    const inc = new Map<string, T>();
+    for (const r of rows) inc.set(r.id, r);
+    let changed = false;
+    const out: T[] = [];
+    for (const x of list) {
+      if (removed && removed.has(x.id)) {
+        changed = true;
+        continue;
+      }
+      const n = inc.get(x.id);
+      if (n !== undefined) {
+        inc.delete(x.id);
+        if (sameData(x, n)) out.push(x);
+        else {
+          out.push(n);
+          changed = true;
+        }
+      } else out.push(x);
+    }
+    for (const n of inc.values()) {
+      if (removed && removed.has(n.id)) continue;
+      out.push(n);
+      changed = true;
+    }
+    return changed ? out : null;
+  }
+
+  // Tam okumadaki sıralamayla aynı: tarih (yeni üstte). Kararlı sıralama: aynı tarihli kayıtların ekrandaki
+  // mevcut sırası korunur (yeni gelen aynı tarihli kayıt onların altına eklenir).
+  private static byDateDesc<T extends { date?: string }>(a: T, b: T): number {
+    const x = a.date || '';
+    const y = b.date || '';
+    return x < y ? 1 : x > y ? -1 : 0;
+  }
+
   public async syncAttendanceFromSupabase(isBackground = false): Promise<AttendanceRecord[]> {
     // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.attendance;
     try {
-      const { data: remoteAtt, error: errAtt } = await this.fetchStudentSafe('student_my_attendance', () =>
-        this.fetchAllRows('attendance', undefined, { order: 'date', ascending: false })
+      const toRecord = (ra: any): AttendanceRecord => ({
+        id: ra.id,
+        classId: ra.class_id,
+        date: ra.date,
+        subject: ra.subject || 'Genel',
+        records: Array.isArray(ra.records) ? ra.records : [],
+        createdBy: ra.created_by || undefined,
+      });
+      const res = await this.fetchTableSmart(
+        'attendance',
+        isBackground,
+        () => this.attendance.map((a) => a.id),
+        { order: 'date', ascending: false },
+        () => this.fetchStudentSafe('student_my_attendance', () => this.fetchAllRows('attendance', undefined, { order: 'date', ascending: false }))
       );
 
-      if (errAtt) {
-        if (!isBackground) console.warn('[AttendanceSync] Error:', errAtt);
+      if (res.mode === 'error') {
+        if (!isBackground) console.warn('[AttendanceSync] Error:', res.error);
         return this.attendance;
       }
 
+      if (res.mode === 'delta') {
+        const merged = this.mergeDelta(this.attendance, res.data.map(toRecord), res.removed);
+        if (merged) {
+          this.attendance = merged.sort(DataService.byDateDesc);
+          saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
+          this.notify();
+        }
+        return this.attendance;
+      }
+
+      const remoteAtt = res.data;
       if (remoteAtt && Array.isArray(remoteAtt)) {
-        const nextAtt: AttendanceRecord[] = remoteAtt.map((ra: any) => ({
-          id: ra.id,
-          classId: ra.class_id,
-          date: ra.date,
-          subject: ra.subject || 'Genel',
-          records: Array.isArray(ra.records) ? ra.records : [],
-          createdBy: ra.created_by || undefined,
-        }));
+        const nextAtt: AttendanceRecord[] = remoteAtt.map(toRecord);
         nextAtt.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
         const adopted = adoptList(this.attendance, nextAtt); // Aşama 84
         if (adopted !== this.attendance) {
@@ -2879,13 +3078,30 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.grades;
     try {
-      const { data: remoteGrades, error: errGrd } = await this.fetchAllRows('grades', undefined, { order: 'date', ascending: false });
+      const res = await this.fetchTableSmart(
+        'grades',
+        isBackground,
+        () => this.grades.map((g) => g.id),
+        { order: 'date', ascending: false },
+        () => this.fetchAllRows('grades', undefined, { order: 'date', ascending: false })
+      );
 
-      if (errGrd) {
-        if (!isBackground) console.warn('[GradesSync] Error:', errGrd);
+      if (res.mode === 'error') {
+        if (!isBackground) console.warn('[GradesSync] Error:', res.error);
         return this.grades;
       }
 
+      if (res.mode === 'delta') {
+        const merged = this.mergeDelta(this.grades, res.data.map((rg: any) => this.gradeFromRow(rg)), res.removed);
+        if (merged) {
+          this.grades = merged.sort(DataService.byDateDesc);
+          saveData(STORAGE_KEYS.GRADES, this.grades);
+          this.notify();
+        }
+        return this.grades;
+      }
+
+      const remoteGrades = res.data;
       if (remoteGrades && Array.isArray(remoteGrades)) {
         const nextGrades = remoteGrades.map((rg: any) => this.gradeFromRow(rg));
         nextGrades.sort((a, b) => ((a.date || '') < (b.date || '') ? 1 : (a.date || '') > (b.date || '') ? -1 : 0));
@@ -2909,16 +3125,34 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.messages;
     try {
-      const { data: remoteMsgs, error: errMsgs } = await this.fetchAllRows('messages', undefined, { order: 'created_at', ascending: false });
+      const res = await this.fetchTableSmart(
+        'messages',
+        isBackground,
+        () => this.messages.map((m) => m.id),
+        { order: 'created_at', ascending: false },
+        () => this.fetchAllRows('messages', undefined, { order: 'created_at', ascending: false })
+      );
 
-      if (errMsgs) {
-        if (!isBackground) console.warn('[MessagesSync] Error:', errMsgs);
+      if (res.mode === 'error') {
+        if (!isBackground) console.warn('[MessagesSync] Error:', res.error);
         return this.messages;
       }
 
+      if (res.mode === 'delta') {
+        const merged = this.mergeDelta(this.messages, res.data.map((rm: any) => this.rowToMessage(rm)), res.removed);
+        if (merged) {
+          // tam okumadaki sıralamayla aynı (en yeni üstte); aynı zamanlıların mevcut sırası korunur
+          this.messages = sortByTimeDesc(merged, (m) => m.createdAt);
+          saveData(STORAGE_KEYS.MESSAGES, this.messages);
+          this.notify();
+        }
+        return this.messages;
+      }
+
+      const remoteMsgs = res.data;
       if (remoteMsgs && Array.isArray(remoteMsgs)) {
-        const nextMsgs = remoteMsgs.map((rm: any) => this.rowToMessage(rm));
-        nextMsgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Aşama 88: tarih her kayıt için bir kez çözülür (sonuç eskisiyle aynı)
+        const nextMsgs = sortByTimeDesc(remoteMsgs.map((rm: any) => this.rowToMessage(rm)), (m) => m.createdAt);
         const adopted = adoptList(this.messages, nextMsgs); // Aşama 84
         if (adopted !== this.messages) {
           this.messages = adopted;
@@ -3472,7 +3706,7 @@ export class DataService {
       id: r.id,
       homeworkId: r.homework_id,
       studentId: r.student_id,
-      studentName: r.student_name || this.students.find((s) => s.id === r.student_id)?.name || 'Öğrenci',
+      studentName: r.student_name || this.findStudentFast(r.student_id)?.name || 'Öğrenci',
       submittedAt: r.submitted_at || r.updated_at || new Date().toISOString(),
       status: r.status === 'late' || r.status === 'not_submitted' ? r.status : 'on_time',
       checkStatus: r.check_status || undefined,
@@ -3557,8 +3791,29 @@ export class DataService {
     } catch {}
   }
 
+  // HIZ (Aşama 88): kimliğe göre öğrenci bulma. Eskiden her not / teslim satırı için öğrenci listesi baştan
+  // taranıyordu (20.000 not × 2.000 öğrenci). Dizin, liste değişince kendiliğinden yeniden kurulur; yerinde
+  // güncellenen öğrencinin her zaman güncel hâli döner.
+  private studentIndex: { src: Student[] | null; len: number; map: Map<string, number> } = { src: null, len: -1, map: new Map() };
+  private findStudentFast(id: string | null | undefined): Student | undefined {
+    if (!id) return undefined;
+    const list = this.students;
+    let ix = this.studentIndex;
+    if (ix.src !== list || ix.len !== list.length) {
+      const map = new Map<string, number>();
+      for (let i = 0; i < list.length; i++) if (list[i] && !map.has(list[i].id)) map.set(list[i].id, i);
+      ix = this.studentIndex = { src: list, len: list.length, map };
+    }
+    const i = ix.map.get(id);
+    if (i !== undefined && list[i]?.id === id) return list[i];
+    if (i === undefined) return undefined;
+    // dizin eskimiş (liste yerinde değişmiş): bir kez yeniden kur
+    this.studentIndex = { src: null, len: -1, map: new Map() };
+    return list.find((s) => s.id === id);
+  }
+
   private gradeFromRow(rg: any): GradeRecord {
-    const student = this.students.find((s) => s.id === rg.student_id);
+    const student = this.findStudentFast(rg.student_id);
     return {
       id: rg.id,
       studentId: rg.student_id,
@@ -6207,6 +6462,12 @@ export class DataService {
     clearSessionAppData();
     purgePersistentPersonalData();
     clearSignedUrlCache();
+    // Aşama 88: bekleyen anlık değişiklikler ve artımlı eşitleme işaretleri de silinir
+    if (this.rtFlushTimer) clearTimeout(this.rtFlushTimer);
+    this.rtFlushTimer = null;
+    this.rtQueue = { messages: [], grades: [], attendance: [] };
+    this.deltaState.clear();
+    this.deltaReady = null;
     this.students = [];
     this.classes = [];
     this.teachers = [];
