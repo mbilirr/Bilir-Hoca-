@@ -196,8 +196,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
         <span>
           Yeni kurumu <strong>"Yeni kurum"</strong> düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve
           logo tek pencerede kaydedilir. Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu
-          ve sizin izin verdiğiniz sınıfları görür. (Var olan bir öğretmeni kullanıcı listesindeki "Öğretmen / Yönetici
-          yetkisi" düğmesiyle yönetici yapmak da kurumunu açar.)
+          ve sizin izin verdiğiniz sınıfları görür. Kurumların öğrenci, etüt, ödev ve notları sizin panelinize inmez; bir
+          kurumu incelemek için üst menüdeki <strong>kurum seçiciyle</strong> o kuruma geçin.
         </span>
       </div>
 
@@ -234,7 +234,6 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
           const d = drafts[k.id] || { name: k.name, modules: k.modules, grantedClassIds: k.grantedClassIds };
           const members = teachers.filter((t) => t.kurumId === k.id);
           const admins = members.filter((t) => t.isAdmin);
-          const kurumClasses = classes.filter((c) => c.kurumId === k.id);
           const open = openId === k.id;
           const dirty = !sameDraft(d, k);
           const q = classSearch.trim().toLocaleLowerCase('tr-TR');
@@ -250,8 +249,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-fg truncate">{k.name}</span>
                   <span className="block text-xs text-muted truncate">
-                    Yönetici: {admins.map((a) => a.name).join(', ') || '—'} · {members.length} öğretmen · {kurumClasses.length} sınıf ·{' '}
-                    {k.grantedClassIds.length} izinli sınıf
+                    Yönetici: {admins.map((a) => a.name).join(', ') || '—'} · {members.length} öğretmen · {k.grantedClassIds.length} izinli sınıf
                   </span>
                 </span>
                 <ChevronDown className={cx('w-4 h-4 text-muted shrink-0 transition-transform', open && 'rotate-180')} />

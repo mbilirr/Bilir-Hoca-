@@ -73,7 +73,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [roleFilter, setRoleFilter] = useState<'all' | SystemRole>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all');
   // Aşama 18: genel yönetici için kurum süzgeci ('' = tümü, 'merkez' = kurumsuz)
-  const [kurumFilter, setKurumFilter] = useState<string>('');
+  // Aşama 97: genel yönetici listeyi önce kendi (kurumsuz) kayıtlarıyla görür; kurumlar süzgeçten seçilir
+  const [kurumFilter, setKurumFilter] = useState<string>(() => (dataService.isHeadAdmin() ? 'merkez' : ''));
 
   // Modal states
   const [editModalUser, setEditModalUser] = useState<UnifiedUser | null>(null);

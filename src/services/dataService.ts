@@ -1041,7 +1041,15 @@ function saveData<T>(key: string, data: T): void {
   saveDataNow(key, data);
 }
 
+// Aşama 97: kurumlar arası geçişte sayfa yenilenene kadar tarayıcıya hiçbir veri yazılmaz (önceki hesabın verisi taşınmaz)
+let storageFrozen = false;
+export function freezeAppStorage(): void {
+  storageFrozen = true;
+  cancelPendingSaves();
+}
+
 function saveDataNow<T>(key: string, data: T): void {
+  if (storageFrozen) return;
   try {
     localStorage.setItem(key, JSON.stringify(data));
     if (key === STORAGE_KEYS.STUDENTS) {
@@ -6444,8 +6452,14 @@ export class DataService {
     this.questionHistoryLoaded = new Set();
     this.questionLoadPromises = new Map();
     this.pendingApplicationCount = 0;
-    // Uygulama oturumu kapanınca Supabase oturumu da kapansın
-    supabase.auth.signOut().catch(() => {});
+    // Uygulama oturumu kapanınca Supabase oturumu da kapansın.
+    // Aşama 97: genel yönetici bir kurumdayken yalnızca bu sekmedeki oturum kapanır (kurum yöneticisinin kendi
+    // cihazlarındaki oturumları etkilenmez).
+    let inKurumGecis = false;
+    try {
+      inKurumGecis = !!sessionStorage.getItem('edu_sys_kurum_gecis');
+    } catch {}
+    (inKurumGecis ? supabase.auth.signOut({ scope: 'local' }) : supabase.auth.signOut()).catch(() => {});
     this.setAuthSession(null);
     try {
       sessionStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
@@ -6454,6 +6468,18 @@ export class DataService {
     } catch {}
     this.clearUserDataAfterLogout();
     this.notify();
+  }
+
+  // Aşama 97: hesap değiştirmeden (kurumlar arası geçiş) önce: anlık kanallar kapanır, bu sekmedeki veriler silinir ve
+  // sayfa yenilenene kadar yeni yazma yapılmaz. Supabase oturumu burada kapatılmaz (geçişi çağıran yönetir).
+  public prepareAccountSwitch(): void {
+    this.unsubscribeAllRealtime();
+    if (this.rtFlushTimer) clearTimeout(this.rtFlushTimer);
+    this.rtFlushTimer = null;
+    clearSessionAppData();
+    purgePersistentPersonalData();
+    clearSignedUrlCache();
+    freezeAppStorage();
   }
 
   // Gizlilik: çıkışta bu sekmedeki tüm kişisel veriler bellekten ve tarayıcıdan silinir.

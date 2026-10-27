@@ -137,9 +137,12 @@ const resultFromRow = (r: any): DenemeResult => ({
 // ----------------------------------------------------------------------------- Denemeler
 /** Denemeler. Aşama 90: taslaklar (sonuçları kaydedilmemiş yeni denemeler) yalnızca istenirse gelir */
 export async function listExams(opt: { drafts?: boolean } = {}): Promise<DenemeExam[]> {
-  const { data, error } = await supabase
+  let q = supabase
     .from('deneme_exams')
-    .select('id,kurum_id,name,publisher,exam_date,grade,exam_type,subjects,scoring,summary,published,created_at')
+    .select('id,kurum_id,name,publisher,exam_date,grade,exam_type,subjects,scoring,summary,published,created_at');
+  // Aşama 97: genel yöneticinin panelinde yalnızca kendi denemeleri (kurumların denemeleri kuruma geçince görünür)
+  if (dataService.isHeadAdmin()) q = q.is('kurum_id', null);
+  const { data, error } = await q
     .order('exam_date', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) fail(error, 'Denemeler yüklenemedi.');

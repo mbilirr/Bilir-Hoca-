@@ -15,6 +15,7 @@ import { dataService } from '../services/dataService';
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
+import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
 
 export interface NavbarProps {
   role?: UserRole;
@@ -257,6 +258,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Aşama 97: kurumlar arası geçiş (yalnızca genel yönetici) */}
+            {isTeacherSession && <KurumSecici />}
             <SyncStatusIndicator variant="badge" className="hidden sm:inline-flex shrink-0" />
             <ThemeToggle />
 
@@ -443,6 +446,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </nav>
           )}
         </div>
+        {isTeacherSession && <KurumGecisSeridi />}
       </header>
 
       {/* Öğretmen pencereleri */}
