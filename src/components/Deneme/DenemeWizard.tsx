@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Save, Trash2, Upload, Users } from 'lucide-react';
-import { Panel, Segmented, cx } from '../ui/kit';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Save, Trash2, Upload, Users } from 'lucide-react';
+import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
 import { AnahtarEditor } from './AnahtarEditor';
 import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
-import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type TxtParseResult } from '../../lib/deneme/optik';
+import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type OptikRow, type TxtParseResult } from '../../lib/deneme/optik';
+import { checkBlocksWithKey, fixSessionSubjects, remapFields, remapRows, suggestionMap, type KeySuggestion } from '../../lib/deneme/oturum';
 import { aliasKeyOf, groupRows, matchGroups, normNumber, type MatchItem } from '../../lib/deneme/eslestir';
 import {
   LGS_SCORING,
@@ -29,9 +30,12 @@ import {
   deleteFormat,
   saveResults,
   listStudentTcHashes,
+  deleteExam,
+  type DenemeDraft,
   type DenemeExam,
   type DenemeFormat,
   type DenemeResult,
+  type DraftFile,
 } from '../../services/denemeService';
 import { newId } from '../../lib/ids';
 import { hashTcs, validTc } from '../../lib/tcApi';
@@ -40,6 +44,9 @@ import { hashTcs, validTc } from '../../lib/tcApi';
 // Yeni deneme / optik yükleme sihirbazı (Aşama 47)
 // 1) Bilgiler + cevap anahtarı/kazanım  2) Optik format + TXT  3) Öğrenci eşleştirme  4) Kontrol ve kayıt
 // Var olan bir denemeye sonradan başka oturumun TXT'si yüklenirse, öğrencinin diğer derslerdeki cevapları korunur.
+// Aşama 90: her TXT kendi formatıyla okunur (sözel ve sayısal için ayrı FMT); okunan derslerin doğruluğu cevap
+// anahtarıyla denetlenir. Yeni deneme her adımda kaydedilebilir (taslak); "Devam" da kaydeder, çıkınca kaldığı
+// yerden sürer. Taslakta TC tutulmaz: TC ile bulunan öğrenci yalnızca kimliğiyle saklanır.
 // ============================================================================
 
 type Step = 1 | 2 | 3 | 4;
@@ -56,6 +63,11 @@ const todayStr = () => {
 };
 
 const filled = (s?: string) => !!s && /[A-E*]/.test(s);
+
+/** Aşama 90: yüklenen TXT (text) ya da taslaktan gelen okunmuş satırlar (rows). fmt: '' = yukarıda düzenlenen format */
+type TxtSrc = { name: string; text?: string; fmt: string; rows?: DraftFile['rows']; fmtName?: string };
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const SQ_BTN = 'ui-btn ui-btn-sm w-32 justify-center';
 // Aşama 63: "Denemelere dön" düğmesi deneme sonuçları ekranındakiyle aynı görünümde
 const BACK_BTN =
   'ui-btn ui-btn-lg border border-brand/40 bg-brand-soft text-brand-fg shadow-sm hover:bg-brand hover:text-white hover:border-brand focus-visible:ring-2 focus-visible:ring-brand/40';
@@ -64,19 +76,23 @@ export const DenemeWizard: React.FC<{
   students: Student[];
   classes: ClassGroup[];
   existing?: DenemeExam | null; // varsa: optik yükleme bu denemeye yapılır (1. adım düzenleme olarak açılır)
+  draft?: DenemeExam | null; // Aşama 90: yarım kalmış yeni deneme (kaldığı adımdan açılır)
   startStep?: Step;
   onCancel: () => void;
   onSaved: (examId: string) => void;
-}> = ({ students, classes, existing, startStep = 1, onCancel, onSaved }) => {
+  onDraftChange?: () => void; // taslak kaydedildi / silindi (liste yenilenir)
+}> = ({ students, classes, existing, draft, startStep = 1, onCancel, onSaved, onDraftChange }) => {
   const subjects = LGS_SUBJECTS;
-  const [step, setStep] = useState<Step>(startStep);
+  const src = existing || draft || null;
+  const draftData: DenemeDraft | undefined = draft?.draft;
+  const [step, setStep] = useState<Step>(() => (draft ? (Math.min(3, Math.max(1, draftData?.step || draft.draftInfo?.step || 1)) as Step) : startStep));
   const [error, setError] = useState<string | null>(null);
 
   // 1) Bilgiler
-  const [name, setName] = useState(existing?.name || '');
-  const [publisher, setPublisher] = useState(existing?.publisher || '');
-  const [examDate, setExamDate] = useState(existing?.examDate || todayStr());
-  const [questions, setQuestions] = useState<ExamQuestions>(() => normalizeQuestions(subjects, existing?.questions || {}));
+  const [name, setName] = useState(src?.name || '');
+  const [publisher, setPublisher] = useState(src?.publisher || '');
+  const [examDate, setExamDate] = useState(src?.examDate || todayStr());
+  const [questions, setQuestions] = useState<ExamQuestions>(() => normalizeQuestions(subjects, src?.questions || {}));
 
   // 2) Optik
   const [formats, setFormats] = useState<DenemeFormat[]>([]);
@@ -86,7 +102,7 @@ export const DenemeWizard: React.FC<{
   const [sequential, setSequential] = useState(true);
   const [formatName, setFormatName] = useState('');
   const [formatMsg, setFormatMsg] = useState<string | null>(null);
-  const [txtFiles, setTxtFiles] = useState<Array<{ name: string; text: string }>>([]);
+  const [txtFiles, setTxtFiles] = useState<TxtSrc[]>(() => (draftData?.files || []).map((f) => ({ name: f.name, fmt: '__kayit', rows: f.rows, fmtName: f.fmtName })));
   const txtRef = useRef<HTMLInputElement | null>(null);
 
   // 3) Eşleştirme
@@ -102,6 +118,19 @@ export const DenemeWizard: React.FC<{
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState('');
 
+  // Aşama 90: taslak (yeni denemede adım adım kayıt)
+  const canDraft = !existing;
+  const [draftId, setDraftId] = useState<string | null>(draft?.id || null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(draft?.draftInfo?.at ? new Date(draft.draftInfo.at) : null);
+  const [draftNote, setDraftNote] = useState<{ tone: 'success' | 'warning'; text: string } | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const skipDirty = useRef(true);
+  const left = useRef(false); // bilerek çıkıldı / kaydedildi: çıkışta kendiliğinden kayıt yapılmaz
+  const [leaveAsk, setLeaveAsk] = useState(false);
+  const [deleteAsk, setDeleteAsk] = useState(false);
+  const [aliasesReady, setAliasesReady] = useState(false);
+
   useEffect(() => {
     listFormats()
       .then((list) => {
@@ -116,28 +145,49 @@ export const DenemeWizard: React.FC<{
       .catch(() => setFormats([]));
     loadAliases()
       .then(setAliases)
-      .catch(() => setAliases({}));
+      .catch(() => setAliases({}))
+      .finally(() => setAliasesReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const keyComplete = (k: string) => (questions[k] || []).length > 0 && (questions[k] || []).every((q) => !!q.answer);
   const completeSubjects = subjects.filter((s) => keyComplete(s.key));
 
+  // Aşama 90: her TXT kendi formatıyla okunur. '' ya da düzenlenen kayıtlı format = yukarıdaki (canlı) alanlar
+  const usesEditor = (f: TxtSrc) => !f.rows && (f.fmt === '' || f.fmt === formatId);
+  const fieldsFor = (f: TxtSrc): OptikField[] | null => (usesEditor(f) ? fields : formats.find((x) => x.id === f.fmt)?.fields || null);
   // TXT'ler format değişince yeniden okunur
-  const parsed: TxtParseResult[] = useMemo(() => (checkFields(fields).length ? [] : txtFiles.map((f) => parseTxt(f.text, fields, f.name))), [txtFiles, fields]);
-  const allRows = useMemo(() => parsed.flatMap((p) => p.rows), [parsed]);
-  const parseErrors = parsed.flatMap((p) => p.errors);
+  const parsed: Array<TxtParseResult | null> = useMemo(
+    () =>
+      txtFiles.map((f) => {
+        if (f.rows) return { rows: f.rows as OptikRow[], errors: [], warnings: [], expectedLength: 0 };
+        const fl = fieldsFor(f);
+        if (!fl || !f.text || checkFields(fl).length) return null;
+        return parseTxt(f.text, fl, f.name);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [txtFiles, fields, formats, formatId]
+  );
+  const allRows = useMemo(() => parsed.flatMap((p) => (p ? p.rows : [])), [parsed]);
+  const parseErrors = parsed.flatMap((p, i) => (p ? p.errors : [`${txtFiles[i]?.name}: formatı seçin ya da tamamlayın.`]));
   // Aşama 49c: TXT seçili formatla uyuşmuyorsa öneri: uyuşan kayıtlı format ya da alanları topluca kaydırma
   const fixHints = useMemo(
     () =>
       txtFiles.map((f, i) => {
         const p = parsed[i];
-        if (p && !p.errors.length) return null;
-        const fits = formats.filter((x) => x.id !== formatId && formatFitsTxt(f.text, x.fields)).slice(0, 3);
-        const shift = fits.length || !p ? null : suggestShift(f.text, fields);
+        if (!f.text || (p && !p.errors.length)) return null;
+        const fits = formats.filter((x) => x.id !== f.fmt && !(usesEditor(f) && x.id === formatId) && formatFitsTxt(f.text!, x.fields)).slice(0, 3);
+        const shift = fits.length || !p || !usesEditor(f) ? null : suggestShift(f.text, fields);
         return fits.length || shift !== null ? { fits, shift } : null;
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [txtFiles, parsed, formats, formatId, fields]
+  );
+  // Aşama 90: okunan derslerin doğruluğu cevap anahtarıyla denetlenir (yanlış etiketli optik blokları)
+  const keySugs: KeySuggestion[][] = useMemo(
+    () => parsed.map((p) => (p && !p.errors.length ? checkBlocksWithKey(p.rows, subjects, questions, keyComplete) : [])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [parsed, questions]
   );
   const applyShift = (n: number) => {
     setSequential(false);
@@ -146,7 +196,8 @@ export const DenemeWizard: React.FC<{
       `Alanlar ${Math.abs(n)} karakter ${n > 0 ? 'sağa' : 'sola'} kaydırıldı. Tablodaki "İlk satırda okunan" sütununu kontrol edin; doğruysa "Formatı güncelle" deyin.`
     );
   };
-  const sampleLine = txtFiles[0]?.text.split(/\r?\n/).find((l) => l.trim());
+  const editorFile = txtFiles.find((f) => usesEditor(f) && f.text);
+  const sampleLine = editorFile?.text?.split(/\r?\n/).find((l) => l.trim());
   const answeredSubjects = useMemo(() => {
     const set = new Set<string>();
     for (const r of allRows) for (const k of Object.keys(r.answers)) if (filled(r.answers[k])) set.add(k);
@@ -162,9 +213,58 @@ export const DenemeWizard: React.FC<{
 
   const onTxt = async (list: FileList | null) => {
     if (!list?.length) return;
-    const add: Array<{ name: string; text: string }> = [];
-    for (const f of Array.from(list)) add.push({ name: f.name, text: decodeOptikFile(await f.arrayBuffer()) });
+    const add: TxtSrc[] = [];
+    for (const f of Array.from(list)) {
+      const text = decodeOptikFile(await f.arrayBuffer());
+      // Aşama 90: dosyaya uyan format kendiliğinden seçilir (önce yukarıdaki format, sonra kayıtlı formatlar)
+      const editorFits = fields.length > 0 && !checkFields(fields).length && formatFitsTxt(text, fields);
+      const fit = editorFits ? null : formats.find((x) => formatFitsTxt(text, x.fields));
+      add.push({ name: f.name, text, fmt: fit ? fit.id : '' });
+    }
     setTxtFiles((cur) => [...cur.filter((c) => !add.some((a) => a.name === c.name)), ...add]);
+  };
+  const setFileFmt = (name: string, fmt: string) => setTxtFiles((cur) => cur.map((f) => (f.name === name ? { ...f, fmt } : f)));
+
+  /** Aşama 90: anahtarla bulunan ders düzeltmesini uygular (format ya da kayıtlı satırlar) */
+  const applyKeyFix = async (i: number) => {
+    const f = txtFiles[i];
+    const sug = keySugs[i];
+    if (!f || !sug?.length) return;
+    const map = suggestionMap(sug);
+    const names = sug.map((x) => `${subjects.find((s) => s.key === x.from)?.short} → ${subjects.find((s) => s.key === x.to)?.short}`).join(', ');
+    if (f.rows) {
+      setTxtFiles((cur) => cur.map((x) => (x.name === f.name ? { ...x, rows: remapRows(x.rows as OptikRow[], map) } : x)));
+      setFormatMsg(`${f.name}: dersler düzeltildi (${names}).`);
+      return;
+    }
+    if (usesEditor(f)) {
+      const nf = remapFields(fields, map);
+      setFields(nf);
+      const cur = formatId ? formats.find((x) => x.id === formatId) : null;
+      if (!cur) {
+        setFormatMsg(`Format düzeltildi (${names}). Sonraki denemeler için "Formatı kaydet" deyin.`);
+        return;
+      }
+      // Kayıtlı format düzenleniyorsa düzeltme formata da kaydedilir (sonraki denemelerde tekrar çıkmaz)
+      try {
+        const saved = await saveFormat({ id: cur.id, name: formatName || cur.name, fmtText, fields: nf });
+        setFormats((list) => list.map((x) => (x.id === saved.id ? saved : x)));
+        setFormatMsg(`"${saved.name}" formatı düzeltildi ve kaydedildi (${names}).`);
+      } catch (e: any) {
+        setFormatMsg(`Düzeltildi (${names}) ama format kaydedilemedi: ${e?.message || 'hata'}`);
+      }
+      return;
+    }
+    const fm = formats.find((x) => x.id === f.fmt);
+    if (!fm) return;
+    const nf = remapFields(fm.fields, map);
+    setFormats((cur) => cur.map((x) => (x.id === fm.id ? { ...x, fields: nf } : x)));
+    try {
+      await saveFormat({ id: fm.id, name: fm.name, fmtText: fm.fmtText, fields: nf });
+      setFormatMsg(`"${fm.name}" formatı düzeltildi ve kaydedildi (${names}).`);
+    } catch (e: any) {
+      setFormatMsg(`Düzeltildi (${names}) ama format kaydedilemedi: ${e?.message || 'hata'}`);
+    }
   };
 
   const pickFormat = (id: string) => {
@@ -187,6 +287,9 @@ export const DenemeWizard: React.FC<{
     try {
       const saved = await saveFormat({ id: asNew ? undefined : formatId || undefined, name: formatName || 'Optik formatı', fmtText, fields });
       setFormats((cur) => [...cur.filter((x) => x.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, 'tr')));
+      // Aşama 90: bu formatla okunan dosyalar kayıtlı formata bağlanır (başka format düzenlenince değişmesinler)
+      const prevId = formatId;
+      setTxtFiles((cur) => cur.map((x) => (!x.rows && (x.fmt === '' || x.fmt === prevId) ? { ...x, fmt: saved.id } : x)));
       setFormatId(saved.id);
       setFormatMsg('Format kaydedildi. Sonraki denemelerde listeden seçebilirsiniz.');
     } catch (e: any) {
@@ -210,42 +313,89 @@ export const DenemeWizard: React.FC<{
   // TC'ler sunucuda parmak izine çevrilir; TC'nin kendisi kaydedilmez, eşleştirmeden sonra bellekten atılır.
   const [matching, setMatching] = useState(false);
   const [tcNote, setTcNote] = useState<string | null>(null);
-  const runMatching = async () => {
-    const groups = groupRows(allRows);
-    let tcMatch: Map<string, string> | undefined;
+  /** TC'leri parmak izine çevirip kayıtlı öğrencilerle eşler: TC → öğrenci kimliği (TC kaydedilmez) */
+  const linkTcs = async (tcs: string[]): Promise<{ map: Map<string, string>; error?: string }> => {
+    const map = new Map<string, string>();
+    const list = Array.from(new Set(tcs.filter((t) => !!t && !!validTc(t))));
+    if (!list.length) return { map };
+    try {
+      const existingHashes = await listStudentTcHashes();
+      const allowed = new Set(students.map((s) => s.id));
+      const byHash = new Map<string, string>();
+      const dupHash = new Set<string>();
+      for (const [sid, h] of existingHashes) {
+        if (!allowed.has(sid)) continue;
+        if (byHash.has(h)) dupHash.add(h);
+        else byHash.set(h, sid);
+      }
+      if (!byHash.size) return { map };
+      const res = await hashTcs(list);
+      if (!res.ok) return { map, error: res.error };
+      list.forEach((tc, i) => {
+        const h = res.hashes[i];
+        const sid = h && !dupHash.has(h) ? byHash.get(h) : undefined;
+        if (sid) map.set(tc, sid);
+      });
+      return { map };
+    } catch (e: any) {
+      return { map, error: e?.message || 'hata' };
+    }
+  };
+
+  /** Satırları gruplayıp eşleştirir. Taslaktan gelen satırlarda TC yerine TC ile bulunmuş öğrenci (sid) vardır. */
+  const buildMatches = async (rows: OptikRow[]): Promise<MatchItem[]> => {
+    const groups = groupRows(rows);
+    const tcMatch = new Map<string, string>();
     setTcNote(null);
-    const withTc = groups.filter((g) => !!g.tc && !!validTc(g.tc));
+    const withTc = groups.filter((g) => !!g.tc && g.tc !== '-' && !!validTc(g.tc));
     if (withTc.length) {
-      try {
-        const existing = await listStudentTcHashes();
-        const allowed = new Set(students.map((s) => s.id));
-        const byHash = new Map<string, string>();
-        const dupHash = new Set<string>();
-        for (const [sid, h] of existing) {
-          if (!allowed.has(sid)) continue;
-          if (byHash.has(h)) dupHash.add(h);
-          else byHash.set(h, sid);
-        }
-        if (byHash.size) {
-          const res = await hashTcs(withTc.map((g) => g.tc || ''));
-          if (res.ok) {
-            tcMatch = new Map();
-            withTc.forEach((g, i) => {
-              const h = res.hashes[i];
-              const sid = h && !dupHash.has(h) ? byHash.get(h) : undefined;
-              if (sid) tcMatch!.set(g.key, sid);
-            });
-            setTcNote(`${tcMatch.size} öğrenci TC ile eşleşti (TC'ler kaydedilmedi).`);
-          } else setTcNote(`TC ile eşleştirme yapılamadı: ${res.error} Numara ve ad soyadla devam edildi.`);
-        }
-      } catch (e: any) {
-        setTcNote(`TC ile eşleştirme yapılamadı: ${e?.message || 'hata'} Numara ve ad soyadla devam edildi.`);
+      const r = await linkTcs(withTc.map((g) => g.tc || ''));
+      for (const g of withTc) {
+        const sid = r.map.get(g.tc || '');
+        if (sid) tcMatch.set(g.key, sid);
+      }
+      if (r.error) setTcNote(`TC ile eşleştirme yapılamadı: ${r.error} Numara ve ad soyadla devam edildi.`);
+    }
+    const bySrc = new Map<string, string>();
+    for (const r of rows as Array<OptikRow & { sid?: string }>) if (r.sid) bySrc.set(`${r.file} ${r.line}. satır`, r.sid);
+    if (bySrc.size) {
+      for (const g of groups) {
+        if (tcMatch.has(g.key)) continue;
+        const sid = g.sources.map((x) => bySrc.get(x)).find(Boolean);
+        if (sid) tcMatch.set(g.key, sid);
       }
     }
+    if (tcMatch.size) setTcNote((n) => n || `${tcMatch.size} öğrenci TC ile eşleşti (TC'ler kaydedilmedi).`);
     for (const g of groups) delete g.tc; // TC bellekten atılır
-    setMatches(matchGroups(groups, students, classes, aliases, tcMatch));
-    setManual(new Set());
+    return matchGroups(groups, students, classes, aliases, tcMatch.size ? tcMatch : undefined);
   };
+  const runMatching = async (): Promise<MatchItem[]> => {
+    const list = await buildMatches(allRows);
+    setMatches(list);
+    setManual(new Set());
+    return list;
+  };
+
+  // Aşama 90: taslak 3. adımda bırakıldıysa eşleştirme yeniden kurulur ve kayıtlı seçimler uygulanır
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current || !draftData?.match || step !== 3 || !aliasesReady || !allRows.length) return;
+    resumed.current = true;
+    void buildMatches(allRows).then((list) => {
+      const saved = new Map(draftData.match!.map((m) => [m.k, m]));
+      const man = new Set<string>();
+      const next = list.map((m) => {
+        const x = saved.get(m.group.key);
+        if (!x) return m;
+        if (x.m) man.add(m.group.key);
+        return { ...m, studentId: x.s, status: x.st, skip: x.sk, method: x.me || m.method };
+      });
+      skipDirty.current = true;
+      setMatches(next);
+      setManual(man);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aliasesReady, step, allRows]);
 
   const setMatch = (key: string, p: Partial<MatchItem>, isManual = true) => {
     setMatches((cur) => cur.map((m) => (m.group.key === key ? { ...m, ...p } : m)));
@@ -267,6 +417,148 @@ export const DenemeWizard: React.FC<{
     return new Set(Array.from(n.entries()).filter(([, v]) => v > 1).map(([k]) => k));
   }, [matches]);
 
+  // ----------------------------------------------------------------------------- Aşama 90: taslak kaydı
+  // Bilgiler + cevap anahtarı + okunmuş optik satırları (TC'siz) + eşleştirme seçimleri saklanır.
+  // TXT'nin kendisi saklanmaz; TC'li satırlarda TC ile bulunan öğrencinin yalnızca kimliği tutulur.
+  const saveDraft = async (opt: { silent?: boolean; step?: number; matches?: MatchItem[] } = {}): Promise<boolean> => {
+    if (!canDraft || draftBusy) return false;
+    if (!name.trim()) {
+      if (!opt.silent) setError('Kaydetmek için deneme adını yazın.');
+      return false;
+    }
+    setDraftBusy(true);
+    if (!opt.silent) setError(null);
+    try {
+      const skipped: string[] = [];
+      const files: DraftFile[] = [];
+      for (let i = 0; i < txtFiles.length; i++) {
+        const f = txtFiles[i];
+        const p = parsed[i];
+        if (!p || p.errors.length) {
+          skipped.push(f.name);
+          continue;
+        }
+        const tcs = p.rows.map((r) => r.tc || '').filter(Boolean);
+        const links = tcs.length ? (await linkTcs(tcs)).map : new Map<string, string>();
+        const fm = f.rows ? null : usesEditor(f) ? { name: formatName } : formats.find((x) => x.id === f.fmt);
+        files.push({
+          name: f.name,
+          fmtName: f.fmtName || fm?.name || '',
+          rows: p.rows.map((r) => {
+            const { tc, ...rest } = r as OptikRow & { sid?: string };
+            const sid = (tc && links.get(tc)) || rest.sid;
+            return sid ? { ...rest, sid } : { ...rest, sid: undefined };
+          }),
+        });
+      }
+      const stepNow = Math.min(3, opt.step ?? step);
+      const ms = opt.matches ?? matches;
+      const d: DenemeDraft = {
+        v: 1,
+        step: stepNow,
+        files,
+        ...(stepNow >= 3 && ms.length
+          ? { match: ms.map((m) => ({ k: m.group.key, s: m.studentId, st: m.status, sk: m.skip, m: manual.has(m.group.key), me: m.method })) }
+          : {}),
+      };
+      const at = new Date();
+      const id = draftId || newId('dnm');
+      await saveExam({
+        id,
+        name: name.trim(),
+        publisher: publisher.trim(),
+        examDate,
+        grade: '8',
+        examType: 'LGS',
+        subjects: completeSubjects,
+        questions: normalizeQuestions(subjects, questions),
+        scoring: LGS_SCORING,
+        summary: {},
+        published: false,
+        draftInfo: { step: stepNow, at: at.toISOString() },
+        draft: d,
+      });
+      setDraftId(id);
+      setSavedAt(at);
+      setDirty(false);
+      setDraftNote(
+        skipped.length
+          ? { tone: 'warning', text: `Kaydedildi; formatı uymayan dosya kaydedilmedi: ${skipped.join(', ')}.` }
+          : opt.silent
+            ? null
+            : { tone: 'success', text: 'Kaydedildi. Çıkıp sonra Deneme listesinden kaldığınız yerden devam edebilirsiniz.' }
+      );
+      onDraftChange?.();
+      return true;
+    } catch (e: any) {
+      if (opt.silent) setDraftNote({ tone: 'warning', text: `Otomatik kayıt yapılamadı: ${e?.message || 'hata'}` });
+      else setError(e?.message || 'Kaydedilemedi.');
+      return false;
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
+  // Değişiklik izleme (ilk açılış ve taslaktan geri yükleme sayılmaz)
+  useEffect(() => {
+    if (skipDirty.current) {
+      skipDirty.current = false;
+      return;
+    }
+    setDirty(true);
+  }, [name, publisher, examDate, questions, txtFiles, matches]);
+
+  // Sayfadan ayrılırken (sekme değişimi, başka bölüm) kaydedilmemiş değişiklik kendiliğinden kaydedilir
+  const latest = useRef({ dirty, save: saveDraft });
+  latest.current = { dirty, save: saveDraft };
+  useEffect(() => {
+    if (!canDraft) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (!latest.current.dirty || left.current) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      if (!left.current && latest.current.dirty) void latest.current.save({ silent: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** "Denemelere dön" / "Vazgeç": kaydedilmemiş değişiklik varsa sorulur */
+  const leave = () => {
+    if (canDraft && dirty && (name.trim() || txtFiles.length)) {
+      setLeaveAsk(true);
+      return;
+    }
+    left.current = true;
+    onCancel();
+  };
+  const saveAndLeave = async () => {
+    if (await saveDraft()) {
+      left.current = true;
+      setLeaveAsk(false);
+      onCancel();
+    } else setLeaveAsk(false);
+  };
+  const doDeleteDraft = async () => {
+    if (!draftId) return;
+    setDraftBusy(true);
+    try {
+      await deleteExam(draftId);
+      left.current = true;
+      setDeleteAsk(false);
+      onDraftChange?.();
+      onCancel();
+    } catch (e: any) {
+      setDeleteAsk(false);
+      setError(e?.message || 'Taslak silinemedi.');
+    } finally {
+      setDraftBusy(false);
+    }
+  };
+
   // ----------------------------------------------------------------------------- adım geçişleri
   const next = () => {
     setError(null);
@@ -277,22 +569,29 @@ export const DenemeWizard: React.FC<{
       const bp = keyBProblems(subjects, questions);
       if (bp.length) return setError(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''} Ders satırındaki "Sorular" bölümünden düzeltin.`);
       setStep(2);
+      if (canDraft) void saveDraft({ silent: true, step: 2 });
       return;
     }
     if (step === 2) {
-      const fe = checkFields(fields);
-      if (fe.length) return setError(fe[0]);
       if (!txtFiles.length) return setError('En az bir TXT dosyası yükleyin.');
+      if (txtFiles.some((f) => usesEditor(f))) {
+        const fe = checkFields(fields);
+        if (fe.length) return setError(fe[0]);
+      }
       if (parseErrors.length) return setError(parseErrors[0]);
       if (keyMissingForAnswered.length) {
         return setError(`TXT'de cevabı olan ama cevap anahtarı eksik dersler var: ${keyMissingForAnswered.map((s) => s.name).join(', ')}. 1. adıma dönüp anahtarı tamamlayın.`);
       }
       if (matching) return;
       setMatching(true);
-      void runMatching().finally(() => {
-        setMatching(false);
-        setStep(3);
-      });
+      void runMatching()
+        .then((list) => {
+          if (canDraft) void saveDraft({ silent: true, step: 3, matches: list });
+        })
+        .finally(() => {
+          setMatching(false);
+          setStep(3);
+        });
       return;
     }
     if (step === 3) {
@@ -305,6 +604,7 @@ export const DenemeWizard: React.FC<{
         setMatchFilter('pending');
         return setError('Aynı öğrenci birden fazla satıra seçilmiş. Lütfen düzeltin.');
       }
+      if (canDraft && dirty) void saveDraft({ silent: true, step: 3 });
       setStep(4);
     }
   };
@@ -383,7 +683,7 @@ export const DenemeWizard: React.FC<{
     try {
       const qs = normalizeQuestions(subjects, questions);
       const active = subjects.filter((s) => keyComplete(s.key));
-      const examId = existing?.id || newId('dnm');
+      const examId = existing?.id || draftId || newId('dnm');
       let results: DenemeResult[] = computed.list.map((r) => ({ ...r, examId, id: `${examId}:${r.studentId}`.slice(0, 120) }));
 
       // Var olan denemeye ek yükleme: öğrencinin önceki derslerdeki cevapları korunur
@@ -435,6 +735,7 @@ export const DenemeWizard: React.FC<{
         /* hafıza kaydedilemese de sonuçlar kaydedildi */
       }
       // Aşama 48d: Excel'deki kazanımlar artık bankaya EKLENMEZ; banka yalnızca MEB kazanımlarından oluşur
+      left.current = true; // taslak sonuçlarla birlikte kesin kayda dönüştü
       onSaved(examId);
     } catch (e: any) {
       setError(e?.message || 'Kaydedilemedi.');
@@ -480,10 +781,20 @@ export const DenemeWizard: React.FC<{
   return (
     <div className="space-y-4" id="deneme-wizard">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className={BACK_BTN} onClick={onCancel} id="deneme-wizard-geri">
+        <button type="button" className={BACK_BTN} onClick={leave} id="deneme-wizard-geri">
           <ArrowLeft /> Denemelere dön
         </button>
-        <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: optik yükleme` : 'Yeni deneme'}</h2>
+        <h2 className="text-base font-semibold text-fg">{existing ? `${existing.name}: optik yükleme` : draftId ? name.trim() || 'Yeni deneme' : 'Yeni deneme'}</h2>
+        {draftId && (
+          <span className="ui-chip ui-chip-warning" id="deneme-taslak-chip">
+            Taslak
+          </span>
+        )}
+        {draftId && (
+          <button type="button" className="ui-btn ui-btn-danger-soft ui-btn-sm ml-auto" disabled={draftBusy} onClick={() => setDeleteAsk(true)} id="deneme-taslak-sil">
+            <Trash2 /> Taslağı sil
+          </button>
+        )}
       </div>
 
       <ol className="flex flex-wrap gap-2" aria-label="Adımlar">
@@ -535,7 +846,12 @@ export const DenemeWizard: React.FC<{
 
       {step === 2 && (
         <>
-          <Panel title="Optik formatı" description="FMT dosyasını yükleyin, kayıtlı bir formatı seçin ya da alanları elle girin." icon={FileText} tone="info">
+          <Panel
+            title="Optik formatı"
+            description="FMT dosyasını yükleyin, kayıtlı bir formatı seçin ya da alanları elle girin. Sözel ve sayısal için ayrı FMT varsa ikisini de ayrı adla kaydedin; her TXT kendi formatıyla okunur."
+            icon={FileText}
+            tone="info"
+          >
             <div className="flex flex-wrap items-end gap-2 mb-3">
               <div className="min-w-48">
                 <label className="ui-label" htmlFor="dn-fmt">Kayıtlı format</label>
@@ -571,20 +887,33 @@ export const DenemeWizard: React.FC<{
               fields={fields}
               sequential={sequential}
               onSequentialChange={setSequential}
-              sampleLine={txtFiles.length ? sampleLine || '' : undefined}
-              onChange={(f, text) => {
-                setFields(f);
-                if (text !== undefined) {
-                  setFmtText(text);
-                  setFormatId('');
+              sampleLine={editorFile ? sampleLine || '' : undefined}
+              onChange={(f, text, fileName) => {
+                if (text === undefined) {
+                  setFields(f);
+                  return;
                 }
+                // Aşama 90: FMT yüklendi. Oturumu karışık bloklar (sözelde "FEN", sayısalda "SOSYAL") düzeltilir
+                const fx = fixSessionSubjects(f, subjects);
+                setFields(fx.fields);
+                setFmtText(text);
+                // Yeni format: dosyaları önceki formata bağlı kalsın
+                if (formatId) setTxtFiles((cur) => cur.map((x) => (x.fmt === '' ? { ...x, fmt: formatId } : x)));
+                setFormatId('');
+                if (fileName) setFormatName(fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120));
+                const nm = (k: string) => subjects.find((s) => s.key === k)?.name || k;
+                setFormatMsg(
+                  fx.changes.length
+                    ? `FMT okundu. ${fx.changes.map((c) => `"${c.label}" bloğu ${nm(c.to)} olarak ayarlandı (formda ${nm(c.from)} yazıyor ama bu oturumda o ders yok)`).join('; ')}. Kontrol edip "Formatı kaydet" deyin.`
+                    : 'FMT okundu. Alanları kontrol edip "Formatı kaydet" deyin.'
+                );
               }}
             />
           </Panel>
 
           <Panel
             title="Optik sonuç dosyaları (TXT)"
-            description="Sözel ve sayısal oturumların TXT dosyalarını birlikte yükleyebilirsiniz; aynı öğrencinin satırları birleştirilir."
+            description="Sözel ve sayısal TXT'leri birlikte yükleyin; her dosya kendi formatıyla okunur (uyan kayıtlı format kendiliğinden seçilir), aynı öğrencinin satırları birleştirilir."
             icon={Upload}
             tone="success"
             actions={
@@ -610,14 +939,53 @@ export const DenemeWizard: React.FC<{
               <div className="space-y-2">
                 {txtFiles.map((f, i) => {
                   const p = parsed[i];
+                  const read = p ? subjects.filter((s) => p.rows.some((r) => filled(r.answers[s.key]))) : [];
+                  const sug = keySugs[i] || [];
+                  const nm = (k: string) => subjects.find((s) => s.key === k)?.name || k;
                   return (
-                    <div key={f.name} className="flex flex-wrap items-start gap-2 border border-line rounded-xl px-3 py-2">
+                    <div key={f.name} className="flex flex-wrap items-start gap-2 border border-line rounded-xl px-3 py-2" data-txt-file={f.name}>
                       <FileText className="w-4 h-4 text-muted mt-0.5" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-fg truncate">{f.name}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-fg truncate min-w-0">{f.name}</p>
+                          {f.rows ? (
+                            <span className="ui-chip ui-chip-neutral" title="Taslakta kayıtlı okunmuş satırlar (TXT'nin kendisi saklanmaz)">
+                              Kayıtlı{f.fmtName ? ` · ${f.fmtName}` : ''}
+                            </span>
+                          ) : (
+                            <select
+                              className="ui-input py-1 text-xs w-auto max-w-56"
+                              value={usesEditor(f) ? '' : f.fmt}
+                              onChange={(e) => setFileFmt(f.name, e.target.value)}
+                              aria-label={`${f.name} optik formatı`}
+                            >
+                              <option value="">{formatId ? `${formatName || 'Format'} (düzenlenen)` : `${formatName || 'Yukarıdaki format'} (düzenlenen)`}</option>
+                              {formats
+                                .filter((x) => x.id !== formatId)
+                                .map((x) => (
+                                  <option key={x.id} value={x.id}>
+                                    {x.name}
+                                  </option>
+                                ))}
+                            </select>
+                          )}
+                        </div>
                         {p ? (
                           <>
-                            <p className="text-xs text-muted">{p.rows.length} öğrenci satırı</p>
+                            <p className="text-xs text-muted">
+                              {p.rows.length} öğrenci satırı{read.length ? ` · ${read.map((s) => s.short).join(' · ')}` : ''}
+                            </p>
+                            {sug.length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning-fg">
+                                <AlertTriangle className="w-4 h-4 shrink-0" />
+                                <span className="min-w-0 flex-1">
+                                  {sug.map((x) => `"${nm(x.from)}" olarak okunan cevaplar ${x.rateFrom >= 0 ? `kendi anahtarıyla %${x.rateFrom}, ` : ''}${nm(x.to)} anahtarıyla %${x.rateTo} uyuşuyor`).join('; ')}. Optik formdaki ders blokları yanlış adlandırılmış olabilir.
+                                </span>
+                                <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => void applyKeyFix(i)}>
+                                  Düzelt
+                                </button>
+                              </div>
+                            )}
                             {p.errors.map((x) => (
                               <p key={x} className="text-xs font-semibold text-danger-fg">{x}</p>
                             ))}
@@ -634,7 +1002,7 @@ export const DenemeWizard: React.FC<{
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="font-semibold">Bu dosya kayıtlı formatla uyuşuyor:</span>
                                 {fixHints[i]!.fits.map((x) => (
-                                  <button key={x.id} type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => pickFormat(x.id)}>
+                                  <button key={x.id} type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setFileFmt(f.name, x.id)}>
                                     “{x.name}” formatını kullan
                                   </button>
                                 ))}
@@ -935,22 +1303,98 @@ export const DenemeWizard: React.FC<{
           {error}
         </p>
       )}
+      {draftNote && !error && (
+        <p role="status" className={cx('text-xs font-semibold rounded-xl px-3 py-2', draftNote.tone === 'success' ? 'bg-success-soft text-success-fg' : 'bg-warning-soft text-warning-fg')}>
+          {draftNote.text}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={saving} onClick={() => (step === 1 || (existing && step === startStep) ? onCancel() : setStep((step - 1) as Step))}>
+        <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={saving} onClick={() => (step === 1 || (existing && step === startStep) ? leave() : setStep((step - 1) as Step))}>
           <ArrowLeft /> {step === 1 || (existing && step === startStep) ? 'Vazgeç' : 'Geri'}
         </button>
         {progress && <span className="text-xs text-muted">{progress}</span>}
         {step < 4 ? (
-          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={next} disabled={matching}>
-            {matching ? 'Eşleştiriliyor…' : 'Devam'} <ArrowRight />
-          </button>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            {canDraft && (
+              <span className="text-[11px] text-muted" id="deneme-taslak-durum">
+                {draftBusy ? 'Kaydediliyor…' : dirty ? 'Kaydedilmemiş değişiklik var' : savedAt ? `Kaydedildi · ${hhmm(savedAt)}` : ''}
+              </span>
+            )}
+            {canDraft && (
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => void saveDraft()} disabled={draftBusy || matching} id="deneme-taslak-kaydet">
+                <Save /> Kaydet
+              </button>
+            )}
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={next} disabled={matching}>
+              {matching ? 'Eşleştiriliyor…' : 'Devam'} <ArrowRight />
+            </button>
+          </div>
         ) : (
           <button type="button" className="ui-btn ui-btn-success ui-btn-sm" disabled={saving || !computed?.list.length} onClick={() => void doSave()}>
             <Save /> {saving ? 'Kaydediliyor…' : 'Sonuçları kaydet'}
           </button>
         )}
       </div>
+
+      {/* Aşama 90: kaydedilmemiş değişiklikle çıkış */}
+      <Modal
+        open={leaveAsk}
+        onClose={() => !draftBusy && setLeaveAsk(false)}
+        title="Değişiklikler kaydedilmedi"
+        description="Kaydederseniz sonra Deneme listesinden kaldığınız yerden devam edersiniz."
+        icon={Save}
+        tone="warning"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-secondary')} disabled={draftBusy} onClick={() => setLeaveAsk(false)}>
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              className={cx(SQ_BTN, 'ui-btn-danger-soft')}
+              disabled={draftBusy}
+              onClick={() => {
+                left.current = true;
+                setLeaveAsk(false);
+                onCancel();
+              }}
+            >
+              Kaydetmeden çık
+            </button>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-primary')} disabled={draftBusy || !name.trim()} onClick={() => void saveAndLeave()} id="deneme-kaydet-cik">
+              <Save /> {draftBusy ? 'Kaydediliyor…' : 'Kaydet ve çık'}
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-fg-2">
+          {name.trim() ? 'Deneme bilgileri, cevap anahtarı ve okunan optik dosyaları saklanır. TXT dosyasının kendisi ve TC numaraları saklanmaz.' : 'Kaydetmek için önce deneme adını yazın.'}
+        </p>
+      </Modal>
+
+      <Modal
+        open={deleteAsk}
+        onClose={() => !draftBusy && setDeleteAsk(false)}
+        title="Taslak silinsin mi?"
+        description={`"${name.trim() || 'Yeni deneme'}" taslağı kalıcı olarak silinir.`}
+        icon={Trash2}
+        tone="danger"
+        size="sm"
+        footer={
+          <>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-secondary')} disabled={draftBusy} onClick={() => setDeleteAsk(false)}>
+              Vazgeç
+            </button>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-danger')} disabled={draftBusy} onClick={() => void doDeleteDraft()}>
+              <Trash2 /> Sil
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-fg-2">Cevap anahtarı ve okunan optik verisi de silinir. Kayıtlı optik formatları silinmez.</p>
+      </Modal>
     </div>
   );
 };

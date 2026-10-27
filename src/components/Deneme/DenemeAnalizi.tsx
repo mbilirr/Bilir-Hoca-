@@ -3,7 +3,7 @@ import { BarChart3, BookOpen, ChevronRight, FileBarChart, Pencil, Plus, Save, Sh
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
-import { isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
+import { getExam, isDraftExam, isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
 import { fmtNet, fmtScore } from '../../lib/deneme/lgs';
 import { dateTr } from '../../lib/deneme/karneModel';
 import { DenemeWizard } from './DenemeWizard';
@@ -21,7 +21,8 @@ import { hasHistoryValue, useHistoryState } from '../../lib/useHistoryState';
 
 type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 // Aşama 52: görünüm tarayıcı geçmişine yazılır (yalnızca kimlik tutulur; deneme nesnesi bellekte kalır)
-type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; id: string } | { kind: 'detail'; id: string };
+// Aşama 90: 'draft' = yarım kalmış yeni deneme (kaldığı adımdan sihirbazda açılır)
+type View = { kind: 'list' } | { kind: 'new' } | { kind: 'upload'; id: string } | { kind: 'detail'; id: string } | { kind: 'draft'; id: string };
 
 export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[] }> = ({ students, classes }) => {
   // Aşama 82: Rehberlik / Öğretmen / Zümre Başkanı denemeleri yalnızca görür (ekleme, düzenleme, silme yok)
@@ -37,7 +38,11 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   };
   // Yükleme görünümüne geri/ileri ile gelinip deneme bellekte yoksa sonuçlar gösterilir
   const shownView: View = view.kind === 'upload' && uploadExam?.id !== view.id ? { kind: 'detail', id: view.id } : view;
-  const [exams, setExams] = useState<DenemeExam[]>([]);
+  const [allExams, setExams] = useState<DenemeExam[]>([]);
+  // Aşama 90: taslaklar yalnızca listede (yöneticiye) görünür; karne ve etüt yalnızca sonuçlu denemeleri kullanır
+  const exams = allExams.filter((e) => !isDraftExam(e));
+  const listed = readOnly ? exams : allExams;
+  const [draftExam, setDraftExam] = useState<DenemeExam | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [setupMissing, setSetupMissing] = useState(false);
@@ -70,7 +75,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     setLoading(true);
     setError(null);
     try {
-      setExams(await listExams());
+      setExams(await listExams({ drafts: !readOnly }));
       setSetupMissing(false);
     } catch (e: any) {
       if (isSetupError(e)) setSetupMissing(true);
@@ -82,6 +87,25 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   useEffect(() => {
     void reload();
   }, []);
+
+  // Aşama 90: taslak açılınca tam hâli (cevap anahtarı + optik verisi) okunur
+  const draftViewId = view.kind === 'draft' ? view.id : '';
+  useEffect(() => {
+    if (!draftViewId || draftExam?.id === draftViewId) return;
+    let alive = true;
+    setDraftExam(null);
+    getExam(draftViewId)
+      .then((e) => {
+        if (!alive) return;
+        if (isDraftExam(e)) setDraftExam(e);
+        else setView({ kind: 'detail', id: e.id }, { replace: true }); // taslak kesinleşmiş
+      })
+      .catch((e) => alive && setError(e?.message || 'Taslak açılamadı.'));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftViewId]);
 
   // Sayfa değişince yukarı kaydır (diğer modüllerdeki geçişlerle aynı)
   useEffect(() => {
@@ -160,8 +184,30 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
             // Kaydedilen sihirbaz ekranı geçmişte kalmasın: aynı kayıt sonuç ekranına çevrilir
             setView({ kind: 'detail', id }, { replace: true });
           }}
+          onDraftChange={() => void reload()}
         />
       )}
+      {tab === 'denemeler' && shownView.kind === 'draft' && !readOnly &&
+        (draftExam && draftExam.id === shownView.id ? (
+          <DenemeWizard
+            key={draftExam.id}
+            students={students}
+            classes={classes}
+            draft={draftExam}
+            onCancel={() => {
+              setDraftExam(null);
+              goBack({ kind: 'list' });
+            }}
+            onSaved={(id) => {
+              setDraftExam(null);
+              void reload();
+              setView({ kind: 'detail', id }, { replace: true });
+            }}
+            onDraftChange={() => void reload()}
+          />
+        ) : (
+          !error && <p className="text-sm text-muted">Taslak açılıyor…</p>
+        ))}
       {tab === 'denemeler' && shownView.kind === 'upload' && uploadExam && !readOnly && (
         <DenemeWizard
           students={students}
@@ -199,7 +245,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-card">
           {loading ? (
             <p className="px-4 py-8 text-sm text-muted text-center">Yükleniyor…</p>
-          ) : exams.length === 0 ? (
+          ) : listed.length === 0 ? (
             <EmptyState
               icon={BarChart3}
               title="Henüz deneme yok"
@@ -227,13 +273,18 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {exams.map((e) => (
-                    <tr key={e.id} className="hover:bg-surface-2/30 transition-colors cursor-pointer" onClick={() => setView({ kind: 'detail', id: e.id })}>
+                  {listed.map((e) => (
+                    <tr
+                      key={e.id}
+                      className="hover:bg-surface-2/30 transition-colors cursor-pointer"
+                      onClick={() => setView(isDraftExam(e) ? { kind: 'draft', id: e.id } : { kind: 'detail', id: e.id })}
+                    >
                       <td className="px-4 py-2.5">
                         <div className="flex items-start gap-1.5">
                           <div className="min-w-0">
                             <p className="font-semibold text-fg">{e.name}</p>
                             <p className="text-[11px] text-muted">{[e.publisher, e.subjects.map((s) => s.short).join(' · ')].filter(Boolean).join(' — ')}</p>
+                            {isDraftExam(e) && <span className="ui-chip ui-chip-warning mt-1 sm:hidden">Taslak · {e.draftInfo!.step}. adım</span>}
                           </div>
                           {!readOnly && (
                           <button
@@ -256,7 +307,13 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                       <td className="px-3 py-2.5 text-center tabular-nums">{fmtNet(e.summary.avgTotalNet)}</td>
                       <td className="px-3 py-2.5 text-center tabular-nums font-bold text-fg">{fmtScore(e.summary.avgScore)}</td>
                       <td className="px-3 py-2.5">
-                        <span className={cx('ui-chip', e.published ? 'ui-chip-success' : 'ui-chip-neutral')}>{e.published ? 'Öğrencilere açık' : 'Kapalı'}</span>
+                        {isDraftExam(e) ? (
+                          <span className="ui-chip ui-chip-warning" title="Sonuçları henüz kaydedilmedi; açınca kaldığı adımdan devam eder">
+                            Taslak · {e.draftInfo!.step}. adım
+                          </span>
+                        ) : (
+                          <span className={cx('ui-chip', e.published ? 'ui-chip-success' : 'ui-chip-neutral')}>{e.published ? 'Öğrencilere açık' : 'Kapalı'}</span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <ChevronRight className="w-4 h-4 inline text-subtle" />

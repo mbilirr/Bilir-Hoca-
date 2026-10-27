@@ -5,7 +5,7 @@
 // ============================================================================
 import { supabase } from '../lib/supabase';
 import { dataService } from './dataService';
-import type { OptikField } from '../lib/deneme/optik';
+import type { OptikField, OptikRow } from '../lib/deneme/optik';
 import type { ExamQuestions, ExamSubject, ExamSummary, ResultStats, ScoringSettings } from '../lib/deneme/lgs';
 import { newId } from '../lib/ids';
 
@@ -23,7 +23,29 @@ export interface DenemeExam {
   summary: Partial<ExamSummary>;
   published: boolean;
   createdAt: string;
+  /** Aşama 90: yarım kalmış (taslak) yeni deneme: hangi adımda bırakıldığı (listede gösterilir) */
+  draftInfo?: { step: number; at: string };
+  /** Aşama 90: taslağın optik verisi ve eşleştirme ilerlemesi (yalnızca getExam ile gelir) */
+  draft?: DenemeDraft;
 }
+
+/** Aşama 90: taslakta saklanan optik dosyası (TC YOK; TC ile bulunan öğrenci yalnızca kimliğiyle tutulur) */
+export interface DraftFile {
+  name: string;
+  fmtName: string;
+  rows: Array<Omit<OptikRow, 'tc'> & { sid?: string }>;
+}
+
+export interface DenemeDraft {
+  v: 1;
+  step: number;
+  files: DraftFile[];
+  /** 3. adım ilerlemesi: satır anahtarı → seçim */
+  match?: Array<{ k: string; s: string | null; st: 'ok' | 'check' | 'none'; sk: boolean; m: boolean; me: string }>;
+}
+
+/** Taslak deneme mi (sonuçları henüz kaydedilmemiş yeni deneme) */
+export const isDraftExam = (e: Pick<DenemeExam, 'draftInfo'>) => !!e.draftInfo;
 
 export interface DenemeResult {
   id: string;
@@ -65,7 +87,21 @@ export const isSetupError = (e: unknown) => e instanceof Error && e.message === 
 /** Yeni kayıtların kurumu: genel yönetici için boş, kurum yöneticisi için kendi kurumu */
 const myKurumId = () => (dataService.isHeadAdmin() ? null : dataService.getMyKurumId());
 
-const examFromRow = (r: any): DenemeExam => ({
+// Aşama 90: taslak verisi "questions" sütununda "_taslak" anahtarında durur (liste sorgusu bu sütunu okumaz;
+// liste hafif kalır). Uygulamanın geri kalanı bu anahtarı görmez: burada ayrılır.
+const DRAFT_KEY = '_taslak';
+const examFromRow = (r: any): DenemeExam => {
+  const q = r.questions && typeof r.questions === 'object' ? { ...r.questions } : {};
+  const draft = q[DRAFT_KEY] && typeof q[DRAFT_KEY] === 'object' ? (q[DRAFT_KEY] as DenemeDraft) : undefined;
+  delete q[DRAFT_KEY];
+  const t = r.summary && typeof r.summary === 'object' ? r.summary.taslak : null;
+  const e = examFromRowBase({ ...r, questions: q });
+  if (t && typeof t === 'object') e.draftInfo = { step: Number(t.step) || 1, at: String(t.at || '') };
+  if (draft && e.draftInfo) e.draft = draft;
+  return e;
+};
+
+const examFromRowBase = (r: any): DenemeExam => ({
   id: r.id,
   kurumId: r.kurum_id ?? null,
   name: r.name || '',
@@ -98,14 +134,16 @@ const resultFromRow = (r: any): DenemeResult => ({
 });
 
 // ----------------------------------------------------------------------------- Denemeler
-export async function listExams(): Promise<DenemeExam[]> {
+/** Denemeler. Aşama 90: taslaklar (sonuçları kaydedilmemiş yeni denemeler) yalnızca istenirse gelir */
+export async function listExams(opt: { drafts?: boolean } = {}): Promise<DenemeExam[]> {
   const { data, error } = await supabase
     .from('deneme_exams')
     .select('id,kurum_id,name,publisher,exam_date,grade,exam_type,subjects,scoring,summary,published,created_at')
     .order('exam_date', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) fail(error, 'Denemeler yüklenemedi.');
-  return (data || []).map((r: any) => examFromRow({ ...r, questions: {} }));
+  const list = (data || []).map((r: any) => examFromRow({ ...r, questions: {} }));
+  return opt.drafts ? list : list.filter((e) => !e.draftInfo);
 }
 
 export async function getExam(id: string): Promise<DenemeExam> {
@@ -114,6 +152,12 @@ export async function getExam(id: string): Promise<DenemeExam> {
   if (!data) throw new Error('Deneme bulunamadı ya da görme yetkiniz yok.');
   return examFromRow(data);
 }
+
+const stripDraftInfo = (sm: any) => {
+  if (!sm || typeof sm !== 'object' || !('taslak' in sm)) return sm || {};
+  const { taslak: _t, ...rest } = sm;
+  return rest;
+};
 
 export async function saveExam(exam: Omit<DenemeExam, 'createdAt' | 'kurumId'> & { kurumId?: string | null }): Promise<DenemeExam> {
   const row = {
@@ -125,10 +169,11 @@ export async function saveExam(exam: Omit<DenemeExam, 'createdAt' | 'kurumId'> &
     grade: exam.grade || '8',
     exam_type: exam.examType || 'LGS',
     subjects: exam.subjects,
-    questions: exam.questions,
+    // Aşama 90: taslak varsa sorularla birlikte saklanır; taslaksız kayıt (sonuçlar kaydedilince) taslağı siler
+    questions: exam.draftInfo && exam.draft ? { ...exam.questions, [DRAFT_KEY]: exam.draft } : exam.questions,
     scoring: exam.scoring,
-    summary: exam.summary || {},
-    published: !!exam.published,
+    summary: exam.draftInfo ? { ...(exam.summary || {}), taslak: exam.draftInfo } : stripDraftInfo(exam.summary),
+    published: exam.draftInfo ? false : !!exam.published,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase.from('deneme_exams').upsert(row, { onConflict: 'id' }).select('*').maybeSingle();

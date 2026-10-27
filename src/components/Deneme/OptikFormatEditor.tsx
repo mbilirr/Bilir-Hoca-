@@ -25,7 +25,7 @@ const ROLE_ORDER: FieldRole[] = ['number', 'fullname', 'name', 'surname', 'grade
 
 export const OptikFormatEditor: React.FC<{
   fields: OptikField[];
-  onChange: (fields: OptikField[], fmtText?: string) => void;
+  onChange: (fields: OptikField[], fmtText?: string, fileName?: string) => void;
   sequential: boolean;
   onSequentialChange: (v: boolean) => void;
   sampleLine?: string; // TXT'nin ilk satırı: alanların neyi okuduğu önizlenir
@@ -49,7 +49,7 @@ export const OptikFormatEditor: React.FC<{
     const text = decodeOptikFile(await file.arrayBuffer());
     const parsed = parseFmt(text);
     onSequentialChange(true);
-    onChange(parsed, text);
+    onChange(parsed, text, file.name);
   };
 
   const preview = (f: OptikField) => {
