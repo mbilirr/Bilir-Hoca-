@@ -185,6 +185,45 @@ export async function extractPdfText(file: File, onProgress?: (done: number, tot
   return out;
 }
 
+/** Aşama 89: PDF metni konumlarıyla (cevap anahtarı tabloları için). x, y: sol-alt köşe (nokta), w, h: genişlik, yükseklik */
+export interface PdfTextItem {
+  str: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export async function extractPdfItems(file: File, maxPages = 12): Promise<PdfTextItem[][]> {
+  const doc = await openPdfDoc(file);
+  const out: PdfTextItem[][] = [];
+  try {
+    const n = Math.min(doc.numPages, maxPages);
+    for (let p = 1; p <= n; p++) {
+      const page = await doc.getPage(p);
+      try {
+        const tc = await page.getTextContent();
+        const items: PdfTextItem[] = [];
+        for (const it of tc.items as any[]) {
+          if (typeof it.str !== 'string' || !it.str.trim() || !Array.isArray(it.transform)) continue;
+          const [a, b, , d, e, f] = it.transform as number[];
+          items.push({ str: it.str, x: e, y: f, w: Number(it.width) || 0, h: Math.abs(Number(it.height) || Math.hypot(a, b) || Math.abs(d) || 10) });
+        }
+        out.push(items);
+      } finally {
+        try {
+          page.cleanup();
+        } catch {
+          /* yok say */
+        }
+      }
+    }
+  } finally {
+    void Promise.resolve(doc.destroy()).catch(() => undefined);
+  }
+  return out;
+}
+
 /** "2-5, 7" → [2,3,4,5,7] (sayfa sayısı içinde) */
 export function parsePageRanges(input: string, pageCount: number): number[] {
   const out = new Set<number>();

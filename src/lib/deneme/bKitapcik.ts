@@ -89,7 +89,8 @@ export function parseBOrder(text: string, count: number, direction: 'a2b' | 'b2a
 }
 
 // ----------------------------------------------------------------------------- 2) B cevap anahtarıyla kontrol
-export const cleanKey = (s: string) => (s || '').toUpperCase().replace(/İ/g, 'I').replace(/[^A-EX]/g, '');
+// Aşama 89: "İ" (iptal) X sayılır; eskiden silindiği için sonraki harfler kayıyordu
+export const cleanKey = (s: string) => (s || '').toLocaleUpperCase('tr-TR').replace(/[İI]/g, 'X').replace(/[^A-EX]/g, '');
 
 export interface BKeyCheck {
   checked: number;

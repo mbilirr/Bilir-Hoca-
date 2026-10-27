@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
-import { hasSourceKazanim, readKeyExcel, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
+import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
@@ -16,6 +16,7 @@ import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../
 // Aşama 48d: sistem YALNIZCA kazanım bankasındaki (MEB) kazanımları kullanır. Excel'deki kazanım
 // yalnızca bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir.
 // Excel yoksa A cevapları elle yazılır; B kitapçığı "A'nın tersi" ya da "A ile aynı" seçilir.
+// Aşama 89: cevap anahtarı PDF'ten de okunur; A ve B kitapçığının cevapları ayrı verilmişse B eşleşmesi kurulur.
 // ============================================================================
 
 const keyString = (qs: ExamQuestion[]) => qs.map((q) => q.answer || ' ').join('').replace(/\s+$/, '');
@@ -48,6 +49,8 @@ export const AnahtarEditor: React.FC<{
   // Aşama 62: B kitapçığı soru soru (karışık sıra) — ders başına araçlar
   const [customB, setCustomB] = useState<Set<string>>(new Set());
   const [bTools, setBTools] = useState<Record<string, { order: string; dir: 'a2b' | 'b2a'; bKey: string; msg?: { tone: 'success' | 'warning' | 'danger'; text: string } }>>({});
+  // Aşama 89: B sırası dosyada olmayıp cevap harflerinden kurulan dersler (yalnızca bu oturumda gösterilir)
+  const [estB, setEstB] = useState<Set<string>>(new Set());
   const toolOf = (k: string) => bTools[k] || { order: '', dir: 'a2b' as const, bKey: '' };
   const setTool = (k: string, p: Partial<{ order: string; dir: 'a2b' | 'b2a'; bKey: string; msg?: { tone: 'success' | 'warning' | 'danger'; text: string } }>) =>
     setBTools((m) => ({ ...m, [k]: { ...toolOf(k), ...p } }));
@@ -133,10 +136,22 @@ export const AnahtarEditor: React.FC<{
     const next: ExamQuestions = { ...base };
     for (const k of r.found) next[k] = r.questions[k];
     onExcelMeta?.(r);
+    // Aşama 89: B kitapçığının cevapları kontrol kutusuna yazılır; harflerden kurulan eşleşmeler işaretlenir
+    const bk = r.method === 'yz' ? undefined : r.bKeys;
+    if (bk) {
+      setBTools((m) => {
+        const n = { ...m };
+        for (const k of r.found) if (bk[k]) n[k] = { ...(m[k] || { order: '', dir: 'a2b' as const }), bKey: bk[k].trimEnd(), msg: undefined };
+        return n;
+      });
+    }
+    const est = r.found.filter((k) => r.method !== 'yz' && r.bModes?.[k] === 'harf');
+    setEstB(new Set(est));
+    if (est.length) setCustomB((cur) => new Set([...cur, ...est]));
     const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.name);
     const missing = subjects.filter((s) => !r.found.includes(s.key)).map((s) => s.name);
     const prefix =
-      `${r.method === 'yz' ? 'Yapay zekâ ile okundu' : "Excel'den okundu"}: ${names.join(', ')}.` +
+      `${r.method === 'yz' ? 'Yapay zekâ ile okundu' : r.source === 'pdf' ? "PDF'ten okundu" : "Excel'den okundu"}: ${names.join(', ')}.` +
       (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
       (r.warnings.length ? ' ' + r.warnings.join(' ') : '') +
       ' ';
@@ -154,8 +169,11 @@ export const AnahtarEditor: React.FC<{
     setBusy(true);
     setMsg(null);
     setOffer(null);
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
     try {
-      const r = await readKeyExcel(file, subjects);
+      if (isPdf) setBusyText('PDF okunuyor…');
+      const r = isPdf ? await readKeyPdf(file, subjects) : await readKeyExcel(file, subjects);
+      setBusyText('');
       setLastExcel(r);
       // Biçim tanınmadıysa: dosyanın hücre metni yapay zekâyla okunur
       if (!r.found.length && r.rawText && aiReady) {
@@ -182,8 +200,8 @@ export const AnahtarEditor: React.FC<{
         return;
       }
       await applyExcel(r, questions);
-    } catch {
-      setMsg({ tone: 'danger', text: 'Excel dosyası okunamadı. Dosyanın bozuk olmadığından emin olun.' });
+    } catch (e: any) {
+      setMsg({ tone: 'danger', text: isPdf ? e?.message || 'PDF dosyası okunamadı. Dosyanın bozuk olmadığından emin olun.' : 'Excel dosyası okunamadı. Dosyanın bozuk olmadığından emin olun.' });
     } finally {
       setBusy(false);
       setBusyText('');
@@ -206,7 +224,7 @@ export const AnahtarEditor: React.FC<{
       if (kind === 'all') {
         const found = Object.keys(res.questions).filter((k) => res.questions[k].length);
         if (!found.length) {
-          setMsg({ tone: 'warning', text: 'Yapay zekâ dosyada cevap anahtarı bulamadı; Excel okuması olduğu gibi kaldı.' });
+          setMsg({ tone: 'warning', text: 'Yapay zekâ dosyada cevap anahtarı bulamadı; dosyadan okunan hâli kaldı.' });
           return;
         }
         await applyExcel(
@@ -257,12 +275,12 @@ export const AnahtarEditor: React.FC<{
     <div className="space-y-3" id="deneme-key-editor">
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => fileRef.current?.click()}>
-          <FileSpreadsheet /> {busy && !busyText ? 'Okunuyor…' : 'Cevap anahtarı Excel\'i yükle'}
+          <FileSpreadsheet /> {busy && !busyText ? 'Okunuyor…' : 'Cevap anahtarı yükle (Excel / PDF)'}
         </button>
         <input
           ref={fileRef}
           type="file"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.pdf,application/pdf"
           className="hidden"
           onChange={(e) => {
             void onExcel(e.target.files?.[0]);
@@ -316,7 +334,7 @@ export const AnahtarEditor: React.FC<{
               {aiReady ? ' Yapay zekâ ile okumayı deneyebilirsiniz.' : ' Yapay zekâ ayarlı değil.'}
             </span>
           ) : (
-            <span className="text-fg-2">Excel okuması yanlış görünüyorsa dosyayı yapay zekâ ile baştan okutabilirsiniz.</span>
+            <span className="text-fg-2">Dosya okuması yanlış görünüyorsa dosyayı yapay zekâ ile baştan okutabilirsiniz.</span>
           )}
           {aiReady && (
             <span className="ml-auto flex flex-wrap gap-1.5">
@@ -358,6 +376,12 @@ export const AnahtarEditor: React.FC<{
               })
             );
             setCustomB((cur) => new Set(cur).add(s.key));
+            setEstB((cur) => {
+              if (!cur.has(s.key)) return cur;
+              const n = new Set(cur);
+              n.delete(s.key);
+              return n;
+            });
             setTool(s.key, { msg: { tone: 'success', text: `${s.count} sorunun B numarası yazıldı. Kaydetmeyi unutmayın.` } });
           };
           const withKazanim = list.filter((q) => q.kazanimCode && byCode.has(codeKey(q.kazanimCode))).length;
@@ -379,6 +403,14 @@ export const AnahtarEditor: React.FC<{
                   </span>
                 )}
                 {bCheck && bCheck.mismatches.length > 0 && <span className="ui-chip ui-chip-danger">B anahtarıyla {bCheck.mismatches.length} uyuşmazlık</span>}
+                {estB.has(s.key) && rule === 'custom' && (
+                  <span
+                    className="ui-chip ui-chip-warning"
+                    title="B kitapçığının soru sırası dosyada yoktu; eşleşme cevap harflerinden kuruldu. Net ve puanlar doğru hesaplanır; soru bazlı analizde aynı cevaplı B soruları yer değiştirmiş olabilir. Gerçek B sırasını Sorular bölümünden girebilirsiniz."
+                  >
+                    B sırası tahmini
+                  </span>
+                )}
                 <input
                   className="ui-input py-1 text-xs font-mono tracking-widest flex-1 min-w-48 uppercase"
                   placeholder={`A kitapçığı cevapları (${s.count} harf), örn. CDCDCCAB…`}
@@ -522,7 +554,7 @@ export const AnahtarEditor: React.FC<{
                     <thead className="bg-surface-2/60 uppercase tracking-wider text-muted border-b border-line">
                       <tr>
                         <th className="px-3 py-2 font-semibold w-12">No</th>
-                        <th className="px-3 py-2 font-semibold w-16">Cevap</th>
+                        <th className="px-3 py-2 font-semibold w-20">Cevap</th>
                         <th className="px-3 py-2 font-semibold w-14">B no</th>
                         <th className="px-3 py-2 font-semibold min-w-72">Kazanım (bankadan)</th>
                         <th className="px-3 py-2 font-semibold w-44">Konu</th>
@@ -537,7 +569,7 @@ export const AnahtarEditor: React.FC<{
                           <tr key={q.no}>
                             <td className="px-3 py-1.5 font-bold text-fg tabular-nums align-top">{q.no}</td>
                             <td className="px-3 py-1.5 align-top">
-                              <select className="ui-input py-0.5 text-xs" value={q.answer} onChange={(e) => set({ answer: e.target.value })} aria-label={`${q.no}. soru cevabı`}>
+                              <select className="ui-input py-0.5 text-xs w-[4.5rem]" value={q.answer} onChange={(e) => set({ answer: e.target.value })} aria-label={`${q.no}. soru cevabı`}>
                                 <option value="">-</option>
                                 {['A', 'B', 'C', 'D'].map((c) => (
                                   <option key={c} value={c}>
