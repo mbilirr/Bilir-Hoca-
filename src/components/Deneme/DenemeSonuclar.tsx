@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Eye, EyeOff, KeyRound, Trash2, Upload } from 'lucide-react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload } from 'lucide-react';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
 import { getExam, listResults, saveExam, saveResults, setExamPublished, deleteExam, deleteResult, type DenemeExam, type DenemeResult } from '../../services/denemeService';
@@ -9,6 +9,9 @@ import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
 import { BOOKLET_MIN, bookletConsistency, keyBProblems } from '../../lib/deneme/bKitapcik';
 import { useHistoryState } from '../../lib/useHistoryState';
+
+// Aşama 91: A / B anahtarı penceresi yalnızca açılınca yüklenir (deneme ekranı hafif kalır)
+const CevapAnahtariModal = lazy(() => import('./CevapAnahtariModal').then((m) => ({ default: m.CevapAnahtariModal })));
 
 // Aşama 59: "Denemelere dön" belirgin düğme (marka renginde çerçeveli; üzerine gelince dolu)
 const BACK_BTN =
@@ -34,6 +37,7 @@ export const DenemeSonuclar: React.FC<{
   const [classFilter, setClassFilter] = useState('');
   const [view, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
   const [keyOpen, setKeyOpen] = useState(false);
+  const [keyView, setKeyView] = useState(false); // Aşama 91: A / B anahtarı görüntüleme ve indirme
   const [draftKey, setDraftKey] = useState<ExamQuestions>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<DenemeResult | null>(null);
@@ -258,6 +262,13 @@ export const DenemeSonuclar: React.FC<{
           Bu denemeyi yalnızca görüntüleyebilirsiniz; optik yükleme, cevap anahtarı ve silme işlemlerini Ölçme Değerlendirme ve yöneticiler yapar.
         </p>
       )}
+      {readOnly && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setKeyView(true)} id="anahtar-goster">
+            <KeySquare /> A / B anahtarı
+          </button>
+        </div>
+      )}
       {!readOnly && (
       <div className="flex flex-wrap gap-2">
         <button type="button" className={cx('ui-btn ui-btn-sm', exam.published ? 'ui-btn-secondary' : 'ui-btn-success')} disabled={busy} onClick={() => void togglePublish()}>
@@ -276,6 +287,9 @@ export const DenemeSonuclar: React.FC<{
           }}
         >
           <KeyRound /> Cevap anahtarı ve kazanımlar
+        </button>
+        <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setKeyView(true)} id="anahtar-goster">
+          <KeySquare /> A / B anahtarı
         </button>
         <button type="button" className="ui-btn ui-btn-danger-soft ui-btn-sm" disabled={busy} onClick={() => setConfirmDelete(true)}>
           <Trash2 /> Denemeyi sil
@@ -481,6 +495,12 @@ export const DenemeSonuclar: React.FC<{
       >
         <AnahtarEditor subjects={subs} questions={draftKey} onChange={(q) => setDraftKey(normalizeQuestions(subs, q))} />
       </Modal>
+
+      {keyView && (
+        <Suspense fallback={null}>
+          <CevapAnahtariModal exam={exam} open={keyView} onClose={() => setKeyView(false)} />
+        </Suspense>
+      )}
 
       <Modal
         open={confirmDelete}
