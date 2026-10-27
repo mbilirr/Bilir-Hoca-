@@ -669,7 +669,14 @@ export const DenemeWizard: React.FC<{
         totalNet: r.totalNet,
         score: r.score,
         matchedBy: manual.has(m.group.key) ? 'elle' : m.method,
-        optik: { number: normNumber(m.group.number), name: m.group.name, grade: m.group.grade, section: m.group.section },
+        // Aşama 94: kâğıttaki sırayla cevaplar da saklanır (B eşleşmesi sonradan düzeltilirse sonuçlar bundan kurulur)
+        optik: {
+          number: normNumber(m.group.number),
+          name: m.group.name,
+          grade: m.group.grade,
+          section: m.group.section,
+          kag: Object.fromEntries(active.filter((s) => filled(m.group.answers[s.key])).map((s) => [s.key, (m.group.answers[s.key] || '').slice(0, s.count)])),
+        },
       });
     }
     return { list, guessed, active };
@@ -697,7 +704,8 @@ export const DenemeWizard: React.FC<{
           const answers: Record<string, string> = {};
           for (const s of active) answers[s.key] = filled(r.answers[s.key]) ? r.answers[s.key] : prev.answers[s.key] || r.answers[s.key] || '';
           const re = recomputeFromAnswers(answers, r.booklet || prev.booklet, active, qs, LGS_SCORING);
-          return { ...r, answers: re.answers, stats: re.stats, totalNet: re.totalNet, score: re.score };
+          const kag = { ...(prev.optik?.kag || {}), ...(r.optik?.kag || {}) };
+          return { ...r, answers: re.answers, stats: re.stats, totalNet: re.totalNet, score: re.score, optik: { ...prev.optik, ...r.optik, kag } };
         });
         const newIds = new Set(results.map((r) => r.studentId));
         for (const prev of old) {

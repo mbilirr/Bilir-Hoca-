@@ -33,6 +33,20 @@ export function words(s: string): string[] {
   return t ? t.split(' ').filter((w) => w.length > 1 || /\d/.test(w)) : [];
 }
 
+/**
+ * Bazı yayınevi PDF'lerinde (taranıp üzerine yazı katmanı eklenmiş) Latin harfler ters bayt sırasıyla gelir:
+ * "s" yerine "猀" (U+7300). Bu karakterler düzeltilir; Türkçe harfler zaten doğru gelir.
+ */
+export function fixText(s: string): string {
+  if (!/[\u2000-\u7fff]/.test(s)) return s;
+  let out = '';
+  for (const ch of s) {
+    const c = ch.charCodeAt(0);
+    out += c > 0xff && (c & 0xff) === 0 && c >> 8 >= 0x20 && c >> 8 < 0x7f ? String.fromCharCode(c >> 8) : ch;
+  }
+  return out;
+}
+
 interface Line {
   x: number;
   y: number;
@@ -41,7 +55,9 @@ interface Line {
 }
 
 /** Bir sayfanın satırları okuma sırasıyla (sol sütun, sonra sağ sütun) */
-function pageLines(items: PdfTextItem[]): Line[][] {
+function pageLines(raw: PdfTextItem[]): Line[][] {
+  if (!raw.length) return [];
+  const items = raw.map((i) => ({ ...i, str: fixText(i.str) })).filter((i) => i.str.trim());
   if (!items.length) return [];
   const right = Math.max(...items.map((i) => i.x + i.w));
   const left = Math.min(...items.map((i) => i.x));
@@ -49,19 +65,34 @@ function pageLines(items: PdfTextItem[]): Line[][] {
   const bottom = Math.min(...items.map((i) => i.y));
   const band = (top - bottom) * 0.05;
   const atEdge = (y: number) => y >= top - band || y <= bottom + band;
-  // Sağ sütunun başlangıcı: sayfanın orta bölgesinde en çok satırın başladığı x (soru numarası biraz solda
-  // olabileceği için bölme çizgisi 25 nokta solundan geçer). Yeterli satır yoksa tek sütunlu sayfa.
+  // Sütun arası boşluk: sayfanın orta bölgesinde (%30-%70) en az yazının geçtiği dikey şerit. Öğeler kelime
+  // ya da satır parçası olabilir; her öğenin kapladığı yatay aralık sayılır. Boşluk yoksa tek sütunlu sayfa.
   const W = right - left;
-  const freq = new Map<number, number>();
+  const BIN = 3;
+  const nb = Math.max(1, Math.ceil(W / BIN) + 1);
+  const cover = new Array<number>(nb).fill(0);
   for (const it of items) {
-    if (it.x <= left + W * 0.35 || it.x >= left + W * 0.75) continue;
-    const k = Math.round(it.x / 4) * 4;
-    freq.set(k, (freq.get(k) || 0) + 1);
+    const a0 = Math.max(0, Math.floor((it.x - left) / BIN));
+    const a1 = Math.min(nb - 1, Math.floor((it.x + Math.max(it.w, 1) - left) / BIN));
+    for (let k = a0; k <= a1; k++) cover[k]++;
   }
-  let bestX = 0;
-  let bestN = 0;
-  for (const [k, n] of freq) if (n > bestN || (n === bestN && k < bestX)) [bestX, bestN] = [k, n];
-  const split = bestN >= Math.max(3, items.length * 0.08) ? bestX - 25 : Infinity;
+  const lo = Math.floor((W * 0.3) / BIN);
+  const hi = Math.ceil((W * 0.7) / BIN);
+  let best = Infinity;
+  for (let k = lo; k <= hi && k < nb; k++) best = Math.min(best, cover[k]);
+  // En az kaplanan şeritlerin en uzun kesintisiz bölümünün ortası
+  let runStart = -1;
+  let bestRun: [number, number] = [-1, -1];
+  for (let k = lo; k <= hi + 1; k++) {
+    const ok = k <= hi && k < nb && cover[k] <= best + 1;
+    if (ok && runStart < 0) runStart = k;
+    if (!ok && runStart >= 0) {
+      if (k - runStart > bestRun[1] - bestRun[0]) bestRun = [runStart, k];
+      runStart = -1;
+    }
+  }
+  const maxCover = Math.max(1, ...cover);
+  const split = best <= Math.max(2, maxCover * 0.08) && bestRun[0] >= 0 ? left + ((bestRun[0] + bestRun[1]) / 2) * BIN : Infinity;
   const cols: PdfTextItem[][] = [[], []];
   for (const it of items) cols[it.x >= split ? 1 : 0].push(it);
   return cols
@@ -204,7 +235,8 @@ export function similarity(a: Set<string>, b: Set<string>): number {
   let inter = 0;
   const [s, l] = a.size < b.size ? [a, b] : [b, a];
   for (const x of s) if (l.has(x)) inter++;
-  return inter / (a.size + b.size - inter);
+  // Dice: okuma hatalarında (eksik / bozuk kelime) Jaccard'dan daha kararlı
+  return (2 * inter) / (a.size + b.size);
 }
 
 /** En büyük toplam ağırlıklı bire bir eşleşme (Macar yöntemi, n ≤ 30). Dönen: satır i → sütun */
@@ -308,7 +340,9 @@ export function matchSubject(subject: ExamSubject, list: ExamQuestion[], A: Map<
     const s = sim[i][j];
     const second = Math.max(0, ...sim[i].filter((_, k) => k !== j));
     const secondCol = Math.max(0, ...sim.map((row) => row[j]).filter((_, k) => k !== i));
-    const status: PairStatus = !letterOk(i, j) ? 'harf' : s >= 0.35 && s - Math.max(second, secondCol) >= 0.1 ? 'kesin' : 'kontrol';
+    const rival = Math.max(second, secondCol);
+    // Kesin: belirgin benzerlik, en yakın ikinci adaydan açık fark ve cevap harfi uyumu
+    const status: PairStatus = !letterOk(i, j) ? 'harf' : s >= 0.35 && s - rival >= 0.12 && s >= rival * 1.8 ? 'kesin' : 'kontrol';
     if (status === 'kesin') sure++;
     if (j + 1 !== oldBNo) changed++;
     pairs.push({ aNo: i + 1, bNo: j + 1, sim: Math.round(s * 100), status, oldBNo });
@@ -333,4 +367,37 @@ export function applyMatch(list: ExamQuestion[], m: SubjectMatch): ExamQuestion[
     dup.forEach((i, k) => (next[i] = { ...next[i], bNo: free[k] ?? next[i].bNo }));
   }
   return next;
+}
+
+// ----------------------------------------------------------------------------- Aşama 94: yapay zekâ ile okunan sorular
+/** Yazı katmanından ne kadar soru bulunduğu: en zayıf dersin oranı (0-1) ve toplam */
+export function coverage(A: BookletQuestions, B: BookletQuestions, subjects: ExamSubject[]): { ratio: number; found: number; total: number } {
+  let found = 0;
+  let total = 0;
+  let ratio = 1;
+  for (const s of subjects) {
+    const a = A.bySubject[s.key]?.size || 0;
+    const b = B.bySubject[s.key]?.size || 0;
+    const n = Math.min(a, b, s.count);
+    found += n;
+    total += s.count;
+    ratio = Math.min(ratio, n / s.count);
+  }
+  return { ratio: subjects.length ? ratio : 0, found, total };
+}
+
+/** Yapay zekânın okuduğu sorulardan kitapçık (ders → soru no → kelimeler). Aynı soru iki kez gelirse uzun olan alınır. */
+export function bookletFromAi(items: Array<{ ders: string; no: number; metin: string; siklar: string[] }>, subjects: ExamSubject[]): BookletQuestions {
+  const bySubject: Record<string, Map<number, string[]>> = {};
+  const count = new Map(subjects.map((s) => [s.key, s.count]));
+  for (const it of items) {
+    const n = count.get(it.ders);
+    if (!n || it.no < 1 || it.no > n) continue;
+    const ws = words(`${it.metin} ${(it.siklar || []).join(' ')}`).slice(0, MAX_WORDS);
+    if (!ws.length) continue;
+    const m = (bySubject[it.ders] = bySubject[it.ders] || new Map());
+    const cur = m.get(it.no);
+    if (!cur || ws.length > cur.length) m.set(it.no, ws);
+  }
+  return { bySubject, found: subjects.filter((s) => bySubject[s.key]).map((s) => s.key), textless: false };
 }

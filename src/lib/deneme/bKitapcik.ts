@@ -127,6 +127,8 @@ export interface BookletIssue {
   rateA: number; // A kitapçıklı öğrencilerde doğru %
   rateB: number; // B kitapçıklı öğrencilerde doğru %
   suggest: { bNo: number; rate: number } | null; // B'de muhtemel doğru numara
+  /** Aşama 94: aynı cevaplı başka bir soruyla B numaraları yer değiştirmiş olabilir (oranlar çapraz uyuşuyor) */
+  swap: { no: number; bNo: number } | null;
 }
 
 export interface BookletCheck {
@@ -167,6 +169,9 @@ export function bookletConsistency(exam: DenemeExam, results: DenemeResult[]): B
       return raw;
     });
     const subjIssues: BookletIssue[] = [];
+    // Her A sorusunun A ve B kitapçığındaki doğru oranı (kayıtlı A sırasındaki cevaplarla)
+    const rA = qs.map((q, k) => A.filter((r) => markOf((r.answers[s.key] || '')[k], q) === 'D').length / A.length);
+    const rB = qs.map((q, k) => B.filter((r) => markOf((r.answers[s.key] || '')[k], q) === 'D').length / B.length);
     qs.forEach((q, i) => {
       if (!q.answer || q.answer === 'X') return;
       const dA = A.filter((r) => markOf((r.answers[s.key] || '')[i], q) === 'D').length;
@@ -184,8 +189,20 @@ export function bookletConsistency(exam: DenemeExam, results: DenemeResult[]): B
         if (!best || rate > best.rate) best = { bNo: j + 1, rate };
       }
       const cur = q.bNo || q.no;
-      const suggest = best && best.bNo !== cur && best.rate - pB >= 0.25 && best.rate >= pA - 0.2 ? { bNo: best.bNo, rate: Math.round(best.rate * 100) } : null;
-      subjIssues.push({ subject: s, no: q.no, bNo: cur, rateA: Math.round(pA * 100), rateB: Math.round(pB * 100), suggest });
+      // Aşama 94: aynı cevaplı j sorusuyla yer değişimi oranları açıkça düzeltiyorsa önerilir
+      let swap: BookletIssue['swap'] = null;
+      let gain = 0.3;
+      qs.forEach((o, j) => {
+        if (j === i || !o.answer || o.answer !== q.answer) return;
+        const now = Math.abs(rA[i] - rB[i]) + Math.abs(rA[j] - rB[j]);
+        const after = Math.abs(rA[i] - rB[j]) + Math.abs(rA[j] - rB[i]);
+        if (now - after > gain && Math.abs(rA[i] - rB[j]) < 0.2) {
+          gain = now - after;
+          swap = { no: o.no, bNo: o.bNo || o.no };
+        }
+      });
+      const suggest = !swap && best && best.bNo !== cur && best.rate - pB >= 0.25 && best.rate >= pA - 0.2 ? { bNo: best.bNo, rate: Math.round(best.rate * 100) } : null;
+      subjIssues.push({ subject: s, no: q.no, bNo: cur, rateA: Math.round(pA * 100), rateB: Math.round(pB * 100), suggest, swap });
     });
     if (subjIssues.length >= Math.max(3, Math.ceil(qs.length / 2))) wholeSubjects.push(s.name);
     issues.push(...subjIssues);

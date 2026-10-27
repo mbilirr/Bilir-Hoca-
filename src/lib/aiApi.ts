@@ -128,6 +128,18 @@ export function aiPages(input: { provider: AiProvider; images: AiImage[]; avoid?
   return post({ action: 'pages', ...input });
 }
 
+/** Aşama 94: taranmış A / B kitapçığı sayfalarındaki soruların dersi, numarası ve metninin başı (eşleştirme için) */
+export interface AiSoru {
+  sayfa: number;
+  ders: string;
+  no: number;
+  metin: string;
+  siklar: string[];
+}
+export function aiSorular(input: { provider: AiProvider; images: AiImage[]; avoid?: string[] }): Promise<AiResult> {
+  return post({ action: 'sorular', ...input });
+}
+
 /** Kitapçığın bir ya da iki sayfası için kazanım önerileri (sayfalarda birden çok ders olabilir) */
 export function aiClassifyPage(input: {
   provider: AiProvider;

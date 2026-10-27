@@ -5,9 +5,11 @@
 // çevrilir, sonra YENİ numaralarla A sırasına yerleştirilir. Böylece TXT'yi yeniden yüklemek gerekmez; soru
 // bazlı analiz, kazanım analizi ve B uyum kontrolü doğru sorulardan hesaplanır.
 // Puan yalnızca yeni numaranın B harfi A'daki cevapla uyuşmuyorsa değişir (önizlemede sayısı gösterilir).
+// Aşama 94: sonuçta kâğıttaki sırayla cevaplar (optik.kag) varsa cevaplar doğrudan ondan kurulur; geçmişteki
+// eşleşmeden bağımsız olarak her zaman doğrudur.
 // ============================================================================
 import type { DenemeResult } from '../../services/denemeService';
-import { recomputeFromAnswers, type ExamQuestion, type ExamQuestions, type ExamSubject, type ScoringSettings } from './lgs';
+import { recomputeFromAnswers, toAOrder, type ExamQuestion, type ExamQuestions, type ExamSubject, type ScoringSettings } from './lgs';
 
 export interface BChange {
   subject: ExamSubject;
@@ -65,10 +67,18 @@ export function planBRemap(subjects: ExamSubject[], oldQs: ExamQuestions, newQs:
   let scoreChanged = 0;
   const next = results.map((r) => {
     let answers = r.answers;
-    if (r.booklet === 'B' && movable.size) {
+    if (r.booklet === 'B' && changes.length) {
+      const kag = r.optik?.kag || {};
       answers = { ...r.answers };
-      for (const s of subjects) if (movable.has(s.key)) answers[s.key] = remapSubject(r.answers[s.key] || '', oldQs[s.key], newQs[s.key], s.count);
-      nB++;
+      let moved = false;
+      for (const c of changes) {
+        const k = c.subject.key;
+        if (kag[k]) answers[k] = toAOrder(kag[k], newQs[k] || [], 'B');
+        else if (movable.has(k)) answers[k] = remapSubject(r.answers[k] || '', oldQs[k], newQs[k], c.subject.count);
+        else continue;
+        moved = true;
+      }
+      if (moved) nB++;
     }
     const re = recomputeFromAnswers(answers, r.booklet, subjects, newQs, scoring, !!r.stats.bookletGuessed);
     if (Math.abs((re.score ?? 0) - (r.score ?? 0)) > 0.0005) scoreChanged++;

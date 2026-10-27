@@ -107,10 +107,10 @@ export const DenemeSonuclar: React.FC<{
 
   // Cevap anahtarı düzeltilince bütün sonuçlar kayıtlı cevaplardan yeniden hesaplanır.
   // Aşama 92: B numarası değiştiyse B kitapçıklı öğrencilerin cevapları yeni eşleşmeye göre yeniden düzenlenir (önce onay).
-  const saveKey = async () => {
+  const saveKey = async (override?: ExamQuestions) => {
     setNotice(null);
     try {
-      const qs = normalizeQuestions(subs, draftKey);
+      const qs = normalizeQuestions(subs, override || draftKey);
       const missing = subs.filter((s) => (qs[s.key] || []).some((q) => !q.answer));
       if (missing.length) throw new Error(`Cevap anahtarı eksik: ${missing.map((s) => s.name).join(', ')}`);
       // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı
@@ -359,6 +359,28 @@ export const DenemeSonuclar: React.FC<{
                   <span>
                     A kitapçığında doğru %{it.rateA} · B kitapçığında %{it.rateB}
                   </span>
+                  {it.swap && (
+                    <span className="flex flex-wrap items-center gap-2 font-semibold text-info-fg">
+                      {it.subject.short} {it.swap.no}. soruyla yer değiştirmiş olabilir (B'de {it.bNo} ↔ {it.swap.bNo}; ikisinin de cevabı aynı)
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          className="ui-btn ui-btn-secondary ui-btn-sm w-28 justify-center"
+                          disabled={busy}
+                          onClick={() => {
+                            // Aşama 94: iki sorunun B numaraları yer değiştirir; onaydan sonra sonuçlar yeniden düzenlenir
+                            const sw = it.swap!;
+                            const list = (exam.questions[it.subject.key] || []).map((q) =>
+                              q.no === it.no ? { ...q, bNo: sw.bNo } : q.no === sw.no ? { ...q, bNo: it.bNo } : q
+                            );
+                            void saveKey({ ...exam.questions, [it.subject.key]: list });
+                          }}
+                        >
+                          Yer değiştir
+                        </button>
+                      )}
+                    </span>
+                  )}
                   {it.suggest && (
                     <span className="font-semibold text-info-fg">
                       Muhtemel B numarası: {it.suggest.bNo} (doğru cevap B'nin {it.suggest.bNo}. sorusunda %{it.suggest.rate} oranında işaretlenmiş)
@@ -509,7 +531,7 @@ export const DenemeSonuclar: React.FC<{
             <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setKeyOpen(false)}>
               Vazgeç
             </button>
-            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void saveKey()}>
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void saveKey()} id="anahtar-kaydet">
               {busy ? 'Kaydediliyor…' : 'Kaydet ve yeniden hesapla'}
             </button>
           </>

@@ -6,6 +6,8 @@
 //   pages    : taranmış kitapçığın küçük sayfa resimlerinden hangi sayfanın hangi derse ait olduğunu
 //              ve sayfada görünen soru numaralarını bulur
 //   classify : tek bir kitapçık sayfasındaki her soru için kazanım, konu ve alt kazanım önerir
+//   sorular  : (Aşama 94) taranmış A / B kitapçığı sayfalarındaki her sorunun dersi, numarası ve metninin başı
+//              (iki kitapçığın soruları tarayıcıda bu metinlerle eşleştirilir)
 //
 // Mahremiyet: Bu servise öğrenci adı, numarası, cevabı ya da sonucu GÖNDERİLMEZ ve kabul edilmez.
 // Yalnızca öğretim programı metni, kitapçık sayfası resimleri, ders adları ve kazanım listesi gider.
@@ -677,6 +679,42 @@ async function actionKey(body) {
   return { ok: true, provider, model, items: out, exhausted };
 }
 
+// ----------------------------------------------------------------------------- 7) Aşama 94: kitapçık sorularını okuma
+// A ve B kitapçığında aynı sorular farklı sırada bulunur. Yapay zekâ yalnızca her sorunun numarasını ve metninin
+// başını okur; eşleştirme ve cevap harfi kontrolü tarayıcıda yapılır.
+const SORULAR_SYSTEM = [
+  'Sen LGS deneme kitapçıklarını okuyan dikkatli bir uzmansın.',
+  'Sana kitapçıktan sırayla birkaç sayfanın resmi verilir; her resmin sayfa numarası metinde yazılıdır.',
+  'Görevin: sayfalarda NUMARASI GÖRÜNEN her sorunun dersini, numarasını ve metninin başını yazmak.',
+  'Kurallar:',
+  '- Ders anahtarları: ' + SUBJECT_LIST + '. Sayfa başlığına ve sorunun içeriğine bak.',
+  '- "no": sorunun kitapçıkta yazan numarası (her ders 1\'den başlar).',
+  '- "metin": sorunun okuma metni / öncülleri ve soru kökü dahil İLK 30 KELİMESİ, kitapçıkta yazdığı gibi (yazım düzeltme, özetleme yapma).',
+  '  Birden çok soruya ortak metin varsa her soruya kendi kökünü yaz.',
+  '- "siklar": A, B, C, D şıklarının her birinin ilk 8 kelimesi ya da sayısı (şık resimse kısa tarif, ör. "üçgen şekil"). Şık okunmuyorsa boş metin.',
+  '- Sorunun bir kısmı başka sayfadaysa soruyu yalnızca NUMARASININ bulunduğu sayfa için yaz.',
+  '- Kapak, yönerge ve cevap kâğıdı sayfalarında soru yoktur; boş liste döndür.',
+  '- Soruyu çözme, cevabı yazma.',
+  '- Yalnızca şu biçimde JSON döndür: {"sorular":[{"sayfa":1,"ders":"mat","no":1,"metin":"","siklar":["","","",""]}]}',
+].join('\n');
+
+async function actionSorular(body) {
+  const images = readImages(body.images).slice(0, 4);
+  const prompt = [`Resimler sırasıyla şu sayfalardır: ${images.map((i) => i.page).join(', ')}.`, 'Her sayfadaki soruları yaz.'].join('\n');
+  const { provider, model, parsed, exhausted } = await ask(body, SORULAR_SYSTEM, prompt, images, 'fast');
+  const allowedPages = new Set(images.map((i) => i.page));
+  const items = [];
+  for (const q of Array.isArray(parsed.sorular) ? parsed.sorular.slice(0, 80) : []) {
+    const sayfa = Number(q && q.sayfa);
+    const ders = subjectKeyOf(q && q.ders);
+    const no = Number(q && q.no);
+    if (!allowedPages.has(sayfa) || !ders || !Number.isInteger(no) || no < 1 || no > 60) continue;
+    const siklar = (Array.isArray(q.siklar) ? q.siklar : []).slice(0, 5).map((x) => clean(x, 120));
+    items.push({ sayfa, ders, no, metin: clean(q.metin, 600), siklar });
+  }
+  return { ok: true, provider, model, items, exhausted };
+}
+
 // ----------------------------------------------------------------------------- 6) Kazanımların konu başlıklarını düzenleme (yalnızca metin)
 const KONU_SYSTEM = [
   'Sen MEB 8. sınıf öğretim programlarını çok iyi bilen bir eğitim uzmanısın.',
@@ -740,6 +778,7 @@ export default async function handler(req, res) {
     if (body.action === 'match') return res.status(200).json(await actionMatch(body));
     if (body.action === 'key') return res.status(200).json(await actionKey(body));
     if (body.action === 'konular') return res.status(200).json(await actionKonular(body));
+    if (body.action === 'sorular') return res.status(200).json(await actionSorular(body));
     throw new HttpError(400, 'Bilinmeyen işlem.');
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;

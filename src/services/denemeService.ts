@@ -60,7 +60,8 @@ export interface DenemeResult {
   totalNet: number | null;
   score: number | null;
   matchedBy: string;
-  optik: { number?: string; name?: string; grade?: string; section?: string };
+  /** Aşama 94: kag = kâğıttaki (kitapçık) sırasıyla cevaplar; B eşleşmesi değişince sonuçlar bundan yeniden kurulur (TC YOK) */
+  optik: { number?: string; name?: string; grade?: string; section?: string; kag?: Record<string, string> };
 }
 
 export interface DenemeFormat {
