@@ -481,7 +481,8 @@ export async function listKazanimlar(): Promise<BankRow[]> {
   return out;
 }
 
-/** Kazanımları bankaya yazar; aynı kodlu kazanımın metni ve konusu güncellenir */
+/** Kazanımları bankaya yazar; aynı kodlu kazanımın metni ve konusu güncellenir.
+ *  Aşama 96: ortak bankadaki var olan kazanımı yalnızca genel yönetici değiştirir; kurumlar yalnızca YENİ kazanım ekler. */
 export async function saveKazanimBank(list: BankRow[], onProgress?: (done: number, total: number) => void): Promise<number> {
   const map = new Map<string, any>();
   const stamp = new Date().toISOString(); // bir yüklemenin bütün satırları aynı zamanı taşır
@@ -499,8 +500,9 @@ export async function saveKazanimBank(list: BankRow[], onProgress?: (done: numbe
     });
   }
   const rows = Array.from(map.values());
+  const head = dataService.isHeadAdmin();
   for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await supabase.from('deneme_kazanimlar').upsert(rows.slice(i, i + 200), { onConflict: 'code' });
+    const { error } = await supabase.from('deneme_kazanimlar').upsert(rows.slice(i, i + 200), { onConflict: 'code', ignoreDuplicates: !head });
     if (error) fail(error, 'Kazanım bankası kaydedilemedi.');
     onProgress?.(Math.min(rows.length, i + 200), rows.length);
   }
