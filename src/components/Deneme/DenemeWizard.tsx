@@ -894,7 +894,7 @@ export const DenemeWizard: React.FC<{
                   return;
                 }
                 // Aşama 90: FMT yüklendi. Oturumu karışık bloklar (sözelde "FEN", sayısalda "SOSYAL") düzeltilir
-                const fx = fixSessionSubjects(f, subjects);
+                const fx = fixSessionSubjects(f, subjects, text);
                 setFields(fx.fields);
                 setFmtText(text);
                 // Yeni format: dosyaları önceki formata bağlı kalsın
@@ -904,7 +904,7 @@ export const DenemeWizard: React.FC<{
                 const nm = (k: string) => subjects.find((s) => s.key === k)?.name || k;
                 setFormatMsg(
                   fx.changes.length
-                    ? `FMT okundu. ${fx.changes.map((c) => `"${c.label}" bloğu ${nm(c.to)} olarak ayarlandı (formda ${nm(c.from)} yazıyor ama bu oturumda o ders yok)`).join('; ')}. Kontrol edip "Formatı kaydet" deyin.`
+                    ? `FMT okundu. Formdaki blok adları oturumun dersleriyle uyuşmadığı için bloklar formdaki yerlerine göre LGS sırasıyla ayarlandı: ${fx.changes.map((c) => `"${c.label}" → ${nm(c.to)}`).join(', ')}. Kontrol edip "Formatı kaydet" deyin.`
                     : 'FMT okundu. Alanları kontrol edip "Formatı kaydet" deyin.'
                 );
               }}

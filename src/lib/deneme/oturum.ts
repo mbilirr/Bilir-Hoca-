@@ -1,9 +1,12 @@
 // ============================================================================
 // DENEME ANALİZİ (Aşama 90) — SÖZEL / SAYISAL AYRI OPTİK FORMATLARI
 //  1) Ders düzeltmesi: optik formlar çoğu zaman genel formdur; FMT'deki blok adı formun basılı yazısından gelir
-//     (ör. sözel FMT'de "FEN", sayısal FMT'de "SOSYAL"). Bir FMT'de iki oturumun dersleri karışıksa ve baskın
-//     oturumun eksik dersi varsa, diğer oturuma ait blok o eksik derse çevrilir (sözel "FEN" → İnkılap).
-//     Bütün dersleri içeren tek (birleşik) FMT'lere dokunulmaz.
+//     (ör. Özdebir sözel FMT'de "TURKCE, FEN, INGILIZCE, DIN KULT", sayısalda "MATEMATIK, SOSYAL"). Bir FMT'de
+//     iki oturumun dersleri karışıksa adlara güvenilmez: cevap blokları formdaki yerine (sütun) göre soldan sağa
+//     LGS sırasıyla verilir (sözel: Türkçe, İnkılap, Din, Yabancı Dil; sayısal: Matematik, Fen). Gerçek optik
+//     verisiyle doğrulandı: Özdebir sözelde "FEN" bloğu Din, "INGILIZCE" bloğu İnkılap, "DIN KULT" bloğu
+//     İngilizce çıkıyor. Blok sayısı oturumun ders sayısına uymazsa yalnızca diğer oturuma ait blok eksik derse
+//     çevrilir. Bütün dersleri içeren tek (birleşik) FMT'lere ve adları tutarlı FMT'lere dokunulmaz.
 //  2) Anahtarla doğrulama: her TXT'de bir ders olarak okunan cevaplar bütün derslerin anahtarıyla karşılaştırılır.
 //     Başka bir dersin anahtarıyla çok daha iyi uyuşuyorsa uyarı ve tek tıkla düzeltme önerilir.
 // ============================================================================
@@ -16,8 +19,24 @@ export interface SubjectChange {
   to: string;
 }
 
-/** FMT'deki oturumu karışık cevap bloklarını baskın oturumun eksik derslerine çevirir */
-export function fixSessionSubjects(fields: OptikField[], subjects: ExamSubject[]): { fields: OptikField[]; changes: SubjectChange[] } {
+/**
+ * FMT satırlarının form üzerindeki yeri (satır, sütun). parseFmt ile aynı satırları aynı sırayla alır;
+ * dönen dizinin i. elemanı alanların i. elemanına karşılık gelir.
+ */
+export function fmtPositions(text: string): Array<{ r: number; c: number }> {
+  const out: Array<{ r: number; c: number }> = [];
+  for (const raw of (text || '').split(/\r?\n/)) {
+    const p = raw.trim().split('=');
+    if (p.length < 9) continue;
+    const n = [p[0], p[1], p[2], p[3]].map((x) => parseInt(x, 10));
+    if (!n.every((x) => Number.isFinite(x) && x > 0)) continue;
+    out.push({ r: Math.min(n[0], n[1]), c: Math.min(n[2], n[3]) });
+  }
+  return out;
+}
+
+/** FMT'deki oturumu karışık cevap bloklarını düzeltir (yukarıdaki açıklama) */
+export function fixSessionSubjects(fields: OptikField[], subjects: ExamSubject[], fmtText?: string): { fields: OptikField[]; changes: SubjectChange[] } {
   const byKey = new Map(subjects.map((s) => [s.key, s]));
   const ans = fields.filter((f) => f.role === 'answers' && f.subject && byKey.has(f.subject));
   const weight: Record<string, number> = {};
@@ -29,6 +48,20 @@ export function fixSessionSubjects(fields: OptikField[], subjects: ExamSubject[]
   if (sessions.length < 2) return { fields, changes: [] };
   const main = sessions.sort((a, b) => weight[b] - weight[a])[0];
   if (weight[sessions[0]] === weight[sessions[1]]) return { fields, changes: [] };
+  // Form üzerindeki yerine göre: blok sayısı oturumun ders sayısına eşitse soldan sağa LGS sırası
+  const mainSubjects = subjects.filter((s) => s.session === main);
+  const pos = fmtText ? fmtPositions(fmtText) : [];
+  if (pos.length === fields.length && ans.length === mainSubjects.length) {
+    const idx = new Map(fields.map((f, i) => [f.id, i]));
+    const ordered = ans.slice().sort((a, b) => {
+      const pa = pos[idx.get(a.id)!];
+      const pb = pos[idx.get(b.id)!];
+      return pa.c - pb.c || pa.r - pb.r;
+    });
+    const map = new Map(ordered.map((f, i) => [f.id, mainSubjects[i].key]));
+    const changes: SubjectChange[] = ordered.filter((f) => f.subject !== map.get(f.id)).map((f) => ({ label: f.label, from: f.subject!, to: map.get(f.id)! }));
+    return { fields: fields.map((f) => (map.has(f.id) ? { ...f, subject: map.get(f.id) } : f)), changes };
+  }
   const used = new Set(ans.map((f) => f.subject!));
   const missing = subjects.filter((s) => s.session === main && !used.has(s.key));
   const outliers = ans.filter((f) => byKey.get(f.subject!)!.session !== main);
