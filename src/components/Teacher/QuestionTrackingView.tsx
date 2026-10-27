@@ -1926,7 +1926,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   {/* Chart Type & Legend Switcher */}
                   <div className="flex flex-wrap items-center gap-3">
                     {/* Legend */}
-                    <WeeklyChartLegend dailyTarget={dailyQuestionTarget} mode={chartVisualType} />
+                    <WeeklyChartLegend targetText={`Günlük hedef (${dailyQuestionTarget})`} mode={chartVisualType} />
 
                     {/* Chart Mode Buttons */}
                     <div className="flex rounded-lg bg-surface-2 p-0.5 border border-line text-xs">

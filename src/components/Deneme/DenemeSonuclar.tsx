@@ -8,6 +8,7 @@ import { dateTr } from '../../lib/deneme/karneModel';
 import { AnahtarEditor } from './AnahtarEditor';
 import { MaddeAnalizi } from './MaddeAnalizi';
 import { BOOKLET_MIN, bookletConsistency, keyBProblems } from '../../lib/deneme/bKitapcik';
+import { planBRemap, type BRemapPlan } from '../../lib/deneme/bYenidenDuzen';
 import { useHistoryState } from '../../lib/useHistoryState';
 
 // Aşama 91: A / B anahtarı penceresi yalnızca açılınca yüklenir (deneme ekranı hafif kalır)
@@ -38,6 +39,7 @@ export const DenemeSonuclar: React.FC<{
   const [view, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
   const [keyOpen, setKeyOpen] = useState(false);
   const [keyView, setKeyView] = useState(false); // Aşama 91: A / B anahtarı görüntüleme ve indirme
+  const [remap, setRemap] = useState<{ plan: BRemapPlan; qs: ExamQuestions } | null>(null); // Aşama 92: B eşleşmesi onayı
   const [draftKey, setDraftKey] = useState<ExamQuestions>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<DenemeResult | null>(null);
@@ -103,9 +105,9 @@ export const DenemeSonuclar: React.FC<{
     }
   };
 
-  // Cevap anahtarı düzeltilince bütün sonuçlar kayıtlı cevaplardan yeniden hesaplanır
+  // Cevap anahtarı düzeltilince bütün sonuçlar kayıtlı cevaplardan yeniden hesaplanır.
+  // Aşama 92: B numarası değiştiyse B kitapçıklı öğrencilerin cevapları yeni eşleşmeye göre yeniden düzenlenir (önce onay).
   const saveKey = async () => {
-    setBusy(true);
     setNotice(null);
     try {
       const qs = normalizeQuestions(subs, draftKey);
@@ -114,17 +116,34 @@ export const DenemeSonuclar: React.FC<{
       // Aşama 62: B kitapçığı eşleşmesi geçerli olmalı
       const bp = keyBProblems(subs, qs);
       if (bp.length) throw new Error(`B kitapçığı eşleşmesinde sorun var: ${bp[0]}${bp.length > 1 ? ` (+${bp.length - 1} sorun daha)` : ''}`);
-      const next = results.map((r) => {
-        const re = recomputeFromAnswers(r.answers, r.booklet, subs, qs, exam.scoring && exam.scoring.base ? exam.scoring : LGS_SCORING);
-        return { ...r, stats: re.stats, totalNet: re.totalNet, score: re.score };
-      });
+      const plan = planBRemap(subs, exam.questions, qs, results, exam.scoring && exam.scoring.base ? exam.scoring : LGS_SCORING);
+      if (plan.changes.length && plan.nB) {
+        setRemap({ plan, qs });
+        return;
+      }
+      await commitKey(qs, plan);
+    } catch (e: any) {
+      setNotice(e?.message || 'Kaydedilemedi.');
+    }
+  };
+
+  const commitKey = async (qs: ExamQuestions, plan: BRemapPlan) => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const next = plan.next;
       const summary = rankAndSummarize(next, subs, qs);
       const saved = await saveExam({ ...exam, questions: qs, summary });
       await saveResults(exam.id, next, false);
       setExam(saved);
       setResults(next);
       setKeyOpen(false);
-      setNotice('Cevap anahtarı kaydedildi ve bütün sonuçlar yeniden hesaplandı.');
+      setRemap(null);
+      setNotice(
+        plan.changes.length && plan.nB
+          ? `Cevap anahtarı kaydedildi; ${plan.nB} B kitapçıklı öğrencinin cevapları yeni eşleşmeye göre düzenlendi${plan.scoreChanged ? `, ${plan.scoreChanged} öğrencinin puanı değişti` : ', puanlar değişmedi'}.`
+          : 'Cevap anahtarı kaydedildi ve bütün sonuçlar yeniden hesaplandı.'
+      );
     } catch (e: any) {
       setNotice(e?.message || 'Kaydedilemedi.');
     } finally {
@@ -138,21 +157,24 @@ export const DenemeSonuclar: React.FC<{
     setBusy(true);
     setNotice(null);
     try {
-      const head = ['Sıra', 'Öğrenci', 'Sınıf', 'Kit.', ...subs.map((s) => `${s.short} D/Y/N`), 'Top. net', 'Puan', mode === 'toplu' ? 'Sınıf sırası' : 'Kurum sırası'];
-      const align = ['center', 'left', 'left', 'center', ...subs.map(() => 'center' as const), 'center', 'center', 'center'] as Array<'left' | 'center' | 'right'>;
+      // Aşama 92: puan ve kurum sırası netlerden önce; satırlar bir beyaz bir açık turuncu
+      const toplu = mode === 'toplu';
+      const head = [toplu ? 'Kurum sırası' : 'Sınıf sırası', 'Öğrenci', 'Sınıf', 'Kit.', 'Puan', toplu ? 'Sınıf sırası' : 'Kurum sırası', ...subs.map((s) => `${s.short} D/Y/N`), 'Top. net'];
+      const align = ['center', 'left', 'left', 'center', 'center', 'center', ...subs.map(() => 'center' as const), 'center'] as Array<'left' | 'center' | 'right'>;
       const rowOf = (r: DenemeResult, rank: number | undefined) => [
         rank ?? '-',
         r.studentName,
         r.className || '-',
         r.booklet || '-',
+        fmtScore(r.score),
+        toplu ? (r.stats.rank ? `${r.stats.rank.cls}/${r.stats.rank.clsCount}` : '-') : r.stats.rank ? `${r.stats.rank.overall}/${r.stats.rank.overallCount}` : '-',
         ...subs.map((s) => {
           const x = r.stats.subjects?.[s.key];
           return x ? `${x.d}/${x.y}/${fmtNet(x.net)}` : '-';
         }),
         fmtNet(r.totalNet),
-        fmtScore(r.score),
-        mode === 'toplu' ? (r.stats.rank ? `${r.stats.rank.cls}/${r.stats.rank.clsCount}` : '-') : r.stats.rank ? `${r.stats.rank.overall}/${r.stats.rank.overallCount}` : '-',
       ];
+      const STRIPE: [number, number, number] = [255, 237, 213];
       const sorted = results.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.totalNet ?? 0) - (a.totalNet ?? 0));
       const info = [exam.publisher, dateTr(exam.examDate), `${exam.grade}. sınıf ${exam.examType}`].filter(Boolean).join(' · ');
       const classBlock = (id: string, name: string, list: DenemeResult[]): PdfBlock[] => {
@@ -169,7 +191,7 @@ export const DenemeSonuclar: React.FC<{
               ...subs.map((s) => [`${s.short} ort. net`, fmtNet(c?.avgNet?.[s.key])] as [string, string]),
             ],
           },
-          { kind: 'table', head, rows: list.map((r) => rowOf(r, r.stats.rank?.cls)), align, fontSize: 7.4 },
+          { kind: 'table', head, rows: list.map((r) => rowOf(r, r.stats.rank?.cls)), align, fontSize: 7.4, stripe: STRIPE },
         ];
       };
       let blocks: PdfBlock[] = [];
@@ -186,7 +208,7 @@ export const DenemeSonuclar: React.FC<{
               ['En yüksek puan', fmtScore(sum.maxScore)],
             ],
           },
-          { kind: 'table', head, rows: sorted.map((r) => rowOf(r, r.stats.rank?.overall)), align, fontSize: 7.2 },
+          { kind: 'table', head, rows: sorted.map((r) => rowOf(r, r.stats.rank?.overall)), align, fontSize: 7.2, stripe: STRIPE },
         ];
       } else if (mode === 'siniflar') {
         classes.forEach(([id, name], i) => {
@@ -501,6 +523,49 @@ export const DenemeSonuclar: React.FC<{
           <CevapAnahtariModal exam={exam} open={keyView} onClose={() => setKeyView(false)} />
         </Suspense>
       )}
+
+      {/* Aşama 92: B eşleşmesi değişince onay */}
+      <Modal
+        open={!!remap}
+        onClose={() => !busy && setRemap(null)}
+        size="sm"
+        id="b-remap-modal"
+        icon={KeyRound}
+        tone={remap && remap.plan.scoreChanged ? 'warning' : 'brand'}
+        title="B kitapçığı eşleşmesi değişti"
+        description="Kayıtlı cevaplar yeni eşleşmeye göre düzenlenecek."
+        footer={
+          <>
+            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm w-28 justify-center" disabled={busy} onClick={() => setRemap(null)}>
+              Vazgeç
+            </button>
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm w-28 justify-center" disabled={busy} onClick={() => remap && void commitKey(remap.qs, remap.plan)} id="b-remap-kaydet">
+              {busy ? 'Kaydediliyor' : 'Kaydet'}
+            </button>
+          </>
+        }
+      >
+        {remap && (
+          <div className="space-y-2 text-xs text-fg-2">
+            <ul className="rounded-lg border border-line divide-y divide-line">
+              {remap.plan.changes.map((c) => (
+                <li key={c.subject.key} className="flex justify-between gap-2 px-2.5 py-1.5">
+                  <span className="font-semibold text-fg">{c.subject.name}</span>
+                  <span className="tabular-nums">{c.questions} sorunun B numarası</span>
+                </li>
+              ))}
+            </ul>
+            <p>
+              <b className="text-fg">{remap.plan.nB}</b> B kitapçıklı öğrencinin cevapları yeni sıraya göre düzenlenecek; soru, kazanım ve B uyum analizleri buna göre yeniden hesaplanır.
+            </p>
+            <p className={cx('rounded-lg px-2.5 py-1.5 font-semibold', remap.plan.scoreChanged ? 'bg-warning-soft text-warning-fg' : 'bg-success-soft text-success-fg')} id="b-remap-puan">
+              {remap.plan.scoreChanged
+                ? `Puanı değişecek öğrenci: ${remap.plan.scoreChanged}. Yeni numaraların B harfleri A'daki cevaplarla uyuşmuyor olabilir; numaraları kontrol edin.`
+                : 'Puanı değişecek öğrenci: 0. Netler ve puanlar aynı kalır.'}
+            </p>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={confirmDelete}

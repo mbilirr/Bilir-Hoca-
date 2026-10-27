@@ -249,8 +249,8 @@ export const KurumSettingsPanel: React.FC = () => {
                 <Building2 className="w-3.5 h-3.5 text-brand-fg" /> Kurum adı ve logosu
               </h3>
               <div className="flex items-center gap-2.5">
-                <span className="w-12 h-12 rounded-lg border border-line bg-white flex items-center justify-center overflow-hidden shrink-0">
-                  {shownLogo ? <img src={shownLogo} alt="Kurum logosu" className="w-full h-full object-contain" /> : <Building2 className="w-5 h-5 text-subtle" />}
+                <span className="w-28 h-20 rounded-lg border border-line bg-white p-1.5 flex items-center justify-center overflow-hidden shrink-0" id="kurum-logo-onizleme">
+                  {shownLogo ? <img src={shownLogo} alt="Kurum logosu" className="max-w-full max-h-full object-contain" /> : <Building2 className="w-6 h-6 text-subtle" />}
                 </span>
                 <div className="flex flex-col gap-1.5">
                   <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => pickLogo(e.target.files?.[0])} />
@@ -273,7 +273,7 @@ export const KurumSettingsPanel: React.FC = () => {
                   {savingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
                 </button>
               </div>
-              <p className="text-[11px] text-muted">Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. PNG / JPG, kare resim önerilir.</p>
+              <p className="text-[11px] text-muted">Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. Yüksek çözünürlüklü PNG (saydam zeminli) önerilir; boş kenarlar kendiliğinden kırpılır.</p>
             </section>
 
             {/* Kurum e-postası */}

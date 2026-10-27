@@ -22,6 +22,8 @@ export type PdfBlock =
       rowTones?: Array<PdfTone | null>;
       widths?: Array<number | 'auto'>;
       fontSize?: number;
+      /** Aşama 92: satırlar dönüşümlü renk (bir satır beyaz, bir satır bu renk) */
+      stripe?: [number, number, number];
       /** Aşama 53: satır rengiyle yazılacak sütun (verilmezse son sütun) */
       toneColumn?: number;
       /** Aşama 54: hücre hücre renk (ısı tablosu, şık dağılımı). Satır rengini o hücrede ezer. */
@@ -95,12 +97,15 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const M = 12;
-  let y = 14;
+  // Aşama 92: kurum logosu büyüdüğü için logo varken sayfa içeriği biraz aşağıdan başlar
+  const hasLogo = !!getKurumBrand().logo;
+  const TOP = hasLogo ? 19 : 16;
+  let y = hasLogo ? 18 : 14;
 
   const ensure = (need: number) => {
     if (y + need > H - 16) {
       doc.addPage();
-      y = 16;
+      y = TOP;
     }
   };
 
@@ -145,7 +150,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
   for (const b of blocks) {
     if (b.kind === 'pagebreak') {
       doc.addPage();
-      y = 16;
+      y = TOP;
       continue;
     }
     // ------------------------------------------------------------------- Aşama 50: başlık bandı
@@ -586,7 +591,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       });
       autoTable(doc, {
         startY: y,
-        margin: { left: M, right: M, top: 16, bottom: 16 },
+        margin: { left: M, right: M, top: TOP, bottom: 16 },
         head: [b.head.map(t)],
         body: b.rows.map((r) => r.map((c) => t(c))),
         theme: 'grid',
@@ -598,6 +603,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
         columnStyles,
         didParseCell: (data: any) => {
           if (data.section !== 'body') return;
+          if (b.stripe) data.cell.styles.fillColor = data.row.index % 2 ? b.stripe : [255, 255, 255];
           const tone = b.rowTones?.[data.row.index];
           if (tone) {
             data.cell.styles.fillColor = TONE_FILL[tone];
@@ -704,8 +710,18 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
       let right = W - M;
       if (brand.logo) {
         try {
-          doc.addImage(brand.logo, brand.logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', W - M - 9, 3, 9, 9);
-          right = W - M - 11;
+          // Aşama 92: logo daha büyük ve oranı korunarak (en çok 13 mm yükseklik, 40 mm genişlik)
+          const fmt = brand.logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
+          const pr = doc.getImageProperties(brand.logo);
+          const ratio = pr && pr.height ? pr.width / pr.height : 1;
+          let lh = 13;
+          let lw = lh * ratio;
+          if (lw > 40) {
+            lw = 40;
+            lh = lw / ratio;
+          }
+          doc.addImage(brand.logo, fmt, W - M - lw, 2.5 + (13 - lh) / 2, lw, lh, 'kurum-logo', 'FAST');
+          right = W - M - lw - 2;
         } catch {
           /* logo okunamazsa yalnızca ad yazılır */
         }
@@ -714,7 +730,7 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
         doc.setFont(F, 'bold');
         doc.setFontSize(8);
         doc.setTextColor(75, 85, 99);
-        doc.text(t(brand.name), right, 8.6, { align: 'right' });
+        doc.text(t(brand.name), right, 10, { align: 'right' });
       }
     }
     doc.setFont(F, 'normal');

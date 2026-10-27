@@ -6,7 +6,8 @@ import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from './analiz';
 import { LGS_SUBJECTS, fmtNet, fmtScore, round2, type ExamSubject } from './lgs';
 import type { PdfBlock, PdfTone } from './karnePdf';
-import { examKarneData, percentile, type ExamKarneData } from './karneDetay';
+import { examKarneData, percentile } from './karneDetay';
+import { averageKarneData, type KarneData } from './karneOrtalama';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
 import {
   FOLLOW_INFO,
@@ -117,8 +118,11 @@ function adviceBlocks(analysis: SubjectTopics[]): PdfBlock[] {
 }
 
 // ----------------------------------------------------------------------------- Aşama 50: tek deneme karnesi (PDF)
-export function examKarneBlocks(data: ExamKarneData, studentName: string, className: string): PdfBlock[] {
+export function examKarneBlocks(data: KarneData, studentName: string, className: string): PdfBlock[] {
   const { exam, subjects, topics, rank } = data;
+  // Aşama 92: ortalama karne (D / Y / B ortalamadır; cevap çizelgesi yoktur)
+  const avg = data.avg;
+  const N = (v: number) => (avg ? fmtNet(v) : v);
   const pct = percentile(rank);
   const clsTotal = subjects.reduce((a, s) => a + (s.clsAvgNet ?? 0), 0);
   const kurumTotal = subjects.reduce((a, s) => a + (s.kurumAvgNet ?? 0), 0);
@@ -126,8 +130,8 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
   const diff = (a: number | null, b: number | null, f: (n: number) => string) =>
     a === null || b === null || Math.abs(a - b) < 0.005 ? '-' : `${a - b > 0 ? '+' : '-'}${f(Math.abs(a - b))}`;
   const side: Array<[string, string]> = [
-    ['Sınıf sırası', rank ? `${rank.cls} / ${rank.clsCount}` : '-'],
-    ['Kurum sırası', rank ? `${rank.overall} / ${rank.overallCount}` : '-'],
+    [avg ? 'Ort. sınıf sırası' : 'Sınıf sırası', rank ? `${rank.cls} / ${rank.clsCount}` : '-'],
+    [avg ? 'Ort. kurum sırası' : 'Kurum sırası', rank ? `${rank.overall} / ${rank.overallCount}` : '-'],
   ];
   if (pct !== null) side.push(['Kurum içi yüzdelik', `%${pct}`]);
   // Aşama 51: geçmiş LGS yıllarına göre Türkiye geneli yüzdelik tahmini
@@ -149,21 +153,21 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
   const blocks: PdfBlock[] = [
     {
       kind: 'hero',
-      eyebrow: 'Deneme karnesi',
+      eyebrow: avg ? 'Ortalama deneme karnesi' : 'Deneme karnesi',
       title: studentName,
       sub: className || data.result.className || '',
-      chips: [exam.name, dateTr(exam.examDate), exam.publisher, data.result.booklet ? `${data.result.booklet} kitapçığı` : ''],
+      chips: avg ? [avg.scopeLabel, `${avg.n} denemenin ortalaması`, avg.range] : [exam.name, dateTr(exam.examDate), exam.publisher, data.result.booklet ? `${data.result.booklet} kitapçığı` : ''],
       score: fmtScore(data.score),
-      scoreLabel: 'LGS puanı',
+      scoreLabel: avg ? 'Ort. LGS puanı' : 'LGS puanı',
       side,
     },
     {
       kind: 'tiles',
       items: [
-        { label: 'Toplam net', value: fmtNet(data.totalNet), sub: `${hasCls ? `Sınıf ${fmtNet(round2(clsTotal))} · ` : ''}Kurum ${fmtNet(round2(kurumTotal))}` },
-        { label: 'Doğru', value: String(data.totals.d), sub: `${data.totals.count} sorudan`, tone: 'success' },
-        { label: 'Yanlış', value: String(data.totals.y), sub: '3 yanlış 1 doğruyu götürür', tone: 'danger' },
-        { label: 'Boş', value: String(data.totals.b), tone: 'muted' },
+        { label: avg ? 'Ort. toplam net' : 'Toplam net', value: fmtNet(data.totalNet), sub: `${hasCls ? `Sınıf ${fmtNet(round2(clsTotal))} · ` : ''}Kurum ${fmtNet(round2(kurumTotal))}` },
+        { label: avg ? 'Ort. doğru' : 'Doğru', value: String(N(data.totals.d)), sub: avg ? `deneme başına ${data.totals.count} sorudan` : `${data.totals.count} sorudan`, tone: 'success' },
+        { label: avg ? 'Ort. yanlış' : 'Yanlış', value: String(N(data.totals.y)), sub: '3 yanlış 1 doğruyu götürür', tone: 'danger' },
+        { label: avg ? 'Ort. boş' : 'Boş', value: String(N(data.totals.b)), tone: 'muted' },
         {
           label: 'Kurum ort. puan',
           value: fmtScore(data.kurumAvgScore),
@@ -173,7 +177,7 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
       ],
     },
     ...lgsBlocks,
-    { kind: 'heading', text: 'Ders sonuçları' },
+    { kind: 'heading', text: avg ? `Ders sonuçları (${avg.n} denemenin ortalaması)` : 'Ders sonuçları' },
     {
       kind: 'table',
       head: ['Ders', 'Soru', 'D', 'Y', 'B', 'Net', 'Başarı', ...(hasCls ? ['Sınıf ort.'] : []), 'Kurum ort.', 'Kuruma göre'],
@@ -181,9 +185,9 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
         ...subjects.map((s) => [
           s.subject.name,
           s.count,
-          s.d,
-          s.y,
-          s.b,
+          N(s.d),
+          N(s.y),
+          N(s.b),
           fmtNet(s.net),
           `%${s.rate}`,
           ...(hasCls ? [fmtNet(s.clsAvgNet)] : []),
@@ -193,9 +197,9 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
         [
           'Toplam',
           data.totals.count,
-          data.totals.d,
-          data.totals.y,
-          data.totals.b,
+          N(data.totals.d),
+          N(data.totals.y),
+          N(data.totals.b),
           fmtNet(data.totalNet),
           `%${data.totals.count ? Math.round((data.totals.d / data.totals.count) * 100) : 0}`,
           ...(hasCls ? [fmtNet(round2(clsTotal))] : []),
@@ -217,15 +221,19 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
         { name: 'Kurum ortalaması', values: subjects.map((s) => s.kurumAvgNet ?? 0) },
       ],
     },
-    { kind: 'heading', text: 'Cevap çizelgesi' },
-    {
-      kind: 'answers',
-      rows: subjects.map((s) => ({
-        title: `${s.subject.name} · D ${s.d} · Y ${s.y} · B ${s.b} · Net ${fmtNet(s.net)}`,
-        cells: s.answers.map((a) => ({ no: a.no, given: a.given, key: a.key, mark: a.mark })),
-      })),
-    },
-    { kind: 'heading', text: 'Konu ve kazanım analizi' },
+    ...(avg
+      ? []
+      : ([
+          { kind: 'heading', text: 'Cevap çizelgesi' },
+          {
+            kind: 'answers',
+            rows: subjects.map((s) => ({
+              title: `${s.subject.name} · D ${s.d} · Y ${s.y} · B ${s.b} · Net ${fmtNet(s.net)}`,
+              cells: s.answers.map((a) => ({ no: a.no, given: a.given, key: a.key, mark: a.mark })),
+            })),
+          },
+        ] as PdfBlock[])),
+    { kind: 'heading', text: avg ? `Konu ve kazanım analizi (${avg.n} denemedeki bütün sorular)` : 'Konu ve kazanım analizi' },
     {
       kind: 'text',
       tone: 'muted',
@@ -240,7 +248,7 @@ export function examKarneBlocks(data: ExamKarneData, studentName: string, classN
       title: `${s.subject.name} (%${s.rate})`,
       items: list.map((t) => ({
         label: t.konu,
-        sub: t.alt ? `${t.alt} · Sorular: ${t.questions.join(', ')}` : `Sorular: ${t.questions.join(', ')}`,
+        sub: avg ? `${t.alt ? `${t.alt} · ` : ''}${t.questions.length} soru` : t.alt ? `${t.alt} · Sorular: ${t.questions.join(', ')}` : `Sorular: ${t.questions.join(', ')}`,
         rate: t.rate,
         marker: t.kurumRate,
         tone: levelTone(t.rate),
@@ -272,7 +280,8 @@ export interface StudentKarneInput {
   results: DenemeResult[]; // öğrencinin sonuçları
   target: number | null;
   scopeLabel: string; // "Son 5 deneme" gibi
-  /** Aşama 50: ayrıntılı karnesi PDF'in başına konacak deneme (boşsa en son deneme; 'none' ise konmaz) */
+  /** Aşama 50: ayrıntılı karnesi PDF'in başına konacak deneme ('none' ise konmaz).
+   *  Aşama 92: boş ya da 'avg' ise 2 ve daha çok denemede kapsamdaki denemelerin ortalama karnesi */
   detailExamId?: string;
 }
 
@@ -285,10 +294,15 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
   const valid = scores.filter((s): s is number => s !== null);
   const avg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
   const gap = targetGap(last?.score ?? null, inp.target);
-  const detailExam = inp.detailExamId === 'none' ? undefined : exams.find((e) => e.id === inp.detailExamId) || exams[exams.length - 1];
+  const picked = exams.find((e) => e.id === inp.detailExamId);
+  const avgData = inp.detailExamId !== 'none' && !picked && exams.length >= 2 ? averageKarneData(exams, inp.results, inp.scopeLabel, dateRange(exams)) : null;
+  const detailExam = inp.detailExamId === 'none' || avgData ? undefined : picked || exams[exams.length - 1];
   const detailResult = detailExam ? rByExam.get(detailExam.id) : undefined;
-  const head: PdfBlock[] =
-    detailExam && detailResult ? [...examKarneBlocks(examKarneData(detailExam, detailResult), inp.studentName, inp.className), { kind: 'pagebreak' }] : [];
+  const head: PdfBlock[] = avgData
+    ? [...examKarneBlocks(avgData, inp.studentName, inp.className), { kind: 'pagebreak' }]
+    : detailExam && detailResult
+      ? [...examKarneBlocks(examKarneData(detailExam, detailResult), inp.studentName, inp.className), { kind: 'pagebreak' }]
+      : [];
   const blocks: PdfBlock[] = [
     ...head,
     { kind: 'title', text: head.length ? 'Deneme Gelişimi' : 'Deneme Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''}` },
@@ -355,7 +369,7 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
     });
   }
   // Aşama 54: seçilen denemelerin ortalaması ve konu ısı tablosu
-  blocks.push(...averageBlocks(exams, inp.results, subs));
+  if (!avgData) blocks.push(...averageBlocks(exams, inp.results, subs));
   blocks.push(...heatBlocks(exams, inp.results, subs));
   const analysis = topicAnalysis(exams, inp.results, subs);
   blocks.push(...topicBlocks(analysis));

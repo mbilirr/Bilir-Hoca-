@@ -21,7 +21,8 @@ import { Panel, cx } from '../ui/kit';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, classAverages, levelOf, targetGap, topicAnalysis, type SubjectTopics } from '../../lib/deneme/analiz';
 import { fmtNet, fmtScore, round2 } from '../../lib/deneme/lgs';
-import { dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
+import { dateRange, dateTr, examShort, usedSubjects } from '../../lib/deneme/karneModel';
+import { averageKarneData, type KarneData } from '../../lib/deneme/karneOrtalama';
 import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from '../../lib/deneme/lgsYuzdelik';
 import { AveragesPanel, HeatTablePanel } from './KarneIleri';
@@ -211,8 +212,11 @@ export const LgsPercentileStrip: React.FC<{ exam: DenemeExam; score: number | nu
   );
 };
 
-export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string; className?: string }> = ({ data, studentName, className }) => {
+export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; className?: string }> = ({ data, studentName, className }) => {
   const { exam, subjects, topics, rank } = data;
+  // Aşama 92: ortalama karnede D / Y / B ortalamadır (ondalıklı)
+  const avg = data.avg;
+  const N = (v: number) => (avg ? fmtNet(v) : v);
   const pct = percentile(rank);
   const kurumRateOf = (key: string) => {
     const s = subjects.find((x) => x.subject.key === key);
@@ -237,29 +241,39 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
         <div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-white/5" aria-hidden />
         <div className="relative grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">Deneme karnesi</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">{avg ? 'Ortalama deneme karnesi' : 'Deneme karnesi'}</p>
             <h3 className="mt-1 text-xl sm:text-2xl font-extrabold leading-tight truncate">{studentName}</h3>
             <p className="text-sm text-white/85">{className || data.result.className || 'Sınıf bilgisi yok'}</p>
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+              {avg ? (
+                <>
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{avg.scopeLabel}</span>
+                  <span className="rounded-full bg-white/15 px-2.5 py-1">{avg.n} denemenin ortalaması</span>
+                  <span className="rounded-full bg-white/15 px-2.5 py-1">{avg.range}</span>
+                </>
+              ) : (
+                <>
               <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{exam.name}</span>
               <span className="rounded-full bg-white/15 px-2.5 py-1">{dateTr(exam.examDate)}</span>
               {exam.publisher && <span className="rounded-full bg-white/15 px-2.5 py-1">{exam.publisher}</span>}
               {data.result.booklet && <span className="rounded-full bg-white/15 px-2.5 py-1">{data.result.booklet} kitapçığı</span>}
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white text-brand-fg shadow-xl ring-4 ring-white/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">LGS puanı</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{avg ? 'Ort. LGS puanı' : 'LGS puanı'}</span>
               <span className="text-2xl font-black tabular-nums leading-none mt-0.5">{fmtScore(data.score)}</span>
               <span className="text-[10px] text-muted mt-0.5">/ 500</span>
             </div>
             <div className="grid gap-1.5 text-xs">
               <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                <p className="text-white/70 text-[10px] uppercase tracking-wider">Sınıf sırası</p>
+                <p className="text-white/70 text-[10px] uppercase tracking-wider">{avg ? 'Ort. sınıf sırası' : 'Sınıf sırası'}</p>
                 <p className="font-bold tabular-nums">{rank ? `${rank.cls} / ${rank.clsCount}` : '—'}</p>
               </div>
               <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                <p className="text-white/70 text-[10px] uppercase tracking-wider">Kurum sırası</p>
+                <p className="text-white/70 text-[10px] uppercase tracking-wider">{avg ? 'Ort. kurum sırası' : 'Kurum sırası'}</p>
                 <p className="font-bold tabular-nums">{rank ? `${rank.overall} / ${rank.overallCount}` : '—'}</p>
               </div>
               {pct !== null && (
@@ -276,7 +290,7 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
       {/* Özet kutuları */}
       <div className="grid gap-2 grid-cols-2 lg:grid-cols-5">
         <div className="rounded-2xl border border-line bg-surface p-3">
-          <p className="ui-eyebrow">Toplam net</p>
+          <p className="ui-eyebrow">{avg ? 'Ort. toplam net' : 'Toplam net'}</p>
           <p className="text-2xl font-black text-fg tabular-nums">{fmtNet(data.totalNet)}</p>
           <p className="text-[11px] text-muted">
             {hasCls && <>Sınıf {fmtNet(round2(clsTotal))} · </>}Kurum {fmtNet(round2(kurumTotal))}
@@ -284,23 +298,23 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
         </div>
         <div className="rounded-2xl border border-success/30 bg-success-soft p-3">
           <p className="ui-eyebrow text-success-fg flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Doğru
+            <CheckCircle2 className="w-3.5 h-3.5" /> {avg ? 'Ort. doğru' : 'Doğru'}
           </p>
-          <p className="text-2xl font-black text-success-fg tabular-nums">{data.totals.d}</p>
-          <p className="text-[11px] text-success-fg/80">{data.totals.count} sorudan</p>
+          <p className="text-2xl font-black text-success-fg tabular-nums">{N(data.totals.d)}</p>
+          <p className="text-[11px] text-success-fg/80">{avg ? `deneme başına ${data.totals.count} sorudan` : `${data.totals.count} sorudan`}</p>
         </div>
         <div className="rounded-2xl border border-danger/30 bg-danger-soft p-3">
           <p className="ui-eyebrow text-danger-fg flex items-center gap-1">
-            <XCircle className="w-3.5 h-3.5" /> Yanlış
+            <XCircle className="w-3.5 h-3.5" /> {avg ? 'Ort. yanlış' : 'Yanlış'}
           </p>
-          <p className="text-2xl font-black text-danger-fg tabular-nums">{data.totals.y}</p>
+          <p className="text-2xl font-black text-danger-fg tabular-nums">{N(data.totals.y)}</p>
           <p className="text-[11px] text-danger-fg/80">3 yanlış 1 doğruyu götürür</p>
         </div>
         <div className="rounded-2xl border border-line bg-surface-2 p-3">
           <p className="ui-eyebrow flex items-center gap-1">
-            <CircleSlash className="w-3.5 h-3.5" /> Boş
+            <CircleSlash className="w-3.5 h-3.5" /> {avg ? 'Ort. boş' : 'Boş'}
           </p>
-          <p className="text-2xl font-black text-fg-2 tabular-nums">{data.totals.b}</p>
+          <p className="text-2xl font-black text-fg-2 tabular-nums">{N(data.totals.b)}</p>
           <p className="text-[11px] text-muted">işaretlenmeyen</p>
         </div>
         <div className="rounded-2xl border border-line bg-surface p-3 col-span-2 lg:col-span-1">
@@ -319,7 +333,7 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
       <LgsPercentileStrip exam={exam} score={data.score} />
 
       {/* Ders tablosu */}
-      <Panel title="Ders sonuçları" description="Öğrencinin neti, sınıf ve kurum ortalamasıyla" icon={TrendingUp} tone="brand" padded={false}>
+      <Panel title="Ders sonuçları" description={avg ? `${avg.n} denemenin ortalaması; sınıf ve kurum ortalamasıyla` : 'Öğrencinin neti, sınıf ve kurum ortalamasıyla'} icon={TrendingUp} tone="brand" padded={false}>
         <div className="overflow-x-auto">
           <table className={tableCls}>
             <thead className={theadCls}>
@@ -341,9 +355,9 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
                 <tr key={s.subject.key} className="hover:bg-surface-2/30">
                   <td className="px-3 py-2 font-semibold text-fg">{s.subject.name}</td>
                   <td className="px-2 py-2 text-center tabular-nums">{s.count}</td>
-                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-success-fg">{s.d}</td>
-                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-danger-fg">{s.y}</td>
-                  <td className="px-2 py-2 text-center tabular-nums text-muted">{s.b}</td>
+                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-success-fg">{N(s.d)}</td>
+                  <td className="px-2 py-2 text-center tabular-nums font-semibold text-danger-fg">{N(s.y)}</td>
+                  <td className="px-2 py-2 text-center tabular-nums text-muted">{N(s.b)}</td>
                   <td className="px-2 py-2 text-center tabular-nums font-black text-fg">{fmtNet(s.net)}</td>
                   <td className="px-3 py-2">
                     <RateBar rate={s.rate} />
@@ -358,9 +372,9 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
               <tr className="bg-brand-soft/40 font-bold">
                 <td className="px-3 py-2 text-fg">Toplam</td>
                 <td className="px-2 py-2 text-center tabular-nums">{data.totals.count}</td>
-                <td className="px-2 py-2 text-center tabular-nums text-success-fg">{data.totals.d}</td>
-                <td className="px-2 py-2 text-center tabular-nums text-danger-fg">{data.totals.y}</td>
-                <td className="px-2 py-2 text-center tabular-nums text-muted">{data.totals.b}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-success-fg">{N(data.totals.d)}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-danger-fg">{N(data.totals.y)}</td>
+                <td className="px-2 py-2 text-center tabular-nums text-muted">{N(data.totals.b)}</td>
                 <td className="px-2 py-2 text-center tabular-nums text-fg">{fmtNet(data.totalNet)}</td>
                 <td className="px-3 py-2">
                   <RateBar rate={data.totals.count ? Math.round((data.totals.d / data.totals.count) * 100) : 0} />
@@ -422,7 +436,7 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-xs text-muted">Bu denemede %70 ve üstü başarılı konu yok.</p>
+              <p className="mt-2 text-xs text-muted">{avg ? 'Bu denemelerde' : 'Bu denemede'} %70 ve üstü başarılı konu yok.</p>
             )}
           </div>
           <div className="rounded-2xl border border-danger/30 bg-danger-soft/60 p-3">
@@ -447,7 +461,8 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
         </div>
       )}
 
-      {/* Cevap çizelgesi */}
+      {/* Cevap çizelgesi (ortalama karnede yok) */}
+      {!avg && (
       <Panel title="Cevap çizelgesi" description="Kutudaki harf öğrencinin cevabı; altındaki küçük harf doğru cevap">
         <div className="flex flex-wrap gap-3 text-[11px] mb-3">
           <span className="inline-flex items-center gap-1">
@@ -482,9 +497,10 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
           ))}
         </div>
       </Panel>
+      )}
 
       {/* Konu ve kazanım analizi */}
-      <Panel title="Konu ve kazanım analizi" description="Çizgi kurumun başarısını gösterir">
+      <Panel title="Konu ve kazanım analizi" description={avg ? `${avg.n} denemedeki bütün sorular üzerinden; çizgi kurumun başarısını gösterir` : 'Çizgi kurumun başarısını gösterir'}>
         <div className="space-y-3">
           <LevelLegend />
           {bySubject.map(({ s, list }) => (
@@ -511,7 +527,7 @@ export const ExamKarneCard: React.FC<{ data: ExamKarneData; studentName: string;
                           <p className="font-semibold">{t.konu}</p>
                           {t.alt && <p className="text-[11px] text-muted">{t.alt}</p>}
                         </td>
-                        <td className="px-2 py-1.5 text-center tabular-nums text-muted">{t.questions.join(', ')}</td>
+                        <td className="px-2 py-1.5 text-center tabular-nums text-muted">{avg ? `${t.questions.length} soru` : t.questions.join(', ')}</td>
                         <td className="px-2 py-1.5 text-center tabular-nums whitespace-nowrap">
                           <span className="text-success-fg font-semibold">{t.d}</span>/<span className="text-danger-fg font-semibold">{t.y}</span>/<span className="text-muted">{t.b}</span>
                         </td>
@@ -540,21 +556,29 @@ export const StudentKarneView: React.FC<{
   targetEditor?: React.ReactNode;
   studentName?: string;
   className?: string;
-  /** Aşama 50: ayrıntılı karnesi gösterilen deneme (boşsa en son deneme) */
+  /** Aşama 50: ayrıntılı karnesi gösterilen deneme. Aşama 92: boş ya da 'avg' ise kapsamdaki denemelerin ortalaması */
   detailExamId?: string;
   onDetailExamChange?: (id: string) => void;
-}> = ({ exams: allExams, results, target, targetEditor, studentName, className, detailExamId, onDetailExamChange }) => {
+  /** Aşama 92: ortalama karnenin kapsam adı ("Son 3 deneme") */
+  scopeLabel?: string;
+}> = ({ exams: allExams, results, target, targetEditor, studentName, className, detailExamId, onDetailExamChange, scopeLabel }) => {
   const rByExam = useMemo(() => new Map(results.map((r) => [r.examId, r])), [results]);
   const exams = allExams.filter((e) => rByExam.has(e.id));
   const subs = usedSubjects(exams);
   const analysis = useMemo(() => topicAnalysis(exams, results, subs), [exams, results, subs]);
   const [localDetail, setLocalDetail] = useState('');
   const detailId = (detailExamId ?? localDetail) || '';
-  const detailExam = exams.find((e) => e.id === detailId) || exams[exams.length - 1];
-  const detail = useMemo(() => {
+  // Aşama 92: 2 ve daha çok denemede varsayılan karne seçilen denemelerin ortalamasıdır; tek deneme de seçilebilir
+  const picked = exams.find((e) => e.id === detailId);
+  const useAvg = exams.length >= 2 && !picked;
+  const detailExam = picked || exams[exams.length - 1];
+  const avgLabel = scopeLabel || 'Seçilen denemeler';
+  const detail = useMemo<KarneData | null>(() => {
+    if (useAvg) return averageKarneData(exams, results, avgLabel, dateRange(exams));
     const r = detailExam ? rByExam.get(detailExam.id) : undefined;
     return detailExam && r ? examKarneData(detailExam, r) : null;
-  }, [detailExam, rByExam]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useAvg, detailExam, rByExam, results, avgLabel, exams.length]);
   if (!exams.length) return <p className="text-sm text-muted">Seçilen kapsamda deneme sonucu yok.</p>;
   const last = rByExam.get(exams[exams.length - 1].id)!;
   const pickDetail = (id: string) => (onDetailExamChange ? onDetailExamChange(id) : setLocalDetail(id));
@@ -575,8 +599,9 @@ export const StudentKarneView: React.FC<{
         <>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-56">
-              <label className="ui-label" htmlFor="karne-detail-exam">Ayrıntılı karne</label>
-              <select id="karne-detail-exam" className="ui-input" value={detailExam?.id || ''} onChange={(e) => pickDetail(e.target.value)}>
+              <label className="ui-label" htmlFor="karne-detail-exam">Karne</label>
+              <select id="karne-detail-exam" className="ui-input" value={useAvg ? 'avg' : detailExam?.id || ''} onChange={(e) => pickDetail(e.target.value)}>
+                {exams.length >= 2 && <option value="avg">{avgLabel}: {exams.length} denemenin ortalaması</option>}
                 {exams
                   .slice()
                   .reverse()
@@ -587,7 +612,9 @@ export const StudentKarneView: React.FC<{
                   ))}
               </select>
             </div>
-            <span className="text-[11px] text-muted pb-2">Aşağıda seçilen denemenin ayrıntılı karnesi, onun altında kapsamdaki denemelerin gelişimi yer alır.</span>
+            <span className="text-[11px] text-muted pb-2">
+              {useAvg ? 'Karne seçilen denemelerin ortalamasıyla hazırlanır; tek bir denemenin karnesi için listeden deneme seçin.' : 'Aşağıda seçilen denemenin ayrıntılı karnesi, onun altında kapsamdaki denemelerin gelişimi yer alır.'}
+            </span>
           </div>
           <ExamKarneCard data={detail} studentName={studentName || detail.result.studentName} className={className} />
           <div className="flex items-center gap-2 pt-2">
@@ -673,8 +700,8 @@ export const StudentKarneView: React.FC<{
         </div>
       </Panel>
 
-      {/* Aşama 54: seçilen denemelerin ortalaması */}
-      <AveragesPanel exams={exams} results={results} />
+      {/* Aşama 54: seçilen denemelerin ortalaması (Aşama 92: ortalama karne gösterilirken tekrar edilmez) */}
+      {!useAvg && <AveragesPanel exams={exams} results={results} />}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <ChartBox title="Puan gelişimi">

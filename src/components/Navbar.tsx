@@ -183,8 +183,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       className="flex items-center gap-2.5 shrink-0 cursor-pointer rounded-xl -ml-1 pl-1 pr-2 py-1 hover:bg-surface-2 transition-colors min-w-0"
     >
       {brandLogo ? (
-        <span className="w-9 h-9 rounded-xl bg-white border border-line p-1 flex items-center justify-center shadow-sm overflow-hidden">
-          <img src={brandLogo} alt="" className="w-full h-full object-contain" />
+        // Aşama 92: kurum logosu büyük ve oranı korunarak (geniş logolar da sığar)
+        <span className="h-10 sm:h-12 min-w-10 sm:min-w-12 max-w-[7.5rem] sm:max-w-[10rem] rounded-xl bg-white border border-line px-1.5 py-1 flex items-center justify-center shadow-sm overflow-hidden">
+          <img src={brandLogo} alt="" className="h-full w-auto max-w-full object-contain" />
         </span>
       ) : (
         <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-1.5 flex items-center justify-center shadow-sm">

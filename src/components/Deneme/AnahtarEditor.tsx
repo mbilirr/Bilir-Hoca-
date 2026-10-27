@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
@@ -18,6 +18,9 @@ import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../
 // Excel yoksa A cevapları elle yazılır; B kitapçığı "A'nın tersi" ya da "A ile aynı" seçilir.
 // Aşama 89: cevap anahtarı PDF'ten de okunur; A ve B kitapçığının cevapları ayrı verilmişse B eşleşmesi kurulur.
 // ============================================================================
+
+// Aşama 93: kitapçık eşleştirme penceresi yalnızca açılınca yüklenir
+const KitapcikEslestirModal = lazy(() => import('./KitapcikEslestirModal').then((m) => ({ default: m.KitapcikEslestirModal })));
 
 const keyString = (qs: ExamQuestion[]) => qs.map((q) => q.answer || ' ').join('').replace(/\s+$/, '');
 const short = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
@@ -41,6 +44,7 @@ export const AnahtarEditor: React.FC<{
   const [busyText, setBusyText] = useState('');
   const [msg, setMsg] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [kitOpen, setKitOpen] = useState(false); // Aşama 93
   const [bank, setBank] = useState<BankRow[] | null>(null);
   const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
   // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
@@ -290,6 +294,9 @@ export const AnahtarEditor: React.FC<{
         <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setAiOpen(true)} id="deneme-kazanim-ai">
           <Sparkles /> Kitapçıktan kazanım bul (yapay zekâ)
         </button>
+        <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setKitOpen(true)} id="deneme-kitapcik-eslestir">
+          <ArrowLeftRight /> Kitapçıkla A / B eşleştir
+        </button>
         {hasSource && (
           <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => void onRematch()} id="deneme-kazanim-rematch">
             <BookOpen /> Kazanımları bankadan eşleştir
@@ -311,6 +318,21 @@ export const AnahtarEditor: React.FC<{
             setMsg({ tone: 'success', text: `${summary} Kaydetmeyi unutmayın.` });
           }}
         />
+      )}
+      {kitOpen && (
+        <Suspense fallback={null}>
+          <KitapcikEslestirModal
+            open
+            onClose={() => setKitOpen(false)}
+            subjects={subjects}
+            questions={questions}
+            onApply={(qs, summary) => {
+              onChange(qs);
+              setEstB(new Set());
+              setMsg({ tone: 'success', text: `${summary} Kaydetmeyi unutmayın.` });
+            }}
+          />
+        </Suspense>
       )}
       {msg && (
         <p

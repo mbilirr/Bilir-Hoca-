@@ -370,6 +370,8 @@ export const DenemeKarne: React.FC<{
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
   const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
   useEffect(() => setVeliNote(''), [studentId]);
+  // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
+  useEffect(() => setDetailExamId(''), [scope, picked]);
   const isAdmin = dataService.isCurrentUserAdmin();
   const teacherName = dataService.getCurrentTeacher()?.name || '';
   const [sinifTur, setSinifTur] = useHistoryState<SinifTur>('deneme.karne.sinifTur', 'genel'); // Aşama 55
@@ -723,6 +725,7 @@ export const DenemeKarne: React.FC<{
           className={student?.className || ''}
           detailExamId={detailExamId}
           onDetailExamChange={setDetailExamId}
+          scopeLabel={scopeLabel(scope)}
           targetEditor={
             <div className="flex flex-wrap items-end gap-2">
               <div>

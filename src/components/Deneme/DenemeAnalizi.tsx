@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart3, BookOpen, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Users } from 'lucide-react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -18,6 +18,9 @@ import { hasHistoryValue, useHistoryState } from '../../lib/useHistoryState';
 // Genel yönetici ve bölümü açılmış kurumların yöneticileri kullanır (dataService.canUseDeneme).
 // Sekmeler: Denemeler (yükleme, sonuçlar) · Karneler · Etüt yönlendirme · Kazanım bankası (Aşama 48)
 // ============================================================================
+
+// Aşama 92: denemeleri başka kuruma aktarma penceresi (genel yönetici; yalnızca açılınca yüklenir)
+const KurumAktarModal = lazy(() => import('./KurumAktarModal').then((m) => ({ default: m.KurumAktarModal })));
 
 type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 // Aşama 52: görünüm tarayıcı geçmişine yazılır (yalnızca kimlik tutulur; deneme nesnesi bellekte kalır)
@@ -42,6 +45,9 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   // Aşama 90: taslaklar yalnızca listede (yöneticiye) görünür; karne ve etüt yalnızca sonuçlu denemeleri kullanır
   const exams = allExams.filter((e) => !isDraftExam(e));
   const listed = readOnly ? exams : allExams;
+  const [aktarOpen, setAktarOpen] = useState(false);
+  const [aktarMsg, setAktarMsg] = useState<string | null>(null);
+  const isHead = dataService.isHeadAdmin();
   const [draftExam, setDraftExam] = useState<DenemeExam | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,9 +136,16 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       description="Optik sonuçları, LGS puanı, kazanım analizi, karneler ve etüt yönlendirme"
       actions={
         tab === 'denemeler' && view.kind === 'list' && !setupMissing && !readOnly ? (
-          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
-            <Plus /> Yeni deneme
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isHead && exams.length > 0 && (
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen(true)} id="deneme-kurum-aktar">
+                <Building2 /> Kuruma aktar
+              </button>
+            )}
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
+              <Plus /> Yeni deneme
+            </button>
+          </div>
         ) : undefined
       }
     />
@@ -173,6 +186,24 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       )}
 
       {error && <p role="alert" className="text-sm font-semibold text-danger-fg bg-danger-soft rounded-xl px-3 py-2">{error}</p>}
+      {aktarMsg && tab === 'denemeler' && view.kind === 'list' && (
+        <p role="status" className="text-xs font-semibold text-success-fg bg-success-soft rounded-xl px-3 py-2" id="kurum-aktar-sonuc">
+          {aktarMsg}
+        </p>
+      )}
+      {aktarOpen && (
+        <Suspense fallback={null}>
+          <KurumAktarModal
+            open
+            exams={exams}
+            onClose={() => setAktarOpen(false)}
+            onDone={(text) => {
+              setAktarMsg(text);
+              void reload();
+            }}
+          />
+        </Suspense>
+      )}
 
       {tab === 'denemeler' && shownView.kind === 'new' && !readOnly && (
         <DenemeWizard
