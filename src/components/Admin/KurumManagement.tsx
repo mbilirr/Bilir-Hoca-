@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
@@ -11,7 +11,10 @@ import { Panel, cx } from '../ui/kit';
 //  - kurumun hangi bölümleri kullanabileceğini (ödev, etüt, soru takibi, ...) açar/kapatır,
 //  - kendi sınıflarından hangilerini kuruma "izinli sınıf" olarak vereceğini seçer.
 // Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini kendisi ekler; başka kurumları göremez.
+// Aşama 95: "Yeni kurum" düğmesi — kurum + kurum yöneticisi + bölümler + logo tek pencerede (kod düğmeye basınca yüklenir).
 // ============================================================================
+
+const YeniKurumModal = lazy(() => import('./YeniKurumModal').then((m) => ({ default: m.YeniKurumModal })));
 
 interface Draft {
   name: string;
@@ -33,6 +36,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
   const [savingId, setSavingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ id: string; tone: 'ok' | 'err'; text: string } | null>(null);
   const [classSearch, setClassSearch] = useState('');
+  const [newOpen, setNewOpen] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>(() => dataService.getAllTeachersInternal());
   const [students, setStudents] = useState<Student[]>(() => dataService.getAllStudents());
 
@@ -176,17 +180,24 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
       title="Kurumlar"
       description="Kurum yöneticilerinin kullanabileceği bölümler ve onlara izin verdiğiniz sınıflar"
       actions={
-        <button type="button" className="ui-btn ui-btn-secondary ui-btn-icon" onClick={load} title="Yenile" aria-label="Kurumları yenile">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <>
+          <button type="button" className="ui-btn ui-btn-sm ui-btn-primary h-8 w-28 justify-center" onClick={() => setNewOpen(true)} id="kurum-yeni">
+            <Plus className="w-3.5 h-3.5" />
+            Yeni kurum
+          </button>
+          <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary h-8 w-8 px-0 justify-center" onClick={load} title="Yenile" aria-label="Kurumları yenile">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </>
       }
     >
       <div className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2.5 text-xs mb-4">
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
-          Bir öğretmeni <strong>kurum yöneticisi</strong> yapmak için aşağıdaki kullanıcı listesinde kalkan simgeli
-          "Öğretmen / Yönetici yetkisi" düğmesini kullanın; kurumu kendiliğinden açılır ve burada görünür. Kurum yöneticisi
-          kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu ve sizin izin verdiğiniz sınıfları görür.
+          Yeni kurumu <strong>"Yeni kurum"</strong> düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve
+          logo tek pencerede kaydedilir. Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu
+          ve sizin izin verdiğiniz sınıfları görür. (Var olan bir öğretmeni kullanıcı listesindeki "Öğretmen / Yönetici
+          yetkisi" düğmesiyle yönetici yapmak da kurumunu açar.)
         </span>
       </div>
 
@@ -198,7 +209,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
       {!error && kurumlar === null && <p className="text-sm text-muted">Kurumlar yükleniyor…</p>}
       {!error && kurumlar && kurumlar.length === 0 && (
         <p className="text-sm text-muted" id="kurum-empty">
-          Henüz kurum yok. Bir öğretmeni yönetici yaptığınızda kurumu burada görünür.
+          Henüz kurum yok. "Yeni kurum" düğmesiyle ilk kurumu açın.
         </p>
       )}
 
@@ -376,6 +387,11 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
           );
         })}
       </div>
+      {newOpen && (
+        <Suspense fallback={null}>
+          <YeniKurumModal open={newOpen} onClose={() => setNewOpen(false)} onDone={() => void load()} />
+        </Suspense>
+      )}
     </Panel>
   );
 };
