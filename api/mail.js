@@ -1175,6 +1175,8 @@ async function sendPolicySms(items, policy) {
   if (!smsConfigured()) return null;
   const want = [];
   for (const it of items) {
+    // Aşama 101: karne SMS'i artık ayrı "Tümüne SMS" düğmesiyle (kişiye özel link) gider; e-postayla ikinci SMS gitmez
+    if (it.event === 'deneme-karne') continue;
     const cat = MAIL_EVENT_CATEGORY[it.event];
     if (!cat) continue;
     const role = it.role === 'ogrenci' ? 'ogrenci' : 'ogretmen';
@@ -3127,6 +3129,192 @@ async function actionDenemeKarne(caller, body, req, deadline) {
   return { ok: true, ...summary };
 }
 
+// ----------------------------------------------------------------------------- Aşama 101: karne linki (SMS)
+// Öğretmen "Tümüne SMS" der; tarayıcı her öğrencinin karnesini (seçili tür) üretip buraya gönderir.
+// PDF gizli depoya konur, 30 gün geçerli girişsiz link öğrenciye ve/veya veliye SMS ile gider.
+// Yetki: Deneme Analizi yetkisi + öğrencinin sonucunu kendi oturumuyla görebilmek (actionDenemeKarne ile aynı).
+// Telefonlar yalnızca sunucuda okunur; SMS'te ad, numara, puan yazmaz.
+let karneLinkModCache;
+async function karneLinkMod() {
+  if (karneLinkModCache === undefined) {
+    try {
+      karneLinkModCache = await import('./_karneLink.js');
+    } catch (err) {
+      console.error('[mail] api/_karneLink.js yüklenemedi:', err && err.message);
+      karneLinkModCache = null;
+    }
+  }
+  return karneLinkModCache;
+}
+const KARNE_TURLERI = new Set(['genel', 'kazanim', 'plan', 'oncelik', 'veli']);
+const karneDay = () => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10); // İstanbul günü
+
+async function actionKarneSms(caller, body, req) {
+  const fatal = (status, msg) => new HttpError(status, msg, { fatal: true });
+  const sm = await smsMod();
+  const kl = await karneLinkMod();
+  if (!sm || !kl) throw fatal(503, 'Sunucu dosyaları eksik (api/_sms.js, api/_karneLink.js). Dosyaları GitHub\'da api klasörüne yükleyin.');
+  if (!sm.smsConfigured()) throw fatal(400, 'SMS ayarları eksik: Vercel ortam değişkenlerinde SMS sağlayıcı bilgileri tanımlı değil.');
+  const e = env();
+  if (!e.service) throw fatal(503, 'Sunucu ayarları eksik (SUPABASE_SERVICE_ROLE_KEY).');
+  const studentId = String(body.studentId || '');
+  if (!studentId || studentId.length > 120) throw new HttpError(400, 'Eksik bilgi.');
+  const au = body.audience && typeof body.audience === 'object' ? body.audience : {};
+  const toStudent = au.ogrenci === true;
+  const toVeli = au.veli === true;
+  if (!toStudent && !toVeli) throw fatal(400, 'Alıcı seçin (öğrenci ve/veya veli).');
+  const tur = String(body.tur || 'genel');
+  if (!KARNE_TURLERI.has(tur)) throw fatal(400, 'Karne türü geçersiz.');
+  const examIds = Array.isArray(body.examIds) ? body.examIds.map(String).filter((x) => x && x.length <= 120).slice(0, 60) : [];
+  if (!examIds.length) throw fatal(400, 'Deneme seçilmedi.');
+  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
+  if (can !== true) throw fatal(403, 'Karne göndermek için yetkiniz yok.');
+  const vis = await rest(`deneme_results?select=id&student_id=eq.${encodeURIComponent(studentId)}&limit=1`, { token: caller.token });
+  if (!vis || !vis.length) throw new HttpError(404, 'Bu öğrencinin size açık bir deneme sonucu yok.');
+  const st = (await rest(`students?select=id,status&id=eq.${encodeURIComponent(studentId)}`, { token: 'service' })) || [];
+  if (!st[0] || (st[0].status && st[0].status !== 'active')) throw new HttpError(404, 'Öğrenci bulunamadı.');
+  if (typeof body.pdf !== 'string' || !body.pdf) throw new HttpError(400, 'Karne PDF dosyası eksik.');
+  const buf = Buffer.from(body.pdf.replace(/^data:application\/pdf;[^,]*,/, ''), 'base64');
+  if (buf.length > PLAN_PDF_MAX_BYTES) throw new HttpError(413, 'PDF dosyası çok büyük.');
+  if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'Ek bir PDF dosyası değil.');
+
+  // Telefonlar (öğrenci kaydı / veliler); geçerli numara yoksa link de oluşturulmaz (depo boşuna dolmaz)
+  const c = (await studentParentsMap([studentId])).get(studentId) || { phone: '', parents: [] };
+  const targets = [];
+  if (toStudent && sm.normPhone(c.phone)) targets.push({ role: 'ogrenci', phone: c.phone });
+  if (toVeli) for (const p of c.parents) if (p && sm.normPhone(p.phone)) targets.push({ role: 'veli', phone: p.phone });
+  if (!targets.length) return { ok: true, noPhone: 1, sent: 0, dry: 0, skipped: 0, limited: 0, failed: 0 };
+
+  // Aynı gün aynı öğrenci + tür + denemeler: mevcut link kullanılır (kod linkin kimliğinden yeniden türetilir)
+  const key = kl.linkKey(e.secretKey || e.service);
+  const ek = kl.examKey(examIds);
+  const day = karneDay();
+  const nowIso = new Date().toISOString();
+  const findSame = async () =>
+    ((await rest(
+      `karne_links?select=id&student_id=eq.${encodeURIComponent(studentId)}&tur=eq.${encodeURIComponent(tur)}&exam_key=eq.${ek}&day=eq.${day}&revoked_at=is.null&expires_at=gt.${encodeURIComponent(nowIso)}&limit=1`,
+      { token: 'service' }
+    )) || [])[0];
+  let link = await findSame();
+  const reused = !!link;
+  if (!link) {
+    const id = crypto.randomUUID();
+    const path = `${String(caller.kurumId || 'genel').replace(/[^\w-]/g, '')}/${id}.pdf`;
+    await kl.storagePut(e, path, buf);
+    try {
+      await rest('karne_links', {
+        token: 'service',
+        method: 'POST',
+        prefer: 'return=minimal',
+        body: {
+          id,
+          token_hash: kl.hashToken(kl.linkToken(key, id)),
+          student_id: studentId,
+          kurum_id: caller.kurumId || null,
+          tur,
+          exam_key: ek,
+          day,
+          storage_path: path,
+          created_by: caller.authId || null,
+          expires_at: new Date(Date.now() + kl.KARNE_LINK_DAYS * 86400000).toISOString(),
+        },
+      });
+      link = { id };
+    } catch (err) {
+      // aynı anda iki istek: diğerinin linki kullanılır, bu dosya silinir
+      await kl.storageRemove(e, [path]).catch(() => {});
+      link = await findSame();
+      if (!link) throw err;
+    }
+  }
+  const url = `${appUrl(req)}/k/${kl.linkToken(key, link.id)}`;
+  const appName = sm.smsEnv().appName;
+  const jobs = targets.map((t) => ({ event: 'deneme-karne-link', refId: `karne-${link.id}`, once: true, role: t.role, phone: t.phone, text: kl.karneSmsText(t.role, url, appName) }));
+  const r = await sm.dispatchSms(rest, jobs);
+  if (r.errors.length) console.error('[sms] karne', r.errors.join(' | '));
+  return { ok: true, sent: r.sent, dry: r.dry, skipped: r.skipped, limited: r.limited, failed: r.failed, reused: reused ? 1 : 0, noPhone: 0, errors: r.errors.slice(0, 2) };
+}
+
+/** Sınıfın geçerli karne linklerini kapatır ve PDF'leri siler (öğrenciler çağıranın oturumuyla okunur) */
+async function actionKarneLinkRevoke(caller, body) {
+  const kl = await karneLinkMod();
+  if (!kl) throw new HttpError(503, 'Sunucu dosyası eksik (api/_karneLink.js).');
+  const e = env();
+  const classId = String(body.classId || '');
+  if (!classId || classId.length > 120) throw new HttpError(400, 'Sınıf seçilmedi.');
+  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
+  if (can !== true) throw new HttpError(403, 'Karne linklerini iptal etmek için yetkiniz yok.');
+  const sts = (await rest(`students?select=id&class_id=eq.${encodeURIComponent(classId)}`, { token: caller.token })) || [];
+  const ids = sts.map((s) => String(s.id));
+  const nowIso = new Date().toISOString();
+  let revoked = 0;
+  for (let i = 0; i < ids.length; i += 100) {
+    const part = ids.slice(i, i + 100);
+    const rows = await rest(`karne_links?select=id,storage_path&student_id=in.${inList(part)}&revoked_at=is.null&expires_at=gt.${encodeURIComponent(nowIso)}`, {
+      token: 'service',
+      method: 'PATCH',
+      prefer: 'return=representation',
+      body: { revoked_at: nowIso },
+    });
+    revoked += (rows || []).length;
+    await kl.storageRemove(e, (rows || []).map((r) => r.storage_path)).catch((err) => console.error('[karne] dosya silinemedi', err && err.message));
+  }
+  return { ok: true, revoked };
+}
+
+/** SMS'teki /k/<kod> adresi: geçerliyse PDF'e 60 sn'lik imzalı yönlendirme, değilse kısa sayfa */
+async function karneLinkOpen(res, token) {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  const kl = await karneLinkMod();
+  const sm = await smsMod();
+  const appName = sm ? sm.smsEnv().appName : 'BilirEdu';
+  const gone = () => res.status(410).setHeader('Content-Type', 'text/html; charset=utf-8').send(kl ? kl.expiredPage(appName) : 'Bağlantı geçersiz.');
+  const e = env();
+  if (!kl || !e.service || !kl.isTokenShape(token)) return gone();
+  const rows = await rest(`karne_links?select=id,storage_path,expires_at,revoked_at,open_count&token_hash=eq.${kl.hashToken(token)}&limit=1`, { token: 'service' });
+  const row = rows && rows[0];
+  if (!row || row.revoked_at || Date.parse(row.expires_at) <= Date.now()) return gone();
+  let signed;
+  try {
+    signed = await kl.storageSign(e, row.storage_path);
+  } catch (err) {
+    console.error('[karne] imzalı adres alınamadı', err && err.message);
+    return gone();
+  }
+  try {
+    await rest(`karne_links?id=eq.${encodeURIComponent(row.id)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { open_count: (row.open_count || 0) + 1, last_opened_at: new Date().toISOString() } });
+  } catch {
+    // sayaç yazılamasa da karne açılır
+  }
+  res.setHeader('Location', signed);
+  return res.status(302).end();
+}
+
+/** Günlük görev: süresi dolan / iptal edilen linkleri ve PDF'lerini siler (100'erli) */
+async function cleanupKarneLinks(deadline) {
+  const kl = await karneLinkMod();
+  if (!kl) return 0;
+  const e = env();
+  let removed = 0;
+  for (let round = 0; round < 50 && Date.now() < deadline; round++) {
+    const nowIso = new Date().toISOString();
+    let rows;
+    try {
+      rows = await rest(`karne_links?select=id,storage_path&or=(expires_at.lt.${encodeURIComponent(nowIso)},revoked_at.not.is.null)&limit=100`, { token: 'service' });
+    } catch (err) {
+      if (!/karne_links/i.test(String(err && err.message))) console.error('[karne] temizlik okunamadı', err && err.message);
+      return removed; // 101 SQL'i çalışmadıysa sessizce geçilir
+    }
+    if (!rows || !rows.length) break;
+    await kl.storageRemove(e, rows.map((r) => r.storage_path)).catch((err) => console.error('[karne] dosya silinemedi', err && err.message));
+    await rest(`karne_links?id=in.${inList(rows.map((r) => r.id))}`, { token: 'service', method: 'DELETE', prefer: 'return=minimal' });
+    removed += rows.length;
+    if (rows.length < 100) break;
+  }
+  return removed;
+}
+
 // ----------------------------------------------------------------------------- İşaretleme sayfası (giriş gerektirmez)
 async function loadPlanByToken(token) {
   const { planId, studentId } = readPlanToken(token);
@@ -3350,6 +3538,9 @@ export default async function handler(req, res) {
 
     // Vercel zamanlanmış görev: her gün ödev hatırlatmaları
     if (req.method === 'GET') {
+      // Aşama 101: SMS'teki karne linki (/k/<kod> → /api/mail?k=<kod>; giriş gerektirmez)
+      const karneK = (req.query && req.query.k) || new URL(req.url, 'http://x').searchParams.get('k');
+      if (karneK) return await karneLinkOpen(res, String(karneK));
       const task = (req.query && req.query.task) || new URL(req.url, 'http://x').searchParams.get('task');
       const isCron = /vercel-cron/i.test(String(req.headers['user-agent'] || ''));
       if (task !== 'reminders' && task !== 'etut-reminders' && !isCron) return res.status(200).json({ ok: true, service: 'mail' });
@@ -3401,8 +3592,16 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('[mail] günlük yoklama uyarısı hatası', err && err.message);
       }
+      // Aşama 101: süresi dolan karne linkleri ve PDF'leri
+      let karneCleaned = 0;
+      try {
+        karneCleaned = await cleanupKarneLinks(deadline);
+      } catch (err) {
+        console.error('[mail] karne linki temizliği hatası', err && err.message);
+      }
       // Zamanlanmış görev yanıtında kişi/ödev adı verilmez (yalnızca sayılar)
       return res.status(200).json({
+        karneCleaned,
         noAttendance: na ? na.sent : 0,
         etutSent: er ? er.sent : 0,
         planReports: pr ? pr.sent : 0,
@@ -3483,6 +3682,12 @@ export default async function handler(req, res) {
         break;
       case 'deneme-karne':
         result = await actionDenemeKarne(caller, body, req, deadline);
+        break;
+      case 'karne-sms':
+        result = await actionKarneSms(caller, body, req);
+        break;
+      case 'karne-link-revoke':
+        result = await actionKarneLinkRevoke(caller, body);
         break;
       case 'parent-announce':
         result = await actionParentAnnounce(caller, body, deadline);

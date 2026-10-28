@@ -56,6 +56,10 @@
   ],
   "rewrites": [
     {
+      "source": "/k/:t",
+      "destination": "/api/mail?k=:t"
+    },
+    {
       "source": "/apple-touch-icon.png",
       "destination": "/api/icon?s=180"
     },

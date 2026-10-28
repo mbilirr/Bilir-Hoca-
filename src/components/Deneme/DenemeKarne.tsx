@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '../../lib/useHistoryState';
-import { ChevronDown, Download, Mail, MessageCircle, Save } from 'lucide-react';
+import { Ban, ChevronDown, Download, FileArchive, Mail, MessageCircle, MessageSquare, Save, Square } from 'lucide-react';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
 import { PlanaAktarModal } from './PlanaAktarModal';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -20,20 +20,18 @@ import {
   compareKarneBlocks,
   kazanimHeatBlocks,
   kurumOzetBlocks,
-  oncelikKarneBlocks,
-  veliKarneBlocks,
   usedSubjects,
-  kazanimKarneBlocks,
   pickScope,
   scopeLabel,
-  studentKarneBlocks,
-  studyPlanKarneBlocks,
   dateTr,
   type ScopeKey,
 } from '../../lib/deneme/karneModel';
 import { downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { fmtScore } from '../../lib/deneme/lgs';
+import { TUR_NAME, TUR_TITLE, buildStudentKarne, type KarneContext, type KarneExtra } from '../../lib/deneme/karneBuilder';
+import { downloadClassPdf, downloadClassZip, forEachStudentKarne, type TopluOpts } from '../../lib/deneme/topluKarne';
+import { KarneSmsModal, type SmsAudience } from './KarneSmsModal';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 
 // ============================================================================
@@ -61,21 +59,6 @@ function branchSubjectKey(): string {
     return 'all';
   }
 }
-const TUR_TITLE: Record<KarneTur, string> = {
-  genel: 'Deneme karnen',
-  kazanim: 'Kazanım takip karnen',
-  plan: 'Çalışma planı karnen',
-  oncelik: 'Öncelikli konu karnen',
-  veli: 'Veli bilgilendirme karnesi',
-};
-const TUR_NAME: Record<KarneTur, string> = {
-  genel: 'deneme karnesi',
-  kazanim: 'kazanım takip karnesi',
-  plan: 'çalışma planı karnesi',
-  oncelik: 'öncelikli konu karnesi',
-  veli: 'veli bilgilendirme karnesi',
-};
-
 /** Karne PDF'ini paylaşır: telefonda doğrudan WhatsApp'a dosya olarak; olmazsa PDF iner ve WhatsApp mesajı açılır */
 export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fileName: string, message: string, phone?: string, orientation: PdfOrientation = 'portrait') {
   const blob = await karnePdfBlob(blocks, footer, orientation);
@@ -110,17 +93,30 @@ export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fil
 // E-posta: tek tıkla sınıftaki bütün öğrencilere (her öğrenciye yalnızca kendi karnesi; adres sunucuda bulunur).
 // WhatsApp: WhatsApp, uygulama dışından otomatik toplu gönderime izin vermez; bu yüzden sıra listesi hazırlanır ve
 // her öğrenci için tek dokunuşla kendi karnesi açılır ("Sıradakini gönder" bir sonrakine geçer).
+// Aşama 101: ekranda seçili karne türü kullanılır; tek PDF / zip indirme; SMS ile 30 gün geçerli karne linki.
 type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
+const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
 
-const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStudents: Student[]; scope: ScopeKey }> = ({ examIds, cls, classStudents, scope }) => {
+const TopluKarneGonder: React.FC<{
+  examIds: string[];
+  cls: ClassGroup;
+  classStudents: Student[];
+  scope: ScopeKey;
+  tur: KarneTur;
+  bank: BankRow[] | null | undefined;
+  teacherName: string;
+}> = ({ examIds, cls, classStudents, scope, tur, bank, teacherName }) => {
   const [loaded, setLoaded] = useState<{ exams: DenemeExam[]; results: DenemeResult[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmMail, setConfirmMail] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
   const [progress, setProgress] = useState('');
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
   const [queue, setQueue] = useState<Record<string, QueueState>>({});
   const [open, setOpen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
   const key = `${cls.id}|${examIds.join(',')}`;
 
   useEffect(() => {
@@ -128,7 +124,9 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
     setQueue({});
     setNotice(null);
     setConfirmMail(false);
+    setConfirmRevoke(false);
   }, [key]);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const load = async () => {
     if (loaded) return loaded;
@@ -149,76 +147,140 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
     return classStudents.filter((s) => ids.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [loaded, classStudents]);
 
-  const build = async (s: Student, data: { exams: DenemeExam[]; results: DenemeResult[] }) => {
-    let tg: number | null = null;
+  const ctxOf = (data: { exams: DenemeExam[] }): KarneContext => ({ tur, exams: data.exams, scopeLabel: scopeLabel(scope), bank: bank ?? null, teacherName });
+  const loadExtra = async (s: Student): Promise<KarneExtra> => {
+    if (tur !== 'genel' && tur !== 'veli') return { target: null };
     try {
-      tg = await getTarget(s.id);
+      return { target: await getTarget(s.id) };
     } catch {
-      tg = null;
+      return { target: null };
     }
-    const rs = data.results.filter((r) => r.studentId === s.id);
-    return {
-      blocks: studentKarneBlocks({ studentName: s.name, className: s.className || cls.name, exams: data.exams, results: rs, target: tg, scopeLabel: scopeLabel(scope) }),
-      footer: `${s.name} deneme karnesi`,
-      file: `Deneme-Karnesi-${s.name}`,
-      last: rs.slice().sort((a, b) => {
-        const ea = data.exams.findIndex((e) => e.id === a.examId);
-        const eb = data.exams.findIndex((e) => e.id === b.examId);
-        return ea - eb;
-      }).slice(-1)[0],
-    };
   };
 
-  const sendAllMail = async () => {
+  /** Uzun toplu işlem: ilerleme yazısı + Durdur; hata olursa bildirim */
+  const runToplu = async (verb: string, fn: (data: { exams: DenemeExam[]; results: DenemeResult[] }, opts: TopluOpts) => Promise<void>) => {
     if (busy) return;
     setBusy(true);
-    setConfirmMail(false);
     setNotice(null);
+    const ac = new AbortController();
+    abortRef.current = ac;
+    try {
+      const data = await load();
+      await fn(data, { signal: ac.signal, loadExtra, onProgress: (d, t, name) => setProgress(d < t ? `${verb}: ${d + 1}/${t} · ${name}` : '') });
+      if (ac.signal.aborted) setNotice({ tone: 'warning', text: 'İşlem durduruldu.' });
+    } catch (e: any) {
+      setNotice({ tone: 'danger', text: e?.message || 'İşlem yapılamadı.' });
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const download = (kind: 'pdf' | 'zip') =>
+    runToplu('Hazırlanıyor', async (data, opts) => {
+      const r = kind === 'pdf' ? await downloadClassPdf(ctxOf(data), cls.name, classStudents, data, opts) : await downloadClassZip(ctxOf(data), cls.name, classStudents, data, opts);
+      if (!r.aborted) setNotice(r.done ? { tone: 'success', text: `${r.done} öğrencinin karnesi indirildi.` } : { tone: 'warning', text: 'Bu sınıfta seçilen denemelerde sonucu olan öğrenci yok.' });
+    });
+
+  const sendAllMail = () => {
+    setConfirmMail(false);
     let sent = 0;
     let noEmail = 0;
     let failed = 0;
     let skipped = 0;
     const errors: string[] = [];
-    try {
-      const data = await load();
-      const ids = new Set(data.results.map((r) => r.studentId));
-      const list = classStudents.filter((s) => ids.has(s.id));
-      for (let i = 0; i < list.length; i++) {
-        const s = list[i];
-        setProgress(`E-posta hazırlanıyor: ${i + 1}/${list.length} · ${s.name}`);
+    return runToplu('E-posta hazırlanıyor', async (data, opts) => {
+      const stop = new AbortController();
+      opts.signal?.addEventListener('abort', () => stop.abort());
+      let warn: string | null = null;
+      await forEachStudentKarne(ctxOf(data), classStudents, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
-          const b = await build(s, data);
-          const pdf = await karnePdfBase64(b.blocks, b.footer);
-          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `Deneme karnen (${scopeLabel(scope)})` });
+          const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
+          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `${k.title} (${scopeLabel(scope)})` });
           if (!r.ok) {
             failed++;
             if (r.error) errors.push(`${s.name}: ${r.error}`);
-            if (r.notConfigured || r.authError) break;
+            if (r.notConfigured || r.authError) stop.abort();
           } else {
             sent += r.sent || 0;
             noEmail += r.noEmail || 0;
             skipped += r.skipped || 0;
             failed += r.failed || 0;
             if (r.notConfigured) {
-              setNotice({ tone: 'warning', text: describeMailResult(r).text });
-              return;
+              warn = describeMailResult(r).text;
+              stop.abort();
             }
           }
         } catch (e: any) {
           failed++;
           errors.push(`${s.name}: ${e?.message || 'hazırlanamadı'}`);
         }
-      }
+      });
+      if (warn) return setNotice({ tone: 'warning', text: warn });
+      if (opts.signal?.aborted) return;
       const parts = [`${sent} öğrenciye karne e-postayla gönderildi`];
       if (skipped) parts.push(`${skipped} öğrenciye daha önce gönderilmişti`);
       if (noEmail) parts.push(`${noEmail} öğrencinin e-postası kayıtlı değil`);
       if (failed) parts.push(`${failed} gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
       setNotice({ tone: failed ? 'danger' : noEmail ? 'warning' : 'success', text: parts.join(' · ') + '.' });
-    } catch (e: any) {
-      setNotice({ tone: 'danger', text: e?.message || 'Gönderim yapılamadı.' });
+    });
+  };
+
+  // Aşama 101: her öğrenciye kendi karnesinin linki (sunucu PDF'i gizli depoya koyar, 30 gün geçerli)
+  const sendAllSms = (audience: SmsAudience) => {
+    setSmsOpen(false);
+    const sum = { sent: 0, dry: 0, skipped: 0, limited: 0, noPhone: 0, failed: 0 };
+    const errors: string[] = [];
+    return runToplu('SMS hazırlanıyor', async (data, opts) => {
+      const stop = new AbortController();
+      opts.signal?.addEventListener('abort', () => stop.abort());
+      let fatal: string | null = null;
+      let links = 0;
+      await forEachStudentKarne(ctxOf(data), classStudents, data, { ...opts, signal: stop.signal }, async (s, k) => {
+        try {
+          const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
+          const r = await callMail('karne-sms', { studentId: s.id, pdf, tur, examIds, audience });
+          if (!r.ok) {
+            sum.failed++;
+            if (r.error) errors.push(`${s.name}: ${r.error}`);
+            if (r.fatal) {
+              fatal = r.error || 'SMS gönderilemedi.';
+              stop.abort();
+            }
+            return;
+          }
+          if (!r.noPhone) links++;
+          for (const f of ['sent', 'dry', 'skipped', 'limited', 'noPhone', 'failed'] as const) sum[f] += Number(r[f]) || 0;
+          if (r.errors && r.errors[0]) errors.push(r.errors[0]);
+        } catch (e: any) {
+          sum.failed++;
+          errors.push(`${s.name}: ${e?.message || 'hazırlanamadı'}`);
+        }
+      });
+      if (fatal) return setNotice({ tone: 'danger', text: fatal });
+      if (opts.signal?.aborted) return;
+      const parts: string[] = [];
+      if (sum.dry) parts.push(`SMS deneme modunda: ${links} link oluşturuldu, SMS gönderilmedi`);
+      else parts.push(`${sum.sent} SMS gönderildi`);
+      if (sum.skipped) parts.push(`${sum.skipped} SMS daha önce gönderilmişti`);
+      if (sum.noPhone) parts.push(`${sum.noPhone} öğrencide telefon yok`);
+      if (sum.limited) parts.push(`${sum.limited} SMS günlük sınır yüzünden gitmedi`);
+      if (sum.failed) parts.push(`${sum.failed} SMS gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
+      setNotice({ tone: sum.failed || sum.limited ? 'danger' : sum.dry || sum.noPhone ? 'warning' : 'success', text: parts.join(' · ') + '.' });
+    });
+  };
+
+  const revokeLinks = async () => {
+    if (busy) return;
+    setConfirmRevoke(false);
+    setBusy(true);
+    setNotice(null);
+    try {
+      const r = await callMail('karne-link-revoke', { classId: cls.id });
+      setNotice(r.ok ? { tone: 'success', text: r.revoked ? `${r.revoked} karne linki iptal edildi.` : 'İptal edilecek geçerli karne linki yok.' } : { tone: 'danger', text: r.error || 'Linkler iptal edilemedi.' });
     } finally {
       setBusy(false);
-      setProgress('');
     }
   };
 
@@ -229,10 +291,13 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
     try {
       const data = await load();
       setProgress(`${s.name} karnesi hazırlanıyor…`);
-      const b = await build(s, data);
-      const lastExam = b.last ? data.exams.find((e) => e.id === b.last!.examId) : undefined;
-      const msg = `${s.name} deneme karnesi (${scopeLabel(scope)}).${b.last && lastExam ? ` Son deneme: ${lastExam.name}, puan ${fmtScore(b.last.score)}.` : ''}`;
-      const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, s.phone);
+      const k = buildStudentKarne(ctxOf(data), { id: s.id, name: s.name, className: s.className || cls.name }, data.results.filter((r) => r.studentId === s.id), await loadExtra(s));
+      if (!k) throw new Error('karne hazırlanamadı');
+      const rs = data.results.filter((r) => r.studentId === s.id);
+      const last = rs.slice().sort((a, b) => data.exams.findIndex((e) => e.id === a.examId) - data.exams.findIndex((e) => e.id === b.examId)).slice(-1)[0];
+      const lastExam = last ? data.exams.find((e) => e.id === last.examId) : undefined;
+      const msg = `${s.name} ${TUR_NAME[tur]} (${scopeLabel(scope)}).${last && lastExam ? ` Son deneme: ${lastExam.name}, puan ${fmtScore(last.score)}.` : ''}`;
+      const r = await shareKarneWhatsapp(k.blocks, k.footer, k.file, msg, s.phone, k.orientation);
       setQueue((q) => ({ ...q, [s.id]: r === 'cancelled' ? 'bekliyor' : 'gonderildi' }));
       if (r === 'downloaded') setNotice({ tone: 'success', text: `${s.name}: PDF indirildi ve WhatsApp açıldı; dosyayı mesaja ekleyip gönderin, sonra "Sıradakini gönder" deyin.` });
     } catch (e: any) {
@@ -251,26 +316,54 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
     <div className="rounded-2xl border border-brand/25 bg-brand-soft/40 p-3 space-y-2" id="karne-toplu">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-bold text-fg">Sınıfa toplu gönder: {cls.name}</span>
-        <span className="text-[11px] text-muted">Her öğrenciye yalnızca kendi karnesi gider.</span>
-        <div className="ml-auto flex flex-wrap gap-2">
-          {confirmMail ? (
-            <>
-              <span className="self-center text-xs font-semibold text-warning-fg">Sınıftaki bütün öğrencilere e-posta gönderilsin mi?</span>
-              <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void sendAllMail()}>
-                <Mail /> Evet, gönder
-              </button>
-              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={busy} onClick={() => setConfirmMail(false)}>
-                Vazgeç
-              </button>
-            </>
-          ) : (
-            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => setConfirmMail(true)}>
-              <Mail /> Tümüne e-posta
-            </button>
-          )}
+        <span className="text-[11px] text-muted">Her öğrenciye yalnızca kendi karnesi gider · Tür: {TUR_NAME[tur]}</span>
+      </div>
+      {confirmMail ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-warning-fg">Sınıftaki bütün öğrencilere e-posta gönderilsin mi?</span>
+          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => void sendAllMail()}>
+            <Mail /> Evet, gönder
+          </button>
+          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => setConfirmMail(false)}>
+            Vazgeç
+          </button>
+        </div>
+      ) : confirmRevoke ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-warning-fg">Bu sınıfa gönderilen geçerli karne linkleri kapatılsın mı?</span>
+          <button type="button" id="karne-link-iptal-evet" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => void revokeLinks()}>
+            <Ban /> İptal et
+          </button>
+          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => setConfirmRevoke(false)}>
+            Vazgeç
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" id="karne-toplu-pdf" className={TOPLU_BTN} disabled={busy} onClick={() => void download('pdf')} title="Bütün sınıf tek PDF: her öğrenci yeni sayfadan başlar">
+            <Download /> Tek PDF
+          </button>
+          <button type="button" id="karne-toplu-zip" className={TOPLU_BTN} disabled={busy} onClick={() => void download('zip')} title="Her öğrenci ayrı PDF, hepsi tek zip dosyasında">
+            <FileArchive /> Zip
+          </button>
+          <button type="button" id="karne-toplu-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmMail(true)}>
+            <Mail /> Tümüne e-posta
+          </button>
           <button
             type="button"
-            className="ui-btn ui-btn-secondary ui-btn-sm"
+            id="karne-toplu-sms"
+            className={TOPLU_BTN}
+            disabled={busy}
+            onClick={() => {
+              setSmsOpen(true);
+              void load();
+            }}
+          >
+            <MessageSquare /> Tümüne SMS
+          </button>
+          <button
+            type="button"
+            className={TOPLU_BTN}
             disabled={busy || loading}
             onClick={() => {
               setOpen((o) => !o);
@@ -280,12 +373,25 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
           >
             <MessageCircle /> WhatsApp sırası
           </button>
+          <button type="button" id="karne-link-iptal" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmRevoke(true)} title="Bu sınıfa SMS ile gönderilen karne linklerini kapatır">
+            <Ban /> Linkleri iptal et
+          </button>
         </div>
-      </div>
-      {progress && <p className="text-xs text-info-fg">{progress}</p>}
+      )}
+      {progress && (
+        <div className="flex flex-wrap items-center gap-2">
+          {abortRef.current && (
+            <button type="button" id="karne-toplu-durdur" className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center" onClick={() => abortRef.current?.abort()}>
+              <Square /> Durdur
+            </button>
+          )}
+          <p className="text-xs text-info-fg" id="karne-toplu-ilerleme">{progress}</p>
+        </div>
+      )}
       {notice && (
         <p
           role="status"
+          id="karne-toplu-sonuc"
           className={cx(
             'text-xs font-semibold rounded-xl px-3 py-2',
             notice.tone === 'success' && 'bg-success-soft text-success-fg',
@@ -296,6 +402,7 @@ const TopluKarneGonder: React.FC<{ examIds: string[]; cls: ClassGroup; classStud
           {notice.text}
         </p>
       )}
+      <KarneSmsModal open={smsOpen} onClose={() => setSmsOpen(false)} onSend={(a) => void sendAllSms(a)} className={cls.name} count={loaded ? withResults.length : null} turName={TUR_NAME[tur]} />
       {open && (
         <div className="rounded-xl border border-line bg-surface">
           {loading ? (
@@ -460,46 +567,19 @@ export const DenemeKarne: React.FC<{
       const h = filterHeat(fullHeat, heatOpts);
       return { blocks: kazanimHeatBlocks(h, heatOpts, label, fullExams), footer: 'Kazanım ısı haritası', file: 'Kazanim-Isi-Haritasi', orientation: 'landscape' };
     }
-    if (mode === 'ogrenci' && student && tur === 'kazanim') {
-      return {
-        blocks: kazanimKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, scopeLabel: label, bank }),
-        footer: `${student.name} kazanım takip karnesi`,
-        file: `Kazanim-Takip-Karnesi-${student.name}`,
-      };
-    }
-    if (mode === 'ogrenci' && student && tur === 'veli') {
-      if (!veliData) return null;
-      return {
-        blocks: veliKarneBlocks(veliData, { studentName: student.name, className: student.className || '', note: veliNote, teacherName }),
-        footer: `${student.name} veli bilgilendirme karnesi`,
-        file: `Veli-Karnesi-${student.name}`,
-      };
-    }
-    if (mode === 'ogrenci' && student && tur === 'oncelik') {
-      if (!pk) return null;
-      return {
-        blocks: oncelikKarneBlocks(pk, { studentName: student.name, className: student.className || '', scopeLabel: label, exams: fullExams.filter((e) => results.some((r) => r.examId === e.id)) }),
-        footer: `${student.name} öncelikli konu karnesi`,
-        file: `Oncelikli-Konular-${student.name}`,
-      };
-    }
     if (mode === 'kurum') {
       if (!kurum) return null;
       return { blocks: kurumOzetBlocks(kurum, label), footer: 'Kurum özeti', file: 'Kurum-Ozeti', orientation: 'landscape' };
     }
-    if (mode === 'ogrenci' && student && tur === 'plan') {
-      return {
-        blocks: studyPlanKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, scopeLabel: label, suggestions: planPicks ?? undefined }),
-        footer: `${student.name} çalışma planı karnesi`,
-        file: `Calisma-Plani-Karnesi-${student.name}`,
-      };
-    }
+    // Aşama 101: öğrenci karneleri ortak üreticiden (toplu indirme / e-posta / SMS ile aynı karne)
     if (mode === 'ogrenci' && student) {
-      return {
-        blocks: studentKarneBlocks({ studentName: student.name, className: student.className || '', exams: fullExams, results, target, scopeLabel: label, detailExamId }),
-        footer: `${student.name} deneme karnesi`,
-        file: `Deneme-Karnesi-${student.name}`,
-      };
+      const k = buildStudentKarne(
+        { tur, exams: fullExams, scopeLabel: label, bank, teacherName },
+        { id: student.id, name: student.name, className: student.className || '' },
+        results,
+        { target, detailExamId, veliNote, planPicks: planPicks ?? undefined }
+      );
+      return k ? { blocks: k.blocks, footer: k.footer, file: k.file, orientation: k.orientation } : null;
     }
     if (mode === 'sinif' && cls) {
       return { blocks: classKarneBlocks({ className: cls.name, classId: cls.id, exams: fullExams, results, scopeLabel: label }), footer: `${cls.name} sınıf karnesi`, file: `Sinif-Karnesi-${cls.name}` };
@@ -699,7 +779,7 @@ export const DenemeKarne: React.FC<{
           </p>
         )}
         {mode === 'ogrenci' && cls && scoped.length > 0 && (
-          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} />
+          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} tur={tur} bank={bank} teacherName={teacherName} />
         )}
       </div>
 
