@@ -244,6 +244,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   // Aşama 18: genel yönetici her şeyi, kurum yöneticisi yalnızca kendi kurumunu yönetir
   const isHead = dataService.isHeadAdmin();
+  // Aşama 104: kurum bilgisi sayfa açıldıktan sonra gelirse süzgeç hesaba göre yeniden kurulur (kurumda 'kurumsuz' kalmaz)
+  useEffect(() => {
+    setKurumFilter((f) => (isHead ? (f === '' ? 'merkez' : f) : ''));
+  }, [isHead]);
   const canManageTeachers = dataService.canManageTeachers();
   const kurumOptions = useMemo(() => {
     const ids = Array.from(new Set(users.map((u) => u.kurumId).filter(Boolean) as string[]));

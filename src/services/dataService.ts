@@ -6552,6 +6552,12 @@ export class DataService {
     if (this.rtFlushTimer) clearTimeout(this.rtFlushTimer);
     this.rtFlushTimer = null;
     clearSessionAppData();
+    // Aşama 104: kurum bilgisi ve öğrenci markası önbelleği de silinir; yoksa yenilenen sayfa ilk anda önceki hesabın
+    // kurum bilgisiyle açılıyordu (kuruma geçen genel yönetici, Kullanıcılar listesinde kurum öğretmenlerini göremiyordu)
+    try {
+      sessionStorage.removeItem(MY_KURUM_KEY);
+      sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);
+    } catch {}
     purgePersistentPersonalData();
     clearSignedUrlCache();
     freezeAppStorage();
