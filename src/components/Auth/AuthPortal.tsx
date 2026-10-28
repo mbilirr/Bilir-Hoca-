@@ -19,7 +19,7 @@ import {
   ArrowRight,
   Zap,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import confetti from '../../lib/confetti';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';

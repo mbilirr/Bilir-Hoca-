@@ -59,6 +59,15 @@ import { cleanParents } from '../lib/parents';
 import { setKurumBrand } from '../lib/kurumBrand';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
+import {
+  purgeExpiredSecureCache,
+  wipeSecureCache,
+  unlockSecureCache,
+  resumeSecureCache,
+  hasSecureKey,
+  saveSecureCache,
+  type SecurePayload,
+} from '../lib/secureCache';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -1129,6 +1138,9 @@ export class DataService {
       this.dataVersion++;
     };
     this.purgeSavedPasswords();
+    // Aşama 103: 7 gün açılmamış kilitli önbellek silinir; sayfa yenilendiyse (sekmede anahtar varsa) kayıt açılır
+    purgeExpiredSecureCache().catch(() => {});
+    if (hasSecureKey()) this.secureRestore = this.resumeSecure();
     this.initData();
     // Dosya açma/indirme hataları (görüntüleyici bileşenlerden) kullanıcıya gösterilir
     if (typeof window !== 'undefined') {
@@ -1348,7 +1360,7 @@ export class DataService {
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
           this.revalidateAndSyncAll(true);
-        }
+        } else this.flushSecureSave(); // Aşama 103
       });
       window.addEventListener('online', () => {
         // İnternet geri geldi: kanallar onarılır ve veriler hemen yenilenir
@@ -2388,6 +2400,7 @@ export class DataService {
   private notify() {
     this.lastSyncTimestamp = Date.now();
     this.dataVersion++;
+    if (this.secureSaveRefs) this.scheduleSecureSave();
     const now = Date.now();
     if (!this.notifyTimer) this.notifyFirstAt = now;
     else clearTimeout(this.notifyTimer);
@@ -2911,8 +2924,118 @@ export class DataService {
   private deltaReady: Set<string> | null = null;
   private deltaReadyAt = 0;
   private deltaReadyPromise: Promise<Set<string>> | null = null;
-  private deltaState = new Map<string, { mark: string; idsAt: number }>();
+  private deltaState = new Map<string, { mark: string; idsAt: number; restored?: boolean }>();
   private static readonly DELTA_RECONCILE_MS = 10 * 60000;
+
+  // ===========================================================================
+  // Aşama 103: ŞİFREYLE KİLİTLİ CİHAZ ÖNBELLEĞİ (src/lib/secureCache.ts)
+  // Yoklama, mesaj / duyuru ve notlar şifreli saklanır; tekrar girişte bu listeler hemen gelir ve sunucudan
+  // yalnızca değişenler (Aşama 88 artımlı okuma) indirilir. Yalnız şifreyle giren öğretmende çalışır.
+  // ===========================================================================
+  private secureRestore: Promise<void> | null = null;
+  private secureDisabled = false;
+  private secureSaveRefs: { attendance: unknown; messages: unknown; grades: unknown } | null = null;
+  private secureSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  private secureSavedAt = 0;
+  private static readonly SECURE_SAVE_DELAY_MS = 5000;
+  // büyük listeler sık değişse de (anlık kanal) en fazla dakikada bir yazılır; sekme arka plana geçerken hemen yazılır
+  private static readonly SECURE_SAVE_MIN_GAP_MS = 60000;
+
+  private async resumeSecure(): Promise<void> {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const uid = data?.session?.user?.id;
+      if (!uid || this.getAuthSession()?.role !== 'teacher') return;
+      this.applySecurePayload(await resumeSecureCache(uid));
+    } catch {
+      /* önbellek açılamadı: tam okuma */
+    }
+  }
+
+  private applySecurePayload(p: SecurePayload | null): void {
+    // kayıt yoksa da bu noktadan sonra değişiklikler kilitli kayda yazılır
+    this.secureSaveRefs = { attendance: null, messages: null, grades: null };
+    if (!p || this.secureDisabled) {
+      if (this.secureDisabled) this.secureSaveRefs = null;
+      return;
+    }
+    const t = p.tables || {};
+    let changed = false;
+    const take = (name: 'attendance' | 'messages' | 'grades', apply: (rows: any[]) => void) => {
+      const x = t[name];
+      if (!x || !Array.isArray(x.rows) || typeof x.mark !== 'string' || !x.mark) return;
+      apply(x.rows);
+      this.deltaState.set(name, { mark: x.mark, idsAt: 0, restored: true });
+      changed = true;
+    };
+    take('attendance', (rows) => {
+      this.attendance = rows;
+    });
+    take('messages', (rows) => {
+      this.messages = rows;
+    });
+    take('grades', (rows) => {
+      this.grades = rows;
+    });
+    if (!changed) return;
+    // açılan liste zaten kayıttakiyle aynı: hemen yeniden yazılmaz
+    this.secureSaveRefs = { attendance: this.attendance, messages: this.messages, grades: this.grades };
+    this.notify();
+  }
+
+  private scheduleSecureSave(): void {
+    const r = this.secureSaveRefs;
+    if (!r || this.secureDisabled || this.secureSaveTimer) return;
+    if (r.attendance === this.attendance && r.messages === this.messages && r.grades === this.grades) return;
+    const wait = Math.max(DataService.SECURE_SAVE_DELAY_MS, DataService.SECURE_SAVE_MIN_GAP_MS - (Date.now() - this.secureSavedAt));
+    this.secureSaveTimer = setTimeout(() => {
+      this.secureSaveTimer = null;
+      const run = () => {
+        this.saveSecureNow().catch(() => {});
+      };
+      const ric = (window as any).requestIdleCallback;
+      if (typeof ric === 'function') ric(run, { timeout: 4000 });
+      else run();
+    }, wait);
+  }
+
+  /** Sekme gizlenirken bekleyen kayıt hemen yazılır */
+  private flushSecureSave(): void {
+    if (!this.secureSaveTimer) return;
+    clearTimeout(this.secureSaveTimer);
+    this.secureSaveTimer = null;
+    this.saveSecureNow().catch(() => {});
+  }
+
+  private async saveSecureNow(): Promise<void> {
+    const r = this.secureSaveRefs;
+    if (!r || this.secureDisabled || this.getAuthSession()?.role !== 'teacher' || !hasSecureKey()) return;
+    const att = this.attendance;
+    const msg = this.messages;
+    const grd = this.grades;
+    const tables: SecurePayload['tables'] = {};
+    // yalnız sunucudan en az bir kez okunmuş (işareti olan) tablolar saklanır
+    const a = this.deltaState.get('attendance');
+    const m = this.deltaState.get('messages');
+    const g = this.deltaState.get('grades');
+    if (a?.mark) tables.attendance = { mark: a.mark, rows: att };
+    if (m?.mark) tables.messages = { mark: m.mark, rows: msg };
+    if (g?.mark) tables.grades = { mark: g.mark, rows: grd };
+    if (!tables.attendance && !tables.messages && !tables.grades) return;
+    this.secureSaveRefs = { attendance: att, messages: msg, grades: grd };
+    this.secureSavedAt = Date.now();
+    await saveSecureCache({ tables });
+  }
+
+  /** Çıkış, kurum geçişi, öğrenci girişi: önbellek kapanır, kayıt ve anahtar silinir */
+  private stopSecureCache(): void {
+    this.secureDisabled = true;
+    this.secureSaveRefs = null;
+    this.secureRestore = null;
+    if (this.secureSaveTimer) clearTimeout(this.secureSaveTimer);
+    this.secureSaveTimer = null;
+    wipeSecureCache().catch(() => {});
+  }
 
   /** sql/88 ile "değişim zamanı" tutulan tablolar (yarım saatte bir yeniden sorulur) */
   private async deltaTables(): Promise<Set<string>> {
@@ -2952,7 +3075,11 @@ export class DataService {
       return { mode: 'full' as const, data: r.data };
     };
     const st = this.deltaState.get(table);
-    if (!isBackground || !st || !st.mark || this.getAuthSession()?.role === 'student') return runFull();
+    // Aşama 103: kilitli önbellekten gelen tablo ilk okumada (ön planda da) yalnız değişenlerle tamamlanır;
+    // idsAt = 0 olduğundan silinen / yeni görünür kayıtlar kimlik listesiyle hemen denetlenir
+    const restored = !!st?.restored;
+    if (st) st.restored = false;
+    if ((!isBackground && !restored) || !st || !st.mark || this.getAuthSession()?.role === 'student') return runFull();
     if (!(await this.deltaTables()).has(table)) return runFull();
     const markMs = Date.parse(st.mark);
     if (Number.isNaN(markMs)) return runFull();
@@ -3976,6 +4103,7 @@ export class DataService {
   private async runFullSync(isBackground: boolean): Promise<void> {
     const versionBefore = this.dataVersion;
     try {
+      if (this.secureRestore) await this.secureRestore; // Aşama 103
       this.ensureRealtime();
       this.startPeriodicSync();
       await Promise.allSettled([
@@ -4017,17 +4145,20 @@ export class DataService {
   }
 
   // --- AUTH & TEACHER MANAGEMENT ---
+  // Aşama 103: aynı çizim / olay turunda (aynı oturum ve öğretmen listesiyle) sonuç yeniden aranmaz
+  private currentTeacherMemo: { ep: number; session: AuthSession | null; list: Teacher[]; len: number; val: Teacher | null } | null = null;
   public getCurrentTeacher(): Teacher | null {
     const session = this.getAuthSession();
+    const c = this.currentTeacherMemo;
+    if (c && c.session === session && c.list === this.teachers && c.len === this.teachers.length && c.ep === currentEpoch()) return c.val;
+    let val: Teacher | null = null;
     if (session?.role === 'teacher') {
-      const match = this.teachers.find(
-        (t) =>
-          t.id === session.user.id ||
-          t.username?.toLowerCase() === session.user.username?.toLowerCase()
-      );
-      return match || (session.user as Teacher);
+      const uname = session.user.username?.toLowerCase();
+      const match = this.teachers.find((t) => t.id === session.user.id || t.username?.toLowerCase() === uname);
+      val = match || (session.user as Teacher);
     }
-    return null;
+    this.currentTeacherMemo = { ep: currentEpoch(), session, list: this.teachers, len: this.teachers.length, val };
+    return val;
   }
 
   // Yönetici: kayıtta yönetici işareti olan (giriş rolü 'admin' veya teachers.is_admin) ya da kurum yöneticisi
@@ -4399,8 +4530,16 @@ export class DataService {
   //    (genel yöneticinin kaydettiği öğretmenlerin çalışmaları kurum yöneticisine görünmez)
   //  - Diğer öğretmenler: göremez (etütte yalnızca gün / saat / öğretmen / sınıf bilgisi)
   // ===========================================================================
+  private privacyFoldCache = new Map<string, string>(); // Aşama 103: aynı ad tekrar tekrar dönüştürülmez
   private privacyFold(v?: string | null): string {
-    return (v || '').trim().toLocaleLowerCase('tr-TR');
+    const k = v || '';
+    let r = this.privacyFoldCache.get(k);
+    if (r === undefined) {
+      if (this.privacyFoldCache.size > 5000) this.privacyFoldCache.clear();
+      r = k.trim().toLocaleLowerCase('tr-TR');
+      this.privacyFoldCache.set(k, r);
+    }
+    return r;
   }
   /** Etüdün sahibi öğretmen mi (kaydeden ya da etüt öğretmeni; eski kayıtlarda ad eşleşmesi) */
   public isMyEtut(e: Etut): boolean {
@@ -6255,6 +6394,12 @@ export class DataService {
       throw new Error('Hesabınız henüz kurum yöneticisi tarafından onaylanmamıştır. Lütfen kurum yöneticinize başvurunuz.');
     }
 
+    // Aşama 103: kilit anahtarı şifreden üretilir, aynı hesabın kilitli önbelleği açılır (ilk eşitleme bunu bekler)
+    this.secureDisabled = false;
+    this.secureRestore = unlockSecureCache(authUser.id, password)
+      .then((p) => this.applySecurePayload(p))
+      .catch(() => {});
+
     return teacher;
   }
 
@@ -6281,6 +6426,7 @@ export class DataService {
       console.warn('Supabase Auth: öğrenci girişi başarısız');
       return null;
     }
+    this.stopSecureCache(); // Aşama 103: öğrenci hesabında cihaz önbelleği tutulmaz; önceki hesabın kaydı silinir
     const authUser = signed.user;
     const appRole = authUser.app_metadata?.role;
 
@@ -6548,6 +6694,7 @@ export class DataService {
   // Aşama 97: hesap değiştirmeden (kurumlar arası geçiş) önce: anlık kanallar kapanır, bu sekmedeki veriler silinir ve
   // sayfa yenilenene kadar yeni yazma yapılmaz. Supabase oturumu burada kapatılmaz (geçişi çağıran yönetir).
   public prepareAccountSwitch(): void {
+    this.stopSecureCache();
     this.unsubscribeAllRealtime();
     if (this.rtFlushTimer) clearTimeout(this.rtFlushTimer);
     this.rtFlushTimer = null;
@@ -6566,6 +6713,7 @@ export class DataService {
   // Gizlilik: çıkışta bu sekmedeki tüm kişisel veriler bellekten ve tarayıcıdan silinir.
   // Aynı bilgisayarda sonra giriş yapan kişi önceki kullanıcının verilerini göremez.
   private clearUserDataAfterLogout(): void {
+    this.stopSecureCache();
     clearSessionAppData();
     purgePersistentPersonalData();
     clearSignedUrlCache();

@@ -10,13 +10,14 @@ import { PasswordRecoveryModal } from './components/Auth/PasswordRecoveryModal';
 import { AdminTeacherApprovalBanner } from './components/Teacher/AdminTeacherApprovalBanner';
 import { AdminBackupReminder } from './components/Admin/AdminBackupReminder';
 import { UnattendedEtutBanner } from './components/Admin/UnattendedEtutBanner';
-import { TeacherApprovalModal } from './components/Teacher/TeacherApprovalModal';
-import { SupabaseGuideModal } from './components/SupabaseGuideModal';
 import { ModuleErrorBoundary } from './components/Common/ModuleErrorBoundary';
 import { NetworkSyncStatusBanner } from './components/Common/NetworkSyncStatusBanner';
 import { useEtutNotes } from './components/Teacher/EtutNotesInbox';
 import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
+// Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
+const TeacherApprovalModal = lazyNamed(() => import('./components/Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
+const SupabaseGuideModal = lazyNamed(() => import('./components/SupabaseGuideModal'), 'SupabaseGuideModal');
 import { supabase } from './lib/supabase';
 import {
   Student,
@@ -707,16 +708,18 @@ export default function App() {
       )}
 
       {/* MODALS */}
-      <SupabaseGuideModal
-        isOpen={isSupabaseModalOpen}
-        onClose={() => setIsSupabaseModalOpen(false)}
-      />
+      {isSupabaseModalOpen && (
+        <Suspense fallback={null}>
+          <SupabaseGuideModal isOpen onClose={() => setIsSupabaseModalOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Admin Teacher Approvals & Permissions Modal */}
-      <TeacherApprovalModal
-        isOpen={isAdminApprovalModalOpen}
-        onClose={() => setIsAdminApprovalModalOpen(false)}
-      />
+      {isAdminApprovalModalOpen && (
+        <Suspense fallback={null}>
+          <TeacherApprovalModal isOpen onClose={() => setIsAdminApprovalModalOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Aşama 25 rehberi (yalnızca genel yönetici, Yönetim sayfasındaki düğmeyle açılır) */}
       {isAsama25GuideOpen && (
