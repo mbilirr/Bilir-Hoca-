@@ -38,6 +38,7 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
+import { ROLE_DEFS, roleLabel, saveTeacherRoles, type TeacherRole } from '../../lib/teacherRoles';
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
@@ -522,7 +523,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       </div>
 
       {/* Öğrenci kayıt başvuruları (onay / red) */}
-      {isHead && <StudentApplicationsPanel classes={classes} onToast={showToast} />}
+      {/* Aşama 99b: genel yönetici kendi (kurumsuz) başvurularını, kurum idaresi kendi kurumununkileri onaylar */}
+      {dataService.canReviewApplications() && (
+        <StudentApplicationsPanel
+          classes={isHead ? classes.filter((c) => !c.kurumId) : classes.filter((c) => !!c.kurumId && c.kurumId === dataService.getMyKurumId())}
+          onToast={showToast}
+        />
+      )}
 
       {/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
@@ -1856,13 +1863,35 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [sendMail, setSendMail] = useState(true);
   const [mailNotice, setMailNotice] = useState<{ tone: string; text: string } | null>(null);
   useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  // Aşama 99b: kurumda açılan hesaba unvan / rol (genel yöneticinin kendi panelinde roller uygulanmadığı için yok)
+  const roleUi = !dataService.isHeadAdmin() && dataService.isKurumAdmin() && !!dataService.getMyKurumId();
+  const canMudur = dataService.isKurumGecis();
+  const rolesOff = roleUi && dataService.getMyKurum().rolesEnabled !== true;
+  const [roles, setRoles] = useState<TeacherRole[]>(['ogretmen']);
+  const [roleNote, setRoleNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const toggleRole = (r: TeacherRole) =>
+    setRoles((cur) => {
+      if (cur.includes(r)) return cur.filter((x) => x !== r);
+      // Zümre başkanı öğretmen rolüyle birlikte verilir
+      return r === 'zumre_baskani' && !cur.includes('ogretmen') ? [...cur, r, 'ogretmen'] : [...cur, r];
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSaving(true);
     try {
+      const wanted = roleUi ? roles.filter((r) => r !== 'zumre_baskani' || branch.trim()) : [];
       const res = await dataService.createTeacherAccount({ name, username, branch, email, password });
+      // Roller hesapla birlikte verilir; verilemezse hesap yine açılmış olur (Unvanlar ve Roller'den verilir)
+      if (wanted.length) {
+        try {
+          const saved = await saveTeacherRoles(res.teacher.id, wanted);
+          setRoleNote({ ok: true, text: `Unvan: ${saved.map(roleLabel).join(', ')}` });
+        } catch (er: any) {
+          setRoleNote({ ok: false, text: `Rol verilemedi (${er?.message || 'hata'}). "Unvanlar ve Roller" bölümünden verin.` });
+        }
+      }
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
       onCreated(res.teacher.name);
       // Hesap bilgileri öğretmenin e-posta adresine gönderilir (adres kayıttan okunur)
@@ -1909,6 +1938,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
               Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
             </div>
+            {roleNote && (
+              <div id="teacher-create-role-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${roleNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
+                {roleNote.text}
+              </div>
+            )}
             {mailNotice && (
               <div
                 id="teacher-create-mail-notice"
@@ -2024,6 +2058,40 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 </button>
               </div>
             </div>
+            {/* Aşama 99b: unvan / rol (kurumda) */}
+            {roleUi && (
+              <div className="space-y-1.5" id="teacher-create-roles">
+                <label className="block text-[11px] font-bold text-fg-2">Unvan / Rol</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" role="group" aria-label="Unvan / Rol">
+                  {ROLE_DEFS.filter((r) => r.code !== 'mudur' || canMudur).map((r) => {
+                    const on = roles.includes(r.code);
+                    const locked = r.code === 'zumre_baskani' && !branch.trim();
+                    return (
+                      <button
+                        key={r.code}
+                        type="button"
+                        id={`teacher-create-role-${r.code}`}
+                        aria-pressed={on}
+                        disabled={locked || (r.code === 'ogretmen' && on && roles.includes('zumre_baskani'))}
+                        title={locked ? 'Zümre başkanı için önce branşı yazın' : r.description}
+                        onClick={() => toggleRole(r.code)}
+                        className={`h-8 px-2 rounded-lg border text-xs font-semibold truncate transition-colors disabled:opacity-50 ${
+                          on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-canvas border-line text-fg-2 hover:border-indigo-400'
+                        }`}
+                      >
+                        {r.short}
+                      </button>
+                    );
+                  })}
+                </div>
+                {rolesOff && (
+                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-create-roles-off">
+                    Kurumda rol yetkileri kapalı: roller kaydedilir, rol yetkileri açılınca uygulanır.
+                  </p>
+                )}
+                <p className="text-[10px] text-muted">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
+              </div>
+            )}
             <p className="text-[11px] text-muted">
               Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
             </p>

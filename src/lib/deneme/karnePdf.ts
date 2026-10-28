@@ -97,10 +97,11 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const M = 12;
-  // Aşama 92: kurum logosu büyüdüğü için logo varken sayfa içeriği biraz aşağıdan başlar
-  const hasLogo = !!getKurumBrand().logo;
-  const TOP = hasLogo ? 19 : 16;
-  let y = hasLogo ? 18 : 14;
+  // Aşama 99b: kurum tanımlıysa her sayfanın başında kurum başlığı (logo + ad); içerik başlığın altından başlar
+  const brandTop = getKurumBrand();
+  const hasBrand = !!(brandTop.name || brandTop.logo);
+  const TOP = hasBrand ? 25 : 16;
+  let y = hasBrand ? 24 : 14;
 
   const ensure = (need: number) => {
     if (y + need > H - 16) {
@@ -702,36 +703,61 @@ export async function buildKarnePdf(blocks: PdfBlock[], footerLabel: string, ori
   }
 
   const pages = doc.getNumberOfPages();
-  // Aşama 82: kurum adı ve logosu her sayfanın sağ üst köşesinde (kurum tanımlıysa)
+  // Aşama 99b: KURUM BAŞLIĞI — her sayfada solda logo (özgün renk ve oranıyla, kırpılmadan / esnetilmeden),
+  // yanında kurum adı ve belgenin adı, sağda tarih; altında ince kurum çizgisi. Logo PDF'e bir kez gömülür.
   const brand = getKurumBrand();
+  const today = new Date().toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+  let logo: { fmt: 'PNG' | 'JPEG'; w: number; h: number } | null = null;
+  if (brand.logo) {
+    try {
+      const pr = doc.getImageProperties(brand.logo);
+      const ratio = pr && pr.height ? pr.width / pr.height : 1;
+      let lh = 15;
+      let lw = lh * ratio;
+      if (lw > 46) {
+        lw = 46;
+        lh = lw / ratio;
+      }
+      logo = { fmt: brand.logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', w: lw, h: lh };
+    } catch {
+      logo = null; // logo okunamazsa yalnızca ad yazılır
+    }
+  }
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
-    if (brand.name || brand.logo) {
-      let right = W - M;
-      if (brand.logo) {
+    if (brand.name || logo) {
+      let x = M;
+      if (logo) {
         try {
-          // Aşama 92: logo daha büyük ve oranı korunarak (en çok 13 mm yükseklik, 40 mm genişlik)
-          const fmt = brand.logo.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG';
-          const pr = doc.getImageProperties(brand.logo);
-          const ratio = pr && pr.height ? pr.width / pr.height : 1;
-          let lh = 13;
-          let lw = lh * ratio;
-          if (lw > 40) {
-            lw = 40;
-            lh = lw / ratio;
-          }
-          doc.addImage(brand.logo, fmt, W - M - lw, 2.5 + (13 - lh) / 2, lw, lh, 'kurum-logo', 'FAST');
-          right = W - M - lw - 2;
+          doc.addImage(brand.logo, logo.fmt, M, 3 + (15 - logo.h) / 2, logo.w, logo.h, 'kurum-logo', 'FAST');
+          x = M + logo.w + 3.5;
+          // logo ile yazı arasında ince ayraç
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.3);
+          doc.line(x - 1.75, 5, x - 1.75, 16.5);
         } catch {
-          /* logo okunamazsa yalnızca ad yazılır */
+          /* logo çizilemezse yalnızca ad */
         }
       }
+      const maxW = W - M - x - 34;
       if (brand.name) {
         doc.setFont(F, 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(75, 85, 99);
-        doc.text(t(brand.name), right, 10, { align: 'right' });
+        doc.setFontSize(12);
+        doc.setTextColor(30, 27, 75);
+        const nm = doc.splitTextToSize(t(brand.name), maxW)[0] || '';
+        doc.text(nm, x, 10);
       }
+      doc.setFont(F, 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      const sub = doc.splitTextToSize(t(footerLabel.charAt(0).toLocaleUpperCase('tr-TR') + footerLabel.slice(1)), maxW)[0] || '';
+      doc.text(sub, x, brand.name ? 14.5 : 11);
+      doc.text(t(today), W - M, 10, { align: 'right' });
+      // kurum çizgisi: koyu ve açık iki ton
+      doc.setFillColor(79, 70, 229);
+      doc.rect(M, 19.6, 34, 0.9, 'F');
+      doc.setFillColor(224, 231, 255);
+      doc.rect(M + 34, 19.9, W - 2 * M - 34, 0.35, 'F');
     }
     doc.setFont(F, 'normal');
     doc.setFontSize(7.5);

@@ -483,7 +483,7 @@ export default function App() {
             )}
 
             {/* Yönetici: bekleyen öğrenci kayıt başvuruları */}
-            {activeTeacher?.isAdmin && dataService.isHeadAdmin() && pendingApplications > 0 && teacherTab !== 'user_management' && (
+            {dataService.canReviewApplications() && pendingApplications > 0 && teacherTab !== 'user_management' && (
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-warning-soft border border-line text-fg">
                 <div className="flex items-center gap-2.5 text-sm">
                   <Bell className="w-4 h-4 text-warning-fg shrink-0" />

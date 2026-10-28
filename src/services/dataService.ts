@@ -7639,11 +7639,13 @@ export class DataService {
   }
 
   // Giriş yapmamış öğrenci: başvuru formundaki sınıf listesi
-  public async fetchApplicationClasses(): Promise<Array<{ id: string; name: string }>> {
-    const res = await invokeEdgeFunction<{ classes?: Array<{ id: string; name: string }> }>('register-student', {
+  // Aşama 99b: kod verilirse (kurum kayıt bağlantısı) o kurumun sınıfları ve kurum adı / logosu gelir
+  public async fetchApplicationClasses(kod?: string): Promise<{ kurum: { name: string; logo: string } | null; classes: Array<{ id: string; name: string }> }> {
+    const res = await invokeEdgeFunction<{ kurum?: { name: string; logo: string } | null; classes?: Array<{ id: string; name: string }> }>('register-student', {
       action: 'classes',
+      ...(kod ? { kod } : {}),
     });
-    return res?.classes || [];
+    return { kurum: res?.kurum || null, classes: res?.classes || [] };
   }
 
   // Giriş yapmamış öğrenci: kayıt başvurusu gönderir
@@ -7657,13 +7659,20 @@ export class DataService {
     phone?: string;
     avatar?: string;
     website?: string;
+    kod?: string; // Aşama 99b: kurum kayıt bağlantısının kodu
   }): Promise<void> {
     await invokeEdgeFunction('register-student', { action: 'apply', ...form });
   }
 
   // Yönetici: başvuruları listeler (en yeni en üstte)
+  /** Aşama 99b: başvuruları kim görür — genel yönetici (kurumsuz başvurular), kurum idaresi (kendi kurumununkiler) */
+  public canReviewApplications(): boolean {
+    if (this.getAuthSession()?.role !== 'teacher') return false;
+    return this.isHeadAdmin() || (this.isKurumAdmin() && this.canManageStudents());
+  }
+
   public async fetchStudentApplications(status: 'pending' | 'all' = 'pending'): Promise<StudentApplication[]> {
-    if (!this.isCurrentUserAdmin()) return [];
+    if (!this.canReviewApplications()) return [];
     let query = supabase.from('student_applications').select('*').order('created_at', { ascending: false }).limit(200);
     if (status === 'pending') query = query.eq('status', 'pending');
     const { data, error } = await query;
@@ -7691,10 +7700,17 @@ export class DataService {
     return list;
   }
 
+  // Aşama 99b: yalnızca sayı okunur (satırlar indirilmez); her eşitlemede hafif
   public async refreshPendingApplicationCount(): Promise<void> {
-    if (!this.isCurrentUserAdmin()) return;
+    if (!this.canReviewApplications()) return;
     try {
-      await this.fetchStudentApplications('pending');
+      const { count, error } = await supabase.from('student_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      if (error) return;
+      const n = count || 0;
+      if (n !== this.pendingApplicationCount) {
+        this.pendingApplicationCount = n;
+        this.notify();
+      }
     } catch {
       // tablo henüz kurulmadıysa sessiz geç
     }

@@ -3,6 +3,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // =============================================================================
 // register-student: Giriş yapmamış öğrencinin KAYIT BAŞVURUSU.
 //   action 'classes' : başvuru formundaki sınıf listesi (yalnızca ad ve kimlik)
+//   Aşama 99b: kurum kayıt bağlantısı (?kayit=KOD). Kod verilirse yalnızca o kurumun sınıfları gelir, kurum adı ve
+//   logosu döner, başvuru o kuruma yazılır (kurum yöneticisi onaylar). Kod yoksa yalnızca genel yöneticinin (kurumsuz)
+//   sınıfları gelir; başka kurumların sınıf adları artık görünmez.
 //   action 'apply'   : başvuruyu kaydeder. Öğrencinin belirlediği şifreyle bir giriş
 //                      hesabı açılır ama KİLİTLİ tutulur; yönetici onaylayınca açılır,
 //                      reddedince silinir. Şifre hiçbir tabloda saklanmaz.
@@ -80,13 +83,31 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || 'apply');
 
+    // Aşama 99b: kurum kayıt kodu → kurum (yalnızca kayda açık kurum)
+    const kod = cleanText(body?.kod, 20).toLowerCase();
+    let kurum: { id: string; name: string; logo: string } | null = null;
+    if (kod) {
+      if (!/^[a-z0-9]{6,20}$/.test(kod)) throw new HttpError(404, 'Kayıt bağlantısı geçersiz. Okulunuzdan güncel bağlantıyı isteyiniz.');
+      const { data: k, error: kErr } = await admin.from('kurumlar').select('id, name, logo, kayit_acik').eq('kayit_kodu', kod).maybeSingle();
+      if (kErr) throw new HttpError(500, 'Kayıt bağlantısı okunamadı.');
+      if (!k) throw new HttpError(404, 'Kayıt bağlantısı geçersiz. Okulunuzdan güncel bağlantıyı isteyiniz.');
+      if (k.kayit_acik === false) throw new HttpError(403, `${k.name} şu anda öğrenci kaydı almıyor.`);
+      kurum = { id: String(k.id), name: k.name || '', logo: typeof k.logo === 'string' ? k.logo : '' };
+    }
+
     // -------------------------------------------------------------------
     // Başvuru formundaki sınıf listesi
     // -------------------------------------------------------------------
     if (action === 'classes') {
-      const { data, error } = await admin.from('classes').select('id, name').order('name', { ascending: true });
+      let q = admin.from('classes').select('id, name');
+      q = kurum ? q.eq('kurum_id', kurum.id) : q.is('kurum_id', null);
+      const { data, error } = await q.order('name', { ascending: true });
       if (error) throw new HttpError(500, 'Sınıf listesi alınamadı.');
-      return reply({ success: true, classes: (data || []).map((c: any) => ({ id: c.id, name: c.name })) });
+      return reply({
+        success: true,
+        kurum: kurum ? { name: kurum.name, logo: kurum.logo } : null,
+        classes: (data || []).map((c: any) => ({ id: c.id, name: c.name })),
+      });
     }
 
     if (action !== 'apply') {
@@ -128,8 +149,11 @@ Deno.serve(async (req: Request) => {
     let classId: string | null = null;
     const requestedClassId = cleanText(body?.classId, 80);
     if (requestedClassId) {
-      const { data: cls } = await admin.from('classes').select('id').eq('id', requestedClassId).maybeSingle();
-      if (!cls) throw new HttpError(400, 'Seçilen sınıf bulunamadı. Lütfen listeden tekrar seçiniz.');
+      const { data: cls } = await admin.from('classes').select('id, kurum_id').eq('id', requestedClassId).maybeSingle();
+      // Aşama 99b: sınıf, başvurunun yapıldığı kuruma ait olmalı (kodsuz başvuruda kurumsuz sınıf)
+      if (!cls || String(cls.kurum_id || '') !== (kurum ? kurum.id : '')) {
+        throw new HttpError(400, 'Seçilen sınıf bulunamadı. Lütfen listeden tekrar seçiniz.');
+      }
       classId = cls.id;
     }
 
@@ -221,6 +245,7 @@ Deno.serve(async (req: Request) => {
       auth_user_id: authUserId,
       status: 'pending',
       ip_hash: ipHash,
+      ...(kurum ? { kurum_id: kurum.id } : {}),
     });
     if (insertError) {
       await admin.auth.admin.deleteUser(authUserId).catch(() => {});

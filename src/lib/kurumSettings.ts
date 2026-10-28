@@ -57,6 +57,22 @@ export async function setKurumModules(kurumId: string, modules: Record<string, b
   if (error) throw new Error(missing(error) || /kurum_set_modules/.test(error.message || '') ? setup98 : error.message);
 }
 
+/** Aşama 99b: öğrenci kayıt bağlantısı — kod yoksa üretilir; acik verilirse kayıt açılır / kapanır; yenile = yeni kod */
+export async function kurumKayitAyar(kurumId: string, opts: { acik?: boolean; yenile?: boolean } = {}): Promise<{ kod: string; acik: boolean }> {
+  const { data, error } = await supabase.rpc('kurum_kayit_ayar', {
+    p_kurum_id: kurumId,
+    p_acik: opts.acik ?? null,
+    p_yenile: !!opts.yenile,
+  });
+  if (error) {
+    const miss = error.code === 'PGRST202' || /kurum_kayit_ayar|kayit_kodu/.test(error.message || '');
+    throw new Error(miss ? "Kayıt bağlantısı için Supabase SQL Editor'de 99b_kurum_kayit_baglantisi.sql dosyasını çalıştırın." : error.message);
+  }
+  const d: any = data || {};
+  return { kod: String(d.kod || ''), acik: d.acik !== false };
+}
+export const kayitLinkOf = (kod: string) => `${window.location.origin}/?kayit=${kod}`;
+
 /** logo: undefined = değiştirme, '' = kaldır, data URL = yeni logo */
 export async function updateKurumIdentity(kurumId: string, name: string, logo?: string): Promise<void> {
   const { error } = await supabase.rpc('kurum_update_identity', {

@@ -13,8 +13,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 //   delete_accounts       : kayıt silinmeden önce giriş hesaplarını sil
 //   set_suspended         : hesabı askıya al / aç            (yalnızca yönetici)
 //   set_role              : öğretmen <-> yönetici             (yalnızca yönetici)
-//   approve_application   : öğrenci başvurusunu onayla         (yalnızca yönetici)
-//   reject_application    : öğrenci başvurusunu reddet         (yalnızca yönetici)
+//   approve_application   : öğrenci başvurusunu onayla         (genel yönetici: kurumsuz başvuru; Aşama 99b: kurum
+//                           yöneticisi: kendi kurumunun bağlantısıyla gelen başvuru, öğrenci yönetimi açıksa)
+//   reject_application    : öğrenci başvurusunu reddet         (aynı kural)
 // =============================================================================
 
 // GÜVENLİK: Yalnızca uygulamanın kendi adreslerinden gelen tarayıcı isteklerine izin verilir.
@@ -506,8 +507,29 @@ Deno.serve(async (req: Request) => {
       return reply({ success: true, id: row.id, role: makeAdmin ? 'admin' : 'teacher', account: !!user });
     }
 
+    // Aşama 99b: başvuruyu kim sonuçlandırır — genel yönetici kurumsuz başvuruyu, kurum yöneticisi kendi kurumununkini
+    // Kurum idaresi: kurum yöneticisi hesabı ya da (rol yetkileri açıkken) Müdür / Müdür Yrd. — veritabanındaki
+    // is_kurum_admin() ile aynı kural
+    const callerIsIdare = async (): Promise<boolean> => {
+      if (callerIsKurumAdmin) return true;
+      if (!kurumSupported || callerIsHead || !callerKurumId || !callerRow?.id || (callerRow?.status || 'approved') !== 'approved') return false;
+      const [{ data: k }, { data: r }] = await Promise.all([
+        admin.from('kurumlar').select('roles_enabled').eq('id', callerKurumId).maybeSingle(),
+        admin.from('teacher_roles').select('role').eq('teacher_id', callerRow.id).in('role', ['mudur', 'mudur_yardimcisi']).limit(1),
+      ]);
+      return (k as any)?.roles_enabled === true && !!r && r.length > 0;
+    };
+    const assertCanReview = async (app: Record<string, any>) => {
+      const appKurum = app.kurum_id ? String(app.kurum_id) : '';
+      if (callerIsAdmin && !appKurum) return;
+      if (appKurum && appKurum === callerKurumId && (await callerIsIdare())) {
+        if (callerModules.manage_students !== true) throw new HttpError(403, 'Kurumunuza öğrenci yönetimi izni verilmemiş.');
+        return;
+      }
+      throw new HttpError(403, appKurum ? 'Bu başvuru bir kuruma yapılmış; o kurumun yöneticisi onaylar.' : 'Bu başvuruyu yalnızca genel yönetici sonuçlandırabilir.');
+    };
+
     if (action === 'approve_application') {
-      requireAdmin();
       const appId = String(body?.applicationId || '');
       const { data: app, error: appError } = await admin
         .from('student_applications')
@@ -516,6 +538,8 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (appError) throw new HttpError(500, `Başvuru okunamadı: ${appError.message}`);
       if (!app) throw new HttpError(404, 'Başvuru bulunamadı.');
+      await assertCanReview(app);
+      const appKurumId: string | null = app.kurum_id ? String(app.kurum_id) : null;
       if (app.status !== 'pending') throw new HttpError(409, 'Bu başvuru daha önce sonuçlandırılmış.');
 
       const user = await getAuthUser(app.auth_user_id);
@@ -540,8 +564,16 @@ Deno.serve(async (req: Request) => {
       let className = 'Atanmadı';
       const requestedClassId = String(body?.classId || app.class_id || '').trim();
       if (requestedClassId) {
-        const { data: cls } = await admin.from('classes').select('id, name').eq('id', requestedClassId).maybeSingle();
+        const { data: cls } = await admin
+          .from('classes')
+          .select('id, name' + (kurumSupported ? ', kurum_id' : ''))
+          .eq('id', requestedClassId)
+          .maybeSingle();
         if (!cls) throw new HttpError(400, 'Seçilen sınıf bulunamadı.');
+        // Aşama 99b: kuruma yapılan başvuruda sınıf o kurumun sınıfı olmalı
+        if (appKurumId && String((cls as any).kurum_id || '') !== appKurumId) {
+          throw new HttpError(400, 'Seçilen sınıf bu kurumun sınıfı değil. Kurumun sınıflarından birini seçin.');
+        }
         classId = cls.id;
         className = cls.name;
       }
@@ -566,6 +598,8 @@ Deno.serve(async (req: Request) => {
         registered_at: new Date().toISOString(),
         auth_user_id: user.id,
         status: 'active',
+        // Aşama 99b: sınıfsız onaylanan kurum başvurusu da kurumun öğrencisi olur (sınıflıda tetik sınıftan yazar)
+        ...(appKurumId ? { kurum_id: appKurumId } : {}),
       });
       if (insertError) throw new HttpError(500, `Öğrenci kaydı oluşturulamadı: ${insertError.message}`);
 
@@ -619,10 +653,10 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'reject_application') {
-      requireAdmin();
       const appId = String(body?.applicationId || '');
       const { data: app } = await admin.from('student_applications').select('*').eq('id', appId).maybeSingle();
       if (!app) throw new HttpError(404, 'Başvuru bulunamadı.');
+      await assertCanReview(app);
       if (app.status !== 'pending') throw new HttpError(409, 'Bu başvuru daha önce sonuçlandırılmış.');
       const user = await getAuthUser(app.auth_user_id);
       if (user && !isAdminUser(user) && user.app_metadata?.role === 'applicant') {

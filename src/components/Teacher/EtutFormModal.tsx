@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Repeat, Settings2, History, X } from 'lucide-react';
 import type { ClassGroup, Etut, Student } from '../../types';
@@ -366,10 +366,13 @@ const EtutFormContent: React.FC<Props> = ({
 
   // ---- Aşama 99: seçilen öğrenci bu dersten AYNI konuda daha önce etüt aldı mı (konu farklıysa uyarı yok)
   // Dizin bir kez kurulur: ders|konu|öğrenci → en son etüt. Gelmedi (yoklamada "gelmedi") olanlar sayılmaz.
+  // Aşama 99b: düzenlenen / kopyalanan etüdün kendisi ve aynı haftalık tekrar serisi karşılaştırılmaz.
+  const srcGroup = (isEdit || isCopy) && source?.recurrenceGroupId ? source.recurrenceGroupId : '';
   const repeatIndex = useMemo(() => {
     const m = new Map<string, Etut>();
     for (const e of etuts) {
-      if (source && isEdit && e.id === source.id) continue;
+      if (source && (isEdit || isCopy) && e.id === source.id) continue;
+      if (srcGroup && e.recurrenceGroupId === srcGroup) continue;
       if (e.privacyRedacted || !Array.isArray(e.assignedStudentIds)) continue;
       const tks = topicKeys(e.topic);
       if (!tks.length) continue;
@@ -384,7 +387,7 @@ const EtutFormContent: React.FC<Props> = ({
       }
     }
     return m;
-  }, [etuts, source, isEdit]);
+  }, [etuts, source, isEdit, isCopy, srcGroup]);
   const repeats = useMemo(() => {
     const tks = topicKeys(deferredTopic);
     if (!tks.length || !effectiveSubject || !selectedIds.length) return [] as Array<{ id: string; name: string; etut: Etut }>;
@@ -403,13 +406,25 @@ const EtutFormContent: React.FC<Props> = ({
   }, [deferredTopic, effectiveSubject, selectedIds, repeatIndex, students]);
   // Hayalet uyarı: yeni bir tekrar bulununca 15 sn ekranda kalır (kapat düğmesiyle de kapanır)
   const repeatKey = repeats.map((r) => r.id).join(',');
+  // Düzenlemede pencere açılırken var olan durum için köşe uyarısı çıkmaz; öğrenci eklenir ya da konu değişirse çıkar
+  const openRepeat = useRef<string | null>(null);
+  if (openRepeat.current === null) openRepeat.current = `${repeatKey}#${deferredTopic}`;
   const [ghost, setGhost] = useState(false);
   useEffect(() => {
     if (!repeatKey) return setGhost(false);
+    if (isEdit && `${repeatKey}#${deferredTopic}` === openRepeat.current) return;
     setGhost(true);
     const t = window.setTimeout(() => setGhost(false), 15000);
     return () => window.clearTimeout(t);
-  }, [repeatKey, deferredTopic]);
+  }, [repeatKey, deferredTopic, isEdit]);
+  // Kopyalamada bilgi: kaynak etütle aynı ders ve konu (uyarı değil)
+  const copyInfo = useMemo(() => {
+    if (!isCopy || !source) return '';
+    if (normalizeSubject(source.subject) !== normalizeSubject(effectiveSubject)) return '';
+    const a = new Set(topicKeys(source.topic));
+    if (!topicKeys(deferredTopic).some((k) => a.has(k))) return '';
+    return `Kopyaladığınız etüt: ${trDate(source.date)}, aynı konu. Bu etüt tekrar uyarısında sayılmaz.`;
+  }, [isCopy, source, effectiveSubject, deferredTopic]);
   const repeatText = (r: { name: string; etut: Etut }) => {
     const past = (r.etut.date || '') <= localDateStr(new Date());
     return `${r.name} ${past ? 'bir önceki etütte' : 'planlanmış bir etütte'} (${trDate(r.etut.date)}) ${normalizeSubject(r.etut.subject)} dersinden "${shortTopic(r.etut.topic)}" konusundan ${past ? 'etüt almıştır' : 'etüde yazılmıştır'}.`;
@@ -716,6 +731,12 @@ const EtutFormContent: React.FC<Props> = ({
             onSelectedChange={setSelectedIds}
             badges={konuRates}
           />
+          {copyInfo && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-surface-2 text-muted px-2.5 py-1.5 text-[11px] mt-2" id="etut-kopya-bilgi">
+              <Copy className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>{copyInfo}</span>
+            </p>
+          )}
           {repeats.length > 0 && (
             <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold mt-2" id="etut-tekrar-uyari">
               <History className="w-3.5 h-3.5 shrink-0 mt-px" />

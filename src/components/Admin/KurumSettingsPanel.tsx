@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle, UserPlus, Copy, Check, RefreshCw } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
 import { SelectBox } from '../Teacher/FormParts';
@@ -11,6 +11,8 @@ import {
   setRehberlikOgrenciEkle,
   setIdareDersVerir,
   setKurumModules,
+  kurumKayitAyar,
+  kayitLinkOf,
   updateKurumIdentity,
   imageFileToLogo,
   type KurumRow,
@@ -253,6 +255,49 @@ export const KurumSettingsPanel: React.FC = () => {
     }
   };
 
+  // ---- Aşama 99b: öğrenci kayıt bağlantısı (kurum seçilince / açılınca bir kez okunur)
+  const [kayit, setKayit] = useState<{ kod: string; acik: boolean } | null>(null);
+  const [kayitBusy, setKayitBusy] = useState(false);
+  const [kayitErr, setKayitErr] = useState<string | null>(null);
+  const [kayitCopied, setKayitCopied] = useState(false);
+  const [confirmYenile, setConfirmYenile] = useState(false);
+  useEffect(() => {
+    setKayit(null);
+    setKayitErr(null);
+    if (!kurum?.id) return;
+    let alive = true;
+    kurumKayitAyar(kurum.id)
+      .then((r) => alive && setKayit(r))
+      .catch((e: any) => alive && setKayitErr(e?.message || 'Kayıt bağlantısı okunamadı.'));
+    return () => {
+      alive = false;
+    };
+  }, [kurum?.id]);
+  const kayitDo = async (opts: { acik?: boolean; yenile?: boolean }) => {
+    if (!kurum || kayitBusy) return;
+    setKayitBusy(true);
+    setKayitErr(null);
+    try {
+      setKayit(await kurumKayitAyar(kurum.id, opts));
+      if (opts.yenile) setNotice({ tone: 'ok', text: 'Yeni kayıt bağlantısı oluşturuldu; eski bağlantı artık çalışmaz.' });
+    } catch (e: any) {
+      setKayitErr(e?.message || 'Değiştirilemedi.');
+    } finally {
+      setKayitBusy(false);
+      setConfirmYenile(false);
+    }
+  };
+  const copyKayit = async () => {
+    if (!kayit) return;
+    try {
+      await navigator.clipboard.writeText(kayitLinkOf(kayit.kod));
+      setKayitCopied(true);
+      window.setTimeout(() => setKayitCopied(false), 2000);
+    } catch {
+      window.prompt('Bağlantıyı kopyalayın:', kayitLinkOf(kayit.kod));
+    }
+  };
+
   if (!isHead && !dataService.isKurumAdmin()) return null;
 
   return (
@@ -397,6 +442,42 @@ export const KurumSettingsPanel: React.FC = () => {
               </p>
             </section>
 
+            {/* Aşama 99b: öğrenci kayıt bağlantısı */}
+            <section className="rounded-xl border border-line p-3 space-y-2.5 lg:col-span-3" id="kurum-kayit">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
+                  <UserPlus className="w-3.5 h-3.5 text-brand-fg" /> Öğrenci kayıt bağlantısı
+                </h3>
+                <span className="flex items-center gap-2">
+                  <span className={cx('ui-chip', kayit?.acik ? 'ui-chip-success' : 'ui-chip-neutral')}>{kayit ? (kayit.acik ? 'Kayıt açık' : 'Kayıt kapalı') : '…'}</span>
+                  <Switch id="kurum-kayit-switch" label="Öğrenci kaydı açık" on={!!kayit?.acik} disabled={!kayit || kayitBusy} onChange={() => kayit && kayitDo({ acik: !kayit.acik })} />
+                </span>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  readOnly
+                  id="kurum-kayit-link"
+                  value={kayit ? kayitLinkOf(kayit.kod) : kayitErr ? '' : 'Bağlantı hazırlanıyor…'}
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="Kayıt bağlantısı"
+                  className={cx(CTRL, 'font-mono flex-1 min-w-0', !kayit?.acik && 'text-muted line-through')}
+                />
+                <span className="flex gap-2 shrink-0">
+                  <button type="button" id="kurum-kayit-kopyala" className={cx(BTN, 'ui-btn-primary')} onClick={copyKayit} disabled={!kayit}>
+                    {kayitCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {kayitCopied ? 'Kopyalandı' : 'Kopyala'}
+                  </button>
+                  <button type="button" id="kurum-kayit-yenile" className={cx(BTN, 'ui-btn-secondary')} onClick={() => setConfirmYenile(true)} disabled={!kayit || kayitBusy}>
+                    <RefreshCw className="w-3.5 h-3.5" /> Yenile
+                  </button>
+                </span>
+              </div>
+              {kayitErr && <p className="text-[11px] font-semibold text-danger-fg">{kayitErr}</p>}
+              <p className="text-[11px] text-muted">
+                Bağlantıyı öğrenci ve velilere gönderin. Açılan kayıt ekranında kurumun adı ve logosu görünür, sınıf listesinde yalnızca bu
+                kurumun sınıfları çıkar. Başvurular Kullanıcılar bölümüne gelir ve kurum yöneticisi onaylar. "Yenile" eski bağlantıyı geçersiz yapar.
+              </p>
+            </section>
+
             {/* Aşama 98: kurum bölümleri — genel yönetici kuruma geçmişken */}
             {gecis && (
               <section className="rounded-xl border border-line p-3 space-y-2.5 lg:col-span-3" id="kurum-modules">
@@ -428,6 +509,29 @@ export const KurumSettingsPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      <Modal
+        open={confirmYenile}
+        onClose={() => setConfirmYenile(false)}
+        icon={RefreshCw}
+        tone="warning"
+        title="Yeni kayıt bağlantısı"
+        description={kurum?.name}
+        size="sm"
+        id="kurum-kayit-yenile-onay"
+        footer={
+          <>
+            <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={() => setConfirmYenile(false)}>
+              Vazgeç
+            </button>
+            <button type="button" id="kurum-kayit-yenile-evet" className={cx(BTN, 'ui-btn-warning')} onClick={() => kayitDo({ yenile: true })} disabled={kayitBusy}>
+              {kayitBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Yenile
+            </button>
+          </>
+        }
+      >
+        <p className="text-xs text-fg-2 leading-relaxed">Yeni bağlantı oluşturulur; daha önce paylaştığınız bağlantı artık açılmaz. Bekleyen başvurular etkilenmez.</p>
+      </Modal>
 
       <Modal
         open={confirmRoles !== null}

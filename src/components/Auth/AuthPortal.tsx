@@ -79,8 +79,20 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   students,
   teachers,
 }) => {
+  // Aşama 99b: kurum kayıt bağlantısı (?kayit=KOD ya da #/kayit/KOD) → kayıt formu o kurum için açılır
+  const [kayitKod] = useState<string>(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('kayit') || (/#\/?kayit\/([A-Za-z0-9]+)/.exec(window.location.hash) || [])[1] || '';
+      const k = q.trim().toLowerCase();
+      return /^[a-z0-9]{6,20}$/.test(k) ? k : '';
+    } catch {
+      return '';
+    }
+  });
+  const [kayitKurum, setKayitKurum] = useState<{ name: string; logo: string } | null>(null);
+  const [kayitError, setKayitError] = useState<string | null>(null);
   // Main view mode: 'login' | 'register'
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>(() => (kayitKod ? 'register' : 'login'));
   // Selected role tab for login/register: 'teacher' | 'student'
   const [selectedRole, setSelectedRole] = useState<UserRole>(() => readLastRole());
 
@@ -166,13 +178,18 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     if (authMode !== 'register' || applicationClassesState !== 'idle') return;
     setApplicationClassesState('loading');
     dataService
-      .fetchApplicationClasses()
-      .then((list) => {
-        setApplicationClasses(list);
+      .fetchApplicationClasses(kayitKod || undefined)
+      .then((res) => {
+        setApplicationClasses(res.classes);
+        setKayitKurum(res.kurum);
         setApplicationClassesState('ready');
       })
-      .catch(() => setApplicationClassesState('error'));
-  }, [authMode, applicationClassesState]);
+      .catch((e: any) => {
+        // Kurum bağlantısı geçersiz ya da kayıt kapalıysa başvuru gönderilmez
+        if (kayitKod) setKayitError(e?.message || 'Kayıt bağlantısı açılamadı.');
+        setApplicationClassesState('error');
+      });
+  }, [authMode, applicationClassesState, kayitKod]);
 
   // Handle role switch in login tab
   const handleSelectRole = (role: UserRole) => {
@@ -436,6 +453,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         phone: aPhone.trim() || undefined,
         avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(selectedAvatarSeed || name)}`,
         website: aWebsite,
+        kod: kayitKod || undefined,
       });
       setAPassword('');
       setAConfirmPassword('');
@@ -806,6 +824,27 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
           {/* ================= MODE 2: ÖĞRENCİ KAYIT BAŞVURUSU ================= */}
           {authMode === 'register' && (
             <form onSubmit={handleStudentApplication} className="space-y-3">
+              {/* Aşama 99b: kurum bağlantısıyla açıldıysa kurumun adı ve logosu */}
+              {kayitKurum && (
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-line bg-surface" id="kayit-kurum">
+                  {kayitKurum.logo ? (
+                    <span className="h-12 w-20 shrink-0 rounded-lg bg-white border border-line p-1 flex items-center justify-center overflow-hidden">
+                      <img src={kayitKurum.logo} alt="" className="max-h-full max-w-full object-contain" />
+                    </span>
+                  ) : (
+                    <School className="w-6 h-6 text-indigo-600 dark:text-indigo-300 shrink-0" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-fg truncate">{kayitKurum.name}</span>
+                    <span className="block text-[11px] text-muted">Öğrenci kayıt başvurusu — başvurunuzu bu kurumun yöneticisi onaylar.</span>
+                  </span>
+                </div>
+              )}
+              {kayitKod && kayitError && (
+                <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-200 text-xs font-semibold" id="kayit-hata">
+                  {kayitError}
+                </div>
+              )}
               <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-indigo-900 dark:text-indigo-200 text-xs leading-relaxed">
                 <strong>Öğrenci kayıt başvurusu:</strong> Bilgilerinizi gönderdikten sonra okul yöneticisi başvurunuzu
                 onaylar. Onaydan sonra <strong>öğrenci numaranız</strong> ve burada belirlediğiniz <strong>şifreyle</strong>{' '}
@@ -960,7 +999,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               <Button
                 type="submit"
                 variant="primary"
-                disabled={isLoading}
+                disabled={isLoading || (!!kayitKod && !!kayitError)}
                 isLoading={isLoading}
                 loadingText="Başvuru Gönderiliyor..."
                 leftIcon={<BookOpen className="w-4 h-4" />}
