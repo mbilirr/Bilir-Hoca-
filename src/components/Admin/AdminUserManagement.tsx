@@ -38,7 +38,7 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
-import { ROLE_DEFS, roleLabel, saveTeacherRoles, type TeacherRole } from '../../lib/teacherRoles';
+import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, type TeacherRole } from '../../lib/teacherRoles';
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
@@ -148,6 +148,27 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       loadData();
     });
     return () => unsub();
+  }, []);
+
+  // Aşama 100: öğretmenin unvanları (teacher_roles) "Mevcut Rolü" sütununda görünür; rol verilince anında güncellenir
+  const [unvanlar, setUnvanlar] = useState<Map<string, TeacherRole[]>>(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    fetchTeacherRoles()
+      .then((m) => alive && setUnvanlar(m))
+      .catch(() => {}); // rol tabloları yoksa sütun eskisi gibi kalır
+    const off = onTeacherRolesSaved((teacherId, saved) =>
+      setUnvanlar((prev) => {
+        const next = new Map(prev);
+        if (saved.length) next.set(teacherId, saved);
+        else next.delete(teacherId);
+        return next;
+      })
+    );
+    return () => {
+      alive = false;
+      off();
+    };
   }, []);
 
   const handleRefresh = async () => {
@@ -973,6 +994,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <span>Öğrenci</span>
                           </span>
                         )}
+                        {u.role !== 'student' && (() => {
+                          // "Öğretmen" rozeti hesap türüdür; unvan(lar) altında gösterilir (yalnız Öğretmen ise tekrar yazılmaz)
+                          const rs = sortRoles(unvanlar.get(u.id) || []).filter((r) => r !== 'ogretmen') as TeacherRole[];
+                          return rs.length ? (
+                            <div className="mt-1 flex flex-wrap gap-1" data-unvan-for={u.id}>
+                              {rs.map((r) => (
+                                <span key={r} className={`ui-chip ui-chip-${ROLE_BY_CODE[r]?.chip || 'neutral'}`} title={ROLE_BY_CODE[r]?.description}>
+                                  {ROLE_BY_CODE[r]?.short || r}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
                       </td>
 
                       {/* Detail Unit */}

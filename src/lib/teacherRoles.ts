@@ -137,8 +137,26 @@ const missingMsg = 'Rol tabloları bulunamadı. Supabase SQL Editor\'de sql/81_u
 const isMissing = (e: { message?: string; code?: string } | null) =>
   !!e && (/teacher_roles|teacher_role_log|set_teacher_roles|schema cache|does not exist/i.test(e.message || '') || e.code === '42P01' || e.code === 'PGRST202' || e.code === 'PGRST205');
 
+// Aşama 100: rol kaydı değişince açık olan tüm ekranlar (Unvanlar ve Roller, kullanıcı listesi) aynı anda güncellenir
+type RolesSavedListener = (teacherId: string, roles: TeacherRole[]) => void;
+const rolesSavedListeners = new Set<RolesSavedListener>();
+export function onTeacherRolesSaved(cb: RolesSavedListener): () => void {
+  rolesSavedListeners.add(cb);
+  return () => {
+    rolesSavedListeners.delete(cb);
+  };
+}
+
+// Aynı anda açılan iki bölüm tek sorgu paylaşır (önbellek yok, her açılışta güncel okunur)
+let rolesInflight: Promise<Map<string, TeacherRole[]>> | null = null;
+
 /** Görülebilen tüm rol kayıtları: öğretmen kimliği -> roller */
-export async function fetchTeacherRoles(): Promise<Map<string, TeacherRole[]>> {
+export function fetchTeacherRoles(): Promise<Map<string, TeacherRole[]>> {
+  if (!rolesInflight) rolesInflight = readTeacherRoles().finally(() => (rolesInflight = null));
+  return rolesInflight;
+}
+
+async function readTeacherRoles(): Promise<Map<string, TeacherRole[]>> {
   const { data, error } = await supabase.from('teacher_roles').select('teacher_id,role');
   if (error) throw new Error(isMissing(error) ? missingMsg : error.message);
   const map = new Map<string, TeacherRole[]>();
@@ -152,6 +170,7 @@ export async function saveTeacherRoles(teacherId: string, roles: TeacherRole[]):
   const { data, error } = await supabase.rpc('set_teacher_roles', { p_teacher_id: teacherId, p_roles: roles });
   if (error) throw new Error(isMissing(error) ? missingMsg : error.message);
   const out = data && Array.isArray((data as any).roles) ? ((data as any).roles as TeacherRole[]) : roles;
+  rolesSavedListeners.forEach((cb) => cb(teacherId, out));
   return out;
 }
 

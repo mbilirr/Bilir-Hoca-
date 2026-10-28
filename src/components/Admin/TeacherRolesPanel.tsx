@@ -12,6 +12,7 @@ import {
   MATRIX_NOTES,
   fetchTeacherRoles,
   saveTeacherRoles,
+  onTeacherRolesSaved,
   fetchRoleLog,
   roleLabel,
   sortRoles,
@@ -95,6 +96,20 @@ export const TeacherRolesPanel: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+  // Aşama 100: rol başka yerde verilince (ör. yeni öğretmen hesabı penceresi) liste yeniden okunmadan güncellenir
+  useEffect(
+    () =>
+      onTeacherRolesSaved((teacherId, saved) => {
+        setRoles((prev) => {
+          const next = new Map(prev || []);
+          if (saved.length) next.set(teacherId, saved);
+          else next.delete(teacherId);
+          return next;
+        });
+        fetchRoleLog(20).then(setLog).catch(() => {});
+      }),
+    []
+  );
 
   // Genel yönetici için kurum seçenekleri
   const kurumOptions = useMemo(() => {
@@ -296,16 +311,10 @@ export const TeacherRolesPanel: React.FC = () => {
           canGiveMudur={isHead || gecis}
           rolesOff={rolesOff}
           onClose={() => setEditing(null)}
-          onSaved={(saved) => {
-            setRoles((prev) => {
-              const next = new Map(prev || []);
-              if (saved.length) next.set(editing.id, saved);
-              else next.delete(editing.id);
-              return next;
-            });
+          onSaved={() => {
+            // Liste ve günlük onTeacherRolesSaved ile güncellenir
             setNotice({ tone: 'ok', text: `${editing.name} için roller kaydedildi.` });
             setEditing(null);
-            fetchRoleLog(20).then(setLog).catch(() => {});
           }}
         />
       )}
