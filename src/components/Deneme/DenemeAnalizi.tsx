@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
@@ -12,6 +12,7 @@ import { DenemeKarne } from './DenemeKarne';
 import { DenemeEtut } from './DenemeEtut';
 import { KazanimBankasi } from './KazanimBankasi';
 import { hasHistoryValue, useHistoryState } from '../../lib/useHistoryState';
+import { gradeOf } from '../../lib/teacherGrades';
 
 // ============================================================================
 // DENEME ANALİZİ (Aşama 47) — ana sayfa
@@ -43,7 +44,25 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   const shownView: View = view.kind === 'upload' && uploadExam?.id !== view.id ? { kind: 'detail', id: view.id } : view;
   const [allExams, setExams] = useState<DenemeExam[]>([]);
   // Aşama 90: taslaklar yalnızca listede (yöneticiye) görünür; karne ve etüt yalnızca sonuçlu denemeleri kullanır
-  const exams = allExams.filter((e) => !isDraftExam(e));
+  // Aşama 102: öğretmen (yönetici / Ölçme / Rehberlik değil) yalnızca gördüğü sınıfların kademesindeki denemeleri görür;
+  // Etüt yönlendirme sekmesi ona kapalıdır
+  const plain = dataService.isPlainDenemeViewer();
+  const myGrades = useMemo(() => {
+    if (!plain) return null;
+    const set = new Set<string>();
+    for (const c of classes) {
+      const g = gradeOf(c);
+      if (g !== null) set.add(String(g));
+    }
+    return set;
+  }, [plain, classes]);
+  const exams = useMemo(
+    () => allExams.filter((e) => !isDraftExam(e) && (!myGrades || myGrades.has(String(parseInt(String(e.grade), 10))))),
+    [allExams, myGrades]
+  );
+  useEffect(() => {
+    if (plain && (tab === 'etut' || tab === 'kazanim')) setTab('denemeler', { replace: true });
+  }, [plain, tab]);
   const listed = readOnly ? exams : allExams;
   const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
@@ -185,7 +204,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           items={[
             { value: 'denemeler', label: 'Denemeler', icon: BarChart3 },
             { value: 'karne', label: 'Karneler', icon: FileBarChart },
-            { value: 'etut', label: 'Etüt yönlendirme', icon: Users },
+            ...(plain ? [] : [{ value: 'etut' as Tab, label: 'Etüt yönlendirme', icon: Users }]),
             ...(readOnly ? [] : [{ value: 'kazanim' as Tab, label: 'Kazanım bankası', icon: BookOpen }]),
           ]}
         />
@@ -263,6 +282,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       {tab === 'denemeler' && shownView.kind === 'detail' && (
         <DenemeSonuclar
           readOnly={readOnly}
+          limited={plain}
           examId={shownView.id}
           onBack={() => {
             void reload();
@@ -404,8 +424,8 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         </div>
       </Modal>
 
-      {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
-      {tab === 'etut' && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
+      {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} limited={plain} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
+      {tab === 'etut' && !plain && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
       {tab === 'kazanim' && !readOnly && <KazanimBankasi />}
 
       <p className="text-[11px] text-muted">

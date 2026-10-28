@@ -29,14 +29,17 @@ export const DenemeSonuclar: React.FC<{
   onDeleted: () => void;
   /** Aşama 82: salt okunur (Rehberlik / Öğretmen / Zümre Başkanı) — düzenleme düğmeleri gizlenir */
   readOnly?: boolean;
-}> = ({ examId, onBack, onUploadMore, onDeleted, readOnly = false }) => {
+  /** Aşama 102: öğretmen — yalnızca puan sıralaması (soru analizi ve A/B anahtarı gizli) */
+  limited?: boolean;
+}> = ({ examId, onBack, onUploadMore, onDeleted, readOnly = false, limited = false }) => {
   const [exam, setExam] = useState<DenemeExam | null>(null);
   const [results, setResults] = useState<DenemeResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [classFilter, setClassFilter] = useState('');
-  const [view, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
+  const [rawView, setView] = useHistoryState<'list' | 'questions'>('deneme.results.view', 'list'); // Aşama 52: geri tuşu
+  const view = limited ? 'list' : rawView;
   const [keyOpen, setKeyOpen] = useState(false);
   const [keyView, setKeyView] = useState(false); // Aşama 91: A / B anahtarı görüntüleme ve indirme
   const [remap, setRemap] = useState<{ plan: BRemapPlan; qs: ExamQuestions } | null>(null); // Aşama 92: B eşleşmesi onayı
@@ -281,10 +284,12 @@ export const DenemeSonuclar: React.FC<{
 
       {readOnly && (
         <p className="text-xs font-semibold text-info-fg bg-info-soft rounded-xl px-3 py-2" id="deneme-readonly-note">
-          Bu denemeyi yalnızca görüntüleyebilirsiniz; optik yükleme, cevap anahtarı ve silme işlemlerini Ölçme Değerlendirme ve yöneticiler yapar.
+          {limited
+            ? 'Bu denemede yalnızca puan sıralamasını görüntüleyebilirsiniz.'
+            : 'Bu denemeyi yalnızca görüntüleyebilirsiniz; optik yükleme, cevap anahtarı ve silme işlemlerini Ölçme Değerlendirme ve yöneticiler yapar.'}
         </p>
       )}
-      {readOnly && (
+      {readOnly && !limited && (
         <div className="flex flex-wrap gap-2">
           <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setKeyView(true)} id="anahtar-goster">
             <KeySquare /> A / B anahtarı
@@ -392,7 +397,7 @@ export const DenemeSonuclar: React.FC<{
           )}
         </div>
       )}
-      {bCheck && !bCheck.enough && bCheck.nB > 0 && (
+      {!limited && bCheck && !bCheck.enough && bCheck.nB > 0 && (
         <p className="text-[11px] text-muted">
           B kitapçığı uyum kontrolü için kitapçık başına en az {BOOKLET_MIN} öğrenci gerekir (A: {bCheck.nA}, B: {bCheck.nB}).
         </p>
@@ -406,15 +411,17 @@ export const DenemeSonuclar: React.FC<{
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          size="sm"
-          value={view}
-          onChange={setView}
-          items={[
-            { value: 'list', label: 'Sonuç listesi' },
-            { value: 'questions', label: 'Soru ve çeldirici analizi' },
-          ]}
-        />
+        {!limited && (
+          <Segmented
+            size="sm"
+            value={view}
+            onChange={setView}
+            items={[
+              { value: 'list', label: 'Sonuç listesi' },
+              { value: 'questions', label: 'Soru ve çeldirici analizi' },
+            ]}
+          />
+        )}
         {results.length > 0 && (
           <select className="ui-input w-auto py-1 text-xs" value={classFilter} onChange={(e) => setClassFilter(e.target.value)} aria-label="Sınıf">
             <option value="">Tüm sınıflar</option>

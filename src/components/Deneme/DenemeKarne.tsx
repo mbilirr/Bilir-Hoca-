@@ -105,7 +105,9 @@ const TopluKarneGonder: React.FC<{
   tur: KarneTur;
   bank: BankRow[] | null | undefined;
   teacherName: string;
-}> = ({ examIds, cls, classStudents, scope, tur, bank, teacherName }) => {
+  /** Aşama 102: öğretmen — yalnızca indirme (e-posta, SMS, WhatsApp, link iptali yok) */
+  downloadOnly?: boolean;
+}> = ({ examIds, cls, classStudents, scope, tur, bank, teacherName, downloadOnly = false }) => {
   const [loaded, setLoaded] = useState<{ exams: DenemeExam[]; results: DenemeResult[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -315,8 +317,8 @@ const TopluKarneGonder: React.FC<{
   return (
     <div className="rounded-2xl border border-brand/25 bg-brand-soft/40 p-3 space-y-2" id="karne-toplu">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-fg">Sınıfa toplu gönder: {cls.name}</span>
-        <span className="text-[11px] text-muted">Her öğrenciye yalnızca kendi karnesi gider · Tür: {TUR_NAME[tur]}</span>
+        <span className="text-sm font-bold text-fg">{downloadOnly ? 'Sınıfa toplu indir' : 'Sınıfa toplu gönder'}: {cls.name}</span>
+        <span className="text-[11px] text-muted">{downloadOnly ? 'Her öğrenci ayrı sayfada' : 'Her öğrenciye yalnızca kendi karnesi gider'} · Tür: {TUR_NAME[tur]}</span>
       </div>
       {confirmMail ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -346,6 +348,8 @@ const TopluKarneGonder: React.FC<{
           <button type="button" id="karne-toplu-zip" className={TOPLU_BTN} disabled={busy} onClick={() => void download('zip')} title="Her öğrenci ayrı PDF, hepsi tek zip dosyasında">
             <FileArchive /> Zip
           </button>
+          {!downloadOnly && (
+          <>
           <button type="button" id="karne-toplu-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmMail(true)}>
             <Mail /> Tümüne e-posta
           </button>
@@ -376,6 +380,8 @@ const TopluKarneGonder: React.FC<{
           <button type="button" id="karne-link-iptal" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmRevoke(true)} title="Bu sınıfa SMS ile gönderilen karne linklerini kapatır">
             <Ban /> Linkleri iptal et
           </button>
+          </>
+          )}
         </div>
       )}
       {progress && (
@@ -456,8 +462,11 @@ export const DenemeKarne: React.FC<{
   exams: DenemeExam[]; // özet liste (en yeni önce)
   students: Student[];
   classes: ClassGroup[];
-}> = ({ exams, students, classes }) => {
-  const [mode, setMode] = useHistoryState<Mode>('deneme.karne.mode', 'ogrenci'); // Aşama 52: geri tuşu
+  /** Aşama 102: öğretmen — yalnızca öğrenci ve sınıf karnesi; e-posta, SMS, WhatsApp, plana aktarma ve hedef kaydı yok */
+  limited?: boolean;
+}> = ({ exams, students, classes, limited = false }) => {
+  const [rawMode, setMode] = useHistoryState<Mode>('deneme.karne.mode', 'ogrenci'); // Aşama 52: geri tuşu
+  const mode: Mode = limited && rawMode !== 'ogrenci' && rawMode !== 'sinif' ? 'ogrenci' : rawMode;
   const [scope, setScope] = useState<ScopeKey>('last5');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [classId, setClassId] = useState('');
@@ -656,9 +665,13 @@ export const DenemeKarne: React.FC<{
             items={[
               { value: 'ogrenci', label: 'Öğrenci karnesi' },
               { value: 'sinif', label: 'Sınıf karnesi' },
-              { value: 'karsilastirma', label: 'Sınıflar arası' },
-              { value: 'isi', label: 'Kazanım ısı haritası' },
-              ...(isAdmin ? [{ value: 'kurum' as Mode, label: 'Kurum özeti' }] : []),
+              ...(limited
+                ? []
+                : [
+                    { value: 'karsilastirma' as Mode, label: 'Sınıflar arası' },
+                    { value: 'isi' as Mode, label: 'Kazanım ısı haritası' },
+                    ...(isAdmin ? [{ value: 'kurum' as Mode, label: 'Kurum özeti' }] : []),
+                  ]),
             ]}
           />
           <Segmented value={scope} onChange={(v) => setScope(v)} size="sm" items={SCOPES} />
@@ -754,14 +767,16 @@ export const DenemeKarne: React.FC<{
             <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void onPdf()}>
               <Download /> PDF indir
             </button>
-            {mode === 'ogrenci' && (
+            {mode === 'ogrenci' && !limited && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void onMail()}>
                 <Mail /> Öğrenciye e-posta
               </button>
             )}
-            <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void onWhatsapp()}>
-              <MessageCircle /> WhatsApp ile paylaş
-            </button>
+            {!limited && (
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void onWhatsapp()}>
+                <MessageCircle /> WhatsApp ile paylaş
+              </button>
+            )}
             {busy && <span className="text-xs text-muted">Hazırlanıyor…</span>}
           </div>
         )}
@@ -779,7 +794,7 @@ export const DenemeKarne: React.FC<{
           </p>
         )}
         {mode === 'ogrenci' && cls && scoped.length > 0 && (
-          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} tur={tur} bank={bank} teacherName={teacherName} />
+          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} tur={tur} bank={bank} teacherName={teacherName} downloadOnly={limited} />
         )}
       </div>
 
@@ -795,7 +810,7 @@ export const DenemeKarne: React.FC<{
       ) : mode === 'ogrenci' && tur === 'kazanim' ? (
         <KazanimTakipView exams={fullExams} results={results} bank={bank} bankLoading={bank === undefined} />
       ) : mode === 'ogrenci' && tur === 'plan' ? (
-        <CalismaPlaniView exams={fullExams} results={results} editable onChange={setPlanPicks} onTransfer={(list) => setTransfer(list)} />
+        <CalismaPlaniView exams={fullExams} results={results} editable onChange={setPlanPicks} onTransfer={limited ? undefined : (list) => setTransfer(list)} />
       ) : mode === 'ogrenci' ? (
         <StudentKarneView
           exams={fullExams}
@@ -807,6 +822,7 @@ export const DenemeKarne: React.FC<{
           onDetailExamChange={setDetailExamId}
           scopeLabel={scopeLabel(scope)}
           targetEditor={
+            limited ? undefined : (
             <div className="flex flex-wrap items-end gap-2">
               <div>
                 <label className="ui-label" htmlFor="karne-target">Hedef puan</label>
@@ -817,6 +833,7 @@ export const DenemeKarne: React.FC<{
               </button>
               <span className="text-[11px] text-muted">Hedef öğrencinin kendi karnesinde de görünür. Silmek için kutuyu boşaltıp kaydedin.</span>
             </div>
+            )
           }
         />
       ) : mode === 'sinif' && cls && sinifTur === 'birlesik' ? (

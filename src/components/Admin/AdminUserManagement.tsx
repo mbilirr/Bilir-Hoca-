@@ -39,6 +39,8 @@ import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, type TeacherRole } from '../../lib/teacherRoles';
+import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
+import { GradeTicks } from './GradeTicks';
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
@@ -86,6 +88,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [selectedAuthClassIds, setSelectedAuthClassIds] = useState<string[]>([]);
   const [selectedAuthStudentIds, setSelectedAuthStudentIds] = useState<string[]>([]);
   const [authStudentSearch, setAuthStudentSearch] = useState('');
+  // Aşama 102: görebileceği kademeler (kademedeki sınıflar listede kilitli işaretli görünür)
+  const [authGrades, setAuthGrades] = useState<TeacherGrades>(EMPTY_GRADES);
+  const [authGradesMissing, setAuthGradesMissing] = useState(false);
 
   // Edit form state
   const [editFormData, setEditFormData] = useState<{
@@ -423,6 +428,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     }
   };
 
+  const authGradeOptions = useMemo(() => gradeOptionsFrom(classes), [classes]);
+  const gradeCovered = useMemo(() => classesCoveredBy(classes, authGrades), [classes, authGrades]);
+
   // Open Teacher Authorization Modal
   const handleOpenAuthModal = async (teacher: UnifiedUser) => {
     // Aşama 98: genel yönetici kendi panelinde kurum öğretmeninin kurum sınıflarını göremez; boş kayıtla mevcut
@@ -445,8 +453,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
     // 2. Doğrudan ve SADECE veritabanından çek (eski yerel dizilerle union yapma)
     try {
-      const cloudAccess = await dataService.getTeacherCloudAccess(authUserId);
+      const [cloudAccess, g] = await Promise.all([dataService.getTeacherCloudAccess(authUserId), fetchTeacherGrades(authUserId)]);
       setSelectedAuthClassIds(cloudAccess.classIds || []);
+      setAuthGrades({ grades: g.grades, all: g.all });
+      setAuthGradesMissing(g.missing === true);
       setSelectedAuthStudentIds(cloudAccess.studentIds || []);
       setAuthStudentSearch('');
       // SADECE sorgu başarılı olursa modalı aç
@@ -465,11 +475,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const handleSaveAuthModal = async () => {
     if (!authModalTeacher) return;
     try {
+      // Aşama 102: kademeden gelen sınıflar elle listeye yazılmaz; matris kaydı tüm satırları yeniden yazdığı için
+      // ardından kademeler yeniden uygulanır
       await dataService.adminUpdateTeacherAuthorizations(
         authModalTeacher.id,
-        selectedAuthClassIds,
+        selectedAuthClassIds.filter((id) => !gradeCovered.has(id)),
         selectedAuthStudentIds
       );
+      const authId = authModalTeacher.auth_user_id || authModalTeacher.id;
+      if (!authGradesMissing) await saveTeacherGrades(authId, authGrades);
+      else if (authGrades.all || authGrades.grades.length) throw new Error('Kademe kaydı için önce sql/102_ogretmen_kademe.sql çalıştırılmalı.');
       showToast(
         `✓ "${authModalTeacher.name}" için sınıf ve öğrenci erişim yetkileri başarıyla güncellendi.`,
         'success'
@@ -1665,12 +1680,22 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </p>
               </div>
 
+              {/* Aşama 102: Görebileceği kademeler */}
+              <div className="space-y-1.5">
+                <GradeTicks id="teacher-access-grades" options={authGradeOptions} value={authGrades} onChange={setAuthGrades} />
+                {authGradesMissing && (
+                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-access-grades-missing">
+                    Kademe için önce Supabase'de sql/102_ogretmen_kademe.sql çalıştırılmalı.
+                  </p>
+                )}
+              </div>
+
               {/* 1. Sınıf Yetkilendirmeleri */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-wider text-fg-2 flex items-center space-x-2">
                     <School className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Sınıf Erişim Yetkileri ({selectedAuthClassIds.length}/{classes.length} Sınıf Seçili)</span>
+                    <span>Sınıf Erişim Yetkileri ({new Set([...selectedAuthClassIds, ...gradeCovered]).size}/{classes.length} Sınıf Seçili)</span>
                   </h4>
                   <div className="flex items-center space-x-2 text-[11px]">
                     <button
@@ -1696,11 +1721,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {classes.map((cls) => {
-                      const isChecked = selectedAuthClassIds.includes(cls.id);
+                      const viaGrade = gradeCovered.has(cls.id);
+                      const isChecked = viaGrade || selectedAuthClassIds.includes(cls.id);
                       return (
                         <label
                           key={cls.id}
-                          className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          title={viaGrade ? 'Kademeden açık; kapatmak için yukarıdan kademeyi kaldırın' : undefined}
+                          className={`p-3 rounded-xl border flex items-center justify-between transition-all ${viaGrade ? 'cursor-default' : 'cursor-pointer'} ${
                             isChecked
                               ? 'bg-indigo-600/15 border-indigo-500/50 text-fg'
                               : 'bg-canvas/80 border-line text-muted hover:border-line'
@@ -1710,6 +1737,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <input
                               type="checkbox"
                               checked={isChecked}
+                              disabled={viaGrade}
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setSelectedAuthClassIds([...selectedAuthClassIds, cls.id]);
@@ -1728,7 +1756,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               </span>
                             </div>
                           </div>
-                          {isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-2" />}
+                          {viaGrade ? (
+                            <span className="ui-chip ui-chip-brand shrink-0 ml-2 text-[10px]">Kademeden</span>
+                          ) : (
+                            isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-2" />
+                          )}
                         </label>
                       );
                     })}
@@ -1775,7 +1807,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     .slice(0, 30)
                     .map((std) => {
                       const isDirectAuth = selectedAuthStudentIds.includes(std.id);
-                      const isViaClass = selectedAuthClassIds.includes(std.classId);
+                      const isViaClass = selectedAuthClassIds.includes(std.classId) || gradeCovered.has(std.classId);
 
                       return (
                         <div
@@ -1903,6 +1935,10 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const rolesOff = roleUi && dataService.getMyKurum().rolesEnabled !== true;
   const [roles, setRoles] = useState<TeacherRole[]>(['ogretmen']);
   const [roleNote, setRoleNote] = useState<{ ok: boolean; text: string } | null>(null);
+  // Aşama 102: görebileceği kademeler (kurumdaki sınıflardan)
+  const gradeOptions = useMemo(() => gradeOptionsFrom(dataService.getAllClasses()), []);
+  const [grades, setGrades] = useState<TeacherGrades>(EMPTY_GRADES);
+  const [gradeNote, setGradeNote] = useState<{ ok: boolean; text: string } | null>(null);
   const toggleRole = (r: TeacherRole) =>
     setRoles((cur) => {
       if (cur.includes(r)) return cur.filter((x) => x !== r);
@@ -1924,6 +1960,16 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
           setRoleNote({ ok: true, text: `Unvan: ${saved.map(roleLabel).join(', ')}` });
         } catch (er: any) {
           setRoleNote({ ok: false, text: `Rol verilemedi (${er?.message || 'hata'}). "Unvanlar ve Roller" bölümünden verin.` });
+        }
+      }
+      // Aşama 102: kademeler hesapla birlikte verilir; verilemezse erişim (kalkan) penceresinden verilir
+      if (grades.all || grades.grades.length) {
+        try {
+          if (!res.teacher.auth_user_id) throw new Error('giriş hesabı bulunamadı');
+          const g = await saveTeacherGrades(res.teacher.auth_user_id, grades);
+          setGradeNote({ ok: true, text: `Kademe: ${gradesLabel(g)} (${g.classes} sınıf)` });
+        } catch (er: any) {
+          setGradeNote({ ok: false, text: `Kademe verilemedi (${er?.message || 'hata'}). Listedeki kalkan (erişim) düğmesinden verin.` });
         }
       }
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
@@ -1975,6 +2021,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             {roleNote && (
               <div id="teacher-create-role-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${roleNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
                 {roleNote.text}
+              </div>
+            )}
+            {gradeNote && (
+              <div id="teacher-create-grade-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${gradeNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
+                {gradeNote.text}
               </div>
             )}
             {mailNotice && (
@@ -2126,8 +2177,9 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <p className="text-[10px] text-muted">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
               </div>
             )}
+            <GradeTicks id="teacher-create-grades" options={gradeOptions} value={grades} onChange={setGrades} />
             <p className="text-[11px] text-muted">
-              Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
+              Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız.
             </p>
             <MailOptIn
               id="teacher-create-notify"

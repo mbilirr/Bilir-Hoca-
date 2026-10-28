@@ -4366,6 +4366,17 @@ export class DataService {
     const mod = this.myKurum.modules?.deneme === true;
     return mod && (this.isKurumAdmin() || this.hasRole('olcme_degerlendirme'));
   }
+  /**
+   * Aşama 102: Deneme Analizi'nde yalnızca öğrenci / sınıf karnesini ve puan sıralamasını gören öğretmen
+   * (Öğretmen, Zümre Başkanı, Etüt Öğretmeni). Rol yetkileri anahtarından bağımsızdır; yönetici, Müdür,
+   * Müdür Yrd., Rehberlik ve Ölçme Değerlendirme bu kısıtın dışındadır.
+   */
+  public isPlainDenemeViewer(): boolean {
+    if (this.getAuthSession()?.role !== 'teacher') return false;
+    if (this.isHeadAdmin() || this.isCurrentUserAdmin() || this.canManageDeneme()) return false;
+    const wide = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
+    return !(this.myKurum.roles || []).some((r) => wide.includes(r));
+  }
   /** Öğrenci düzenleyebilir mi (yönetici, Rehberlik, Ölçme Değerlendirme) */
   public canEditStudents(): boolean {
     if (!this.myKurum.supported) return this.canManageStudents();
@@ -5272,11 +5283,16 @@ export class DataService {
     this.notify();
   }
 
-  public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[] }> {
-    const { data: cData, error: cErr } = await supabase
-      .from('teacher_class_access')
-      .select('class_id')
-      .eq('teacher_auth_id', teacherAuthId);
+  public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[]; gradeClassIds: string[] }> {
+    // Aşama 102: kademeden gelen sınıflar (via_grade) ayrı döner; SQL 102 yoksa eski sorgu
+    const withFlag = await supabase.from('teacher_class_access').select('class_id,via_grade').eq('teacher_auth_id', teacherAuthId);
+    let cData: Array<{ class_id: string; via_grade?: boolean }> | null = withFlag.data;
+    let cErr = withFlag.error;
+    if (cErr && /via_grade/i.test(cErr.message || '')) {
+      const plain = await supabase.from('teacher_class_access').select('class_id').eq('teacher_auth_id', teacherAuthId);
+      cData = plain.data;
+      cErr = plain.error;
+    }
 
     if (cErr) {
       throw new Error(`Sınıf erişim izinleri veritabanından okunamadı: ${cErr.message}`);
@@ -5292,8 +5308,9 @@ export class DataService {
     }
 
     return {
-      classIds: cData ? cData.map((r: any) => r.class_id) : [],
+      classIds: cData ? cData.filter((r: any) => r.via_grade !== true).map((r: any) => r.class_id) : [],
       studentIds: sData ? sData.map((r: any) => r.student_id) : [],
+      gradeClassIds: cData ? cData.filter((r: any) => r.via_grade === true).map((r: any) => r.class_id) : [],
     };
   }
 
