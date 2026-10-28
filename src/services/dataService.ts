@@ -166,7 +166,7 @@ interface MyKurumState {
   /** Aşama 82: kurumda rol yetkileri açık mı, oturumdaki kişinin rolleri, rol ayarları, kurum logosu, kurum maili */
   rolesEnabled: boolean;
   roles: string[];
-  roleSettings: { rehberlik_ogrenci_ekle?: boolean };
+  roleSettings: { rehberlik_ogrenci_ekle?: boolean; idare_ders_verir?: boolean };
   logo: string;
   hasMail: boolean;
   /** Aşama 83: kişiye özel bölüm izinleri (rolden bağımsız açılan / kapatılan bölümler) */
@@ -4260,10 +4260,68 @@ export class DataService {
     return this.rolesActive() && (this.myKurum.sections?.allow || []).includes(tab);
   }
   public roleCanTeach(): boolean {
+    if (this.idareDersKapali()) return false; // Aşama 98
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
     const r = this.myKurum.roles || [];
     return r.length === 0 || r.some((x) => x === 'rehberlik' || x === 'zumre_baskani' || x === 'ogretmen');
   }
+  // ===========================================================================
+  // Aşama 98: İDARE ve KURUM GEÇİŞİ. Asıl denetim veritabanındadır (98 numaralı SQL); bunlar ekrandaki karşılığıdır.
+  // ===========================================================================
+  /** Bu sekme genel yöneticinin kurum seçiciyle açtığı geçiş oturumu mu */
+  public isKurumGecis(): boolean {
+    try {
+      const raw = window.sessionStorage.getItem('edu_sys_kurum_gecis');
+      return !!raw && !!JSON.parse(raw)?.active;
+    } catch {
+      return false;
+    }
+  }
+  /** İdare (kurum yöneticisi, Müdür, Müdür Yrd.) ders vermiyor mu — Kurum Ayarları'ndaki "İdare ödev / etüt verebilsin" kapalıysa */
+  public idareDersKapali(): boolean {
+    return this.isKurumAdmin() && !this.isKurumGecis() && this.myKurum.roleSettings?.idare_ders_verir !== true;
+  }
+  /** Ödev verebilir mi (Ödev Oluştur / Kopyala düğmeleri) */
+  public canGiveHomework(): boolean {
+    return this.canUseTab('homework') && (this.roleCanTeach() || this.sectionExplicitAllow('homework'));
+  }
+  /** Soru hedefi verebilir mi (idare ayar kapalıyken vermez; veritabanı da reddeder) */
+  public canGiveTargets(): boolean {
+    return this.canUseTab('question_tracking') && (this.roleCanTeach() || this.sectionExplicitAllow('question_tracking'));
+  }
+  /** Haftalık plan görevi ekleyebilir mi (ödev bölümü; idare ayar kapalıyken eklemez) */
+  public canEditPlans(): boolean {
+    return this.canUseTab('homework') && (this.roleCanTeach() || this.sectionExplicitAllow('homework'));
+  }
+  /** Etüt planlayabilir mi (idare yalnızca başka öğretmen adına planlar) */
+  public canPlanEtut(): boolean {
+    return this.canUseTab('etuts') && (this.roleCanTeach() || this.sectionExplicitAllow('etuts') || this.idareDersKapali());
+  }
+  /** Başka öğretmenlerin çalışmalarını görüyor mu (ana sayfada "Benim / Kurumun" seçimi) */
+  public seesOthersWork(): boolean {
+    return this.isHeadAdmin() || this.isKurumAdmin() || this.roleSeesOthersWork();
+  }
+  /** Ana sayfada Kurum Özeti gösterilsin mi (idare) */
+  public showsKurumOzeti(): boolean {
+    return this.isKurumAdmin();
+  }
+  /** Etüt / ödev bu oturumdaki öğretmenin mi (ana sayfa "Benim" seçimi) */
+  public isMine(item: Etut | Homework): boolean {
+    return 'dueDate' in item ? this.isMyHomework(item as Homework) : this.isMyEtut(item as Etut);
+  }
+  /** Ödevin sahibi öğretmenin kimliği ve adı (öğretmene göre süzme) */
+  public homeworkOwner(hw: Homework): { id: string; name: string } {
+    const ids = this.homeworkOwnerIds(hw);
+    const t = ids.length ? this.teachers.find((x) => x.id === ids[0]) : undefined;
+    const name = t?.name || hw.teacherName || hw.createdByName || 'Bilinmeyen öğretmen';
+    return { id: t?.id || hw.teacherId || hw.teacherAuthId || `ad:${name}`, name };
+  }
+  /** Not / yoklama kaydını giren öğretmen (giriş hesabından) */
+  public teacherByAuthId(authId?: string | null): Teacher | undefined {
+    if (!authId) return undefined;
+    return this.teachers.find((t) => t.auth_user_id === authId);
+  }
+
   /** Görünürlüğü veritabanı belirler (yüklenen kayıtların hepsi bu kişiye açıktır) */
   private roleTrustsDb(): boolean {
     return this.roleWideView() || this.hasRole('zumre_baskani') || this.roleEtutOnly();

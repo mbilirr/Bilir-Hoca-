@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info } from 'lucide-react';
-import { dataService } from '../../services/dataService';
+import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
 import { SelectBox } from '../Teacher/FormParts';
 import { callMail } from '../../lib/mailApi';
@@ -9,6 +9,8 @@ import {
   fetchKurumRows,
   setRolesEnabled,
   setRehberlikOgrenciEkle,
+  setIdareDersVerir,
+  setKurumModules,
   updateKurumIdentity,
   imageFileToLogo,
   type KurumRow,
@@ -19,6 +21,8 @@ import {
 //  - Kurum adı ve logosu (üst menüde ve karnelerde görünür; kurum e-postalarının başlığında kurum adı yazar)
 //  - Kurum gönderim e-postası: kurumdaki bütün e-postalar bu tek Gmail adresinden gider, "Yanıtla" öğretmene gider
 //  - Rol yetkileri anahtarı (yalnızca genel yönetici) ve "Rehberlik öğrenci ekleyip silebilsin" ayarı
+//  - Aşama 98: "İdare ödev / etüt verebilsin" ayarı; genel yönetici kuruma geçmişken rol anahtarını ve kurum bölümlerini
+//    burada değiştirir (izinli sınıflar genel yöneticinin kendi panelinde kalır)
 // Genel yönetici kurum seçerek, kurum yöneticisi (Müdür / Müdür Yrd.) yalnızca kendi kurumunda düzenler.
 // Tüm kutular ve düğmeler aynı yükseklikte (2rem) ve aynı yazı boyutunda; düğmeler eşit genişlikte.
 // ============================================================================
@@ -48,6 +52,8 @@ export const KurumSettingsPanel: React.FC = () => {
   const [tick, setTick] = useState(0);
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const isHead = dataService.isHeadAdmin();
+  const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
+  const canRoles = isHead || gecis;
   const my = dataService.getMyKurum();
 
   const [rows, setRows] = useState<KurumRow[] | null>(null);
@@ -79,6 +85,7 @@ export const KurumSettingsPanel: React.FC = () => {
       logo: my.logo || '',
       rolesEnabled: my.rolesEnabled === true,
       rehberlikOgrenciEkle: my.roleSettings?.rehberlik_ogrenci_ekle === true,
+      idareDersVerir: my.roleSettings?.idare_ders_verir === true,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHead, rows, selectedId, tick]);
@@ -205,6 +212,47 @@ export const KurumSettingsPanel: React.FC = () => {
     }
   };
 
+  const toggleIdare = async () => {
+    if (!kurum || roleBusy) return;
+    setRoleBusy(true);
+    try {
+      await setIdareDersVerir(kurum.id, !kurum.idareDersVerir);
+      await refreshAfter();
+      setNotice({
+        tone: 'ok',
+        text: !kurum.idareDersVerir ? 'İdare artık ödev ve etüt verebilir.' : 'İdare artık ödev vermez; etüdü yalnızca başka öğretmen adına planlar.',
+      });
+    } catch (e: any) {
+      setNotice({ tone: 'err', text: e?.message || 'Değiştirilemedi.' });
+    } finally {
+      setRoleBusy(false);
+    }
+  };
+
+  // ---- Aşama 98: kurum bölümleri (yalnızca genel yönetici kuruma geçmişken)
+  const [mods, setMods] = useState<Record<string, boolean>>({});
+  const [modBusy, setModBusy] = useState(false);
+  const modKey = JSON.stringify(my.modules || {});
+  useEffect(() => {
+    setMods(Object.fromEntries(KURUM_MODULES.map((m) => [m.key, (my.modules as any)?.[m.key] === true])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modKey]);
+  const modDirty = KURUM_MODULES.some((m) => !!mods[m.key] !== ((my.modules as any)?.[m.key] === true));
+  const saveMods = async () => {
+    if (!kurum || modBusy || !modDirty) return;
+    if (!Object.values(mods).some(Boolean)) return setNotice({ tone: 'err', text: 'Kurum için en az bir bölüm açık olmalıdır.' });
+    setModBusy(true);
+    try {
+      await setKurumModules(kurum.id, mods);
+      await dataService.syncMyKurum();
+      setNotice({ tone: 'ok', text: 'Kurum bölümleri kaydedildi. Kurumdaki kullanıcılar sayfayı yenileyince yeni izinleri görür.' });
+    } catch (e: any) {
+      setNotice({ tone: 'err', text: e?.message || 'Kaydedilemedi.' });
+    } finally {
+      setModBusy(false);
+    }
+  };
+
   if (!isHead && !dataService.isKurumAdmin()) return null;
 
   return (
@@ -320,7 +368,7 @@ export const KurumSettingsPanel: React.FC = () => {
                     id="roles-enabled-switch"
                     label="Rollere göre yetkiler"
                     on={kurum.rolesEnabled}
-                    disabled={!isHead || roleBusy}
+                    disabled={!canRoles || roleBusy}
                     onChange={() => setConfirmRoles(!kurum.rolesEnabled)}
                   />
                 </span>
@@ -329,15 +377,54 @@ export const KurumSettingsPanel: React.FC = () => {
                 <span className="text-xs text-fg-2">Rehberlik öğrenci ekleyip silebilsin</span>
                 <Switch id="rehberlik-add-switch" label="Rehberlik öğrenci ekleyip silebilsin" on={kurum.rehberlikOgrenciEkle} disabled={roleBusy} onChange={toggleRehberlik} />
               </div>
+              <div className="flex items-center justify-between gap-2 h-8">
+                <span className="text-xs text-fg-2">İdare ödev / etüt verebilsin</span>
+                <Switch id="idare-ders-switch" label="İdare ödev / etüt verebilsin" on={kurum.idareDersVerir} disabled={roleBusy} onChange={toggleIdare} />
+              </div>
+              {!kurum.rolesEnabled && (
+                <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2 py-1.5 text-[11px] font-semibold" id="roles-off-warning">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                  <span>Rol yetkileri kapalı: verilen roller (Rehberlik, Ölçme vb.) ve kişiye özel bölüm izinleri uygulanmaz.</span>
+                </p>
+              )}
               <p className="flex items-start gap-1.5 text-[11px] text-muted">
                 <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
                 <span>
-                  {isHead
-                    ? 'Kapalıyken kurum bugünkü gibi çalışır. Açınca "Unvanlar ve Roller" bölümünde verilen roller uygulanır. Önce rolleri verin, sonra açın.'
-                    : 'Rol yetkilerini genel yönetici açar. Rehberlik ayarını kurum yöneticisi değiştirebilir.'}
+                  {canRoles
+                    ? 'Kapalıyken kurum bugünkü gibi çalışır. Açınca "Unvanlar ve Roller" bölümünde verilen roller uygulanır. İdare ayarı kapalıyken Müdür / Müdür Yrd. ödev vermez, etüdü başka öğretmen adına planlar.'
+                    : 'Rol yetkilerini genel yönetici açar. Rehberlik ve idare ayarlarını kurum yöneticisi değiştirebilir.'}
                 </span>
               </p>
             </section>
+
+            {/* Aşama 98: kurum bölümleri — genel yönetici kuruma geçmişken */}
+            {gecis && (
+              <section className="rounded-xl border border-line p-3 space-y-2.5 lg:col-span-3" id="kurum-modules">
+                <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
+                  <LayoutGrid className="w-3.5 h-3.5 text-brand-fg" /> Kurum bölümleri
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1">
+                  {KURUM_MODULES.map((m) => (
+                    <div key={m.key} className="flex items-center justify-between gap-2 h-8" title={m.description}>
+                      <span className="text-xs text-fg-2 truncate">{m.title}</span>
+                      <Switch
+                        id={`kurum-mod-${m.key}`}
+                        label={m.title}
+                        on={!!mods[m.key]}
+                        disabled={modBusy}
+                        onChange={() => setMods((p) => ({ ...p, [m.key]: !p[m.key] }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-muted">İzinli sınıflar genel yöneticinin kendi panelindeki "Kurumlar" bölümünden verilir.</p>
+                  <button type="button" id="kurum-modules-save" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={saveMods} disabled={!modDirty || modBusy}>
+                    {modBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>

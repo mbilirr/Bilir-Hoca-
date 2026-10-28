@@ -183,8 +183,10 @@ const EtutFormContent: React.FC<Props> = ({
 
   // ---- bu dersin ve aynı zümrenin öğretmenleri (Aşama 12: Fen seçilince Fizik/Kimya/Biyoloji öğretmenleri de)
   const zumre = useMemo(() => zumreOf(effectiveSubject), [effectiveSubject]);
+  // Aşama 98: idare (ayar kapalıyken) etüdü yalnızca başka öğretmen adına planlar — kendisi listede yer almaz
+  const idareAdina = dataService.idareDersKapali();
   const subjectTeachers = useMemo(() => {
-    const list = (teacherOptions || []).filter((o) => o.isMe || o.subjects.some((s) => zumre.subjects.includes(s)));
+    const list = (teacherOptions || []).filter((o) => (idareAdina ? !o.isMe && o.id !== me?.id : true) && (o.isMe || o.subjects.some((s) => zumre.subjects.includes(s))));
     // düzenlenen etüdün mevcut öğretmenleri listede yoksa kaybolmasın
     if (isEdit || isCopy) {
       initial.teacherIds.forEach((id, i) => {
@@ -193,11 +195,11 @@ const EtutFormContent: React.FC<Props> = ({
         list.push({ id, name, subjects: [effectiveSubject], kind: id.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
       });
     }
-    if (me && !list.some((o) => o.isMe || o.id === me.id)) {
+    if (me && !idareAdina && !list.some((o) => o.isMe || o.id === me.id)) {
       list.unshift({ id: me.id, name: me.name, subjects: subjectsForBranch(me.branch), kind: 'system', hasEmail: !!me.email, rowId: null, isMe: true });
     }
     return list.sort((a, b) => (a.isMe === b.isMe ? (a.kind === b.kind ? a.name.localeCompare(b.name, 'tr') : a.kind === 'system' ? -1 : 1) : a.isMe ? -1 : 1));
-  }, [teacherOptions, effectiveSubject, zumre, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me]);
+  }, [teacherOptions, effectiveSubject, zumre, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me, idareAdina]);
 
   // Ders değişince: o ders için son seçilen öğretmen, yoksa (kendi dersiyse) öğretmenin kendisi
   useEffect(() => {
@@ -328,6 +330,8 @@ const EtutFormContent: React.FC<Props> = ({
     setConfirmDiscard(false);
     if (!effectiveSubject) return setErrorText('Ders seçin.');
     if (!selectedTeacher) return setErrorText('Etüt öğretmenini seçin.');
+    if (idareAdina && selectedTeachers.some((o) => o.isMe || o.id === me?.id))
+      return setErrorText('İdare etüdü yalnızca başka bir öğretmen adına planlar. Etüt öğretmenini seçin.');
     if (!topic.trim()) return setErrorText('Etüt konusunu yazın.');
     if (selectedIds.length === 0) return setErrorText('En az bir öğrenci seçin.');
     if (!date) return setErrorText('Tarih seçin.');
@@ -548,6 +552,11 @@ const EtutFormContent: React.FC<Props> = ({
               currentSubject={effectiveSubject}
               allLabel={zumre.subjects.length > 1 ? `${zumre.name} zümresinin tüm öğretmenleri` : undefined}
             />
+            {idareAdina && (
+              <p className="text-[11px] font-semibold text-info-fg mt-1" id="etut-idare-adina">
+                Etüdü öğretmen adına planlıyorsunuz; etüt seçilen öğretmenin takviminde görünür ve ona e-posta gider.
+              </p>
+            )}
             <p className="text-[11px] text-muted mt-1">
               Kutucuklarla birden çok öğretmen seçebilirsiniz; seçilen her öğretmene etüt tanımlanır ve e-posta gider.
               {zumre.subjects.length > 1 && ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) bütün öğretmenleri var.`}

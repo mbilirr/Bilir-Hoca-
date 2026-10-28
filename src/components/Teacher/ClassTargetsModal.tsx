@@ -72,6 +72,7 @@ export const ClassTargetsModal: React.FC<Props> = ({ isOpen, onClose, classes, s
             <Search className="w-4 h-4 text-subtle absolute left-3 top-1/2 -translate-y-1/2" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Sınıf ara (ör. 8/A)…" className={`${inputCls} pl-9`} />
           </div>
+          {dataService.canGiveTargets() && (
           <button
             type="button"
             id="btn-new-class-target"
@@ -83,6 +84,7 @@ export const ClassTargetsModal: React.FC<Props> = ({ isOpen, onClose, classes, s
           >
             <Plus className="w-4 h-4" /> Sınıfa Hedef Ver
           </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Segmented<TargetPeriodFilter> size="sm" value={period} onChange={setPeriod} items={PERIOD_ITEMS} />

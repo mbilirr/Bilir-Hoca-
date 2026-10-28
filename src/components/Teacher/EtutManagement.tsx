@@ -132,8 +132,14 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
 
   // Ana sayfa kısayolu: yeni etüt penceresini aç
-  useQuickFocus(['action'], (f) => {
-    if (f.id === 'etut-create') {
+  // Aşama 98: Kurum Özeti'nden gelen öğretmen süzgeci (etüt öğretmeni adına göre)
+  useQuickFocus(['action', 'teacher'], (f) => {
+    if (f.type === 'teacher') {
+      setListSubject('all');
+      setListTeacher(f.label);
+      return;
+    }
+    if (f.id === 'etut-create' && dataService.canPlanEtut()) {
       openEtutForm('create');
     }
   });
@@ -294,8 +300,10 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
   // Etüt oluştur / düzenle penceresi (Aşama 9)
   const [etutForm, setEtutForm] = useState<{ mode: 'create' | 'edit' | 'copy'; source: Etut | null; initialDate: string | null } | null>(null);
-  const openEtutForm = (mode: 'create' | 'edit' | 'copy', source: Etut | null = null, initialDate: string | null = null) =>
+  const openEtutForm = (mode: 'create' | 'edit' | 'copy', source: Etut | null = null, initialDate: string | null = null) => {
+    if (mode !== 'edit' && !dataService.canPlanEtut()) return; // Aşama 98
     setEtutForm({ mode, source, initialDate });
+  };
   const openEdit = (etut: Etut) => openEtutForm('edit', etut);
   const openCopy = (etut: Etut) => openEtutForm('copy', etut);
   const handleAddEtutForDate = (dateStr: string) => openEtutForm('create', null, dateStr);
@@ -412,17 +420,19 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             >
               <Mail className="w-4 h-4" />
             </button>
-            <button
-              type="button"
-              id="btn-create-etut"
-              onClick={() => {
-                openEtutForm('create');
-              }}
-              className="ui-btn ui-btn-primary"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Yeni Etüt Planla</span>
-            </button>
+            {dataService.canPlanEtut() && (
+              <button
+                type="button"
+                id="btn-create-etut"
+                onClick={() => {
+                  openEtutForm('create');
+                }}
+                className="ui-btn ui-btn-primary"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yeni Etüt Planla</span>
+              </button>
+            )}
           </>
         }
       />

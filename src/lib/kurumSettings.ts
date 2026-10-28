@@ -11,6 +11,8 @@ export interface KurumRow {
   logo: string;
   rolesEnabled: boolean;
   rehberlikOgrenciEkle: boolean;
+  /** Aşama 98: idare (kurum yöneticisi, Müdür, Müdür Yrd.) ödev / etüt verebilir mi */
+  idareDersVerir: boolean;
 }
 
 const setupMsg = "Kurum ayarları bulunamadı. Supabase SQL Editor'de sql/82_rol_yetkileri_kurum_kimligi.sql dosyasını çalıştırın.";
@@ -27,6 +29,7 @@ export async function fetchKurumRows(): Promise<KurumRow[]> {
     logo: typeof k.logo === 'string' ? k.logo : '',
     rolesEnabled: k.roles_enabled === true,
     rehberlikOgrenciEkle: !!(k.role_settings && k.role_settings.rehberlik_ogrenci_ekle === true),
+    idareDersVerir: !!(k.role_settings && k.role_settings.idare_ders_verir === true),
   }));
 }
 
@@ -38,6 +41,20 @@ export async function setRolesEnabled(kurumId: string, on: boolean): Promise<voi
 export async function setRehberlikOgrenciEkle(kurumId: string, on: boolean): Promise<void> {
   const { error } = await supabase.rpc('kurum_set_role_settings', { p_kurum_id: kurumId, p_settings: { rehberlik_ogrenci_ekle: on } });
   if (error) throw new Error(missing(error) ? setupMsg : error.message);
+}
+
+const setup98 = "Bu ayar için Supabase SQL Editor'de Aşama 98 dosyasını (98_kurum_duzeltme_idare.sql) çalıştırın.";
+
+/** Aşama 98: idare ödev / etüt verebilsin (kapalıyken idare yalnızca başka öğretmen adına etüt planlar) */
+export async function setIdareDersVerir(kurumId: string, on: boolean): Promise<void> {
+  const { error } = await supabase.rpc('kurum_set_role_settings', { p_kurum_id: kurumId, p_settings: { idare_ders_verir: on } });
+  if (error) throw new Error(missing(error) ? setup98 : error.message);
+}
+
+/** Aşama 98: kurum bölüm izinleri (genel yönetici; kuruma geçmişken de) */
+export async function setKurumModules(kurumId: string, modules: Record<string, boolean>): Promise<void> {
+  const { error } = await supabase.rpc('kurum_set_modules', { p_kurum_id: kurumId, p_modules: modules });
+  if (error) throw new Error(missing(error) || /kurum_set_modules/.test(error.message || '') ? setup98 : error.message);
 }
 
 /** logo: undefined = değiştirme, '' = kaldır, data URL = yeni logo */

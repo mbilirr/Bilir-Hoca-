@@ -133,7 +133,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   };
 
   // Hızlı arama / ana sayfa kısayolu: seçilen ödevi kontrol ekranında aç veya yeni ödev penceresini aç
-  useQuickFocus(['homework', 'action'], (f) => {
+  useQuickFocus(['homework', 'action', 'teacher'], (f) => {
+    if (f.type === 'teacher') {
+      // Aşama 98: Kurum Özeti'nden gelen öğretmen süzgeci
+      setActiveTab('all');
+      setHwFilterTeacher(f.id);
+      return;
+    }
     if (f.type === 'homework') {
       const hw = homeworks.find((h) => h.id === f.id);
       if (hw) focusHomeworkInTracker(hw);
@@ -141,7 +147,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         setActiveTab('tracker');
         setSelectedHomeworkId(f.id);
       }
-    } else if (f.id === 'homework-create') {
+    } else if (f.id === 'homework-create' && canGive) {
       openHomeworkForm('create');
     }
   });
@@ -157,6 +163,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [hwSearchQuery, setHwSearchQuery] = useState('');
   const [hwFilterSubject, setHwFilterSubject] = useState('all');
   const [hwFilterClassId, setHwFilterClassId] = useState('all');
+  const [hwFilterTeacher, setHwFilterTeacher] = useState('all'); // Aşama 98: öğretmene göre
   const [isHwSearchDropdownOpen, setIsHwSearchDropdownOpen] = useState(false);
 
 
@@ -307,7 +314,12 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
   // Ödev oluştur / kopyala / düzenle penceresi (Aşama 9)
   const [homeworkForm, setHomeworkForm] = useState<{ mode: HomeworkFormMode; source: Homework | null } | null>(null);
-  const openHomeworkForm = (mode: HomeworkFormMode, source: Homework | null = null) => setHomeworkForm({ mode, source });
+  // Aşama 98: idare (ayar kapalıyken) ve ders vermeyen roller yeni ödev açamaz / kopyalayamaz (veritabanı da reddeder)
+  const canGive = dataService.canGiveHomework();
+  const openHomeworkForm = (mode: HomeworkFormMode, source: Homework | null = null) => {
+    if (mode !== 'edit' && !canGive) return;
+    setHomeworkForm({ mode, source });
+  };
   // Otomatik e-posta sonucu (Aşama 32: 15 sn sonra kendiliğinden kaybolur ya da kapatılır)
   const [mailNotice, setMailNotice] = useState<{ tone: 'success' | 'warning' | 'danger' | 'info'; text: string } | null>(null);
   useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
@@ -437,9 +449,23 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   };
   const deferredHwSearch = useDeferredValue(hwSearchQuery);
   // "Tüm Ödevler" listesi: süzme bir kez yapılır, liste 50'şer çizilir ("Daha fazla göster")
+  // Aşama 98: ödevlerin sahibi öğretmenler (birden fazlaysa "Öğretmene göre" süzgeci görünür)
+  const ownerOf = useMemo(() => {
+    const m = new Map<string, { id: string; name: string }>();
+    for (const hw of homeworks) m.set(hw.id, dataService.homeworkOwner(hw));
+    return m;
+  }, [homeworks]);
+  const ownerOptions = useMemo(() => {
+    const m = new Map<string, string>();
+    ownerOf.forEach((o) => m.set(o.id, o.name));
+    return Array.from(m.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [ownerOf]);
   const allTabHomeworks = useMemo(
     () =>
       homeworks.filter((hw) => {
+        if (hwFilterTeacher !== 'all' && ownerOf.get(hw.id)?.id !== hwFilterTeacher) return false;
         if (hwFilterSubject !== 'all' && hw.subject !== hwFilterSubject) {
           return false;
         }
@@ -460,9 +486,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         }
         return true;
       }),
-    [homeworks, hwFilterSubject, hwFilterClassId, deferredHwSearch]
+    [homeworks, hwFilterSubject, hwFilterClassId, deferredHwSearch, hwFilterTeacher, ownerOf]
   );
-  const pagedAllHw = usePagedList(allTabHomeworks, `${deferredHwSearch}|${hwFilterSubject}|${hwFilterClassId}`);
+  const pagedAllHw = usePagedList(allTabHomeworks, `${deferredHwSearch}|${hwFilterSubject}|${hwFilterClassId}|${hwFilterTeacher}`);
   // Açık (genişletilmiş) ödev sayfanın dışında kaldıysa yine gösterilir
   const visibleAllHw =
     !expandedHwId || pagedAllHw.visible.some((h) => h.id === expandedHwId)
@@ -590,19 +616,21 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         icon={BookOpen}
         tone="success"
         title="Ödevler"
-        description="Ödev oluşturun, teslimleri kontrol edin"
+        description={canGive ? 'Ödev oluşturun, teslimleri kontrol edin' : 'Öğretmenlerin verdiği ödevleri ve teslimleri inceleyin'}
         actions={
-          <button
-            type="button"
-            onClick={() => {
-              openHomeworkForm('create');
-            }}
-            id="btn-create-homework"
-            className="ui-btn ui-btn-primary"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Ödev Oluştur</span>
-          </button>
+          canGive ? (
+            <button
+              type="button"
+              onClick={() => {
+                openHomeworkForm('create');
+              }}
+              id="btn-create-homework"
+              className="ui-btn ui-btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ödev Oluştur</span>
+            </button>
+          ) : undefined
         }
       />
       <Segmented
@@ -642,16 +670,18 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
               </div>
               <h3 className="text-lg font-bold text-fg mb-2">Henüz Kayıtlı Ödev Bulunmuyor</h3>
               <p className="text-sm text-muted max-w-md mx-auto mb-6">
-                Ödev kontrolü yapabilmek için lütfen önce sisteme bir ödev ekleyiniz.
+                {canGive ? 'Ödev kontrolü yapabilmek için lütfen önce sisteme bir ödev ekleyiniz.' : 'Öğretmenler ödev verdiğinde burada görünür.'}
               </p>
-              <button
-                type="button"
-                onClick={() => openHomeworkForm('create')}
-                className="ui-btn ui-btn-primary"
-              >
-                <Plus className="w-4 h-4" />
-                <span>İlk Ödevi Oluştur</span>
-              </button>
+              {canGive && (
+                <button
+                  type="button"
+                  onClick={() => openHomeworkForm('create')}
+                  className="ui-btn ui-btn-primary"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>İlk Ödevi Oluştur</span>
+                </button>
+              )}
             </div>
           );
         }
@@ -1276,7 +1306,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         const availableSubjects = Array.from(new Set(homeworks.map((h) => h.subject))).filter(Boolean);
         const filteredHomeworks = allTabHomeworks;
 
-        const isFiltered = hwSearchQuery.trim() !== '' || hwFilterSubject !== 'all' || hwFilterClassId !== 'all';
+        const isFiltered = hwSearchQuery.trim() !== '' || hwFilterSubject !== 'all' || hwFilterClassId !== 'all' || hwFilterTeacher !== 'all';
 
         return (
           <div className="space-y-5">
@@ -1322,6 +1352,29 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                     </select>
                   </div>
 
+                  {/* Aşama 98: Öğretmen Filtresi (birden fazla öğretmenin ödevi görünüyorsa) */}
+                  {(ownerOptions.length > 1 || hwFilterTeacher !== 'all') && (
+                    <div className="flex items-center">
+                      <select
+                        id="hw-filter-teacher"
+                        aria-label="Öğretmene göre"
+                        value={hwFilterTeacher}
+                        onChange={(e) => setHwFilterTeacher(e.target.value)}
+                        className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer max-w-[12rem]"
+                      >
+                        <option value="all">Tüm Öğretmenler</option>
+                        {hwFilterTeacher !== 'all' && !ownerOptions.some((o) => o.id === hwFilterTeacher) && (
+                          <option value={hwFilterTeacher}>Seçilen öğretmen</option>
+                        )}
+                        {ownerOptions.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Ders Filtresi */}
                   <div className="flex items-center">
                     <select
@@ -1346,6 +1399,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         setHwSearchQuery('');
                         setHwFilterSubject('all');
                         setHwFilterClassId('all');
+                        setHwFilterTeacher('all');
                       }}
                       className="flex items-center space-x-1 px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-muted text-xs font-semibold cursor-pointer transition-colors"
                     >
@@ -1360,16 +1414,19 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                   <span className="text-xs text-muted font-medium">
                     Toplam <strong>{filteredHomeworks.length}</strong> / {homeworks.length} ödev
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      openHomeworkForm('create');
-                    }}
-                    className="flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Yeni Ödev Oluştur</span>
-                  </button>
+                  {canGive && (
+                    <button
+                      type="button"
+                      id="hw-create-btn"
+                      onClick={() => {
+                        openHomeworkForm('create');
+                      }}
+                      className="flex items-center space-x-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Yeni Ödev Oluştur</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1458,9 +1515,11 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                           <StripAction label="İndir (.doc)" onClick={() => handleDownloadHomeworkDoc(hw)}>
                             <Download className="w-4 h-4" />
                           </StripAction>
-                          <StripAction label="Kopyala (başka sınıfa da ver)" id={`btn-copy-hw-${hw.id}`} onClick={() => openHomeworkForm('copy', hw)}>
-                            <Copy className="w-4 h-4" />
-                          </StripAction>
+                          {canGive && (
+                            <StripAction label="Kopyala (başka sınıfa da ver)" id={`btn-copy-hw-${hw.id}`} onClick={() => openHomeworkForm('copy', hw)}>
+                              <Copy className="w-4 h-4" />
+                            </StripAction>
+                          )}
                           <StripAction label="Ödevi düzenle" id={`btn-edit-hw-${hw.id}`} onClick={() => openHomeworkForm('edit', hw)}>
                             <Edit3 className="w-4 h-4" />
                           </StripAction>

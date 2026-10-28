@@ -884,7 +884,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <ChevronDown className="w-3.5 h-3.5 text-indigo-600/70 dark:text-indigo-400/70" />
             </button>
 
-            {/* Soru Hedefi Belirleme Butonu */}
+            {/* Soru Hedefi Belirleme Butonu (Aşama 98: hedef verebilenlerde) */}
+            {dataService.canGiveTargets() && (
             <button
               type="button"
               id="btn-set-weekly-target"
@@ -911,6 +912,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   : '🎯 Soru Hedefi Belirle'}
               </span>
             </button>
+            )}
 
             {activeStudent && (
               <>

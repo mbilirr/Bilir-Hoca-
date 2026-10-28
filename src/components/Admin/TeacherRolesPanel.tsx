@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Save, Loader2, LayoutGrid } from 'lucide-react';
+import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Save, Loader2, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { Teacher } from '../../types';
 import { Panel, Modal, cx } from '../ui/kit';
@@ -46,6 +46,9 @@ export const TeacherRolesPanel: React.FC = () => {
   const [tick, setTick] = useState(0);
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const isHead = dataService.isHeadAdmin();
+  const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş — o kurumda genel yönetici yetkisiyle rol verir
+  // Aşama 98: kurumda rol yetkileri kapalıysa roller uygulanmaz (pencerelerde uyarı)
+  const rolesOff = !isHead && dataService.getMyKurum().rolesEnabled !== true;
   const me = dataService.getCurrentTeacher();
   const teachers = useMemo(
     () => dataService.getTeachers().filter((t) => t.status !== 'rejected').sort((a, b) => a.name.localeCompare(b.name, 'tr')),
@@ -118,6 +121,7 @@ export const TeacherRolesPanel: React.FC = () => {
   /** Bu kişiye rol verebilir miyim? (veritabanı da aynı kuralı denetler) */
   const lockReason = (t: Teacher): string | null => {
     if (isHead) return null;
+    if (gecis) return t.kurumId && t.kurumId === me?.kurumId ? null : 'Yalnızca bu kurumdaki kişilere rol verebilirsiniz';
     if (me && t.id === me.id) return 'Kendi rollerinizi değiştiremezsiniz';
     if (!t.kurumId || t.kurumId !== me?.kurumId) return 'Yalnızca kendi kurumunuzdaki kişilere rol verebilirsiniz';
     if (t.isAdmin) return 'Kurum yöneticisinin rollerini yalnızca genel yönetici değiştirebilir';
@@ -153,6 +157,7 @@ export const TeacherRolesPanel: React.FC = () => {
             kayıtlı kalır, kimsenin yetkisi değişmez. Kim neyi görür: <b>Yetki tablosu</b>.
           </span>
         </div>
+        {rolesOff && <RolesOffWarning id="roles-panel-off-warning" />}
 
         {loadError && (
           <p role="alert" className="text-xs font-semibold text-danger-fg">
@@ -288,7 +293,8 @@ export const TeacherRolesPanel: React.FC = () => {
         <RoleEditModal
           teacher={editing}
           current={(roles?.get(editing.id) || []) as TeacherRole[]}
-          canGiveMudur={isHead}
+          canGiveMudur={isHead || gecis}
+          rolesOff={rolesOff}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setRoles((prev) => {
@@ -309,6 +315,7 @@ export const TeacherRolesPanel: React.FC = () => {
           teacher={sectionEditing}
           roles={(roles?.get(sectionEditing.id) || []) as TeacherRole[]}
           current={sections.get(sectionEditing.id) || { allow: [], deny: [] }}
+          rolesOff={rolesOff}
           onClose={() => setSectionEditing(null)}
           onSaved={(saved) => {
             setSections((prev) => {
@@ -361,14 +368,26 @@ export const TeacherRolesPanel: React.FC = () => {
   );
 };
 
+// Aşama 98: rol yetkileri kapalıyken verilen rol ve bölüm izinleri uygulanmaz
+const RolesOffWarning: React.FC<{ id: string }> = ({ id }) => (
+  <p id={id} role="note" className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold">
+    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+    <span>
+      Bu kurumda <b>Rol yetkileri kapalı</b>. Verdiğiniz roller ve bölüm izinleri kaydedilir ama uygulanmaz; açmak için Kurum Ayarları &gt; Rol
+      yetkileri (genel yönetici).
+    </span>
+  </p>
+);
+
 // ----------------------------------------------------------------------------- Rol ver penceresi (küçük)
 const RoleEditModal: React.FC<{
   teacher: Teacher;
   current: TeacherRole[];
   canGiveMudur: boolean;
+  rolesOff?: boolean;
   onClose: () => void;
   onSaved: (roles: TeacherRole[]) => void;
-}> = ({ teacher, current, canGiveMudur, onClose, onSaved }) => {
+}> = ({ teacher, current, canGiveMudur, rolesOff, onClose, onSaved }) => {
   const [sel, setSel] = useState<TeacherRole[]>(current);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -430,6 +449,7 @@ const RoleEditModal: React.FC<{
       }
     >
       <div className="space-y-2.5">
+        {rolesOff && <RolesOffWarning id="role-modal-off-warning" />}
         <p className="text-[11px] text-muted">Birden fazla rol seçebilirsiniz. Seçili rolün açıklaması aşağıda görünür.</p>
         <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Roller">
           {ROLE_DEFS.map((r) => {
@@ -491,9 +511,10 @@ const SectionEditModal: React.FC<{
   teacher: Teacher;
   roles: TeacherRole[];
   current: SectionAccess;
+  rolesOff?: boolean;
   onClose: () => void;
   onSaved: (access: SectionAccess) => void;
-}> = ({ teacher, roles, current, onClose, onSaved }) => {
+}> = ({ teacher, roles, current, rolesOff, onClose, onSaved }) => {
   const initial = useMemo(() => {
     const m: Record<string, SectionMode> = {};
     SECTION_DEFS.forEach((d) => {
@@ -542,6 +563,7 @@ const SectionEditModal: React.FC<{
       }
     >
       <div className="space-y-2.5">
+        {rolesOff && <RolesOffWarning id="section-modal-off-warning" />}
         <p className="text-[11px] text-muted">
           <b>Rolden</b>: rolüne göre. <b>Açık</b> / <b>Kapalı</b>: rolünden bağımsız. Kurumda kapalı olan bölüm yine açılmaz; kişi kaydettikten sonra
           sayfayı yenilemelidir.

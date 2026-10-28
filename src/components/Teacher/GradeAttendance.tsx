@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FileSpreadsheet,
   UserX,
@@ -29,6 +29,7 @@ import { dataService } from '../../services/dataService';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
+import { useQuickFocus } from '../../lib/quickFocus';
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -52,6 +53,31 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   const [activeMainSection, setActiveMainSection] = useState<'grades' | 'attendance'>('grades');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
+  // Aşama 98: öğretmene göre (kaydı giren öğretmenin giriş hesabı); birden fazla öğretmenin kaydı görünüyorsa
+  const [teacherFilter, setTeacherFilter] = useState('all');
+  const teacherOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of grades) if (g.createdBy) ids.add(g.createdBy);
+    for (const a of attendance) if (a.createdBy) ids.add(a.createdBy);
+    return Array.from(ids)
+      .map((id) => ({ id, name: dataService.teacherByAuthId(id)?.name || 'Bilinmeyen öğretmen' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }, [grades, attendance]);
+  const byTeacher = (createdBy?: string) => teacherFilter === 'all' || createdBy === teacherFilter;
+  // Kurum Özeti'nden gelen öğretmen: süzgeç seçilir, o öğretmenin en son kaydının sınıfı ve dersi açılır
+  useQuickFocus(['teacher'], (f) => {
+    const auth = dataService.getTeachers().find((t) => t.id === f.id)?.auth_user_id || '';
+    if (!auth) return;
+    setTeacherFilter(auth);
+    const last = [...grades.filter((g) => g.createdBy === auth).map((g) => ({ d: g.date, c: g.classId, s: g.subject, k: 'grades' as const })),
+      ...attendance.filter((a) => a.createdBy === auth).map((a) => ({ d: a.date, c: a.classId, s: a.subject, k: 'attendance' as const }))]
+      .sort((a, b) => (b.d || '').localeCompare(a.d || ''))[0];
+    if (last) {
+      setSelectedClassId(last.c);
+      setSelectedSubject(last.s);
+      setActiveMainSection(last.k);
+    }
+  });
 
   // Grades View Controls
   const [searchGradeStudent, setSearchGradeStudent] = useState('');
@@ -261,7 +287,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
   // Grade averages
   const classGrades = grades.filter(
-    (g) => g.classId === selectedClassId && g.subject === selectedSubject
+    (g) => g.classId === selectedClassId && g.subject === selectedSubject && byTeacher(g.createdBy)
   );
   const averageScore = classGrades.length
     ? Math.round(classGrades.reduce((acc, g) => acc + g.score, 0) / classGrades.length)
@@ -269,7 +295,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
   // Filter attendance records
   const classAttendanceRecords = attendance.filter(
-    (a) => a.classId === selectedClassId && (selectedSubject ? a.subject === selectedSubject : true)
+    (a) => a.classId === selectedClassId && (selectedSubject ? a.subject === selectedSubject : true) && byTeacher(a.createdBy)
   );
 
   // Group grades by Exam Type
@@ -372,8 +398,36 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <option value="Biyoloji" className="bg-surface text-fg">Biyoloji</option>
               <option value="Türk Dili ve Edebiyatı" className="bg-surface text-fg">Türk Dili ve Edebiyatı</option>
               <option value="Tarih" className="bg-surface text-fg">Tarih</option>
+              {selectedSubject && !['Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Türk Dili ve Edebiyatı', 'Tarih'].includes(selectedSubject) && (
+                <option value={selectedSubject} className="bg-surface text-fg">
+                  {selectedSubject}
+                </option>
+              )}
             </select>
           </div>
+
+          {/* Aşama 98: öğretmene göre (birden fazla öğretmenin kaydı görünüyorsa) */}
+          {(teacherOptions.length > 1 || teacherFilter !== 'all') && (
+            <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1">
+              <Filter className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <select
+                id="grades-filter-teacher"
+                aria-label="Öğretmene göre"
+                value={teacherFilter}
+                onChange={(e) => setTeacherFilter(e.target.value)}
+                className="bg-transparent text-fg text-xs font-semibold focus:outline-none cursor-pointer max-w-[11rem]"
+              >
+                <option value="all" className="bg-surface text-fg">
+                  Tüm Öğretmenler
+                </option>
+                {teacherOptions.map((o) => (
+                  <option key={o.id} value={o.id} className="bg-surface text-fg">
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

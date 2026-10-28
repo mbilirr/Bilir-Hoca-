@@ -150,6 +150,21 @@ export async function listExams(opt: { drafts?: boolean } = {}): Promise<DenemeE
   return opt.drafts ? list : list.filter((e) => !e.draftInfo);
 }
 
+/** Aşama 98: Kurum Özeti için son sonuçlu denemenin özeti (yalnızca birkaç alan okunur; soru oranları gelmez) */
+export async function lastExamBrief(): Promise<{ id: string; name: string; examDate: string; count: number; avgScore: number | null; avgTotalNet: number | null } | null> {
+  const { data, error } = await supabase
+    .from('deneme_exams')
+    .select('id,name,exam_date,count:summary->count,avg:summary->avgScore,net:summary->avgTotalNet,taslak:summary->taslak')
+    .order('exam_date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (error) return null;
+  const r = (data || []).find((x: any) => !x.taslak && Number(x.count) > 0) as any;
+  if (!r) return null;
+  const num = (v: any) => (v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
+  return { id: r.id, name: r.name || 'Deneme', examDate: r.exam_date || '', count: Number(r.count) || 0, avgScore: num(r.avg), avgTotalNet: num(r.net) };
+}
+
 export async function getExam(id: string): Promise<DenemeExam> {
   const { data, error } = await supabase.from('deneme_exams').select('*').eq('id', id).maybeSingle();
   if (error) fail(error, 'Deneme yüklenemedi.');

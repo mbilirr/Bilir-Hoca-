@@ -128,6 +128,7 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
               </option>
             ))}
           </select>
+          {dataService.canGiveTargets() && (
           <button
             type="button"
             id="btn-new-student-target"
@@ -139,6 +140,7 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
           >
             <Plus className="w-4 h-4" /> Yeni Hedef
           </button>
+          )}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Segmented<TargetPeriodFilter | 'plan'> size="sm" value={period} onChange={setPeriod} items={periodItems} />

@@ -713,6 +713,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                   </p>
                   <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
                 </div>
+                {dataService.canEditPlans() && (
                 <button
                   type="button"
                   id={`plan-add-${d}`}
@@ -723,6 +724,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                 >
                   <Plus className="w-4 h-4" />
                 </button>
+                )}
               </header>
               <div className={PLAN_DAY_BODY_CLS}>
                 {list.length === 0 && <p className="text-xs text-subtle px-1 py-2">Görev yok</p>}

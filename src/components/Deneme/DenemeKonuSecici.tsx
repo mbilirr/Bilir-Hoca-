@@ -6,6 +6,7 @@ import { dataService } from '../../services/dataService';
 import { getExamsFull, listExams, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { studentTopicRows, topicLabels } from '../../lib/deneme/analiz';
 import { guessSubjectKey } from '../../lib/deneme/optik';
+import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
 
 // ============================================================================
 // Aşama 50 — ETÜT OLUŞTURURKEN DENEME KONULARI
@@ -13,6 +14,10 @@ import { guessSubjectKey } from '../../lib/deneme/optik';
 // olarak yazılır; öğrenci listesinde her öğrencinin o konudaki deneme başarısı renkle gösterilir:
 //   %30 altı kırmızı · %30-49 turuncu · %50-59 mavi.
 // Yalnızca Deneme Analizi yetkisi olanlar görür (deneme sonuçları veritabanı kurallarıyla korunur).
+// Aşama 98: optiği henüz okunmamış (taslak) denemelerin konuları da listelenir; bu konularda öğrenci başarısı
+// sonuçlar yüklenince görünür (kuruma aktarılan denemeler taslak olarak gelir).
+// Aşama 98b: etüt dersi deneme dersi değilse (ör. Rehberlik) panelde deneme dersi seçilir; konu o dersten alınır
+// ve etüt konusuna "Ders: konu" olarak yazılır (etüdün dersi değişmez).
 // ============================================================================
 
 type Scope = 'son' | 'son3' | 'son5' | 'tum';
@@ -29,7 +34,10 @@ export const DenemeKonuSecici: React.FC<{
   onSelectIds: (ids: string[]) => void;
 }> = ({ subjectName, classIds, students, initialTopic, selectedIds, onPickTopic, onRates, onSelectIds }) => {
   const allowed = dataService.canUseDeneme();
-  const subjectKey = useMemo(() => guessSubjectKey(subjectName || ''), [subjectName]);
+  const baseKey = useMemo(() => guessSubjectKey(subjectName || ''), [subjectName]);
+  const [altKey, setAltKey] = useState('');
+  const subjectKey = baseKey || altKey || null;
+  const altName = !baseKey && altKey ? LGS_SUBJECTS.find((x) => x.key === altKey)?.name || '' : '';
   const [scope, setScope] = useState<Scope>('son3');
   const [list, setList] = useState<DenemeExam[] | null>(null);
   const [exams, setExams] = useState<DenemeExam[]>([]);
@@ -43,7 +51,7 @@ export const DenemeKonuSecici: React.FC<{
   useEffect(() => {
     if (!allowed || !open || list) return;
     let alive = true;
-    listExams()
+    listExams({ drafts: true })
       .then((l) => alive && setList(l))
       .catch((e) => alive && setError(e?.message || 'Denemeler yüklenemedi.'));
     return () => {
@@ -63,6 +71,8 @@ export const DenemeKonuSecici: React.FC<{
     return withSubject.slice(0, n); // liste en yeni önce
   }, [list, scope, subjectKey]);
   const scopedIds = scoped.map((e) => e.id).join(',');
+  const draftIds = useMemo(() => new Set((list || []).filter((e) => e.draftInfo).map((e) => e.id)), [list]);
+  const doneExams = useMemo(() => exams.filter((e) => !draftIds.has(e.id)), [exams, draftIds]);
 
   useEffect(() => {
     if (!allowed || !open || !scoped.length) {
@@ -83,18 +93,22 @@ export const DenemeKonuSecici: React.FC<{
 
   // Bu dersin deneme konuları (soru sayısıyla)
   const topics = useMemo(() => {
-    if (!subjectKey) return [] as Array<{ label: string; count: number }>;
-    const m = new Map<string, number>();
-    for (const e of exams)
+    if (!subjectKey) return [] as Array<{ label: string; count: number; pending: boolean }>;
+    const m = new Map<string, { count: number; done: boolean }>();
+    for (const e of exams) {
+      const done = !draftIds.has(e.id);
       for (const q of e.questions[subjectKey] || []) {
         if (!q.answer || !(q.konu || q.kazanim)) continue;
         const { konu: k } = topicLabels(q);
-        m.set(k, (m.get(k) || 0) + 1);
+        const cur = m.get(k) || { count: 0, done: false };
+        m.set(k, { count: cur.count + 1, done: cur.done || done });
       }
+    }
     return Array.from(m.entries())
-      .map(([label, count]) => ({ label, count }))
+      .map(([label, v]) => ({ label, count: v.count, pending: !v.done }))
       .sort((a, b) => a.label.localeCompare(b.label, 'tr', { numeric: true }));
-  }, [exams, subjectKey]);
+  }, [exams, subjectKey, draftIds]);
+  const konuPending = !!konu && !!topics.find((t) => t.label === konu)?.pending;
 
   // Etüt yönlendirmeden gelen konu listede varsa seçili gelir
   useEffect(() => {
@@ -106,7 +120,7 @@ export const DenemeKonuSecici: React.FC<{
   // Seçilen sınıf(lar)ın sonuçları
   const classKey = classIds.join(',');
   useEffect(() => {
-    if (!allowed || !open || !konu || !exams.length) {
+    if (!allowed || !open || !konu || !doneExams.length || konuPending) {
       setResults([]);
       return;
     }
@@ -114,7 +128,7 @@ export const DenemeKonuSecici: React.FC<{
     setLoading(true);
     (async () => {
       try {
-        const ids = exams.map((e) => e.id);
+        const ids = doneExams.map((e) => e.id);
         const rs = classIds.length
           ? (await Promise.all(classIds.map((cid) => listResultsFor({ examIds: ids, classId: cid })))).flat()
           : await listResultsFor({ examIds: ids });
@@ -129,18 +143,18 @@ export const DenemeKonuSecici: React.FC<{
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowed, open, konu, exams, classKey]);
+  }, [allowed, open, konu, doneExams, classKey, konuPending]);
 
   const rates: KonuRates | null = useMemo(() => {
     if (!konu || !subjectKey || !results.length) return null;
     const out: KonuRates = {};
     const studentIds = new Set(students.map((s) => s.id));
-    for (const r of studentTopicRows(exams, results, subjectKey, 'konu')) {
+    for (const r of studentTopicRows(doneExams, results, subjectKey, 'konu')) {
       if (r.konu !== konu || !studentIds.has(r.studentId)) continue;
       out[r.studentId] = { rate: r.rate, total: r.total };
     }
     return out;
-  }, [konu, subjectKey, results, exams, students]);
+  }, [konu, subjectKey, results, doneExams, students]);
 
   useEffect(() => {
     onRates(rates);
@@ -178,15 +192,37 @@ export const DenemeKonuSecici: React.FC<{
       </div>
       {open && (
         <>
-          {!subjectKey ? (
-            <p className="text-[11px] text-muted">"{subjectName || 'Bu ders'}" deneme analizindeki derslerden biri değil.</p>
-          ) : (
+          {!baseKey && (
+            <div className="flex flex-wrap items-center gap-2" id="etut-deneme-ders">
+              <span className="text-[11px] text-muted flex-1 min-w-[12rem]">
+                "{subjectName || 'Bu ders'}" deneme dersi değil; konulara bakmak için deneme dersini seçin.
+              </span>
+              <select
+                className="ui-input h-8 py-0 text-xs w-44"
+                value={altKey}
+                onChange={(e) => {
+                  setAltKey(e.target.value);
+                  setKonu('');
+                }}
+                aria-label="Deneme dersi"
+                id="etut-deneme-ders-sec"
+              >
+                <option value="">Deneme dersi seçin</option>
+                {LGS_SUBJECTS.map((x) => (
+                  <option key={x.key} value={x.key}>
+                    {x.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!subjectKey ? null : (
             <select
               className="ui-input text-xs"
               value={konu}
               onChange={(e) => {
                 setKonu(e.target.value);
-                if (e.target.value) onPickTopic(e.target.value.slice(0, 160));
+                if (e.target.value) onPickTopic((altName ? `${altName}: ${e.target.value}` : e.target.value).slice(0, 160));
               }}
               aria-label="Deneme konusu"
               disabled={loading && !topics.length}
@@ -194,13 +230,18 @@ export const DenemeKonuSecici: React.FC<{
               <option value="">{loading && !topics.length ? 'Yükleniyor…' : topics.length ? '— Deneme konusu / kazanım seçin —' : 'Bu derste kazanımı girilmiş deneme sorusu yok'}</option>
               {topics.map((t) => (
                 <option key={t.label} value={t.label}>
-                  {t.label} ({t.count} soru)
+                  {t.label} ({t.count} soru{t.pending ? ' · optik okunmamış' : ''})
                 </option>
               ))}
             </select>
           )}
           {error && <p className="text-[11px] font-semibold text-danger-fg">{error}</p>}
-          {konu && (
+          {konuPending && (
+            <p className="text-[11px] font-semibold text-warning-fg" id="etut-deneme-konu-bekliyor">
+              Bu konunun denemesi henüz optik okunmamış. Konu etüde yazılır; öğrenci başarısı sonuçlar yüklenince görünür.
+            </p>
+          )}
+          {konu && !konuPending && (
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                 <span className="inline-flex items-center gap-1 rounded-md bg-danger px-1.5 py-0.5 font-bold text-white">%30 altı {bands ? `· ${bands.red.length}` : ''}</span>

@@ -35,10 +35,14 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   useAutoDismiss(actionMsg, () => setActionMsg(null)); // Aşama 32: 15 sn sonra kaybolur
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
+  // Aşama 98: her işlem yalnızca değişen öğretmeni kaydeder (dataService içinde). Genel yöneticide kuruma bağlı
+  // öğretmenler ve kurum sınıfları burada görünmez; onların yetkileri kuruma geçilerek verilir.
   const refreshData = () => {
-    setPendingTeachers(dataService.getPendingTeachers());
-    setAllTeachers(dataService.getTeachers());
-    setAllClasses(dataService.getAllClasses());
+    const head = dataService.isHeadAdmin();
+    const own = (t: Teacher) => !head || !t.kurumId;
+    setPendingTeachers(dataService.getPendingTeachers().filter(own));
+    setAllTeachers(dataService.getTeachers().filter(own));
+    setAllClasses(dataService.getAllClasses().filter((c) => !head || !c.kurumId));
   };
 
   const handleCloudSync = async () => {
@@ -69,14 +73,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     dataService.approveTeacher(teacherId);
     setActionMsg(`✓ ${name} isimli öğretmen hesabı onaylandı. Artık sisteme giriş yapabilir.`);
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleReject = async (teacherId: string, name: string) => {
     dataService.rejectTeacher(teacherId);
     setActionMsg(`✗ ${name} isimli öğretmen hesabı reddedildi.`);
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleDelete = async (teacherId: string, name: string) => {
@@ -89,7 +91,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       dataService.deleteTeacher(teacherId);
       setActionMsg(`${name} kaydı silindi.`);
       refreshData();
-      await dataService.syncAllTeachersToCloud();
     }
   };
 
@@ -104,7 +105,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     dataService.updateTeacherClassPermissions(teacher.id, updatedList);
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri güncellendi.`);
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleAssignAllClasses = async (teacher: Teacher) => {
@@ -112,14 +112,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     dataService.updateTeacherClassPermissions(teacher.id, allIds);
     setActionMsg(`✓ ${teacher.name} için tüm sınıflara erişim izni verildi.`);
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleClearClasses = async (teacher: Teacher) => {
     dataService.updateTeacherClassPermissions(teacher.id, []);
     setActionMsg(`✓ ${teacher.name} için sınıf izinleri temizlendi (yalnızca kendi eklediği öğrencileri görebilir).`);
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleToggleCanViewAll = async (teacher: Teacher) => {
@@ -131,7 +129,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         : `✓ ${teacher.name} için genel liste izni kapatıldı (Yalnızca kendi eklediklerini ve izinli sınıfları görür).`
     );
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const handleToggleAdmin = async (teacher: Teacher) => {
@@ -154,7 +151,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         : `✓ ${teacher.name} standart öğretmen yetkisine çevrildi.`
     );
     refreshData();
-    await dataService.syncAllTeachersToCloud();
   };
 
   const modalContent = (

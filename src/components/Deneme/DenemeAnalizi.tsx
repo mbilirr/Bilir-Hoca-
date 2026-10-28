@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
-import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Users } from 'lucide-react';
+import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -45,7 +45,8 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   // Aşama 90: taslaklar yalnızca listede (yöneticiye) görünür; karne ve etüt yalnızca sonuçlu denemeleri kullanır
   const exams = allExams.filter((e) => !isDraftExam(e));
   const listed = readOnly ? exams : allExams;
-  const [aktarOpen, setAktarOpen] = useState(false);
+  const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
+  const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
   const [aktarMsg, setAktarMsg] = useState<string | null>(null);
   const isHead = dataService.isHeadAdmin();
   const [draftExam, setDraftExam] = useState<DenemeExam | null>(null);
@@ -138,8 +139,13 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         tab === 'denemeler' && view.kind === 'list' && !setupMissing && !readOnly ? (
           <div className="flex flex-wrap items-center gap-2">
             {isHead && exams.length > 0 && (
-              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen(true)} id="deneme-kurum-aktar">
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('aktar')} id="deneme-kurum-aktar">
                 <Building2 /> Kuruma aktar
+              </button>
+            )}
+            {gecis && allExams.some((e) => !!e.kurumId) && (
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('geri')} id="deneme-geri-tasi">
+                <Undo2 /> Genel yöneticiye geri taşı
               </button>
             )}
             <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
@@ -195,7 +201,8 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
         <Suspense fallback={null}>
           <KurumAktarModal
             open
-            exams={exams}
+            geri={aktarOpen === 'geri'}
+            exams={aktarOpen === 'geri' ? allExams : exams}
             onClose={() => setAktarOpen(false)}
             onDone={(text) => {
               setAktarMsg(text);

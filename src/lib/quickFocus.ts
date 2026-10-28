@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react';
 // Örn. öğrenci seçilince "Öğrenciler" sayfası açılır ve o sayfa açılışta
 // consumeQuickFocus('student') ile seçilen öğrenciyi alıp listeyi süzer.
 // 'action': ana sayfadaki kısayollar (ör. id = 'homework-create' -> Ödev oluşturma penceresini aç)
-export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action';
+// 'teacher' (Aşama 98): Kurum Özeti'nden bir öğretmenin çalışmalarına git (Ödevler / Etütler / Not & Yoklama süzülür)
+export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher';
 
 export interface QuickFocus {
   type: QuickFocusType;

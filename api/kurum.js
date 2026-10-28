@@ -6,7 +6,10 @@
 // Güvenlik:
 //   * Çağıran yalnızca genel yönetici (m.bilirr@gmail.com) olabilir; başka hesaba 403.
 //   * Hedef yalnızca o kurumun ONAYLI kurum yöneticisi hesabıdır (öğretmen ya da öğrenci hesabına geçilemez).
-//   * Üretilen oturum yalnızca yanıt olarak döner; hiçbir yere yazılmaz, e-posta gönderilmez.
+//   * Üretilen oturum yalnızca yanıt olarak döner; e-posta gönderilmez.
+//   * Aşama 98: oturumun KİMLİĞİ (anahtarı değil) kurum_gecis_oturumlari tablosuna yazılır. Veritabanı bu sayede
+//     "genel yönetici kuruma geçti" durumunu tanır (rol anahtarı, Müdür rolü, bölüm izinleri yalnızca o kurumda açılır).
+//     Kayıt 7 gün geçerlidir; eski kayıtlar her geçişte silinir.
 // Vercel ortam değişkenleri (mevcut): SUPABASE_URL (ya da VITE_SUPABASE_URL), SUPABASE_ANON_KEY (ya da VITE_...),
 // SUPABASE_SERVICE_ROLE_KEY. Yeni ayar gerekmez.
 // ============================================================================
@@ -60,6 +63,33 @@ async function rest(e, path) {
   return data || [];
 }
 
+// Oturum anahtarının içindeki oturum kimliği (imza denetimi gerekmez: anahtar az önce Supabase'den alındı)
+function sessionIdOf(accessToken) {
+  try {
+    const part = String(accessToken).split('.')[1] || '';
+    const json = JSON.parse(Buffer.from(part.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+    return typeof json.session_id === 'string' ? json.session_id : '';
+  } catch {
+    return '';
+  }
+}
+
+async function recordGecis(e, sessionId, authUserId, kurumId) {
+  const old = new Date(Date.now() - 7 * 864e5).toISOString();
+  const [ins] = await Promise.all([
+    fetch(`${e.url}/rest/v1/kurum_gecis_oturumlari`, {
+      method: 'POST',
+      headers: { ...serviceHeaders(e), Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ session_id: sessionId, auth_user_id: authUserId, kurum_id: kurumId }),
+    }),
+    fetch(`${e.url}/rest/v1/kurum_gecis_oturumlari?created_at=lt.${encodeURIComponent(old)}`, {
+      method: 'DELETE',
+      headers: { ...serviceHeaders(e), Prefer: 'return=minimal' },
+    }).catch(() => null),
+  ]);
+  if (!ins.ok) throw new HttpError(502, 'Kuruma geçiş kaydedilemedi. Aşama 98 SQL dosyası çalıştırıldı mı?');
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function actionEnter(e, body) {
@@ -98,6 +128,10 @@ async function actionEnter(e, body) {
   });
   const session = await readJson(vr);
   if (!vr.ok || !session || !session.access_token || !session.refresh_token) throw new HttpError(502, 'Kuruma geçiş oturumu doğrulanamadı.');
+
+  const sid = sessionIdOf(session.access_token);
+  if (!UUID.test(sid)) throw new HttpError(502, 'Kuruma geçiş oturumu tanınamadı.');
+  await recordGecis(e, sid, target.auth_user_id, kurum.id);
 
   return {
     ok: true,

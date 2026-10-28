@@ -403,6 +403,12 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   // Open Teacher Authorization Modal
   const handleOpenAuthModal = async (teacher: UnifiedUser) => {
+    // Aşama 98: genel yönetici kendi panelinde kurum öğretmeninin kurum sınıflarını göremez; boş kayıtla mevcut
+    // yetkiler silinmesin diye pencere açılmaz (veritabanı da reddeder)
+    if (isHead && teacher.kurumId) {
+      showToast('Bu öğretmen bir kuruma bağlı. Yetkilerini üst menüdeki kurum seçiciyle o kuruma geçerek verin.', 'error');
+      return;
+    }
     // 1. auth_user_id doğrulama
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const authUserId = teacher.auth_user_id || (uuidRegex.test(teacher.id) ? teacher.id : null);
@@ -1019,7 +1025,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       <td className="py-3.5 px-4 text-right sm:pr-6">
                         <div className="flex items-center justify-end space-x-1.5">
                           {/* Sınıf & Öğrenci Erişim Yetkilendirmesi (Erişim Matrisi) */}
-                          {u.role !== 'student' && manageable && (isHead || u.role === 'teacher') && (
+                          {u.role !== 'student' && manageable && (isHead ? !u.kurumId : u.role === 'teacher') && (
                             <button
                               type="button"
                               onClick={() => handleOpenAuthModal(u)}
