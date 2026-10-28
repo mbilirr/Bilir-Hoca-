@@ -1,3 +1,4 @@
+import { NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Trash2, Undo2, Users } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
@@ -227,10 +228,11 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
 
   const [notice, setNotice] = useState<Notice | null>(null);
   const noticeTimer = useRef<number | null>(null);
-  const say = (n: Notice, ms = 6000) => {
+  // Aşama 99: bütün bildirimler ekranda 15 sn kalır (eski kısa süreler yok sayılır)
+  const say = (n: Notice, _ms?: number) => {
     setNotice(n);
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
-    noticeTimer.current = window.setTimeout(() => setNotice(null), ms);
+    noticeTimer.current = window.setTimeout(() => setNotice(null), NOTICE_HIDE_MS);
   };
   useEffect(
     () => () => {

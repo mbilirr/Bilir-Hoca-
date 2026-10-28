@@ -53,7 +53,7 @@ export const StudentTodayPlan: React.FC<{
   const showInfo = (msg: string) => {
     setInfo(msg);
     if (infoTimer.current) window.clearTimeout(infoTimer.current);
-    infoTimer.current = window.setTimeout(() => setInfo(null), 7000);
+    infoTimer.current = window.setTimeout(() => setInfo(null), 15000); // Aşama 99: 15 sn
   };
   const dayText = (d: string) => (d === ymd(new Date()) ? 'bugün' : shortDayLabel(d));
 

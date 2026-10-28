@@ -41,7 +41,7 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
   useEffect(() => {
     if (!msg) return;
     // Aşama 51: bildirimler açıldıysa onay yazısı 6 sn sonra kaybolur (kart da birlikte gizlenir)
-    const t = window.setTimeout(() => setMsg(null), state === 'on' && msg.tone === 'ok' ? 6000 : 15000);
+    const t = window.setTimeout(() => setMsg(null), 15000); // Aşama 99: bütün bildirimler 15 sn
     return () => window.clearTimeout(t);
   }, [msg, state]);
 

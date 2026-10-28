@@ -24,7 +24,18 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/' },
     lang: 'tr',
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Aşama 99: bilgisayarda (etüt yoklama dahil) bildirim 15 sn ekranda kalır, sonra kapanır.
+  // Telefonda bildirim çubuğunda kalmaya devam eder (kapatılmaz).
+  const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test((self.navigator && self.navigator.userAgent) || '');
+  if (!mobile) options.requireInteraction = true;
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(async () => {
+      if (mobile) return;
+      await new Promise((r) => setTimeout(r, 15000));
+      const list = await self.registration.getNotifications(options.tag ? { tag: options.tag } : undefined);
+      for (const n of list) if (n.title === title && n.body === options.body) n.close();
+    })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {

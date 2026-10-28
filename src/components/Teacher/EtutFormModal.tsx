@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Repeat, Settings2 } from 'lucide-react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Repeat, Settings2, History, X } from 'lucide-react';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService, type EtutTeacherOption } from '../../services/dataService';
 import { Modal, cx } from '../ui/kit';
@@ -65,6 +66,44 @@ const toMin = (t: string) => {
   return m ? +m[1] * 60 + +m[2] : NaN;
 };
 const fromMin = (n: number) => `${String(Math.floor(n / 60) % 24).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+
+// Aşama 99: aynı ders + aynı konu tekrarı denetimi için konu anahtarı (büyük/küçük harf, noktalama, boşluk ve
+// "Matematik: " gibi deneme dersi ön eki önemsenmez)
+const DERS_ONEK = /^(türkçe|matematik|fen bilimleri|yabancı dil|ingilizce|din kültürü ve ahlak bilgisi|t\.?c\.? inkılap tarihi ve atatürkçülük|sosyal bilgiler)\s*:\s*/i;
+const topicKey = (t: string) =>
+  (t || '')
+    .trim()
+    .replace(DERS_ONEK, '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+// Bir konu yazısının eşleşme anahtarları: tam yazı, parantez içindeki konu başlığı ve kazanım kodu.
+// Deneme listesinden gelen "F.8.1.1.1 Mevsimlerin ... (Mevsimlerin Oluşumu)" ile elle yazılan "Mevsimlerin oluşumu"
+// aynı konu sayılır; kazanım kodu aynıysa da aynı kazanım sayılır.
+const topicKeys = (t: string): string[] => {
+  const raw = (t || '').trim().replace(DERS_ONEK, '');
+  const keys = new Set<string>();
+  const full = topicKey(raw);
+  if (full.length >= 3) keys.add(full);
+  const paren = /\(([^()]{3,})\)\s*$/.exec(raw);
+  if (paren) {
+    const k = topicKey(paren[1]);
+    if (k.length >= 3) keys.add(k);
+  }
+  const code = /\b([A-ZÇĞİÖŞÜ]{1,4}\.\d+(?:\.\d+){2,4})\b/.exec(raw);
+  if (code) keys.add(`kod:${code[1].toLocaleUpperCase('tr-TR')}`);
+  return Array.from(keys);
+};
+// Uyarıda kısa konu adı: parantez içindeki konu başlığı, yoksa ilk 60 harf
+const shortTopic = (t: string) => {
+  const p = /\(([^()]{3,})\)\s*$/.exec(t || '');
+  const v = (p ? p[1] : t || '').trim();
+  return v.length > 60 ? `${v.slice(0, 57)}…` : v;
+};
+const trDate = (d: string) => {
+  const [y, m, g] = (d || '').split('-').map(Number);
+  return y ? new Date(y, m - 1, g).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' }) : d;
+};
 
 const prefsKey = () => `edu_etut_form_prefs_${dataService.getCurrentTeacher()?.id || 'x'}`;
 function readPrefs(): { subject?: string; location?: string; duration?: number; teacherBySubject?: Record<string, string> } {
@@ -159,6 +198,7 @@ const EtutFormContent: React.FC<Props> = ({
 
   const [teacherIds, setTeacherIds] = useState<string[]>(initial.teacherIds);
   const [topic, setTopic] = useState(initial.topic);
+  const deferredTopic = useDeferredValue(topic);
   const [notes, setNotes] = useState(initial.notes);
   const [filterClassIds, setFilterClassIds] = useState<string[]>(() => {
     const first = students.find((s) => initial.selected.includes(s.id));
@@ -322,6 +362,57 @@ const EtutFormContent: React.FC<Props> = ({
       }
     }
     return out.slice(0, 6);
+  };
+
+  // ---- Aşama 99: seçilen öğrenci bu dersten AYNI konuda daha önce etüt aldı mı (konu farklıysa uyarı yok)
+  // Dizin bir kez kurulur: ders|konu|öğrenci → en son etüt. Gelmedi (yoklamada "gelmedi") olanlar sayılmaz.
+  const repeatIndex = useMemo(() => {
+    const m = new Map<string, Etut>();
+    for (const e of etuts) {
+      if (source && isEdit && e.id === source.id) continue;
+      if (e.privacyRedacted || !Array.isArray(e.assignedStudentIds)) continue;
+      const tks = topicKeys(e.topic);
+      if (!tks.length) continue;
+      const subj = normalizeSubject(e.subject);
+      for (const sid of e.assignedStudentIds) {
+        if (e.studentAttendance?.[sid]?.status === 'absent') continue;
+        for (const tk of tks) {
+          const k = `${subj}|${tk}|${sid}`;
+          const cur = m.get(k);
+          if (!cur || (e.date || '') > (cur.date || '')) m.set(k, e);
+        }
+      }
+    }
+    return m;
+  }, [etuts, source, isEdit]);
+  const repeats = useMemo(() => {
+    const tks = topicKeys(deferredTopic);
+    if (!tks.length || !effectiveSubject || !selectedIds.length) return [] as Array<{ id: string; name: string; etut: Etut }>;
+    const subj = normalizeSubject(effectiveSubject);
+    const byId = new Map(students.map((s) => [s.id, s] as const));
+    const out: Array<{ id: string; name: string; etut: Etut }> = [];
+    for (const sid of selectedIds) {
+      let hit: Etut | undefined;
+      for (const tk of tks) {
+        const e = repeatIndex.get(`${subj}|${tk}|${sid}`);
+        if (e && (!hit || (e.date || '') > (hit.date || ''))) hit = e;
+      }
+      if (hit) out.push({ id: sid, name: byId.get(sid)?.name || 'Öğrenci', etut: hit });
+    }
+    return out;
+  }, [deferredTopic, effectiveSubject, selectedIds, repeatIndex, students]);
+  // Hayalet uyarı: yeni bir tekrar bulununca 15 sn ekranda kalır (kapat düğmesiyle de kapanır)
+  const repeatKey = repeats.map((r) => r.id).join(',');
+  const [ghost, setGhost] = useState(false);
+  useEffect(() => {
+    if (!repeatKey) return setGhost(false);
+    setGhost(true);
+    const t = window.setTimeout(() => setGhost(false), 15000);
+    return () => window.clearTimeout(t);
+  }, [repeatKey, deferredTopic]);
+  const repeatText = (r: { name: string; etut: Etut }) => {
+    const past = (r.etut.date || '') <= localDateStr(new Date());
+    return `${r.name} ${past ? 'bir önceki etütte' : 'planlanmış bir etütte'} (${trDate(r.etut.date)}) ${normalizeSubject(r.etut.subject)} dersinden "${shortTopic(r.etut.topic)}" konusundan ${past ? 'etüt almıştır' : 'etüde yazılmıştır'}.`;
   };
 
   const handleSubmit = async (force = false) => {
@@ -625,6 +716,19 @@ const EtutFormContent: React.FC<Props> = ({
             onSelectedChange={setSelectedIds}
             badges={konuRates}
           />
+          {repeats.length > 0 && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold mt-2" id="etut-tekrar-uyari">
+              <History className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>
+                {repeats.length === 1
+                  ? repeatText(repeats[0])
+                  : `${repeats.length} öğrenci bu dersten aynı konuda daha önce etüt almış: ${repeats
+                      .slice(0, 4)
+                      .map((r) => `${r.name} (${trDate(r.etut.date)})`)
+                      .join(', ')}${repeats.length > 4 ? ` +${repeats.length - 4}` : ''}.`}
+              </span>
+            </p>
+          )}
         </FormSection>
 
         {/* 4. ZAMAN VE YER */}
@@ -833,6 +937,33 @@ const EtutFormContent: React.FC<Props> = ({
         )}
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
+      {ghost &&
+        repeats.length > 0 &&
+        createPortal(
+          <div
+            role="status"
+            aria-live="polite"
+            id="etut-tekrar-hayalet"
+            className="fixed z-[200] bottom-24 inset-x-4 sm:bottom-auto sm:top-4 sm:inset-x-auto sm:right-6 sm:w-96 rounded-xl border border-warning/40 bg-surface/95 backdrop-blur shadow-2xl px-3.5 py-3 text-xs text-fg animate-in fade-in slide-in-from-top-2"
+          >
+            <div className="flex items-start gap-2">
+              <History className="w-4 h-4 text-warning-fg shrink-0 mt-px" />
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="font-bold text-warning-fg">Aynı konudan daha önce etüt</p>
+                {repeats.slice(0, 3).map((r) => (
+                  <p key={r.id} className="text-fg-2 leading-snug">
+                    {repeatText(r)}
+                  </p>
+                ))}
+                {repeats.length > 3 && <p className="text-muted">ve {repeats.length - 3} öğrenci daha</p>}
+              </div>
+              <button type="button" onClick={() => setGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </Modal>
   );
 };

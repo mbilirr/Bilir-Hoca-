@@ -169,7 +169,7 @@ export const StudentPicker: React.FC<{
   onSelectedChange: (ids: string[]) => void;
   idPrefix: string;
   /** Aşama 50: deneme konusundaki başarı (öğrenci → %). %30 altı kırmızı, %30-49 turuncu, %50-59 mavi. */
-  badges?: Record<string, { rate: number; total: number }> | null;
+  badges?: Record<string, { rate: number; total: number; exams?: number }> | null;
 }> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges }) => {
   const [query, setQuery] = useState('');
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -285,7 +285,7 @@ export const StudentPicker: React.FC<{
                       return (
                         <label
                           key={s.id}
-                          title={bd ? `Seçilen deneme konusunda başarı %${bd.rate} (${bd.total} soru)` : undefined}
+                          title={bd ? `Seçilen deneme konusunda başarı %${bd.rate} (${bd.total} soru${bd.exams ? `, ${bd.exams} deneme ortalaması` : ''})` : undefined}
                           className={cx(
                             'flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors',
                             on

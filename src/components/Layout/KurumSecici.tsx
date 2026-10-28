@@ -40,7 +40,7 @@ export const KurumSecici: React.FC = () => {
   }, [show]);
   useEffect(() => {
     if (!err) return;
-    const t = setTimeout(() => setErr(''), 8000);
+    const t = setTimeout(() => setErr(''), 15000); // Aşama 99: 15 sn
     return () => clearTimeout(t);
   }, [err]);
 

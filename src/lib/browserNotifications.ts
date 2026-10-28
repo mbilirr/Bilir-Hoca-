@@ -62,11 +62,14 @@ export function sendBrowserNotification(title: string, body: string, iconUrl?: s
 
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      new Notification(title, {
+      // Aşama 99: bilgisayarda bildirim kendiliğinden birkaç saniyede kaybolmaz, 15 sn ekranda kalır
+      const n = new Notification(title, {
         body,
-        icon: iconUrl || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=128&auto=format&fit=crop&q=80',
+        icon: iconUrl || '/favicon.svg',
         badge: iconUrl,
+        requireInteraction: true,
       });
+      window.setTimeout(() => n.close(), 15000);
     } catch (err) {
       console.warn('Could not display native notification:', err);
     }

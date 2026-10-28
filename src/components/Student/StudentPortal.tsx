@@ -294,7 +294,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setMessageText('');
     setMessageLink('');
     setMessageSentFeedback(true);
-    setTimeout(() => setMessageSentFeedback(false), 3000);
+    setTimeout(() => setMessageSentFeedback(false), 15000); // Aşama 99: 15 sn
   };
 
   return (

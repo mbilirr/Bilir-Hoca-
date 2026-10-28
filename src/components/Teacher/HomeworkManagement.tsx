@@ -102,7 +102,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const showSaveError = (err: any, fallback: string) => {
     setSaveFeedback(null);
     setSaveError(err?.message || fallback);
-    setTimeout(() => setSaveError(null), 6000);
+    setTimeout(() => setSaveError(null), 15000); // Aşama 99: 15 sn
   };
 
   // Taslak / Henüz Kaydedilmemiş Ödev Kontrol Durumları (studentId -> status)

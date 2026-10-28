@@ -4,9 +4,10 @@ import { cx } from '../ui/kit';
 import type { Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { getExamsFull, listExams, listResultsFor, type DenemeExam, type DenemeResult } from '../../services/denemeService';
-import { studentTopicRows, topicLabels } from '../../lib/deneme/analiz';
+import { topicLabels } from '../../lib/deneme/analiz';
+import { isBadKonu } from '../../lib/deneme/kazanimBank';
 import { guessSubjectKey } from '../../lib/deneme/optik';
-import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
+import { LGS_SUBJECTS, markOf } from '../../lib/deneme/lgs';
 
 // ============================================================================
 // Aşama 50 — ETÜT OLUŞTURURKEN DENEME KONULARI
@@ -18,10 +19,27 @@ import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
 // sonuçlar yüklenince görünür (kuruma aktarılan denemeler taslak olarak gelir).
 // Aşama 98b: etüt dersi deneme dersi değilse (ör. Rehberlik) panelde deneme dersi seçilir; konu o dersten alınır
 // ve etüt konusuna "Ders: konu" olarak yazılır (etüdün dersi değişmez).
+// Aşama 99:
+//  * "Son deneme / Son 3 / Son 5" = SONUCU YÜKLENMİŞ son 1 / 3 / 5 deneme (taslaklar sayılmaz, konuları yine listelenir).
+//  * Öğrenci yüzdesi = konunun geçtiği her denemedeki başarı yüzdelerinin ORTALAMASI.
+//  * "Kazanıma göre / Konu başlığına göre" seçimi (konu başlığı birçok denemede tekrar eder).
+//  * Bilgi satırı: hesaba giren denemeler; konu listesinde her konunun kaç denemede geçtiği.
 // ============================================================================
 
+type Grup = 'kazanim' | 'baslik';
+/** Sorunun listede hangi başlık altında toplanacağı */
+const labelOf = (q: { konu?: string; kazanim?: string; alt?: string; kazanimCode?: string }, grup: Grup): string => {
+  if (grup === 'baslik') {
+    const title = (q.konu || '').trim();
+    const kaz = (q.kazanim || '').trim();
+    if (title && !isBadKonu(title, kaz)) return title;
+  }
+  return topicLabels(q).konu;
+};
+const keyOf = (s: string) => s.toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim();
+
 type Scope = 'son' | 'son3' | 'son5' | 'tum';
-export type KonuRates = Record<string, { rate: number; total: number }>;
+export type KonuRates = Record<string, { rate: number; total: number; exams?: number }>;
 
 export const DenemeKonuSecici: React.FC<{
   subjectName: string;
@@ -39,6 +57,7 @@ export const DenemeKonuSecici: React.FC<{
   const subjectKey = baseKey || altKey || null;
   const altName = !baseKey && altKey ? LGS_SUBJECTS.find((x) => x.key === altKey)?.name || '' : '';
   const [scope, setScope] = useState<Scope>('son3');
+  const [grup, setGrup] = useState<Grup>('kazanim');
   const [list, setList] = useState<DenemeExam[] | null>(null);
   const [exams, setExams] = useState<DenemeExam[]>([]);
   const [konu, setKonu] = useState('');
@@ -64,11 +83,13 @@ export const DenemeKonuSecici: React.FC<{
     if (allowed && initialTopic) setOpen(true);
   }, [allowed, initialTopic]);
 
+  // Sonuçlu son N deneme + bütün taslaklar (yalnızca konu listesi için)
   const scoped = useMemo(() => {
     if (!list) return [] as DenemeExam[];
     const withSubject = list.filter((e) => !subjectKey || e.subjects.some((s) => s.key === subjectKey));
-    const n = scope === 'son' ? 1 : scope === 'son3' ? 3 : scope === 'son5' ? 5 : withSubject.length;
-    return withSubject.slice(0, n); // liste en yeni önce
+    const done = withSubject.filter((e) => !e.draftInfo);
+    const n = scope === 'son' ? 1 : scope === 'son3' ? 3 : scope === 'son5' ? 5 : done.length;
+    return [...done.slice(0, n), ...withSubject.filter((e) => !!e.draftInfo)]; // liste en yeni önce
   }, [list, scope, subjectKey]);
   const scopedIds = scoped.map((e) => e.id).join(',');
   const draftIds = useMemo(() => new Set((list || []).filter((e) => e.draftInfo).map((e) => e.id)), [list]);
@@ -91,23 +112,26 @@ export const DenemeKonuSecici: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, open, scopedIds]);
 
-  // Bu dersin deneme konuları (soru sayısıyla)
+  // Bu dersin deneme konuları (soru sayısı, geçtiği sonuçlu deneme sayısı)
   const topics = useMemo(() => {
-    if (!subjectKey) return [] as Array<{ label: string; count: number; pending: boolean }>;
-    const m = new Map<string, { count: number; done: boolean }>();
+    if (!subjectKey) return [] as Array<{ label: string; count: number; exams: number; pending: boolean }>;
+    const m = new Map<string, { label: string; count: number; done: Set<string> }>();
     for (const e of exams) {
       const done = !draftIds.has(e.id);
       for (const q of e.questions[subjectKey] || []) {
         if (!q.answer || !(q.konu || q.kazanim)) continue;
-        const { konu: k } = topicLabels(q);
-        const cur = m.get(k) || { count: 0, done: false };
-        m.set(k, { count: cur.count + 1, done: cur.done || done });
+        const label = labelOf(q, grup);
+        const k = keyOf(label);
+        const cur = m.get(k) || { label, count: 0, done: new Set<string>() };
+        cur.count++;
+        if (done) cur.done.add(e.id);
+        m.set(k, cur);
       }
     }
-    return Array.from(m.entries())
-      .map(([label, v]) => ({ label, count: v.count, pending: !v.done }))
+    return Array.from(m.values())
+      .map((v) => ({ label: v.label, count: v.count, exams: v.done.size, pending: v.done.size === 0 }))
       .sort((a, b) => a.label.localeCompare(b.label, 'tr', { numeric: true }));
-  }, [exams, subjectKey, draftIds]);
+  }, [exams, subjectKey, draftIds, grup]);
   const konuPending = !!konu && !!topics.find((t) => t.label === konu)?.pending;
 
   // Etüt yönlendirmeden gelen konu listede varsa seçili gelir
@@ -145,16 +169,40 @@ export const DenemeKonuSecici: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, open, konu, doneExams, classKey, konuPending]);
 
-  const rates: KonuRates | null = useMemo(() => {
+  // Öğrenci başarısı: konunun geçtiği her denemede ayrı yüzde, sonra denemelerin ortalaması
+  const calc = useMemo(() => {
     if (!konu || !subjectKey || !results.length) return null;
-    const out: KonuRates = {};
+    const want = keyOf(konu);
+    const exMap = new Map(doneExams.map((e) => [e.id, e] as const));
+    const used = new Set<string>();
+    const per = new Map<string, Array<{ rate: number; n: number }>>(); // öğrenci → deneme başına
     const studentIds = new Set(students.map((s) => s.id));
-    for (const r of studentTopicRows(doneExams, results, subjectKey, 'konu')) {
-      if (r.konu !== konu || !studentIds.has(r.studentId)) continue;
-      out[r.studentId] = { rate: r.rate, total: r.total };
+    for (const r of results) {
+      const ex = exMap.get(r.examId);
+      if (!ex || !studentIds.has(r.studentId)) continue;
+      const ans = r.answers[subjectKey] || '';
+      let n = 0;
+      let d = 0;
+      (ex.questions[subjectKey] || []).forEach((q, i) => {
+        if (!q.answer || !(q.konu || q.kazanim) || keyOf(labelOf(q, grup)) !== want) return;
+        n++;
+        if (markOf(ans[i], q) === 'D') d++;
+      });
+      if (!n) continue;
+      used.add(ex.id);
+      const l = per.get(r.studentId) || [];
+      l.push({ rate: (d / n) * 100, n });
+      per.set(r.studentId, l);
     }
-    return out;
-  }, [konu, subjectKey, results, doneExams, students]);
+    const out: KonuRates = {};
+    per.forEach((l, sid) => {
+      out[sid] = { rate: Math.round(l.reduce((a, x) => a + x.rate, 0) / l.length), total: l.reduce((a, x) => a + x.n, 0), exams: l.length };
+    });
+    return { rates: out, used: doneExams.filter((e) => used.has(e.id)).sort((a, b) => (b.examDate || '').localeCompare(a.examDate || '')) };
+  }, [konu, subjectKey, results, doneExams, students, grup]);
+  const rates: KonuRates | null = calc ? calc.rates : null;
+  const scopeN = scope === 'son' ? 1 : scope === 'son3' ? 3 : scope === 'son5' ? 5 : 0;
+  const doneCount = doneExams.length;
 
   useEffect(() => {
     onRates(rates);
@@ -216,6 +264,29 @@ export const DenemeKonuSecici: React.FC<{
               </select>
             </div>
           )}
+          {!!subjectKey && (
+            <div className="flex flex-wrap items-center gap-2" id="etut-deneme-grup">
+              <span className="text-[11px] font-semibold text-fg-2">Listele:</span>
+              <div className="inline-flex rounded-lg border border-line bg-surface p-0.5" role="group" aria-label="Konu düzeyi">
+                {(['kazanim', 'baslik'] as Grup[]).map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    id={`etut-deneme-grup-${g}`}
+                    aria-pressed={grup === g}
+                    onClick={() => {
+                      if (g === grup) return;
+                      setGrup(g);
+                      setKonu('');
+                    }}
+                    className={cx('h-7 w-28 rounded-md text-xs font-semibold cursor-pointer', grup === g ? 'bg-brand text-white' : 'text-muted hover:text-fg')}
+                  >
+                    {g === 'kazanim' ? 'Kazanıma göre' : 'Konu başlığına göre'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {!subjectKey ? null : (
             <select
               className="ui-input text-xs"
@@ -227,10 +298,10 @@ export const DenemeKonuSecici: React.FC<{
               aria-label="Deneme konusu"
               disabled={loading && !topics.length}
             >
-              <option value="">{loading && !topics.length ? 'Yükleniyor…' : topics.length ? '— Deneme konusu / kazanım seçin —' : 'Bu derste kazanımı girilmiş deneme sorusu yok'}</option>
+              <option value="">{loading && !topics.length ? 'Yükleniyor…' : topics.length ? grup === 'baslik' ? '— Konu başlığı seçin —' : '— Kazanım seçin —' : 'Bu derste kazanımı girilmiş deneme sorusu yok'}</option>
               {topics.map((t) => (
                 <option key={t.label} value={t.label}>
-                  {t.label} ({t.count} soru{t.pending ? ' · optik okunmamış' : ''})
+                  {t.label} ({t.count} soru · {t.pending ? 'optik okunmamış' : `${t.exams} deneme`})
                 </option>
               ))}
             </select>
@@ -243,6 +314,14 @@ export const DenemeKonuSecici: React.FC<{
           )}
           {konu && !konuPending && (
             <div className="space-y-1.5">
+              {calc && !loading && (
+                <p className="text-[11px] text-fg-2" id="etut-deneme-hesap">
+                  Hesap: {scopeN ? `son ${scopeN === 1 ? '' : `${scopeN} `}deneme` : `bütün denemeler (${doneCount})`}
+                  {scopeN && doneCount < scopeN ? ` (sonuçlu ${doneCount} deneme var)` : ''} içinden bu konu{' '}
+                  <b>{calc.used.length}</b> denemede var
+                  {calc.used.length ? `: ${calc.used.map((e) => e.name).join(', ')}` : ''}. Öğrenci yüzdesi bu denemelerin ortalamasıdır.
+                </p>
+              )}
               <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                 <span className="inline-flex items-center gap-1 rounded-md bg-danger px-1.5 py-0.5 font-bold text-white">%30 altı {bands ? `· ${bands.red.length}` : ''}</span>
                 <span className="inline-flex items-center gap-1 rounded-md bg-warning px-1.5 py-0.5 font-bold text-white">%30-49 {bands ? `· ${bands.orange.length}` : ''}</span>

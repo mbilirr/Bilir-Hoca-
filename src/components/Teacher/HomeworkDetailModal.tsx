@@ -154,7 +154,7 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
     URL.revokeObjectURL(url);
 
     setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 4000);
+    setTimeout(() => setDownloadSuccess(false), 15000); // Aşama 99: 15 sn
   };
 
   const handlePrint = () => {

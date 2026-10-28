@@ -811,7 +811,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       setSingleTopic((cur) => appendTopic(match && sameSubject(singleSubject, match) ? cur : '', text));
     }
     setPlanInfo(`${normalizeSubject(subject)}: plandaki görev konu kutusuna aktarıldı.`);
-    window.setTimeout(() => setPlanInfo(''), 4000);
+    window.setTimeout(() => setPlanInfo(''), 15000); // Aşama 99: 15 sn
   };
 
   // ---------------------------------------------------------------------------
@@ -1101,7 +1101,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
         : `${dayLabel}: ${saved.totalQuestions} soru kaydedildi.`
     );
     if (successTimerRef.current) window.clearTimeout(successTimerRef.current);
-    successTimerRef.current = window.setTimeout(() => setSaveSuccessMsg(''), 7000);
+    successTimerRef.current = window.setTimeout(() => setSaveSuccessMsg(''), 15000); // Aşama 99: 15 sn
     // Form, kaydedilen günün içeriğini göstermeye devam eder (artık düzenleme modunda)
   };
 
