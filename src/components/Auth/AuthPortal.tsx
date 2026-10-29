@@ -7,14 +7,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  LogIn,
-  UserPlus,
   AlertCircle,
   CheckCircle2,
-  School,
-  Hash,
-  Mail,
-  Phone,
   Briefcase,
   ArrowRight,
   Zap,
@@ -79,26 +73,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   students,
   teachers,
 }) => {
-  // Aşama 99b: kurum kayıt bağlantısı (?kayit=KOD ya da #/kayit/KOD) → kayıt formu o kurum için açılır
-  const [kayitKod] = useState<string>(() => {
-    try {
-      const q = new URLSearchParams(window.location.search).get('kayit') || (/#\/?kayit\/([A-Za-z0-9]+)/.exec(window.location.hash) || [])[1] || '';
-      const k = q.trim().toLowerCase();
-      return /^[a-z0-9]{6,20}$/.test(k) ? k : '';
-    } catch {
-      return '';
-    }
-  });
-  const [kayitKurum, setKayitKurum] = useState<{ name: string; logo: string } | null>(null);
-  const [kayitError, setKayitError] = useState<string | null>(null);
-  // Main view mode: 'login' | 'register'
-  const [authMode, setAuthMode] = useState<'login' | 'register'>(() => (kayitKod ? 'register' : 'login'));
+  // Aşama 108: öğrenci kendi kaydını yapamaz (öğrenciyi kurum ekler); giriş ekranında kayıt bölümü yoktur.
   // Selected role tab for login/register: 'teacher' | 'student'
   const [selectedRole, setSelectedRole] = useState<UserRole>(() => readLastRole());
 
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Common notification feedback
   const [error, setError] = useState<string | null>(null);
@@ -156,40 +136,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   // Aşama 42: parmak izi kayıtlıysa yalnızca tek "Giriş" düğmesi gösterilir (cihaz denetlenirken de)
   const bioMode = !!activeBioProfile && !bioFallback && (bioAvailable || !bioSupport.checked);
 
-  // --- ÖĞRENCİ KAYIT BAŞVURUSU (yönetici onayından sonra hesap açılır) ---
-  const [aName, setAName] = useState('');
-  const [aNumber, setANumber] = useState('');
-  const [aClassId, setAClassId] = useState('');
-  const [aRequestedClass, setARequestedClass] = useState('');
-  const [aPhone, setAPhone] = useState('');
-  const [aEmail, setAEmail] = useState('');
-  const [aPassword, setAPassword] = useState('');
-  const [aConfirmPassword, setAConfirmPassword] = useState('');
-  const [aWebsite, setAWebsite] = useState(''); // bot tuzağı (görünmez alan)
-  const [selectedAvatarSeed, setSelectedAvatarSeed] = useState('Zeynep');
-  const [applicationClasses, setApplicationClasses] = useState<Array<{ id: string; name: string }>>([]);
-  const [applicationClassesState, setApplicationClassesState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
-
-  const avatarSeeds = ['Zeynep', 'Emir', 'Elif', 'Burak', 'Ayse', 'Mert', 'Deniz', 'Selin'];
-
-  // Başvuru formu açılınca sınıf listesini sunucudan al (giriş yapmadan okunabilen tek bilgi)
-  useEffect(() => {
-    if (authMode !== 'register' || applicationClassesState !== 'idle') return;
-    setApplicationClassesState('loading');
-    dataService
-      .fetchApplicationClasses(kayitKod || undefined)
-      .then((res) => {
-        setApplicationClasses(res.classes);
-        setKayitKurum(res.kurum);
-        setApplicationClassesState('ready');
-      })
-      .catch((e: any) => {
-        // Kurum bağlantısı geçersiz ya da kayıt kapalıysa başvuru gönderilmez
-        if (kayitKod) setKayitError(e?.message || 'Kayıt bağlantısı açılamadı.');
-        setApplicationClassesState('error');
-      });
-  }, [authMode, applicationClassesState, kayitKod]);
 
   // Handle role switch in login tab
   const handleSelectRole = (role: UserRole) => {
@@ -416,61 +363,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setSuccessMsg('Bu cihazdaki parmak izi girişi kaldırıldı.');
   };
 
-  // --- ÖĞRENCİ KAYIT BAŞVURUSU GÖNDER ---
-  const handleStudentApplication = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    const name = aName.trim().replace(/\s+/g, ' ');
-    const number = aNumber.trim();
-    if (name.length < 3) {
-      setError('Lütfen adınızı ve soyadınızı giriniz.');
-      return;
-    }
-    if (!/^[0-9A-Za-z_-]{1,20}$/.test(number)) {
-      setError('Öğrenci numaranızı boşluksuz yazınız (yalnızca rakam ve harf).');
-      return;
-    }
-    if (aPassword.length < 6) {
-      setError('Şifre en az 6 karakter olmalıdır.');
-      return;
-    }
-    if (aPassword !== aConfirmPassword) {
-      setError('Girdiğiniz şifreler birbiriyle uyuşmuyor.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await dataService.submitStudentApplication({
-        name,
-        studentNumber: number,
-        password: aPassword,
-        classId: aClassId || undefined,
-        requestedClass: aClassId ? undefined : aRequestedClass.trim() || undefined,
-        email: aEmail.trim() || undefined,
-        phone: aPhone.trim() || undefined,
-        avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(selectedAvatarSeed || name)}`,
-        website: aWebsite,
-        kod: kayitKod || undefined,
-      });
-      setAPassword('');
-      setAConfirmPassword('');
-      setAuthMode('login');
-      setSelectedRole('student');
-      setLoginUsername(number);
-      setLoginPassword('');
-      setSuccessMsg(
-        `Başvurunuz alındı. Okul yöneticisi onayladıktan sonra "${number}" öğrenci numaranız ve belirlediğiniz şifreyle giriş yapabilirsiniz.`
-      );
-    } catch (err: any) {
-      setError(err?.message || 'Başvuru gönderilemedi. Lütfen daha sonra tekrar deneyiniz.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-surface-2 via-surface to-indigo-50/60 dark:to-indigo-500/10 text-fg flex flex-col justify-between font-sans selection:bg-indigo-500 selection:text-white relative overflow-hidden">
       {/* DEKORATİF STATİK RENK LEKELERİ (TAMAMEN ANİMASYONSUZ & YUMUŞAK) */}
@@ -501,42 +393,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       {/* Main Center Authentication Card */}
       <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:px-6">
         <div className="w-full max-w-xl bg-surface/95 backdrop-blur-sm border border-line rounded-2xl shadow-xl p-6 sm:p-8 relative">
-          {/* Main Auth Mode Tabs (Giriş Yap vs Kayıt Ol) */}
-          <div className="flex bg-surface-2 p-1.5 rounded-2xl mb-6">
-            <Button
-              type="button"
-              variant={authMode === 'login' ? 'primary' : 'ghost'}
-              size="md"
-              onClick={() => {
-                setAuthMode('login');
-                setError(null);
-                setSuccessMsg(null);
-              }}
-              leftIcon={<LogIn className="w-4 h-4" />}
-              className="flex-1"
-            >
-              Giriş Yap
-            </Button>
-
-            <Button
-              type="button"
-              variant={authMode === 'register' ? 'primary' : 'ghost'}
-              size="md"
-              onClick={() => {
-                setAuthMode('register');
-                setSelectedRole('student');
-                setError(null);
-                setSuccessMsg(null);
-              }}
-              leftIcon={<UserPlus className="w-4 h-4" />}
-              className="flex-1"
-            >
-              Öğrenci Kaydı
-            </Button>
-          </div>
-
-          {/* Role Selector Pill (yalnızca girişte; kayıt yalnızca öğrenci başvurusudur) */}
-          {authMode === 'login' && (
+          {/* Role Selector Pill */}
           <div className="mb-6">
             <label className="block text-xs font-semibold text-muted uppercase tracking-wider mb-2 text-center">
               Giriş Yapılacak Rol
@@ -577,7 +434,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
               </button>
             </div>
           </div>
-          )}
 
           {/* Error & Success Feedback Alerts */}
           {error && (
@@ -596,7 +452,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
           {/* ================= MODE 1: LOGIN ================= */}
           {/* ================= PARMAK İZİ KAYIT ADIMI ================= */}
-          {authMode === 'login' && pendingBio && (
+          {pendingBio && (
             <div id="biometric-enroll" className="space-y-4 p-5 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/60 dark:bg-indigo-500/10">
               <div className="flex items-start gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0">
@@ -630,7 +486,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             </div>
           )}
 
-          {authMode === 'login' && !pendingBio && (
+          {!pendingBio && (
             <div className="space-y-5">
               {/* Aşama 42: PARMAK İZİ AÇIKSA tek "Giriş" düğmesi — önce parmak izi, sorun olursa şifre formu */}
               {bioMode && activeBioProfile && (
@@ -821,194 +677,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
             </div>
           )}
 
-          {/* ================= MODE 2: ÖĞRENCİ KAYIT BAŞVURUSU ================= */}
-          {authMode === 'register' && (
-            <form onSubmit={handleStudentApplication} className="space-y-3">
-              {/* Aşama 99b: kurum bağlantısıyla açıldıysa kurumun adı ve logosu */}
-              {kayitKurum && (
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-line bg-surface" id="kayit-kurum">
-                  {kayitKurum.logo ? (
-                    <span className="h-12 w-20 shrink-0 rounded-lg bg-white border border-line p-1 flex items-center justify-center overflow-hidden">
-                      <img src={kayitKurum.logo} alt="" className="max-h-full max-w-full object-contain" />
-                    </span>
-                  ) : (
-                    <School className="w-6 h-6 text-indigo-600 dark:text-indigo-300 shrink-0" />
-                  )}
-                  <span className="min-w-0">
-                    <span className="block text-sm font-bold text-fg truncate">{kayitKurum.name}</span>
-                    <span className="block text-[11px] text-muted">Öğrenci kayıt başvurusu — başvurunuzu bu kurumun yöneticisi onaylar.</span>
-                  </span>
-                </div>
-              )}
-              {kayitKod && kayitError && (
-                <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-200 text-xs font-semibold" id="kayit-hata">
-                  {kayitError}
-                </div>
-              )}
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 rounded-xl text-indigo-900 dark:text-indigo-200 text-xs leading-relaxed">
-                <strong>Öğrenci kayıt başvurusu:</strong> Bilgilerinizi gönderdikten sonra okul yöneticisi başvurunuzu
-                onaylar. Onaydan sonra <strong>öğrenci numaranız</strong> ve burada belirlediğiniz <strong>şifreyle</strong>{' '}
-                giriş yaparsınız. Öğretmen hesapları okul yöneticisi tarafından açılır.
-              </div>
-
-              {/* Bot tuzağı: ekranda görünmez, gerçek kullanıcılar doldurmaz */}
-              <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
-                <label htmlFor="app-website">Web sitesi</label>
-                <input
-                  id="app-website"
-                  type="text"
-                  tabIndex={-1}
-                  autoComplete="off"
-                  value={aWebsite}
-                  onChange={(e) => setAWebsite(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Adı Soyadı *"
-                  type="text"
-                  required
-                  value={aName}
-                  onChange={(e) => setAName(e.target.value)}
-                  placeholder="Ad Soyad"
-                  leftIcon={<User className="w-4 h-4" />}
-                />
-                <Input
-                  label="Öğrenci Numarası * (giriş adınız)"
-                  type="text"
-                  required
-                  value={aNumber}
-                  onChange={(e) => setANumber(e.target.value)}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  placeholder="Örn: 1042"
-                  leftIcon={<Hash className="w-4 h-4" />}
-                />
-              </div>
-
-              <div className="p-3 bg-surface-2 rounded-xl border border-line space-y-2">
-                <label className="block text-[11px] font-bold text-fg-2 flex items-center space-x-1.5">
-                  <School className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                  <span>Sınıfınız (isteğe bağlı)</span>
-                </label>
-                <select
-                  value={aClassId}
-                  onChange={(e) => setAClassId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-surface border border-line-strong rounded-lg text-fg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="">
-                    {applicationClassesState === 'loading' ? 'Sınıflar yükleniyor...' : 'Listede yok / emin değilim'}
-                  </option>
-                  {applicationClasses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {!aClassId && (
-                  <input
-                    type="text"
-                    value={aRequestedClass}
-                    onChange={(e) => setARequestedClass(e.target.value)}
-                    maxLength={60}
-                    placeholder="Sınıfınızı yazabilirsiniz (örn: 8-B). Yönetici onaylarken sınıfa yerleştirir."
-                    className="w-full px-2.5 py-2 bg-surface border border-line-strong rounded-lg text-fg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                )}
-                {applicationClassesState === 'error' && (
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300">Sınıf listesi alınamadı; sınıfınızı yazarak devam edebilirsiniz.</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Şifre * (en az 6 karakter)"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                  value={aPassword}
-                  onChange={(e) => setAPassword(e.target.value)}
-                  placeholder="En az 6 karakter"
-                  leftIcon={<Lock className="w-4 h-4" />}
-                  rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  onRightIconClick={() => setShowPassword(!showPassword)}
-                  rightIconLabel="Şifreyi göster/gizle"
-                />
-                <Input
-                  label="Şifre Tekrar *"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="new-password"
-                  value={aConfirmPassword}
-                  onChange={(e) => setAConfirmPassword(e.target.value)}
-                  placeholder="Şifreyi tekrar girin"
-                  leftIcon={<Lock className="w-4 h-4" />}
-                  rightIcon={showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  onRightIconClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  rightIconLabel="Şifreyi göster/gizle"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Telefon (İsteğe Bağlı)"
-                  type="tel"
-                  value={aPhone}
-                  onChange={(e) => setAPhone(e.target.value)}
-                  placeholder="05XX XXX XX XX"
-                  leftIcon={<Phone className="w-4 h-4" />}
-                />
-                <Input
-                  label="E-posta (İsteğe Bağlı)"
-                  type="email"
-                  value={aEmail}
-                  onChange={(e) => setAEmail(e.target.value)}
-                  placeholder="ornek@mail.com"
-                  leftIcon={<Mail className="w-4 h-4" />}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-fg-2 mb-1.5">Profil Karakteri</label>
-                <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-                  {avatarSeeds.map((seed) => (
-                    <button
-                      type="button"
-                      key={seed}
-                      onClick={() => setSelectedAvatarSeed(seed)}
-                      className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all shrink-0 cursor-pointer ${
-                        selectedAvatarSeed === seed
-                          ? 'border-indigo-500 scale-105 shadow-sm'
-                          : 'border-line opacity-60 hover:opacity-100'
-                      }`}
-                      aria-label={`Karakter ${seed}`}
-                    >
-                      <img
-                        src={`https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(seed)}`}
-                        alt={seed}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={isLoading || (!!kayitKod && !!kayitError)}
-                isLoading={isLoading}
-                loadingText="Başvuru Gönderiliyor..."
-                leftIcon={<BookOpen className="w-4 h-4" />}
-                className="w-full mt-2"
-              >
-                Başvuruyu Gönder
-              </Button>
-            </form>
-          )}
         </div>
       </main>
 

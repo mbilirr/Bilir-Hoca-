@@ -175,7 +175,7 @@ interface MyKurumState {
   /** Aşama 82: kurumda rol yetkileri açık mı, oturumdaki kişinin rolleri, rol ayarları, kurum logosu, kurum maili */
   rolesEnabled: boolean;
   roles: string[];
-  roleSettings: { rehberlik_ogrenci_ekle?: boolean; idare_ders_verir?: boolean };
+  roleSettings: { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean; idare_ders_verir?: boolean };
   logo: string;
   hasMail: boolean;
   /** Aşama 83: kişiye özel bölüm izinleri (rolden bağımsız açılan / kapatılan bölümler) */
@@ -2465,7 +2465,7 @@ export class DataService {
     }
     const acc = this.myTeacherAccess;
     const k = this.myKurum;
-    const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}` : '';
+    const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}${k.roleSettings?.olcme_ogrenci_ekle ? 1 : 0}` : '';
     return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}|${roleKey}`;
   }
   private lastSessionRaw = '';
@@ -4514,7 +4514,7 @@ export class DataService {
     if (this.isHeadAdmin()) return true;
     return (this.isKurumAdmin() || this.roleWideView()) && this.canUseModule('manage_students');
   }
-  /** Bu öğrenci silinebilir mi (yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik) */
+  /** Bu öğrenci silinebilir mi (yönetici; müdür izin verdiyse Rehberlik / Ölçme Değerlendirme) */
   public canDeleteStudent(student?: Student | null): boolean {
     if (!student) return false;
     if (!this.myKurum.supported) return this.canManageStudents();
@@ -4664,9 +4664,11 @@ export class DataService {
   public canManageStudents(): boolean {
     if (!this.myKurum.supported) return this.isCurrentUserAdmin() || this.getClasses().length > 0;
     if (this.isHeadAdmin()) return true;
-    // Aşama 82: öğrenci ekle / sil — yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik
+    // Aşama 82: öğrenci ekle / sil — yönetici (Müdür, Müdür Yrd.), müdür izin verdiyse Rehberlik
+    // Aşama 108: Ölçme Değerlendirme de yalnızca kurum ayarındaki izinle (veritabanındaki kurum_student_adder ile aynı)
+    const rs = this.myKurum.roleSettings || {};
     const roleAdder =
-      this.hasRole('olcme_degerlendirme') || (this.hasRole('rehberlik') && this.myKurum.roleSettings?.rehberlik_ogrenci_ekle === true);
+      (this.hasRole('rehberlik') && rs.rehberlik_ogrenci_ekle === true) || (this.hasRole('olcme_degerlendirme') && rs.olcme_ogrenci_ekle === true);
     return (this.isKurumAdmin() || roleAdder) && this.canUseModule('manage_students');
   }
 
@@ -7835,31 +7837,9 @@ export class DataService {
     return this.pendingApplicationCount;
   }
 
-  // Giriş yapmamış öğrenci: başvuru formundaki sınıf listesi
-  // Aşama 99b: kod verilirse (kurum kayıt bağlantısı) o kurumun sınıfları ve kurum adı / logosu gelir
-  public async fetchApplicationClasses(kod?: string): Promise<{ kurum: { name: string; logo: string } | null; classes: Array<{ id: string; name: string }> }> {
-    const res = await invokeEdgeFunction<{ kurum?: { name: string; logo: string } | null; classes?: Array<{ id: string; name: string }> }>('register-student', {
-      action: 'classes',
-      ...(kod ? { kod } : {}),
-    });
-    return { kurum: res?.kurum || null, classes: res?.classes || [] };
-  }
+  // Aşama 108: öğrenci kendi kaydını yapamaz (giriş ekranındaki kayıt formu ve başvuru gönderme kaldırıldı);
+  // daha önce gelmiş bekleyen başvurular aşağıdaki işlevlerle sonuçlandırılır.
 
-  // Giriş yapmamış öğrenci: kayıt başvurusu gönderir
-  public async submitStudentApplication(form: {
-    name: string;
-    studentNumber: string;
-    password: string;
-    classId?: string;
-    requestedClass?: string;
-    email?: string;
-    phone?: string;
-    avatar?: string;
-    website?: string;
-    kod?: string; // Aşama 99b: kurum kayıt bağlantısının kodu
-  }): Promise<void> {
-    await invokeEdgeFunction('register-student', { action: 'apply', ...form });
-  }
 
   // Yönetici: başvuruları listeler (en yeni en üstte)
   /** Aşama 99b: başvuruları kim görür — genel yönetici (kurumsuz başvurular), kurum idaresi (kendi kurumununkiler) */

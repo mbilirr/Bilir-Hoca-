@@ -592,7 +592,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentFormError(null);
 
     if (!editingStudent && !canAddStudents) {
-      setStudentFormError('Öğrenci ekleyebilmeniz için yöneticinin size en az bir sınıf yetkisi vermesi gerekir.');
+      setStudentFormError('Öğrenciyi kurum yöneticisi, Müdür, Müdür Yrd. ya da izin verilmişse Rehberlik / Ölçme Değerlendirme ekler.');
       return;
     }
     const cleanName = studentName.trim().replace(/\s+/g, ' ');

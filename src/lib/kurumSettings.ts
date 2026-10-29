@@ -11,6 +11,8 @@ export interface KurumRow {
   logo: string;
   rolesEnabled: boolean;
   rehberlikOgrenciEkle: boolean;
+  /** Aşama 108: Ölçme Değerlendirme öğrenci ekleyip silebilir mi (varsayılan kapalı) */
+  olcmeOgrenciEkle: boolean;
   /** Aşama 98: idare (kurum yöneticisi, Müdür, Müdür Yrd.) ödev / etüt verebilir mi */
   idareDersVerir: boolean;
 }
@@ -29,6 +31,7 @@ export async function fetchKurumRows(): Promise<KurumRow[]> {
     logo: typeof k.logo === 'string' ? k.logo : '',
     rolesEnabled: k.roles_enabled === true,
     rehberlikOgrenciEkle: !!(k.role_settings && k.role_settings.rehberlik_ogrenci_ekle === true),
+    olcmeOgrenciEkle: !!(k.role_settings && k.role_settings.olcme_ogrenci_ekle === true),
     idareDersVerir: !!(k.role_settings && k.role_settings.idare_ders_verir === true),
   }));
 }
@@ -41,6 +44,17 @@ export async function setRolesEnabled(kurumId: string, on: boolean): Promise<voi
 export async function setRehberlikOgrenciEkle(kurumId: string, on: boolean): Promise<void> {
   const { error } = await supabase.rpc('kurum_set_role_settings', { p_kurum_id: kurumId, p_settings: { rehberlik_ogrenci_ekle: on } });
   if (error) throw new Error(missing(error) ? setupMsg : error.message);
+}
+
+const setup108 = "Bu ayar için Supabase SQL Editor'de Aşama 108 dosyasını (108_ogrenci_ekleme_yetkisi.sql) çalıştırın.";
+
+/** Aşama 108: Ölçme Değerlendirme öğrenci ekleyip silebilsin. Ayar veritabanına yazılmadıysa (SQL 108 yok) uyarır. */
+export async function setOlcmeOgrenciEkle(kurumId: string, on: boolean): Promise<void> {
+  const { error } = await supabase.rpc('kurum_set_role_settings', { p_kurum_id: kurumId, p_settings: { olcme_ogrenci_ekle: on } });
+  if (error) throw new Error(missing(error) ? setup108 : error.message);
+  const { data } = await supabase.from('kurumlar').select('role_settings').eq('id', kurumId).maybeSingle();
+  // Okunabildiyse doğrula (kurum satırı okunamıyorsa denetim atlanır)
+  if (data && ((data as any).role_settings?.olcme_ogrenci_ekle === true) !== on) throw new Error(setup108);
 }
 
 const setup98 = "Bu ayar için Supabase SQL Editor'de Aşama 98 dosyasını (98_kurum_duzeltme_idare.sql) çalıştırın.";
@@ -57,21 +71,6 @@ export async function setKurumModules(kurumId: string, modules: Record<string, b
   if (error) throw new Error(missing(error) || /kurum_set_modules/.test(error.message || '') ? setup98 : error.message);
 }
 
-/** Aşama 99b: öğrenci kayıt bağlantısı — kod yoksa üretilir; acik verilirse kayıt açılır / kapanır; yenile = yeni kod */
-export async function kurumKayitAyar(kurumId: string, opts: { acik?: boolean; yenile?: boolean } = {}): Promise<{ kod: string; acik: boolean }> {
-  const { data, error } = await supabase.rpc('kurum_kayit_ayar', {
-    p_kurum_id: kurumId,
-    p_acik: opts.acik ?? null,
-    p_yenile: !!opts.yenile,
-  });
-  if (error) {
-    const miss = error.code === 'PGRST202' || /kurum_kayit_ayar|kayit_kodu/.test(error.message || '');
-    throw new Error(miss ? "Kayıt bağlantısı için Supabase SQL Editor'de 99b_kurum_kayit_baglantisi.sql dosyasını çalıştırın." : error.message);
-  }
-  const d: any = data || {};
-  return { kod: String(d.kod || ''), acik: d.acik !== false };
-}
-export const kayitLinkOf = (kod: string) => `${window.location.origin}/?kayit=${kod}`;
 
 /** logo: undefined = değiştirme, '' = kaldır, data URL = yeni logo */
 export async function updateKurumIdentity(kurumId: string, name: string, logo?: string): Promise<void> {

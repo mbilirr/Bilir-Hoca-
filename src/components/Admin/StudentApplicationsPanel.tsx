@@ -104,6 +104,9 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
 
   const pending = applications.filter((a) => a.status === 'pending');
   const history = applications.filter((a) => a.status !== 'pending');
+  // Aşama 108: öğrenci kendi kaydını yapamadığı için yeni başvuru gelmez; bölüm yalnızca daha önce gelmiş
+  // bekleyen başvuru varken (ya da liste okunamadıysa) görünür
+  if (!loadError && pending.length === 0) return null;
 
   return (
     <div className="bg-surface/90 border border-line rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm">
@@ -122,7 +125,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
               )}
             </h3>
             <p className="text-[11px] text-muted">
-              Onaylanan öğrenci, başvuruda yazdığı öğrenci numarası ve kendi belirlediği şifreyle giriş yapar.
+              Öğrenci kaydı kapatıldı; burada yalnızca daha önce gelmiş başvurular sonuçlandırılır. Onaylanan öğrenci, başvuruda yazdığı numara ve kendi belirlediği şifreyle giriş yapar.
             </p>
           </div>
         </div>

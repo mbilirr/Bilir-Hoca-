@@ -21,7 +21,7 @@ export const ROLE_DEFS: RoleDef[] = [
   { code: 'mudur', label: 'Müdür', short: 'Müdür', chip: 'danger', description: 'Kurumun tamamını yönetir. Yalnızca genel yönetici verebilir.' },
   { code: 'mudur_yardimcisi', label: 'Müdür Yardımcısı', short: 'Müdür Yrd.', chip: 'warning', description: 'Müdürle aynı yetkiler; Müdür rolünü veremez.' },
   { code: 'rehberlik', label: 'Rehberlik', short: 'Rehberlik', chip: 'info', description: 'Tüm öğrenciler, etüt notları; ödev ve etüt verir.' },
-  { code: 'olcme_degerlendirme', label: 'Ölçme Değerlendirme', short: 'Ölçme Değ.', chip: 'success', description: 'Öğrenci işlemleri, deneme okuma ve analiz, veli duyuruları.' },
+  { code: 'olcme_degerlendirme', label: 'Ölçme Değerlendirme', short: 'Ölçme Değ.', chip: 'success', description: 'Öğrenci düzenleme (ekleme / silme müdür izin verirse), deneme okuma ve analiz, veli duyuruları.' },
   { code: 'zumre_baskani', label: 'Zümre Başkanı', short: 'Zümre Bşk.', chip: 'brand', description: 'Kendi zümresinin çalışmalarını görür, zümre evrakını düzenler. Öğretmen rolüyle verilir.' },
   { code: 'ogretmen', label: 'Öğretmen', short: 'Öğretmen', chip: 'neutral', description: 'Dersine girdiği sınıflar ve yalnızca kendi çalışmaları.' },
   { code: 'etut_ogretmeni', label: 'Etüt Öğretmeni', short: 'Etüt Öğr.', chip: 'neutral', description: 'Yalnızca kendisine verilen etütler ve o etütteki öğrenciler.' },
@@ -97,7 +97,7 @@ export async function saveTeacherSections(teacherId: string, access: SectionAcce
 export const MATRIX_COLUMNS = ['Müdür / Müdür Yrd.', 'Rehberlik', 'Ölçme Değ.', 'Zümre Bşk.', 'Öğretmen', 'Etüt Öğr.'];
 export const PERMISSION_MATRIX: Array<{ area: string; cells: string[] }> = [
   { area: 'Öğrencileri görme', cells: ['Tümü', 'Tümü', 'Tümü', 'Zümresinin sınıfları', 'Sınıfları', 'Yalnızca kendi etüdünde'] },
-  { area: 'Öğrenci ekle / sil', cells: ['Evet', 'Müdür izin verirse', 'Evet', '—', '—', '—'] },
+  { area: 'Öğrenci ekle / sil', cells: ['Evet', 'Müdür izin verirse', 'Müdür izin verirse', '—', '—', '—'] }, // Aşama 108: Ölçme de izinle
   { area: 'Öğrenci düzenle, sınıf değiştir', cells: ['Evet', 'Evet', 'Evet', '—', '—', '—'] },
   { area: 'Sınıf ekle / sil / düzenle', cells: ['Evet', '—', '—', '—', '—', '—'] },
   { area: 'Öğretmen ekle, yetki ver', cells: ['Evet', '—', '—', '—', '—', '—'] },

@@ -188,6 +188,15 @@ Deno.serve(async (req: Request) => {
       return data as Record<string, any>;
     };
 
+    // Aşama 108: giriş adı (numara / kullanıcı adı) tüm sistemde tektir. Çakışan kayıt başka okuldaysa adı gösterilmez,
+    // yalnız "farklı numara verin" denir. Genel yönetici her şeyi görebildiği için ona ad gösterilir.
+    const sameSchoolAs = (a: Record<string, any> | null | undefined, b: Record<string, any> | null | undefined) =>
+      callerIsHead || !kurumSupported || String(a?.kurum_id || '') === String(b?.kurum_id || '');
+    const otherSchoolMsg = (type: AccountType, identifier: string) =>
+      type === 'student'
+        ? `"${identifier}" numarası başka bir okulda kullanılıyor. Öğrenciye farklı bir numara verin.`
+        : `"${identifier}" kullanıcı adı başka bir okulda kullanılıyor. Farklı bir kullanıcı adı verin.`;
+
     // Öğretmen yalnızca yetkili olduğu sınıftaki veya kendisine atanmış öğrenciyi yönetebilir
     const assertCanManage = async (type: AccountType, row: Record<string, any>) => {
       if (callerIsAdmin) return;
@@ -342,6 +351,13 @@ Deno.serve(async (req: Request) => {
         if (!existing) throw new HttpError(409, 'Hesap oluşturulamadı: giriş adresi çakışması.');
         const existingRole = existing.app_metadata?.role;
         if (existingRole === 'applicant') {
+          // Aşama 108: başka okulun başvurusu bu okulda görünmez; o durumda "farklı numara" uyarısı
+          const { data: ap } = await admin
+            .from('student_applications')
+            .select('id' + (kurumSupported ? ', kurum_id' : ''))
+            .eq('auth_user_id', existing.id)
+            .limit(1);
+          if (!sameSchoolAs(row, (ap as any[] | null)?.[0])) throw new HttpError(409, otherSchoolMsg(type, identifier));
           throw new HttpError(409, `"${identifier}" numarasıyla bekleyen bir öğrenci başvurusu var. Önce başvuruyu onaylayın veya reddedin.`);
         }
         if (isAdminUser(existing) || (existingRole && existingRole !== type)) {
@@ -349,16 +365,18 @@ Deno.serve(async (req: Request) => {
         }
         const { data: owner } = await admin
           .from(tableFor(type))
-          .select('id, name')
+          .select('id, name' + (kurumSupported ? ', kurum_id' : ''))
           .eq('auth_user_id', existing.id)
           .neq('id', row.id)
           .limit(1);
         if (owner && owner.length > 0) {
+          // Aşama 108: başka okuldaki kişinin adı gösterilmez
+          if (!sameSchoolAs(row, owner[0] as any)) throw new HttpError(409, otherSchoolMsg(type, identifier));
           throw new HttpError(
             409,
             type === 'student'
-              ? `"${identifier}" numarası "${owner[0].name}" adlı öğrencinin hesabında kullanılıyor.`
-              : `"${identifier}" kullanıcı adı "${owner[0].name}" adlı öğretmenin hesabında kullanılıyor.`
+              ? `"${identifier}" numarası "${(owner[0] as any).name}" adlı öğrencinin hesabında kullanılıyor.`
+              : `"${identifier}" kullanıcı adı "${(owner[0] as any).name}" adlı öğretmenin hesabında kullanılıyor.`
           );
         }
         const { error: relinkError } = await admin.auth.admin.updateUserById(existing.id, {
@@ -553,11 +571,13 @@ Deno.serve(async (req: Request) => {
 
       const { data: sameNumber } = await admin
         .from('students')
-        .select('id, name')
+        .select('id, name' + (kurumSupported ? ', kurum_id' : ''))
         .eq('student_number', studentNumber)
         .limit(1);
       if (sameNumber && sameNumber.length > 0) {
-        throw new HttpError(409, `"${studentNumber}" numarası "${sameNumber[0].name}" adlı öğrenciye ait. Farklı bir numara giriniz.`);
+        // Aşama 108: başka okuldaki öğrencinin adı gösterilmez
+        if (!sameSchoolAs({ kurum_id: appKurumId }, sameNumber[0] as any)) throw new HttpError(409, otherSchoolMsg('student', studentNumber));
+        throw new HttpError(409, `"${studentNumber}" numarası "${(sameNumber[0] as any).name}" adlı öğrenciye ait. Farklı bir numara giriniz.`);
       }
 
       let classId = 'class-default';
