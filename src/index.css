@@ -579,3 +579,25 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Aşama 110: giriş ekranı kara tahta yeşili — marka rengi yalnızca bu ekranın içinde yeşile döner
+   (düğmeler, seçili rol, bağlantılar, giriş kutularının odak çizgisi); sistemin geri kalanı değişmez. */
+.auth-chalk {
+  --color-brand: #166534;
+  --color-brand-hover: #14532d;
+  --color-brand-soft: #ecf6f0;
+  --color-brand-fg: #166534;
+}
+[data-theme='dark'] .auth-chalk {
+  --color-brand: #1f9d55;
+  --color-brand-hover: #188547;
+  --color-brand-soft: #13261d;
+  --color-brand-fg: #6ee7a0;
+}
+.auth-chalk input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-brand) 22%, transparent);
+}
+.auth-chalk ::selection {
+  background: color-mix(in oklab, var(--color-brand) 30%, transparent);
+}
