@@ -811,6 +811,10 @@ export const DenemeKarne: React.FC<{
         <KazanimTakipView exams={fullExams} results={results} bank={bank} bankLoading={bank === undefined} />
       ) : mode === 'ogrenci' && tur === 'plan' ? (
         <CalismaPlaniView exams={fullExams} results={results} editable onChange={setPlanPicks} onTransfer={limited ? undefined : (list) => setTransfer(list)} />
+      ) : /* Aşama 105: veli ve öncelik karnesi genel öğrenci karnesinden önce */ mode === 'ogrenci' && tur === 'veli' ? (
+        <VeliKarneView data={veliData} studentName={student?.name || ''} className={student?.className || ''} note={veliNote} onNote={setVeliNote} teacherName={teacherName} />
+      ) : mode === 'ogrenci' && tur === 'oncelik' && pk ? (
+        <OncelikKarneView pk={pk} />
       ) : mode === 'ogrenci' ? (
         <StudentKarneView
           exams={fullExams}
@@ -838,10 +842,6 @@ export const DenemeKarne: React.FC<{
         />
       ) : mode === 'sinif' && cls && sinifTur === 'birlesik' ? (
         <ClassCombinedView data={classData} scopeLabel={scopeLabel(scope)} />
-      ) : mode === 'ogrenci' && tur === 'veli' ? (
-        <VeliKarneView data={veliData} studentName={student?.name || ''} className={student?.className || ''} note={veliNote} onNote={setVeliNote} teacherName={teacherName} />
-      ) : mode === 'ogrenci' && tur === 'oncelik' && pk ? (
-        <OncelikKarneView pk={pk} />
       ) : mode === 'kurum' ? (
         <KurumOzetView k={kurum} scopeLabel={scopeLabel(scope)} />
       ) : mode === 'isi' ? (

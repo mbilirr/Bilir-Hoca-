@@ -42,6 +42,7 @@ import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles
 import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
 import { GradeTicks } from './GradeTicks';
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
+import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -2066,7 +2067,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                     await navigator.clipboard.writeText(credentialText);
                     setCopied(true);
                   } catch {
-                    window.prompt('Kopyalamak için metni seçiniz:', credentialText);
+                    void appCopyFallback('Giriş bilgileri', credentialText);
                   }
                 }}
                 className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold border border-line"

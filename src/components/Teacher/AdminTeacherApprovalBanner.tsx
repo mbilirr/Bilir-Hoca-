@@ -58,8 +58,10 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
     setActionFeedback(`✓ ${name} hesabı başarıyla onaylandı. Artık giriş yapabilir.`);
   };
 
-  const handleQuickReject = (teacherId: string, name: string) => {
-    if (window.confirm(`${name} isimli öğretmenin kayıt başvurusunu reddetmek istediğinizden emin misiniz?`)) {
+  const handleQuickReject = async (teacherId: string, name: string) => {
+    // Aşama 105: onay penceresi ana dosyada taşınmaz, ilk kullanımda indirilir
+    const { appConfirm } = await import('../../lib/appDialog');
+    if (await appConfirm({ title: 'Başvuru reddedilsin mi?', message: `${name} isimli öğretmenin kayıt başvurusunu reddetmek istediğinizden emin misiniz?`, confirmText: 'Evet, reddet' })) {
       dataService.rejectTeacher(teacherId);
       setActionFeedback(`✗ ${name} başvurusu reddedildi.`);
     }

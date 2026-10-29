@@ -17,6 +17,7 @@ import {
   imageFileToLogo,
   type KurumRow,
 } from '../../lib/kurumSettings';
+import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 
 // ============================================================================
 // KURUM AYARLARI (Aşama 82)
@@ -294,7 +295,7 @@ export const KurumSettingsPanel: React.FC = () => {
       setKayitCopied(true);
       window.setTimeout(() => setKayitCopied(false), 2000);
     } catch {
-      window.prompt('Bağlantıyı kopyalayın:', kayitLinkOf(kayit.kod));
+      void appCopyFallback('Kayıt bağlantısı', kayitLinkOf(kayit.kod));
     }
   };
 

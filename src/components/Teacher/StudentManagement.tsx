@@ -72,6 +72,7 @@ import {
 } from '../../lib/importNormalize';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 
 interface StudentManagementProps {
   students: Student[];
@@ -3061,7 +3062,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                                 <button
                                   type="button"
                                   onClick={async () => {
-                                    if (confirm(`"${std.name}" adlı öğrenciyi "${viewingClassStudents.name}" sınıfından çıkarmak istediğinize emin misiniz?`)) {
+                                    if (await appConfirm({ title: 'Sınıftan çıkarılsın mı?', message: `"${std.name}" adlı öğrenciyi "${viewingClassStudents.name}" sınıfından çıkarmak istediğinize emin misiniz?`, confirmText: 'Evet, çıkar' })) {
                                       try {
                                         await dataService.removeStudentFromClass(std.id);
                                         setStudentSuccessFeedback(`"${std.name}" adlı öğrenci ${viewingClassStudents.name} sınıfından çıkarıldı.`);

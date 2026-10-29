@@ -85,6 +85,13 @@ function parseRouteHash(): { role: UserRole | null; tab: TeacherTabType } {
   };
 }
 
+// Aşama 105: çıkışta adres (#/teacher/...) temizlenir; aynı sekmede giren sonraki kişi eski bölüme düşmez
+function resetRouteHash() {
+  try {
+    if (window.location.hash) window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  } catch {}
+}
+
 export default function App() {
   // Authentication session gatekeeper (null = show AuthPortal before app opens)
   const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
@@ -93,10 +100,12 @@ export default function App() {
 
   // Active view role ('teacher' or 'student') — sayfa yenilenirse önce URL hash'ine bakılır
   const [role, setRole] = useState<UserRole>(() => {
+    const saved = dataService.getAuthSession();
+    // Aşama 105: öğrenci oturumu adres ne olursa olsun öğrenci görünümünde açılır
+    if (saved?.role === 'student') return 'student';
     const fromHash = parseRouteHash();
     if (fromHash.role) return fromHash.role;
-    const saved = dataService.getAuthSession();
-    return saved?.role === 'student' ? 'student' : 'teacher';
+    return 'teacher';
   });
 
   const [currentStudent, setCurrentStudent] = useState<Student | null>(() => {
@@ -182,6 +191,11 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const { role: hRole, tab } = parseRouteHash();
+      // Aşama 105: öğrenci oturumunda "Geri" tuşu öğretmen paneline geçiremez
+      if (dataService.getAuthSession()?.role === 'student') {
+        setRole('student');
+        return;
+      }
       if (hRole) setRole(hRole);
       setTeacherTab(tab);
     };
@@ -196,6 +210,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data }) => {
       if (!data?.session) {
         dataService.logout();
+        resetRouteHash();
         setAuthSession(null);
         setCurrentStudent(null);
         setRole('teacher');
@@ -248,6 +263,7 @@ export default function App() {
         const diff = now - lastActivityRef.current;
         if (diff >= getIdleLimitMs()) {
           dataService.logout();
+          resetRouteHash();
           setAuthSession(null);
           setCurrentStudent(null);
           setRole('teacher');
@@ -351,6 +367,7 @@ export default function App() {
   // Logout handler (returns to AuthPortal entrance and resets to home)
   const handleLogout = () => {
     dataService.logout();
+    resetRouteHash();
     setAuthSession(null);
     setCurrentStudent(null);
     setRole('teacher');
@@ -517,6 +534,17 @@ export default function App() {
                 onOpenStudentView={() => handleRoleChange('student')}
               />
               </Suspense>
+            )}
+
+            {/* Aşama 105: yalnız Etüt Öğretmeni rolü olan kişiye Etütler bölümü kapalıysa boş sayfa yerine bilgi */}
+            {teacherTab === 'home' && dataService.roleEtutOnly() && !dataService.canUseTab('etuts') && (
+              <div className="ui-card p-8 text-center space-y-3 max-w-xl mx-auto" id="etut-only-locked">
+                <ShieldCheck className="w-8 h-8 mx-auto text-warning-fg" />
+                <h2 className="text-lg font-bold text-fg">Size açık bir bölüm yok</h2>
+                <p className="text-sm text-muted">
+                  Unvanınız yalnızca Etüt Öğretmeni; Etütler bölümü ise şu anda size kapalı. Kurum yöneticinize başvurun.
+                </p>
+              </div>
             )}
 
             {/* SEÇİLİ ÇALIŞMA MODÜLÜ: Çalışma modülü butonundan hangi bölüm seçildiyse sayfada SADECE o bölüm gözükür */}

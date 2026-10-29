@@ -89,6 +89,7 @@ import {
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -2772,7 +2773,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                               <button
                                 type="button"
                                 onClick={async () => {
-                                  if (window.confirm('Bu soru kaydını silmek istediğinize emin misiniz? Ana sayfa özetleri ve grafikler anında güncellenecektir.')) {
+                                  if (await appConfirm({ title: 'Soru kaydı silinsin mi?', message: 'Bu soru kaydını silmek istediğinize emin misiniz? Ana sayfa özetleri ve grafikler anında güncellenecektir.' })) {
                                     try {
                                       await dataService.deleteQuestionLog(log.id);
                                     } catch {

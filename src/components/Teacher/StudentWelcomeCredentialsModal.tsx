@@ -3,6 +3,7 @@ import { Check, Copy, KeyRound, MessageCircle, Mail, Download, AlertTriangle, Sh
 import * as XLSX from 'xlsx';
 import { StudentCredential, StudentAccountFailure } from '../../types';
 import { Modal } from '../ui/kit';
+import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 
 interface StudentWelcomeCredentialsModalProps {
   isOpen: boolean;
@@ -71,7 +72,7 @@ const StudentWelcomeCredentialsContent: React.FC<StudentWelcomeCredentialsModalP
       markCopied(key);
       return true;
     } catch {
-      window.prompt('Kopyalamak için metni seçiniz:', text);
+      void appCopyFallback('Giriş bilgileri', text);
       return true;
     }
   };

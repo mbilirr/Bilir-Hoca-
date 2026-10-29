@@ -20,6 +20,7 @@ import {
 import { Teacher, ClassGroup } from '../../types';
 import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -87,7 +88,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       setActionMsg('Kurum yöneticisinin hesabı silinemez.');
       return;
     }
-    if (window.confirm(`${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?`)) {
+    if (await appConfirm({ title: 'Öğretmen kaydı silinsin mi?', message: `${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?` })) {
       dataService.deleteTeacher(teacherId);
       setActionMsg(`${name} kaydı silindi.`);
       refreshData();

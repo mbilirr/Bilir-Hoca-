@@ -79,6 +79,7 @@ import {
 import { readQuestionSubTab, readStudentTab, pushQuestionSubTab, type QuestionSubTab } from '../../lib/studentRoute';
 import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
 import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
+import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -2974,7 +2975,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                           type="button"
                           data-testid="qh-delete"
                           onClick={async () => {
-                            if (window.confirm(`${formatTurkishDate(log.date)} tarihli soru kaydını silmek istediğine emin misin?`)) {
+                            if (await appConfirm({ title: 'Soru kaydı silinsin mi?', message: `${formatTurkishDate(log.date)} tarihli soru kaydını silmek istediğine emin misin?` })) {
                               try {
                                 await dataService.deleteQuestionLog(log.id);
                               } catch {
