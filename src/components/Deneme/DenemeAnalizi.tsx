@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
@@ -13,6 +13,15 @@ import { DenemeEtut } from './DenemeEtut';
 import { KazanimBankasi } from './KazanimBankasi';
 import { hasHistoryValue, useHistoryState } from '../../lib/useHistoryState';
 import { gradeOf } from '../../lib/teacherGrades';
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
+import { matchTurkishSearch, turkishCompare } from '../../utils/turkishSearch';
+import { currentAcademicYear } from '../../lib/importNormalize';
+
+// Aşama 111: deneme listesi süzgeçleri (herkese aynı; öğretmende seçenekler yalnız görebildiği denemelerden gelir)
+const denemeYear = (e: DenemeExam) => (e.examDate ? currentAcademicYear(new Date(e.examDate + 'T12:00:00')) : '');
+const denemeGrade = (e: DenemeExam) => String(parseInt(String(e.grade), 10) || e.grade || '');
+const denemeSelectCls = 'h-8 w-full sm:w-36 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+const DENEME_PAGE = 15;
 
 // ============================================================================
 // DENEME ANALİZİ (Aşama 47) — ana sayfa
@@ -64,6 +73,41 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     if (plain && (tab === 'etut' || tab === 'kazanim')) setTab('denemeler', { replace: true });
   }, [plain, tab]);
   const listed = readOnly ? exams : allExams;
+  const [fYear, setFYear] = useState('');
+  const [fGrade, setFGrade] = useState('');
+  const [fPub, setFPub] = useState('');
+  const [fQ, setFQ] = useState('');
+  const fTerm = useDeferredValue(fQ.trim());
+  const listOpts = useMemo(() => {
+    const y = new Set<string>();
+    const g = new Set<string>();
+    const p = new Set<string>();
+    listed.forEach((e) => {
+      const yy = denemeYear(e);
+      if (yy) y.add(yy);
+      const gg = denemeGrade(e);
+      if (gg) g.add(gg);
+      if (e.publisher?.trim()) p.add(e.publisher.trim());
+    });
+    return {
+      years: Array.from(y).sort().reverse(),
+      grades: Array.from(g).sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0)),
+      publishers: Array.from(p).sort(turkishCompare),
+    };
+  }, [listed]);
+  const shownExams = useMemo(
+    () =>
+      listed.filter(
+        (e) =>
+          (!fYear || denemeYear(e) === fYear) &&
+          (!fGrade || denemeGrade(e) === fGrade) &&
+          (!fPub || (e.publisher || '').trim() === fPub) &&
+          (!fTerm || matchTurkishSearch(e.name, fTerm) || matchTurkishSearch(e.publisher, fTerm))
+      ),
+    [listed, fYear, fGrade, fPub, fTerm]
+  );
+  const examFiltersOn = !!(fYear || fGrade || fPub || fTerm);
+  const pagedExams = usePagedList(shownExams, `${fYear}|${fGrade}|${fPub}|${fTerm}`, DENEME_PAGE);
   const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
   const [aktarMsg, setAktarMsg] = useState<string | null>(null);
@@ -317,6 +361,60 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
               }
             />
           ) : (
+            <>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-line" id="deneme-list-filters">
+              <select id="deneme-filter-year" aria-label="Eğitim yılı" value={fYear} onChange={(e) => setFYear(e.target.value)} className={denemeSelectCls}>
+                <option value="">Tüm yıllar</option>
+                {listOpts.years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <select id="deneme-filter-grade" aria-label="Kademe" value={fGrade} onChange={(e) => setFGrade(e.target.value)} className={denemeSelectCls}>
+                <option value="">Tüm kademeler</option>
+                {listOpts.grades.map((g) => (
+                  <option key={g} value={g}>
+                    {g}. sınıf
+                  </option>
+                ))}
+              </select>
+              <select id="deneme-filter-publisher" aria-label="Yayınevi" value={fPub} onChange={(e) => setFPub(e.target.value)} className={denemeSelectCls}>
+                <option value="">Tüm yayınevleri</option>
+                {listOpts.publishers.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="search"
+                id="deneme-filter-search"
+                value={fQ}
+                onChange={(e) => setFQ(e.target.value)}
+                placeholder="Deneme ara…"
+                className="h-8 w-full sm:w-48 rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {examFiltersOn && (
+                <button
+                  type="button"
+                  id="deneme-filter-clear"
+                  className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28"
+                  onClick={() => {
+                    setFYear('');
+                    setFGrade('');
+                    setFPub('');
+                    setFQ('');
+                  }}
+                >
+                  Temizle
+                </button>
+              )}
+              <span className="text-xs text-muted sm:ml-auto">{shownExams.length} deneme</span>
+            </div>
+            {shownExams.length === 0 ? (
+              <p className="px-4 py-8 text-sm text-muted text-center">Seçili süzgeçlere uygun deneme yok.</p>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-fg-2">
                 <thead className="bg-surface-2/60 uppercase tracking-wider text-muted border-b border-line">
@@ -331,7 +429,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {listed.map((e) => (
+                  {pagedExams.visible.map((e) => (
                     <tr
                       key={e.id}
                       className="hover:bg-surface-2/30 transition-colors cursor-pointer"
@@ -381,6 +479,17 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
                 </tbody>
               </table>
             </div>
+            )}
+            <ShowMoreBar
+              id="deneme-list-more"
+              remaining={pagedExams.remaining}
+              total={pagedExams.total}
+              shown={pagedExams.visible.length}
+              onMore={pagedExams.showMore}
+              onAll={pagedExams.showAll}
+              step={DENEME_PAGE}
+            />
+            </>
           )}
         </div>
       )}

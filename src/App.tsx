@@ -133,7 +133,7 @@ export default function App() {
   const [classes, setClasses] = useState<ClassGroup[]>(dataService.getClasses());
   const [homeworks, setHomeworks] = useState<Homework[]>(dataService.getHomeworks());
   const [submissions, setSubmissions] = useState<HomeworkSubmission[]>(dataService.getSubmissions());
-  const [etuts, setEtuts] = useState<Etut[]>(dataService.getEtuts());
+  const [etuts, setEtuts] = useState<Etut[]>(dataService.getVisibleEtuts());
   const [grades, setGrades] = useState<GradeRecord[]>(dataService.getGrades());
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(dataService.getAttendance());
   const [messages, setMessages] = useState<StudentMessage[]>(dataService.getMessages());
@@ -156,7 +156,7 @@ export default function App() {
       setClasses(dataService.getClasses());
       setHomeworks(dataService.getHomeworks());
       setSubmissions(dataService.getSubmissions());
-      setEtuts(dataService.getEtuts());
+      setEtuts(dataService.getVisibleEtuts());
       setGrades(dataService.getGrades());
       setAttendance(dataService.getAttendance());
       setMessages(dataService.getMessages());
@@ -321,7 +321,7 @@ export default function App() {
     setStudents(freshStudents);
     setClasses(freshClasses);
     setHomeworks(dataService.getHomeworks());
-    setEtuts(dataService.getEtuts());
+    setEtuts(dataService.getVisibleEtuts());
 
     if (session.role === 'teacher') {
       setRole('teacher');
@@ -341,7 +341,7 @@ export default function App() {
       setClasses(dataService.getClasses());
       setHomeworks(dataService.getHomeworks());
       setSubmissions(dataService.getSubmissions());
-      setEtuts(dataService.getEtuts());
+      setEtuts(dataService.getVisibleEtuts());
       setGrades(dataService.getGrades());
       setAttendance(dataService.getAttendance());
       setMessages(dataService.getMessages());
@@ -439,7 +439,7 @@ export default function App() {
     setStudents(dataService.getStudents());
     setClasses(dataService.getClasses());
     setHomeworks(dataService.getHomeworks());
-    setEtuts(dataService.getEtuts());
+    setEtuts(dataService.getVisibleEtuts());
   };
 
   return (

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue, useEffect } from 'react';
 import { safeHttpUrl } from '../../lib/fileStorage';
-import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
+import { usePagedList, ShowMoreBar, useMediaQuery } from '../../lib/listPaging';
+import { matchTurkishSearch, turkishCompare } from '../../utils/turkishSearch';
 import {
   MessageSquare,
   Search,
@@ -24,6 +25,22 @@ import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
 import { useHistoryState } from '../../lib/useHistoryState';
 
+// Aşama 111: kurumun tüm mesajlarını gören (genel yönetici, idare, Rehberlik) için süzgeçler.
+// İlk açılış "Bana gelenler + Cevapsız"; son seçim bu tarayıcıda hatırlanır.
+type MsgFilters = { kime: string; durum: 'all' | 'open' | 'replied'; sinif: string; donem: 'week' | 'month' | 'all' };
+const MSG_FILTER_KEY = 'bilir.messages.filters.v1';
+const DEFAULT_MSG_FILTERS: MsgFilters = { kime: 'me', durum: 'open', sinif: '', donem: 'all' };
+function readMsgFilters(): MsgFilters {
+  try {
+    const raw = localStorage.getItem(MSG_FILTER_KEY);
+    if (raw) return { ...DEFAULT_MSG_FILTERS, ...JSON.parse(raw) };
+  } catch {
+    /* tarayıcı saklamaya izin vermiyorsa varsayılan */
+  }
+  return DEFAULT_MSG_FILTERS;
+}
+const msgSelectCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+
 interface TeacherMessagesProps {
   messages: StudentMessage[];
 }
@@ -40,17 +57,62 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const [section, setSection] = useHistoryState<'inbox' | 'announce' | 'parents' | 'etutNotes'>('messages.section', 'inbox'); // Aşama 52: geri tuşu
   const etutNotes = useEtutNotes();
 
+  const phone = useMediaQuery('(max-width: 639px)');
+  const term = useDeferredValue(searchTerm.trim());
+  const wide = dataService.seesAllEtuts();
+  const meId = dataService.getAuthSession()?.user.id || '';
+  const [filters, setFilters] = useState<MsgFilters>(() => (wide ? readMsgFilters() : { ...DEFAULT_MSG_FILTERS, kime: 'all', durum: 'all' }));
+  useEffect(() => {
+    if (!wide) return;
+    try {
+      localStorage.setItem(MSG_FILTER_KEY, JSON.stringify(filters));
+    } catch {
+      /* saklanamazsa yalnız bu oturumda geçerli */
+    }
+  }, [filters, wide]);
+  const setFilter = <K extends keyof MsgFilters>(k: K, v: MsgFilters[K]) => setFilters((f) => ({ ...f, [k]: v }));
+
+  const unreadCount = useMemo(() => messages.filter((m) => !m.read).length, [messages]);
+  // Kime / Sınıf seçenekleri yalnız listede gerçekten bulunanlardan oluşur
+  const { teacherOpts, classOpts } = useMemo(() => {
+    if (!wide) return { teacherOpts: [] as Array<[string, string]>, classOpts: [] as string[] };
+    const t = new Map<string, string>();
+    const c = new Set<string>();
+    messages.forEach((m) => {
+      if (m.toTeacherId && m.toTeacherId !== meId) t.set(m.toTeacherId, m.toTeacherName || 'Öğretmen');
+      if (m.studentClass) c.add(m.studentClass);
+    });
+    return {
+      teacherOpts: Array.from(t.entries()).sort((a, b) => turkishCompare(a[1], b[1])),
+      classOpts: Array.from(c).sort(turkishCompare),
+    };
+  }, [messages, wide, meId]);
+
   const filteredMessages = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    return messages.filter(
-      (m) =>
-        (m.studentName || '').toLowerCase().includes(term) ||
-        (m.subject || '').toLowerCase().includes(term) ||
-        (m.text || '').toLowerCase().includes(term)
-    );
-  }, [messages, searchTerm]);
-  // Aşama 15: uzun mesaj listesi parça parça çizilir
-  const pagedMessages = usePagedList(filteredMessages, searchTerm);
+    let since = 0;
+    if (wide && filters.donem !== 'all') {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      if (filters.donem === 'week') d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      else d.setDate(1);
+      since = d.getTime();
+    }
+    return messages.filter((m) => {
+      if (wide) {
+        if (filters.kime === 'me' && m.toTeacherId && m.toTeacherId !== meId) return false;
+        if (filters.kime !== 'me' && filters.kime !== 'all' && m.toTeacherId !== filters.kime) return false;
+        if (filters.durum === 'open' && m.teacherReply) return false;
+        if (filters.durum === 'replied' && !m.teacherReply) return false;
+        if (filters.sinif && m.studentClass !== filters.sinif) return false;
+        if (since && new Date(m.createdAt).getTime() < since) return false;
+      }
+      if (!term) return true;
+      return matchTurkishSearch(m.studentName, term) || matchTurkishSearch(m.subject, term) || matchTurkishSearch(m.text, term);
+    });
+  }, [messages, term, wide, filters, meId]);
+  const filtersActive = wide && (filters.kime !== 'all' || filters.durum !== 'all' || !!filters.sinif || filters.donem !== 'all');
+  // Aşama 15: uzun mesaj listesi parça parça çizilir (Aşama 111: telefonda ilk 15)
+  const pagedMessages = usePagedList(filteredMessages, `${term}|${filters.kime}|${filters.durum}|${filters.sinif}|${filters.donem}`, 50, phone ? 15 : undefined);
 
   const activeMessage = messages.find((m) => m.id === selectedMessageId) || filteredMessages[0];
 
@@ -84,8 +146,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         tone="danger"
         title="Mesajlar"
         description={
-          messages.filter((m) => !m.read).length
-            ? `${messages.filter((m) => !m.read).length} okunmamış mesaj`
+          unreadCount
+            ? `${unreadCount} okunmamış mesaj`
             : 'Öğrencilerinizden gelen sorular ve mesajlar'
         }
       />
@@ -94,7 +156,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         value={section}
         onChange={setSection}
         items={[
-          { value: 'inbox', label: `Gelen Mesajlar${messages.filter((m) => !m.read).length ? ` (${messages.filter((m) => !m.read).length})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
+          { value: 'inbox', label: `Gelen Mesajlar${unreadCount ? ` (${unreadCount})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
           ...(dataService.canSeeEtutNotesTab()
             ? [
                 {
@@ -133,13 +195,54 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                 className="w-full pl-10 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+            {wide && (
+              <div className="mt-3 grid grid-cols-2 gap-2" id="messages-filters">
+                <select id="messages-filter-kime" aria-label="Kime" value={filters.kime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
+                  <option value="me">Bana gelenler</option>
+                  <option value="all">Tüm öğretmenler</option>
+                  {teacherOpts.map(([id, name]) => (
+                    <option key={id} value={id}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                <select id="messages-filter-durum" aria-label="Durum" value={filters.durum} onChange={(e) => setFilter('durum', e.target.value as MsgFilters['durum'])} className={msgSelectCls}>
+                  <option value="all">Tüm durumlar</option>
+                  <option value="open">Cevapsız</option>
+                  <option value="replied">Cevaplanan</option>
+                </select>
+                <select id="messages-filter-sinif" aria-label="Sınıf" value={filters.sinif} onChange={(e) => setFilter('sinif', e.target.value)} className={msgSelectCls}>
+                  <option value="">Tüm sınıflar</option>
+                  {classOpts.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <select id="messages-filter-donem" aria-label="Dönem" value={filters.donem} onChange={(e) => setFilter('donem', e.target.value as MsgFilters['donem'])} className={msgSelectCls}>
+                  <option value="all">Tüm zamanlar</option>
+                  <option value="week">Bu hafta</option>
+                  <option value="month">Bu ay</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* List items */}
           <div className="flex-1 overflow-y-auto divide-y divide-line max-h-[500px]">
             {filteredMessages.length === 0 ? (
-              <div className="p-8 text-center text-muted text-xs">
-                Aramanıza uygun mesaj bulunamadı.
+              <div className="p-8 text-center text-muted text-xs space-y-3">
+                <p>{filtersActive ? 'Seçili süzgeçlere uygun mesaj yok.' : 'Aramanıza uygun mesaj bulunamadı.'}</p>
+                {filtersActive && (
+                  <button
+                    type="button"
+                    id="messages-filters-clear"
+                    onClick={() => setFilters({ kime: 'all', durum: 'all', sinif: '', donem: 'all' })}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 mx-auto"
+                  >
+                    Tümünü göster
+                  </button>
+                )}
               </div>
             ) : (
               pagedMessages.visible.map((msg) => {
@@ -195,9 +298,9 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         </span>
 
                         {msg.teacherReply ? (
-                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center space-x-1">
+                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center space-x-1" title={msg.repliedByName ? `Cevaplayan: ${msg.repliedByName}` : undefined}>
                             <CheckCircle2 className="w-3 h-3" />
-                            <span>Cevaplandı</span>
+                            <span>{wide && msg.repliedByName ? `Cevaplandı · ${msg.repliedByName}` : 'Cevaplandı'}</span>
                           </span>
                         ) : !msg.read ? (
                           <span className="w-2 h-2 rounded-full bg-indigo-500"></span>

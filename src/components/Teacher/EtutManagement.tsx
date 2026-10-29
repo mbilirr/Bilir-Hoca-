@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
 import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
 import { normalizeSubject } from '../../lib/subjects';
 import { usePagedList, ShowMoreBar } from '../../lib/listPaging';
@@ -36,6 +36,8 @@ import {
   ChevronDown,
   Copy,
   Lock,
+  Eye,
+  ClipboardList,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Etut, Student, ClassGroup, Teacher } from '../../types';
@@ -58,6 +60,13 @@ import { isEtutEnded, hasEtutAttendance, etutExpectsAttendance } from '../../lib
 import { EtutScheduleExportModal } from './EtutScheduleExportModal';
 import { ETUT_STATUS_STYLE, NO_TEACHER_LABEL, etutTeacherNames, getEtutStatus } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
+import { lazyNamed } from '../../lib/lazyLoad';
+
+// Aşama 111: TeacherHome ile ortak kapsam kaydı (Benim / Tümü)
+const HOME_SCOPE_KEY = 'edu_home_scope_v1';
+// Aşama 111: Takip görünümü ve salt okunur ayrıntı penceresi ayrı parça (yalnız idare / Rehberlik açınca iner)
+const EtutTakipView = lazyNamed(() => import('./EtutTakipView'), 'EtutTakipView');
+const EtutDetayModal = lazyNamed(() => import('./EtutTakipView'), 'EtutDetayModal');
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useSeenIds } from '../../lib/useSeenIds';
 
@@ -119,8 +128,9 @@ interface EtutManagementProps {
 }
 
 export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students, classes }) => {
-  const [viewMode, setViewMode] = useHistoryState<'calendar' | 'cards' | 'attendance'>('etut.view', 'calendar'); // Aşama 52: geri tuşu
-  const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null); // Aşama 21: açık etüt şeridi
+  const [viewMode, setViewMode] = useHistoryState<'calendar' | 'cards' | 'attendance' | 'takip'>('etut.view', 'calendar'); // Aşama 52: geri tuşu
+  const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null);
+  const [viewEtut, setViewEtut] = useState<Etut | null>(null); // Aşama 111: salt okunur yoklama / yorum // Aşama 21: açık etüt şeridi
   const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
@@ -156,25 +166,38 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const session = dataService.getAuthSession();
   const currentTeacher = session?.role === 'teacher' ? (session.user as Teacher) : null;
 
-  // Aşama 24: "Tüm Okul" yalnız yöneticilere (genel yönetici + kurum yöneticisi). Yönetici olmayan öğretmen
-  // Etütler sayfasında yalnız kendi etütlerini görür: oluşturduğu ya da etüt öğretmeni olarak atandığı etütler.
-  const isAdminView = dataService.isCurrentUserAdmin() || dataService.isKurumAdmin();
-  const [scopeFilter, setScopeFilter] = useState<'all' | 'mine'>(isAdminView ? 'all' : 'mine');
-  const scope: 'all' | 'mine' = isAdminView ? scopeFilter : 'mine';
+  // Aşama 111: "Tüm Okul" genel yönetici, idare ve Rehberlik'te; Zümre Başkanı "Benim / Zümrem" seçer.
+  // Diğer öğretmenler yalnız kendi kaydettiği ve kendisine verilen etütleri görür. Liste (etuts) zaten
+  // dataService.getVisibleEtuts(): ana sayfa, zil ve bu sayfa aynı kuralla süzülür.
+  const isAdminView = dataService.seesAllEtuts();
+  const isZumreView = !isAdminView && dataService.hasRole('zumre_baskani');
+  const wideView = isAdminView || isZumreView;
+  // Ana sayfadaki "Benim / Tümü" seçimiyle aynı kayıt: ana sayfada görülen sayı burada da aynen görünür
+  const [scopeFilter, setScopeState] = useState<'all' | 'mine'>(() => {
+    const fallback = dataService.showsKurumOzeti() ? 'all' : 'mine';
+    try {
+      const v = window.localStorage.getItem(HOME_SCOPE_KEY);
+      return v === 'mine' || v === 'all' ? v : fallback;
+    } catch {
+      return fallback;
+    }
+  });
+  const setScopeFilter = (v: 'all' | 'mine') => {
+    setScopeState(v);
+    try {
+      window.localStorage.setItem(HOME_SCOPE_KEY, v);
+    } catch {
+      /* depolama kapalı */
+    }
+  };
+  const scope: 'all' | 'mine' = wideView ? scopeFilter : 'mine';
+  const canEditEtut = useCallback((e: Etut) => dataService.canEditEtutPublic(e), []);
+  // Takip görünümü yalnız idare / Rehberlik'te; kayıtlı geçmiş başka hesapta açılırsa takvime döner
+  useEffect(() => {
+    if (viewMode === 'takip' && !isAdminView) setViewMode('calendar', { replace: true });
+  }, [viewMode, isAdminView, setViewMode]);
 
-  const myEtuts = useMemo(() => {
-    if (!currentTeacher) return etuts;
-    const tName = (currentTeacher.name || '').trim().toLocaleLowerCase('tr-TR');
-    return etuts.filter((e) => {
-      if (e.createdById && e.createdById === currentTeacher.id) return true;
-      if (e.teacherId && e.teacherId === currentTeacher.id) return true;
-      if (e.teacherIds && e.teacherIds.includes(currentTeacher.id)) return true;
-      // Eski kayıtlar (kimlik yok): etüt öğretmeni adı ya da kaydeden adı aynıysa
-      if (!e.teacherId && !(e.teacherIds && e.teacherIds.length) && tName && (e.teacherName || '').trim().toLocaleLowerCase('tr-TR') === tName) return true;
-      if (!e.createdById && tName && (e.createdByName || '').trim().toLocaleLowerCase('tr-TR') === tName) return true;
-      return false;
-    });
-  }, [etuts, currentTeacher]);
+  const myEtuts = useMemo(() => (currentTeacher ? etuts.filter((e) => dataService.isMyEtut(e)) : etuts), [etuts, currentTeacher]);
 
   const activeEtuts = scope === 'mine' ? myEtuts : etuts;
 
@@ -460,12 +483,17 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         />
       )}
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        {isAdminView ? (
+        {viewMode === 'takip' && isAdminView ? (
+          /* Aşama 111: Takip her zaman kurumun tamamını gösterir (Benim / Tümü seçimi burada geçerli değil) */
+          <span className="ui-chip ui-chip-neutral" id="etut-scope-takip" title="Takip görünümü kurumun bütün etütlerini gösterir">
+            Tüm Okul ({etuts.length})
+          </span>
+        ) : wideView ? (
           <Segmented
             value={scopeFilter}
             onChange={(v) => setScopeFilter(v)}
             items={[
-              { value: 'all', label: `Tüm Okul (${etuts.length})`, id: 'etut-scope-all' },
+              { value: 'all', label: `${isAdminView ? 'Tüm Okul' : 'Zümrem'} (${etuts.length})`, id: 'etut-scope-all' },
               { value: 'mine', label: `Benim Etütlerim (${myEtuts.length})`, id: 'etut-scope-mine' },
             ]}
           />
@@ -481,12 +509,20 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             { value: 'calendar', label: 'Haftalık Takvim', icon: CalendarDays },
             { value: 'cards', label: `Liste (${activeEtuts.length})`, icon: LayoutGrid },
             { value: 'attendance', label: 'Yoklama', icon: CalendarCheck },
+            ...(isAdminView ? [{ value: 'takip' as const, label: 'Takip', icon: ClipboardList, id: 'etut-view-takip' }] : []),
           ]}
         />
       </div>
 
       {/* Süzgeç çubuğu: Ders + Öğretmen açılır listeleri (Aşama 28) her görünümde; tarih süzgeci yalnız Liste ve Yoklama'da.
           Haftalık Takvim'in kendi hafta okları olduğu için orada tarih süzgeci gösterilmez. */}
+      {viewMode === 'takip' && isAdminView && (
+        <Suspense fallback={<div className="ui-card p-8 text-center text-sm text-muted">Yükleniyor…</div>}>
+          <EtutTakipView etuts={etuts} students={students} classes={classes} onOpenEtut={setViewEtut} />
+        </Suspense>
+      )}
+
+      {viewMode !== 'takip' && (
       <div className="ui-card p-3 sm:p-4 space-y-3" id="etut-filter-bar">
         {/* Aşama 33: Ders, Öğretmen, Ders saati ve Tarih aynı yükseklikte, aynı sırada, simetrik ızgarada.
             Aşama 33b: geniş ekranda kutular sayfayı doldurmaz; hepsi EŞİT genişlikte ve bu genişlik EN UZUN yazı kadardır
@@ -590,7 +626,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted" id="etut-list-count">
             {`${viewMode === 'calendar' ? calendarEtuts.length : viewMode === 'cards' ? cardEtuts.length : listEtuts.length} etüt listeleniyor`}
-            {!isAdminView && ' · yalnız sizin etütleriniz'}
+            {!wideView && ' · yalnız sizin etütleriniz'}
           </span>
           <div className="flex items-center gap-3 flex-wrap">
             {viewMode === 'cards' && <EtutStatusLegend />}
@@ -603,6 +639,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         </div>
       </div>
 
+      )}
+
       {/* Main Content: Weekly Calendar View, Cards Grid, or Dedicated Attendance Section */}
       {viewMode === 'calendar' && (
         <WeeklyEtutCalendar
@@ -613,6 +651,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
           onEditEtut={openEdit}
           onCopyEtut={openCopy}
           onDeleteEtut={(etut) => setEtutToDelete(etut)}
+          canEditEtut={canEditEtut}
+          onViewEtut={setViewEtut}
           onNotifyEtut={(etut) => {
             setSelectedEtutForDispatch(etut);
             setIsDispatchModalOpen(true);
@@ -714,6 +754,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted px-2" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
                       <Lock className="w-3.5 h-3.5" /> Başka öğretmenin etüdü
                     </span>
+                  ) : !canEditEtut(etut) ? (
+                    /* Aşama 111: Rehberlik / Zümre başkasının etüdünü yalnız görür */
+                    <StripAction label="Yoklamayı görüntüle" id={`btn-view-etut-${etut.id}`} title="Yoklama ve yorumlar (salt okunur)" onClick={() => setViewEtut(etut)}>
+                      <Eye className="w-4 h-4" />
+                    </StripAction>
                   ) : (
                   <>
                     <StripAction label="Yoklama Al" tone="success" onClick={() => setSelectedEtutForAttendance(etut)}>
@@ -860,7 +905,8 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* DEDICATED SIMPLE ETÜT DEVAMSIZLIK ARAYÜZÜ */}
       {viewMode === 'attendance' && (() => {
         // Aşama 40: başka öğretmenin etüdünün yoklaması alınamaz / görülemez
-        const attEtuts = listEtuts.filter((e) => !e.privacyRedacted);
+        // Aşama 111: yoklama yalnız düzenleyebildiği etütlerde alınır (Rehberlik başkasınınkini Takip'te görür)
+        const attEtuts = listEtuts.filter((e) => canEditEtut(e));
         const currentAttendanceEtut =
           attEtuts.find((e) => e.id === selectedAttendanceEtutId) || attEtuts[0] || null;
 
@@ -1329,6 +1375,22 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         />
       )}
 
+      {viewEtut && (
+        <Suspense fallback={null}>
+          <EtutDetayModal
+            etut={viewEtut}
+            students={students}
+            classes={classes}
+            canEdit={canEditEtut(viewEtut)}
+            onClose={() => setViewEtut(null)}
+            onEditAttendance={(e: Etut) => {
+              setViewEtut(null);
+              setSelectedEtutForAttendance(e);
+            }}
+          />
+        </Suspense>
+      )}
+
       {/* ETÜT OLUŞTUR / DÜZENLE */}
       <EtutFormModal
         open={!!etutForm}
@@ -1337,7 +1399,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         initialDate={etutForm?.initialDate || null}
         students={students}
         classes={classes}
-        etuts={etuts}
+        etuts={dataService.getEtuts() /* Aşama 111: çakışma denetimi ortak takvim satırlarıyla birlikte */}
         onClose={() => setEtutForm(null)}
         onSaved={handleEtutSaved}
         onManageTeachers={() => setIsTeacherManagerOpen(true)}

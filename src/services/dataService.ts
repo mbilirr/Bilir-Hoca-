@@ -2229,23 +2229,37 @@ export class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
     try {
-      const { data: ownEtuts, error: errEtuts } = await this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'));
-      if (errEtuts) {
-        if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
+      // Aşama 111: öğretmen etüt tablosunu artımlı okur (yalnız değişen satırlar; sql/111 yoksa tam okuma)
+      const res = await this.fetchTableSmart(
+        'etuts',
+        isBackground,
+        () => this.etuts.map((e) => e.id),
+        {},
+        () => this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'))
+      );
+      if (res.mode === 'error') {
+        if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', res.error);
         return;
       }
+      const delta = res.mode === 'delta';
       // Aşama 41 (mahremiyet, 32 numaralı SQL): öğretmen etüt tablosundan yalnızca KENDİ etütlerini okur.
       // Ortak öğrencili diğer etütlerin yalnızca gün / saat / öğretmen / sınıf bilgisi ayrı fonksiyonla gelir.
       // SQL henüz çalıştırılmadıysa fonksiyon yoktur; o zaman eski davranış sürer.
-      let remoteEtuts: any[] | null = ownEtuts as any[] | null;
-      if (remoteEtuts && this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
+      let remoteEtuts: any[] = res.data;
+      // artımlı okumada: ortak takvim / zümre satırları her seferinde tam gelir (küçük), bunlara ait kimlikler
+      const rpcIds = new Set<string>();
+      let sharedLoaded = false;
+      let zumreLoaded = false;
+      if (this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
         try {
           const shared = await supabase.rpc('etut_shared_schedule');
-          if (!shared.error && Array.isArray(shared.data) && shared.data.length) {
+          if (!shared.error && Array.isArray(shared.data)) {
+            sharedLoaded = true;
             const own = new Set(remoteEtuts.map((r: any) => r.id));
             const extra = (shared.data as any[])
               .filter((r) => r && r.id && !own.has(r.id))
               .map((r) => ({ ...r, topic: '', notes: JSON.stringify({ ...(r.meta || {}), __etut_meta__: true, __redacted__: true }) }));
+            for (const r of extra) rpcIds.add(r.id);
             remoteEtuts = [...remoteEtuts, ...extra];
           }
         } catch {
@@ -2255,12 +2269,16 @@ export class DataService {
         if (this.hasRole('zumre_baskani') && !this.hasRole('rehberlik') && !this.isKurumAdmin()) {
           try {
             const peer = await supabase.rpc('etut_zumre_rows');
-            if (!peer.error && Array.isArray(peer.data) && peer.data.length) {
+            if (!peer.error && Array.isArray(peer.data)) {
+              zumreLoaded = true;
               const byId = new Map<string, any>(remoteEtuts.map((r: any) => [r.id, r]));
               for (const r of peer.data as any[]) {
                 const cur = byId.get(r.id);
                 // ortak takvimden gelen (ayrıntısız) satırın yerine zümre görünümü konur; kendi etüdü olduğu gibi kalır
-                if (!cur || (typeof cur.notes === 'string' && cur.notes.includes('"__redacted__":true'))) byId.set(r.id, r);
+                if (!cur || (typeof cur.notes === 'string' && cur.notes.includes('"__redacted__":true'))) {
+                  byId.set(r.id, r);
+                  rpcIds.add(r.id);
+                }
               }
               remoteEtuts = Array.from(byId.values());
             }
@@ -2269,117 +2287,144 @@ export class DataService {
           }
         }
       }
-      if (remoteEtuts) {
-        let etutsChanged = false;
-        remoteEtuts.forEach((re: any) => {
-          if (this.deletedEtutIds.has(re.id)) return;
-          let parsedMeta: any = {};
-          try {
-            if (typeof re.notes === 'object' && re.notes !== null) {
-              parsedMeta = re.notes;
-            } else if (typeof re.notes === 'string' && re.notes.trim().startsWith('{')) {
-              parsedMeta = JSON.parse(re.notes);
-            }
-          } catch (err) {}
 
-          let incomingAssigned: 'all' | string[] = 'all';
-          if (re.assigned_student_ids && Array.isArray(re.assigned_student_ids) && re.assigned_student_ids.length > 0) {
-            incomingAssigned = re.assigned_student_ids;
-          } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
-            incomingAssigned = parsedMeta.assignedStudentIds;
-          } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
-            incomingAssigned = Object.keys(parsedMeta.studentAttendance);
-          } else if (parsedMeta.assignedStudentIds === 'all' || !re.assigned_student_ids) {
-            incomingAssigned = 'all';
-          }
-
-          const incomingEtut: Etut = {
-            id: re.id,
-            subject: re.subject,
-            topic: re.topic,
-            date: re.date ? re.date.trim().split('T')[0] : '',
-            time: re.time || '',
-            duration: Number(re.duration) || parsedMeta.duration || 45,
-            assignedStudentIds: incomingAssigned,
-            location: re.location || '',
-            notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
-            teacherFeedback: parsedMeta.teacherFeedback || '',
-            createdAt: re.created_at || new Date().toISOString(),
-            teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
-            teacherName: parsedMeta.teacherName || 'Öğretmen',
-            teacherIds: DataService.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
-            teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
-            teacherBranch: parsedMeta.teacherBranch || '',
-            lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
-            gradeLevel: parsedMeta.gradeLevel,
-            schoolLevel: parsedMeta.schoolLevel,
-            studentAttendance: parsedMeta.studentAttendance || {},
-            attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
-            createdById: parsedMeta.createdById || undefined,
-            createdByName: parsedMeta.createdByName || undefined,
-            recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
-        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
-            privacyRedacted: parsedMeta.__redacted__ === true ? true : undefined,
-          };
-
-          const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
-          if (existingIdx !== -1 && incomingEtut.privacyRedacted) {
-            // Aşama 41: başka öğretmenin etüdü — önbellekte kalmış eski ayrıntılar (yorum, yoklama) silinir
-            if (JSON.stringify(this.etuts[existingIdx]) !== JSON.stringify(incomingEtut)) {
-              this.etuts[existingIdx] = incomingEtut;
-              etutsChanged = true;
-            }
-          } else if (existingIdx !== -1) {
-            const current = this.etuts[existingIdx];
-            const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
-
-            const isDifferent =
-              current.subject !== incomingEtut.subject ||
-              current.topic !== incomingEtut.topic ||
-              current.date !== incomingEtut.date ||
-              current.time !== incomingEtut.time ||
-              current.duration !== incomingEtut.duration ||
-              current.location !== incomingEtut.location ||
-              current.notes !== incomingEtut.notes ||
-              current.teacherFeedback !== incomingEtut.teacherFeedback ||
-              current.teacherName !== incomingEtut.teacherName ||
-              current.teacherBranch !== incomingEtut.teacherBranch ||
-              current.lessonPeriod !== incomingEtut.lessonPeriod ||
-              JSON.stringify(current.assignedStudentIds || []) !== JSON.stringify(incomingEtut.assignedStudentIds || []) ||
-              JSON.stringify(current.studentAttendance || {}) !== JSON.stringify(mergedAttendance);
-
-            if (isDifferent) {
-              this.etuts[existingIdx] = {
-                ...current,
-                ...incomingEtut,
-                studentAttendance: mergedAttendance,
-              };
-              etutsChanged = true;
-            }
-          } else {
-            this.etuts.unshift(incomingEtut);
+      // Aşama 111 (hız): satır başına findIndex yerine kimlik dizini; değişmeyen etüt eski nesnesiyle kalır
+      const localById = new Map<string, number>();
+      this.etuts.forEach((e, i) => localById.set(e.id, i));
+      const next = this.etuts.slice();
+      const added: Etut[] = [];
+      let etutsChanged = false;
+      const incomingIds = new Set<string>();
+      for (const re of remoteEtuts) {
+        if (!re || !re.id || this.deletedEtutIds.has(re.id)) continue;
+        incomingIds.add(re.id);
+        const incomingEtut = this.remoteRowToEtut(re);
+        const existingIdx = localById.get(re.id);
+        if (existingIdx !== undefined && existingIdx < 0) {
+          added[-1 - existingIdx] = incomingEtut; // aynı okumada iki kez gelen yeni satır: sonuncusu geçerli
+          continue;
+        }
+        if (existingIdx !== undefined && incomingEtut.privacyRedacted) {
+          // Aşama 41: başka öğretmenin etüdü — önbellekte kalmış eski ayrıntılar (yorum, yoklama) silinir
+          if (JSON.stringify(next[existingIdx]) !== JSON.stringify(incomingEtut)) {
+            next[existingIdx] = incomingEtut;
             etutsChanged = true;
           }
-        });
-
-        // Merkezi veritabanı tek doğruluk kaynağıdır: bulutta olmayan (başka cihazdan silinmiş)
-        // etütler yerelden de kaldırılır. ÖNCEKİ DAVRANIŞ bunları buluta geri yüklüyordu ve
-        // bir cihazda silinen etüt diğer cihazdan tekrar "diriliyordu".
-        const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
-        const beforeCount = this.etuts.length;
-        this.etuts = this.etuts.filter((e) => remoteIds.has(e.id));
-        if (this.etuts.length !== beforeCount) {
+        } else if (existingIdx !== undefined) {
+          const current = next[existingIdx];
+          const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
+          const isDifferent =
+            current.subject !== incomingEtut.subject ||
+            current.topic !== incomingEtut.topic ||
+            current.date !== incomingEtut.date ||
+            current.time !== incomingEtut.time ||
+            current.duration !== incomingEtut.duration ||
+            current.location !== incomingEtut.location ||
+            current.notes !== incomingEtut.notes ||
+            current.teacherFeedback !== incomingEtut.teacherFeedback ||
+            current.teacherId !== incomingEtut.teacherId ||
+            current.teacherName !== incomingEtut.teacherName ||
+            current.teacherBranch !== incomingEtut.teacherBranch ||
+            current.lessonPeriod !== incomingEtut.lessonPeriod ||
+            !!current.privacyRedacted !== !!incomingEtut.privacyRedacted ||
+            JSON.stringify(current.teacherIds || []) !== JSON.stringify(incomingEtut.teacherIds || []) ||
+            JSON.stringify(current.assignedStudentIds || []) !== JSON.stringify(incomingEtut.assignedStudentIds || []) ||
+            JSON.stringify(current.studentAttendance || {}) !== JSON.stringify(mergedAttendance);
+          if (isDifferent) {
+            next[existingIdx] = { ...current, ...incomingEtut, studentAttendance: mergedAttendance, privacyRedacted: incomingEtut.privacyRedacted };
+            etutsChanged = true;
+          }
+        } else {
+          // yeni satırlar ayrı toplanır ve sonda bir kez başa eklenir (her satırda dizini yeniden kurmak 2000 etütte yavaştı)
+          added.push(incomingEtut);
+          localById.set(re.id, -1 - (added.length - 1));
           etutsChanged = true;
         }
+      }
+      if (added.length) next.unshift(...added.reverse());
 
-        if (etutsChanged) {
-          saveData(STORAGE_KEYS.ETUTS, this.etuts);
-          this.notify();
-        }
+      // Merkezi veritabanı tek doğruluk kaynağıdır: bulutta olmayan (başka cihazdan silinmiş)
+      // etütler yerelden de kaldırılır. ÖNCEKİ DAVRANIŞ bunları buluta geri yüklüyordu ve
+      // bir cihazda silinen etüt diğer cihazdan tekrar "diriliyordu".
+      let kept: Etut[];
+      if (!delta) {
+        kept = next.filter((e) => incomingIds.has(e.id));
+      } else {
+        // Aşama 111: artımlı okumada yalnız sunucunun "silindi" dediği satırlar ve artık ortak takvimde / zümrede
+        // olmayan ayrıntısız satırlar çıkar
+        const removed = res.removed;
+        const zumreUser = zumreLoaded;
+        kept = next.filter((e) => {
+          if (incomingIds.has(e.id)) return true;
+          if (removed && removed.has(e.id)) return false;
+          if (e.privacyRedacted) return !sharedLoaded;
+          // Zümre Başkanı başkasının etüdünü yalnız zümre işlevinden alır; orada artık yoksa çıkar
+          if (zumreUser && !this.isMyEtut(e)) return false;
+          return true;
+        });
+      }
+      if (kept.length !== next.length) etutsChanged = true;
+
+      if (etutsChanged) {
+        this.etuts = kept;
+        saveData(STORAGE_KEYS.ETUTS, this.etuts);
+        this.notify();
       }
     } catch (err) {
       if (!isBackground) console.warn('[EtutSync] Sync error:', err);
     }
+  }
+
+  /** Sunucudaki etüt satırını uygulama nesnesine çevirir (tam okuma, artımlı okuma ve ortak takvim aynı yolu kullanır) */
+  private remoteRowToEtut(re: any): Etut {
+    let parsedMeta: any = {};
+    try {
+      if (typeof re.notes === 'object' && re.notes !== null) {
+        parsedMeta = re.notes;
+      } else if (typeof re.notes === 'string' && re.notes.trim().startsWith('{')) {
+        parsedMeta = JSON.parse(re.notes);
+      }
+    } catch (err) {}
+
+    let incomingAssigned: 'all' | string[] = 'all';
+    if (re.assigned_student_ids && Array.isArray(re.assigned_student_ids) && re.assigned_student_ids.length > 0) {
+      incomingAssigned = re.assigned_student_ids;
+    } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
+      incomingAssigned = parsedMeta.assignedStudentIds;
+    } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
+      incomingAssigned = Object.keys(parsedMeta.studentAttendance);
+    } else if (parsedMeta.assignedStudentIds === 'all' || !re.assigned_student_ids) {
+      incomingAssigned = 'all';
+    }
+
+    return {
+      id: re.id,
+      subject: re.subject,
+      topic: re.topic,
+      date: re.date ? re.date.trim().split('T')[0] : '',
+      time: re.time || '',
+      duration: Number(re.duration) || parsedMeta.duration || 45,
+      assignedStudentIds: incomingAssigned,
+      location: re.location || '',
+      notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
+      teacherFeedback: parsedMeta.teacherFeedback || '',
+      createdAt: re.created_at || new Date().toISOString(),
+      teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
+      teacherName: parsedMeta.teacherName || 'Öğretmen',
+      teacherIds: DataService.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
+      teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
+      teacherBranch: parsedMeta.teacherBranch || '',
+      lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
+      gradeLevel: parsedMeta.gradeLevel,
+      schoolLevel: parsedMeta.schoolLevel,
+      studentAttendance: parsedMeta.studentAttendance || {},
+      attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
+      createdById: parsedMeta.createdById || undefined,
+      createdByName: parsedMeta.createdByName || undefined,
+      recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
+      mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
+      privacyRedacted: parsedMeta.__redacted__ === true ? true : undefined,
+    };
   }
 
   public subscribe(listener: () => void): () => void {
@@ -3059,7 +3104,7 @@ export class DataService {
   }
 
   private async fetchTableSmart(
-    table: 'messages' | 'grades' | 'attendance',
+    table: 'messages' | 'grades' | 'attendance' | 'etuts',
     isBackground: boolean,
     localIds: () => Iterable<string>,
     opts: { order?: string; ascending?: boolean },
@@ -4569,6 +4614,9 @@ export class DataService {
     if (this.isMyEtut(e)) return true;
     // Aşama 82: Rehberlik / Zümre Başkanı — veritabanı tam kaydı verdiyse ayrıntıyı görür (değiştiremez)
     if (this.roleSeesOthersWork() && !e.privacyRedacted && !this.isRedactedRow(e)) return true;
+    // Aşama 111: idare (Müdür / Müdür Yrd.) yoklama ve yorumları görür; veritabanı tam kaydı yalnız kendi kurumundan verir
+    // (dış etüt öğretmeninin "ext-" kimliği öğretmen listesinde olmadığından önceden ayrıntı kapanıyordu)
+    if (this.isKurumAdmin() && !e.privacyRedacted && !this.isRedactedRow(e)) return true;
     return this.ownersInMyKurum([e.createdById, e.teacherId, ...(e.teacherIds || [])]);
   }
   /** Ortak takvimden gelen (ayrıntısı silinmiş) etüt satırı mı */
@@ -9446,6 +9494,37 @@ export class DataService {
   public getEtuts(forTeacherId?: string): Etut[] {
     const k = this.myKurum;
     return this.memoView('Etuts:' + (forTeacherId || ''), [this.etuts, this.teachers, this.classes, this.students], this.viewKey(`${forTeacherId || ''}|${k.head ? 1 : 0}${k.kurumAdmin ? 1 : 0}${k.kurumId || ''}`), () => this.computeEtuts(forTeacherId));
+  }
+  /**
+   * Aşama 111: EKRANLARDA gösterilecek etütler (tek kural, tüm ekranlar bunu kullanır).
+   * Ortak takvim satırları (başka öğretmenin, ortak öğrencili etüdü) yalnız çakışma uyarısı içindir; hiçbir
+   * listede / sayaçta görünmez. Gerisini veritabanı belirler: öğretmen kendi kaydettiği ve kendisine verilen
+   * etütleri, Zümre Başkanı ek olarak zümresini, Rehberlik ve idare kurumun tamamını alır.
+   */
+  public getVisibleEtuts(): Etut[] {
+    const all = this.getEtuts();
+    return this.memoView('VisibleEtuts', [all, this.etuts], this.viewKey(), () => {
+      // Yalnız sunucudan "ortak takvim" olarak gelen satırlar gizlenir. Ekranda ayrıntısı kapatılan (ör. dış etüt
+      // öğretmeninin) ama veritabanının bu kişiye tam verdiği etüt listede kalır (bugünkü gibi ayrıntısız görünür).
+      const shared = new Set<string>();
+      for (const e of this.etuts) if (e.privacyRedacted) shared.add(e.id);
+      if (!shared.size) return all;
+      return all.filter((e) => !shared.has(e.id));
+    });
+  }
+  /** Kurumun tüm etütlerini görür (Etütler › "Tüm okul", Takip görünümü): genel yönetici, idare, Rehberlik */
+  public seesAllEtuts(): boolean {
+    if (this.getAuthSession()?.role !== 'teacher') return false;
+    return this.isHeadAdmin() || this.isCurrentUserAdmin() || this.isKurumAdmin() || this.hasRole('rehberlik');
+  }
+  /** Başka öğretmene etüt verebilir mi (veritabanı da denetler, sql/111): genel yönetici, idare, Rehberlik */
+  public canAssignEtutToOthers(): boolean {
+    return this.seesAllEtuts();
+  }
+  /** Ekranda düzenle / sil / yoklama düğmeleri açık mı (Rehberlik ve Zümre başkasınınkini yalnız görür) */
+  public canEditEtutPublic(e: Etut): boolean {
+    if (e.privacyRedacted) return false;
+    return this.canEditEtut(e);
   }
   private computeEtuts(forTeacherId?: string): Etut[] {
     const session = this.getAuthSession();

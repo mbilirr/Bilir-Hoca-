@@ -20,6 +20,8 @@ import {
   LayoutGrid,
   List,
   Lock,
+  Eye,
+  ChevronDown,
 } from 'lucide-react';
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
@@ -48,6 +50,10 @@ interface WeeklyEtutCalendarProps {
   onNotifyEtut?: (etut: Etut) => void;
   onAttendanceEtut?: (etut: Etut) => void;
   readOnly?: boolean;
+  /** Aşama 111: etüdü düzenleyebilir mi (Rehberlik / Zümre başkasınınkini yalnız görür) */
+  canEditEtut?: (etut: Etut) => boolean;
+  /** Aşama 111: salt okunur yoklama / yorum penceresi */
+  onViewEtut?: (etut: Etut) => void;
 }
 
 function getMonday(d: Date): Date {
@@ -96,6 +102,8 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   onNotifyEtut,
   onAttendanceEtut,
   readOnly = false,
+  canEditEtut,
+  onViewEtut,
 }) => {
   const now = useNow();
   const todayKey = formatDateKey(now);
@@ -107,6 +115,16 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   const [selectedKey, setSelectedKey] = useState<string>(() => formatDateKey(new Date()));
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  // Aşama 111: hafta görünümünde saat grupları — kapatılan gruplar ve "+N etüt daha" ile açılanlar (gün|saat)
+  const [closedSlots, setClosedSlots] = useState<Set<string>>(() => new Set());
+  const [openSlots, setOpenSlots] = useState<Set<string>>(() => new Set());
+  const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
+    set((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const weekDays = useMemo(
     () =>
@@ -170,6 +188,22 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
     return map;
   }, [weekDays, searchedEtuts]);
 
+  // Aşama 111: aynı saatteki etütler tek grupta (gün sütunu etüt sayısına göre değil saat sayısına göre uzar)
+  const slotsByDay = useMemo(() => {
+    const out: Record<string, Array<{ time: string; items: Etut[] }>> = {};
+    Object.entries(etutsByDay).forEach(([k, list]) => {
+      const groups: Array<{ time: string; items: Etut[] }> = [];
+      for (const e of list) {
+        const t = e.time || '--:--';
+        const last = groups[groups.length - 1];
+        if (last && last.time === t) last.items.push(e);
+        else groups.push({ time: t, items: [e] });
+      }
+      out[k] = groups;
+    });
+    return out;
+  }, [etutsByDay]);
+
   const totalEtutsThisWeek = weekDays.reduce((c, d) => c + (etutsByDay[d.dateKey]?.length || 0), 0);
   const totalMinutesThisWeek = weekDays.reduce(
     (mins, d) => mins + (etutsByDay[d.dateKey] || []).reduce((s, e) => s + (e.duration || 45), 0),
@@ -218,9 +252,16 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
       afterAction?.();
     };
     // Aşama 40: başka öğretmenin etüdü — yalnızca takvime ekleme; yoklama/düzenleme/silme/kopyalama/bildirim yok
-    const locked = readOnly || !!etut.privacyRedacted;
+    const viewOnly = !etut.privacyRedacted && !!canEditEtut && !canEditEtut(etut);
+    const locked = readOnly || !!etut.privacyRedacted || viewOnly;
     return (
       <div className="flex flex-wrap items-center gap-1">
+        {viewOnly && onViewEtut && (
+          <button type="button" onClick={run(onViewEtut)} className={`${base} ${pad}`} title="Yoklama ve yorumlar (salt okunur)" data-etut-view>
+            <Eye className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
+            {labels && 'Görüntüle'}
+          </button>
+        )}
         {etut.privacyRedacted && (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted" data-etut-private title="Konu, yorumlar ve yoklama yalnızca etüdü veren öğretmen ve yöneticiye görünür">
             <Lock className="w-3.5 h-3.5" />
@@ -292,44 +333,86 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   };
 
   // ---------------------------------------------------------------------
-  // Küçük (tek satırlı) etüt kartı — Hafta görünümü
+  // Aşama 111: saat grubu — Hafta görünümü. Grup en fazla 3 satır gösterir, gerisi "+N etüt daha".
+  // Satır kısa ama anlaşılır: ders · öğretmen · öğrenci (tek öğrenciyse adı)
   // ---------------------------------------------------------------------
-  const renderCompact = (etut: Etut) => {
+  const SLOT_ROWS = 3;
+  const shortTeacher = (e: Etut) => {
+    const names = etutTeacherNames(e);
+    if (!names[0]) return '';
+    const parts = names[0].trim().split(/\s+/);
+    const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
+    return names.length > 1 ? `${short} +${names.length - 1}` : short;
+  };
+  const renderSlotRow = (etut: Etut, withTime: boolean) => {
     const status = getEtutStatus(etut, now);
     const st = ETUT_STATUS_STYLE[status];
     const missing = isEtutAttendanceMissing(etut, now);
-    const teachers = etutTeacherNames(etut);
+    const who = etut.privacyRedacted ? '' : studentsSummary(etut.assignedStudentIds, true);
     return (
       <button
         key={etut.id}
         type="button"
         data-etut-status={status}
+        data-etut-row={etut.id}
         onClick={() => setOpenId(etut.id)}
-        title={`${st.label} · ${etut.subject}: ${etut.topic}`}
-        className={`w-full text-left rounded-lg border border-l-4 px-2 py-1.5 transition-shadow hover:shadow-md cursor-pointer ${st.card} ${st.accent}`}
+        title={[`${st.label} · ${etut.time || ''} ${etut.subject}`, etut.topic, etutTeacherNames(etut).join(', '), who].filter(Boolean).join('\n')}
+        className={`w-full text-left border-l-4 px-1.5 py-1 hover:bg-surface-2 cursor-pointer ${st.accent}`}
       >
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2 shrink-0">{etut.time || '--:--'}</span>
-          <span className={`w-2 h-2 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
-          <span className="text-[11px] font-bold text-fg truncate flex-1">{etut.subject}</span>
-          {missing && (
-            <span title="Yoklama alınmadı" className="shrink-0">
-              <AlertCircle className="w-3 h-3 text-rose-500" />
-            </span>
-          )}
-          {status === 'done' && (
-            <span title="Yoklaması alındı" className="shrink-0">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            </span>
-          )}
-        </div>
-        {etut.topic && <div className="text-[10px] text-fg-2 truncate leading-tight mt-0.5">{etut.topic}</div>}
-        <div className="text-[10px] text-muted truncate leading-tight">
-          {[teachers[0] ? teachers[0].split(' ')[0] + (teachers.length > 1 ? ` +${teachers.length - 1}` : '') : '', etut.privacyRedacted ? '' : studentsSummary(etut.assignedStudentIds, true)]
-            .filter(Boolean)
-            .join(' · ')}
-        </div>
+        <span className="flex items-center gap-1 min-w-0">
+          {withTime && <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2 shrink-0">{etut.time || '--:--'}</span>}
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
+          <span className="text-[11px] font-bold text-fg truncate">{etut.subject}</span>
+          {missing && <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" aria-label="Yoklama alınmadı" />}
+          {status === 'done' && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" aria-label="Yoklaması alındı" />}
+        </span>
+        <span className="block text-[10px] text-muted truncate leading-tight">{[shortTeacher(etut), who].filter(Boolean).join(' · ')}</span>
       </button>
+    );
+  };
+  const renderSlot = (dayKey: string, slot: { time: string; items: Etut[] }) => {
+    if (slot.items.length === 1) {
+      return (
+        <div key={slot.time} className="rounded-lg border border-line overflow-hidden bg-surface">
+          {renderSlotRow(slot.items[0], true)}
+        </div>
+      );
+    }
+    const key = `${dayKey}|${slot.time}`;
+    const closed = closedSlots.has(key);
+    const all = openSlots.has(key);
+    const shown = all ? slot.items : slot.items.slice(0, SLOT_ROWS);
+    const missing = slot.items.some((e) => isEtutAttendanceMissing(e, now));
+    return (
+      <div key={slot.time} className="rounded-lg border border-line overflow-hidden bg-surface" data-etut-slot={key}>
+        <button
+          type="button"
+          onClick={() => toggleIn(setClosedSlots, key)}
+          aria-expanded={!closed}
+          className="w-full flex items-center gap-1 px-1.5 py-1 bg-canvas/60 hover:bg-surface-2 cursor-pointer text-left"
+          title={closed ? 'Etütleri göster' : 'Grubu kapat'}
+        >
+          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2">{slot.time}</span>
+          <span className="text-[10px] font-semibold text-muted">· {slot.items.length} etüt</span>
+          {missing && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Yoklaması alınmamış etüt var" />}
+          <ChevronDown className={`w-3 h-3 ml-auto text-subtle transition-transform ${closed ? '-rotate-90' : ''}`} />
+        </button>
+        {!closed && (
+          <div className="divide-y divide-line border-t border-line">
+            {shown.map((e) => renderSlotRow(e, false))}
+            {slot.items.length > SLOT_ROWS && (
+              <button
+                type="button"
+                onClick={() => toggleIn(setOpenSlots, key)}
+                className="w-full py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-surface-2 cursor-pointer"
+                data-etut-slot-more
+              >
+                {all ? 'Daha az göster' : `+${slot.items.length - SLOT_ROWS} etüt daha`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -554,7 +637,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   {dayEtuts.length === 0 ? (
                     <p className="text-[10px] text-subtle text-center py-6">Etüt yok</p>
                   ) : (
-                    dayEtuts.map(renderCompact)
+                    (slotsByDay[day.dateKey] || []).map((slot) => renderSlot(day.dateKey, slot))
                   )}
                 </div>
               </div>

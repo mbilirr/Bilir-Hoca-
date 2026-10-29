@@ -49,13 +49,13 @@ const shortDate = (e: Etut): string => {
 };
 
 export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ onOpenEtuts }) => {
-  const [etuts, setEtuts] = useState<Etut[]>(() => dataService.getEtuts());
+  const [etuts, setEtuts] = useState<Etut[]>(() => dataService.getVisibleEtuts());
   const [tick, setTick] = useState(0);
   const [open, setOpen] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(readDismissed);
 
   useEffect(() => {
-    const unsubscribe = dataService.subscribe(() => setEtuts(dataService.getEtuts()));
+    const unsubscribe = dataService.subscribe(() => setEtuts(dataService.getVisibleEtuts()));
     // Etüt saatleri geçtikçe listenin güncellenmesi için dakikada bir yeniden hesaplanır
     const timer = window.setInterval(() => setTick((t) => t + 1), 60000);
     return () => {

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, Eye, EyeOff, KeyRound, KeySquare, Trash2, Upload } from 'lucide-react';
 import { downloadKarnePdf, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { Modal, Segmented, StatCard, cx } from '../ui/kit';
@@ -10,6 +10,8 @@ import { MaddeAnalizi } from './MaddeAnalizi';
 import { BOOKLET_MIN, bookletConsistency, keyBProblems } from '../../lib/deneme/bKitapcik';
 import { planBRemap, type BRemapPlan } from '../../lib/deneme/bYenidenDuzen';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { usePagedList, ShowMoreBar, useMediaQuery } from '../../lib/listPaging';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // Aşama 91: A / B anahtarı penceresi yalnızca açılınca yüklenir (deneme ekranı hafif kalır)
 const CevapAnahtariModal = lazy(() => import('./CevapAnahtariModal').then((m) => ({ default: m.CevapAnahtariModal })));
@@ -75,6 +77,15 @@ export const DenemeSonuclar: React.FC<{
     () => results.filter((r) => !classFilter || (r.classId || '-') === classFilter).sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
     [results, classFilter]
   );
+  // Aşama 111: öğrenci adı / numarası ile arama ve 50'lik sayfa (telefonda ilk 15); PDF'ler yine tüm listeyi kullanır
+  const phone = useMediaQuery('(max-width: 639px)');
+  const [q, setQ] = useState('');
+  const term = useDeferredValue(q.trim());
+  const rows = useMemo(
+    () => (term ? shown.filter((r) => matchTurkishSearch(r.studentName, term) || (r.optik?.number || '').includes(term)) : shown),
+    [shown, term]
+  );
+  const pagedRows = usePagedList(rows, `${classFilter}|${term}`, 50, phone ? 15 : undefined);
   // Aşama 62: B kitapçığı uyum kontrolü (A ve B kitapçıklı öğrencilerin soru soru doğru oranları)
   const bCheck = useMemo(() => (exam && results.length ? bookletConsistency(exam, results) : null), [exam, results]);
   const [bOpen, setBOpen] = useState(false);
@@ -433,6 +444,17 @@ export const DenemeSonuclar: React.FC<{
           </select>
         )}
         {view === 'list' && results.length > 0 && (
+          <input
+            type="search"
+            id="deneme-sonuc-ara"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Öğrenci adı veya no ara…"
+            aria-label="Öğrenci ara"
+            className="ui-input h-8 w-full sm:w-48 py-1 text-xs"
+          />
+        )}
+        {view === 'list' && results.length > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-1.5" id="deneme-sonuc-pdf">
             <span className="text-[11px] text-muted">PDF:</span>
             <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void resultsPdf('toplu')} title="Bütün öğrenciler tek listede, kurum sırasıyla">
@@ -472,12 +494,12 @@ export const DenemeSonuclar: React.FC<{
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {shown.length === 0 ? (
+                {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={subs.length + 7} className="px-4 py-8 text-center text-subtle">Sonuç yok.</td>
+                    <td colSpan={subs.length + 7} className="px-4 py-8 text-center text-subtle">{term ? 'Aramanıza uygun öğrenci yok.' : 'Sonuç yok.'}</td>
                   </tr>
                 ) : (
-                  shown.map((r) => (
+                  pagedRows.visible.map((r) => (
                     <tr key={r.id} className="hover:bg-surface-2/30 transition-colors">
                       <td className="px-3 py-1.5 text-center tabular-nums font-semibold">{classFilter ? r.stats.rank?.cls : r.stats.rank?.overall}</td>
                       <td className="px-3 py-1.5">
@@ -520,6 +542,14 @@ export const DenemeSonuclar: React.FC<{
               </tbody>
             </table>
           </div>
+          <ShowMoreBar
+            id="deneme-sonuc-more"
+            remaining={pagedRows.remaining}
+            total={pagedRows.total}
+            shown={pagedRows.visible.length}
+            onMore={pagedRows.showMore}
+            onAll={pagedRows.showAll}
+          />
         </div>
       ) : (
         // Aşama 54: soru (madde) analizi + çeldirici analizi; sınıf seçilince kurumla karşılaştırma

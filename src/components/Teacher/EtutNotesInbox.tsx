@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { BookOpenCheck, StickyNote, Search, CalendarDays, User, CheckCheck } from 'lucide-react';
 import type { Etut, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -6,7 +6,9 @@ import { useDataVersion } from '../../lib/useDataVersion';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { cx } from '../ui/kit';
-import { SelectBox, inputCls } from './FormParts';
+import { SelectBox, inputCls, localDateStr, addDays } from './FormParts';
+import { usePagedList, ShowMoreBar, useMediaQuery } from '../../lib/listPaging';
+import { matchTurkishSearch, turkishCompare } from '../../utils/turkishSearch';
 
 // ============================================================================
 // ETÜT NOTLARI (Aşama 32) — Mesajlar bölümünde ayrı sekme
@@ -84,7 +86,7 @@ export function useEtutNotes() {
   const [seen, markSeen] = useSeenIds(`tchr_etutnote_seen_${me?.id || 'x'}`);
   const items = useMemo(() => {
     const info = new Map(dataService.getStudents().map((s) => [s.id, { name: s.name, className: s.className || '' }] as const));
-    return collectEtutNotes(dataService.getEtuts(), info);
+    return collectEtutNotes(dataService.getVisibleEtuts(), info);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
   const unseen = items.filter((x) => !seen.has(x.id)).length;
@@ -93,20 +95,32 @@ export function useEtutNotes() {
 
 export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }> = ({ notes }) => {
   const { items, seen, markSeen, unseen } = notes;
+  const phone = useMediaQuery('(max-width: 639px)');
   const [q, setQ] = useState('');
+  const term = useDeferredValue(q.trim());
   // Aşama 80: öğretmene göre süzme ('' = tüm öğretmenler)
   const [teacher, setTeacher] = useState('');
+  // Aşama 111: tüm kurumu gören (idare / Rehberlik) bu haftayla açar; öğretmen bugünkü gibi son 30 gün
+  const [period, setPeriod] = useState<'week' | 'last30'>(() => (dataService.seesAllEtuts() ? 'week' : 'last30'));
   const teacherOptions = useMemo(() => {
     const set = new Set<string>();
     items.forEach((x) => etutTeacherNames(x.etut).forEach((n) => set.add(n)));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'));
+    return Array.from(set).sort(turkishCompare);
   }, [items]);
-  const term = q.toLocaleLowerCase('tr-TR').trim();
-  const list = items.filter((x) => {
-    if (teacher && !etutTeacherNames(x.etut).includes(teacher)) return false;
-    if (!term) return true;
-    return [x.studentName, x.className, x.etut.subject, x.etut.topic, x.topic, x.note].some((v) => (v || '').toLocaleLowerCase('tr-TR').includes(term));
-  });
+  const list = useMemo(() => {
+    let since = '';
+    if (period === 'week') {
+      const now = new Date();
+      since = localDateStr(addDays(now, -((now.getDay() + 6) % 7)));
+    }
+    return items.filter((x) => {
+      if (since && (x.etut.date || '').slice(0, 10) < since) return false;
+      if (teacher && !etutTeacherNames(x.etut).includes(teacher)) return false;
+      if (!term) return true;
+      return [x.studentName, x.className, x.etut.subject, x.etut.topic, x.topic, x.note].some((v) => matchTurkishSearch(v, term));
+    });
+  }, [items, period, teacher, term]);
+  const paged = usePagedList(list, `${period}|${teacher}|${term}`, 50, phone ? 15 : undefined);
 
   return (
     <section className="ui-card overflow-hidden" id="etut-notes-inbox">
@@ -119,6 +133,12 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full sm:w-40">
+            <SelectBox id="etut-notes-period" aria-label="Dönem" value={period} onChange={(e) => setPeriod(e.target.value as 'week' | 'last30')} className={`${inputCls} h-10 cursor-pointer`}>
+              <option value="week">Bu hafta</option>
+              <option value="last30">Son {ETUT_NOTE_DAYS} gün</option>
+            </SelectBox>
+          </div>
           <div className="w-full sm:w-56">
             <SelectBox id="etut-notes-teacher" aria-label="Öğretmen" value={teacher} onChange={(e) => setTeacher(e.target.value)} className={`${inputCls} h-10 cursor-pointer`}>
               <option value="">Öğretmen seçiniz</option>
@@ -153,11 +173,14 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
             ? 'Henüz etüt notu yok. Etüt yoklamasında bir öğrenciye farklı konu ya da not yazıldığında burada görünür.'
             : teacher
               ? 'Seçilen öğretmene ait, aramanıza uygun not yok.'
-              : 'Aramanıza uygun not yok.'}
+              : period === 'week'
+                ? `Bu hafta not yok. Daha eskisi için "Son ${ETUT_NOTE_DAYS} gün" seçin.`
+                : 'Aramanıza uygun not yok.'}
         </p>
       ) : (
+        <>
         <ul className="divide-y divide-line max-h-[600px] overflow-y-auto">
-          {list.map((x) => {
+          {paged.visible.map((x) => {
             const isNew = !seen.has(x.id);
             const teachers = etutTeacherNames(x.etut);
             return (
@@ -210,6 +233,8 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
             );
           })}
         </ul>
+        <ShowMoreBar remaining={paged.remaining} total={list.length} shown={paged.visible.length} onMore={paged.showMore} onAll={paged.showAll} step={50} id="etut-notes-more" />
+        </>
       )}
     </section>
   );
