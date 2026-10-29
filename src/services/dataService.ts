@@ -1093,7 +1093,9 @@ function saveDataNow<T>(key: string, data: T): void {
   }
 }
 
-export class DataService {
+export type RealtimeTableCfg = { table: string; onEvent: (payload: any) => void; resync: () => unknown; filter?: string; optional?: boolean };
+
+class DataService {
   private static instance: DataService;
 
   public teachers: Teacher[] = [];
@@ -1393,9 +1395,10 @@ export class DataService {
   private static readonly MIN_BACKGROUND_SYNC_GAP_MS = 15 * 1000;
 
   // Hangi tablo değişince ne yapılacağı
-  private realtimeTableConfig(): Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> {
-    const role = this.getAuthSession()?.role;
-    const list: Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> = [
+  private realtimeTableConfig(): Array<RealtimeTableCfg> {
+    const session = this.getAuthSession();
+    const role = session?.role;
+    const list: Array<RealtimeTableCfg> = [
       { table: 'students', onEvent: (p) => this.handleRemoteStudentRealtimeEvent(p), resync: () => this.syncStudentsFromSupabase(true) },
       { table: 'classes', onEvent: (p) => this.handleRemoteClassRealtimeEvent(p), resync: () => this.syncClassesFromSupabase(true) },
       { table: 'etuts', onEvent: (p) => this.handleRemoteEtutRealtimeEvent(p), resync: () => this.syncEtutsFromSupabase(true) },
@@ -1412,8 +1415,66 @@ export class DataService {
         { table: 'teacher_documents', onEvent: () => this.scheduleTableRefetch('teacher_documents'), resync: () => this.syncTeacherDocumentsFromSupabase(true) },
         { table: 'teachers', onEvent: () => this.scheduleTableRefetch('teachers'), resync: () => this.syncTeachersFromSupabase(true) }
       );
+      // Aşama 114: rol / bölüm / sınıf / öğrenci yetkisi değişince hemen yenilenir (öğretmen yalnız kendi satırını alır)
+      for (const table of DataService.ACCESS_TABLES) {
+        list.push({ table, optional: true, onEvent: () => this.scheduleAccessRefresh(), resync: () => this.refreshMyAccess() });
+      }
+    } else if (role === 'student' && session?.user?.id) {
+      // Aşama 114: içeriksiz "değişti" sinyali; gelince öğrencinin kendi etüt / yoklaması yeniden okunur
+      list.push({
+        table: 'student_sync_ping',
+        optional: true,
+        filter: `student_id=eq.${session.user.id}`,
+        onEvent: () => this.scheduleStudentRefresh(),
+        resync: () => this.refreshStudentOwn(),
+      });
     }
     return list;
+  }
+
+  // ===========================================================================
+  // Aşama 114: ANLIK YETKİ VE ÖĞRENCİ SİNYALİ
+  //  - Bu kanallar "isteğe bağlı"dır: veritabanı betiği kurulmadıysa ya da kanal kurulamazsa genel eşitleme
+  //    durumu bozulmaz, dakikalık küçük yoklama (Aşama 113) aynen devam eder.
+  //  - Art arda gelen olaylar 400 ms içinde tek okumaya indirilir.
+  // ===========================================================================
+  private static readonly ACCESS_TABLES = ['teacher_roles', 'teacher_section_access', 'teacher_class_access', 'teacher_student_access'];
+  private static readonly SIGNAL_DEBOUNCE_MS = 400;
+  private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private studentRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleAccessRefresh(): void {
+    if (this.accessRefreshTimer) clearTimeout(this.accessRefreshTimer);
+    this.accessRefreshTimer = setTimeout(() => {
+      this.accessRefreshTimer = null;
+      this.refreshMyAccess();
+    }, DataService.SIGNAL_DEBOUNCE_MS);
+  }
+
+  private refreshMyAccess(): Promise<unknown> {
+    return Promise.allSettled([this.syncMyKurum(), this.syncMyTeacherAccess()]);
+  }
+
+  private scheduleStudentRefresh(): void {
+    if (this.studentRefreshTimer) clearTimeout(this.studentRefreshTimer);
+    this.studentRefreshTimer = setTimeout(() => {
+      this.studentRefreshTimer = null;
+      this.refreshStudentOwn();
+    }, DataService.SIGNAL_DEBOUNCE_MS);
+  }
+
+  private refreshStudentOwn(): Promise<unknown> {
+    return Promise.allSettled([
+      this.syncEtutsFromSupabase(true),
+      this.syncAttendanceFromSupabase(true),
+      this.syncStudentNotifications(),
+    ]);
+  }
+
+  // İsteğe bağlı kanalların hepsi çalışıyorsa dakikalık yoklamaya gerek kalmaz
+  private optionalChannelsLive(): boolean {
+    const opt = this.realtimeTableConfig().filter((c) => c.optional);
+    return opt.length > 0 && opt.every((c) => this.realtimeChannels[c.table]?.healthy);
   }
 
   // Eksik ya da kopmuş kanalları kurar; çalışan kanallara dokunmaz (tekrar tekrar çağrılması güvenlidir)
@@ -1439,10 +1500,10 @@ export class DataService {
         try {
           record.channel = supabase
             .channel(`rt-${cfg.table}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: cfg.table }, (payload: any) => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: cfg.table, ...(cfg.filter ? { filter: cfg.filter } : {}) }, (payload: any) => {
               try { cfg.onEvent(payload); } catch (e) { console.warn(`[Realtime] ${cfg.table} olayı işlenemedi:`, e); }
             })
-            .subscribe((status: string) => this.handleChannelStatus(cfg.table, status, cfg.resync));
+            .subscribe((status: string) => this.handleChannelStatus(cfg.table, status, cfg.resync, cfg.optional));
         } catch (e) {
           console.warn(`[Realtime] ${cfg.table} kanalı kurulamadı:`, e);
         }
@@ -1453,7 +1514,7 @@ export class DataService {
     }
   }
 
-  private handleChannelStatus(table: string, status: string, resync: () => unknown): void {
+  private handleChannelStatus(table: string, status: string, resync: () => unknown, optional = false): void {
     const entry = this.realtimeChannels[table];
     if (!entry) return;
     if (status === 'SUBSCRIBED') {
@@ -1470,6 +1531,11 @@ export class DataService {
       }
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       entry.healthy = false;
+      // Aşama 114: isteğe bağlı kanal hiç kurulamadıysa (betik kurulu değil) tekrar denenmez; dakikalık yoklama devrede
+      if (optional && !entry.everSubscribed) {
+        this.updateRealtimeHealth();
+        return;
+      }
       if (!this.realtimeClosing && !entry.checkTimer) {
         // Kütüphane kendisi yeniden bağlanmayı dener; 20 sn içinde olmazsa kanal yeniden kurulur
         entry.checkTimer = setTimeout(() => {
@@ -1485,7 +1551,9 @@ export class DataService {
   // Eşitleme durumu: 'live' (anlık), 'fallback' (aralıklı yedek kontrol), 'offline' (internet yok)
   public getRealtimeHealth(): 'live' | 'fallback' | 'offline' {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-    const entries = Object.values(this.realtimeChannels);
+    const entries = Object.entries(this.realtimeChannels)
+      .filter(([table]) => table !== 'student_sync_ping' && !DataService.ACCESS_TABLES.includes(table))
+      .map(([, e]) => e);
     if (entries.length > 0 && entries.every((e) => e.healthy)) return 'live';
     return 'fallback';
   }
@@ -1548,11 +1616,15 @@ export class DataService {
     if (Date.now() - this.lightPollAt < DataService.LIGHT_POLL_MS) return;
     const role = this.getAuthSession()?.role;
     if (role !== 'teacher' && role !== 'student') return;
+    // Aşama 114: anlık kanal çalışıyorsa öğrenci için yoklama gerekmez; öğretmende yalnız kurum ayarı (modüller,
+    // rol sistemi açık/kapalı) tek küçük istekle sorulur, rol ve yetkiler kanaldan gelir
+    const live = this.optionalChannelsLive();
+    if (live && role === 'student') return;
     this.lightPollAt = Date.now();
     this.lightPollRunning = true;
     const jobs: Promise<unknown>[] =
       role === 'teacher'
-        ? [this.syncMyKurum(), this.syncMyTeacherAccess()]
+        ? live ? [this.syncMyKurum()] : [this.syncMyKurum(), this.syncMyTeacherAccess()]
         : [this.syncEtutsFromSupabase(true), this.syncAttendanceFromSupabase(true), this.syncStudentNotifications()];
     Promise.allSettled(jobs).finally(() => {
       this.lightPollRunning = false;
