@@ -1816,60 +1816,19 @@ export class DataService {
       const row = payload.new;
       if (!row || !row.id || this.deletedEtutIds.has(row.id)) return;
 
-      let parsedMeta: any = {};
-      try {
-        if (typeof row.notes === 'object' && row.notes !== null) {
-          parsedMeta = row.notes;
-        } else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{') && row.notes.includes('__etut_meta__')) {
-          parsedMeta = JSON.parse(row.notes);
-        }
-      } catch (err) {}
-
-      let incomingAssigned: 'all' | string[] = 'all';
-      if (row.assigned_student_ids && Array.isArray(row.assigned_student_ids) && row.assigned_student_ids.length > 0) {
-        incomingAssigned = row.assigned_student_ids;
-      } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
-        incomingAssigned = parsedMeta.assignedStudentIds;
-      } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
-        incomingAssigned = Object.keys(parsedMeta.studentAttendance);
-      } else if (parsedMeta.assignedStudentIds === 'all' || !row.assigned_student_ids) {
-        incomingAssigned = 'all';
-      }
-
-      const incomingEtut: Etut = {
-        id: row.id,
-        subject: row.subject,
-        topic: row.topic,
-        date: row.date ? row.date.trim().split('T')[0] : '',
-        time: row.time || '',
-        duration: Number(row.duration) || parsedMeta.duration || 45,
-        assignedStudentIds: incomingAssigned,
-        location: row.location || '',
-        notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : ''),
-        teacherFeedback: parsedMeta.teacherFeedback || '',
-        createdAt: row.created_at || new Date().toISOString(),
-        teacherId: row.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
-        teacherName: parsedMeta.teacherName || 'Öğretmen',
-        teacherIds: DataService.etutTeacherIdsOf(row.etut_teacher_ids, parsedMeta.teacherIds),
-        teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
-        teacherBranch: parsedMeta.teacherBranch || '',
-        lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
-        gradeLevel: parsedMeta.gradeLevel,
-        schoolLevel: parsedMeta.schoolLevel,
-        studentAttendance: parsedMeta.studentAttendance || {},
-        attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
-        createdById: parsedMeta.createdById || undefined,
-        createdByName: parsedMeta.createdByName || undefined,
-        recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
-        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
-      };
-
+      // Aşama 112: tam okumayla aynı çevirici. Anlık kanal yalnız bu kişiye tam açık satırı gönderir; önceden ortak
+      // takvimden gelmiş ayrıntısız kopyanın işareti silinir (yoksa kendisine verilen etüt listede gizli kalıyordu)
+      const incomingEtut = this.remoteRowToEtut(row);
       const existingIdx = this.etuts.findIndex((e) => e.id === incomingEtut.id);
       if (existingIdx !== -1) {
+        const current = this.etuts[existingIdx];
         this.etuts[existingIdx] = {
-          ...this.etuts[existingIdx],
+          ...current,
           ...incomingEtut,
-          studentAttendance: DataService.mergeAttendance(incomingEtut.studentAttendance, this.etuts[existingIdx].studentAttendance),
+          privacyRedacted: incomingEtut.privacyRedacted,
+          studentAttendance: current.privacyRedacted
+            ? incomingEtut.studentAttendance
+            : DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance),
         };
       } else {
         this.etuts.unshift(incomingEtut);
@@ -2251,11 +2210,21 @@ export class DataService {
       let sharedLoaded = false;
       let zumreLoaded = false;
       if (this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
-        try {
+        // Aşama 112: Rehberlik ve idare kurumun etütlerini veritabanından zaten tam alır; ortak takvim onlara yeni bir şey
+        // getirmez (yalnız aynı etütlerin ayrıntısız kopyası). İşlev çağrılmaz, eski ayrıntısız satır kalmaz.
+        const seesAll = this.isKurumAdmin() || this.hasRole('rehberlik');
+        if (seesAll) sharedLoaded = true;
+        else try {
           const shared = await supabase.rpc('etut_shared_schedule');
           if (!shared.error && Array.isArray(shared.data)) {
             sharedLoaded = true;
-            const own = new Set(remoteEtuts.map((r: any) => r.id));
+            // Aşama 112: artımlı okumada yalnız değişen satırlar gelir; değişmeyen ama bu kişiye tam açık etüt de "kendi"
+            // sayılır (yoksa ortak takvimdeki ayrıntısız kopyası tam kaydın yerine geçip listeden kayboluyordu)
+            const own = new Set<string>(remoteEtuts.map((r: any) => r.id));
+            if (res.mode === 'delta') {
+              const removed = res.removed;
+              for (const e of this.etuts) if (!e.privacyRedacted && !(removed && removed.has(e.id))) own.add(e.id);
+            }
             const extra = (shared.data as any[])
               .filter((r) => r && r.id && !own.has(r.id))
               .map((r) => ({ ...r, topic: '', notes: JSON.stringify({ ...(r.meta || {}), __etut_meta__: true, __redacted__: true }) }));
@@ -3134,7 +3103,9 @@ export class DataService {
     if (d.error || !Array.isArray(d.data)) return runFull();
     let rows: any[] = d.data;
     let removed: Set<string> | null = null;
-    if (Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
+    // Aşama 112: etüt başka öğretmene verilince eski öğretmene "değişti" olayı gelmez (satır artık ona görünmez);
+    // etütlerde kimlik listesi her yenilemede sorulur (yalnız "id" sütunu; 111 öncesindeki tam okumadan çok küçük)
+    if (table === 'etuts' || Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
       const ids = await this.fetchAllRows(table, undefined, { columns: 'id' });
       if (!ids.error && Array.isArray(ids.data)) {
         const server = new Set<string>(ids.data.map((r: any) => String(r.id)));
