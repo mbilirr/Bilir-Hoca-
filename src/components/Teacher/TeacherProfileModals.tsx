@@ -395,7 +395,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="m.bilirr@gmail.com"
+                placeholder="ornek@okul.com"
                 className="w-full bg-canvas border border-line rounded-xl pl-9 pr-3.5 py-2.5 text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>

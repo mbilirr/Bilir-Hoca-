@@ -51,6 +51,8 @@ async function smsMod() {
 export const config = { maxDuration: 60 };
 
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
+// Aşama 109: genel yönetici e-postası bu dosyada tek yerde (veritabanındaki is_admin kuralıyla aynı olmalı)
+const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta gönderilir, kalanlar sonraki çağrıya kalır
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
@@ -164,7 +166,7 @@ async function getCaller(req) {
   const user = await getAuthUser(token);
   if (!user || !user.id) throw new HttpError(401, 'Oturum süresi dolmuş. Lütfen yeniden giriş yapın.');
   const role = user.app_metadata && user.app_metadata.role;
-  const isHead = (user.email || '').toLowerCase() === 'm.bilirr@gmail.com';
+  const isHead = (user.email || '').toLowerCase() === HEAD_ADMIN_EMAIL; // Aşama 109: tek sabit
   // Aşama 18: kurum bilgisi (17 numaralı SQL çalıştırılmadıysa eski davranış)
   let kurumSupported = true;
   let rows;
@@ -2173,7 +2175,6 @@ async function actionEtutReminders(req, deadline) {
 // Bugün ve dün (gece yarısını geçen etütler için) bakılır; bu görev 10 dakikalık zamanlayıcıyla birlikte çalışır.
 const NOATT_GRACE_MIN = 60;
 const NOATT_LOOKBACK_DAYS = 1;
-const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 
 function etutHasAttendanceRow(row) {
   const att = parseEtutMeta(row).studentAttendance;

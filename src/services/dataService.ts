@@ -4613,7 +4613,9 @@ export class DataService {
   private isMyHomework(hw: Homework, teacher?: Teacher | null): boolean {
     const me = teacher || this.getCurrentTeacher();
     if (!me) return false;
-    return (!!me.auth_user_id && hw.teacherAuthId === me.auth_user_id) || hw.teacherId === me.id || (!!me.name && hw.createdByName === me.name);
+    if ((!!me.auth_user_id && hw.teacherAuthId === me.auth_user_id) || hw.teacherId === me.id) return true;
+    // Aşama 109: ad eşleşmesi yalnız sahip kimliği hiç yazılmamış eski kayıtlarda (aynı adlı iki öğretmen karışmaz)
+    return !hw.teacherId && !hw.teacherAuthId && !!me.name && hw.createdByName === me.name;
   }
   /** Ödevin sahibi öğretmen(ler)in kimlikleri (kimlik ya da giriş hesabı ya da ad eşleşmesiyle) */
   private homeworkOwnerIds(hw: Homework): string[] {
@@ -8710,8 +8712,10 @@ export class DataService {
     attData: Omit<AttendanceRecord, 'id'>,
     options?: { silent?: boolean }
   ): Promise<AttendanceRecord> {
+    // Aşama 109: boş ders adı veritabanında 'Genel' yazıldığı için eşleşme aynı kurala göre yapılır (çift kayıt açılmaz)
+    const subjKey = attData.subject || 'Genel';
     const existingIndex = this.attendance.findIndex(
-      (a) => a.date === attData.date && a.classId === attData.classId && a.subject === attData.subject
+      (a) => a.date === attData.date && a.classId === attData.classId && (a.subject || 'Genel') === subjKey
     );
     if (existingIndex >= 0) this.assertOwnedRecord(this.attendance[existingIndex], 'yoklama');
 
@@ -8731,7 +8735,22 @@ export class DataService {
 
     // Merkezi veritabanı tek doğruluk kaynağıdır: bulut onayı beklenir, hata varsa geri alınır
     await this.runCloudWrite(
-      () => supabase.from('attendance').upsert(this.attendanceToRow(record)),
+      async () => {
+        const row = this.attendanceToRow(record);
+        let res: { error: any } = await supabase.from('attendance').upsert(row);
+        // Aşama 109: aynı sınıf / gün / ders için kayıt başka cihazda az önce açıldıysa (tekil kural) o kayıt güncellenir
+        if (res.error?.code === '23505') {
+          let q = supabase.from('attendance').select('id').eq('class_id', row.class_id).eq('date', row.date);
+          q = row.subject === 'Genel' ? q.or('subject.is.null,subject.eq.Genel') : q.eq('subject', row.subject);
+          const ex = await q.limit(1).maybeSingle();
+          const exId = (ex.data as any)?.id;
+          if (exId && exId !== row.id) {
+            record.id = exId;
+            res = await supabase.from('attendance').upsert({ ...row, id: exId });
+          }
+        }
+        return res;
+      },
       () => {
         this.attendance = prevAttendance;
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);

@@ -50,6 +50,7 @@ import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
+import { IconBox, type Tone } from '../ui/kit';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
@@ -58,6 +59,18 @@ import { PushOptInCard } from '../Common/PushOptInCard';
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
 // Aşama 47: deneme sonuçları (grafik ve PDF kütüphaneleriyle) yalnız bu bölüm açılınca yüklenir
 const StudentDenemeSonuclari = lazyNamed(() => import('./StudentDenemeSonuclari'), 'StudentDenemeSonuclari');
+
+// Aşama 109: üst menüdeki bütün kutular aynı en ve boyda (en uzun yazıya göre), içerik sola dayalı
+const NAV_BOX = 'inline-flex items-center justify-start gap-2 h-9 w-48 px-2.5 rounded-lg text-xs font-semibold text-left';
+// Aşama 109: üst menüdeki altı ana bölüm (sabit; her çizimde yeniden kurulmaz)
+const STUDENT_TILES: Array<{ tab: StudentTabType; id: string; label: string; icon: typeof BookOpen; tone: Tone }> = [
+  { tab: 'homework', id: 'student-nav-homework-card-btn', label: 'Ödevlerim', icon: BookOpen, tone: 'warning' },
+  { tab: 'etuts', id: 'student-nav-etuts-card-btn', label: 'Etütlerim', icon: Calendar, tone: 'info' },
+  { tab: 'questions', id: 'student-nav-questions-card-btn', label: 'Soru Sayısı', icon: HelpCircle, tone: 'success' },
+  { tab: 'grades', id: 'student-nav-grades-card-btn', label: 'Not-Devamsızlık', icon: Award, tone: 'brand' },
+  { tab: 'messages', id: 'student-nav-messages-card-btn', label: 'Öğretmene Soru Sor', icon: MessageSquare, tone: 'info' },
+  { tab: 'deneme', id: 'student-nav-deneme-card-btn', label: 'Deneme Sonuçlarım', icon: BarChart3, tone: 'neutral' },
+];
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -318,144 +331,41 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     >
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
       <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
-        {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
-        <div id="student-action-cards-grid" className="hidden md:grid grid-cols-2 @3xl:grid-cols-4 gap-2.5 sm:gap-3">
-          {/* 1. Ödevlerim */}
-          <button
-            id="student-nav-homework-card-btn"
-            type="button"
-            onClick={() => setActiveTab('homework')}
-            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-amber text-white shadow-sm ${
-              activeTab === 'homework'
-                ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 border-white ring-2 ring-amber-300/90 shadow-md '
-                : 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400/80 hover:from-amber-600 hover:to-orange-600'
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <div
-                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
+        {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
+        <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
+          {STUDENT_TILES.map((t) => {
+            const on = activeTab === t.tab;
+            return (
+              <button
+                key={t.tab}
+                id={t.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setActiveTab(t.tab)}
+                className={`${NAV_BOX} border transition-colors cursor-pointer ${
+                  on ? 'bg-brand-soft border-brand ring-1 ring-brand/30' : 'bg-surface border-line hover:bg-surface-2'
+                }`}
               >
-                <BookOpen className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-black text-white group-hover:text-amber-100 transition-colors drop-shadow-xs">
-                  Ödevlerim
-                </div>
-              </div>
-            </div>
-            <ArrowRight
-              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
-                activeTab === 'homework' ? 'font-black' : 'opacity-90'
-              }`}
-            />
-          </button>
-
-          {/* 2. Etütlerim */}
-          <button
-            id="student-nav-etuts-card-btn"
-            type="button"
-            onClick={() => setActiveTab('etuts')}
-            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-blue text-white shadow-sm ${
-              activeTab === 'etuts'
-                ? 'bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 border-white ring-2 ring-blue-300/90 shadow-md '
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-400/80 hover:from-blue-700 hover:to-indigo-700'
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <div
-                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
-              >
-                <Calendar className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-black text-white group-hover:text-blue-100 transition-colors drop-shadow-xs">
-                  Etütlerim
-                </div>
-              </div>
-            </div>
-            <ArrowRight
-              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
-                activeTab === 'etuts' ? 'font-black' : 'opacity-90'
-              }`}
-            />
-          </button>
-
-          {/* 3. Soru Sayısı */}
-          <button
-            id="student-nav-questions-card-btn"
-            type="button"
-            onClick={() => setActiveTab('questions')}
-            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-emerald text-white shadow-sm ${
-              activeTab === 'questions'
-                ? 'bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-600 border-white ring-2 ring-emerald-300/90 shadow-md '
-                : 'bg-gradient-to-r from-emerald-600 to-emerald-700 border-emerald-400/80 hover:from-emerald-700 hover:to-teal-700'
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <div
-                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-black text-white group-hover:text-emerald-100 transition-colors drop-shadow-xs">
-                  Soru Sayısı
-                </div>
-              </div>
-            </div>
-            <ArrowRight
-              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
-                activeTab === 'questions' ? 'font-black' : 'opacity-90'
-              }`}
-            />
-          </button>
-
-          {/* 4. Not-Devamsızlık */}
-          <button
-            id="student-nav-grades-card-btn"
-            type="button"
-            onClick={() => setActiveTab('grades')}
-            className={`flex items-center justify-between px-3 py-2 rounded-xl border transition-all cursor-pointer group hover-glow-purple text-white shadow-sm ${
-              activeTab === 'grades'
-                ? 'bg-gradient-to-r from-purple-600 via-purple-700 to-violet-600 border-white ring-2 ring-purple-300/90 shadow-md '
-                : 'bg-gradient-to-r from-purple-600 to-purple-700 border-purple-400/80 hover:from-purple-700 hover:to-violet-700'
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <div
-                className="w-6 h-6 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-xs bg-white/20 text-white border border-white/30 backdrop-blur-xs"
-              >
-                <Award className="w-3.5 h-3.5 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="text-xs font-black text-white group-hover:text-purple-100 transition-colors drop-shadow-xs">
-                  Not-Devamsızlık
-                </div>
-              </div>
-            </div>
-            <ArrowRight
-              className={`w-3.5 h-3.5 text-white group-hover:translate-x-1 transition-transform ${
-                activeTab === 'grades' ? 'font-black' : 'opacity-90'
-              }`}
-            />
-          </button>
+                <IconBox icon={t.icon} tone={t.tone} size="sm" className="!w-6 !h-6 !rounded-md [&>svg]:!w-3.5 [&>svg]:!h-3.5" />
+                <span className={`flex-1 truncate ${on ? 'text-brand-fg' : 'text-fg'}`}>
+                  {t.tab === 'messages' ? `${t.label} (${myMessages.length})` : t.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Row 2: Sol tarafta butonların altına yerleştirilen küçültülmüş Ana Sayfa ve Bildirimler butonları */}
         <div id="student-bottom-nav-row" className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-line">
-          <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+          <div className="flex items-center flex-wrap gap-2">
             {/* Küçültülmüş Ana Sayfa Butonu */}
             <button
               id="student-subnav-home-btn"
               type="button"
               onClick={() => setActiveTab('home')}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'home'
-                  ? 'bg-fg text-surface shadow-xs'
-                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
-              }`}
+              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'home' ? 'ui-btn-primary' : 'ui-btn-secondary'}`}
             >
-              <Home className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
+              <Home className="w-3.5 h-3.5" />
               <span>Ana Sayfa</span>
             </button>
 
@@ -464,13 +374,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-notifications-btn"
               type="button"
               onClick={() => setIsNotificationModalOpen(true)}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg border border-line transition-all cursor-pointer relative"
+              className={`ui-btn ui-btn-sm ui-btn-secondary ${NAV_BOX} relative`}
               title="Gelen Bildirimler ve E-Postalar"
             >
               <div className="relative">
-                <Bell className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
+                <Bell className="w-3.5 h-3.5" />
                 {unreadNotifsCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-orange-600 text-white rounded-full text-[8px] font-black flex items-center justify-center ring-1 ring-white animate-bounce">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 bg-danger text-white rounded-full text-[8px] font-bold flex items-center justify-center ring-1 ring-surface">
                     {unreadNotifsCount}
                   </span>
                 )}
@@ -478,18 +388,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <span>Bildirimler</span>
             </button>
 
-            {/* Öğretmene Soru Sor Butonu */}
+            {/* Öğretmene Soru Sor / Deneme: geniş ekranda üst sırada; burada yalnız mobilde görünür (Aşama 109) */}
             <button
               id="student-subnav-messages-btn"
               type="button"
               onClick={() => setActiveTab('messages')}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'messages'
-                  ? 'bg-fg text-surface shadow-xs'
-                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
-              }`}
+              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'messages' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
             >
-              <MessageSquare className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>Öğretmene Soru Sor ({myMessages.length})</span>
             </button>
 
@@ -498,13 +404,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               id="student-subnav-deneme-btn"
               type="button"
               onClick={() => setActiveTab('deneme')}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'deneme'
-                  ? 'bg-fg text-surface shadow-xs'
-                  : 'bg-surface-2 text-fg-2 hover:text-fg hover:bg-surface-3 border border-line'
-              }`}
+              className={`ui-btn ui-btn-sm ${NAV_BOX} ${activeTab === 'deneme' ? 'ui-btn-primary' : 'ui-btn-secondary'} md:hidden`}
             >
-              <BarChart3 className="w-3.5 h-3.5 text-orange-700 dark:text-orange-400" />
+              <BarChart3 className="w-3.5 h-3.5" />
               <span>Deneme Sonuçlarım</span>
             </button>
           </div>
