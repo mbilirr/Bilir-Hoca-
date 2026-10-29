@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense, startTransition } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition } from 'react';
 import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { PageHeader } from './components/ui/kit';
 import { Navbar } from './components/Navbar';
@@ -378,7 +378,8 @@ export default function App() {
 
   // Aşama 32: Mesajlar sayacına görülmemiş etüt notları (yoklamada yazılan farklı konu / öğrenci notu) da eklenir
   const { unseen: etutNoteUnseen } = useEtutNotes();
-  const unreadMessagesCount = messages.filter((m) => !m.read).length + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
+  // Aşama 113: yalnız bana gelen ve genel okunmamış mesajlar (idarenin gördüğü başka öğretmene gelen sorular sayılmaz)
+  const unreadMessagesCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages, authSession]) + (authSession?.role === 'teacher' ? etutNoteUnseen : 0);
 
   // ================= GATEKEEPER CHECK =================
   // If not authenticated, render the initial entrance login/register portal before the app opens

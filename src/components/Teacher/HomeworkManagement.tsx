@@ -67,6 +67,10 @@ import { StudyPlanManager } from './StudyPlanManager';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 
+// Aşama 113: ana sayfa ve Etütler ile ortak "Benim / Tümü" kaydı
+const HOME_SCOPE_KEY = 'edu_home_scope_v1';
+const MINE = '__mine__';
+
 interface HomeworkManagementProps {
   homeworks: Homework[];
   submissions?: HomeworkSubmission[];
@@ -163,7 +167,28 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const [hwSearchQuery, setHwSearchQuery] = useState('');
   const [hwFilterSubject, setHwFilterSubject] = useState('all');
   const [hwFilterClassId, setHwFilterClassId] = useState('all');
-  const [hwFilterTeacher, setHwFilterTeacher] = useState('all'); // Aşama 98: öğretmene göre
+  // Aşama 98: öğretmene göre. Aşama 113: ana sayfadaki "Benim / Tümü" seçimiyle aynı kayıt ('__mine__' = benim ödevlerim);
+  // ana sayfada görülen ödev sayısı burada da aynen görünür
+  const seesOthers = dataService.seesOthersWork();
+  const [hwFilterTeacher, setHwFilterTeacherState] = useState(() => {
+    if (!seesOthers) return 'all';
+    try {
+      const v = window.localStorage.getItem(HOME_SCOPE_KEY);
+      // kayıt yoksa ana sayfanın varsayılanı: idare tümü, diğerleri kendi ödevleri
+      return (v === 'mine' || v === 'all' ? v : dataService.showsKurumOzeti() ? 'all' : 'mine') === 'mine' ? MINE : 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const setHwFilterTeacher = (v: string) => {
+    setHwFilterTeacherState(v);
+    if (!seesOthers || (v !== MINE && v !== 'all')) return;
+    try {
+      window.localStorage.setItem(HOME_SCOPE_KEY, v === MINE ? 'mine' : 'all');
+    } catch {
+      /* depolama kapalı */
+    }
+  };
   const [isHwSearchDropdownOpen, setIsHwSearchDropdownOpen] = useState(false);
 
 
@@ -465,7 +490,9 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
   const allTabHomeworks = useMemo(
     () =>
       homeworks.filter((hw) => {
-        if (hwFilterTeacher !== 'all' && ownerOf.get(hw.id)?.id !== hwFilterTeacher) return false;
+        if (hwFilterTeacher === MINE) {
+          if (!dataService.isMine(hw)) return false;
+        } else if (hwFilterTeacher !== 'all' && ownerOf.get(hw.id)?.id !== hwFilterTeacher) return false;
         if (hwFilterSubject !== 'all' && hw.subject !== hwFilterSubject) {
           return false;
         }
@@ -1363,7 +1390,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                         className="bg-surface-2 border border-line rounded-xl px-3 py-2 text-xs text-fg-2 font-medium focus:outline-none focus:border-indigo-500 focus:bg-surface cursor-pointer max-w-[12rem]"
                       >
                         <option value="all">Tüm Öğretmenler</option>
-                        {hwFilterTeacher !== 'all' && !ownerOptions.some((o) => o.id === hwFilterTeacher) && (
+                        {seesOthers && <option value={MINE}>Benim ödevlerim</option>}
+                        {hwFilterTeacher !== 'all' && hwFilterTeacher !== MINE && !ownerOptions.some((o) => o.id === hwFilterTeacher) && (
                           <option value={hwFilterTeacher}>Seçilen öğretmen</option>
                         )}
                         {ownerOptions.map((o) => (

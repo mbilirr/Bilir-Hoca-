@@ -1526,8 +1526,37 @@ export class DataService {
       const age = Date.now() - this.lastFullSyncAt;
       const due = health === 'live' ? DataService.LIVE_SAFETY_SYNC_MS : DataService.FALLBACK_SYNC_MS;
       if (age >= due) this.revalidateAndSyncAll(true);
-      else if (health !== 'live') this.ensureRealtime();
+      else {
+        if (health !== 'live') this.ensureRealtime();
+        this.lightPoll();
+      }
     }, 10000);
+  }
+
+  // ===========================================================================
+  // Aşama 113: KÜÇÜK YOKLAMALAR (anlık kanalın ulaşamadığı bilgiler, dakikada bir, sekme açıkken)
+  //  - Öğretmen: rol, bölüm izni, kurum modülleri (teacher_roles anlık yayında yok). Tek küçük istek; değişirse
+  //    menü hemen, kayıtlar kimlik karşılaştırmasıyla yenilenir.
+  //  - Öğrenci: etüt ve yoklama işlevden okunur, anlık kanal öğrenciye bu tablolardan olay göndermez. Yalnız
+  //    öğrencinin kendi kayıtları iner; değişiklik yoksa ekran yeniden çizilmez.
+  // ===========================================================================
+  private static readonly LIGHT_POLL_MS = 60 * 1000;
+  private lightPollAt = 0;
+  private lightPollRunning = false;
+  private lightPoll(): void {
+    if (this.lightPollRunning || this.fullSyncInFlight) return;
+    if (Date.now() - this.lightPollAt < DataService.LIGHT_POLL_MS) return;
+    const role = this.getAuthSession()?.role;
+    if (role !== 'teacher' && role !== 'student') return;
+    this.lightPollAt = Date.now();
+    this.lightPollRunning = true;
+    const jobs: Promise<unknown>[] =
+      role === 'teacher'
+        ? [this.syncMyKurum(), this.syncMyTeacherAccess()]
+        : [this.syncEtutsFromSupabase(true), this.syncAttendanceFromSupabase(true), this.syncStudentNotifications()];
+    Promise.allSettled(jobs).finally(() => {
+      this.lightPollRunning = false;
+    });
   }
 
   // Eski adlar (başka dosyalardan çağrılabilir diye korunur)
@@ -4079,11 +4108,17 @@ export class DataService {
         supabase.from('teacher_student_access').select('student_id').eq('teacher_auth_id', uid),
       ]);
       if (cls.error || std.error) return;
-      this.myTeacherAccess = {
+      const next = {
         classIds: new Set((cls.data || []).map((r: any) => String(r.class_id))),
         studentIds: new Set((std.data || []).map((r: any) => String(r.student_id))),
         loaded: true,
       };
+      // Aşama 113: değişmediyse ekran yeniden çizilmez; sınıf / öğrenci yetkisi değiştiyse kayıtlar da yenilenir
+      const prev = this.myTeacherAccess;
+      const same = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+      if (prev.loaded && same(prev.classIds, next.classIds) && same(prev.studentIds, next.studentIds)) return;
+      this.myTeacherAccess = next;
+      if (prev.loaded) this.resyncAfterAccessChange();
       this.notify();
     } catch {
       // bağlantı sorunu: bir sonraki eşitlemede tekrar denenir
@@ -4303,13 +4338,37 @@ export class DataService {
 
   private setMyKurum(next: MyKurumState) {
     const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
+    const accessChanged = this.myKurum.loaded && DataService.kurumAccessKey(this.myKurum) !== DataService.kurumAccessKey(next);
     this.myKurum = next;
+    if (accessChanged) this.resyncAfterAccessChange();
     // Aşama 82: kurum adı ve logosu (karne PDF'leri ve üst menü)
     setKurumBrand(next.kurumId ? { name: next.kurumName, logo: next.logo } : null);
     try {
       sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
     } catch {}
     if (changed) this.notify();
+  }
+
+  /** Görünürlüğü belirleyen kurum bilgileri (rol, bölüm izni, modül, rol anahtarı, yönetici) */
+  private static kurumAccessKey(k: MyKurumState): string {
+    return JSON.stringify([k.head, k.kurumId, k.kurumAdmin, k.rolesEnabled, [...(k.roles || [])].sort(), k.sections, k.modules, k.grantedClassIds, k.roleSettings]);
+  }
+
+  /**
+   * Aşama 113: rol / bölüm izni değişince veritabanının bu kişiye verdiği kayıtlar da değişir; artımlı okuma yalnız
+   * "değişen" satırları getirdiği için yeni görünür olan eski kayıtlar 10 dakikaya kadar gelmiyordu. Kimlik
+   * karşılaştırması hemen yapılır (çalışan eşitleme varsa bittikten sonra bir kez daha).
+   */
+  private resyncAfterAccessChange(): void {
+    for (const st of this.deltaState.values()) st.idsAt = 0;
+    const run = () => {
+      for (const st of this.deltaState.values()) st.idsAt = 0;
+      this.backgroundSyncedAt.clear(); // not / yoklama 10 dakika beklemeden okunsun
+      this.lastFullSyncAt = 0;
+      this.revalidateAndSyncAll(true);
+    };
+    if (this.fullSyncInFlight) this.fullSyncInFlight.then(run, run);
+    else setTimeout(run, 0);
   }
 
   public getMyKurum(): Readonly<MyKurumState> {
@@ -8977,7 +9036,19 @@ export class DataService {
     }
   }
 
+  /**
+   * Aşama 113: mesaj bu öğretmene mi (alıcısı ben ya da alıcısız genel soru). Okundu işaretini yalnız alıcı koyar;
+   * idarenin başka öğretmene gelen soruyu açması o öğretmenin "okunmadı" işaretini değiştirmez. Sayaçlar da bunu sayar.
+   */
+  public isMessageForMe(m: StudentMessage): boolean {
+    const s = this.getAuthSession();
+    if (s?.role !== 'teacher') return true;
+    return !m.toTeacherId || m.toTeacherId === s.user.id;
+  }
+
   public async markMessageAsRead(id: string): Promise<void> {
+    const target = this.messages.find((m) => m.id === id);
+    if (!target || target.read || !this.isMessageForMe(target)) return;
     const prevMessages = this.messages;
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, read: true } : m));
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
@@ -9222,7 +9293,10 @@ export class DataService {
       }
 
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı / Etüt Öğretmeni — veritabanının açtığı kayıtlar; veli bilgisi role göre
-      if (!forTeacherId && this.roleTrustsDb()) {
+      // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla (mesaj, not, yoklama, teslim süzgeçleri
+      // getStudents(kendi id) çağırıyordu; Rehberlik'te sınıf yetkisi yazılı olmadığı için bu kayıtlar ekranda gizleniyordu)
+      const self = !forTeacherId || forTeacherId === session?.user.id;
+      if (self && this.roleTrustsDb()) {
         const hideParents = !this.canSeeParentContacts();
         return this.students
           .filter((s) => !this.deletedStudentIds.has(s.id))
@@ -9286,7 +9360,8 @@ export class DataService {
       }
 
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı — veritabanının açtığı sınıflar; Etüt Öğretmeni sınıf görmez
-      if (!forTeacherId && this.roleTrustsDb()) {
+      // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla
+      if ((!forTeacherId || forTeacherId === session?.user.id) && this.roleTrustsDb()) {
         if (this.roleEtutOnly()) return [];
         return this.deduplicateClasses(this.classes.filter((c) => !this.deletedClassIds.has(c.id)));
       }
@@ -9621,13 +9696,15 @@ export class DataService {
       if (teacher?.isAdmin) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m));
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
+      // Aşama 113: idare (Müdür / Müdür Yrd. rolüyle de) kurumdaki öğretmenlere gelen soruları veritabanından alır
+      // (message_teacher_can_see → priv_teacher_ok); ekran da aynısını gösterir. Rehberlik'e veritabanı vermez.
+      const idare = teacherId === session?.user.id && this.isKurumAdmin();
       // Aşama 45: başka öğretmene yazılmış ya da başka öğretmenin cevapladığı soru görünmez (veritabanı da denetler)
       return this.messages.filter(
         (m) =>
           visibleStudents.has(m.studentId) &&
           !this.isTeacherAuthoredMessage(m) &&
-          (!m.toTeacherId || m.toTeacherId === teacherId) &&
-          (!m.repliedById || m.repliedById === teacherId)
+          (idare || ((!m.toTeacherId || m.toTeacherId === teacherId) && (!m.repliedById || m.repliedById === teacherId)))
       );
     }
 

@@ -79,6 +79,12 @@ const whenText = (iso: string) => {
   return d.toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
+/** Bu haftanın pazartesisi (YYYY-MM-DD) */
+const weekStartStr = () => {
+  const now = new Date();
+  return localDateStr(addDays(now, -((now.getDay() + 6) % 7)));
+};
+
 /** Mesajlar sekmesindeki sayaç için: görülmemiş etüt notu sayısı */
 export function useEtutNotes() {
   const version = useDataVersion();
@@ -89,12 +95,14 @@ export function useEtutNotes() {
     return collectEtutNotes(dataService.getVisibleEtuts(), info);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
-  const unseen = items.filter((x) => !seen.has(x.id)).length;
+  // Aşama 113: sayaç, listenin açılıştaki dönemiyle aynı aralığı sayar (tüm kurumu gören: bu hafta, diğerleri: son 30 gün)
+  const since = dataService.seesAllEtuts() ? weekStartStr() : '';
+  const unseen = items.filter((x) => !seen.has(x.id) && (!since || (x.etut.date || '').slice(0, 10) >= since)).length;
   return { items, seen, markSeen, unseen };
 }
 
 export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }> = ({ notes }) => {
-  const { items, seen, markSeen, unseen } = notes;
+  const { items, seen, markSeen } = notes;
   const phone = useMediaQuery('(max-width: 639px)');
   const [q, setQ] = useState('');
   const term = useDeferredValue(q.trim());
@@ -109,10 +117,7 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
   }, [items]);
   const list = useMemo(() => {
     let since = '';
-    if (period === 'week') {
-      const now = new Date();
-      since = localDateStr(addDays(now, -((now.getDay() + 6) % 7)));
-    }
+    if (period === 'week') since = weekStartStr();
     return items.filter((x) => {
       if (since && (x.etut.date || '').slice(0, 10) < since) return false;
       if (teacher && !etutTeacherNames(x.etut).includes(teacher)) return false;
@@ -121,6 +126,8 @@ export const EtutNotesInbox: React.FC<{ notes: ReturnType<typeof useEtutNotes> }
     });
   }, [items, period, teacher, term]);
   const paged = usePagedList(list, `${period}|${teacher}|${term}`, 50, phone ? 15 : undefined);
+  // başlıktaki "yeni" sayısı ekrandaki listeyle aynı (seçilen dönem ve süzgeçler)
+  const unseen = useMemo(() => list.filter((x) => !seen.has(x.id)).length, [list, seen]);
 
   return (
     <section className="ui-card overflow-hidden" id="etut-notes-inbox">

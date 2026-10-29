@@ -60,6 +60,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   const phone = useMediaQuery('(max-width: 639px)');
   const term = useDeferredValue(searchTerm.trim());
   const wide = dataService.seesAllEtuts();
+  // Aşama 113: başka öğretmene gelen soruları yalnız idare (ve genel yönetici) alır; Rehberlik'te "Kime" süzgeci yok
+  const idare = dataService.isHeadAdmin() || dataService.isKurumAdmin();
   const meId = dataService.getAuthSession()?.user.id || '';
   const [filters, setFilters] = useState<MsgFilters>(() => (wide ? readMsgFilters() : { ...DEFAULT_MSG_FILTERS, kime: 'all', durum: 'all' }));
   useEffect(() => {
@@ -72,21 +74,22 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   }, [filters, wide]);
   const setFilter = <K extends keyof MsgFilters>(k: K, v: MsgFilters[K]) => setFilters((f) => ({ ...f, [k]: v }));
 
-  const unreadCount = useMemo(() => messages.filter((m) => !m.read).length, [messages]);
+  // Aşama 113: sayaç üst menüyle aynı (yalnız bana gelen ve genel okunmamış mesajlar)
+  const unreadCount = useMemo(() => messages.filter((m) => !m.read && dataService.isMessageForMe(m)).length, [messages]);
   // Kime / Sınıf seçenekleri yalnız listede gerçekten bulunanlardan oluşur
   const { teacherOpts, classOpts } = useMemo(() => {
     if (!wide) return { teacherOpts: [] as Array<[string, string]>, classOpts: [] as string[] };
     const t = new Map<string, string>();
     const c = new Set<string>();
     messages.forEach((m) => {
-      if (m.toTeacherId && m.toTeacherId !== meId) t.set(m.toTeacherId, m.toTeacherName || 'Öğretmen');
+      if (idare && m.toTeacherId && m.toTeacherId !== meId) t.set(m.toTeacherId, m.toTeacherName || 'Öğretmen');
       if (m.studentClass) c.add(m.studentClass);
     });
     return {
       teacherOpts: Array.from(t.entries()).sort((a, b) => turkishCompare(a[1], b[1])),
       classOpts: Array.from(c).sort(turkishCompare),
     };
-  }, [messages, wide, meId]);
+  }, [messages, wide, idare, meId]);
 
   const filteredMessages = useMemo(() => {
     let since = 0;
@@ -97,10 +100,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
       else d.setDate(1);
       since = d.getTime();
     }
+    const kime = idare ? filters.kime : 'all';
     return messages.filter((m) => {
       if (wide) {
-        if (filters.kime === 'me' && m.toTeacherId && m.toTeacherId !== meId) return false;
-        if (filters.kime !== 'me' && filters.kime !== 'all' && m.toTeacherId !== filters.kime) return false;
+        if (kime === 'me' && m.toTeacherId && m.toTeacherId !== meId) return false;
+        if (kime !== 'me' && kime !== 'all' && m.toTeacherId !== kime) return false;
         if (filters.durum === 'open' && m.teacherReply) return false;
         if (filters.durum === 'replied' && !m.teacherReply) return false;
         if (filters.sinif && m.studentClass !== filters.sinif) return false;
@@ -109,8 +113,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
       if (!term) return true;
       return matchTurkishSearch(m.studentName, term) || matchTurkishSearch(m.subject, term) || matchTurkishSearch(m.text, term);
     });
-  }, [messages, term, wide, filters, meId]);
-  const filtersActive = wide && (filters.kime !== 'all' || filters.durum !== 'all' || !!filters.sinif || filters.donem !== 'all');
+  }, [messages, term, wide, idare, filters, meId]);
+  const filtersActive = wide && ((idare && filters.kime !== 'all') || filters.durum !== 'all' || !!filters.sinif || filters.donem !== 'all');
   // Aşama 15: uzun mesaj listesi parça parça çizilir (Aşama 111: telefonda ilk 15)
   const pagedMessages = usePagedList(filteredMessages, `${term}|${filters.kime}|${filters.durum}|${filters.sinif}|${filters.donem}`, 50, phone ? 15 : undefined);
 
@@ -196,16 +200,18 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
               />
             </div>
             {wide && (
-              <div className="mt-3 grid grid-cols-2 gap-2" id="messages-filters">
-                <select id="messages-filter-kime" aria-label="Kime" value={filters.kime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
-                  <option value="me">Bana gelenler</option>
-                  <option value="all">Tüm öğretmenler</option>
-                  {teacherOpts.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+              <div className={`mt-3 grid ${idare ? 'grid-cols-2' : 'grid-cols-3'} gap-2`} id="messages-filters">
+                {idare && (
+                  <select id="messages-filter-kime" aria-label="Kime" value={filters.kime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
+                    <option value="me">Bana gelenler</option>
+                    <option value="all">Tüm öğretmenler</option>
+                    {teacherOpts.map(([id, name]) => (
+                      <option key={id} value={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <select id="messages-filter-durum" aria-label="Durum" value={filters.durum} onChange={(e) => setFilter('durum', e.target.value as MsgFilters['durum'])} className={msgSelectCls}>
                   <option value="all">Tüm durumlar</option>
                   <option value="open">Cevapsız</option>
