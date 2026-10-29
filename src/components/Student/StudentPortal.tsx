@@ -67,6 +67,8 @@ interface StudentPortalProps {
   attendance: AttendanceRecord[];
   messages: StudentMessage[];
   submissions?: HomeworkSubmission[];
+  /** Aşama 107: öğretmenin salt okunur önizlemesi (kayıt yapan düğmeler kapalı) */
+  preview?: boolean;
 }
 
 export const StudentPortal: React.FC<StudentPortalProps> = ({
@@ -77,6 +79,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   attendance,
   messages,
   submissions: propSubmissions,
+  preview = false,
 }) => {
   // Aktif bölüm adreste tutulur (#/student/homework gibi): böylece tarayıcının / telefonun
   // "Geri" tuşu bir önceki bölüme döner, sayfa yenilenince de aynı bölümde kalınır.
@@ -102,7 +105,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const isMandatoryPasswordChange =
     Boolean(currentStudent.mustChangePassword);
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange && !preview); // Aşama 107: önizlemede açılmaz
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 
   // Submit modal state
@@ -297,8 +300,22 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     setTimeout(() => setMessageSentFeedback(false), 15000); // Aşama 99: 15 sn
   };
 
+  // Aşama 107: önizlemede data-yazma işaretli düğmeler ve formlar çalışmaz (tek yerden, alt bileşenlere dokunmadan)
+  const blockWrite = (e: React.SyntheticEvent) => {
+    const t = e.target as HTMLElement | null;
+    if (e.type === 'submit' || t?.closest?.('[data-yazma]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      dataService.showPreviewBlocked();
+    }
+  };
+
   return (
-    <div className="space-y-6 w-full min-w-0">
+    <div
+      className={`space-y-6 w-full min-w-0${preview ? ' student-preview' : ''}`}
+      onClickCapture={preview ? blockWrite : undefined}
+      onSubmitCapture={preview ? blockWrite : undefined}
+    >
       {/* Top Navigation Wall for Student (Google Looker Studio Education Style) */}
       <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1: Action Buttons (Ödevlerim, Etütlerim, Soru Sayısı, Not-Devamsızlık) */}
@@ -526,7 +543,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           </h1>
 
           {/* Aşama 34: telefon bildirimleri (kapalıysa açma kartı, açıksa tek satır) */}
-          <PushOptInCard role="student" />
+          {!preview && <PushOptInCard role="student" />}
 
           {/* Aşama 66: "Bugün" (soru hedefi, plan görevleri, ödev/etüt, duyurular) ve "Bu hafta"
               (gün gün mini görünüm, haftanın durumu, son deneme, notlar) yan yana eş duvarlar */}
@@ -662,6 +679,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   {/* Action Buttons */}
                   <div className="pt-3 border-t border-line flex items-center gap-2">
                     <button
+                      data-yazma
                       onClick={() => {
                         // Önceki teslim varsa dosyaları ve notu pencerede görünür; öğrenci ekleyip çıkarabilir
                         setSubmissionResources(mySubmission?.resources || []);
@@ -1017,6 +1035,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
               <button
                 type="submit"
+                data-yazma
                 id="student-message-send"
                 disabled={isSendingMessage}
                 className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"

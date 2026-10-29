@@ -258,7 +258,7 @@ export const StudentTodayPlan: React.FC<{
           <span>{busy ? 'Soru kaydına aktarılıyor…' : 'Soru kaydına aktarılmadı'}</span>
         )}
         {!busy && (
-          <button type="button" data-task-share-btn onClick={() => startEdit(it)} className="font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer">
+          <button type="button" data-task-share-btn data-yazma onClick={() => startEdit(it)} className="font-semibold text-brand-fg hover:underline underline-offset-2 cursor-pointer">
             {share ? 'Düzenle' : 'Soru kaydına ekle'}
           </button>
         )}
@@ -292,6 +292,7 @@ export const StudentTodayPlan: React.FC<{
         <button
           type="button"
           data-task-toggle
+          data-yazma
           aria-pressed={done}
           aria-label={done ? 'Yapıldı işaretini kaldır' : 'Yaptım olarak işaretle'}
           onClick={() => toggle(it)}

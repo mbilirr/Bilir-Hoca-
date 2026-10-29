@@ -15,7 +15,11 @@ export const GradeTicks: React.FC<{
   value: TeacherGrades;
   onChange: (v: TeacherGrades) => void;
   disabled?: boolean;
-}> = ({ id, options, value, onChange, disabled }) => {
+  /** Aşama 107: rolü gereği tüm sınıfları gören kişi — "Tümü" kilitli işaretli, altında bu not */
+  roleNote?: string;
+}> = ({ id, options, value: own, onChange, disabled: ownDisabled, roleNote }) => {
+  const value: TeacherGrades = roleNote ? { all: true, grades: [] } : own;
+  const disabled = ownDisabled || !!roleNote;
   const toggle = (g: number) => {
     const has = value.grades.includes(g);
     onChange({ all: false, grades: has ? value.grades.filter((x) => x !== g) : [...value.grades, g].sort((a, b) => a - b) });
@@ -53,7 +57,9 @@ export const GradeTicks: React.FC<{
           );
         })}
       </div>
-      {options.length === 0 ? (
+      {roleNote ? (
+        <p className="text-[10px] font-semibold text-info-fg" id={`${id}-rol`}>{roleNote}</p>
+      ) : options.length === 0 ? (
         <p className="text-[10px] text-muted">Kurumda henüz sınıf yok; sınıf ekledikten sonra kademe seçilebilir. "Tümü" seçilirse sonradan açılan sınıflar da görünür.</p>
       ) : (
         <p className="text-[10px] text-muted">Seçilen kademedeki bütün şubeler (sonradan açılanlar dahil) görünür. Öğretmen öğrenci ekleyemez, silemez, sınıf değiştiremez.</p>

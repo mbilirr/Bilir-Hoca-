@@ -173,10 +173,20 @@ Deno.serve(async (req: Request) => {
       throw new HttpError(429, 'Kısa sürede çok fazla başvuru yapıldı. Lütfen bir saat sonra tekrar deneyiniz.');
     }
 
-    const { count: pendingCount } = await admin
+    // Aşama 106: bekleyen başvuru sınırı KURUM BAŞINA sayılır (bir kurumun bekleyenleri başka kurumu kilitlemez);
+    // kurumsuz başvurular kendi aralarında sayılır. Sütun okunamazsa eski davranış (tüm sistem) sürer.
+    let pendingQ = admin
       .from('student_applications')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending');
+    pendingQ = kurum ? pendingQ.eq('kurum_id', kurum.id) : pendingQ.is('kurum_id', null);
+    let { count: pendingCount, error: pendingErr } = await pendingQ;
+    if (pendingErr) {
+      ({ count: pendingCount } = await admin
+        .from('student_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'));
+    }
     if ((pendingCount || 0) >= MAX_PENDING_APPLICATIONS) {
       throw new HttpError(503, 'Şu anda çok sayıda bekleyen başvuru var. Lütfen daha sonra tekrar deneyiniz veya öğretmeninize başvurunuz.');
     }

@@ -72,6 +72,8 @@ const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUser
 const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
+// Aşama 107: önizlemede öğrenci seçme kutusu (yalnız önizleme açılınca indirilir)
+const StudentSearchSelect = lazyNamed(() => import('./components/Common/StudentSearchSelect'), 'StudentSearchSelect');
 
 // URL hash'inden ('#/teacher/etuts' gibi) aktif rol ve sekme bilgisini oku.
 // Component dışında tanımlı, her render'da yeniden oluşturulmaz.
@@ -396,6 +398,12 @@ export default function App() {
     }
   });
 
+  // Aşama 107: öğretmen öğrenci görünümündeyken veri katmanı da salt okunur olur
+  const studentPreview = authSession?.role === 'teacher' && role === 'student';
+  useEffect(() => {
+    dataService.setStudentPreview(studentPreview);
+  }, [studentPreview]);
+
   // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
   const brandTitle = authSession ? dataService.getBrand().name : '';
   useEffect(() => {
@@ -461,9 +469,26 @@ export default function App() {
             <div className="flex items-center gap-2">
               <Eye className="w-4 h-4 shrink-0" />
               <span>
-                <strong>Öğrenci görünümü:</strong> Öğrencilerin gördüğü ekranı inceliyorsunuz.
+                <strong>Öğrenci görünümü (önizleme):</strong> Salt okunur; öğrenci adına işlem yapılamaz.
               </span>
             </div>
+            {/* Aşama 107: önizlenecek öğrenci seçilir */}
+            <Suspense fallback={null}>
+              <div className="w-64 max-w-full">
+              <StudentSearchSelect
+                id="preview-student-select"
+                students={students}
+                value={currentStudent?.id || ''}
+                onChange={(id: string) => {
+                  const st = students.find((x) => x.id === id);
+                  if (st) setCurrentStudent(st);
+                }}
+                placeholder="Öğrenci seçin"
+                ariaLabel="Önizlenecek öğrenci"
+                className="ui-input h-8 min-h-0 py-0 text-xs bg-surface"
+              />
+              </div>
+            </Suspense>
             <button
               onClick={() => {
                 setRole('teacher');
@@ -677,6 +702,7 @@ export default function App() {
             <Suspense fallback={<PageLoading />}>
             <StudentPortal
               key={currentStudent.id}
+              preview={authSession.role === 'teacher'}
               currentStudent={currentStudent}
               homeworks={homeworks}
               submissions={submissions}

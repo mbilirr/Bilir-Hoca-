@@ -573,3 +573,9 @@ html, body {
   content-visibility: auto;
   contain-intrinsic-size: auto 76px;
 }
+
+/* Aşama 107: öğretmenin öğrenci görünümü önizlemesi — kayıt yapan düğmeler kapalı görünür */
+.student-preview [data-yazma] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

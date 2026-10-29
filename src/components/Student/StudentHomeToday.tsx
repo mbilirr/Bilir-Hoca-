@@ -302,6 +302,7 @@ export const StudentHomeToday: React.FC<{
         actions={
           <button
             type="button"
+            data-yazma
             onClick={onOpenAvatarModal}
             className="relative p-0.5 rounded-full ring-2 ring-brand/40 hover:ring-brand transition-all cursor-pointer"
             title="Profil resmini değiştir"

@@ -2911,6 +2911,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <button
               type="button"
               id="qe-save"
+              data-yazma
               onClick={handleSaveQuestionLog}
               disabled={isSaving}
               className="px-3.5 py-1.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
@@ -2960,6 +2961,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <button
                           type="button"
                           data-testid="qh-edit"
+                          data-yazma
                           disabled={!editable}
                           onClick={() => handleEditHistoryLog(log)}
                           title={
@@ -2974,6 +2976,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         <button
                           type="button"
                           data-testid="qh-delete"
+                          data-yazma
                           onClick={async () => {
                             if (await appConfirm({ title: 'Soru kaydı silinsin mi?', message: `${formatTurkishDate(log.date)} tarihli soru kaydını silmek istediğine emin misin?` })) {
                               try {

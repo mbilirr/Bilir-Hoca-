@@ -5837,6 +5837,7 @@ export class DataService {
 
   // Oturumdaki kullanıcının KENDİ şifresini değiştirir. Önce eski şifre Supabase'de doğrulanır.
   public async changeOwnPassword(oldPassword: string, newPassword: string): Promise<void> {
+    this.assertNotPreview(); // Aşama 107: önizlemede öğretmenin kendi şifresi değişmesin
     if (!oldPassword) throw new Error('Lütfen mevcut şifrenizi giriniz.');
     if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
@@ -5918,6 +5919,7 @@ export class DataService {
 
   // Öğrencinin "ilk girişte şifre değiştir" zorunluluğunu yerelde kaldırır (şifre yerelde saklanmaz)
   public markStudentPasswordChanged(studentId: string): void {
+    if (this.isStudentPreview()) return; // Aşama 107
     this.students = this.students.map((s) =>
       s.id === studentId ? { ...s, mustChangePassword: false, password: '' } : s
     );
@@ -6967,6 +6969,28 @@ export class DataService {
     } catch {
       // bildirim gösterilemezse işlem yine de tamamdır
     }
+  }
+
+  // ===========================================================================
+  // Aşama 107: ÖĞRETMENİN "ÖĞRENCİ GÖRÜNÜMÜ" ÖNİZLEMESİ — salt okunur. Önizleme açıkken öğrenci adına
+  // kayıt yapan işlemler çalışmaz (ekrandaki düğmeler de kapalıdır; bu ikinci emniyettir).
+  // ===========================================================================
+  private studentPreview = false;
+  public setStudentPreview(on: boolean): void {
+    this.studentPreview = on;
+  }
+  public isStudentPreview(): boolean {
+    return this.studentPreview && this.getAuthSession()?.role === 'teacher';
+  }
+  /** Önizlemede kapalı bir düğmeye basıldığında kısa uyarı */
+  public showPreviewBlocked(): void {
+    this.showFloatingErrorToast('Önizleme: öğrenci adına işlem yapılamaz.');
+  }
+  private assertNotPreview(): void {
+    if (!this.isStudentPreview()) return;
+    const msg = 'Önizleme: öğrenci adına işlem yapılamaz.';
+    this.showFloatingErrorToast(msg);
+    throw new Error(msg);
   }
 
   private showFloatingErrorToast(message: string): void {
@@ -8245,6 +8269,7 @@ export class DataService {
     attachmentLink?: string,
     resources?: HomeworkResource[]
   ): Promise<HomeworkSubmission> {
+    this.assertNotPreview(); // Aşama 107
     const student = this.students.find((s) => s.id === studentId);
     const homework = this.homeworks.find((h) => h.id === homeworkId);
     try {
@@ -9750,6 +9775,7 @@ export class DataService {
   }
 
   public async sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): Promise<StudentMessage> {
+    this.assertNotPreview(); // Aşama 107
     const newMsg: StudentMessage = {
       ...msgData,
       id: newId('msg'),
@@ -10142,6 +10168,7 @@ export class DataService {
   }
 
   public markNotificationAsRead(id: string): void {
+    if (this.isStudentPreview()) return; // Aşama 107: önizleme öğrencinin bildirimlerini okundu yapmaz
     const target = this.studentNotifications.find((n) => n.id === id);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.id === id ? { ...n, read: true } : n
@@ -10155,6 +10182,7 @@ export class DataService {
   }
 
   public markAllNotificationsAsRead(studentId: string): void {
+    if (this.isStudentPreview()) return; // Aşama 107
     const hadCloudUnread = this.studentNotifications.some((n) => n.studentId === studentId && n.cloud && !n.read);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.studentId === studentId ? { ...n, read: true } : n
@@ -10474,6 +10502,7 @@ export class DataService {
       totalQuestions?: number;
     }
   ): Promise<StudentQuestionLog> {
+    this.assertNotPreview(); // Aşama 107
     // Girilen değerler doğrulanır; geçersiz kayıt hiç yazılmaz (Türkçe hata fırlatılır)
     const MAX_COUNT = 1000;
     const date = String(logData.date || '').trim();
@@ -10674,6 +10703,7 @@ export class DataService {
   }
 
   public async deleteQuestionLog(id: string): Promise<void> {
+    this.assertNotPreview(); // Aşama 107
     const prevLogs = [...this.questionLogs];
     const wasTombstoned = this.deletedQuestionLogIds.has(id);
     this.deletedQuestionLogIds.add(id);
@@ -10740,6 +10770,7 @@ export class DataService {
    * Çağrılar sırayla çalışır (art arda işaretlemede kayıtlar birbirini ezmez).
    */
   public setPlanTaskQuestions(opts: { itemId: string; subject: string; date: string; count: number }): Promise<{ date: string; subject: string; count: number; subjectTotal: number }> {
+    if (this.isStudentPreview()) return Promise.reject(new Error('Önizleme: öğrenci adına işlem yapılamaz.')); // Aşama 107
     const run = this.planQuestionQueue.then(
       () => this.setPlanTaskQuestionsNow(opts),
       () => this.setPlanTaskQuestionsNow(opts)
