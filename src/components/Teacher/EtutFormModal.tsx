@@ -226,12 +226,15 @@ const EtutFormContent: React.FC<Props> = ({
   const zumre = useMemo(() => zumreOf(effectiveSubject), [effectiveSubject]);
   // Aşama 98: idare (ayar kapalıyken) etüdü yalnızca başka öğretmen adına planlar — kendisi listede yer almaz
   const idareAdina = dataService.idareDersKapali();
-  // Aşama 111: Rehberlik ve idare kurumun TÜM öğretmenlerine etüt verir (bu dersin öğretmenleri üstte);
-  // diğer öğretmenler yalnız kendine verir (veritabanı da yalnız kendisini döndürür ve denetler)
+  // Aşama 111: başka öğretmene etüt yalnız Rehberlik ve idare verir; diğer öğretmenler yalnız kendine (veritabanı da denetler)
+  // Aşama 115: Rehberlik / idare listesinde yalnız SEÇİLEN DERSİN (ve zümresinin) öğretmenleri çıkar; kendisi de
+  // yalnız kendi dersi seçiliyken listededir (Aşama 12 kuralı geri geldi)
   const assignAll = dataService.canAssignEtutToOthers();
   const subjectTeachers = useMemo(() => {
     const list = (teacherOptions || []).filter(
-      (o) => (idareAdina ? !o.isMe && o.id !== me?.id : true) && (assignAll || o.isMe || o.id === me?.id)
+      (o) =>
+        (idareAdina ? !o.isMe && o.id !== me?.id : true) &&
+        (assignAll ? o.subjects.some((s) => zumre.subjects.includes(s)) : o.isMe || o.id === me?.id)
     );
     // düzenlenen etüdün mevcut öğretmenleri listede yoksa kaybolmasın
     if (isEdit || isCopy) {
@@ -241,11 +244,12 @@ const EtutFormContent: React.FC<Props> = ({
         list.push({ id, name, subjects: [effectiveSubject], kind: id.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
       });
     }
-    if (me && !idareAdina && !list.some((o) => o.isMe || o.id === me.id)) {
+    const meFits = !assignAll || subjectsForBranch(me?.branch).some((s) => zumre.subjects.includes(s));
+    if (me && !idareAdina && meFits && !list.some((o) => o.isMe || o.id === me.id)) {
       list.unshift({ id: me.id, name: me.name, subjects: subjectsForBranch(me.branch), kind: 'system', hasEmail: !!me.email, rowId: null, isMe: true });
     }
     return list.sort((a, b) => (a.isMe === b.isMe ? (a.kind === b.kind ? a.name.localeCompare(b.name, 'tr') : a.kind === 'system' ? -1 : 1) : a.isMe ? -1 : 1));
-  }, [teacherOptions, effectiveSubject, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me, idareAdina, assignAll]);
+  }, [teacherOptions, effectiveSubject, zumre, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me, idareAdina, assignAll]);
 
   // Ders değişince: o ders için son seçilen öğretmen, yoksa (kendi dersiyse) öğretmenin kendisi
   useEffect(() => {
@@ -278,19 +282,13 @@ const EtutFormContent: React.FC<Props> = ({
       opts.forEach((o) => used.add(o.id));
       if (opts.length) groups.push({ key: `s:${subj}`, title: `${subj} öğretmenleri`, options: opts });
     }
-    let rest = subjectTeachers.filter((o) => !used.has(o.id));
-    if (assignAll) {
-      // dersi farklı öğretmenler ayrı grupta, alfabetik (kendisi ilk grupta kalır)
-      const others = rest.filter((o) => !o.isMe);
-      rest = rest.filter((o) => o.isMe);
-      if (others.length) groups.push({ key: 'diger', title: 'Diğer öğretmenler', options: others });
-    }
+    const rest = subjectTeachers.filter((o) => !used.has(o.id));
     if (rest.length) {
       if (groups.length && groups[0].key === `s:${effectiveSubject}`) groups[0] = { ...groups[0], options: [...rest, ...groups[0].options] };
       else groups.unshift({ key: `s:${effectiveSubject || 'diger'}`, title: `${effectiveSubject || 'Ders'} öğretmenleri`, options: rest });
     }
     return groups;
-  }, [subjectTeachers, effectiveSubject, zumre, assignAll]);
+  }, [subjectTeachers, effectiveSubject, zumre]);
 
   // ---- ders saati -> saat (daha önceki etütlerden öğrenilir)
   const periodTimes = useMemo(() => {
@@ -677,9 +675,10 @@ const EtutFormContent: React.FC<Props> = ({
             )}
             <p className="text-[11px] text-muted mt-1">
               Kutucuklarla birden çok öğretmen seçebilirsiniz; seçilen her öğretmene etüt tanımlanır ve e-posta gider.
-              {assignAll
-                ? ' Listede kurumun bütün öğretmenleri var; bu dersin öğretmenleri üstte.'
-                : zumre.subjects.length > 1 && ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) bütün öğretmenleri var.`}
+              {assignAll &&
+                (zumre.subjects.length > 1
+                  ? ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
+                  : ' Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.')}
             </p>
           </div>
           {(() => {
