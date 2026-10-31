@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
+import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -31,6 +31,8 @@ const DENEME_PAGE = 15;
 
 // Aşama 92: denemeleri başka kuruma aktarma penceresi (genel yönetici; yalnızca açılınca yüklenir)
 const KurumAktarModal = lazy(() => import('./KurumAktarModal').then((m) => ({ default: m.KurumAktarModal })));
+// Aşama 115: ortalama sıralama penceresi (Son 3 / Son 5 / seçerek; Excel). Öğretmen / Zümre / Etüt Öğretmeni göremez.
+const OrtalamaSiralamaModal = lazy(() => import('./OrtalamaSiralamaModal').then((m) => ({ default: m.OrtalamaSiralamaModal })));
 
 type Tab = 'denemeler' | 'karne' | 'etut' | 'kazanim';
 // Aşama 52: görünüm tarayıcı geçmişine yazılır (yalnızca kimlik tutulur; deneme nesnesi bellekte kalır)
@@ -109,6 +111,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
   const examFiltersOn = !!(fYear || fGrade || fPub || fTerm);
   const pagedExams = usePagedList(shownExams, `${fYear}|${fGrade}|${fPub}|${fTerm}`, DENEME_PAGE);
   const [aktarOpen, setAktarOpen] = useState<false | 'aktar' | 'geri'>(false);
+  const [siralamaOpen, setSiralamaOpen] = useState(false); // Aşama 115
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş
   const [aktarMsg, setAktarMsg] = useState<string | null>(null);
   const isHead = dataService.isHeadAdmin();
@@ -199,21 +202,29 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       title="Deneme Analizi"
       description="Optik sonuçları, LGS puanı, kazanım analizi, karneler ve etüt yönlendirme"
       actions={
-        tab === 'denemeler' && view.kind === 'list' && !setupMissing && !readOnly ? (
+        tab === 'denemeler' && view.kind === 'list' && !setupMissing && (!readOnly || !plain) ? (
           <div className="flex flex-wrap items-center gap-2">
-            {isHead && exams.length > 0 && (
+            {/* Aşama 115: ortalama sıralama (Excel) — yalnız yönetici, Müdür / Yrd., Rehberlik, Ölçme Değ. */}
+            {!plain && exams.length > 0 && (
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setSiralamaOpen(true)} id="deneme-ortalama-siralama">
+                <ListOrdered /> Ortalama sıralama
+              </button>
+            )}
+            {!readOnly && isHead && exams.length > 0 && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('aktar')} id="deneme-kurum-aktar">
                 <Building2 /> Kuruma aktar
               </button>
             )}
-            {gecis && allExams.some((e) => !!e.kurumId) && (
+            {!readOnly && gecis && allExams.some((e) => !!e.kurumId) && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setAktarOpen('geri')} id="deneme-geri-tasi">
                 <Undo2 /> Genel yöneticiye geri taşı
               </button>
             )}
-            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
-              <Plus /> Yeni deneme
-            </button>
+            {!readOnly && (
+              <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" onClick={() => setView({ kind: 'new' })} id="deneme-new">
+                <Plus /> Yeni deneme
+              </button>
+            )}
           </div>
         ) : undefined
       }
@@ -272,6 +283,12 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
               void reload();
             }}
           />
+        </Suspense>
+      )}
+
+      {siralamaOpen && !plain && (
+        <Suspense fallback={null}>
+          <OrtalamaSiralamaModal onClose={() => setSiralamaOpen(false)} exams={exams} students={students} classes={classes} />
         </Suspense>
       )}
 

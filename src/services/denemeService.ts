@@ -379,6 +379,29 @@ export async function listResultsFor(opts: { examIds?: string[]; studentId?: str
   return out;
 }
 
+/**
+ * Aşama 115: ortalama sıralama için HAFİF sonuç okuma — cevaplar ve optik bilgisi gelmez (yalnız puan, net,
+ * ders netleri ve sınıf). 300 öğrenci × 5 denemede indirilen veri tam okumanın küçük bir kısmıdır.
+ */
+export async function listResultsLite(examIds: string[]): Promise<DenemeResult[]> {
+  const out: DenemeResult[] = [];
+  for (let i = 0; i < examIds.length; i += 40) {
+    const part = examIds.slice(i, i + 40);
+    for (let from = 0; from < 50000; from += 1000) {
+      const { data, error } = await supabase
+        .from('deneme_results')
+        .select('id,exam_id,student_id,student_name,class_id,class_name,stats,total_net,score')
+        .in('exam_id', part)
+        .order('id')
+        .range(from, from + 999);
+      if (error) fail(error, 'Sonuçlar yüklenemedi.');
+      out.push(...(data || []).map(resultFromRow));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return out;
+}
+
 /** Öğrenci oturumu: açılmış denemelerdeki kendi sonuçları ve o denemeler */
 export async function loadMyDenemeler(): Promise<{ exams: DenemeExam[]; results: DenemeResult[] }> {
   const results = await listResultsFor({});

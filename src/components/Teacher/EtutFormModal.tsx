@@ -4,6 +4,7 @@ import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Rep
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService, type EtutTeacherOption } from '../../services/dataService';
 import { Modal, cx } from '../ui/kit';
+import { etutTeacherNames } from '../../lib/etutStatus';
 import { normalizeSubject, subjectsForBranch, subjectsForLevel, zumreOf } from '../../lib/subjects';
 import { EtutTeacherSelect, type TeacherGroup } from './EtutTeacherSelect';
 import { DenemeKonuSecici, type KonuRates } from '../Deneme/DenemeKonuSecici';
@@ -66,6 +67,25 @@ const toMin = (t: string) => {
   return m ? +m[1] * 60 + +m[2] : NaN;
 };
 const fromMin = (n: number) => `${String(Math.floor(n / 60) % 24).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+
+// Aşama 116: çakışma kuralı (kaydederken çıkan kutu ve canlı hayalet uyarı AYNI kuralı kullanır — tam senkron).
+// Aynı gün + (saatleri kesişiyor YA DA aynı ders saati, ör. "3. Ders"). Kayıtlı etütte süre yoksa 45 dk sayılır
+// (Aşama 16'dan beri süregelen kural); yeni etütte boş süre 40 dk.
+const realPeriod = (p?: string) => (p && p !== 'Ders' ? p : '');
+type ClashWhy = 'saat' | 'ders';
+function clashWhy(e: Etut, start: number, end: number, period: string): ClashWhy | null {
+  const s2 = toMin(e.time);
+  if (Number.isFinite(start) && Number.isFinite(s2)) {
+    const e2 = s2 + (Number(e.duration) || 45);
+    if (start < e2 && s2 < end) return 'saat';
+  }
+  if (period && realPeriod(e.lessonPeriod) === period) return 'ders';
+  return null;
+}
+const etutSpan = (e: Etut) => {
+  const s2 = toMin(e.time);
+  return Number.isFinite(s2) ? `${fromMin(s2)}–${fromMin(s2 + (Number(e.duration) || 45))}` : '';
+};
 
 // Aşama 99: aynı ders + aynı konu tekrarı denetimi için konu anahtarı (büyük/küçük harf, noktalama, boşluk ve
 // "Matematik: " gibi deneme dersi ön eki önemsenmez)
@@ -226,15 +246,12 @@ const EtutFormContent: React.FC<Props> = ({
   const zumre = useMemo(() => zumreOf(effectiveSubject), [effectiveSubject]);
   // Aşama 98: idare (ayar kapalıyken) etüdü yalnızca başka öğretmen adına planlar — kendisi listede yer almaz
   const idareAdina = dataService.idareDersKapali();
-  // Aşama 111: başka öğretmene etüt yalnız Rehberlik ve idare verir; diğer öğretmenler yalnız kendine (veritabanı da denetler)
-  // Aşama 115: Rehberlik / idare listesinde yalnız SEÇİLEN DERSİN (ve zümresinin) öğretmenleri çıkar; kendisi de
-  // yalnız kendi dersi seçiliyken listededir (Aşama 12 kuralı geri geldi)
+  // Aşama 111: Rehberlik ve idare kurumun TÜM öğretmenlerine etüt verir (bu dersin öğretmenleri üstte);
+  // diğer öğretmenler yalnız kendine verir (veritabanı da yalnız kendisini döndürür ve denetler)
   const assignAll = dataService.canAssignEtutToOthers();
   const subjectTeachers = useMemo(() => {
     const list = (teacherOptions || []).filter(
-      (o) =>
-        (idareAdina ? !o.isMe && o.id !== me?.id : true) &&
-        (assignAll ? o.subjects.some((s) => zumre.subjects.includes(s)) : o.isMe || o.id === me?.id)
+      (o) => (idareAdina ? !o.isMe && o.id !== me?.id : true) && (assignAll || o.isMe || o.id === me?.id)
     );
     // düzenlenen etüdün mevcut öğretmenleri listede yoksa kaybolmasın
     if (isEdit || isCopy) {
@@ -244,12 +261,11 @@ const EtutFormContent: React.FC<Props> = ({
         list.push({ id, name, subjects: [effectiveSubject], kind: id.startsWith('ext-') ? 'external' : 'system', hasEmail: true, rowId: null, isMe: false });
       });
     }
-    const meFits = !assignAll || subjectsForBranch(me?.branch).some((s) => zumre.subjects.includes(s));
-    if (me && !idareAdina && meFits && !list.some((o) => o.isMe || o.id === me.id)) {
+    if (me && !idareAdina && !list.some((o) => o.isMe || o.id === me.id)) {
       list.unshift({ id: me.id, name: me.name, subjects: subjectsForBranch(me.branch), kind: 'system', hasEmail: !!me.email, rowId: null, isMe: true });
     }
     return list.sort((a, b) => (a.isMe === b.isMe ? (a.kind === b.kind ? a.name.localeCompare(b.name, 'tr') : a.kind === 'system' ? -1 : 1) : a.isMe ? -1 : 1));
-  }, [teacherOptions, effectiveSubject, zumre, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me, idareAdina, assignAll]);
+  }, [teacherOptions, effectiveSubject, isEdit, isCopy, initial.teacherIds, initial.teacherNames, initial.teacherName, me, idareAdina, assignAll]);
 
   // Ders değişince: o ders için son seçilen öğretmen, yoksa (kendi dersiyse) öğretmenin kendisi
   useEffect(() => {
@@ -282,13 +298,19 @@ const EtutFormContent: React.FC<Props> = ({
       opts.forEach((o) => used.add(o.id));
       if (opts.length) groups.push({ key: `s:${subj}`, title: `${subj} öğretmenleri`, options: opts });
     }
-    const rest = subjectTeachers.filter((o) => !used.has(o.id));
+    let rest = subjectTeachers.filter((o) => !used.has(o.id));
+    if (assignAll) {
+      // dersi farklı öğretmenler ayrı grupta, alfabetik (kendisi ilk grupta kalır)
+      const others = rest.filter((o) => !o.isMe);
+      rest = rest.filter((o) => o.isMe);
+      if (others.length) groups.push({ key: 'diger', title: 'Diğer öğretmenler', options: others });
+    }
     if (rest.length) {
       if (groups.length && groups[0].key === `s:${effectiveSubject}`) groups[0] = { ...groups[0], options: [...rest, ...groups[0].options] };
       else groups.unshift({ key: `s:${effectiveSubject || 'diger'}`, title: `${effectiveSubject || 'Ders'} öğretmenleri`, options: rest });
     }
     return groups;
-  }, [subjectTeachers, effectiveSubject, zumre]);
+  }, [subjectTeachers, effectiveSubject, zumre, assignAll]);
 
   // ---- ders saati -> saat (daha önceki etütlerden öğrenilir)
   const periodTimes = useMemo(() => {
@@ -313,6 +335,18 @@ const EtutFormContent: React.FC<Props> = ({
     const n = isEdit ? 1 : Math.max(1, Math.min(12, repeatWeeks));
     return Array.from({ length: n }, (_, i) => localDateStr(addDays(base, i * 7)));
   }, [date, repeatWeeks, isEdit]);
+  // Aşama 116: çakışma denetimleri için etütler güne göre (bir kez) ve öğrenciler kimliğe göre dizinlenir
+  const etutsByDay = useMemo(() => {
+    const m = new Map<string, Etut[]>();
+    for (const e of etuts) {
+      const d = String(e.date || '').slice(0, 10);
+      let l = m.get(d);
+      if (!l) m.set(d, (l = []));
+      l.push(e);
+    }
+    return m;
+  }, [etuts]);
+  const studentById = useMemo(() => new Map(students.map((s) => [s.id, s] as const)), [students]);
 
   // Aşama 19: kopyalanan / birden çok haftaya tekrarlanan etütlerde e-posta kaydederken gitmez;
   // etüt gününde (saatten 1 saat önce, saat yoksa 08:00) otomatik gider.
@@ -339,36 +373,36 @@ const EtutFormContent: React.FC<Props> = ({
 
   // ---- çakışma kontrolü (aynı öğretmen veya aynı öğrenci, aynı gün, kesişen saat)
   const findConflicts = (): string[] => {
-    // Aşama 16: saat girilmediyse çakışma denetlenemez
-    if (!/^\d{2}:\d{2}$/.test(time)) return [];
-    const start = toMin(time);
+    // Aşama 16: saat ve ders saati girilmediyse çakışma denetlenemez. Aşama 116: aynı ders saati de çakışmadır.
+    const hasTime = /^\d{2}:\d{2}$/.test(time);
+    const period = realPeriod(lessonPeriod);
+    if (!hasTime && !period) return [];
+    const start = hasTime ? toMin(time) : NaN;
     const end = start + (Number(duration) || 40);
     const sel = new Set(selectedIds);
     const out: string[] = [];
     for (const day of occurrences) {
-      for (const e of etuts) {
+      for (const e of etutsByDay.get(day) || []) {
         if (isEdit && source && e.id === source.id) continue;
-        if (e.date !== day) continue;
-        const s2 = toMin(e.time);
-        const e2 = s2 + (Number(e.duration) || 45);
-        if (!(start < e2 && s2 < end)) continue;
+        if (!clashWhy(e, start, end, period)) continue;
         const theirs = e.teacherIds && e.teacherIds.length ? e.teacherIds : e.teacherId ? [e.teacherId] : [];
         const busy = selectedTeachers.filter((o) => theirs.includes(o.id));
         const sameTeacher = busy.length > 0;
-        const shared = Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.filter((id) => sel.has(id)) : [];
+        const shared = e.assignedStudentIds === 'all' ? selectedIds.slice() : Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds.filter((id) => sel.has(id)) : [];
         if (!sameTeacher && shared.length === 0) continue;
         const who = [
           sameTeacher ? `${busy.map((o) => o.name).join(', ')} aynı saatte` : '',
           shared.length
             ? `${shared
                 .slice(0, 3)
-                .map((id) => students.find((s) => s.id === id)?.name || 'öğrenci')
+                .map((id) => studentById.get(id)?.name || 'öğrenci')
                 .join(', ')}${shared.length > 3 ? ` +${shared.length - 3}` : ''}`
             : '',
         ]
           .filter(Boolean)
           .join(' · ');
-        out.push(`${shortTrDate(day)} ${e.time} – ${e.subject}: ${e.topic} (${who})`);
+        const when = [e.time, realPeriod(e.lessonPeriod)].filter(Boolean).join(' · ');
+        out.push(`${shortTrDate(day)} ${when} – ${normalizeSubject(e.subject)}${e.topic ? `: ${e.topic}` : ''} (${who})`);
       }
     }
     return out.slice(0, 6);
@@ -427,6 +461,55 @@ const EtutFormContent: React.FC<Props> = ({
     const t = window.setTimeout(() => setGhost(false), 15000);
     return () => window.clearTimeout(t);
   }, [repeatKey, deferredTopic, isEdit]);
+  // ---- Aşama 116: CANLI çakışma uyarısı (kaydetmeden önce). Seçilen öğrencinin aynı gün aynı saatte ya da aynı
+  // ders saatinde başka (her dersten, başka öğretmenin de) etüdü varsa satır içi uyarı + 15 sn hayalet ekran.
+  // Hız: etütler güne göre bir kez dizinlenir; yalnız seçili günler (en çok 12) ve seçili öğrenciler taranır.
+  const deferredSel = useDeferredValue(selectedIds);
+  const deferredTime = useDeferredValue(time);
+  const deferredPeriod = useDeferredValue(lessonPeriod);
+  const deferredDuration = useDeferredValue(duration);
+  const clashes = useMemo(() => {
+    const out: Array<{ id: string; name: string; etut: Etut; day: string; why: ClashWhy }> = [];
+    if (!deferredSel.length || !occurrences.length) return out;
+    const hasTime = /^\d{2}:\d{2}$/.test(deferredTime);
+    const period = realPeriod(deferredPeriod);
+    if (!hasTime && !period) return out;
+    const start = hasTime ? toMin(deferredTime) : NaN;
+    const end = start + (Number(deferredDuration) || DEFAULT_DURATION);
+    const sel = new Set(deferredSel);
+    const seen = new Set<string>();
+    for (const day of occurrences) {
+      for (const e of etutsByDay.get(day) || []) {
+        if (isEdit && source && e.id === source.id) continue;
+        const why = clashWhy(e, start, end, period);
+        if (!why) continue;
+        const ids = e.assignedStudentIds === 'all' ? deferredSel : Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : [];
+        for (const sid of ids) {
+          if (!sel.has(sid) || seen.has(sid)) continue; // öğrenci başına ilk çakışma yeter
+          seen.add(sid);
+          out.push({ id: sid, name: studentById.get(sid)?.name || 'Öğrenci', etut: e, day, why });
+        }
+      }
+    }
+    return out;
+  }, [deferredSel, deferredTime, deferredPeriod, deferredDuration, occurrences, etutsByDay, studentById, isEdit, source]);
+  const clashKey = clashes.map((c) => `${c.id}:${c.etut.id}`).join(',');
+  const openClash = useRef<string | null>(null);
+  if (openClash.current === null) openClash.current = clashKey;
+  const [clashGhost, setClashGhost] = useState(false);
+  useEffect(() => {
+    if (!clashKey) return setClashGhost(false);
+    if (isEdit && clashKey === openClash.current) return; // düzenlemede açılıştaki durum için köşe uyarısı yok
+    setClashGhost(true);
+    const t = window.setTimeout(() => setClashGhost(false), 15000);
+    return () => window.clearTimeout(t);
+  }, [clashKey, isEdit]);
+  const clashText = (c: { name: string; etut: Etut; day: string; why: ClashWhy }) => {
+    const when = c.why === 'saat' ? `aynı saatte (${etutSpan(c.etut)})` : `aynı ders saatinde (${realPeriod(c.etut.lessonPeriod)})`;
+    const t = etutTeacherNames(c.etut).join(', ');
+    return `${c.name}, ${trDate(c.day)} günü ${when} ${normalizeSubject(c.etut.subject) || 'başka bir'} dersinden etüde yazılı${t ? ` (${t})` : ''}.`;
+  };
+
   // Kopyalamada bilgi: kaynak etütle aynı ders ve konu (uyarı değil)
   const copyInfo = useMemo(() => {
     if (!isCopy || !source) return '';
@@ -675,10 +758,9 @@ const EtutFormContent: React.FC<Props> = ({
             )}
             <p className="text-[11px] text-muted mt-1">
               Kutucuklarla birden çok öğretmen seçebilirsiniz; seçilen her öğretmene etüt tanımlanır ve e-posta gider.
-              {assignAll &&
-                (zumre.subjects.length > 1
-                  ? ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
-                  : ' Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.')}
+              {assignAll
+                ? ' Listede kurumun bütün öğretmenleri var; bu dersin öğretmenleri üstte.'
+                : zumre.subjects.length > 1 && ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) bütün öğretmenleri var.`}
             </p>
           </div>
           {(() => {
@@ -904,6 +986,19 @@ const EtutFormContent: React.FC<Props> = ({
               )}
             </div>
           )}
+          {clashes.length > 0 && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="etut-cakisma-uyari">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>
+                {clashes.length === 1
+                  ? clashText(clashes[0])
+                  : `${clashes.length} öğrencinin aynı saatte / ders saatinde başka etüdü var: ${clashes
+                      .slice(0, 4)
+                      .map((c) => `${c.name} (${normalizeSubject(c.etut.subject) || '-'})`)
+                      .join(', ')}${clashes.length > 4 ? ` +${clashes.length - 4}` : ''}.`}
+              </span>
+            </p>
+          )}
         </FormSection>
 
         {editScheduled ? (
@@ -971,30 +1066,58 @@ const EtutFormContent: React.FC<Props> = ({
         )}
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
-      {ghost &&
-        repeats.length > 0 &&
+      {/* Aşama 116: hayalet uyarılar tek kapta alt alta (çakışma üstte); telefonda alt, bilgisayarda sağ üst */}
+      {((clashGhost && clashes.length > 0) || (ghost && repeats.length > 0)) &&
         createPortal(
-          <div
-            role="status"
-            aria-live="polite"
-            id="etut-tekrar-hayalet"
-            className="fixed z-[200] bottom-24 inset-x-4 sm:bottom-auto sm:top-4 sm:inset-x-auto sm:right-6 sm:w-96 rounded-xl border border-warning/40 bg-surface/95 backdrop-blur shadow-2xl px-3.5 py-3 text-xs text-fg animate-in fade-in slide-in-from-top-2"
-          >
-            <div className="flex items-start gap-2">
-              <History className="w-4 h-4 text-warning-fg shrink-0 mt-px" />
-              <div className="flex-1 min-w-0 space-y-1">
-                <p className="font-bold text-warning-fg">Aynı konudan daha önce etüt</p>
-                {repeats.slice(0, 3).map((r) => (
-                  <p key={r.id} className="text-fg-2 leading-snug">
-                    {repeatText(r)}
-                  </p>
-                ))}
-                {repeats.length > 3 && <p className="text-muted">ve {repeats.length - 3} öğrenci daha</p>}
+          <div className="fixed z-[200] bottom-24 inset-x-4 sm:bottom-auto sm:top-4 sm:inset-x-auto sm:right-6 sm:w-96 flex flex-col gap-2 pointer-events-none">
+            {clashGhost && clashes.length > 0 && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                id="etut-cakisma-hayalet"
+                className="pointer-events-auto rounded-xl border border-warning/40 bg-surface/95 backdrop-blur shadow-2xl px-3.5 py-3 text-xs text-fg animate-in fade-in slide-in-from-top-2"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-warning-fg shrink-0 mt-px" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="font-bold text-warning-fg">Aynı saatte başka etüt</p>
+                    {clashes.slice(0, 3).map((c) => (
+                      <p key={c.id} className="text-fg-2 leading-snug">
+                        {clashText(c)}
+                      </p>
+                    ))}
+                    {clashes.length > 3 && <p className="text-muted">ve {clashes.length - 3} öğrenci daha</p>}
+                  </div>
+                  <button type="button" onClick={() => setClashGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <button type="button" onClick={() => setGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            )}
+            {ghost && repeats.length > 0 && (
+              <div
+                role="status"
+                aria-live="polite"
+                id="etut-tekrar-hayalet"
+                className="pointer-events-auto rounded-xl border border-warning/40 bg-surface/95 backdrop-blur shadow-2xl px-3.5 py-3 text-xs text-fg animate-in fade-in slide-in-from-top-2"
+              >
+                <div className="flex items-start gap-2">
+                  <History className="w-4 h-4 text-warning-fg shrink-0 mt-px" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="font-bold text-warning-fg">Aynı konudan daha önce etüt</p>
+                    {repeats.slice(0, 3).map((r) => (
+                      <p key={r.id} className="text-fg-2 leading-snug">
+                        {repeatText(r)}
+                      </p>
+                    ))}
+                    {repeats.length > 3 && <p className="text-muted">ve {repeats.length - 3} öğrenci daha</p>}
+                  </div>
+                  <button type="button" onClick={() => setGhost(false)} aria-label="Uyarıyı kapat" className="w-6 h-6 inline-flex items-center justify-center rounded-md text-muted hover:text-fg hover:bg-surface-2 cursor-pointer shrink-0">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>,
           document.body
         )}
