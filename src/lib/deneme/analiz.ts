@@ -202,7 +202,11 @@ export interface StudentTopicRow {
   rate: number;
 }
 
-export function studentTopicRows(exams: DenemeExam[], results: DenemeResult[], subjectKey: string, level: 'konu' | 'alt'): StudentTopicRow[] {
+/**
+ * level: 'konu' = kazanım (kodlu kazanım metni + konu başlığı, eski adıyla "konu bazında"), 'alt' = alt kazanım,
+ * 'baslik' = Aşama 115: yalnız konu başlığı (başlık yoksa / kazanımla aynıysa kazanım metni).
+ */
+export function studentTopicRows(exams: DenemeExam[], results: DenemeResult[], subjectKey: string, level: 'konu' | 'alt' | 'baslik'): StudentTopicRow[] {
   const exMap = new Map(exams.map((e) => [e.id, e]));
   const acc = new Map<string, StudentTopicRow>();
   for (const r of results) {
@@ -213,7 +217,8 @@ export function studentTopicRows(exams: DenemeExam[], results: DenemeResult[], s
     list.forEach((q, i) => {
       if (!q.answer) return;
       const { konu, alt } = topicLabels(q);
-      const label = level === 'alt' ? alt || konu : konu;
+      const title = level === 'baslik' ? (q.konu || '').trim() : '';
+      const label = level === 'alt' ? alt || konu : level === 'baslik' && title && !isBadKonu(title, (q.kazanim || '').trim()) ? title : konu;
       const k = `${r.studentId}|${keyOf(label)}`;
       let row = acc.get(k);
       if (!row) {

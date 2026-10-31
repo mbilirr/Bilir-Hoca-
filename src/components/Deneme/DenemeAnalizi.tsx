@@ -71,9 +71,12 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     () => allExams.filter((e) => !isDraftExam(e) && (!myGrades || myGrades.has(String(parseInt(String(e.grade), 10))))),
     [allExams, myGrades]
   );
+  // Aşama 115: Etüt yönlendirme Öğretmen / Zümre Başkanı'na da açık (yalnız kendi branşının dersleri);
+  // yalnız Etüt Öğretmeni rolü olana kapalı. Kazanım bankası öğretmene kapalı kalır.
+  const etutTabOk = !plain || !dataService.roleEtutOnly();
   useEffect(() => {
-    if (plain && (tab === 'etut' || tab === 'kazanim')) setTab('denemeler', { replace: true });
-  }, [plain, tab]);
+    if (plain && ((tab === 'etut' && !etutTabOk) || tab === 'kazanim')) setTab('denemeler', { replace: true });
+  }, [plain, tab, etutTabOk]);
   const listed = readOnly ? exams : allExams;
   const [fYear, setFYear] = useState('');
   const [fGrade, setFGrade] = useState('');
@@ -259,7 +262,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
           items={[
             { value: 'denemeler', label: 'Denemeler', icon: BarChart3 },
             { value: 'karne', label: 'Karneler', icon: FileBarChart },
-            ...(plain ? [] : [{ value: 'etut' as Tab, label: 'Etüt yönlendirme', icon: Users }]),
+            ...(etutTabOk ? [{ value: 'etut' as Tab, label: 'Etüt yönlendirme', icon: Users }] : []),
             ...(readOnly ? [] : [{ value: 'kazanim' as Tab, label: 'Kazanım bankası', icon: BookOpen }]),
           ]}
         />
@@ -551,7 +554,7 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       </Modal>
 
       {tab === 'karne' && (exams.length ? <DenemeKarne exams={exams} students={students} classes={classes} limited={plain} /> : <p className="text-sm text-muted">Karne için önce deneme ekleyin.</p>)}
-      {tab === 'etut' && !plain && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
+      {tab === 'etut' && etutTabOk && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} branchOnly={plain} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
       {tab === 'kazanim' && !readOnly && <KazanimBankasi />}
 
       <p className="text-[11px] text-muted">

@@ -73,13 +73,15 @@ const fromMin = (n: number) => `${String(Math.floor(n / 60) % 24).padStart(2, '0
 // (Aşama 16'dan beri süregelen kural); yeni etütte boş süre 40 dk.
 const realPeriod = (p?: string) => (p && p !== 'Ders' ? p : '');
 type ClashWhy = 'saat' | 'ders';
-function clashWhy(e: Etut, start: number, end: number, period: string): ClashWhy | null {
+// periodOf: kayıtlı etüdün ders saati. Başka öğretmenin etüdü (ortak takvim satırı) ders saati bilgisini taşımaz;
+// o zaman etüdün başlangıç saatinden (bu kurumda o ders saatine yazılan saat) bulunur.
+function clashWhy(e: Etut, start: number, end: number, period: string, periodOf: (e: Etut) => string): ClashWhy | null {
   const s2 = toMin(e.time);
   if (Number.isFinite(start) && Number.isFinite(s2)) {
     const e2 = s2 + (Number(e.duration) || 45);
     if (start < e2 && s2 < end) return 'saat';
   }
-  if (period && realPeriod(e.lessonPeriod) === period) return 'ders';
+  if (period && periodOf(e) === period) return 'ders';
   return null;
 }
 const etutSpan = (e: Etut) => {
@@ -322,6 +324,12 @@ const EtutFormContent: React.FC<Props> = ({
       });
     return map;
   }, [etuts]);
+  // Aşama 115: saat → ders saati (ör. "08:30" → "1. Ders"); ders saati bilgisi gelmeyen etütler için
+  const periodOf = useMemo(() => {
+    const byTime = new Map<string, string>();
+    for (const [p, t] of Object.entries(periodTimes)) if (t) byTime.set(t.slice(0, 5), p);
+    return (e: Etut) => realPeriod(e.lessonPeriod) || byTime.get(String(e.time || '').slice(0, 5)) || '';
+  }, [periodTimes]);
   const locationSuggestions = useMemo(
     () => Array.from(new Set(etuts.map((e) => (e.location || '').trim()).filter((l) => l && l !== 'Derslik'))).slice(0, 25),
     [etuts]
@@ -384,7 +392,7 @@ const EtutFormContent: React.FC<Props> = ({
     for (const day of occurrences) {
       for (const e of etutsByDay.get(day) || []) {
         if (isEdit && source && e.id === source.id) continue;
-        if (!clashWhy(e, start, end, period)) continue;
+        if (!clashWhy(e, start, end, period, periodOf)) continue;
         const theirs = e.teacherIds && e.teacherIds.length ? e.teacherIds : e.teacherId ? [e.teacherId] : [];
         const busy = selectedTeachers.filter((o) => theirs.includes(o.id));
         const sameTeacher = busy.length > 0;
@@ -401,7 +409,7 @@ const EtutFormContent: React.FC<Props> = ({
         ]
           .filter(Boolean)
           .join(' · ');
-        const when = [e.time, realPeriod(e.lessonPeriod)].filter(Boolean).join(' · ');
+        const when = [e.time, periodOf(e)].filter(Boolean).join(' · ');
         out.push(`${shortTrDate(day)} ${when} – ${normalizeSubject(e.subject)}${e.topic ? `: ${e.topic}` : ''} (${who})`);
       }
     }
@@ -481,7 +489,7 @@ const EtutFormContent: React.FC<Props> = ({
     for (const day of occurrences) {
       for (const e of etutsByDay.get(day) || []) {
         if (isEdit && source && e.id === source.id) continue;
-        const why = clashWhy(e, start, end, period);
+        const why = clashWhy(e, start, end, period, periodOf);
         if (!why) continue;
         const ids = e.assignedStudentIds === 'all' ? deferredSel : Array.isArray(e.assignedStudentIds) ? e.assignedStudentIds : [];
         for (const sid of ids) {
@@ -492,7 +500,7 @@ const EtutFormContent: React.FC<Props> = ({
       }
     }
     return out;
-  }, [deferredSel, deferredTime, deferredPeriod, deferredDuration, occurrences, etutsByDay, studentById, isEdit, source]);
+  }, [deferredSel, deferredTime, deferredPeriod, deferredDuration, occurrences, etutsByDay, studentById, isEdit, source, periodOf]);
   const clashKey = clashes.map((c) => `${c.id}:${c.etut.id}`).join(',');
   const openClash = useRef<string | null>(null);
   if (openClash.current === null) openClash.current = clashKey;
@@ -505,7 +513,7 @@ const EtutFormContent: React.FC<Props> = ({
     return () => window.clearTimeout(t);
   }, [clashKey, isEdit]);
   const clashText = (c: { name: string; etut: Etut; day: string; why: ClashWhy }) => {
-    const when = c.why === 'saat' ? `aynı saatte (${etutSpan(c.etut)})` : `aynı ders saatinde (${realPeriod(c.etut.lessonPeriod)})`;
+    const when = c.why === 'saat' ? `aynı saatte (${etutSpan(c.etut)})` : `aynı ders saatinde (${periodOf(c.etut)})`;
     const t = etutTeacherNames(c.etut).join(', ');
     return `${c.name}, ${trDate(c.day)} günü ${when} ${normalizeSubject(c.etut.subject) || 'başka bir'} dersinden etüde yazılı${t ? ` (${t})` : ''}.`;
   };
@@ -1080,7 +1088,7 @@ const EtutFormContent: React.FC<Props> = ({
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-warning-fg shrink-0 mt-px" />
                   <div className="flex-1 min-w-0 space-y-1">
-                    <p className="font-bold text-warning-fg">Aynı saatte başka etüt</p>
+                    <p className="font-bold text-warning-fg">{clashes.some((c) => c.why === 'saat') ? 'Aynı saatte başka etüt' : 'Aynı ders saatinde başka etüt'}</p>
                     {clashes.slice(0, 3).map((c) => (
                       <p key={c.id} className="text-fg-2 leading-snug">
                         {clashText(c)}
