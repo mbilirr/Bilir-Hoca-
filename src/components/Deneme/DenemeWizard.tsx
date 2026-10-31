@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Save, Trash2, Upload, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Link2, Save, Trash2, Upload, Users } from 'lucide-react';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
@@ -8,7 +8,7 @@ import { keyBProblems } from '../../lib/deneme/bKitapcik';
 import { OgrenciSecici } from './OgrenciSecici';
 import { checkFields, decodeOptikFile, formatFitsTxt, parseTxt, shiftFields, suggestShift, type OptikField, type OptikRow, type TxtParseResult } from '../../lib/deneme/optik';
 import { checkBlocksWithKey, fixSessionSubjects, remapFields, remapRows, suggestionMap, type KeySuggestion } from '../../lib/deneme/oturum';
-import { aliasKeyOf, groupRows, matchGroups, normNumber, type MatchItem } from '../../lib/deneme/eslestir';
+import { aliasKeyOf, applyMerge, findSessionPairs, groupRows, matchGroups, resultNumber, type MatchItem, type SessionPair } from '../../lib/deneme/eslestir';
 import {
   LGS_SCORING,
   LGS_SUBJECTS,
@@ -113,6 +113,12 @@ export const DenemeWizard: React.FC<{
   const [matchMsg, setMatchMsg] = useState<string | null>(null);
   const [flashKey, setFlashKey] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  // Aşama 118: farklı numarayla kodlanmış oturumlar için "aynı öğrenci mi?" onayı
+  const [pairs, setPairs] = useState<SessionPair[]>([]);
+  const [pairIdx, setPairIdx] = useState(0);
+  const [pairOpen, setPairOpen] = useState(false);
+  const [pairStudent, setPairStudent] = useState<string | null>(null);
+  const pairMerged = useRef(0);
 
   // 4) Kayıt
   const [saving, setSaving] = useState(false);
@@ -369,8 +375,22 @@ export const DenemeWizard: React.FC<{
     for (const g of groups) delete g.tc; // TC bellekten atılır
     return matchGroups(groups, students, classes, aliases, tcMatch.size ? tcMatch : undefined);
   };
+  /** Aşama 118: birleşebilecek oturum satırları. Daha önce onaylananlar (hafıza / TC) sormadan birleşir, kalanlar sorulur. */
+  const studentNo = (id: string | null) => (id ? studentById.get(id)?.studentNumber : undefined);
+  const withPairs = (list: MatchItem[], ask: boolean): MatchItem[] => {
+    const ps = findSessionPairs(list, subjects);
+    let next = list;
+    for (const p of ps) if (p.auto) next = applyMerge(next, p.a, p.b, p.studentId, studentNo(p.studentId));
+    const rest = ps.filter((p) => !p.auto);
+    pairMerged.current = 0;
+    setPairs(rest);
+    setPairIdx(0);
+    setPairStudent(rest[0]?.studentId ?? null);
+    setPairOpen(ask && rest.length > 0);
+    return next;
+  };
   const runMatching = async (): Promise<MatchItem[]> => {
-    const list = await buildMatches(allRows);
+    const list = withPairs(await buildMatches(allRows), true);
     setMatches(list);
     setManual(new Set());
     return list;
@@ -381,8 +401,15 @@ export const DenemeWizard: React.FC<{
   useEffect(() => {
     if (resumed.current || !draftData?.match || step !== 3 || !aliasesReady || !allRows.length) return;
     resumed.current = true;
-    void buildMatches(allRows).then((list) => {
+    void buildMatches(allRows).then((built) => {
       const saved = new Map(draftData.match!.map((m) => [m.k, m]));
+      // Aşama 118: taslakta onaylanmış birleştirmeler yeniden kurulur
+      let list = built;
+      for (const x of draftData.match!) {
+        const i = x.k.indexOf('+');
+        if (i > 0) list = applyMerge(list, x.k.slice(0, i), x.k.slice(i + 1), x.s, studentNo(x.s));
+      }
+      list = withPairs(list, false);
       const man = new Set<string>();
       const next = list.map((m) => {
         const x = saved.get(m.group.key);
@@ -595,6 +622,10 @@ export const DenemeWizard: React.FC<{
       return;
     }
     if (step === 3) {
+      if (pairs.length) {
+        setPairOpen(true);
+        return setError(`${pairs.length} oturum birleştirme önerisi onay bekliyor. "Birleştir" ya da "Ayrı kalsın" seçin.`);
+      }
       const open = matches.filter((m) => !m.skip && (m.status !== 'ok' || !m.studentId));
       if (open.length) {
         setMatchFilter('pending');
@@ -671,7 +702,7 @@ export const DenemeWizard: React.FC<{
         matchedBy: manual.has(m.group.key) ? 'elle' : m.method,
         // Aşama 94: kâğıttaki sırayla cevaplar da saklanır (B eşleşmesi sonradan düzeltilirse sonuçlar bundan kurulur)
         optik: {
-          number: normNumber(m.group.number),
+          number: resultNumber(m.group, st.studentNumber), // Aşama 118: kayıtlı numara kodlananlar arasındaysa o
           name: m.group.name,
           grade: m.group.grade,
           section: m.group.section,
@@ -736,7 +767,7 @@ export const DenemeWizard: React.FC<{
       // Elle onaylanan eşleştirmeler sonraki denemeler için hatırlanır
       const remember = matches
         .filter((m) => !m.skip && m.studentId && (manual.has(m.group.key) || m.status === 'ok') && m.method !== 'hafıza' && m.method !== 'numara')
-        .map((m) => ({ aliasKey: aliasKeyOf(m.group), studentId: m.studentId as string }));
+        .flatMap((m) => (m.group.aliasKeys || [aliasKeyOf(m.group)]).map((aliasKey) => ({ aliasKey, studentId: m.studentId as string })));
       try {
         await saveAliases(remember);
       } catch {
@@ -784,6 +815,51 @@ export const DenemeWizard: React.FC<{
       setMatchFilter('all');
       window.setTimeout(go, 60);
     } else go();
+  };
+
+  // ----------------------------------------------------------------------------- Aşama 118: oturum birleştirme
+  const sessionLabel = (g: MatchItem['group']) => {
+    const ss = new Set(subjects.filter((x) => filled(g.answers[x.key])).map((x) => x.session));
+    return ss.size === 2 ? 'Sözel + Sayısal' : ss.has('sozel') ? 'Sözel' : ss.has('sayisal') ? 'Sayısal' : 'Cevap yok';
+  };
+  /** İki satır birbirini tamamlıyor mu (biri yalnız sözel, diğeri yalnız sayısal) */
+  const complementary = (a: MatchItem, b: MatchItem) => {
+    const sa = sessionLabel(a.group);
+    const sb = sessionLabel(b.group);
+    return (sa === 'Sözel' && sb === 'Sayısal') || (sa === 'Sayısal' && sb === 'Sözel');
+  };
+  const pair = pairs[pairIdx] || null;
+  const pairA = pair ? matches.find((m) => m.group.key === pair.a) : undefined;
+  const pairB = pair ? matches.find((m) => m.group.key === pair.b) : undefined;
+
+  /** Öneriyi uygular (Birleştir) ya da geçer (Ayrı kalsın), sonra sıradaki öneriye geçer */
+  const resolvePair = (merge: boolean) => {
+    if (!pair) return;
+    if (merge && pairA && pairB) {
+      const sid = pairStudent;
+      setMatches((cur) => applyMerge(cur, pair.a, pair.b, sid, studentNo(sid)));
+      setManual((cur) => new Set(cur).add(`${pair.a}+${pair.b}`));
+      pairMerged.current++;
+    }
+    const rest = pairs.filter((_, i) => i !== pairIdx);
+    const ni = Math.max(0, Math.min(pairIdx, rest.length - 1));
+    setPairs(rest);
+    setPairIdx(ni);
+    setPairStudent(rest[ni]?.studentId ?? null);
+    if (!rest.length) {
+      setPairOpen(false);
+      setError(null);
+      if (pairMerged.current) setMatchMsg(`${pairMerged.current} öğrencinin sözel ve sayısal satırları birleştirildi.`);
+    }
+  };
+  /** Listede "aynı öğrenci başka satırda" uyarısından birleştirme penceresini açar */
+  const askMerge = (m: MatchItem, twin: MatchItem) => {
+    const p: SessionPair = { a: m.group.key, b: twin.group.key, studentId: m.studentId, reason: 'Bu iki satıra aynı öğrenci seçildi.', auto: false };
+    const rest = [p, ...pairs.filter((x) => x.a !== p.a && x.b !== p.a && x.a !== p.b && x.b !== p.b)];
+    setPairs(rest);
+    setPairIdx(0);
+    setPairStudent(p.studentId);
+    setPairOpen(true);
   };
 
   return (
@@ -1082,7 +1158,7 @@ export const DenemeWizard: React.FC<{
       {step === 3 && (
         <Panel
           title="Öğrenci eşleştirme"
-          description="Öğrenciler önce numarayla, bulunamazsa ad soyadla bulunur; sınıf ve şube kontrol edilir. Emin olunamayanları siz onaylarsınız."
+          description="Öğrenciler önce TC ile, TC hatalıysa numarayla, o da yoksa ad soyadla bulunur; sınıf ve şube kontrol edilir. Emin olunamayanları siz onaylarsınız."
           icon={Users}
           tone="brand"
         >
@@ -1109,6 +1185,15 @@ export const DenemeWizard: React.FC<{
             )}
           </div>
           {tcNote && <p className="text-xs font-semibold rounded-xl px-3 py-2 mb-3 bg-info-soft text-info-fg">{tcNote}</p>}
+          {pairs.length > 0 && !pairOpen && (
+            <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2 mb-3 bg-warning-soft text-warning-fg" id="dn-pair-note">
+              <Link2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="flex-1">{pairs.length} öğrencinin sözel ve sayısal satırları farklı numarayla kodlanmış olabilir.</span>
+              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm w-28 justify-center" onClick={() => setPairOpen(true)} id="dn-pair-open">
+                İncele
+              </button>
+            </div>
+          )}
           {matchMsg && (
             <p role="status" className={cx('text-xs font-semibold rounded-xl px-3 py-2 mb-3', pendingCount ? 'bg-warning-soft text-warning-fg' : 'bg-success-soft text-success-fg')}>
               {matchMsg}
@@ -1188,6 +1273,16 @@ export const DenemeWizard: React.FC<{
                                 title="Aynı öğrencinin seçildiği diğer satıra git"
                               >
                                 Aynı öğrenci başka satırda da seçili: {otherRowsOf(m).map((o) => o.group.name || `No ${o.group.number || '—'}`).join(', ')} →
+                              </button>
+                            )}
+                            {dup && otherRowsOf(m).length === 1 && complementary(m, otherRowsOf(m)[0]) && (
+                              <button
+                                type="button"
+                                className="mt-1 ui-btn ui-btn-secondary ui-btn-sm w-28 justify-center"
+                                onClick={() => askMerge(m, otherRowsOf(m)[0])}
+                                title="Sözel ve sayısal satırları tek öğrencide birleştir"
+                              >
+                                <Link2 /> Birleştir
                               </button>
                             )}
                             {!dup && m.reason && st !== 'ok' && <p className="text-muted mt-0.5">{m.reason}</p>}
@@ -1346,6 +1441,58 @@ export const DenemeWizard: React.FC<{
       </div>
 
       {/* Aşama 90: kaydedilmemiş değişiklikle çıkış */}
+      {/* Aşama 118: oturum birleştirme onayı (küçük pencere, simetrik butonlar) */}
+      <Modal
+        open={pairOpen && !!pair}
+        onClose={() => setPairOpen(false)}
+        title="Aynı öğrenci mi?"
+        description={pairs.length > 1 ? `Öneri ${pairIdx + 1} / ${pairs.length}` : undefined}
+        icon={Link2}
+        tone="warning"
+        size="sm"
+        id="dn-pair-modal"
+        footer={
+          <>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-secondary')} onClick={() => resolvePair(false)} id="dn-pair-ayri">
+              Ayrı kalsın
+            </button>
+            <button type="button" className={cx(SQ_BTN, 'ui-btn-primary')} disabled={!pairStudent || !pairA || !pairB} onClick={() => resolvePair(true)} id="dn-pair-birlestir">
+              Birleştir
+            </button>
+          </>
+        }
+      >
+        {pair && (
+          <div className="space-y-2 text-xs">
+            <p className="text-warning-fg font-semibold">{pair.reason}</p>
+            {[pairA, pairB].map((m, i) =>
+              m ? (
+                <div key={m.group.key} className="rounded-xl border border-line px-3 py-1.5">
+                  <p className="font-semibold text-fg truncate">
+                    {sessionLabel(m.group)} · {m.group.name || '—'}
+                  </p>
+                  <p className="text-muted truncate">
+                    No {m.group.number || '—'} · {[m.group.grade, m.group.section].filter(Boolean).join('/') || 'sınıf yok'} · {m.group.sources[0]}
+                  </p>
+                </div>
+              ) : (
+                <p key={i} className="text-muted">Satır listede yok (atlanmış ya da değişmiş).</p>
+              )
+            )}
+            <div>
+              <p className="ui-eyebrow mb-1">Öğrenci</p>
+              <OgrenciSecici
+                students={sortedStudents}
+                byId={studentById}
+                candidates={Array.from(new Set([...(pairA?.candidates || []), ...(pairB?.candidates || [])]))}
+                value={pairStudent}
+                onChange={setPairStudent}
+              />
+            </div>
+            <p className="text-[11px] text-muted">Birleştirince iki satır seçtiğiniz öğrencide tek sonuç olur ve sonraki yüklemelerde kendiliğinden birleşir.</p>
+          </div>
+        )}
+      </Modal>
       <Modal
         open={leaveAsk}
         onClose={() => !draftBusy && setLeaveAsk(false)}
