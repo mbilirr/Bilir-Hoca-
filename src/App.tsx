@@ -141,6 +141,9 @@ export default function App() {
   const [questionLogs, setQuestionLogs] = useState<StudentQuestionLog[]>(dataService.getQuestionLogs());
   const [pendingApplications, setPendingApplications] = useState<number>(dataService.getPendingApplicationCount());
   const [, setDataRev] = useState(0);
+  // Aşama 125: bildirimde oturumun değişip değişmediğini anlamak için son çizilen oturum
+  const authSessionRef = useRef<AuthSession | null>(authSession);
+  authSessionRef.current = authSession;
 
   // Subscribe to state changes in dataService and ensure initial remote sync
   useEffect(() => {
@@ -148,31 +151,58 @@ export default function App() {
     dataService.setupAllRealtimeSync();
     dataService.revalidateAndSyncAll(true);
 
-    const unsubscribe = dataService.subscribe(() => {
-      // Aşama 84: oturum nesnesi artık değişmedikçe aynı kalır; sayfalar dataService'ten okuduklarını
-      // güncel göstersin diye her bildirimde bir kez yeniden çizilir (eskisi gibi)
-      setDataRev((n) => n + 1);
-      setStudents(dataService.getStudents());
-      setClasses(dataService.getClasses());
-      setHomeworks(dataService.getHomeworks());
-      setSubmissions(dataService.getSubmissions());
-      setEtuts(dataService.getVisibleEtuts());
-      setGrades(dataService.getGrades());
-      setAttendance(dataService.getAttendance());
-      setMessages(dataService.getMessages());
-      setDocuments(dataService.getTeacherDocuments());
-      setQuestionLogs(dataService.getQuestionLogs());
-      setPendingApplications(dataService.getPendingApplicationCount());
-
+    // Aşama 125 (hız): veri yenilemesi "acil olmayan" güncelleme olarak çizilir (startTransition).
+    // Arka planda eşitleme gelirken yazma, tıklama ve kaydırma takılmaz; React çizimi gerekirse
+    // böler ve kullanıcının işini öne alır. Oturum / rol değişikliği acil kalır (hemen çizilir).
+    // Sekme / uygulama arka plandayken ekran yeniden çizilmez; veri yine alınır ve saklanır,
+    // sekmeye dönülünce tek seferde en güncel hâliyle çizilir (telefon pili ve işlemci için).
+    let pendingWhileHidden = false;
+    const applyData = () => {
       const activeSession = dataService.getAuthSession();
       setAuthSession(activeSession);
       if (activeSession?.role === 'student') {
         setCurrentStudent(activeSession.user as Student);
         setRole('student');
       }
+      startTransition(() => {
+        // Aşama 84: oturum nesnesi artık değişmedikçe aynı kalır; sayfalar dataService'ten okuduklarını
+        // güncel göstersin diye her bildirimde bir kez yeniden çizilir (eskisi gibi)
+        setDataRev((n) => n + 1);
+        setStudents(dataService.getStudents());
+        setClasses(dataService.getClasses());
+        setHomeworks(dataService.getHomeworks());
+        setSubmissions(dataService.getSubmissions());
+        setEtuts(dataService.getVisibleEtuts());
+        setGrades(dataService.getGrades());
+        setAttendance(dataService.getAttendance());
+        setMessages(dataService.getMessages());
+        setDocuments(dataService.getTeacherDocuments());
+        setQuestionLogs(dataService.getQuestionLogs());
+        setPendingApplications(dataService.getPendingApplicationCount());
+      });
+    };
+    const unsubscribe = dataService.subscribe(() => {
+      // Oturum kapandıysa / açıldıysa sekme gizli olsa bile hemen uygulanır
+      const sessionChanged = dataService.getAuthSession() !== authSessionRef.current;
+      if (!sessionChanged && typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        pendingWhileHidden = true;
+        return;
+      }
+      pendingWhileHidden = false;
+      applyData();
     });
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && pendingWhileHidden) {
+        pendingWhileHidden = false;
+        applyData();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   // role/teacherTab her değiştiğinde URL hash'ine yaz (geri tuşu için geçmiş kaydı oluşturur,
