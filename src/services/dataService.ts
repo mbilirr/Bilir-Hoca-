@@ -4371,9 +4371,90 @@ class DataService {
     }
   }
 
+  // ===========================================================================
+  // Aşama 122: KURUM BİLGİSİ LOGOSUZ YOKLANIR
+  // my_kurum() kurum logosunu da döndürür (data URL, ~90 KB). Öğretmende dakikada bir + her eşitlemede çağrıldığı için
+  // logo değişmese de her dakika yeniden iniyordu. Artık önce my_kurum_state() sorulur: aynı bilgi, logo yerine logonun
+  // SHA-256 özeti. Özet ekrandaki logoyla aynıysa logo yeniden indirilmez; farklıysa (logo değişti / kurum değişti)
+  // ya da işlev yoksa (SQL 122 çalıştırılmadıysa) eskisi gibi my_kurum() ile tam okunur. Görünen bilgi birebir aynıdır.
+  // ===========================================================================
+  private kurumStateLightOk = true;
+  private kurumLogoHashCache: { logo: string; hash: string } | null = null;
+
+  private async kurumLogoHash(logo: string): Promise<string | null> {
+    const c = this.kurumLogoHashCache;
+    if (c && c.logo === logo) return c.hash;
+    try {
+      const subtle = typeof crypto !== 'undefined' ? crypto.subtle : undefined;
+      if (!subtle) return null;
+      const buf = await subtle.digest('SHA-256', new TextEncoder().encode(logo));
+      let hex = '';
+      for (const b of new Uint8Array(buf)) hex += b.toString(16).padStart(2, '0');
+      this.kurumLogoHashCache = { logo, hash: hex };
+      return hex;
+    } catch {
+      return null;
+    }
+  }
+
+  private static parseKurumRpc(data: any, key: string): any {
+    let d: any = data;
+    if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && key in d[0] ? d[0][key] : d[0];
+    else if (d && typeof d === 'object' && key in d && typeof d[key] === 'object') d = d[key];
+    return d || {};
+  }
+
+  private static kurumStateFrom(d: any, logo: string): MyKurumState {
+    return {
+      loaded: true,
+      supported: true,
+      head: !!d.head,
+      kurumId: d.kurum_id || null,
+      kurumName: d.kurum_name || '',
+      kurumAdmin: !!d.kurum_admin,
+      modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
+      grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
+      rolesEnabled: d.roles_enabled === true,
+      roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
+      roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
+      logo,
+      hasMail: d.has_mail === true,
+      sections: {
+        allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
+        deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
+      },
+    };
+  }
+
+  /** true = bilgi logosuz okunup uygulandı; false = tam okuma gerekir */
+  private async syncMyKurumLight(): Promise<boolean> {
+    if (!this.kurumStateLightOk || !this.myKurum.loaded || !this.myKurum.supported) return false;
+    const { data, error } = await supabase.rpc('my_kurum_state');
+    if (error) {
+      if (error.code === 'PGRST202' || error.code === '42883' || /my_kurum_state/.test(error.message || '')) this.kurumStateLightOk = false;
+      return false;
+    }
+    const d = DataService.parseKurumRpc(data, 'my_kurum_state');
+    if (typeof d.logo_hash === 'string') {
+      // kurum değiştiyse ya da logo değiştiyse logo tam okunur
+      if ((d.kurum_id || null) !== this.myKurum.kurumId) return false;
+      const cur = await this.kurumLogoHash(this.myKurum.logo || '');
+      if (!cur || cur !== d.logo_hash) return false;
+    }
+    const next = DataService.kurumStateFrom(d, typeof d.logo_hash === 'string' ? this.myKurum.logo || '' : '');
+    this.setMyKurum(next);
+    if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
+    return true;
+  }
+
   public async syncMyKurum(): Promise<void> {
     const session = this.getAuthSession();
     if (session?.role !== 'teacher') return;
+    try {
+      if (await this.syncMyKurumLight()) return;
+    } catch {
+      /* logosuz yoklama olmadı: tam okumayla devam */
+    }
     try {
       const { data, error } = await supabase.rpc('my_kurum');
       if (error) {
@@ -4385,25 +4466,7 @@ class DataService {
       let d: any = data;
       if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && 'my_kurum' in d[0] ? d[0].my_kurum : d[0];
       d = d || {};
-      const next: MyKurumState = {
-        loaded: true,
-        supported: true,
-        head: !!d.head,
-        kurumId: d.kurum_id || null,
-        kurumName: d.kurum_name || '',
-        kurumAdmin: !!d.kurum_admin,
-        modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
-        grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
-        rolesEnabled: d.roles_enabled === true,
-        roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
-        roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
-        logo: typeof d.logo === 'string' ? d.logo : '',
-        hasMail: d.has_mail === true,
-        sections: {
-          allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
-          deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
-        },
-      };
+      const next: MyKurumState = DataService.kurumStateFrom(d, typeof d.logo === 'string' ? d.logo : '');
       this.setMyKurum(next);
       // Genel yönetici: kurum adları listelerde etiket olarak gösterilir
       if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
