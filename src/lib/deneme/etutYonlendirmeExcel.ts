@@ -3,13 +3,14 @@
 // Seçilen denemelerde konu / kazanım başarısı ölçütün altında kalan öğrenciler, ders ders (her ders ayrı sayfa),
 // sınıf sınıf ya da toplu. Ekrandaki listeyle aynı kural (studentTopicRows + eşik + en az soru) kullanılır.
 // Yetki: yönetici, Müdür / Müdür Yrd., Rehberlik, Ölçme Değ. tüm dersler; Öğretmen / Zümre Başkanı yalnız branşı.
-// Hız: yalnız "Excel indir"e basınca hesaplanır; xlsx kütüphanesi o anda iner.
+// Hız: yalnız "Excel indir"e basınca hesaplanır; küçük renkli yazıcı (fflate) o anda iner (Aşama 120).
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import type { ExamSubject } from './lgs';
 import { LEVEL_INFO, levelOf, studentTopicRows, type StudentTopicRow } from './analiz';
 import { dataService } from '../../services/dataService';
 import { subjectsForBranch, zumreOf } from '../subjects';
+import { downloadStyledXlsx, groupStyle, safeSheetName, type Cell, type CellStyle, type StyledSheet } from '../xlsxStyled';
 
 export type EtutLevel = 'baslik' | 'konu' | 'alt';
 export const LEVEL_TITLE: Record<EtutLevel, string> = { baslik: 'Konu', konu: 'Kazanım', alt: 'Alt kazanım' };
@@ -61,16 +62,11 @@ export function belowRows(exams: DenemeExam[], results: DenemeResult[], subjectK
   return o.topicKey ? rows.filter((r) => labelOf(r, o.level).toLocaleLowerCase('tr-TR') === o.topicKey) : rows;
 }
 
-const sheetNameOf = (raw: string, used: Set<string>) => {
-  const base = (raw || 'Liste').replace(/[\\/?*[\]:]/g, '-').trim().slice(0, 28) || 'Liste';
-  let name = base;
-  let i = 2;
-  while (used.has(name.toLocaleLowerCase('tr-TR'))) name = `${base.slice(0, 26)} ${i++}`;
-  used.add(name.toLocaleLowerCase('tr-TR'));
-  return name;
-};
-
-/** Her ders ayrı sayfa. Sınıf sınıf: sınıf başlığı → konu → öğrenci. Toplu: konu → öğrenci (sınıf sütunuyla). */
+/**
+ * Her ders ayrı sayfa. Sınıf sınıf: sınıf başlığı → konu → öğrenci. Toplu: konu → öğrenci (sınıf sütunuyla).
+ * Aşama 120: her konu / kazanım kendi açık renginde (aynı kazanım sayfanın her sınıf bloğunda aynı renk);
+ * tablo başlığı kalın ve gri zeminli. Ağır xlsx kütüphanesi yerine küçük renkli yazıcı kullanılır.
+ */
 export async function downloadEtutListeExcel(
   exams: DenemeExam[],
   results: DenemeResult[],
@@ -79,36 +75,54 @@ export async function downloadEtutListeExcel(
   meta: Array<[string, string]>,
   fileBase: string
 ): Promise<number> {
-  const XLSX = await import('xlsx');
-  const wb = XLSX.utils.book_new();
   const used = new Set<string>();
+  const sheets: StyledSheet[] = [];
   const title = LEVEL_TITLE[o.level];
   const head = ['Sıra', 'Sınıf', 'Öğrenci', title, ...(o.level === 'alt' ? ['Konu / kazanım'] : []), 'Soru', 'D', 'Y', 'B', 'Başarı %', 'Durum', 'Not'];
+  const headRow: Cell[] = head.map((h) => ({ v: h, s: 'head' }));
+  const cols = head.map((h, i) => (i === 2 ? 24 : h === title ? 50 : h === 'Konu / kazanım' ? 40 : h === 'Not' ? 34 : Math.max(7, h.length + 2)));
   let total = 0;
   for (const sub of subjects) {
     const rows = belowRows(exams, results, sub.key, o);
     if (!rows.length) continue;
     total += rows.length;
-    const line = (r: StudentTopicRow, i: number): Array<string | number> => [
-      i,
-      r.className || 'Sınıfsız',
-      r.studentName,
-      labelOf(r, o.level),
-      ...(o.level === 'alt' ? [r.konu] : []),
-      r.total,
-      r.d,
-      r.y,
-      r.b,
-      r.rate,
-      LEVEL_INFO[levelOf(r.rate)].label,
-      noteOf(r),
-    ];
+    // Konu / kazanım → renk: sayfada ilk görüldüğü sırayla (sıralı listede komşu gruplar farklı renk olur)
+    const colorOf = new Map<string, CellStyle>();
+    const styleOf = (r: StudentTopicRow): CellStyle => {
+      const k = labelOf(r, o.level);
+      let s = colorOf.get(k);
+      if (!s) colorOf.set(k, (s = groupStyle(colorOf.size)));
+      return s;
+    };
+    const line = (r: StudentTopicRow, i: number): Cell[] => {
+      const s = styleOf(r);
+      const vals: Array<string | number> = [
+        i,
+        r.className || 'Sınıfsız',
+        r.studentName,
+        labelOf(r, o.level),
+        ...(o.level === 'alt' ? [r.konu] : []),
+        r.total,
+        r.d,
+        r.y,
+        r.b,
+        r.rate,
+        LEVEL_INFO[levelOf(r.rate)].label,
+        noteOf(r),
+      ];
+      return vals.map((v) => ({ v, s }));
+    };
     const byTopicRate = (a: StudentTopicRow, b: StudentTopicRow) =>
       collator.compare(labelOf(a, o.level), labelOf(b, o.level)) || a.rate - b.rate || collator.compare(a.studentName, b.studentName);
-    const aoa: Array<Array<string | number>> = [[`${sub.name.toLocaleUpperCase('tr-TR')} — ETÜT YÖNLENDİRME LİSTESİ`], ...meta.map(([k, v]) => [k, v]), ['Satır', rows.length], []];
+    const out: Cell[][] = [
+      [{ v: `${sub.name.toLocaleUpperCase('tr-TR')} — ETÜT YÖNLENDİRME LİSTESİ`, s: 'title' }],
+      ...meta.map(([k, v]): Cell[] => [{ v: k, s: 'bold' }, v]),
+      [{ v: 'Satır', s: 'bold' }, rows.length],
+      [],
+    ];
     if (o.duzen === 'toplu') {
-      aoa.push(head);
-      rows.slice().sort(byTopicRate).forEach((r, i) => aoa.push(line(r, i + 1)));
+      out.push(headRow);
+      rows.slice().sort(byTopicRate).forEach((r, i) => out.push(line(r, i + 1)));
     } else {
       const byClass = new Map<string, StudentTopicRow[]>();
       for (const r of rows) {
@@ -120,17 +134,15 @@ export async function downloadEtutListeExcel(
       Array.from(byClass.keys())
         .sort(collator.compare)
         .forEach((cls, ci) => {
-          if (ci) aoa.push([]);
-          aoa.push([`Sınıf: ${cls}`]);
-          aoa.push(head);
-          byClass.get(cls)!.sort(byTopicRate).forEach((r, i) => aoa.push(line(r, i + 1)));
+          if (ci) out.push([]);
+          out.push([{ v: `Sınıf: ${cls}`, s: 'bold' }]);
+          out.push(headRow);
+          byClass.get(cls)!.sort(byTopicRate).forEach((r, i) => out.push(line(r, i + 1)));
         });
     }
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = head.map((h, i) => ({ wch: i === 2 ? 24 : h === title ? 50 : h === 'Konu / kazanım' ? 40 : h === 'Not' ? 34 : Math.max(7, h.length + 2) }));
-    XLSX.utils.book_append_sheet(wb, ws, sheetNameOf(sub.name, used));
+    sheets.push({ name: safeSheetName(sub.name, used), rows: out, cols });
   }
   if (!total) return 0;
-  XLSX.writeFile(wb, `${fileBase}.xlsx`);
+  await downloadStyledXlsx(`${fileBase}.xlsx`, sheets);
   return total;
 }

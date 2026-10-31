@@ -3,13 +3,14 @@
 // Son 3 / Son 5 / seçilen denemelerin ortalamasıyla öğrenci sıralaması: toplu (genel sıra) ve sınıf sınıf
 // (sınıf sırası). Ortalama, öğrencinin kapsamda GİRDİĞİ denemeler üzerinden alınır; kaç denemeye girdiği
 // ayrı sütunda yazılır. Sıralama puana göre (eşitlikte toplam net), eşit puan aynı sırayı alır.
-// Hız: tek geçişte öğrenci başına toplama (Map), sıralama bir kez; xlsx yalnız indirirken iner.
+// Hız: tek geçişte öğrenci başına toplama (Map), sıralama bir kez; Excel yazıcısı (fflate) yalnız indirirken iner.
 // ============================================================================
 import type { ClassGroup, Student } from '../../types';
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import type { ExamSubject } from './lgs';
 import { round2 } from './lgs';
 import { dateTr } from './karneModel';
+import { downloadStyledXlsx, safeSheetName, type Cell, type CellStyle, type StyledSheet } from '../xlsxStyled';
 
 export interface SiraRow {
   studentId: string;
@@ -136,49 +137,41 @@ export function buildSiralama(exams: DenemeExam[], results: DenemeResult[], stud
 }
 
 // ----------------------------------------------------------------------------- Excel
-const sheetNameOf = (raw: string, used: Set<string>) => {
-  const base = (raw || 'Liste').replace(/[\\/?*[\]:]/g, '-').trim().slice(0, 28) || 'Liste';
-  let name = base;
-  let i = 2;
-  while (used.has(name.toLocaleLowerCase('tr-TR'))) name = `${base.slice(0, 26)} ${i++}`;
-  used.add(name.toLocaleLowerCase('tr-TR'));
-  return name;
-};
-
 /**
  * duzen 'toplu': tek sayfa, genel sıraya göre. 'sinif': her sınıf ayrı sayfa, sınıf sırasına göre.
  * Sayılar Excel'de sayı olarak yazılır (sıralanabilir / formül kurulabilir).
+ * Aşama 120: satırlar bir beyaz, bir açık renk (zebra); tablo başlığı kalın ve gri zeminli.
  */
 export async function downloadSiralamaExcel(
   res: SiraResult,
   opts: { duzen: 'toplu' | 'sinif'; classId: string; scopeLabel: string; grade: string; exams: DenemeExam[]; fileBase: string }
 ): Promise<void> {
-  const XLSX = await import('xlsx');
-  const wb = XLSX.utils.book_new();
   const used = new Set<string>();
   const subs = res.subjects;
   const head = ['Sıra', 'Genel Sıra', 'Sınıf Sırası', 'Öğrenci No', 'Öğrenci', 'Sınıf', 'Deneme', ...subs.map((s) => `${s.short} Net`), 'Toplam Net', 'Puan'];
+  const cols = head.map((h, i) => (i === 4 ? 26 : i === 0 ? 7 : Math.max(9, h.length + 2)));
   const num = (v: number | null) => (v === null ? '' : v);
-  const meta: Array<Array<string | number>> = [
-    ['Kapsam', `${opts.scopeLabel} (ortalama)`],
-    ['Kademe', opts.grade ? `${opts.grade}. sınıf` : '-'],
-    ['Denemeler', opts.exams.map((e) => `${e.name} (${dateTr(e.examDate)})`).join(' · ')],
-    ['Not', 'Ortalama, öğrencinin girdiği denemeler üzerinden alınır; "Deneme" sütunu girdiği / toplam deneme sayısıdır.'],
-    ['Hazırlanma', new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })],
+  const meta: Cell[][] = [
+    [{ v: 'Kapsam', s: 'bold' }, `${opts.scopeLabel} (ortalama)`],
+    [{ v: 'Kademe', s: 'bold' }, opts.grade ? `${opts.grade}. sınıf` : '-'],
+    [{ v: 'Denemeler', s: 'bold' }, opts.exams.map((e) => `${e.name} (${dateTr(e.examDate)})`).join(' · ')],
+    [{ v: 'Not', s: 'bold' }, 'Ortalama, öğrencinin girdiği denemeler üzerinden alınır; "Deneme" sütunu girdiği / toplam deneme sayısıdır.'],
+    [{ v: 'Hazırlanma', s: 'bold' }, new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })],
   ];
-  const sheet = (title: string, list: SiraRow[], pick: (r: SiraRow) => number) => {
-    const aoa: Array<Array<string | number>> = [[title], ...meta, []];
-    aoa.push(head);
-    for (const r of list)
-      aoa.push([pick(r), r.overall, r.cls, r.no, r.name, r.className, `${r.taken}/${res.examCount}`, ...subs.map((s) => num(r.nets[s.key])), num(r.totalNet), num(r.score === null ? null : round2(r.score))]);
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = head.map((h, i) => ({ wch: i === 4 ? 26 : i === 0 ? 7 : Math.max(9, h.length + 2) }));
-    return ws;
+  const sheet = (name: string, title: string, list: SiraRow[], pick: (r: SiraRow) => number): StyledSheet => {
+    const rows: Cell[][] = [[{ v: title, s: 'title' }], ...meta, [], head.map((h) => ({ v: h, s: 'head' as const }))];
+    list.forEach((r, i) => {
+      const s: CellStyle = i % 2 ? 'zebra' : 'plain'; // bir satır beyaz, bir satır renkli
+      const vals: Array<string | number> = [pick(r), r.overall, r.cls, r.no, r.name, r.className, `${r.taken}/${res.examCount}`, ...subs.map((x) => num(r.nets[x.key])), num(r.totalNet), num(r.score === null ? null : round2(r.score))];
+      rows.push(vals.map((v) => ({ v, s })));
+    });
+    return { name, rows, cols };
   };
+  const sheets: StyledSheet[] = [];
   const shown = opts.classId === 'all' ? res.rows : res.rows.filter((r) => r.classId === opts.classId);
   if (opts.duzen === 'toplu') {
     const title = opts.classId === 'all' ? 'TOPLU SIRALAMA' : `${shown[0]?.className || 'Sınıf'} SIRALAMASI`;
-    XLSX.utils.book_append_sheet(wb, sheet(title, shown, (r) => (opts.classId === 'all' ? r.overall : r.cls)), sheetNameOf(opts.classId === 'all' ? 'Toplu Sıralama' : shown[0]?.className || 'Sınıf', used));
+    sheets.push(sheet(safeSheetName(opts.classId === 'all' ? 'Toplu Sıralama' : shown[0]?.className || 'Sınıf', used), title, shown, (r) => (opts.classId === 'all' ? r.overall : r.cls)));
   } else {
     const groups = new Map<string, SiraRow[]>();
     for (const r of shown) {
@@ -190,9 +183,8 @@ export async function downloadSiralamaExcel(
       .sort(collator.compare)
       .forEach((name) => {
         const list = groups.get(name)!.slice().sort((a, b) => a.cls - b.cls || collator.compare(a.name, b.name));
-        XLSX.utils.book_append_sheet(wb, sheet(`${name} SINIF SIRALAMASI`, list, (r) => r.cls), sheetNameOf(name, used));
+        sheets.push(sheet(safeSheetName(name, used), `${name} SINIF SIRALAMASI`, list, (r) => r.cls));
       });
   }
-  if (!wb.SheetNames.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Kayıt yok']]), 'Liste');
-  XLSX.writeFile(wb, `${opts.fileBase}.xlsx`);
+  await downloadStyledXlsx(`${opts.fileBase}.xlsx`, sheets);
 }
