@@ -135,7 +135,9 @@ export function splitKazanim(codeCell: string, textCell: string, konuCell: strin
     const m = CODE_RE.exec(c);
     if (m) {
       code = m[1].replace(/\s+/g, '');
-      if (m[2] && m[2].length > 3) text = m[2];
+      // Aşama 118: "8.1.1.2,8.1.1.3" gibi birden çok kod: ilki (birincil) kullanılır, gerisi metne karışmaz
+      const rest = (m[2] || '').replace(/^(\s*[,;/]\s*(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\s*\.\s*)?\d{1,2}(?:\s*\.\s*\d{1,2}){1,4}\.?)+/, '').trim();
+      if (rest.length > 3) text = rest;
     } else text = c; // kod sütununda metin yazılmış
   }
   if (t) {
