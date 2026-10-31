@@ -35,6 +35,7 @@ import { ConfirmDeleteModal } from '../../Common/ConfirmDeleteModal';
 import { normalizeBranch } from '../../../lib/subjects';
 import { getSignedFileUrl, dataUrlToBlobUrl } from '../../../lib/fileStorage';
 import { SelectBox, inputCls } from '../FormParts';
+import { matchTurkishSearch } from '../../../utils/turkishSearch';
 
 // Aşama 80: arşivdeki tüm açılır kutular, arama kutusu ve düğmeler aynı yükseklik ve yazı boyutunda
 const FIELD_CLS = `${inputCls} h-10 cursor-pointer`;
@@ -118,10 +119,17 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
   // Ders (branş) süzgeci: varsayılan olarak öğretmenin kendi branşı seçili gelir
   const teacherBranch = useMemo(() => normalizeBranch(dataService.getCurrentTeacher()?.branch), []);
   const [selectedBranch, setSelectedBranch] = useState<string>(() => teacherBranch || 'all');
+  // Aşama 116: belgenin dersi öğretmen branşıyla aynı kuralla okunur ("Fen" / "Fen Bilgisi" → "Fen Bilimleri");
+  // aynı ders farklı yazılmış olsa da tek seçenekte toplanır. Belge başına bir kez hesaplanır.
+  const branchKeyOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const d of documents) m.set(d.id, normalizeBranch(d.subject) || 'Genel');
+    return m;
+  }, [documents]);
   const branchCounts = useMemo(() => {
     const counts = new Map<string, number>();
     documents.forEach((d) => {
-      const key = d.subject || 'Genel';
+      const key = branchKeyOf.get(d.id) || 'Genel';
       counts.set(key, (counts.get(key) || 0) + 1);
     });
     if (teacherBranch && !counts.has(teacherBranch)) counts.set(teacherBranch, 0);
@@ -131,7 +139,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
       if (b[0] === teacherBranch) return 1;
       return b[1] - a[1] || a[0].localeCompare(b[0], 'tr');
     });
-  }, [documents, teacherBranch, selectedBranch]);
+  }, [documents, teacherBranch, selectedBranch, branchKeyOf]);
 
   const [actionError, setActionError] = useState<string | null>(null);
   const [openingDocId, setOpeningDocId] = useState<string | null>(null);
@@ -207,8 +215,9 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
   }, []);
 
   // Filtered documents
-  const filteredDocuments = documents.filter((doc) => {
-    if (selectedBranch !== 'all' && (doc.subject || 'Genel') !== selectedBranch) return false;
+  // Aşama 116: süzme yalnız belgeler ya da süzgeçler değişince yeniden yapılır
+  const filteredDocuments = useMemo(() => documents.filter((doc) => {
+    if (selectedBranch !== 'all' && (branchKeyOf.get(doc.id) || 'Genel') !== selectedBranch) return false;
     const docCat = getDocCategoryKey(doc);
     if (selectedArchiveCategory && selectedArchiveCategory !== 'all' && docCat !== selectedArchiveCategory) return false;
     if (selectedFormat !== 'all' && doc.fileFormat !== selectedFormat) return false;
@@ -224,16 +233,17 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = doc.title.toLowerCase().includes(q);
-      const matchDesc = doc.description?.toLowerCase().includes(q) || false;
-      const matchSubject = doc.subject.toLowerCase().includes(q);
-      const matchTags = doc.tags?.some((t) => t.toLowerCase().includes(q)) || false;
+      const q = searchQuery; // Aşama 116: Türkçe harf duyarsız
+      const matchTitle = matchTurkishSearch(doc.title, q);
+      const matchDesc = matchTurkishSearch(doc.description, q);
+      const matchSubject = matchTurkishSearch(doc.subject, q);
+      const matchTags = doc.tags?.some((t) => matchTurkishSearch(t, q)) || false;
       if (!matchTitle && !matchDesc && !matchSubject && !matchTags) return false;
     }
 
     return true;
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [documents, selectedBranch, branchKeyOf, selectedArchiveCategory, selectedFormat, selectedSchool, searchQuery]);
 
   const clickDownload = (href: string, fileName: string) => {
     const a = document.createElement('a');

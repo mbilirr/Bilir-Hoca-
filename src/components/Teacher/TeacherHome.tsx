@@ -225,7 +225,11 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     [hwByDay, todayStr, dates.tomorrow]
   );
   const unread = useMemo(
-    () => (can.messages ? messages.filter((m) => !m.read).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')) : []),
+    // Aşama 116: üst menü rozeti ve Mesajlar sayfasıyla aynı kural (yalnız bana gelen + alıcısız genel okunmamışlar)
+    () =>
+      can.messages
+        ? messages.filter((m) => !m.read && dataService.isMessageForMe(m)).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+        : [],
     [messages, can.messages]
   );
   const studentById = useMemo(() => new Map(students.map((st) => [st.id, st] as const)), [students]);

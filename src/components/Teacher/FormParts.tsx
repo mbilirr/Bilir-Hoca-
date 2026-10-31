@@ -4,6 +4,7 @@ import type { ClassGroup, Student } from '../../types';
 import { cx } from '../ui/kit';
 import { callMail, type MailResult } from '../../lib/mailApi';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // ============================================================================
 // Ödev ve etüt formlarının ortak parçaları (Aşama 9)
@@ -184,9 +185,8 @@ export const StudentPicker: React.FC<{
     return m;
   }, [students]);
   const className = (id: string) => classes.find((c) => c.id === id)?.name || students.find((s) => s.classId === id)?.className || id;
-  const q = query.trim().toLocaleLowerCase('tr-TR');
-  const match = (s: Student) =>
-    !q || s.name.toLocaleLowerCase('tr-TR').includes(q) || (s.studentNumber || '').toLowerCase().includes(q);
+  const q = query.trim(); // Aşama 116: Türkçe harf duyarsız
+  const match = (s: Student) => !q || matchTurkishSearch(s.name, q) || (s.studentNumber || '').toLowerCase().includes(q.toLowerCase());
 
   const toggleClass = (id: string) => {
     const on = classIds.includes(id);

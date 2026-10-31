@@ -66,6 +66,8 @@ import { PageHeader, Segmented } from '../ui/kit';
 import { StudyPlanManager } from './StudyPlanManager';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { normalizeSubject } from '../../lib/subjects';
 
 // Aşama 113: ana sayfa ve Etütler ile ortak "Benim / Tümü" kaydı
 const HOME_SCOPE_KEY = 'edu_home_scope_v1';
@@ -487,33 +489,52 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [ownerOf]);
+  // Aşama 116: öğrenci → sınıf haritası (sınıf süzgecinde kişiye özel ödevler için; bir kez hazırlanır)
+  const classOfStudent = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const st of students) if (st.classId) m.set(st.id, st.classId);
+    return m;
+  }, [students]);
   const allTabHomeworks = useMemo(
     () =>
       homeworks.filter((hw) => {
         if (hwFilterTeacher === MINE) {
           if (!dataService.isMine(hw)) return false;
         } else if (hwFilterTeacher !== 'all' && ownerOf.get(hw.id)?.id !== hwFilterTeacher) return false;
-        if (hwFilterSubject !== 'all' && hw.subject !== hwFilterSubject) {
+        if (hwFilterSubject !== 'all' && normalizeSubject(hw.subject) !== hwFilterSubject) {
           return false;
         }
         if (hwFilterClassId !== 'all') {
-          if (hw.targetClassIds && hw.targetClassIds.length > 0) {
-            if (!hw.targetClassIds.includes(hwFilterClassId)) return false;
-          }
+          // Aşama 116: Ödev Kontrol'deki kuralla (homeworkTargetsClass) ve veritabanındaki öğrenci kuralıyla aynı:
+          // kişiye özel ödev yalnız öğrencilerinden biri o sınıftaysa; sınıfa verilen ödev kendi sınıflarında;
+          // hedef bilgisi hiç olmayan eski kayıt eskisi gibi her sınıfta kalır
+          const studs = Array.isArray(hw.assignedTo) ? hw.assignedTo : [];
+          const cls =
+            hw.targetClassIds && hw.targetClassIds.length > 0
+              ? hw.targetClassIds
+              : hw.classId && hw.classId !== 'class-default'
+                ? [hw.classId]
+                : [];
+          if (studs.length > 0) {
+            if (!studs.some((id) => classOfStudent.get(id) === hwFilterClassId)) return false;
+          } else if (cls.length > 0 && !cls.includes(hwFilterClassId)) return false;
         }
         if (deferredHwSearch.trim()) {
-          const q = deferredHwSearch.toLowerCase();
-          const matchTitle = hw.title.toLowerCase().includes(q);
-          const matchSubj = hw.subject.toLowerCase().includes(q);
-          const matchDesc = hw.description?.toLowerCase().includes(q);
-          const matchOutcomes = hw.outcomes?.some((o) => o.toLowerCase().includes(q));
+          // Aşama 116: Türkçe harf duyarsız arama (İ/ı, ş, ğ … aynı sayılır)
+          const q = deferredHwSearch;
+          const matchTitle = matchTurkishSearch(hw.title, q);
+          const matchSubj = matchTurkishSearch(hw.subject, q);
+          const matchDesc = matchTurkishSearch(hw.description, q);
+          // Aşama 116: kazanımların ikisi de aranır (form alanı + veritabanı sütunu)
+          const matchOutcomes =
+            hw.outcomes?.some((o) => matchTurkishSearch(o, q)) || hw.learningOutcomes?.some((o) => matchTurkishSearch(o, q));
           if (!matchTitle && !matchSubj && !matchDesc && !matchOutcomes) {
             return false;
           }
         }
         return true;
       }),
-    [homeworks, hwFilterSubject, hwFilterClassId, deferredHwSearch, hwFilterTeacher, ownerOf]
+    [homeworks, hwFilterSubject, hwFilterClassId, deferredHwSearch, hwFilterTeacher, ownerOf, classOfStudent]
   );
   const pagedAllHw = usePagedList(allTabHomeworks, `${deferredHwSearch}|${hwFilterSubject}|${hwFilterClassId}|${hwFilterTeacher}`);
   // Açık (genişletilmiş) ödev sayfanın dışında kaldıysa yine gösterilir
@@ -535,10 +556,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
     }
     // If student search input is used
     if (studentSearchInput.trim()) {
-      const q = studentSearchInput.toLowerCase().trim();
-      const matchName = std.name.toLowerCase().includes(q);
-      const matchNo = std.studentNumber?.toLowerCase().includes(q) || false;
-      const matchClass = std.className?.toLowerCase().includes(q) || false;
+      const q = studentSearchInput.trim();
+      const matchName = matchTurkishSearch(std.name, q);
+      const matchNo = std.studentNumber?.toLowerCase().includes(q.toLowerCase()) || false;
+      const matchClass = matchTurkishSearch(std.className, q);
       if (!matchName && !matchNo && !matchClass) return false;
       if (selectedClassIdForCheck && std.classId !== selectedClassIdForCheck) return false;
       return true;
@@ -727,7 +748,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
         const classHomeworks = currentClass
           ? homeworks.filter((hw) => homeworkTargetsClass(hw, currentClass.id, classAllStudents))
           : [];
-        const classSubjects = Array.from(new Set(classHomeworks.map((h) => h.subject).filter(Boolean))).sort((a, b) =>
+        const classSubjects = Array.from(new Set(classHomeworks.map((h) => normalizeSubject(h.subject)).filter(Boolean))).sort((a, b) =>
           a.localeCompare(b, 'tr')
         );
         const subjectFilter =
@@ -744,16 +765,13 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
           const t = new Date(hw.dueDate).getTime();
           return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
         };
-        const searchQ = trackerSearch.trim().toLocaleLowerCase('tr-TR');
+        const searchQ = trackerSearch.trim();
         const stripHomeworks = classHomeworks
-          .filter((hw) => subjectFilter === 'all' || hw.subject === subjectFilter)
+          .filter((hw) => subjectFilter === 'all' || normalizeSubject(hw.subject) === subjectFilter)
           .filter((hw) => {
             if (!searchQ) return true;
-            const hay = [hw.title, hw.subject, hw.description, ...(hw.outcomes || [])]
-              .filter(Boolean)
-              .join(' ')
-              .toLocaleLowerCase('tr-TR');
-            return hay.includes(searchQ);
+            const hay = [hw.title, hw.subject, hw.description, ...(hw.outcomes || []), ...(hw.learningOutcomes || [])].filter(Boolean).join(' ');
+            return matchTurkishSearch(hay, searchQ);
           })
           .sort((a, b) => {
             const ta = dueMs(a);
@@ -1330,7 +1348,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
 
 {/* TAB 2: ALL CREATED HOMEWORKS */}
       {activeTab === 'all' && (() => {
-        const availableSubjects = Array.from(new Set(homeworks.map((h) => h.subject))).filter(Boolean);
+        // Aşama 116: eski ders adları (Fen Bilgisi, Edebiyat) güncel adla tek seçenek (Etütler'deki kuralla aynı)
+        const availableSubjects = Array.from(new Set(homeworks.map((h) => normalizeSubject(h.subject)))).filter(Boolean);
         const filteredHomeworks = allTabHomeworks;
 
         const isFiltered = hwSearchQuery.trim() !== '' || hwFilterSubject !== 'all' || hwFilterClassId !== 'all' || hwFilterTeacher !== 'all';

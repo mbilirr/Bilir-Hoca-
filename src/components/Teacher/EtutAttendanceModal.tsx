@@ -17,6 +17,7 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { Etut, Student, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 interface EtutAttendanceModalProps {
   isOpen: boolean;
@@ -164,10 +165,11 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
     }
   };
 
+  // Aşama 116: Türkçe harf duyarsız arama
   const filteredStudents = assignedStudents.filter((s) =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    matchTurkishSearch(s.name, searchTerm) ||
     (s.studentNumber && s.studentNumber.includes(searchTerm)) ||
-    (s.className && s.className.toLowerCase().includes(searchTerm.toLowerCase()))
+    matchTurkishSearch(s.className, searchTerm)
   );
 
   const presentCount = Object.values(attendanceMap).filter((a) => a.status === 'present').length;

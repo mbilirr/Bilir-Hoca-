@@ -2258,6 +2258,10 @@ class DataService {
       let { error } = await supabase.from('etuts').upsert(row);
       for (let attempt = 0; attempt < 2 && error; attempt++) {
         const msg = error.message || '';
+        // Aşama 116: yalnız gerçekten "sütun yok" hatasında (kod / şema mesajı) sütunsuz yola geçilir;
+        // yetki ya da tetik hatası etüt öğretmenini oturum boyunca silmez
+        const missingCol = /42703|PGRST204/.test(String(error.code || '')) || /column|schema cache/i.test(msg);
+        if (!missingCol) break;
         if (row.etut_teacher_ids !== undefined && /etut_teacher_ids/.test(msg)) {
           DataService.etutTeacherIdsColumnAvailable = false;
           delete row.etut_teacher_ids;

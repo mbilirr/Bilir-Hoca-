@@ -542,6 +542,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     manageable: dataService.canManageClass(cls),
   }));
   // Aşama 84: liste önce 15 satırla açılır, kalan satırlar hemen ardından eklenir (ilk açılış hızlanır)
+  // Aşama 116: sınıf süzgecindeki sayılar tek geçişte sayılır (her sınıf için tüm öğrenciler taranmaz)
+  const classCountMap = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const st of students) if (st.classId) m.set(st.classId, (m.get(st.classId) || 0) + 1);
+    return m;
+  }, [students]);
   const pagedStudents = usePagedList(filteredStudents, `${deferredSearch}|${selectedClassFilter}|${sortOrder}`, undefined, 15);
 
   // Çoklu öğrenci seçimi mantığı
@@ -1399,7 +1405,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <option value="unassigned">Yok ({unassignedStudentsCount})</option>
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>
-                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({students.filter((s) => s.classId === cls.id).length})
+                      {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({classCountMap.get(cls.id) || 0})
                     </option>
                   ))}
                 </select>
@@ -2789,13 +2795,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {viewingClassStudents && (() => {
         const classStudents = students.filter((s) => s.classId === viewingClassStudents.id);
         const filteredStudents = classStudents.filter((s) => {
-          const q = classStudentSearch.toLowerCase().trim();
+          const q = classStudentSearch.trim();
           if (!q) return true;
           return (
-            s.name.toLowerCase().includes(q) ||
+            matchTurkishSearch(s.name, q) ||
             (s.studentNumber && s.studentNumber.includes(q)) ||
             (s.phone && s.phone.includes(q)) ||
-            (s.email && s.email.toLowerCase().includes(q))
+            matchTurkishSearch(s.email, q)
           );
         });
 
@@ -3115,13 +3121,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           if (transferOnlyUnassigned && s.classId && s.className && s.className !== 'Atanmadı') {
             return false;
           }
-          const q = transferSearchTerm.toLowerCase().trim();
+          const q = transferSearchTerm.trim();
           if (!q) return true;
           return (
-            s.name.toLowerCase().includes(q) ||
+            matchTurkishSearch(s.name, q) ||
             (s.studentNumber && s.studentNumber.includes(q)) ||
-            (s.className && s.className.toLowerCase().includes(q)) ||
-            (s.email && s.email.toLowerCase().includes(q))
+            matchTurkishSearch(s.className, q) ||
+            matchTurkishSearch(s.email, q)
           );
         });
 

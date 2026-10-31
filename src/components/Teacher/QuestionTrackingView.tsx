@@ -553,9 +553,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         return false;
       }
       if (weekSearchQuery.trim()) {
-        const q = weekSearchQuery.toLowerCase().trim();
-        const matchesLabel = item.weekLabel.toLowerCase().includes(q);
-        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        const q = weekSearchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const matchesLabel = matchTurkishSearch(item.weekLabel, q);
+        const matchesRel = matchTurkishSearch(item.relativeLabel, q);
         return matchesLabel || matchesRel;
       }
       return true;
@@ -645,9 +645,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
         return false;
       }
       if (monthSearchQuery.trim()) {
-        const q = monthSearchQuery.toLowerCase().trim();
-        const matchesLabel = item.monthLabel.toLowerCase().includes(q);
-        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        const q = monthSearchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const matchesLabel = matchTurkishSearch(item.monthLabel, q);
+        const matchesRel = matchTurkishSearch(item.relativeLabel, q);
         return matchesLabel || matchesRel;
       }
       return true;

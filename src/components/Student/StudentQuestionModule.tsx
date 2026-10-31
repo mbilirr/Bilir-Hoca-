@@ -80,6 +80,7 @@ import { readQuestionSubTab, readStudentTab, pushQuestionSubTab, type QuestionSu
 import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../services/studyPlanService';
 import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -1245,9 +1246,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const filteredPastWeeks = useMemo(() => {
     return pastWeeksList.filter((item) => {
       if (weekSearchQuery.trim()) {
-        const q = weekSearchQuery.toLowerCase().trim();
-        const matchesLabel = item.weekLabel.toLowerCase().includes(q);
-        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        const q = weekSearchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const matchesLabel = matchTurkishSearch(item.weekLabel, q);
+        const matchesRel = matchTurkishSearch(item.relativeLabel, q);
         return matchesLabel || matchesRel;
       }
       return true;
@@ -1329,9 +1330,9 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const filteredPastMonths = useMemo(() => {
     return pastMonthsList.filter((item) => {
       if (monthSearchQuery.trim()) {
-        const q = monthSearchQuery.toLowerCase().trim();
-        const matchesLabel = item.monthLabel.toLowerCase().includes(q);
-        const matchesRel = item.relativeLabel.toLowerCase().includes(q);
+        const q = monthSearchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const matchesLabel = matchTurkishSearch(item.monthLabel, q);
+        const matchesRel = matchTurkishSearch(item.relativeLabel, q);
         return matchesLabel || matchesRel;
       }
       return true;

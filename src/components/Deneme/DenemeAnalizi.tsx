@@ -68,8 +68,17 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
     return set;
   }, [plain, classes]);
   const exams = useMemo(
-    () => allExams.filter((e) => !isDraftExam(e) && (!myGrades || myGrades.has(String(parseInt(String(e.grade), 10))))),
-    [allExams, myGrades]
+    // Aşama 116: kademesi sayı olmayan deneme (ör. "Mezun") düz görüntüleyicide, adı bu yazıyı taşıyan bir sınıfı varsa görünür
+    () =>
+      allExams.filter((e) => {
+        if (isDraftExam(e)) return false;
+        if (!myGrades) return true;
+        const n = parseInt(String(e.grade), 10);
+        if (!Number.isNaN(n)) return myGrades.has(String(n));
+        const label = String(e.grade || '').trim();
+        return !!label && classes.some((c) => matchTurkishSearch(`${c.name} ${c.gradeLevel || ''}`, label));
+      }),
+    [allExams, myGrades, classes]
   );
   // Aşama 115: Etüt yönlendirme Öğretmen / Zümre Başkanı'na da açık (yalnız kendi branşının dersleri);
   // yalnız Etüt Öğretmeni rolü olana kapalı. Kazanım bankası öğretmene kapalı kalır.

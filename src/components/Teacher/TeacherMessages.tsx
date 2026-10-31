@@ -30,9 +30,11 @@ import { useHistoryState } from '../../lib/useHistoryState';
 type MsgFilters = { kime: string; durum: 'all' | 'open' | 'replied'; sinif: string; donem: 'week' | 'month' | 'all' };
 const MSG_FILTER_KEY = 'bilir.messages.filters.v1';
 const DEFAULT_MSG_FILTERS: MsgFilters = { kime: 'me', durum: 'open', sinif: '', donem: 'all' };
-function readMsgFilters(): MsgFilters {
+// Aşama 116: süzgeç seçimi hesaba özel saklanır (aynı cihazda başka hesap / kurum başkasının seçimini almaz)
+const msgFilterKey = (uid: string) => (uid ? `${MSG_FILTER_KEY}:${uid}` : MSG_FILTER_KEY);
+function readMsgFilters(uid: string): MsgFilters {
   try {
-    const raw = localStorage.getItem(MSG_FILTER_KEY);
+    const raw = localStorage.getItem(msgFilterKey(uid));
     if (raw) return { ...DEFAULT_MSG_FILTERS, ...JSON.parse(raw) };
   } catch {
     /* tarayıcı saklamaya izin vermiyorsa varsayılan */
@@ -47,9 +49,8 @@ interface TeacherMessagesProps {
 
 export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
-    messages[0]?.id || null
-  );
+  // Aşama 116: ilk açılışta seçim yok; ayrıntı paneli süzülmüş listenin ilk mesajını gösterir
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
@@ -63,15 +64,15 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   // Aşama 113: başka öğretmene gelen soruları yalnız idare (ve genel yönetici) alır; Rehberlik'te "Kime" süzgeci yok
   const idare = dataService.isHeadAdmin() || dataService.isKurumAdmin();
   const meId = dataService.getAuthSession()?.user.id || '';
-  const [filters, setFilters] = useState<MsgFilters>(() => (wide ? readMsgFilters() : { ...DEFAULT_MSG_FILTERS, kime: 'all', durum: 'all' }));
+  const [filters, setFilters] = useState<MsgFilters>(() => (wide ? readMsgFilters(meId) : { ...DEFAULT_MSG_FILTERS, kime: 'all', durum: 'all' }));
   useEffect(() => {
     if (!wide) return;
     try {
-      localStorage.setItem(MSG_FILTER_KEY, JSON.stringify(filters));
+      localStorage.setItem(msgFilterKey(meId), JSON.stringify(filters));
     } catch {
       /* saklanamazsa yalnız bu oturumda geçerli */
     }
-  }, [filters, wide]);
+  }, [filters, wide, meId]);
   const setFilter = <K extends keyof MsgFilters>(k: K, v: MsgFilters[K]) => setFilters((f) => ({ ...f, [k]: v }));
 
   // Aşama 113: sayaç üst menüyle aynı (yalnız bana gelen ve genel okunmamış mesajlar)
@@ -91,6 +92,11 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     };
   }, [messages, wide, idare, meId]);
 
+  // Aşama 116: kayıtlı "Kime" / "Sınıf" seçimi bu listede yoksa (başka kurum, silinen öğretmen) açılır kutu ile liste
+  // aynı değeri kullanır: Kime → "Bana gelenler", Sınıf → "Tüm sınıflar". Liste henüz yüklenmediyse seçim korunur.
+  const effKime =
+    filters.kime === 'me' || filters.kime === 'all' || !messages.length || teacherOpts.some(([id]) => id === filters.kime) ? filters.kime : 'me';
+  const effSinif = !filters.sinif || !messages.length || classOpts.includes(filters.sinif) ? filters.sinif : '';
   const filteredMessages = useMemo(() => {
     let since = 0;
     if (wide && filters.donem !== 'all') {
@@ -100,23 +106,23 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
       else d.setDate(1);
       since = d.getTime();
     }
-    const kime = idare ? filters.kime : 'all';
+    const kime = idare ? effKime : 'all';
     return messages.filter((m) => {
       if (wide) {
         if (kime === 'me' && m.toTeacherId && m.toTeacherId !== meId) return false;
         if (kime !== 'me' && kime !== 'all' && m.toTeacherId !== kime) return false;
         if (filters.durum === 'open' && m.teacherReply) return false;
         if (filters.durum === 'replied' && !m.teacherReply) return false;
-        if (filters.sinif && m.studentClass !== filters.sinif) return false;
+        if (effSinif && m.studentClass !== effSinif) return false;
         if (since && new Date(m.createdAt).getTime() < since) return false;
       }
       if (!term) return true;
       return matchTurkishSearch(m.studentName, term) || matchTurkishSearch(m.subject, term) || matchTurkishSearch(m.text, term);
     });
-  }, [messages, term, wide, idare, filters, meId]);
-  const filtersActive = wide && ((idare && filters.kime !== 'all') || filters.durum !== 'all' || !!filters.sinif || filters.donem !== 'all');
+  }, [messages, term, wide, idare, filters, meId, effKime, effSinif]);
+  const filtersActive = wide && ((idare && effKime !== 'all') || filters.durum !== 'all' || !!effSinif || filters.donem !== 'all');
   // Aşama 15: uzun mesaj listesi parça parça çizilir (Aşama 111: telefonda ilk 15)
-  const pagedMessages = usePagedList(filteredMessages, `${term}|${filters.kime}|${filters.durum}|${filters.sinif}|${filters.donem}`, 50, phone ? 15 : undefined);
+  const pagedMessages = usePagedList(filteredMessages, `${term}|${effKime}|${filters.durum}|${effSinif}|${filters.donem}`, 50, phone ? 15 : undefined);
 
   const activeMessage = messages.find((m) => m.id === selectedMessageId) || filteredMessages[0];
 
@@ -202,7 +208,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
             {wide && (
               <div className={`mt-3 grid ${idare ? 'grid-cols-2' : 'grid-cols-3'} gap-2`} id="messages-filters">
                 {idare && (
-                  <select id="messages-filter-kime" aria-label="Kime" value={filters.kime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
+                  <select id="messages-filter-kime" aria-label="Kime" value={effKime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
                     <option value="me">Bana gelenler</option>
                     <option value="all">Tüm öğretmenler</option>
                     {teacherOpts.map(([id, name]) => (
@@ -217,7 +223,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   <option value="open">Cevapsız</option>
                   <option value="replied">Cevaplanan</option>
                 </select>
-                <select id="messages-filter-sinif" aria-label="Sınıf" value={filters.sinif} onChange={(e) => setFilter('sinif', e.target.value)} className={msgSelectCls}>
+                <select id="messages-filter-sinif" aria-label="Sınıf" value={effSinif} onChange={(e) => setFilter('sinif', e.target.value)} className={msgSelectCls}>
                   <option value="">Tüm sınıflar</option>
                   {classOpts.map((c) => (
                     <option key={c} value={c}>

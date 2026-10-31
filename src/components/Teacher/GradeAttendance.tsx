@@ -30,6 +30,9 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { useQuickFocus } from '../../lib/quickFocus';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
+import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -140,6 +143,25 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   // Filter students of active class
   const classStudents = students.filter((s) => s.classId === selectedClassId);
   const activeClass = classes.find((c) => c.id === selectedClassId);
+
+  // Aşama 116: ders listesi sınıfın kademesine göre (Ortaokul / Lise; kademe bilinmiyorsa ikisi birden).
+  // Öğretmenin kendi branş dersleri en üstte; bu sınıfta daha önce not / yoklama girilmiş dersler ve seçili ders hep listede kalır.
+  const subjectOptions = useMemo(() => {
+    const level = activeClass ? activeClass.schoolLevel || detectSchoolLevelFromGrade(activeClass.gradeLevel || activeClass.name) || null : null;
+    const out: string[] = [];
+    const add = (x?: string | null) => {
+      const v = (x || '').trim();
+      if (v && !out.includes(v)) out.push(v);
+    };
+    subjectsForBranch(dataService.getCurrentTeacher()?.branch).forEach(add);
+    subjectsForLevel(level).forEach(add);
+    if (selectedClassId) {
+      for (const g of grades) if (g.classId === selectedClassId) add(g.subject);
+      for (const a of attendance) if (a.classId === selectedClassId) add(a.subject);
+    }
+    add(selectedSubject);
+    return out;
+  }, [activeClass, selectedClassId, grades, attendance, selectedSubject]);
 
   // Attendance helpers
   const currentAttendanceRecord = attendance.find(
@@ -286,16 +308,23 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   }).length;
 
   // Grade averages
-  const classGrades = grades.filter(
-    (g) => g.classId === selectedClassId && g.subject === selectedSubject && byTeacher(g.createdBy)
+  // Aşama 116: süzmeler yalnız kayıtlar ya da seçimler değişince yeniden yapılır (her tuşta tüm kayıtlar taranmaz)
+  const classGrades = useMemo(
+    () => grades.filter((g) => g.classId === selectedClassId && g.subject === selectedSubject && (teacherFilter === 'all' || g.createdBy === teacherFilter)),
+    [grades, selectedClassId, selectedSubject, teacherFilter]
   );
   const averageScore = classGrades.length
     ? Math.round(classGrades.reduce((acc, g) => acc + g.score, 0) / classGrades.length)
     : 0;
 
   // Filter attendance records
-  const classAttendanceRecords = attendance.filter(
-    (a) => a.classId === selectedClassId && (selectedSubject ? a.subject === selectedSubject : true) && byTeacher(a.createdBy)
+  const classAttendanceRecords = useMemo(
+    () =>
+      attendance.filter(
+        (a) =>
+          a.classId === selectedClassId && (selectedSubject ? a.subject === selectedSubject : true) && (teacherFilter === 'all' || a.createdBy === teacherFilter)
+      ),
+    [attendance, selectedClassId, selectedSubject, teacherFilter]
   );
 
   // Group grades by Exam Type
@@ -310,15 +339,15 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
   };
 
   // Filtered grades by search
-  const filteredGrades = classGrades.filter((g) => {
-    if (!searchGradeStudent.trim()) return true;
-    const q = searchGradeStudent.toLowerCase();
-    return (
-      (g.studentName && g.studentName.toLowerCase().includes(q)) ||
-      g.examType.toLowerCase().includes(q) ||
-      (g.remarks && g.remarks.toLowerCase().includes(q))
-    );
-  });
+  const filteredGrades = useMemo(
+    () =>
+      classGrades.filter((g) => {
+        if (!searchGradeStudent.trim()) return true;
+        const q = searchGradeStudent; // Aşama 116: Türkçe harf duyarsız
+        return matchTurkishSearch(g.studentName, q) || matchTurkishSearch(g.examType, q) || matchTurkishSearch(g.remarks, q);
+      }),
+    [classGrades, searchGradeStudent]
+  );
 
   return (
     <div className="space-y-6" id="grades-attendance-page">
@@ -392,17 +421,11 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
               <option value="" disabled className="bg-surface text-muted">
                 Ders Seçiniz
               </option>
-              <option value="Matematik" className="bg-surface text-fg">Matematik</option>
-              <option value="Fizik" className="bg-surface text-fg">Fizik</option>
-              <option value="Kimya" className="bg-surface text-fg">Kimya</option>
-              <option value="Biyoloji" className="bg-surface text-fg">Biyoloji</option>
-              <option value="Türk Dili ve Edebiyatı" className="bg-surface text-fg">Türk Dili ve Edebiyatı</option>
-              <option value="Tarih" className="bg-surface text-fg">Tarih</option>
-              {selectedSubject && !['Matematik', 'Fizik', 'Kimya', 'Biyoloji', 'Türk Dili ve Edebiyatı', 'Tarih'].includes(selectedSubject) && (
-                <option value={selectedSubject} className="bg-surface text-fg">
-                  {selectedSubject}
+              {subjectOptions.map((sub) => (
+                <option key={sub} value={sub} className="bg-surface text-fg">
+                  {sub}
                 </option>
-              )}
+              ))}
             </select>
           </div>
 

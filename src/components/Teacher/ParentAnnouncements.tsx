@@ -4,6 +4,7 @@ import { dataService } from '../../services/dataService';
 import { callMail } from '../../lib/mailApi';
 import type { MailResult } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // ============================================================================
 // VELİ / ÖĞRENCİ DUYURUSU (Aşama 73, 83)
@@ -123,10 +124,10 @@ export const ParentAnnouncements: React.FC = () => {
   const whoWord = toParents && toStudents ? 'kişiye' : toStudents ? 'öğrenciye' : 'veliye';
 
   const visibleStudents = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase('tr-TR');
+    const q = search.trim(); // Aşama 116: Türkçe harf duyarsız
     return students
       .filter((s) => (studentClassFilter === 'all' ? true : s.classId === studentClassFilter))
-      .filter((s) => !q || s.name.toLocaleLowerCase('tr-TR').includes(q) || String(s.studentNumber || '').includes(q))
+      .filter((s) => !q || matchTurkishSearch(s.name, q) || String(s.studentNumber || '').includes(q))
       .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [students, search, studentClassFilter]);
 

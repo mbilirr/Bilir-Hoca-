@@ -23,7 +23,6 @@ import {
   Filter,
   BarChart3,
   ListChecks,
-  Layers,
   FileText,
   MessageCircle,
   UserPlus,
@@ -68,10 +67,9 @@ const HOME_SCOPE_KEY = 'edu_home_scope_v1';
 // Aşama 111: Takip görünümü ve salt okunur ayrıntı penceresi ayrı parça (yalnız idare / Rehberlik açınca iner)
 const EtutTakipView = lazyNamed(() => import('./EtutTakipView'), 'EtutTakipView');
 const EtutDetayModal = lazyNamed(() => import('./EtutTakipView'), 'EtutDetayModal');
-// Aşama 115: branş etüt listesi (Excel) — yalnız açılınca iner
-const EtutBransListesiModal = lazyNamed(() => import('./EtutBransListesiModal'), 'EtutBransListesiModal');
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useSeenIds } from '../../lib/useSeenIds';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -142,7 +140,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
   const [isSentCommunicationsOpen, setIsSentCommunicationsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isScheduleExportOpen, setIsScheduleExportOpen] = useState(false); // Aşama 27: etüt listesi (Excel/PDF)
-  const [isBransListOpen, setIsBransListOpen] = useState(false); // Aşama 115: branş etüt listesi (Excel)
   const [reportSelectedStudentId, setReportSelectedStudentId] = useState<string | undefined>(undefined);
 
   // Ana sayfa kısayolu: yeni etüt penceresini aç
@@ -424,16 +421,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
             >
               <ListChecks className="w-4 h-4" />
               <span>Etüt Listesi</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsBransListOpen(true)}
-              id="btn-etut-brans-list"
-              className="ui-btn ui-btn-secondary"
-              title="Öğrencilerin ders ders etüt listesi (sınıf sınıf / toplu, konu ve kazanıma göre) Excel olarak"
-            >
-              <Layers className="w-4 h-4" />
-              <span>Branş Listesi</span>
             </button>
             <button
               type="button"
@@ -939,11 +926,11 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
         // Filtrelenmiş öğrenci listesi
         const displayedStudents = assignedStudents.filter((std) => {
           if (!attendanceSearchQuery.trim()) return true;
-          const q = attendanceSearchQuery.toLowerCase().trim();
+          const q = attendanceSearchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
           return (
-            std.name.toLowerCase().includes(q) ||
+            matchTurkishSearch(std.name, q) ||
             (std.studentNumber && std.studentNumber.includes(q)) ||
-            (std.className && std.className.toLowerCase().includes(q))
+            matchTurkishSearch(std.className, q)
           );
         });
 
@@ -1351,13 +1338,6 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
       {/* Etüt listesi indirme penceresi (Aşama 27; yalnızca açıkken çizilir) */}
       {isScheduleExportOpen && (
         <EtutScheduleExportModal onClose={() => setIsScheduleExportOpen(false)} etuts={activeEtuts.filter((e) => !e.privacyRedacted)} students={students} classes={classes} />
-      )}
-
-      {/* Aşama 115: branş etüt listesi (yalnızca açıkken çizilir) */}
-      {isBransListOpen && (
-        <Suspense fallback={null}>
-          <EtutBransListesiModal onClose={() => setIsBransListOpen(false)} etuts={etuts} students={students} classes={classes} />
-        </Suspense>
       )}
 
       {/* Etüt Analizi (yalnızca açıkken çizilir; her açılışta durum sıfırlanır) */}

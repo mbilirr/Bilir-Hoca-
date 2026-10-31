@@ -47,6 +47,7 @@ const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'ol
 const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_CODE[r as TeacherRole]?.label || r).join(' / ');
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -199,15 +200,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   };
 
   // Summary Metrics
+  // Aşama 116: sayaç kartları seçili kurumla aynı kapsamı sayar (liste ile kartlar aynı sayıyı gösterir)
   const stats = useMemo(() => {
-    const total = users.length;
-    const admins = users.filter((u) => u.role === 'admin').length;
-    const teachers = users.filter((u) => u.role === 'teacher').length;
-    const students = users.filter((u) => u.role === 'student').length;
-    const suspended = users.filter((u) => u.isSuspended || u.status === 'suspended').length;
-    const pending = users.filter((u) => u.status === 'pending').length;
-    return { total, admins, teachers, students, suspended, pending };
-  }, [users]);
+    const scoped =
+      kurumFilter === 'merkez' ? users.filter((u) => !u.kurumId) : kurumFilter ? users.filter((u) => u.kurumId === kurumFilter) : users;
+    let admins = 0, teachers = 0, students = 0, suspended = 0, pending = 0;
+    for (const u of scoped) {
+      if (u.role === 'admin') admins++;
+      else if (u.role === 'teacher') teachers++;
+      else if (u.role === 'student') students++;
+      if (u.isSuspended || u.status === 'suspended') suspended++;
+      if (u.status === 'pending') pending++;
+    }
+    return { total: scoped.length, admins, teachers, students, suspended, pending };
+  }, [users, kurumFilter]);
 
   // Filtered Users (Aşama 15: arama bir adım geriden gelir, liste parça parça çizilir)
   const deferredQuery = useDeferredValue(searchQuery);
@@ -231,13 +237,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       // Search query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const inName = (u.name || '').toLowerCase().includes(q);
-        const inUsername = (u.username || '').toLowerCase().includes(q);
-        const inEmail = (u.email || '').toLowerCase().includes(q);
+        const q = searchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const inName = matchTurkishSearch(u.name, q);
+        const inUsername = matchTurkishSearch(u.username, q);
+        const inEmail = matchTurkishSearch(u.email, q);
         const inPhone = (u.phone || '').includes(q);
-        const inBranch = (u.branch || '').toLowerCase().includes(q);
-        const inClass = (u.className || '').toLowerCase().includes(q);
+        const inBranch = matchTurkishSearch(u.branch, q);
+        const inClass = matchTurkishSearch(u.className, q);
         const inNumber = (u.studentNumber || '').includes(q);
         return inName || inUsername || inEmail || inPhone || inBranch || inClass || inNumber;
       }
@@ -1843,11 +1849,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     .getAllStudents()
                     .filter((s) => {
                       if (!authStudentSearch.trim()) return true;
-                      const q = authStudentSearch.toLowerCase();
+                      const q = authStudentSearch;
                       return (
-                        s.name.toLowerCase().includes(q) ||
-                        (s.className || '').toLowerCase().includes(q) ||
-                        (s.studentNumber || '').includes(q)
+                        matchTurkishSearch(s.name, q) ||
+                        matchTurkishSearch(s.className, q) ||
+                        (s.studentNumber || '').includes(q.trim())
                       );
                     })
                     .slice(0, 30)

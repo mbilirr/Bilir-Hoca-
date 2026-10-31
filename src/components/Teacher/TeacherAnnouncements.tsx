@@ -3,6 +3,7 @@ import { Megaphone, StickyNote, Send, Search, Trash2, Users, CheckCircle2, Alert
 import { dataService } from '../../services/dataService';
 import type { AnnouncementGroup } from '../../types';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // ============================================================================
 // DUYURU / NOT GÖNDER (Aşama 28)
@@ -56,10 +57,10 @@ export const TeacherAnnouncements: React.FC = () => {
   }, [target, students, classIds, studentIds]);
 
   const visibleStudents = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase('tr-TR');
+    const q = search.trim(); // Aşama 116: Türkçe harf duyarsız
     return students
       .filter((s) => (studentClassFilter === 'all' ? true : s.classId === studentClassFilter))
-      .filter((s) => !q || s.name.toLocaleLowerCase('tr-TR').includes(q) || String(s.studentNumber || '').includes(q))
+      .filter((s) => !q || matchTurkishSearch(s.name, q) || String(s.studentNumber || '').includes(q))
       .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
   }, [students, search, studentClassFilter]);
 
