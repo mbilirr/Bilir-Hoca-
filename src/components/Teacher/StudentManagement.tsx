@@ -2425,7 +2425,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
                 >
                   <option value="">Okul Seçiniz *</option>
-                  <option value="Ortaokul">🏫 Ortaokul</option>
+                  <option value="Ortaokul">{'\u{1F3EB}'} Ortaokul</option>
                   <option value="Lise">🎓 Lise</option>
                 </select>
               </div>
