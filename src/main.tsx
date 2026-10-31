@@ -66,6 +66,21 @@ const planToken = (() => {
 const PlanMarkPage = lazy(() => import('./components/Public/PlanMarkPage').then((m) => ({ default: m.PlanMarkPage })));
 const isPublicPage = !!(attendanceToken || planToken);
 
+// Aşama 124: uygulama dosyaları (/assets) cihazda tutulsun diye servis çalışanı açılışta (boşta) kaydedilir.
+// Bildirim izni İSTEMEZ; yalnız kayıt. Sayfanın kendisi (index.html) her zaman sunucudan gelir.
+if (import.meta.env.PROD && typeof navigator !== 'undefined' && 'serviceWorker' in navigator && window.isSecureContext) {
+  const registerSw = () => {
+    navigator.serviceWorker
+      .getRegistration('/')
+      .then((reg) => reg || navigator.serviceWorker.register('/sw.js', { scope: '/' }))
+      .catch(() => {
+        /* desteklenmiyor / engelli: site normal çalışır */
+      });
+  };
+  const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
+  window.addEventListener('load', () => (ric ? ric(registerSw, { timeout: 8000 }) : setTimeout(registerSw, 3000)), { once: true });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>

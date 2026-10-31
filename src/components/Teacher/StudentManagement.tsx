@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useDeferredValue } from 'react';
+import React, { useState, useMemo, useDeferredValue, Suspense } from 'react';
 import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
 import { usePagedList, useMediaQuery, ShowMoreBar } from '../../lib/listPaging';
 import {
@@ -41,12 +41,14 @@ import { dataService } from '../../services/dataService';
 import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
-import { ExcelStudentUploadModal } from './ExcelStudentUploadModal';
-import { ExcelStudentUpdateModal } from './ExcelStudentUpdateModal';
-import { ExcelClassUploadModal } from './ExcelClassUploadModal';
-import { StudentListExportModal } from './StudentListExportModal';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
-import { StudentWelcomeCredentialsModal } from './StudentWelcomeCredentialsModal';
+import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
+// Aşama 124: Excel pencereleri (ve xlsx kütüphanesi) yalnız açılınca indirilir
+const ExcelStudentUploadModal = lazyNamed(() => import('./ExcelStudentUploadModal'), 'ExcelStudentUploadModal');
+const ExcelStudentUpdateModal = lazyNamed(() => import('./ExcelStudentUpdateModal'), 'ExcelStudentUpdateModal');
+const ExcelClassUploadModal = lazyNamed(() => import('./ExcelClassUploadModal'), 'ExcelClassUploadModal');
+const StudentListExportModal = lazyNamed(() => import('./StudentListExportModal'), 'StudentListExportModal');
+const StudentWelcomeCredentialsModal = lazyNamed(() => import('./StudentWelcomeCredentialsModal'), 'StudentWelcomeCredentialsModal');
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import {
   SCHOOL_LEVELS,
@@ -55,7 +57,6 @@ import {
   detectSchoolLevelFromGrade,
   formatClassDisplayName,
 } from '../../constants/schoolConstants';
-import * as XLSX from 'xlsx';
 import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
@@ -199,6 +200,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [isExcelUpdateOpen, setIsExcelUpdateOpen] = useState(false); // Aşama 49
   const [isListExportOpen, setIsListExportOpen] = useState(false); // Aşama 80: öğrenci listesi al
   const [isExcelClassModalOpen, setIsExcelClassModalOpen] = useState(false);
+  // Aşama 124: pencere ilk açılınca indirilir, sonra yerinde kalır
+  const everExcelOpen = useEverTrue(isExcelModalOpen);
+  const everExcelUpdateOpen = useEverTrue(isExcelUpdateOpen);
+  const everExcelClassOpen = useEverTrue(isExcelClassModalOpen);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isAddClassOpen, setIsAddClassOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
@@ -952,7 +957,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     resetClassExcelState();
   };
 
-  const downloadSampleClassExcel = () => {
+  const downloadSampleClassExcel = async () => {
     // Örnek e-postalar açıkça örnek adreslerdir: gerçek adresle değiştirilmeli veya silinmelidir
     const sampleData = [
       {
@@ -978,6 +983,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       },
     ];
 
+    const XLSX = await import('xlsx'); // Aşama 124: kütüphane yalnız gerektiğinde iner
     const ws = XLSX.utils.json_to_sheet(sampleData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Öğrenciler');
@@ -994,9 +1000,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setIsReadingClassExcel(true);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const buffer = e.target?.result;
+        const XLSX = await import('xlsx'); // Aşama 124
         const workbook = XLSX.read(buffer, { type: 'binary', cellDates: true });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         // Başlık satırı ilk 10 satır içinde aranır (e-Okul listelerinde üstte başlık satırları olur)
@@ -2641,33 +2648,47 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       </Modal>
 
       {/* EXCEL BULK UPLOAD MODAL - STUDENTS */}
-      <ExcelStudentUploadModal
-        isOpen={isExcelModalOpen}
-        onClose={() => setIsExcelModalOpen(false)}
-        classes={classes}
-        existingStudents={students}
-        onAccountsCreated={(result) =>
-          setCredentialsResult({ credentials: result.created, failures: result.failed, title: "Excel'den Eklenen Öğrenciler" })
-        }
-      />
+      {everExcelOpen && (
+        <Suspense fallback={null}>
+          <ExcelStudentUploadModal
+            isOpen={isExcelModalOpen}
+            onClose={() => setIsExcelModalOpen(false)}
+            classes={classes}
+            existingStudents={students}
+            onAccountsCreated={(result) =>
+              setCredentialsResult({ credentials: result.created, failures: result.failed, title: "Excel'den Eklenen Öğrenciler" })
+            }
+          />
+        </Suspense>
+      )}
 
       {/* Aşama 49: EXCEL İLE MEVCUT ÖĞRENCİLERİ GÜNCELLEME */}
       {isListExportOpen && (
-        <StudentListExportModal open={isListExportOpen} onClose={() => setIsListExportOpen(false)} students={students} classes={classes} />
+        <Suspense fallback={null}>
+          <StudentListExportModal open={isListExportOpen} onClose={() => setIsListExportOpen(false)} students={students} classes={classes} />
+        </Suspense>
       )}
-      <ExcelStudentUpdateModal
-        isOpen={isExcelUpdateOpen}
-        onClose={() => setIsExcelUpdateOpen(false)}
-        classes={classes}
-        students={students}
-        onDone={(msg) => setStudentSuccessFeedback(msg)}
-      />
+      {everExcelUpdateOpen && (
+        <Suspense fallback={null}>
+          <ExcelStudentUpdateModal
+            isOpen={isExcelUpdateOpen}
+            onClose={() => setIsExcelUpdateOpen(false)}
+            classes={classes}
+            students={students}
+            onDone={(msg) => setStudentSuccessFeedback(msg)}
+          />
+        </Suspense>
+      )}
 
       {/* EXCEL BULK UPLOAD MODAL - CLASSES */}
-      <ExcelClassUploadModal
-        isOpen={isExcelClassModalOpen}
-        onClose={() => setIsExcelClassModalOpen(false)}
-      />
+      {everExcelClassOpen && (
+        <Suspense fallback={null}>
+          <ExcelClassUploadModal
+            isOpen={isExcelClassModalOpen}
+            onClose={() => setIsExcelClassModalOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* CONFIRM DELETE STUDENT MODAL */}
       <ConfirmDeleteModal
@@ -2722,13 +2743,17 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       />
 
       {/* GİRİŞ BİLGİLERİ (hesap açıldıktan / şifre belirlendikten sonra, yalnızca bir kez gösterilir) */}
-      <StudentWelcomeCredentialsModal
-        isOpen={!!credentialsResult}
-        onClose={() => setCredentialsResult(null)}
-        credentials={credentialsResult?.credentials || []}
-        failures={credentialsResult?.failures || []}
-        title={credentialsResult?.title}
-      />
+      {!!credentialsResult && (
+        <Suspense fallback={null}>
+          <StudentWelcomeCredentialsModal
+            isOpen={!!credentialsResult}
+            onClose={() => setCredentialsResult(null)}
+            credentials={credentialsResult?.credentials || []}
+            failures={credentialsResult?.failures || []}
+            title={credentialsResult?.title}
+          />
+        </Suspense>
+      )}
 
       {/* ŞİFRE BELİRLEME PENCERESİ */}
       <Modal

@@ -1361,8 +1361,15 @@ class DataService {
       // Telefon, tablet veya bilgisayarda ekran açıldığında ya da internet bağlantısı geldiğinde anında eşitle
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-          this.revalidateAndSyncAll(true);
-        } else this.flushSecureSave(); // Aşama 103
+          // Aşama 126: 30 sn'den uzun arka planda kalındıysa (telefon kilidi vb.) anlık bağlantı kopmuş
+          // olabilir; eskisi gibi hemen tam eşitleme yapılır. Kısa geçişlerde anlık kanal yeterlidir.
+          const longHidden = this.hiddenAt > 0 && Date.now() - this.hiddenAt >= DataService.LONG_HIDDEN_MS;
+          this.hiddenAt = 0;
+          this.revalidateAndSyncAll(true, longHidden);
+        } else {
+          this.hiddenAt = Date.now();
+          this.flushSecureSave(); // Aşama 103
+        }
       });
       window.addEventListener('online', () => {
         // İnternet geri geldi: kanallar onarılır ve veriler hemen yenilenir
@@ -1390,9 +1397,16 @@ class DataService {
   private realtimeClosing = false;
   private realtimeEnsureRunning = false;
   private lastRealtimeHealth: 'live' | 'fallback' | 'offline' = 'fallback';
-  private static readonly LIVE_SAFETY_SYNC_MS = 5 * 60 * 1000;
+  // Aşama 126 (hız / ölçek): anlık kanal sağlıklıyken yedek tam eşitleme 5 dk yerine 15 dk'da bir
+  // (+0–60 sn rastgele pay: çok kullanıcı aynı anda sunucuya yüklenmez). Değişiklikler zaten anlık kanaldan gelir.
+  private static readonly LIVE_SAFETY_SYNC_MS = 15 * 60 * 1000;
+  private readonly liveSafetySyncMs = DataService.LIVE_SAFETY_SYNC_MS + Math.floor(Math.random() * 60000);
   private static readonly FALLBACK_SYNC_MS = 30 * 1000;
   private static readonly MIN_BACKGROUND_SYNC_GAP_MS = 15 * 1000;
+  // Aşama 126: anlık kanal sağlıklıyken odak / sekme geçişi tam eşitlemesi en fazla dakikada bir
+  private static readonly LIVE_BACKGROUND_SYNC_GAP_MS = 60 * 1000;
+  private static readonly LONG_HIDDEN_MS = 30 * 1000;
+  private hiddenAt = 0;
 
   // Hangi tablo değişince ne yapılacağı
   private realtimeTableConfig(): Array<RealtimeTableCfg> {
@@ -1592,7 +1606,7 @@ class DataService {
       const health = this.getRealtimeHealth();
       if (health === 'offline') return;
       const age = Date.now() - this.lastFullSyncAt;
-      const due = health === 'live' ? DataService.LIVE_SAFETY_SYNC_MS : DataService.FALLBACK_SYNC_MS;
+      const due = health === 'live' ? this.liveSafetySyncMs : DataService.FALLBACK_SYNC_MS;
       if (age >= due) this.revalidateAndSyncAll(true);
       else {
         if (health !== 'live') this.ensureRealtime();
@@ -4206,9 +4220,14 @@ class DataService {
 
   // Tüm verileri buluttan yeniler. Arka plan istekleri (odak, sekmeye dönüş, yedek kontrol) en fazla
   // 15 saniyede bir çalışır; aynı anda ikinci bir tam eşitleme başlatılmaz (çalışan beklenir).
-  public async revalidateAndSyncAll(isBackground = false): Promise<void> {
+  public async revalidateAndSyncAll(isBackground = false, shortGap = false): Promise<void> {
     if (this.fullSyncInFlight) return this.fullSyncInFlight;
-    if (isBackground && Date.now() - this.lastFullSyncAt < DataService.MIN_BACKGROUND_SYNC_GAP_MS) {
+    // Aşama 126: anlık kanal sağlıklıysa arka plan tam eşitlemesi en fazla dakikada bir; kanal sorunluysa,
+    // uzun arka plandan dönüldüyse ya da kullanıcı isteğiyse (isBackground=false) eskisi gibi
+    const gap = !shortGap && this.getRealtimeHealth() === 'live'
+      ? DataService.LIVE_BACKGROUND_SYNC_GAP_MS
+      : DataService.MIN_BACKGROUND_SYNC_GAP_MS;
+    if (isBackground && Date.now() - this.lastFullSyncAt < gap) {
       this.ensureRealtime();
       return;
     }

@@ -1,11 +1,68 @@
 // ============================================================================
 // Eğitim Takip — bildirim çalışanı (Aşama 34)
 // Yalnızca telefon / bilgisayar bildirimlerini gösterir ve bildirime dokununca uygulamayı açar.
-// Sayfaları önbelleğe ALMAZ (fetch olayı yok): site her zaman sunucudaki güncel sürümle açılır.
+// Sayfaları (index.html) önbelleğe ALMAZ: site her zaman sunucudaki güncel sürümle açılır.
+// Aşama 124: YALNIZ /assets/ altındaki sürüm adlı dosyalar (adlarında içerik özeti var, hiç değişmez)
+// cihazda tutulur; tekrar açılışta JS / CSS ağdan inmez. Yeni sürümde dosya adları değiştiği için
+// eski dosya asla gösterilmez. En fazla 160 dosya tutulur (eskiler silinir).
 // ============================================================================
 
+const ASSET_CACHE = 'biliredu-assets-v1';
+const ASSET_MAX = 160;
+
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (event) =>
+  event.waitUntil(
+    (async () => {
+      try {
+        const names = await caches.keys();
+        await Promise.all(names.filter((n) => n.startsWith('biliredu-assets-') && n !== ASSET_CACHE).map((n) => caches.delete(n)));
+      } catch {
+        /* önbellek kullanılamıyor: normal ağdan devam */
+      }
+      await self.clients.claim();
+    })()
+  )
+);
+
+async function trimAssetCache(cache) {
+  try {
+    const keys = await cache.keys();
+    for (let i = 0; i < keys.length - ASSET_MAX; i++) await cache.delete(keys[i]);
+  } catch {
+    /* sorun değil */
+  }
+}
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  let url;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return;
+  }
+  if (url.origin !== self.location.origin || !url.pathname.startsWith('/assets/')) return;
+  event.respondWith(
+    (async () => {
+      let cache = null;
+      try {
+        cache = await caches.open(ASSET_CACHE);
+        const hit = await cache.match(req);
+        if (hit) return hit;
+      } catch {
+        cache = null;
+      }
+      const res = await fetch(req);
+      if (cache && res && res.ok && res.type === 'basic') {
+        const copy = res.clone();
+        event.waitUntil(cache.put(req, copy).then(() => trimAssetCache(cache)).catch(() => {}));
+      }
+      return res;
+    })()
+  );
+});
 
 self.addEventListener('push', (event) => {
   let data = {};

@@ -1,4 +1,4 @@
-import React, { lazy } from 'react';
+import React, { lazy, useState } from 'react';
 
 // ============================================================================
 // HIZ (Aşama 15): Sayfalar ihtiyaç olunca yüklenir.
@@ -66,6 +66,16 @@ export function prefetchModules(loaders: Array<() => Promise<unknown>>, startDel
     cancelled = true;
     if (timer) clearTimeout(timer);
   };
+}
+
+// ============================================================================
+// HIZ (Aşama 124): pencere ilk kez açılana kadar kodu indirilmez; bir kez açıldıktan sonra
+// eskisi gibi yerinde kalır (kapatıp açınca davranış aynıdır).
+// ============================================================================
+export function useEverTrue(v: boolean): boolean {
+  const [ever, setEver] = useState(v);
+  if (v && !ever) setEver(true);
+  return ever || v;
 }
 
 // Sayfa parçası yüklenirken gösterilen sade gösterge

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense } from 'react';
 import {
   FolderArchive,
   Folder,
@@ -26,11 +26,12 @@ import {
   Filter,
 } from 'lucide-react';
 import { PageHeader } from '../../ui/kit';
-import * as XLSX from 'xlsx';
 import { TeacherDocument, DocumentCategory, ClassGroup } from '../../../types';
 import { dataService } from '../../../services/dataService';
 import { DocumentViewerModal } from './DocumentViewerModal';
-import { UploadDocumentModal } from './UploadDocumentModal';
+import { lazyNamed } from '../../../lib/lazyLoad';
+// Aşama 124: belge yükleme penceresi (xlsx + mammoth kütüphaneleri) yalnız açılınca indirilir
+const UploadDocumentModal = lazyNamed(() => import('./UploadDocumentModal'), 'UploadDocumentModal');
 import { ConfirmDeleteModal } from '../../Common/ConfirmDeleteModal';
 import { normalizeBranch } from '../../../lib/subjects';
 import { getSignedFileUrl, dataUrlToBlobUrl } from '../../../lib/fileStorage';
@@ -272,6 +273,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
       }
 
       if (full.fileFormat === 'xlsx' && full.tableSheets && full.tableSheets.length > 0) {
+        const XLSX = await import('xlsx'); // Aşama 124: kütüphane yalnız gerektiğinde iner
         const wb = XLSX.utils.book_new();
         full.tableSheets.forEach((sheet) => {
           const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
@@ -838,13 +840,15 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
 
       {/* UPLOAD DOCUMENT MODAL */}
       {isUploadModalOpen && (
-        <UploadDocumentModal
-          isOpen={isUploadModalOpen}
-          onClose={() => setIsUploadModalOpen(false)}
-          onUploadSuccess={handleCreateDocument}
-          defaultSubject={selectedBranch !== 'all' ? selectedBranch : teacherBranch || undefined}
-          defaultCategory={(selectedArchiveCategory || undefined) as DocumentCategory | undefined}
-        />
+        <Suspense fallback={null}>
+          <UploadDocumentModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onUploadSuccess={handleCreateDocument}
+            defaultSubject={selectedBranch !== 'all' ? selectedBranch : teacherBranch || undefined}
+            defaultCategory={(selectedArchiveCategory || undefined) as DocumentCategory | undefined}
+          />
+        </Suspense>
       )}
 
       {/* CONFIRM DELETE MODAL */}
