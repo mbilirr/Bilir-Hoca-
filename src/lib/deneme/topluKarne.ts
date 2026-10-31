@@ -28,7 +28,10 @@ export async function forEachStudentKarne(
     if (list) list.push(r);
     else byStudent.set(r.studentId, [r]);
   }
-  const list = students.filter((s) => byStudent.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  // Aşama 119: "Tüm sınıflar"da önce sınıf, sonra ad (tek sınıfta sıra değişmez)
+  const list = students
+    .filter((s) => byStudent.has(s.id))
+    .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true }) || a.name.localeCompare(b.name, 'tr'));
   let done = 0;
   let skipped = 0;
   for (let i = 0; i < list.length; i++) {

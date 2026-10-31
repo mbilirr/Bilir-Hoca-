@@ -101,3 +101,76 @@ export function etutTeacherNames(etut: Pick<Etut, 'teacherName' | 'teacherNames'
   return list.map((n) => String(n || '').trim()).filter(Boolean);
 }
 export const NO_TEACHER_LABEL = 'Öğretmen atanmadı';
+
+// ============================================================================
+// Aşama 119: haftalık plan kartları için kısa yazımlar (Fen · 3D · S:10:20 · G.Akgün)
+// Saf fonksiyonlar; sonuçlar önbellekte tutulur (her satırda yeniden hesaplanmaz).
+// ============================================================================
+const SUBJECT_SHORT: Record<string, string> = {
+  matematik: 'Mat',
+  turkce: 'Türk',
+  'fen bilimleri': 'Fen',
+  'fen bilgisi': 'Fen',
+  'sosyal bilgiler': 'Sos',
+  ingilizce: 'İng',
+  't.c. inkilap tarihi': 'İnk',
+  'inkilap tarihi': 'İnk',
+  'din kulturu': 'Din',
+  'din kulturu ve ahlak bilgisi': 'Din',
+  'gorsel sanatlar': 'Görsel',
+  muzik: 'Müz',
+  'beden egitimi': 'Bed',
+  'teknoloji ve tasarim': 'Tek',
+  'bilisim teknolojileri': 'Bil',
+  rehberlik: 'Reh',
+  fizik: 'Fiz',
+  kimya: 'Kim',
+  biyoloji: 'Biy',
+  'turk dili ve edebiyati': 'Edb',
+  edebiyat: 'Edb',
+  geometri: 'Geo',
+  tarih: 'Tar',
+  cografya: 'Coğ',
+  felsefe: 'Fel',
+  genel: 'Genel',
+};
+const foldTr = (v: string) =>
+  v
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'ı')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ş/g, 's')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/\s+/g, ' ')
+    .trim();
+const shortCache = new Map<string, string>();
+/** "Fen Bilimleri" → "Fen", "Matematik" → "Mat"; listede olmayan ders ilk kelimesinin ilk 4 harfi */
+export function subjectShort(subject?: string): string {
+  const raw = String(subject || '').trim();
+  if (!raw) return '';
+  const hit = shortCache.get(raw);
+  if (hit !== undefined) return hit;
+  const known = SUBJECT_SHORT[foldTr(raw)];
+  const first = raw.split(/\s+/)[0];
+  const out = known || (first.length > 5 ? first.slice(0, 4) : first);
+  shortCache.set(raw, out);
+  return out;
+}
+/** "3. Ders" → "3D"; düz "Ders" ya da boş → "" */
+export function periodShort(period?: string): string {
+  const m = /(\d{1,2})/.exec(String(period || ''));
+  return m ? `${Number(m[1])}D` : '';
+}
+/** "Gülderen Akgün" → "G.Akgün", "Ali Rıza Yılmaz" → "A.R.Yılmaz"; birden çok öğretmende "+N" */
+export function teacherShort(names: string[]): string {
+  if (!names.length) return '';
+  const parts = names[0].trim().split(/\s+/).filter(Boolean);
+  const last = parts[parts.length - 1] || '';
+  const initials = parts.slice(0, -1).map((p) => `${p.charAt(0).toLocaleUpperCase('tr-TR')}.`).join('');
+  const short = `${initials}${last}`;
+  return names.length > 1 ? `${short} +${names.length - 1}` : short;
+}

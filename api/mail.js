@@ -1476,7 +1476,7 @@ async function applyMailPolicy(items) {
     const cat = MAIL_EVENT_CATEGORY[it.event];
     const role = it.role === 'ogrenci' ? 'ogrenci' : it.role === 'veli' ? 'veli' : 'ogretmen';
     if (allowed(policy, cat, role, 'email')) out.push(it);
-    if (cat && role === 'ogrenci' && it.studentId && allowed(policy, cat, 'veli', 'email')) veliFor.push(it);
+    if (cat && role === 'ogrenci' && it.studentId && !it.noVeliCopy && allowed(policy, cat, 'veli', 'email')) veliFor.push(it);
   }
   if (veliFor.length) {
     const map = await studentParentsMap(veliFor.map((it) => it.studentId));
@@ -3075,9 +3075,22 @@ async function actionPlanMail(caller, body, req, deadline) {
 // ----------------------------------------------------------------------------- Aşama 47: deneme karnesi
 // Yalnızca Deneme Analizi yetkisi olan yönetici, kendi kapsamındaki (sonucunu görebildiği) öğrenciye gönderebilir.
 // Alıcı her zaman sunucuda veritabanından bulunur; tarayıcıdan e-posta adresi kabul edilmez.
+// Aşama 119: alıcı seçilebilir (öğrenci ve/veya veli); metin "Değerli Velimiz …" kalıbında, gönderim saatine göre
+// "Hayırlı günler" (06:00-17:59) ya da "Hayırlı geceler" (18:00-05:59, İstanbul saati). audience gelmezse eski davranış (öğrenci).
+// Veli seçildiyse veliye ayrı e-posta gider ("deneme-karne-veli"; öğretmenin açık seçimi, SMS karne linkiyle aynı kural)
+// ve bildirim izinlerindeki otomatik veli kopyası bu e-postada atlanır (veliye iki kez gitmez).
+const istanbulHour = () => new Date(Date.now() + 3 * 3600000).getUTCHours();
+const karneSelam = () => {
+  const h = istanbulHour();
+  return h >= 6 && h < 18 ? 'Hayırlı günler 🙂' : 'Hayırlı geceler 🙂';
+};
 async function actionDenemeKarne(caller, body, req, deadline) {
   const studentId = String(body.studentId || '');
   if (!studentId || studentId.length > 120) throw new HttpError(400, 'Eksik bilgi.');
+  const au = body.audience && typeof body.audience === 'object' ? body.audience : { ogrenci: true };
+  const toStudent = au.ogrenci === true;
+  const toVeli = au.veli === true;
+  if (!toStudent && !toVeli) throw new HttpError(400, 'Alıcı seçin (öğrenci ve/veya veli).');
   const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
   if (can !== true) throw new HttpError(403, 'Deneme karnesi göndermek için yetkiniz yok.');
   // Yöneticinin bu öğrencinin sonucunu görme yetkisi var mı? (kendi oturumuyla; veritabanı kuralları denetler)
@@ -3091,43 +3104,81 @@ async function actionDenemeKarne(caller, body, req, deadline) {
   if (buf.length > PLAN_PDF_MAX_BYTES) throw new HttpError(413, 'PDF dosyası çok büyük.');
   if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'Ek bir PDF dosyası değil.');
   const title = clean(String(body.title || 'Deneme karnesi')).slice(0, 120);
-  const safe = clean(student.name)
+  const examName = clean(String(body.examName || '')).slice(0, 160) || title;
+  const name = clean(student.name);
+  const safe = name
     .normalize('NFKD')
     .replace(/[^\w ]+/g, '')
     .trim()
     .replace(/\s+/g, '-')
     .slice(0, 40);
-  const { html, text } = layout({
-    heading: title,
-    greeting: `Merhaba ${clean(student.name)},`,
-    intro: 'Deneme sonuçlarını, ders netlerini ve konu/kazanım analizini içeren karnen ekteki PDF dosyasında. Karneni uygulamaya girerek "Deneme Sonuçlarım" bölümünden de görebilirsin.',
-    buttonLabel: 'Uygulamayı aç',
-    url: appUrl(req),
-    footer: 'Bu e-posta yalnızca sana gönderilmiştir; karnende kişisel bilgilerin bulunur, başkasıyla paylaşma.',
-  });
-  const sender = await resolveSender(caller);
-  const summary = await deliver(
-    sender,
-    caller,
-    [
-      {
-        event: 'deneme-karne',
+  const selam = karneSelam();
+  const url = appUrl(req);
+  const attachments = [{ filename: `Deneme-Karnesi-${safe || 'ogrenci'}.pdf`, contentType: 'application/pdf', content: buf }];
+  const items = [];
+  if (toStudent) {
+    const { html, text } = layout({
+      heading: title,
+      greeting: `Değerli Öğrencimiz ${name},`,
+      intro: `Yapmış olduğun "${examName}" sonuç karnesi ek mevcuttur. ${selam}`,
+      buttonLabel: 'Uygulamayı aç',
+      url,
+      footer: 'Bu e-posta yalnızca sana gönderilmiştir; karnende kişisel bilgilerin bulunur, başkasıyla paylaşma.',
+    });
+    items.push({
+      event: 'deneme-karne',
+      refId: `deneme-${studentId}`,
+      refTitle: title,
+      to: student.email,
+      toName: student.name,
+      role: 'ogrenci',
+      studentId: student.id || studentId,
+      noVeliCopy: toVeli,
+      repeatLimit: 5,
+      attachments,
+      subject: title,
+      html,
+      text,
+    });
+  }
+  let noParentEmail = 0;
+  if (toVeli) {
+    const st = (await studentParentsMap([studentId])).get(studentId) || { parents: [] };
+    const { html, text } = layout({
+      heading: title,
+      greeting: `Değerli Velimiz,`,
+      intro: `${name} öğrencimizin yapmış olduğu "${examName}" sonuç karnesi ek mevcuttur. ${selam}`,
+      buttonLabel: 'Uygulamayı aç',
+      url,
+      footer: 'Bu e-posta yalnızca öğrencinin kayıtlı velisine gönderilmiştir; karnede kişisel bilgiler bulunur, başkasıyla paylaşmayın.',
+    });
+    const seen = new Set();
+    for (const p of st.parents || []) {
+      const em = String((p && p.email) || '').trim().toLowerCase();
+      if (!isEmail(em) || seen.has(em)) continue;
+      seen.add(em);
+      const who = String((p && p.name) || '').trim() || 'Sayın Veli';
+      items.push({
+        event: 'deneme-karne-veli',
         refId: `deneme-${studentId}`,
         refTitle: title,
-        to: student.email,
-        toName: student.name,
-        role: 'ogrenci',
+        to: em,
+        toName: `${who} (${name} velisi)`.slice(0, 120),
+        role: 'veli',
         studentId: student.id || studentId,
         repeatLimit: 5,
-        attachments: [{ filename: `Deneme-Karnesi-${safe || 'ogrenci'}.pdf`, contentType: 'application/pdf', content: buf }],
-        subject: title,
+        attachments,
+        subject: `[Veli] ${title}`.slice(0, 250),
         html,
         text,
-      },
-    ],
-    deadline,
-  );
-  return { ok: true, ...summary };
+      });
+    }
+    if (!seen.size) noParentEmail = 1;
+  }
+  if (!items.length) return { ok: true, sent: 0, failed: 0, skipped: 0, noEmail: toStudent ? 1 : 0, noParentEmail, remaining: 0, errors: [] };
+  const sender = await resolveSender(caller);
+  const summary = await deliver(sender, caller, items, deadline);
+  return { ok: true, ...summary, noParentEmail };
 }
 
 // ----------------------------------------------------------------------------- Aşama 101: karne linki (SMS)
@@ -3241,12 +3292,16 @@ async function actionKarneLinkRevoke(caller, body) {
   const kl = await karneLinkMod();
   if (!kl) throw new HttpError(503, 'Sunucu dosyası eksik (api/_karneLink.js).');
   const e = env();
-  const classId = String(body.classId || '');
-  if (!classId || classId.length > 120) throw new HttpError(400, 'Sınıf seçilmedi.');
+  // Aşama 119: "Tüm sınıflar" için classIds (en çok 200 sınıf); tek sınıf için eskisi gibi classId
+  const classIds = (Array.isArray(body.classIds) ? body.classIds : [body.classId]).map((x) => String(x || '')).filter((x) => x && x.length <= 120).slice(0, 200);
+  if (!classIds.length) throw new HttpError(400, 'Sınıf seçilmedi.');
   const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
   if (can !== true) throw new HttpError(403, 'Karne linklerini iptal etmek için yetkiniz yok.');
-  const sts = (await rest(`students?select=id&class_id=eq.${encodeURIComponent(classId)}`, { token: caller.token })) || [];
-  const ids = sts.map((s) => String(s.id));
+  const ids = [];
+  for (let i = 0; i < classIds.length; i += 20) {
+    const sts = (await rest(`students?select=id&class_id=in.${inList(classIds.slice(i, i + 20))}`, { token: caller.token })) || [];
+    for (const st of sts) ids.push(String(st.id));
+  }
   const nowIso = new Date().toISOString();
   let revoked = 0;
   for (let i = 0; i < ids.length; i += 100) {

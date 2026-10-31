@@ -26,7 +26,7 @@ import {
 import { Etut, Student, ClassGroup } from '../../types';
 import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calendar';
 import { isEtutAttendanceMissing } from '../../lib/etutTiming';
-import { ETUT_STATUS_STYLE, etutTeacherNames, getEtutStatus, subjectDot } from '../../lib/etutStatus';
+import { ETUT_STATUS_STYLE, etutTeacherNames, getEtutStatus, periodShort, subjectDot, subjectShort, teacherShort } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
 
 // ============================================================================
@@ -115,6 +115,18 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   const [selectedKey, setSelectedKey] = useState<string>(() => formatDateKey(new Date()));
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
+  // Aşama 119: haftalık kartın üzerine gelince açılan bilgi kutusu (tek kutu, sabit konum; satır başına ek bileşen yok)
+  const [hover, setHover] = useState<{ etut: Etut; x: number; y: number; left: boolean } | null>(null);
+  useEffect(() => {
+    if (!hover) return;
+    const hide = () => setHover(null);
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    return () => {
+      window.removeEventListener('scroll', hide, true);
+      window.removeEventListener('resize', hide);
+    };
+  }, [hover]);
   // Aşama 111: hafta görünümünde saat grupları — kapatılan gruplar ve "+N etüt daha" ile açılanlar (gün|saat)
   const [closedSlots, setClosedSlots] = useState<Set<string>>(() => new Set());
   const [openSlots, setOpenSlots] = useState<Set<string>>(() => new Set());
@@ -227,6 +239,22 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
     return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ') || `${assigned.length} öğrenci`;
   };
 
+  // Aşama 119: ders saati bilgisi gelmeyen etüt (başka öğretmenin etüdü / eski kayıt) için saatten ders saati
+  // (bu kurumda o saate yazılmış ders saati). Bir kez hesaplanır.
+  const periodByTime = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of etuts) {
+      const t = String(e.time || '').slice(0, 5);
+      if (t && periodShort(e.lessonPeriod) && !m.has(t)) m.set(t, e.lessonPeriod as string);
+    }
+    return m;
+  }, [etuts]);
+  const periodOf = (e: Etut): string => (periodShort(e.lessonPeriod) ? (e.lessonPeriod as string) : periodByTime.get(String(e.time || '').slice(0, 5)) || '');
+  const periodLabel = (p: string) => {
+    const n = periodShort(p);
+    return n ? `${n.slice(0, -1)}. Ders` : '';
+  };
+
   const openEtut = openId ? etuts.find((e) => e.id === openId) || null : null;
   // Etüt silinir / filtrelenirse açık pencere kapanır
   useEffect(() => {
@@ -337,36 +365,57 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   // Satır kısa ama anlaşılır: ders · öğretmen · öğrenci (tek öğrenciyse adı)
   // ---------------------------------------------------------------------
   const SLOT_ROWS = 3;
-  const shortTeacher = (e: Etut) => {
-    const names = etutTeacherNames(e);
-    if (!names[0]) return '';
-    const parts = names[0].trim().split(/\s+/);
-    const short = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1].charAt(0)}.` : parts[0];
-    return names.length > 1 ? `${short} +${names.length - 1}` : short;
+  const showHover = (etut: Etut, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    const left = r.right + 248 > window.innerWidth; // sağda yer yoksa solda açılır
+    setHover({ etut, x: left ? r.left - 8 : r.right + 8, y: Math.min(r.top, window.innerHeight - 180), left });
+  };
+  /** Bilgi kutusundaki satırlar (ekran okuyucu için aria-label de bundan) */
+  const hoverLines = (etut: Etut): Array<[string, string]> => {
+    const p = periodLabel(periodOf(etut));
+    const teachers = etutTeacherNames(etut);
+    return [
+      ['Ders', etut.subject],
+      ['Ders saati', p],
+      ['Saat', etut.time ? `${etut.time} (${etut.duration || 45} dk)` : ''],
+      ['Yer', etut.location],
+      ['Konu', etut.privacyRedacted ? '' : etut.topic],
+      ['Öğretmen', teachers.join(', ')],
+      ['Öğrenci', etut.privacyRedacted ? '' : studentsSummary(etut.assignedStudentIds)],
+    ].filter(([, v]) => v && String(v).trim()) as Array<[string, string]>;
   };
   const renderSlotRow = (etut: Etut, withTime: boolean) => {
     const status = getEtutStatus(etut, now);
     const st = ETUT_STATUS_STYLE[status];
     const missing = isEtutAttendanceMissing(etut, now);
     const who = etut.privacyRedacted ? '' : studentsSummary(etut.assignedStudentIds, true);
+    const per = periodShort(periodOf(etut));
     return (
       <button
         key={etut.id}
         type="button"
         data-etut-status={status}
         data-etut-row={etut.id}
-        onClick={() => setOpenId(etut.id)}
-        title={[`${st.label} · ${etut.time || ''} ${etut.subject}`, etut.topic, etutTeacherNames(etut).join(', '), who].filter(Boolean).join('\n')}
+        onClick={() => {
+          setHover(null);
+          setOpenId(etut.id);
+        }}
+        onMouseEnter={(ev) => showHover(etut, ev.currentTarget)}
+        onMouseLeave={() => setHover(null)}
+        onFocus={(ev) => showHover(etut, ev.currentTarget)}
+        onBlur={() => setHover(null)}
+        aria-label={`${st.label}. ${hoverLines(etut).map(([k, v]) => `${k}: ${v}`).join('. ')}`}
         className={`w-full text-left border-l-4 px-1.5 py-1 hover:bg-surface-2 cursor-pointer ${st.accent}`}
       >
-        <span className="flex items-center gap-1 min-w-0">
-          {withTime && <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2 shrink-0">{etut.time || '--:--'}</span>}
+        <span className="flex items-center gap-1 min-w-0 text-[11px] leading-tight">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${subjectDot(etut.subject)}`} />
-          <span className="text-[11px] font-bold text-fg truncate">{etut.subject}</span>
+          <span className="font-bold text-fg truncate">{subjectShort(etut.subject)}</span>
+          {per && <span className="font-bold text-fg-2 shrink-0" data-etut-period>{per}</span>}
+          {withTime && etut.time && <span className="font-mono font-semibold tabular-nums text-fg-2 shrink-0">S:{etut.time}</span>}
           {missing && <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" aria-label="Yoklama alınmadı" />}
           {status === 'done' && <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" aria-label="Yoklaması alındı" />}
         </span>
-        <span className="block text-[10px] text-muted truncate leading-tight">{[shortTeacher(etut), who].filter(Boolean).join(' · ')}</span>
+        <span className="block text-[10px] text-muted truncate leading-tight">{[teacherShort(etutTeacherNames(etut)), who].filter(Boolean).join(' · ')}</span>
       </button>
     );
   };
@@ -392,7 +441,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           className="w-full flex items-center gap-1 px-1.5 py-1 bg-canvas/60 hover:bg-surface-2 cursor-pointer text-left"
           title={closed ? 'Etütleri göster' : 'Grubu kapat'}
         >
-          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2">{slot.time}</span>
+          <span className="font-mono text-[10px] font-bold tabular-nums text-fg-2">{slot.time === '--:--' ? slot.time : `S:${slot.time}`}</span>
           <span className="text-[10px] font-semibold text-muted">· {slot.items.length} etüt</span>
           {missing && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Yoklaması alınmamış etüt var" />}
           <ChevronDown className={`w-3 h-3 ml-auto text-subtle transition-transform ${closed ? '-rotate-90' : ''}`} />
@@ -675,6 +724,29 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
           )}
         </div>
       )}
+
+      {/* ===== Aşama 119: kartın üzerine gelince bilgi kutusu ===== */}
+      {hover && mode === 'week' && !openId && (() => {
+        const st = ETUT_STATUS_STYLE[getEtutStatus(hover.etut, now)];
+        return (
+          <div
+            role="tooltip"
+            id="etut-hover-card"
+            className={`fixed z-40 w-60 pointer-events-none rounded-xl border border-line border-l-4 bg-surface shadow-xl p-2.5 text-[11px] leading-snug ${st.accent}`}
+            style={{ top: Math.max(8, hover.y), left: hover.x, transform: hover.left ? 'translateX(-100%)' : undefined }}
+          >
+            <span className={`inline-block mb-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${st.chip}`}>{st.label}</span>
+            <dl className="space-y-0.5">
+              {hoverLines(hover.etut).map(([k, v]) => (
+                <div key={k} className="flex gap-1">
+                  <dt className="shrink-0 font-semibold text-muted">{k}:</dt>
+                  <dd className={`min-w-0 break-words ${k === 'Ders' ? 'font-bold text-fg' : 'text-fg-2'}`}>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        );
+      })()}
 
       {/* ===== Etüt ayrıntı penceresi ===== */}
       {openEtut && (() => {

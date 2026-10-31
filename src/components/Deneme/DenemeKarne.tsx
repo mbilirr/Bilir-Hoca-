@@ -31,7 +31,7 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { fmtScore } from '../../lib/deneme/lgs';
 import { TUR_NAME, TUR_TITLE, buildStudentKarne, type KarneContext, type KarneExtra } from '../../lib/deneme/karneBuilder';
 import { downloadClassPdf, downloadClassZip, forEachStudentKarne, type TopluOpts } from '../../lib/deneme/topluKarne';
-import { KarneSmsModal, type SmsAudience } from './KarneSmsModal';
+import { KarneSmsModal, type KarneSendKind, type SmsAudience } from './KarneSmsModal';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 
 // ============================================================================
@@ -89,6 +89,52 @@ export async function shareKarneWhatsapp(blocks: PdfBlock[], footer: string, fil
   return 'downloaded';
 }
 
+// ----------------------------------------------------------------------------- Aşama 119: gönderim yardımcıları
+type Notice = { tone: 'success' | 'warning' | 'danger'; text: string };
+/** E-postadaki deneme adı: öğrencinin girdiği denemeler (kapsam sırasıyla); ayrıntısı açık deneme varsa o */
+function karneExamName(examById: Map<string, DenemeExam>, order: string[], taken: Set<string>, detailExamId?: string): string {
+  if (detailExamId && taken.has(detailExamId) && examById.has(detailExamId)) return examById.get(detailExamId)!.name;
+  const list = order.filter((id) => taken.has(id) && examById.has(id)).map((id) => examById.get(id)!.name);
+  if (!list.length) return '';
+  if (list.length === 1) return list[0];
+  if (list.length <= 3) return `${list.slice(0, -1).join(', ')} ve ${list[list.length - 1]}`;
+  return `${list.length} deneme (son: ${list[list.length - 1]})`;
+}
+type SmsSum = { sent: number; dry: number; skipped: number; limited: number; noPhone: number; failed: number };
+const emptySms = (): SmsSum => ({ sent: 0, dry: 0, skipped: 0, limited: 0, noPhone: 0, failed: 0 });
+function addSms(sum: SmsSum, r: Record<string, any>) {
+  for (const f of ['sent', 'dry', 'skipped', 'limited', 'noPhone', 'failed'] as const) sum[f] += Number(r[f]) || 0;
+}
+function smsNotice(sum: SmsSum, links: number, errors: string[]): Notice {
+  const parts: string[] = [];
+  if (sum.dry) parts.push(`SMS deneme modunda: ${links} link oluşturuldu, SMS gönderilmedi`);
+  else parts.push(`${sum.sent} SMS gönderildi`);
+  if (sum.skipped) parts.push(`${sum.skipped} SMS daha önce gönderilmişti`);
+  if (sum.noPhone) parts.push(`${sum.noPhone} öğrencide seçilen kişinin telefonu yok`);
+  if (sum.limited) parts.push(`${sum.limited} SMS günlük sınır yüzünden gitmedi`);
+  if (sum.failed) parts.push(`${sum.failed} SMS gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
+  return { tone: sum.failed || sum.limited ? 'danger' : sum.dry || sum.noPhone ? 'warning' : 'success', text: parts.join(' · ') + '.' };
+}
+type MailSum = { sent: number; skipped: number; noEmail: number; noParentEmail: number; failed: number };
+const emptyMail = (): MailSum => ({ sent: 0, skipped: 0, noEmail: 0, noParentEmail: 0, failed: 0 });
+function mailNotice(sum: MailSum, errors: string[]): Notice {
+  const parts = [`${sum.sent} e-posta gönderildi`];
+  if (sum.skipped) parts.push(`${sum.skipped} kişiye daha önce gönderilmişti`);
+  if (sum.noEmail) parts.push(`${sum.noEmail} öğrencinin e-postası kayıtlı değil`);
+  if (sum.noParentEmail) parts.push(`${sum.noParentEmail} öğrencinin velisinin e-postası kayıtlı değil`);
+  if (sum.failed) parts.push(`${sum.failed} gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
+  return { tone: sum.failed ? 'danger' : sum.noEmail || sum.noParentEmail || !sum.sent ? 'warning' : 'success', text: parts.join(' · ') + '.' };
+}
+const takenByStudent = (results: DenemeResult[]) => {
+  const m = new Map<string, Set<string>>();
+  for (const r of results) {
+    const set = m.get(r.studentId);
+    if (set) set.add(r.examId);
+    else m.set(r.studentId, new Set([r.examId]));
+  }
+  return m;
+};
+
 // ----------------------------------------------------------------------------- Aşama 50: sınıfa toplu karne gönderme
 // E-posta: tek tıkla sınıftaki bütün öğrencilere (her öğrenciye yalnızca kendi karnesi; adres sunucuda bulunur).
 // WhatsApp: WhatsApp, uygulama dışından otomatik toplu gönderime izin vermez; bu yüzden sıra listesi hazırlanır ve
@@ -99,7 +145,10 @@ const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
 
 const TopluKarneGonder: React.FC<{
   examIds: string[];
-  cls: ClassGroup;
+  /** Aşama 119: null = tüm sınıflar (öğrenci ve sınıf seçilmedi) */
+  cls: ClassGroup | null;
+  /** Aşama 119: tüm sınıflarda link iptali için sınıf kimlikleri */
+  allClassIds?: string[];
   classStudents: Student[];
   scope: ScopeKey;
   tur: KarneTur;
@@ -107,25 +156,25 @@ const TopluKarneGonder: React.FC<{
   teacherName: string;
   /** Aşama 102: öğretmen — yalnızca indirme (e-posta, SMS, WhatsApp, link iptali yok) */
   downloadOnly?: boolean;
-}> = ({ examIds, cls, classStudents, scope, tur, bank, teacherName, downloadOnly = false }) => {
+}> = ({ examIds, cls, allClassIds = [], classStudents, scope, tur, bank, teacherName, downloadOnly = false }) => {
   const [loaded, setLoaded] = useState<{ exams: DenemeExam[]; results: DenemeResult[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [confirmMail, setConfirmMail] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
-  const [smsOpen, setSmsOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState<KarneSendKind | null>(null); // Aşama 119: e-posta / SMS alıcı penceresi
   const [progress, setProgress] = useState('');
   const [notice, setNotice] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(null);
   const [queue, setQueue] = useState<Record<string, QueueState>>({});
   const [open, setOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const key = `${cls.id}|${examIds.join(',')}`;
+  const label = cls ? cls.name : 'Tüm sınıflar';
+  const key = `${cls ? cls.id : 'all'}|${examIds.join(',')}`;
 
   useEffect(() => {
     setLoaded(null);
     setQueue({});
     setNotice(null);
-    setConfirmMail(false);
+    setSendOpen(null);
     setConfirmRevoke(false);
   }, [key]);
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -134,7 +183,7 @@ const TopluKarneGonder: React.FC<{
     if (loaded) return loaded;
     setLoading(true);
     try {
-      const [exams, results] = await Promise.all([getExamsFull(examIds), listResultsFor({ examIds, classId: cls.id })]);
+      const [exams, results] = await Promise.all([getExamsFull(examIds), listResultsFor({ examIds, classId: cls ? cls.id : undefined })]);
       const v = { exams, results };
       setLoaded(v);
       return v;
@@ -146,7 +195,9 @@ const TopluKarneGonder: React.FC<{
   const withResults = useMemo(() => {
     if (!loaded) return [] as Student[];
     const ids = new Set(loaded.results.map((r) => r.studentId));
-    return classStudents.filter((s) => ids.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    return classStudents
+      .filter((s) => ids.has(s.id))
+      .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true }) || a.name.localeCompare(b.name, 'tr'));
   }, [loaded, classStudents]);
 
   const ctxOf = (data: { exams: DenemeExam[] }): KarneContext => ({ tur, exams: data.exams, scopeLabel: scopeLabel(scope), bank: bank ?? null, teacherName });
@@ -181,58 +232,57 @@ const TopluKarneGonder: React.FC<{
 
   const download = (kind: 'pdf' | 'zip') =>
     runToplu('Hazırlanıyor', async (data, opts) => {
-      const r = kind === 'pdf' ? await downloadClassPdf(ctxOf(data), cls.name, classStudents, data, opts) : await downloadClassZip(ctxOf(data), cls.name, classStudents, data, opts);
-      if (!r.aborted) setNotice(r.done ? { tone: 'success', text: `${r.done} öğrencinin karnesi indirildi.` } : { tone: 'warning', text: 'Bu sınıfta seçilen denemelerde sonucu olan öğrenci yok.' });
+      const r = kind === 'pdf' ? await downloadClassPdf(ctxOf(data), label, classStudents, data, opts) : await downloadClassZip(ctxOf(data), label, classStudents, data, opts);
+      if (!r.aborted) setNotice(r.done ? { tone: 'success', text: `${r.done} öğrencinin karnesi indirildi.` } : { tone: 'warning', text: 'Seçilen denemelerde sonucu olan öğrenci yok.' });
     });
 
-  const sendAllMail = () => {
-    setConfirmMail(false);
-    let sent = 0;
-    let noEmail = 0;
-    let failed = 0;
-    let skipped = 0;
+  // Aşama 119: alıcı seçilir (veli / öğrenci); e-postada deneme adı öğrencinin girdiği denemelerden
+  const sendAllMail = (audience: SmsAudience) => {
+    setSendOpen(null);
+    const sum = emptyMail();
     const errors: string[] = [];
     return runToplu('E-posta hazırlanıyor', async (data, opts) => {
       const stop = new AbortController();
       opts.signal?.addEventListener('abort', () => stop.abort());
       let warn: string | null = null;
+      const examById = new Map(data.exams.map((e) => [e.id, e] as const));
+      const taken = takenByStudent(data.results);
       await forEachStudentKarne(ctxOf(data), classStudents, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
           const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
-          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `${k.title} (${scopeLabel(scope)})` });
+          const examName = karneExamName(examById, examIds, taken.get(s.id) || new Set());
+          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `${k.title} (${scopeLabel(scope)})`, examName, audience });
           if (!r.ok) {
-            failed++;
+            sum.failed++;
             if (r.error) errors.push(`${s.name}: ${r.error}`);
             if (r.notConfigured || r.authError) stop.abort();
           } else {
-            sent += r.sent || 0;
-            noEmail += r.noEmail || 0;
-            skipped += r.skipped || 0;
-            failed += r.failed || 0;
-            if (r.notConfigured) {
+            sum.sent += r.sent || 0;
+            sum.noEmail += r.noEmail || 0;
+            sum.noParentEmail += r.noParentEmail || 0;
+            sum.skipped += r.skipped || 0;
+            sum.failed += r.failed || 0;
+            if (r.errors && r.errors[0]) errors.push(r.errors[0]);
+            if (r.notConfigured || r.authError) {
               warn = describeMailResult(r).text;
               stop.abort();
             }
           }
         } catch (e: any) {
-          failed++;
+          sum.failed++;
           errors.push(`${s.name}: ${e?.message || 'hazırlanamadı'}`);
         }
       });
       if (warn) return setNotice({ tone: 'warning', text: warn });
       if (opts.signal?.aborted) return;
-      const parts = [`${sent} öğrenciye karne e-postayla gönderildi`];
-      if (skipped) parts.push(`${skipped} öğrenciye daha önce gönderilmişti`);
-      if (noEmail) parts.push(`${noEmail} öğrencinin e-postası kayıtlı değil`);
-      if (failed) parts.push(`${failed} gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
-      setNotice({ tone: failed ? 'danger' : noEmail ? 'warning' : 'success', text: parts.join(' · ') + '.' });
+      setNotice(mailNotice(sum, errors));
     });
   };
 
   // Aşama 101: her öğrenciye kendi karnesinin linki (sunucu PDF'i gizli depoya koyar, 30 gün geçerli)
   const sendAllSms = (audience: SmsAudience) => {
-    setSmsOpen(false);
-    const sum = { sent: 0, dry: 0, skipped: 0, limited: 0, noPhone: 0, failed: 0 };
+    setSendOpen(null);
+    const sum = emptySms();
     const errors: string[] = [];
     return runToplu('SMS hazırlanıyor', async (data, opts) => {
       const stop = new AbortController();
@@ -253,7 +303,7 @@ const TopluKarneGonder: React.FC<{
             return;
           }
           if (!r.noPhone) links++;
-          for (const f of ['sent', 'dry', 'skipped', 'limited', 'noPhone', 'failed'] as const) sum[f] += Number(r[f]) || 0;
+          addSms(sum, r);
           if (r.errors && r.errors[0]) errors.push(r.errors[0]);
         } catch (e: any) {
           sum.failed++;
@@ -262,14 +312,7 @@ const TopluKarneGonder: React.FC<{
       });
       if (fatal) return setNotice({ tone: 'danger', text: fatal });
       if (opts.signal?.aborted) return;
-      const parts: string[] = [];
-      if (sum.dry) parts.push(`SMS deneme modunda: ${links} link oluşturuldu, SMS gönderilmedi`);
-      else parts.push(`${sum.sent} SMS gönderildi`);
-      if (sum.skipped) parts.push(`${sum.skipped} SMS daha önce gönderilmişti`);
-      if (sum.noPhone) parts.push(`${sum.noPhone} öğrencide telefon yok`);
-      if (sum.limited) parts.push(`${sum.limited} SMS günlük sınır yüzünden gitmedi`);
-      if (sum.failed) parts.push(`${sum.failed} SMS gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
-      setNotice({ tone: sum.failed || sum.limited ? 'danger' : sum.dry || sum.noPhone ? 'warning' : 'success', text: parts.join(' · ') + '.' });
+      setNotice(smsNotice(sum, links, errors));
     });
   };
 
@@ -279,7 +322,7 @@ const TopluKarneGonder: React.FC<{
     setBusy(true);
     setNotice(null);
     try {
-      const r = await callMail('karne-link-revoke', { classId: cls.id });
+      const r = await callMail('karne-link-revoke', cls ? { classId: cls.id } : { classIds: allClassIds });
       setNotice(r.ok ? { tone: 'success', text: r.revoked ? `${r.revoked} karne linki iptal edildi.` : 'İptal edilecek geçerli karne linki yok.' } : { tone: 'danger', text: r.error || 'Linkler iptal edilemedi.' });
     } finally {
       setBusy(false);
@@ -293,7 +336,7 @@ const TopluKarneGonder: React.FC<{
     try {
       const data = await load();
       setProgress(`${s.name} karnesi hazırlanıyor…`);
-      const k = buildStudentKarne(ctxOf(data), { id: s.id, name: s.name, className: s.className || cls.name }, data.results.filter((r) => r.studentId === s.id), await loadExtra(s));
+      const k = buildStudentKarne(ctxOf(data), { id: s.id, name: s.name, className: s.className || (cls ? cls.name : '') }, data.results.filter((r) => r.studentId === s.id), await loadExtra(s));
       if (!k) throw new Error('karne hazırlanamadı');
       const rs = data.results.filter((r) => r.studentId === s.id);
       const last = rs.slice().sort((a, b) => data.exams.findIndex((e) => e.id === a.examId) - data.exams.findIndex((e) => e.id === b.examId)).slice(-1)[0];
@@ -317,22 +360,14 @@ const TopluKarneGonder: React.FC<{
   return (
     <div className="rounded-2xl border border-brand/25 bg-brand-soft/40 p-3 space-y-2" id="karne-toplu">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-bold text-fg">{downloadOnly ? 'Sınıfa toplu indir' : 'Sınıfa toplu gönder'}: {cls.name}</span>
+        <span className="text-sm font-bold text-fg">
+          {cls ? (downloadOnly ? 'Sınıfa toplu indir' : 'Sınıfa toplu gönder') : 'Tüm sınıflara toplu gönder'}: {label}
+        </span>
         <span className="text-[11px] text-muted">{downloadOnly ? 'Her öğrenci ayrı sayfada' : 'Her öğrenciye yalnızca kendi karnesi gider'} · Tür: {TUR_NAME[tur]}</span>
       </div>
-      {confirmMail ? (
+      {confirmRevoke ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-warning-fg">Sınıftaki bütün öğrencilere e-posta gönderilsin mi?</span>
-          <button type="button" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => void sendAllMail()}>
-            <Mail /> Evet, gönder
-          </button>
-          <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => setConfirmMail(false)}>
-            Vazgeç
-          </button>
-        </div>
-      ) : confirmRevoke ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-warning-fg">Bu sınıfa gönderilen geçerli karne linkleri kapatılsın mı?</span>
+          <span className="text-xs font-semibold text-warning-fg">{cls ? 'Bu sınıfa' : 'Tüm sınıflara'} gönderilen geçerli karne linkleri kapatılsın mı?</span>
           <button type="button" id="karne-link-iptal-evet" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center" disabled={busy} onClick={() => void revokeLinks()}>
             <Ban /> İptal et
           </button>
@@ -350,7 +385,16 @@ const TopluKarneGonder: React.FC<{
           </button>
           {!downloadOnly && (
           <>
-          <button type="button" id="karne-toplu-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmMail(true)}>
+          <button
+            type="button"
+            id="karne-toplu-mail"
+            className={TOPLU_BTN}
+            disabled={busy}
+            onClick={() => {
+              setSendOpen('mail');
+              void load();
+            }}
+          >
             <Mail /> Tümüne e-posta
           </button>
           <button
@@ -359,7 +403,7 @@ const TopluKarneGonder: React.FC<{
             className={TOPLU_BTN}
             disabled={busy}
             onClick={() => {
-              setSmsOpen(true);
+              setSendOpen('sms');
               void load();
             }}
           >
@@ -377,7 +421,7 @@ const TopluKarneGonder: React.FC<{
           >
             <MessageCircle /> WhatsApp sırası
           </button>
-          <button type="button" id="karne-link-iptal" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmRevoke(true)} title="Bu sınıfa SMS ile gönderilen karne linklerini kapatır">
+          <button type="button" id="karne-link-iptal" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmRevoke(true)} title={cls ? 'Bu sınıfa SMS ile gönderilen karne linklerini kapatır' : 'Tüm sınıflara SMS ile gönderilen karne linklerini kapatır'}>
             <Ban /> Linkleri iptal et
           </button>
           </>
@@ -408,13 +452,21 @@ const TopluKarneGonder: React.FC<{
           {notice.text}
         </p>
       )}
-      <KarneSmsModal open={smsOpen} onClose={() => setSmsOpen(false)} onSend={(a) => void sendAllSms(a)} className={cls.name} count={loaded ? withResults.length : null} turName={TUR_NAME[tur]} />
+      <KarneSmsModal
+        open={sendOpen !== null}
+        kind={sendOpen || 'sms'}
+        onClose={() => setSendOpen(null)}
+        onSend={(a) => void (sendOpen === 'mail' ? sendAllMail(a) : sendAllSms(a))}
+        className={label}
+        count={loaded ? withResults.length : null}
+        turName={TUR_NAME[tur]}
+      />
       {open && (
         <div className="rounded-xl border border-line bg-surface">
           {loading ? (
             <p className="px-3 py-3 text-xs text-muted">Sonuçlar yükleniyor…</p>
           ) : !withResults.length ? (
-            <p className="px-3 py-3 text-xs text-muted">Bu sınıfta seçilen denemelerde sonucu olan öğrenci yok.</p>
+            <p className="px-3 py-3 text-xs text-muted">Seçilen denemelerde sonucu olan öğrenci yok.</p>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
@@ -430,7 +482,7 @@ const TopluKarneGonder: React.FC<{
                   const st = queue[s.id] || 'bekliyor';
                   return (
                     <li key={s.id} className={cx('flex flex-wrap items-center gap-2 px-3 py-1.5 text-xs', st === 'gonderildi' && 'bg-success-soft/40')}>
-                      <span className="font-semibold text-fg min-w-0 flex-1 truncate">{s.name}</span>
+                      <span className="font-semibold text-fg min-w-0 flex-1 truncate">{s.name}{!cls && s.className ? ` · ${s.className}` : ''}</span>
                       <span className={cx('ui-chip', s.phone ? 'ui-chip-neutral' : 'ui-chip-warning')}>{s.phone ? 'Telefon kayıtlı' : 'Telefon yok'}</span>
                       <span className={cx('ui-chip', st === 'gonderildi' ? 'ui-chip-success' : st === 'hata' ? 'ui-chip-danger' : st === 'atlandi' ? 'ui-chip-neutral' : 'ui-chip-info')}>
                         {st === 'gonderildi' ? 'Gönderildi' : st === 'hata' ? 'Hata' : st === 'atlandi' ? 'Atlandı' : 'Bekliyor'}
@@ -485,6 +537,7 @@ export const DenemeKarne: React.FC<{
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
   const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
+  const [sendOpen, setSendOpen] = useState<KarneSendKind | null>(null); // Aşama 119: seçili öğrenciye e-posta / SMS
   useEffect(() => setVeliNote(''), [studentId]);
   // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
   useEffect(() => setDetailExamId(''), [scope, picked]);
@@ -515,6 +568,7 @@ export const DenemeKarne: React.FC<{
     [students, classId]
   );
   const student = students.find((s) => s.id === studentId) || null;
+  const allClassIds = useMemo(() => classes.map((c) => c.id), [classes]);
   const cls = classes.find((c) => c.id === classId) || null;
 
   // Seçime göre veriler okunur
@@ -616,14 +670,37 @@ export const DenemeKarne: React.FC<{
       if (b) await downloadKarnePdf(b.blocks, b.footer, b.file, b.orientation);
     });
 
-  const onMail = () =>
+  // Aşama 119: seçili öğrenci → yalnız o öğrenci ve/veya velisi (alıcı küçük pencerede seçilir)
+  const onMail = (audience: SmsAudience) =>
     run(async () => {
+      setSendOpen(null);
       const b = blocks();
       if (!b || !student) return;
-      const pdf = await karnePdfBase64(b.blocks, b.footer);
-      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: `${TUR_TITLE[tur]} (${scopeLabel(scope)})` });
-      const d = describeMailResult(r);
-      setNotice({ tone: d.tone, text: d.text });
+      const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
+      const examName = karneExamName(new Map(fullExams.map((e) => [e.id, e] as const)), scoped.map((e) => e.id), new Set(results.map((r) => r.examId)), detailExamId);
+      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: `${TUR_TITLE[tur]} (${scopeLabel(scope)})`, examName, audience });
+      if (!r.ok || r.notConfigured || r.authError) {
+        const d = describeMailResult(r);
+        setNotice({ tone: d.tone, text: d.text });
+        return;
+      }
+      setNotice(mailNotice({ sent: r.sent || 0, skipped: r.skipped || 0, noEmail: r.noEmail || 0, noParentEmail: r.noParentEmail || 0, failed: r.failed || 0 }, r.errors || []));
+    });
+
+  const onSms = (audience: SmsAudience) =>
+    run(async () => {
+      setSendOpen(null);
+      const b = blocks();
+      if (!b || !student) return;
+      const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
+      const r = await callMail('karne-sms', { studentId: student.id, pdf, tur, examIds: scoped.map((e) => e.id), audience });
+      if (!r.ok) {
+        setNotice({ tone: 'danger', text: r.error || 'SMS gönderilemedi.' });
+        return;
+      }
+      const sum = emptySms();
+      addSms(sum, r);
+      setNotice(smsNotice(sum, r.noPhone ? 0 : 1, r.errors || []));
     });
 
   const onWhatsapp = () =>
@@ -768,9 +845,14 @@ export const DenemeKarne: React.FC<{
               <Download /> PDF indir
             </button>
             {mode === 'ogrenci' && !limited && (
-              <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void onMail()}>
-                <Mail /> Öğrenciye e-posta
-              </button>
+              <>
+                <button type="button" id="karne-tek-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('mail')}>
+                  <Mail /> E-posta gönder
+                </button>
+                <button type="button" id="karne-tek-sms" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('sms')}>
+                  <MessageSquare /> SMS gönder
+                </button>
+              </>
             )}
             {!limited && (
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy} onClick={() => void onWhatsapp()}>
@@ -793,8 +875,32 @@ export const DenemeKarne: React.FC<{
             {notice.text}
           </p>
         )}
-        {mode === 'ogrenci' && cls && scoped.length > 0 && (
-          <TopluKarneGonder examIds={scoped.map((e) => e.id)} cls={cls} classStudents={students.filter((s) => s.classId === cls.id)} scope={scope} tur={tur} bank={bank} teacherName={teacherName} downloadOnly={limited} />
+        {/* Aşama 119: kapsam seçime göre — öğrenci seçiliyse yukarıdaki düğmeler yalnız o öğrenciye; sınıf seçili (öğrenci yok) →
+            sınıfa toplu; hiçbiri seçili değil ("Tüm sınıflar") → bütün sınıflara toplu. Öğretmen (yalnız indirme) eskisi gibi sınıfta. */}
+        {mode === 'ogrenci' && scoped.length > 0 && (limited ? !!cls : !student) && (
+          <TopluKarneGonder
+            examIds={scoped.map((e) => e.id)}
+            cls={cls}
+            allClassIds={allClassIds}
+            classStudents={cls ? students.filter((s) => s.classId === cls.id) : students}
+            scope={scope}
+            tur={tur}
+            bank={bank}
+            teacherName={teacherName}
+            downloadOnly={limited}
+          />
+        )}
+        {student && !limited && (
+          <KarneSmsModal
+            open={sendOpen !== null}
+            kind={sendOpen || 'sms'}
+            single
+            onClose={() => setSendOpen(null)}
+            onSend={(a) => void (sendOpen === 'mail' ? onMail(a) : onSms(a))}
+            className={student.name}
+            count={1}
+            turName={TUR_NAME[tur]}
+          />
         )}
       </div>
 
