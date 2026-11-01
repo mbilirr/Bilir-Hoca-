@@ -7,7 +7,6 @@ import { imageFileToLogo } from '../../lib/kurumSettings';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
 import { KURUM_AC_STEPS, openKurum, type KurumAcResult, type KurumAcStep } from '../../lib/kurumAc';
-import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 
 // ============================================================================
 // Aşama 95: "Yeni kurum" sihirbazı — tek pencerede kurum adı, kurum yöneticisi, bölümler ve logo.
@@ -93,7 +92,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
       await navigator.clipboard.writeText(credText);
       setCopied(true);
     } catch {
-      void appCopyFallback('Giriş bilgileri', credText);
+      window.prompt('Kopyalamak için metni seçiniz:', credText);
     }
   };
 

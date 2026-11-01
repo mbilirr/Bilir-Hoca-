@@ -59,15 +59,6 @@ import { cleanParents } from '../lib/parents';
 import { setKurumBrand } from '../lib/kurumBrand';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
-import {
-  purgeExpiredSecureCache,
-  wipeSecureCache,
-  unlockSecureCache,
-  resumeSecureCache,
-  hasSecureKey,
-  saveSecureCache,
-  type SecurePayload,
-} from '../lib/secureCache';
 
 export interface EtutTeacherOption {
   id: string; // kayıtlı öğretmen kimliği veya 'ext-<uuid>'
@@ -175,7 +166,7 @@ interface MyKurumState {
   /** Aşama 82: kurumda rol yetkileri açık mı, oturumdaki kişinin rolleri, rol ayarları, kurum logosu, kurum maili */
   rolesEnabled: boolean;
   roles: string[];
-  roleSettings: { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean; idare_ders_verir?: boolean };
+  roleSettings: { rehberlik_ogrenci_ekle?: boolean };
   logo: string;
   hasMail: boolean;
   /** Aşama 83: kişiye özel bölüm izinleri (rolden bağımsız açılan / kapatılan bölümler) */
@@ -1093,9 +1084,7 @@ function saveDataNow<T>(key: string, data: T): void {
   }
 }
 
-export type RealtimeTableCfg = { table: string; onEvent: (payload: any) => void; resync: () => unknown; filter?: string; optional?: boolean };
-
-class DataService {
+export class DataService {
   private static instance: DataService;
 
   public teachers: Teacher[] = [];
@@ -1140,9 +1129,6 @@ class DataService {
       this.dataVersion++;
     };
     this.purgeSavedPasswords();
-    // Aşama 103: 7 gün açılmamış kilitli önbellek silinir; sayfa yenilendiyse (sekmede anahtar varsa) kayıt açılır
-    purgeExpiredSecureCache().catch(() => {});
-    if (hasSecureKey()) this.secureRestore = this.resumeSecure();
     this.initData();
     // Dosya açma/indirme hataları (görüntüleyici bileşenlerden) kullanıcıya gösterilir
     if (typeof window !== 'undefined') {
@@ -1361,14 +1347,7 @@ class DataService {
       // Telefon, tablet veya bilgisayarda ekran açıldığında ya da internet bağlantısı geldiğinde anında eşitle
       window.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-          // Aşama 126: 30 sn'den uzun arka planda kalındıysa (telefon kilidi vb.) anlık bağlantı kopmuş
-          // olabilir; eskisi gibi hemen tam eşitleme yapılır. Kısa geçişlerde anlık kanal yeterlidir.
-          const longHidden = this.hiddenAt > 0 && Date.now() - this.hiddenAt >= DataService.LONG_HIDDEN_MS;
-          this.hiddenAt = 0;
-          this.revalidateAndSyncAll(true, longHidden);
-        } else {
-          this.hiddenAt = Date.now();
-          this.flushSecureSave(); // Aşama 103
+          this.revalidateAndSyncAll(true);
         }
       });
       window.addEventListener('online', () => {
@@ -1397,22 +1376,14 @@ class DataService {
   private realtimeClosing = false;
   private realtimeEnsureRunning = false;
   private lastRealtimeHealth: 'live' | 'fallback' | 'offline' = 'fallback';
-  // Aşama 126 (hız / ölçek): anlık kanal sağlıklıyken yedek tam eşitleme 5 dk yerine 15 dk'da bir
-  // (+0–60 sn rastgele pay: çok kullanıcı aynı anda sunucuya yüklenmez). Değişiklikler zaten anlık kanaldan gelir.
-  private static readonly LIVE_SAFETY_SYNC_MS = 15 * 60 * 1000;
-  private readonly liveSafetySyncMs = DataService.LIVE_SAFETY_SYNC_MS + Math.floor(Math.random() * 60000);
+  private static readonly LIVE_SAFETY_SYNC_MS = 5 * 60 * 1000;
   private static readonly FALLBACK_SYNC_MS = 30 * 1000;
   private static readonly MIN_BACKGROUND_SYNC_GAP_MS = 15 * 1000;
-  // Aşama 126: anlık kanal sağlıklıyken odak / sekme geçişi tam eşitlemesi en fazla dakikada bir
-  private static readonly LIVE_BACKGROUND_SYNC_GAP_MS = 60 * 1000;
-  private static readonly LONG_HIDDEN_MS = 30 * 1000;
-  private hiddenAt = 0;
 
   // Hangi tablo değişince ne yapılacağı
-  private realtimeTableConfig(): Array<RealtimeTableCfg> {
-    const session = this.getAuthSession();
-    const role = session?.role;
-    const list: Array<RealtimeTableCfg> = [
+  private realtimeTableConfig(): Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> {
+    const role = this.getAuthSession()?.role;
+    const list: Array<{ table: string; onEvent: (payload: any) => void; resync: () => unknown }> = [
       { table: 'students', onEvent: (p) => this.handleRemoteStudentRealtimeEvent(p), resync: () => this.syncStudentsFromSupabase(true) },
       { table: 'classes', onEvent: (p) => this.handleRemoteClassRealtimeEvent(p), resync: () => this.syncClassesFromSupabase(true) },
       { table: 'etuts', onEvent: (p) => this.handleRemoteEtutRealtimeEvent(p), resync: () => this.syncEtutsFromSupabase(true) },
@@ -1429,66 +1400,8 @@ class DataService {
         { table: 'teacher_documents', onEvent: () => this.scheduleTableRefetch('teacher_documents'), resync: () => this.syncTeacherDocumentsFromSupabase(true) },
         { table: 'teachers', onEvent: () => this.scheduleTableRefetch('teachers'), resync: () => this.syncTeachersFromSupabase(true) }
       );
-      // Aşama 114: rol / bölüm / sınıf / öğrenci yetkisi değişince hemen yenilenir (öğretmen yalnız kendi satırını alır)
-      for (const table of DataService.ACCESS_TABLES) {
-        list.push({ table, optional: true, onEvent: () => this.scheduleAccessRefresh(), resync: () => this.refreshMyAccess() });
-      }
-    } else if (role === 'student' && session?.user?.id) {
-      // Aşama 114: içeriksiz "değişti" sinyali; gelince öğrencinin kendi etüt / yoklaması yeniden okunur
-      list.push({
-        table: 'student_sync_ping',
-        optional: true,
-        filter: `student_id=eq.${session.user.id}`,
-        onEvent: () => this.scheduleStudentRefresh(),
-        resync: () => this.refreshStudentOwn(),
-      });
     }
     return list;
-  }
-
-  // ===========================================================================
-  // Aşama 114: ANLIK YETKİ VE ÖĞRENCİ SİNYALİ
-  //  - Bu kanallar "isteğe bağlı"dır: veritabanı betiği kurulmadıysa ya da kanal kurulamazsa genel eşitleme
-  //    durumu bozulmaz, dakikalık küçük yoklama (Aşama 113) aynen devam eder.
-  //  - Art arda gelen olaylar 400 ms içinde tek okumaya indirilir.
-  // ===========================================================================
-  private static readonly ACCESS_TABLES = ['teacher_roles', 'teacher_section_access', 'teacher_class_access', 'teacher_student_access'];
-  private static readonly SIGNAL_DEBOUNCE_MS = 400;
-  private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-  private studentRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-
-  private scheduleAccessRefresh(): void {
-    if (this.accessRefreshTimer) clearTimeout(this.accessRefreshTimer);
-    this.accessRefreshTimer = setTimeout(() => {
-      this.accessRefreshTimer = null;
-      this.refreshMyAccess();
-    }, DataService.SIGNAL_DEBOUNCE_MS);
-  }
-
-  private refreshMyAccess(): Promise<unknown> {
-    return Promise.allSettled([this.syncMyKurum(), this.syncMyTeacherAccess()]);
-  }
-
-  private scheduleStudentRefresh(): void {
-    if (this.studentRefreshTimer) clearTimeout(this.studentRefreshTimer);
-    this.studentRefreshTimer = setTimeout(() => {
-      this.studentRefreshTimer = null;
-      this.refreshStudentOwn();
-    }, DataService.SIGNAL_DEBOUNCE_MS);
-  }
-
-  private refreshStudentOwn(): Promise<unknown> {
-    return Promise.allSettled([
-      this.syncEtutsFromSupabase(true),
-      this.syncAttendanceFromSupabase(true),
-      this.syncStudentNotifications(),
-    ]);
-  }
-
-  // İsteğe bağlı kanalların hepsi çalışıyorsa dakikalık yoklamaya gerek kalmaz
-  private optionalChannelsLive(): boolean {
-    const opt = this.realtimeTableConfig().filter((c) => c.optional);
-    return opt.length > 0 && opt.every((c) => this.realtimeChannels[c.table]?.healthy);
   }
 
   // Eksik ya da kopmuş kanalları kurar; çalışan kanallara dokunmaz (tekrar tekrar çağrılması güvenlidir)
@@ -1514,10 +1427,10 @@ class DataService {
         try {
           record.channel = supabase
             .channel(`rt-${cfg.table}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: cfg.table, ...(cfg.filter ? { filter: cfg.filter } : {}) }, (payload: any) => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: cfg.table }, (payload: any) => {
               try { cfg.onEvent(payload); } catch (e) { console.warn(`[Realtime] ${cfg.table} olayı işlenemedi:`, e); }
             })
-            .subscribe((status: string) => this.handleChannelStatus(cfg.table, status, cfg.resync, cfg.optional));
+            .subscribe((status: string) => this.handleChannelStatus(cfg.table, status, cfg.resync));
         } catch (e) {
           console.warn(`[Realtime] ${cfg.table} kanalı kurulamadı:`, e);
         }
@@ -1528,7 +1441,7 @@ class DataService {
     }
   }
 
-  private handleChannelStatus(table: string, status: string, resync: () => unknown, optional = false): void {
+  private handleChannelStatus(table: string, status: string, resync: () => unknown): void {
     const entry = this.realtimeChannels[table];
     if (!entry) return;
     if (status === 'SUBSCRIBED') {
@@ -1545,11 +1458,6 @@ class DataService {
       }
     } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
       entry.healthy = false;
-      // Aşama 114: isteğe bağlı kanal hiç kurulamadıysa (betik kurulu değil) tekrar denenmez; dakikalık yoklama devrede
-      if (optional && !entry.everSubscribed) {
-        this.updateRealtimeHealth();
-        return;
-      }
       if (!this.realtimeClosing && !entry.checkTimer) {
         // Kütüphane kendisi yeniden bağlanmayı dener; 20 sn içinde olmazsa kanal yeniden kurulur
         entry.checkTimer = setTimeout(() => {
@@ -1565,9 +1473,7 @@ class DataService {
   // Eşitleme durumu: 'live' (anlık), 'fallback' (aralıklı yedek kontrol), 'offline' (internet yok)
   public getRealtimeHealth(): 'live' | 'fallback' | 'offline' {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline';
-    const entries = Object.entries(this.realtimeChannels)
-      .filter(([table]) => table !== 'student_sync_ping' && !DataService.ACCESS_TABLES.includes(table))
-      .map(([, e]) => e);
+    const entries = Object.values(this.realtimeChannels);
     if (entries.length > 0 && entries.every((e) => e.healthy)) return 'live';
     return 'fallback';
   }
@@ -1606,43 +1512,10 @@ class DataService {
       const health = this.getRealtimeHealth();
       if (health === 'offline') return;
       const age = Date.now() - this.lastFullSyncAt;
-      const due = health === 'live' ? this.liveSafetySyncMs : DataService.FALLBACK_SYNC_MS;
+      const due = health === 'live' ? DataService.LIVE_SAFETY_SYNC_MS : DataService.FALLBACK_SYNC_MS;
       if (age >= due) this.revalidateAndSyncAll(true);
-      else {
-        if (health !== 'live') this.ensureRealtime();
-        this.lightPoll();
-      }
+      else if (health !== 'live') this.ensureRealtime();
     }, 10000);
-  }
-
-  // ===========================================================================
-  // Aşama 113: KÜÇÜK YOKLAMALAR (anlık kanalın ulaşamadığı bilgiler, dakikada bir, sekme açıkken)
-  //  - Öğretmen: rol, bölüm izni, kurum modülleri (teacher_roles anlık yayında yok). Tek küçük istek; değişirse
-  //    menü hemen, kayıtlar kimlik karşılaştırmasıyla yenilenir.
-  //  - Öğrenci: etüt ve yoklama işlevden okunur, anlık kanal öğrenciye bu tablolardan olay göndermez. Yalnız
-  //    öğrencinin kendi kayıtları iner; değişiklik yoksa ekran yeniden çizilmez.
-  // ===========================================================================
-  private static readonly LIGHT_POLL_MS = 60 * 1000;
-  private lightPollAt = 0;
-  private lightPollRunning = false;
-  private lightPoll(): void {
-    if (this.lightPollRunning || this.fullSyncInFlight) return;
-    if (Date.now() - this.lightPollAt < DataService.LIGHT_POLL_MS) return;
-    const role = this.getAuthSession()?.role;
-    if (role !== 'teacher' && role !== 'student') return;
-    // Aşama 114: anlık kanal çalışıyorsa öğrenci için yoklama gerekmez; öğretmende yalnız kurum ayarı (modüller,
-    // rol sistemi açık/kapalı) tek küçük istekle sorulur, rol ve yetkiler kanaldan gelir
-    const live = this.optionalChannelsLive();
-    if (live && role === 'student') return;
-    this.lightPollAt = Date.now();
-    this.lightPollRunning = true;
-    const jobs: Promise<unknown>[] =
-      role === 'teacher'
-        ? live ? [this.syncMyKurum()] : [this.syncMyKurum(), this.syncMyTeacherAccess()]
-        : [this.syncEtutsFromSupabase(true), this.syncAttendanceFromSupabase(true), this.syncStudentNotifications()];
-    Promise.allSettled(jobs).finally(() => {
-      this.lightPollRunning = false;
-    });
   }
 
   // Eski adlar (başka dosyalardan çağrılabilir diye korunur)
@@ -1931,19 +1804,60 @@ class DataService {
       const row = payload.new;
       if (!row || !row.id || this.deletedEtutIds.has(row.id)) return;
 
-      // Aşama 112: tam okumayla aynı çevirici. Anlık kanal yalnız bu kişiye tam açık satırı gönderir; önceden ortak
-      // takvimden gelmiş ayrıntısız kopyanın işareti silinir (yoksa kendisine verilen etüt listede gizli kalıyordu)
-      const incomingEtut = this.remoteRowToEtut(row);
+      let parsedMeta: any = {};
+      try {
+        if (typeof row.notes === 'object' && row.notes !== null) {
+          parsedMeta = row.notes;
+        } else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{') && row.notes.includes('__etut_meta__')) {
+          parsedMeta = JSON.parse(row.notes);
+        }
+      } catch (err) {}
+
+      let incomingAssigned: 'all' | string[] = 'all';
+      if (row.assigned_student_ids && Array.isArray(row.assigned_student_ids) && row.assigned_student_ids.length > 0) {
+        incomingAssigned = row.assigned_student_ids;
+      } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
+        incomingAssigned = parsedMeta.assignedStudentIds;
+      } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
+        incomingAssigned = Object.keys(parsedMeta.studentAttendance);
+      } else if (parsedMeta.assignedStudentIds === 'all' || !row.assigned_student_ids) {
+        incomingAssigned = 'all';
+      }
+
+      const incomingEtut: Etut = {
+        id: row.id,
+        subject: row.subject,
+        topic: row.topic,
+        date: row.date ? row.date.trim().split('T')[0] : '',
+        time: row.time || '',
+        duration: Number(row.duration) || parsedMeta.duration || 45,
+        assignedStudentIds: incomingAssigned,
+        location: row.location || '',
+        notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof row.notes === 'string' && !row.notes.startsWith('{') ? row.notes : ''),
+        teacherFeedback: parsedMeta.teacherFeedback || '',
+        createdAt: row.created_at || new Date().toISOString(),
+        teacherId: row.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
+        teacherName: parsedMeta.teacherName || 'Öğretmen',
+        teacherIds: DataService.etutTeacherIdsOf(row.etut_teacher_ids, parsedMeta.teacherIds),
+        teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
+        teacherBranch: parsedMeta.teacherBranch || '',
+        lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
+        gradeLevel: parsedMeta.gradeLevel,
+        schoolLevel: parsedMeta.schoolLevel,
+        studentAttendance: parsedMeta.studentAttendance || {},
+        attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
+        createdById: parsedMeta.createdById || undefined,
+        createdByName: parsedMeta.createdByName || undefined,
+        recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
+        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
+      };
+
       const existingIdx = this.etuts.findIndex((e) => e.id === incomingEtut.id);
       if (existingIdx !== -1) {
-        const current = this.etuts[existingIdx];
         this.etuts[existingIdx] = {
-          ...current,
+          ...this.etuts[existingIdx],
           ...incomingEtut,
-          privacyRedacted: incomingEtut.privacyRedacted,
-          studentAttendance: current.privacyRedacted
-            ? incomingEtut.studentAttendance
-            : DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance),
+          studentAttendance: DataService.mergeAttendance(incomingEtut.studentAttendance, this.etuts[existingIdx].studentAttendance),
         };
       } else {
         this.etuts.unshift(incomingEtut);
@@ -2272,10 +2186,6 @@ class DataService {
       let { error } = await supabase.from('etuts').upsert(row);
       for (let attempt = 0; attempt < 2 && error; attempt++) {
         const msg = error.message || '';
-        // Aşama 116: yalnız gerçekten "sütun yok" hatasında (kod / şema mesajı) sütunsuz yola geçilir;
-        // yetki ya da tetik hatası etüt öğretmenini oturum boyunca silmez
-        const missingCol = /42703|PGRST204/.test(String(error.code || '')) || /column|schema cache/i.test(msg);
-        if (!missingCol) break;
         if (row.etut_teacher_ids !== undefined && /etut_teacher_ids/.test(msg)) {
           DataService.etutTeacherIdsColumnAvailable = false;
           delete row.etut_teacher_ids;
@@ -2307,47 +2217,23 @@ class DataService {
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return;
     try {
-      // Aşama 111: öğretmen etüt tablosunu artımlı okur (yalnız değişen satırlar; sql/111 yoksa tam okuma)
-      const res = await this.fetchTableSmart(
-        'etuts',
-        isBackground,
-        () => this.etuts.map((e) => e.id),
-        {},
-        () => this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'))
-      );
-      if (res.mode === 'error') {
-        if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', res.error);
+      const { data: ownEtuts, error: errEtuts } = await this.fetchStudentSafe('student_my_etuts', () => this.fetchAllRows('etuts'));
+      if (errEtuts) {
+        if (!isBackground) console.warn('[EtutSync] Error fetching remote etuts:', errEtuts);
         return;
       }
-      const delta = res.mode === 'delta';
       // Aşama 41 (mahremiyet, 32 numaralı SQL): öğretmen etüt tablosundan yalnızca KENDİ etütlerini okur.
       // Ortak öğrencili diğer etütlerin yalnızca gün / saat / öğretmen / sınıf bilgisi ayrı fonksiyonla gelir.
       // SQL henüz çalıştırılmadıysa fonksiyon yoktur; o zaman eski davranış sürer.
-      let remoteEtuts: any[] = res.data;
-      // artımlı okumada: ortak takvim / zümre satırları her seferinde tam gelir (küçük), bunlara ait kimlikler
-      const rpcIds = new Set<string>();
-      let sharedLoaded = false;
-      let zumreLoaded = false;
-      if (this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
-        // Aşama 112: Rehberlik ve idare kurumun etütlerini veritabanından zaten tam alır; ortak takvim onlara yeni bir şey
-        // getirmez (yalnız aynı etütlerin ayrıntısız kopyası). İşlev çağrılmaz, eski ayrıntısız satır kalmaz.
-        const seesAll = this.isKurumAdmin() || this.hasRole('rehberlik');
-        if (seesAll) sharedLoaded = true;
-        else try {
+      let remoteEtuts: any[] | null = ownEtuts as any[] | null;
+      if (remoteEtuts && this.getAuthSession()?.role === 'teacher' && !this.isHeadAdmin()) {
+        try {
           const shared = await supabase.rpc('etut_shared_schedule');
-          if (!shared.error && Array.isArray(shared.data)) {
-            sharedLoaded = true;
-            // Aşama 112: artımlı okumada yalnız değişen satırlar gelir; değişmeyen ama bu kişiye tam açık etüt de "kendi"
-            // sayılır (yoksa ortak takvimdeki ayrıntısız kopyası tam kaydın yerine geçip listeden kayboluyordu)
-            const own = new Set<string>(remoteEtuts.map((r: any) => r.id));
-            if (res.mode === 'delta') {
-              const removed = res.removed;
-              for (const e of this.etuts) if (!e.privacyRedacted && !(removed && removed.has(e.id))) own.add(e.id);
-            }
+          if (!shared.error && Array.isArray(shared.data) && shared.data.length) {
+            const own = new Set(remoteEtuts.map((r: any) => r.id));
             const extra = (shared.data as any[])
               .filter((r) => r && r.id && !own.has(r.id))
               .map((r) => ({ ...r, topic: '', notes: JSON.stringify({ ...(r.meta || {}), __etut_meta__: true, __redacted__: true }) }));
-            for (const r of extra) rpcIds.add(r.id);
             remoteEtuts = [...remoteEtuts, ...extra];
           }
         } catch {
@@ -2357,16 +2243,12 @@ class DataService {
         if (this.hasRole('zumre_baskani') && !this.hasRole('rehberlik') && !this.isKurumAdmin()) {
           try {
             const peer = await supabase.rpc('etut_zumre_rows');
-            if (!peer.error && Array.isArray(peer.data)) {
-              zumreLoaded = true;
+            if (!peer.error && Array.isArray(peer.data) && peer.data.length) {
               const byId = new Map<string, any>(remoteEtuts.map((r: any) => [r.id, r]));
               for (const r of peer.data as any[]) {
                 const cur = byId.get(r.id);
                 // ortak takvimden gelen (ayrıntısız) satırın yerine zümre görünümü konur; kendi etüdü olduğu gibi kalır
-                if (!cur || (typeof cur.notes === 'string' && cur.notes.includes('"__redacted__":true'))) {
-                  byId.set(r.id, r);
-                  rpcIds.add(r.id);
-                }
+                if (!cur || (typeof cur.notes === 'string' && cur.notes.includes('"__redacted__":true'))) byId.set(r.id, r);
               }
               remoteEtuts = Array.from(byId.values());
             }
@@ -2375,144 +2257,117 @@ class DataService {
           }
         }
       }
+      if (remoteEtuts) {
+        let etutsChanged = false;
+        remoteEtuts.forEach((re: any) => {
+          if (this.deletedEtutIds.has(re.id)) return;
+          let parsedMeta: any = {};
+          try {
+            if (typeof re.notes === 'object' && re.notes !== null) {
+              parsedMeta = re.notes;
+            } else if (typeof re.notes === 'string' && re.notes.trim().startsWith('{')) {
+              parsedMeta = JSON.parse(re.notes);
+            }
+          } catch (err) {}
 
-      // Aşama 111 (hız): satır başına findIndex yerine kimlik dizini; değişmeyen etüt eski nesnesiyle kalır
-      const localById = new Map<string, number>();
-      this.etuts.forEach((e, i) => localById.set(e.id, i));
-      const next = this.etuts.slice();
-      const added: Etut[] = [];
-      let etutsChanged = false;
-      const incomingIds = new Set<string>();
-      for (const re of remoteEtuts) {
-        if (!re || !re.id || this.deletedEtutIds.has(re.id)) continue;
-        incomingIds.add(re.id);
-        const incomingEtut = this.remoteRowToEtut(re);
-        const existingIdx = localById.get(re.id);
-        if (existingIdx !== undefined && existingIdx < 0) {
-          added[-1 - existingIdx] = incomingEtut; // aynı okumada iki kez gelen yeni satır: sonuncusu geçerli
-          continue;
-        }
-        if (existingIdx !== undefined && incomingEtut.privacyRedacted) {
-          // Aşama 41: başka öğretmenin etüdü — önbellekte kalmış eski ayrıntılar (yorum, yoklama) silinir
-          if (JSON.stringify(next[existingIdx]) !== JSON.stringify(incomingEtut)) {
-            next[existingIdx] = incomingEtut;
+          let incomingAssigned: 'all' | string[] = 'all';
+          if (re.assigned_student_ids && Array.isArray(re.assigned_student_ids) && re.assigned_student_ids.length > 0) {
+            incomingAssigned = re.assigned_student_ids;
+          } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
+            incomingAssigned = parsedMeta.assignedStudentIds;
+          } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
+            incomingAssigned = Object.keys(parsedMeta.studentAttendance);
+          } else if (parsedMeta.assignedStudentIds === 'all' || !re.assigned_student_ids) {
+            incomingAssigned = 'all';
+          }
+
+          const incomingEtut: Etut = {
+            id: re.id,
+            subject: re.subject,
+            topic: re.topic,
+            date: re.date ? re.date.trim().split('T')[0] : '',
+            time: re.time || '',
+            duration: Number(re.duration) || parsedMeta.duration || 45,
+            assignedStudentIds: incomingAssigned,
+            location: re.location || '',
+            notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
+            teacherFeedback: parsedMeta.teacherFeedback || '',
+            createdAt: re.created_at || new Date().toISOString(),
+            teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
+            teacherName: parsedMeta.teacherName || 'Öğretmen',
+            teacherIds: DataService.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
+            teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
+            teacherBranch: parsedMeta.teacherBranch || '',
+            lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
+            gradeLevel: parsedMeta.gradeLevel,
+            schoolLevel: parsedMeta.schoolLevel,
+            studentAttendance: parsedMeta.studentAttendance || {},
+            attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
+            createdById: parsedMeta.createdById || undefined,
+            createdByName: parsedMeta.createdByName || undefined,
+            recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
+        mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
+            privacyRedacted: parsedMeta.__redacted__ === true ? true : undefined,
+          };
+
+          const existingIdx = this.etuts.findIndex((e) => e.id === re.id);
+          if (existingIdx !== -1 && incomingEtut.privacyRedacted) {
+            // Aşama 41: başka öğretmenin etüdü — önbellekte kalmış eski ayrıntılar (yorum, yoklama) silinir
+            if (JSON.stringify(this.etuts[existingIdx]) !== JSON.stringify(incomingEtut)) {
+              this.etuts[existingIdx] = incomingEtut;
+              etutsChanged = true;
+            }
+          } else if (existingIdx !== -1) {
+            const current = this.etuts[existingIdx];
+            const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
+
+            const isDifferent =
+              current.subject !== incomingEtut.subject ||
+              current.topic !== incomingEtut.topic ||
+              current.date !== incomingEtut.date ||
+              current.time !== incomingEtut.time ||
+              current.duration !== incomingEtut.duration ||
+              current.location !== incomingEtut.location ||
+              current.notes !== incomingEtut.notes ||
+              current.teacherFeedback !== incomingEtut.teacherFeedback ||
+              current.teacherName !== incomingEtut.teacherName ||
+              current.teacherBranch !== incomingEtut.teacherBranch ||
+              current.lessonPeriod !== incomingEtut.lessonPeriod ||
+              JSON.stringify(current.assignedStudentIds || []) !== JSON.stringify(incomingEtut.assignedStudentIds || []) ||
+              JSON.stringify(current.studentAttendance || {}) !== JSON.stringify(mergedAttendance);
+
+            if (isDifferent) {
+              this.etuts[existingIdx] = {
+                ...current,
+                ...incomingEtut,
+                studentAttendance: mergedAttendance,
+              };
+              etutsChanged = true;
+            }
+          } else {
+            this.etuts.unshift(incomingEtut);
             etutsChanged = true;
           }
-        } else if (existingIdx !== undefined) {
-          const current = next[existingIdx];
-          const mergedAttendance = DataService.mergeAttendance(incomingEtut.studentAttendance, current.studentAttendance);
-          const isDifferent =
-            current.subject !== incomingEtut.subject ||
-            current.topic !== incomingEtut.topic ||
-            current.date !== incomingEtut.date ||
-            current.time !== incomingEtut.time ||
-            current.duration !== incomingEtut.duration ||
-            current.location !== incomingEtut.location ||
-            current.notes !== incomingEtut.notes ||
-            current.teacherFeedback !== incomingEtut.teacherFeedback ||
-            current.teacherId !== incomingEtut.teacherId ||
-            current.teacherName !== incomingEtut.teacherName ||
-            current.teacherBranch !== incomingEtut.teacherBranch ||
-            current.lessonPeriod !== incomingEtut.lessonPeriod ||
-            !!current.privacyRedacted !== !!incomingEtut.privacyRedacted ||
-            JSON.stringify(current.teacherIds || []) !== JSON.stringify(incomingEtut.teacherIds || []) ||
-            JSON.stringify(current.assignedStudentIds || []) !== JSON.stringify(incomingEtut.assignedStudentIds || []) ||
-            JSON.stringify(current.studentAttendance || {}) !== JSON.stringify(mergedAttendance);
-          if (isDifferent) {
-            next[existingIdx] = { ...current, ...incomingEtut, studentAttendance: mergedAttendance, privacyRedacted: incomingEtut.privacyRedacted };
-            etutsChanged = true;
-          }
-        } else {
-          // yeni satırlar ayrı toplanır ve sonda bir kez başa eklenir (her satırda dizini yeniden kurmak 2000 etütte yavaştı)
-          added.push(incomingEtut);
-          localById.set(re.id, -1 - (added.length - 1));
+        });
+
+        // Merkezi veritabanı tek doğruluk kaynağıdır: bulutta olmayan (başka cihazdan silinmiş)
+        // etütler yerelden de kaldırılır. ÖNCEKİ DAVRANIŞ bunları buluta geri yüklüyordu ve
+        // bir cihazda silinen etüt diğer cihazdan tekrar "diriliyordu".
+        const remoteIds = new Set(remoteEtuts.map((r: any) => r.id));
+        const beforeCount = this.etuts.length;
+        this.etuts = this.etuts.filter((e) => remoteIds.has(e.id));
+        if (this.etuts.length !== beforeCount) {
           etutsChanged = true;
         }
-      }
-      if (added.length) next.unshift(...added.reverse());
 
-      // Merkezi veritabanı tek doğruluk kaynağıdır: bulutta olmayan (başka cihazdan silinmiş)
-      // etütler yerelden de kaldırılır. ÖNCEKİ DAVRANIŞ bunları buluta geri yüklüyordu ve
-      // bir cihazda silinen etüt diğer cihazdan tekrar "diriliyordu".
-      let kept: Etut[];
-      if (!delta) {
-        kept = next.filter((e) => incomingIds.has(e.id));
-      } else {
-        // Aşama 111: artımlı okumada yalnız sunucunun "silindi" dediği satırlar ve artık ortak takvimde / zümrede
-        // olmayan ayrıntısız satırlar çıkar
-        const removed = res.removed;
-        const zumreUser = zumreLoaded;
-        kept = next.filter((e) => {
-          if (incomingIds.has(e.id)) return true;
-          if (removed && removed.has(e.id)) return false;
-          if (e.privacyRedacted) return !sharedLoaded;
-          // Zümre Başkanı başkasının etüdünü yalnız zümre işlevinden alır; orada artık yoksa çıkar
-          if (zumreUser && !this.isMyEtut(e)) return false;
-          return true;
-        });
-      }
-      if (kept.length !== next.length) etutsChanged = true;
-
-      if (etutsChanged) {
-        this.etuts = kept;
-        saveData(STORAGE_KEYS.ETUTS, this.etuts);
-        this.notify();
+        if (etutsChanged) {
+          saveData(STORAGE_KEYS.ETUTS, this.etuts);
+          this.notify();
+        }
       }
     } catch (err) {
       if (!isBackground) console.warn('[EtutSync] Sync error:', err);
     }
-  }
-
-  /** Sunucudaki etüt satırını uygulama nesnesine çevirir (tam okuma, artımlı okuma ve ortak takvim aynı yolu kullanır) */
-  private remoteRowToEtut(re: any): Etut {
-    let parsedMeta: any = {};
-    try {
-      if (typeof re.notes === 'object' && re.notes !== null) {
-        parsedMeta = re.notes;
-      } else if (typeof re.notes === 'string' && re.notes.trim().startsWith('{')) {
-        parsedMeta = JSON.parse(re.notes);
-      }
-    } catch (err) {}
-
-    let incomingAssigned: 'all' | string[] = 'all';
-    if (re.assigned_student_ids && Array.isArray(re.assigned_student_ids) && re.assigned_student_ids.length > 0) {
-      incomingAssigned = re.assigned_student_ids;
-    } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
-      incomingAssigned = parsedMeta.assignedStudentIds;
-    } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
-      incomingAssigned = Object.keys(parsedMeta.studentAttendance);
-    } else if (parsedMeta.assignedStudentIds === 'all' || !re.assigned_student_ids) {
-      incomingAssigned = 'all';
-    }
-
-    return {
-      id: re.id,
-      subject: re.subject,
-      topic: re.topic,
-      date: re.date ? re.date.trim().split('T')[0] : '',
-      time: re.time || '',
-      duration: Number(re.duration) || parsedMeta.duration || 45,
-      assignedStudentIds: incomingAssigned,
-      location: re.location || '',
-      notes: parsedMeta.userNotes !== undefined ? parsedMeta.userNotes : (typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : ''),
-      teacherFeedback: parsedMeta.teacherFeedback || '',
-      createdAt: re.created_at || new Date().toISOString(),
-      teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
-      teacherName: parsedMeta.teacherName || 'Öğretmen',
-      teacherIds: DataService.etutTeacherIdsOf(re.etut_teacher_ids, parsedMeta.teacherIds),
-      teacherNames: Array.isArray(parsedMeta.teacherNames) ? parsedMeta.teacherNames.filter((x: any) => typeof x === 'string') : undefined,
-      teacherBranch: parsedMeta.teacherBranch || '',
-      lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
-      gradeLevel: parsedMeta.gradeLevel,
-      schoolLevel: parsedMeta.schoolLevel,
-      studentAttendance: parsedMeta.studentAttendance || {},
-      attendanceTakenBy: parsedMeta.attendanceTakenBy || undefined,
-      createdById: parsedMeta.createdById || undefined,
-      createdByName: parsedMeta.createdByName || undefined,
-      recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
-      mailMode: parsedMeta.mailMode === 'scheduled' || parsedMeta.mailMode === 'off' ? parsedMeta.mailMode : undefined,
-      privacyRedacted: parsedMeta.__redacted__ === true ? true : undefined,
-    };
   }
 
   public subscribe(listener: () => void): () => void {
@@ -2533,7 +2388,6 @@ class DataService {
   private notify() {
     this.lastSyncTimestamp = Date.now();
     this.dataVersion++;
-    if (this.secureSaveRefs) this.scheduleSecureSave();
     const now = Date.now();
     if (!this.notifyTimer) this.notifyFirstAt = now;
     else clearTimeout(this.notifyTimer);
@@ -2598,7 +2452,7 @@ class DataService {
     }
     const acc = this.myTeacherAccess;
     const k = this.myKurum;
-    const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}${k.roleSettings?.olcme_ogrenci_ekle ? 1 : 0}` : '';
+    const roleKey = k ? `${k.kurumAdmin ? 1 : 0}${k.rolesEnabled ? 1 : 0}${(k.roles || []).join('.')}${k.roleSettings?.rehberlik_ogrenci_ekle ? 1 : 0}` : '';
     return `${extra}|${this.lastSessionHash}|${acc.loaded ? 1 : 0}:${acc.classIds.size}:${acc.studentIds.size}|${this.deletedStudentIds.size}:${this.deletedClassIds.size}|${roleKey}`;
   }
   private lastSessionRaw = '';
@@ -3057,118 +2911,8 @@ class DataService {
   private deltaReady: Set<string> | null = null;
   private deltaReadyAt = 0;
   private deltaReadyPromise: Promise<Set<string>> | null = null;
-  private deltaState = new Map<string, { mark: string; idsAt: number; restored?: boolean }>();
+  private deltaState = new Map<string, { mark: string; idsAt: number }>();
   private static readonly DELTA_RECONCILE_MS = 10 * 60000;
-
-  // ===========================================================================
-  // Aşama 103: ŞİFREYLE KİLİTLİ CİHAZ ÖNBELLEĞİ (src/lib/secureCache.ts)
-  // Yoklama, mesaj / duyuru ve notlar şifreli saklanır; tekrar girişte bu listeler hemen gelir ve sunucudan
-  // yalnızca değişenler (Aşama 88 artımlı okuma) indirilir. Yalnız şifreyle giren öğretmende çalışır.
-  // ===========================================================================
-  private secureRestore: Promise<void> | null = null;
-  private secureDisabled = false;
-  private secureSaveRefs: { attendance: unknown; messages: unknown; grades: unknown } | null = null;
-  private secureSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  private secureSavedAt = 0;
-  private static readonly SECURE_SAVE_DELAY_MS = 5000;
-  // büyük listeler sık değişse de (anlık kanal) en fazla dakikada bir yazılır; sekme arka plana geçerken hemen yazılır
-  private static readonly SECURE_SAVE_MIN_GAP_MS = 60000;
-
-  private async resumeSecure(): Promise<void> {
-    try {
-      const { data } = await supabase.auth.getSession();
-      const uid = data?.session?.user?.id;
-      if (!uid || this.getAuthSession()?.role !== 'teacher') return;
-      this.applySecurePayload(await resumeSecureCache(uid));
-    } catch {
-      /* önbellek açılamadı: tam okuma */
-    }
-  }
-
-  private applySecurePayload(p: SecurePayload | null): void {
-    // kayıt yoksa da bu noktadan sonra değişiklikler kilitli kayda yazılır
-    this.secureSaveRefs = { attendance: null, messages: null, grades: null };
-    if (!p || this.secureDisabled) {
-      if (this.secureDisabled) this.secureSaveRefs = null;
-      return;
-    }
-    const t = p.tables || {};
-    let changed = false;
-    const take = (name: 'attendance' | 'messages' | 'grades', apply: (rows: any[]) => void) => {
-      const x = t[name];
-      if (!x || !Array.isArray(x.rows) || typeof x.mark !== 'string' || !x.mark) return;
-      apply(x.rows);
-      this.deltaState.set(name, { mark: x.mark, idsAt: 0, restored: true });
-      changed = true;
-    };
-    take('attendance', (rows) => {
-      this.attendance = rows;
-    });
-    take('messages', (rows) => {
-      this.messages = rows;
-    });
-    take('grades', (rows) => {
-      this.grades = rows;
-    });
-    if (!changed) return;
-    // açılan liste zaten kayıttakiyle aynı: hemen yeniden yazılmaz
-    this.secureSaveRefs = { attendance: this.attendance, messages: this.messages, grades: this.grades };
-    this.notify();
-  }
-
-  private scheduleSecureSave(): void {
-    const r = this.secureSaveRefs;
-    if (!r || this.secureDisabled || this.secureSaveTimer) return;
-    if (r.attendance === this.attendance && r.messages === this.messages && r.grades === this.grades) return;
-    const wait = Math.max(DataService.SECURE_SAVE_DELAY_MS, DataService.SECURE_SAVE_MIN_GAP_MS - (Date.now() - this.secureSavedAt));
-    this.secureSaveTimer = setTimeout(() => {
-      this.secureSaveTimer = null;
-      const run = () => {
-        this.saveSecureNow().catch(() => {});
-      };
-      const ric = (window as any).requestIdleCallback;
-      if (typeof ric === 'function') ric(run, { timeout: 4000 });
-      else run();
-    }, wait);
-  }
-
-  /** Sekme gizlenirken bekleyen kayıt hemen yazılır */
-  private flushSecureSave(): void {
-    if (!this.secureSaveTimer) return;
-    clearTimeout(this.secureSaveTimer);
-    this.secureSaveTimer = null;
-    this.saveSecureNow().catch(() => {});
-  }
-
-  private async saveSecureNow(): Promise<void> {
-    const r = this.secureSaveRefs;
-    if (!r || this.secureDisabled || this.getAuthSession()?.role !== 'teacher' || !hasSecureKey()) return;
-    const att = this.attendance;
-    const msg = this.messages;
-    const grd = this.grades;
-    const tables: SecurePayload['tables'] = {};
-    // yalnız sunucudan en az bir kez okunmuş (işareti olan) tablolar saklanır
-    const a = this.deltaState.get('attendance');
-    const m = this.deltaState.get('messages');
-    const g = this.deltaState.get('grades');
-    if (a?.mark) tables.attendance = { mark: a.mark, rows: att };
-    if (m?.mark) tables.messages = { mark: m.mark, rows: msg };
-    if (g?.mark) tables.grades = { mark: g.mark, rows: grd };
-    if (!tables.attendance && !tables.messages && !tables.grades) return;
-    this.secureSaveRefs = { attendance: att, messages: msg, grades: grd };
-    this.secureSavedAt = Date.now();
-    await saveSecureCache({ tables });
-  }
-
-  /** Çıkış, kurum geçişi, öğrenci girişi: önbellek kapanır, kayıt ve anahtar silinir */
-  private stopSecureCache(): void {
-    this.secureDisabled = true;
-    this.secureSaveRefs = null;
-    this.secureRestore = null;
-    if (this.secureSaveTimer) clearTimeout(this.secureSaveTimer);
-    this.secureSaveTimer = null;
-    wipeSecureCache().catch(() => {});
-  }
 
   /** sql/88 ile "değişim zamanı" tutulan tablolar (yarım saatte bir yeniden sorulur) */
   private async deltaTables(): Promise<Set<string>> {
@@ -3192,7 +2936,7 @@ class DataService {
   }
 
   private async fetchTableSmart(
-    table: 'messages' | 'grades' | 'attendance' | 'etuts',
+    table: 'messages' | 'grades' | 'attendance',
     isBackground: boolean,
     localIds: () => Iterable<string>,
     opts: { order?: string; ascending?: boolean },
@@ -3208,11 +2952,7 @@ class DataService {
       return { mode: 'full' as const, data: r.data };
     };
     const st = this.deltaState.get(table);
-    // Aşama 103: kilitli önbellekten gelen tablo ilk okumada (ön planda da) yalnız değişenlerle tamamlanır;
-    // idsAt = 0 olduğundan silinen / yeni görünür kayıtlar kimlik listesiyle hemen denetlenir
-    const restored = !!st?.restored;
-    if (st) st.restored = false;
-    if ((!isBackground && !restored) || !st || !st.mark || this.getAuthSession()?.role === 'student') return runFull();
+    if (!isBackground || !st || !st.mark || this.getAuthSession()?.role === 'student') return runFull();
     if (!(await this.deltaTables()).has(table)) return runFull();
     const markMs = Date.parse(st.mark);
     if (Number.isNaN(markMs)) return runFull();
@@ -3222,9 +2962,7 @@ class DataService {
     if (d.error || !Array.isArray(d.data)) return runFull();
     let rows: any[] = d.data;
     let removed: Set<string> | null = null;
-    // Aşama 112: etüt başka öğretmene verilince eski öğretmene "değişti" olayı gelmez (satır artık ona görünmez);
-    // etütlerde kimlik listesi her yenilemede sorulur (yalnız "id" sütunu; 111 öncesindeki tam okumadan çok küçük)
-    if (table === 'etuts' || Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
+    if (Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
       const ids = await this.fetchAllRows(table, undefined, { columns: 'id' });
       if (!ids.error && Array.isArray(ids.data)) {
         const server = new Set<string>(ids.data.map((r: any) => String(r.id)));
@@ -4198,17 +3936,11 @@ class DataService {
         supabase.from('teacher_student_access').select('student_id').eq('teacher_auth_id', uid),
       ]);
       if (cls.error || std.error) return;
-      const next = {
+      this.myTeacherAccess = {
         classIds: new Set((cls.data || []).map((r: any) => String(r.class_id))),
         studentIds: new Set((std.data || []).map((r: any) => String(r.student_id))),
         loaded: true,
       };
-      // Aşama 113: değişmediyse ekran yeniden çizilmez; sınıf / öğrenci yetkisi değiştiyse kayıtlar da yenilenir
-      const prev = this.myTeacherAccess;
-      const same = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((x) => b.has(x));
-      if (prev.loaded && same(prev.classIds, next.classIds) && same(prev.studentIds, next.studentIds)) return;
-      this.myTeacherAccess = next;
-      if (prev.loaded) this.resyncAfterAccessChange();
       this.notify();
     } catch {
       // bağlantı sorunu: bir sonraki eşitlemede tekrar denenir
@@ -4220,14 +3952,9 @@ class DataService {
 
   // Tüm verileri buluttan yeniler. Arka plan istekleri (odak, sekmeye dönüş, yedek kontrol) en fazla
   // 15 saniyede bir çalışır; aynı anda ikinci bir tam eşitleme başlatılmaz (çalışan beklenir).
-  public async revalidateAndSyncAll(isBackground = false, shortGap = false): Promise<void> {
+  public async revalidateAndSyncAll(isBackground = false): Promise<void> {
     if (this.fullSyncInFlight) return this.fullSyncInFlight;
-    // Aşama 126: anlık kanal sağlıklıysa arka plan tam eşitlemesi en fazla dakikada bir; kanal sorunluysa,
-    // uzun arka plandan dönüldüyse ya da kullanıcı isteğiyse (isBackground=false) eskisi gibi
-    const gap = !shortGap && this.getRealtimeHealth() === 'live'
-      ? DataService.LIVE_BACKGROUND_SYNC_GAP_MS
-      : DataService.MIN_BACKGROUND_SYNC_GAP_MS;
-    if (isBackground && Date.now() - this.lastFullSyncAt < gap) {
+    if (isBackground && Date.now() - this.lastFullSyncAt < DataService.MIN_BACKGROUND_SYNC_GAP_MS) {
       this.ensureRealtime();
       return;
     }
@@ -4249,7 +3976,6 @@ class DataService {
   private async runFullSync(isBackground: boolean): Promise<void> {
     const versionBefore = this.dataVersion;
     try {
-      if (this.secureRestore) await this.secureRestore; // Aşama 103
       this.ensureRealtime();
       this.startPeriodicSync();
       await Promise.allSettled([
@@ -4291,20 +4017,17 @@ class DataService {
   }
 
   // --- AUTH & TEACHER MANAGEMENT ---
-  // Aşama 103: aynı çizim / olay turunda (aynı oturum ve öğretmen listesiyle) sonuç yeniden aranmaz
-  private currentTeacherMemo: { ep: number; session: AuthSession | null; list: Teacher[]; len: number; val: Teacher | null } | null = null;
   public getCurrentTeacher(): Teacher | null {
     const session = this.getAuthSession();
-    const c = this.currentTeacherMemo;
-    if (c && c.session === session && c.list === this.teachers && c.len === this.teachers.length && c.ep === currentEpoch()) return c.val;
-    let val: Teacher | null = null;
     if (session?.role === 'teacher') {
-      const uname = session.user.username?.toLowerCase();
-      const match = this.teachers.find((t) => t.id === session.user.id || t.username?.toLowerCase() === uname);
-      val = match || (session.user as Teacher);
+      const match = this.teachers.find(
+        (t) =>
+          t.id === session.user.id ||
+          t.username?.toLowerCase() === session.user.username?.toLowerCase()
+      );
+      return match || (session.user as Teacher);
     }
-    this.currentTeacherMemo = { ep: currentEpoch(), session, list: this.teachers, len: this.teachers.length, val };
-    return val;
+    return null;
   }
 
   // Yönetici: kayıtta yönetici işareti olan (giriş rolü 'admin' veya teachers.is_admin) ya da kurum yöneticisi
@@ -4390,90 +4113,9 @@ class DataService {
     }
   }
 
-  // ===========================================================================
-  // Aşama 122: KURUM BİLGİSİ LOGOSUZ YOKLANIR
-  // my_kurum() kurum logosunu da döndürür (data URL, ~90 KB). Öğretmende dakikada bir + her eşitlemede çağrıldığı için
-  // logo değişmese de her dakika yeniden iniyordu. Artık önce my_kurum_state() sorulur: aynı bilgi, logo yerine logonun
-  // SHA-256 özeti. Özet ekrandaki logoyla aynıysa logo yeniden indirilmez; farklıysa (logo değişti / kurum değişti)
-  // ya da işlev yoksa (SQL 122 çalıştırılmadıysa) eskisi gibi my_kurum() ile tam okunur. Görünen bilgi birebir aynıdır.
-  // ===========================================================================
-  private kurumStateLightOk = true;
-  private kurumLogoHashCache: { logo: string; hash: string } | null = null;
-
-  private async kurumLogoHash(logo: string): Promise<string | null> {
-    const c = this.kurumLogoHashCache;
-    if (c && c.logo === logo) return c.hash;
-    try {
-      const subtle = typeof crypto !== 'undefined' ? crypto.subtle : undefined;
-      if (!subtle) return null;
-      const buf = await subtle.digest('SHA-256', new TextEncoder().encode(logo));
-      let hex = '';
-      for (const b of new Uint8Array(buf)) hex += b.toString(16).padStart(2, '0');
-      this.kurumLogoHashCache = { logo, hash: hex };
-      return hex;
-    } catch {
-      return null;
-    }
-  }
-
-  private static parseKurumRpc(data: any, key: string): any {
-    let d: any = data;
-    if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && key in d[0] ? d[0][key] : d[0];
-    else if (d && typeof d === 'object' && key in d && typeof d[key] === 'object') d = d[key];
-    return d || {};
-  }
-
-  private static kurumStateFrom(d: any, logo: string): MyKurumState {
-    return {
-      loaded: true,
-      supported: true,
-      head: !!d.head,
-      kurumId: d.kurum_id || null,
-      kurumName: d.kurum_name || '',
-      kurumAdmin: !!d.kurum_admin,
-      modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
-      grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
-      rolesEnabled: d.roles_enabled === true,
-      roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
-      roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
-      logo,
-      hasMail: d.has_mail === true,
-      sections: {
-        allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
-        deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
-      },
-    };
-  }
-
-  /** true = bilgi logosuz okunup uygulandı; false = tam okuma gerekir */
-  private async syncMyKurumLight(): Promise<boolean> {
-    if (!this.kurumStateLightOk || !this.myKurum.loaded || !this.myKurum.supported) return false;
-    const { data, error } = await supabase.rpc('my_kurum_state');
-    if (error) {
-      if (error.code === 'PGRST202' || error.code === '42883' || /my_kurum_state/.test(error.message || '')) this.kurumStateLightOk = false;
-      return false;
-    }
-    const d = DataService.parseKurumRpc(data, 'my_kurum_state');
-    if (typeof d.logo_hash === 'string') {
-      // kurum değiştiyse ya da logo değiştiyse logo tam okunur
-      if ((d.kurum_id || null) !== this.myKurum.kurumId) return false;
-      const cur = await this.kurumLogoHash(this.myKurum.logo || '');
-      if (!cur || cur !== d.logo_hash) return false;
-    }
-    const next = DataService.kurumStateFrom(d, typeof d.logo_hash === 'string' ? this.myKurum.logo || '' : '');
-    this.setMyKurum(next);
-    if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
-    return true;
-  }
-
   public async syncMyKurum(): Promise<void> {
     const session = this.getAuthSession();
     if (session?.role !== 'teacher') return;
-    try {
-      if (await this.syncMyKurumLight()) return;
-    } catch {
-      /* logosuz yoklama olmadı: tam okumayla devam */
-    }
     try {
       const { data, error } = await supabase.rpc('my_kurum');
       if (error) {
@@ -4485,7 +4127,25 @@ class DataService {
       let d: any = data;
       if (Array.isArray(d)) d = d[0] && typeof d[0] === 'object' && 'my_kurum' in d[0] ? d[0].my_kurum : d[0];
       d = d || {};
-      const next: MyKurumState = DataService.kurumStateFrom(d, typeof d.logo === 'string' ? d.logo : '');
+      const next: MyKurumState = {
+        loaded: true,
+        supported: true,
+        head: !!d.head,
+        kurumId: d.kurum_id || null,
+        kurumName: d.kurum_name || '',
+        kurumAdmin: !!d.kurum_admin,
+        modules: d.modules && typeof d.modules === 'object' ? d.modules : {},
+        grantedClassIds: Array.isArray(d.granted_class_ids) ? d.granted_class_ids.map(String) : [],
+        rolesEnabled: d.roles_enabled === true,
+        roles: Array.isArray(d.roles) ? d.roles.map(String) : [],
+        roleSettings: d.role_settings && typeof d.role_settings === 'object' ? d.role_settings : {},
+        logo: typeof d.logo === 'string' ? d.logo : '',
+        hasMail: d.has_mail === true,
+        sections: {
+          allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
+          deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
+        },
+      };
       this.setMyKurum(next);
       // Genel yönetici: kurum adları listelerde etiket olarak gösterilir
       if (next.head && this.kurumNameCache.size === 0) this.listKurumlar().catch(() => {});
@@ -4496,37 +4156,13 @@ class DataService {
 
   private setMyKurum(next: MyKurumState) {
     const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
-    const accessChanged = this.myKurum.loaded && DataService.kurumAccessKey(this.myKurum) !== DataService.kurumAccessKey(next);
     this.myKurum = next;
-    if (accessChanged) this.resyncAfterAccessChange();
     // Aşama 82: kurum adı ve logosu (karne PDF'leri ve üst menü)
     setKurumBrand(next.kurumId ? { name: next.kurumName, logo: next.logo } : null);
     try {
       sessionStorage.setItem(MY_KURUM_KEY, JSON.stringify(next));
     } catch {}
     if (changed) this.notify();
-  }
-
-  /** Görünürlüğü belirleyen kurum bilgileri (rol, bölüm izni, modül, rol anahtarı, yönetici) */
-  private static kurumAccessKey(k: MyKurumState): string {
-    return JSON.stringify([k.head, k.kurumId, k.kurumAdmin, k.rolesEnabled, [...(k.roles || [])].sort(), k.sections, k.modules, k.grantedClassIds, k.roleSettings]);
-  }
-
-  /**
-   * Aşama 113: rol / bölüm izni değişince veritabanının bu kişiye verdiği kayıtlar da değişir; artımlı okuma yalnız
-   * "değişen" satırları getirdiği için yeni görünür olan eski kayıtlar 10 dakikaya kadar gelmiyordu. Kimlik
-   * karşılaştırması hemen yapılır (çalışan eşitleme varsa bittikten sonra bir kez daha).
-   */
-  private resyncAfterAccessChange(): void {
-    for (const st of this.deltaState.values()) st.idsAt = 0;
-    const run = () => {
-      for (const st of this.deltaState.values()) st.idsAt = 0;
-      this.backgroundSyncedAt.clear(); // not / yoklama 10 dakika beklemeden okunsun
-      this.lastFullSyncAt = 0;
-      this.revalidateAndSyncAll(true);
-    };
-    if (this.fullSyncInFlight) this.fullSyncInFlight.then(run, run);
-    else setTimeout(run, 0);
   }
 
   public getMyKurum(): Readonly<MyKurumState> {
@@ -4624,68 +4260,10 @@ class DataService {
     return this.rolesActive() && (this.myKurum.sections?.allow || []).includes(tab);
   }
   public roleCanTeach(): boolean {
-    if (this.idareDersKapali()) return false; // Aşama 98
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
     const r = this.myKurum.roles || [];
     return r.length === 0 || r.some((x) => x === 'rehberlik' || x === 'zumre_baskani' || x === 'ogretmen');
   }
-  // ===========================================================================
-  // Aşama 98: İDARE ve KURUM GEÇİŞİ. Asıl denetim veritabanındadır (98 numaralı SQL); bunlar ekrandaki karşılığıdır.
-  // ===========================================================================
-  /** Bu sekme genel yöneticinin kurum seçiciyle açtığı geçiş oturumu mu */
-  public isKurumGecis(): boolean {
-    try {
-      const raw = window.sessionStorage.getItem('edu_sys_kurum_gecis');
-      return !!raw && !!JSON.parse(raw)?.active;
-    } catch {
-      return false;
-    }
-  }
-  /** İdare (kurum yöneticisi, Müdür, Müdür Yrd.) ders vermiyor mu — Kurum Ayarları'ndaki "İdare ödev / etüt verebilsin" kapalıysa */
-  public idareDersKapali(): boolean {
-    return this.isKurumAdmin() && !this.isKurumGecis() && this.myKurum.roleSettings?.idare_ders_verir !== true;
-  }
-  /** Ödev verebilir mi (Ödev Oluştur / Kopyala düğmeleri) */
-  public canGiveHomework(): boolean {
-    return this.canUseTab('homework') && (this.roleCanTeach() || this.sectionExplicitAllow('homework'));
-  }
-  /** Soru hedefi verebilir mi (idare ayar kapalıyken vermez; veritabanı da reddeder) */
-  public canGiveTargets(): boolean {
-    return this.canUseTab('question_tracking') && (this.roleCanTeach() || this.sectionExplicitAllow('question_tracking'));
-  }
-  /** Haftalık plan görevi ekleyebilir mi (ödev bölümü; idare ayar kapalıyken eklemez) */
-  public canEditPlans(): boolean {
-    return this.canUseTab('homework') && (this.roleCanTeach() || this.sectionExplicitAllow('homework'));
-  }
-  /** Etüt planlayabilir mi (idare yalnızca başka öğretmen adına planlar) */
-  public canPlanEtut(): boolean {
-    return this.canUseTab('etuts') && (this.roleCanTeach() || this.sectionExplicitAllow('etuts') || this.idareDersKapali());
-  }
-  /** Başka öğretmenlerin çalışmalarını görüyor mu (ana sayfada "Benim / Kurumun" seçimi) */
-  public seesOthersWork(): boolean {
-    return this.isHeadAdmin() || this.isKurumAdmin() || this.roleSeesOthersWork();
-  }
-  /** Ana sayfada Kurum Özeti gösterilsin mi (idare) */
-  public showsKurumOzeti(): boolean {
-    return this.isKurumAdmin();
-  }
-  /** Etüt / ödev bu oturumdaki öğretmenin mi (ana sayfa "Benim" seçimi) */
-  public isMine(item: Etut | Homework): boolean {
-    return 'dueDate' in item ? this.isMyHomework(item as Homework) : this.isMyEtut(item as Etut);
-  }
-  /** Ödevin sahibi öğretmenin kimliği ve adı (öğretmene göre süzme) */
-  public homeworkOwner(hw: Homework): { id: string; name: string } {
-    const ids = this.homeworkOwnerIds(hw);
-    const t = ids.length ? this.teachers.find((x) => x.id === ids[0]) : undefined;
-    const name = t?.name || hw.teacherName || hw.createdByName || 'Bilinmeyen öğretmen';
-    return { id: t?.id || hw.teacherId || hw.teacherAuthId || `ad:${name}`, name };
-  }
-  /** Not / yoklama kaydını giren öğretmen (giriş hesabından) */
-  public teacherByAuthId(authId?: string | null): Teacher | undefined {
-    if (!authId) return undefined;
-    return this.teachers.find((t) => t.auth_user_id === authId);
-  }
-
   /** Görünürlüğü veritabanı belirler (yüklenen kayıtların hepsi bu kişiye açıktır) */
   private roleTrustsDb(): boolean {
     return this.roleWideView() || this.hasRole('zumre_baskani') || this.roleEtutOnly();
@@ -4730,24 +4308,13 @@ class DataService {
     const mod = this.myKurum.modules?.deneme === true;
     return mod && (this.isKurumAdmin() || this.hasRole('olcme_degerlendirme'));
   }
-  /**
-   * Aşama 102: Deneme Analizi'nde yalnızca öğrenci / sınıf karnesini ve puan sıralamasını gören öğretmen
-   * (Öğretmen, Zümre Başkanı, Etüt Öğretmeni). Rol yetkileri anahtarından bağımsızdır; yönetici, Müdür,
-   * Müdür Yrd., Rehberlik ve Ölçme Değerlendirme bu kısıtın dışındadır.
-   */
-  public isPlainDenemeViewer(): boolean {
-    if (this.getAuthSession()?.role !== 'teacher') return false;
-    if (this.isHeadAdmin() || this.isCurrentUserAdmin() || this.canManageDeneme()) return false;
-    const wide = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
-    return !(this.myKurum.roles || []).some((r) => wide.includes(r));
-  }
   /** Öğrenci düzenleyebilir mi (yönetici, Rehberlik, Ölçme Değerlendirme) */
   public canEditStudents(): boolean {
     if (!this.myKurum.supported) return this.canManageStudents();
     if (this.isHeadAdmin()) return true;
     return (this.isKurumAdmin() || this.roleWideView()) && this.canUseModule('manage_students');
   }
-  /** Bu öğrenci silinebilir mi (yönetici; müdür izin verdiyse Rehberlik / Ölçme Değerlendirme) */
+  /** Bu öğrenci silinebilir mi (yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik) */
   public canDeleteStudent(student?: Student | null): boolean {
     if (!student) return false;
     if (!this.myKurum.supported) return this.canManageStudents();
@@ -4763,16 +4330,8 @@ class DataService {
   //    (genel yöneticinin kaydettiği öğretmenlerin çalışmaları kurum yöneticisine görünmez)
   //  - Diğer öğretmenler: göremez (etütte yalnızca gün / saat / öğretmen / sınıf bilgisi)
   // ===========================================================================
-  private privacyFoldCache = new Map<string, string>(); // Aşama 103: aynı ad tekrar tekrar dönüştürülmez
   private privacyFold(v?: string | null): string {
-    const k = v || '';
-    let r = this.privacyFoldCache.get(k);
-    if (r === undefined) {
-      if (this.privacyFoldCache.size > 5000) this.privacyFoldCache.clear();
-      r = k.trim().toLocaleLowerCase('tr-TR');
-      this.privacyFoldCache.set(k, r);
-    }
-    return r;
+    return (v || '').trim().toLocaleLowerCase('tr-TR');
   }
   /** Etüdün sahibi öğretmen mi (kaydeden ya da etüt öğretmeni; eski kayıtlarda ad eşleşmesi) */
   public isMyEtut(e: Etut): boolean {
@@ -4802,9 +4361,6 @@ class DataService {
     if (this.isMyEtut(e)) return true;
     // Aşama 82: Rehberlik / Zümre Başkanı — veritabanı tam kaydı verdiyse ayrıntıyı görür (değiştiremez)
     if (this.roleSeesOthersWork() && !e.privacyRedacted && !this.isRedactedRow(e)) return true;
-    // Aşama 111: idare (Müdür / Müdür Yrd.) yoklama ve yorumları görür; veritabanı tam kaydı yalnız kendi kurumundan verir
-    // (dış etüt öğretmeninin "ext-" kimliği öğretmen listesinde olmadığından önceden ayrıntı kapanıyordu)
-    if (this.isKurumAdmin() && !e.privacyRedacted && !this.isRedactedRow(e)) return true;
     return this.ownersInMyKurum([e.createdById, e.teacherId, ...(e.teacherIds || [])]);
   }
   /** Ortak takvimden gelen (ayrıntısı silinmiş) etüt satırı mı */
@@ -4849,9 +4405,7 @@ class DataService {
   private isMyHomework(hw: Homework, teacher?: Teacher | null): boolean {
     const me = teacher || this.getCurrentTeacher();
     if (!me) return false;
-    if ((!!me.auth_user_id && hw.teacherAuthId === me.auth_user_id) || hw.teacherId === me.id) return true;
-    // Aşama 109: ad eşleşmesi yalnız sahip kimliği hiç yazılmamış eski kayıtlarda (aynı adlı iki öğretmen karışmaz)
-    return !hw.teacherId && !hw.teacherAuthId && !!me.name && hw.createdByName === me.name;
+    return (!!me.auth_user_id && hw.teacherAuthId === me.auth_user_id) || hw.teacherId === me.id || (!!me.name && hw.createdByName === me.name);
   }
   /** Ödevin sahibi öğretmen(ler)in kimlikleri (kimlik ya da giriş hesabı ya da ad eşleşmesiyle) */
   private homeworkOwnerIds(hw: Homework): string[] {
@@ -4900,11 +4454,9 @@ class DataService {
   public canManageStudents(): boolean {
     if (!this.myKurum.supported) return this.isCurrentUserAdmin() || this.getClasses().length > 0;
     if (this.isHeadAdmin()) return true;
-    // Aşama 82: öğrenci ekle / sil — yönetici (Müdür, Müdür Yrd.), müdür izin verdiyse Rehberlik
-    // Aşama 108: Ölçme Değerlendirme de yalnızca kurum ayarındaki izinle (veritabanındaki kurum_student_adder ile aynı)
-    const rs = this.myKurum.roleSettings || {};
+    // Aşama 82: öğrenci ekle / sil — yönetici, Ölçme Değerlendirme, müdür izin verdiyse Rehberlik
     const roleAdder =
-      (this.hasRole('rehberlik') && rs.rehberlik_ogrenci_ekle === true) || (this.hasRole('olcme_degerlendirme') && rs.olcme_ogrenci_ekle === true);
+      this.hasRole('olcme_degerlendirme') || (this.hasRole('rehberlik') && this.myKurum.roleSettings?.rehberlik_ogrenci_ekle === true);
     return (this.isKurumAdmin() || roleAdder) && this.canUseModule('manage_students');
   }
 
@@ -5662,16 +5214,11 @@ class DataService {
     this.notify();
   }
 
-  public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[]; gradeClassIds: string[] }> {
-    // Aşama 102: kademeden gelen sınıflar (via_grade) ayrı döner; SQL 102 yoksa eski sorgu
-    const withFlag = await supabase.from('teacher_class_access').select('class_id,via_grade').eq('teacher_auth_id', teacherAuthId);
-    let cData: Array<{ class_id: string; via_grade?: boolean }> | null = withFlag.data;
-    let cErr = withFlag.error;
-    if (cErr && /via_grade/i.test(cErr.message || '')) {
-      const plain = await supabase.from('teacher_class_access').select('class_id').eq('teacher_auth_id', teacherAuthId);
-      cData = plain.data;
-      cErr = plain.error;
-    }
+  public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[] }> {
+    const { data: cData, error: cErr } = await supabase
+      .from('teacher_class_access')
+      .select('class_id')
+      .eq('teacher_auth_id', teacherAuthId);
 
     if (cErr) {
       throw new Error(`Sınıf erişim izinleri veritabanından okunamadı: ${cErr.message}`);
@@ -5687,9 +5234,8 @@ class DataService {
     }
 
     return {
-      classIds: cData ? cData.filter((r: any) => r.via_grade !== true).map((r: any) => r.class_id) : [],
+      classIds: cData ? cData.map((r: any) => r.class_id) : [],
       studentIds: sData ? sData.map((r: any) => r.student_id) : [],
-      gradeClassIds: cData ? cData.filter((r: any) => r.via_grade === true).map((r: any) => r.class_id) : [],
     };
   }
 
@@ -6077,7 +5623,6 @@ class DataService {
 
   // Oturumdaki kullanıcının KENDİ şifresini değiştirir. Önce eski şifre Supabase'de doğrulanır.
   public async changeOwnPassword(oldPassword: string, newPassword: string): Promise<void> {
-    this.assertNotPreview(); // Aşama 107: önizlemede öğretmenin kendi şifresi değişmesin
     if (!oldPassword) throw new Error('Lütfen mevcut şifrenizi giriniz.');
     if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
@@ -6159,7 +5704,6 @@ class DataService {
 
   // Öğrencinin "ilk girişte şifre değiştir" zorunluluğunu yerelde kaldırır (şifre yerelde saklanmaz)
   public markStudentPasswordChanged(studentId: string): void {
-    if (this.isStudentPreview()) return; // Aşama 107
     this.students = this.students.map((s) =>
       s.id === studentId ? { ...s, mustChangePassword: false, password: '' } : s
     );
@@ -6636,12 +6180,6 @@ class DataService {
       throw new Error('Hesabınız henüz kurum yöneticisi tarafından onaylanmamıştır. Lütfen kurum yöneticinize başvurunuz.');
     }
 
-    // Aşama 103: kilit anahtarı şifreden üretilir, aynı hesabın kilitli önbelleği açılır (ilk eşitleme bunu bekler)
-    this.secureDisabled = false;
-    this.secureRestore = unlockSecureCache(authUser.id, password)
-      .then((p) => this.applySecurePayload(p))
-      .catch(() => {});
-
     return teacher;
   }
 
@@ -6668,7 +6206,6 @@ class DataService {
       console.warn('Supabase Auth: öğrenci girişi başarısız');
       return null;
     }
-    this.stopSecureCache(); // Aşama 103: öğrenci hesabında cihaz önbelleği tutulmaz; önceki hesabın kaydı silinir
     const authUser = signed.user;
     const appRole = authUser.app_metadata?.role;
 
@@ -6936,17 +6473,10 @@ class DataService {
   // Aşama 97: hesap değiştirmeden (kurumlar arası geçiş) önce: anlık kanallar kapanır, bu sekmedeki veriler silinir ve
   // sayfa yenilenene kadar yeni yazma yapılmaz. Supabase oturumu burada kapatılmaz (geçişi çağıran yönetir).
   public prepareAccountSwitch(): void {
-    this.stopSecureCache();
     this.unsubscribeAllRealtime();
     if (this.rtFlushTimer) clearTimeout(this.rtFlushTimer);
     this.rtFlushTimer = null;
     clearSessionAppData();
-    // Aşama 104: kurum bilgisi ve öğrenci markası önbelleği de silinir; yoksa yenilenen sayfa ilk anda önceki hesabın
-    // kurum bilgisiyle açılıyordu (kuruma geçen genel yönetici, Kullanıcılar listesinde kurum öğretmenlerini göremiyordu)
-    try {
-      sessionStorage.removeItem(MY_KURUM_KEY);
-      sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);
-    } catch {}
     purgePersistentPersonalData();
     clearSignedUrlCache();
     freezeAppStorage();
@@ -6955,7 +6485,6 @@ class DataService {
   // Gizlilik: çıkışta bu sekmedeki tüm kişisel veriler bellekten ve tarayıcıdan silinir.
   // Aynı bilgisayarda sonra giriş yapan kişi önceki kullanıcının verilerini göremez.
   private clearUserDataAfterLogout(): void {
-    this.stopSecureCache();
     clearSessionAppData();
     purgePersistentPersonalData();
     clearSignedUrlCache();
@@ -7209,28 +6738,6 @@ class DataService {
     } catch {
       // bildirim gösterilemezse işlem yine de tamamdır
     }
-  }
-
-  // ===========================================================================
-  // Aşama 107: ÖĞRETMENİN "ÖĞRENCİ GÖRÜNÜMÜ" ÖNİZLEMESİ — salt okunur. Önizleme açıkken öğrenci adına
-  // kayıt yapan işlemler çalışmaz (ekrandaki düğmeler de kapalıdır; bu ikinci emniyettir).
-  // ===========================================================================
-  private studentPreview = false;
-  public setStudentPreview(on: boolean): void {
-    this.studentPreview = on;
-  }
-  public isStudentPreview(): boolean {
-    return this.studentPreview && this.getAuthSession()?.role === 'teacher';
-  }
-  /** Önizlemede kapalı bir düğmeye basıldığında kısa uyarı */
-  public showPreviewBlocked(): void {
-    this.showFloatingErrorToast('Önizleme: öğrenci adına işlem yapılamaz.');
-  }
-  private assertNotPreview(): void {
-    if (!this.isStudentPreview()) return;
-    const msg = 'Önizleme: öğrenci adına işlem yapılamaz.';
-    this.showFloatingErrorToast(msg);
-    throw new Error(msg);
   }
 
   private showFloatingErrorToast(message: string): void {
@@ -8073,19 +7580,32 @@ class DataService {
     return this.pendingApplicationCount;
   }
 
-  // Aşama 108: öğrenci kendi kaydını yapamaz (giriş ekranındaki kayıt formu ve başvuru gönderme kaldırıldı);
-  // daha önce gelmiş bekleyen başvurular aşağıdaki işlevlerle sonuçlandırılır.
-
-
-  // Yönetici: başvuruları listeler (en yeni en üstte)
-  /** Aşama 99b: başvuruları kim görür — genel yönetici (kurumsuz başvurular), kurum idaresi (kendi kurumununkiler) */
-  public canReviewApplications(): boolean {
-    if (this.getAuthSession()?.role !== 'teacher') return false;
-    return this.isHeadAdmin() || (this.isKurumAdmin() && this.canManageStudents());
+  // Giriş yapmamış öğrenci: başvuru formundaki sınıf listesi
+  public async fetchApplicationClasses(): Promise<Array<{ id: string; name: string }>> {
+    const res = await invokeEdgeFunction<{ classes?: Array<{ id: string; name: string }> }>('register-student', {
+      action: 'classes',
+    });
+    return res?.classes || [];
   }
 
+  // Giriş yapmamış öğrenci: kayıt başvurusu gönderir
+  public async submitStudentApplication(form: {
+    name: string;
+    studentNumber: string;
+    password: string;
+    classId?: string;
+    requestedClass?: string;
+    email?: string;
+    phone?: string;
+    avatar?: string;
+    website?: string;
+  }): Promise<void> {
+    await invokeEdgeFunction('register-student', { action: 'apply', ...form });
+  }
+
+  // Yönetici: başvuruları listeler (en yeni en üstte)
   public async fetchStudentApplications(status: 'pending' | 'all' = 'pending'): Promise<StudentApplication[]> {
-    if (!this.canReviewApplications()) return [];
+    if (!this.isCurrentUserAdmin()) return [];
     let query = supabase.from('student_applications').select('*').order('created_at', { ascending: false }).limit(200);
     if (status === 'pending') query = query.eq('status', 'pending');
     const { data, error } = await query;
@@ -8113,17 +7633,10 @@ class DataService {
     return list;
   }
 
-  // Aşama 99b: yalnızca sayı okunur (satırlar indirilmez); her eşitlemede hafif
   public async refreshPendingApplicationCount(): Promise<void> {
-    if (!this.canReviewApplications()) return;
+    if (!this.isCurrentUserAdmin()) return;
     try {
-      const { count, error } = await supabase.from('student_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-      if (error) return;
-      const n = count || 0;
-      if (n !== this.pendingApplicationCount) {
-        this.pendingApplicationCount = n;
-        this.notify();
-      }
+      await this.fetchStudentApplications('pending');
     } catch {
       // tablo henüz kurulmadıysa sessiz geç
     }
@@ -8487,7 +8000,6 @@ class DataService {
     attachmentLink?: string,
     resources?: HomeworkResource[]
   ): Promise<HomeworkSubmission> {
-    this.assertNotPreview(); // Aşama 107
     const student = this.students.find((s) => s.id === studentId);
     const homework = this.homeworks.find((h) => h.id === homeworkId);
     try {
@@ -8928,10 +8440,8 @@ class DataService {
     attData: Omit<AttendanceRecord, 'id'>,
     options?: { silent?: boolean }
   ): Promise<AttendanceRecord> {
-    // Aşama 109: boş ders adı veritabanında 'Genel' yazıldığı için eşleşme aynı kurala göre yapılır (çift kayıt açılmaz)
-    const subjKey = attData.subject || 'Genel';
     const existingIndex = this.attendance.findIndex(
-      (a) => a.date === attData.date && a.classId === attData.classId && (a.subject || 'Genel') === subjKey
+      (a) => a.date === attData.date && a.classId === attData.classId && a.subject === attData.subject
     );
     if (existingIndex >= 0) this.assertOwnedRecord(this.attendance[existingIndex], 'yoklama');
 
@@ -8951,22 +8461,7 @@ class DataService {
 
     // Merkezi veritabanı tek doğruluk kaynağıdır: bulut onayı beklenir, hata varsa geri alınır
     await this.runCloudWrite(
-      async () => {
-        const row = this.attendanceToRow(record);
-        let res: { error: any } = await supabase.from('attendance').upsert(row);
-        // Aşama 109: aynı sınıf / gün / ders için kayıt başka cihazda az önce açıldıysa (tekil kural) o kayıt güncellenir
-        if (res.error?.code === '23505') {
-          let q = supabase.from('attendance').select('id').eq('class_id', row.class_id).eq('date', row.date);
-          q = row.subject === 'Genel' ? q.or('subject.is.null,subject.eq.Genel') : q.eq('subject', row.subject);
-          const ex = await q.limit(1).maybeSingle();
-          const exId = (ex.data as any)?.id;
-          if (exId && exId !== row.id) {
-            record.id = exId;
-            res = await supabase.from('attendance').upsert({ ...row, id: exId });
-          }
-        }
-        return res;
-      },
+      () => supabase.from('attendance').upsert(this.attendanceToRow(record)),
       () => {
         this.attendance = prevAttendance;
         saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
@@ -9194,19 +8689,7 @@ class DataService {
     }
   }
 
-  /**
-   * Aşama 113: mesaj bu öğretmene mi (alıcısı ben ya da alıcısız genel soru). Okundu işaretini yalnız alıcı koyar;
-   * idarenin başka öğretmene gelen soruyu açması o öğretmenin "okunmadı" işaretini değiştirmez. Sayaçlar da bunu sayar.
-   */
-  public isMessageForMe(m: StudentMessage): boolean {
-    const s = this.getAuthSession();
-    if (s?.role !== 'teacher') return true;
-    return !m.toTeacherId || m.toTeacherId === s.user.id;
-  }
-
   public async markMessageAsRead(id: string): Promise<void> {
-    const target = this.messages.find((m) => m.id === id);
-    if (!target || target.read || !this.isMessageForMe(target)) return;
     const prevMessages = this.messages;
     this.messages = this.messages.map((m) => (m.id === id ? { ...m, read: true } : m));
     saveData(STORAGE_KEYS.MESSAGES, this.messages);
@@ -9451,10 +8934,7 @@ class DataService {
       }
 
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı / Etüt Öğretmeni — veritabanının açtığı kayıtlar; veli bilgisi role göre
-      // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla (mesaj, not, yoklama, teslim süzgeçleri
-      // getStudents(kendi id) çağırıyordu; Rehberlik'te sınıf yetkisi yazılı olmadığı için bu kayıtlar ekranda gizleniyordu)
-      const self = !forTeacherId || forTeacherId === session?.user.id;
-      if (self && this.roleTrustsDb()) {
+      if (!forTeacherId && this.roleTrustsDb()) {
         const hideParents = !this.canSeeParentContacts();
         return this.students
           .filter((s) => !this.deletedStudentIds.has(s.id))
@@ -9518,8 +8998,7 @@ class DataService {
       }
 
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı — veritabanının açtığı sınıflar; Etüt Öğretmeni sınıf görmez
-      // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla
-      if ((!forTeacherId || forTeacherId === session?.user.id) && this.roleTrustsDb()) {
+      if (!forTeacherId && this.roleTrustsDb()) {
         if (this.roleEtutOnly()) return [];
         return this.deduplicateClasses(this.classes.filter((c) => !this.deletedClassIds.has(c.id)));
       }
@@ -9699,37 +9178,6 @@ class DataService {
     const k = this.myKurum;
     return this.memoView('Etuts:' + (forTeacherId || ''), [this.etuts, this.teachers, this.classes, this.students], this.viewKey(`${forTeacherId || ''}|${k.head ? 1 : 0}${k.kurumAdmin ? 1 : 0}${k.kurumId || ''}`), () => this.computeEtuts(forTeacherId));
   }
-  /**
-   * Aşama 111: EKRANLARDA gösterilecek etütler (tek kural, tüm ekranlar bunu kullanır).
-   * Ortak takvim satırları (başka öğretmenin, ortak öğrencili etüdü) yalnız çakışma uyarısı içindir; hiçbir
-   * listede / sayaçta görünmez. Gerisini veritabanı belirler: öğretmen kendi kaydettiği ve kendisine verilen
-   * etütleri, Zümre Başkanı ek olarak zümresini, Rehberlik ve idare kurumun tamamını alır.
-   */
-  public getVisibleEtuts(): Etut[] {
-    const all = this.getEtuts();
-    return this.memoView('VisibleEtuts', [all, this.etuts], this.viewKey(), () => {
-      // Yalnız sunucudan "ortak takvim" olarak gelen satırlar gizlenir. Ekranda ayrıntısı kapatılan (ör. dış etüt
-      // öğretmeninin) ama veritabanının bu kişiye tam verdiği etüt listede kalır (bugünkü gibi ayrıntısız görünür).
-      const shared = new Set<string>();
-      for (const e of this.etuts) if (e.privacyRedacted) shared.add(e.id);
-      if (!shared.size) return all;
-      return all.filter((e) => !shared.has(e.id));
-    });
-  }
-  /** Kurumun tüm etütlerini görür (Etütler › "Tüm okul", Takip görünümü): genel yönetici, idare, Rehberlik */
-  public seesAllEtuts(): boolean {
-    if (this.getAuthSession()?.role !== 'teacher') return false;
-    return this.isHeadAdmin() || this.isCurrentUserAdmin() || this.isKurumAdmin() || this.hasRole('rehberlik');
-  }
-  /** Başka öğretmene etüt verebilir mi (veritabanı da denetler, sql/111): genel yönetici, idare, Rehberlik */
-  public canAssignEtutToOthers(): boolean {
-    return this.seesAllEtuts();
-  }
-  /** Ekranda düzenle / sil / yoklama düğmeleri açık mı (Rehberlik ve Zümre başkasınınkini yalnız görür) */
-  public canEditEtutPublic(e: Etut): boolean {
-    if (e.privacyRedacted) return false;
-    return this.canEditEtut(e);
-  }
   private computeEtuts(forTeacherId?: string): Etut[] {
     const session = this.getAuthSession();
 
@@ -9854,15 +9302,13 @@ class DataService {
       if (teacher?.isAdmin) return this.messages.filter((m) => !this.isTeacherAuthoredMessage(m));
 
       const visibleStudents = new Set(this.getStudents(teacherId).map((s) => s.id));
-      // Aşama 113: idare (Müdür / Müdür Yrd. rolüyle de) kurumdaki öğretmenlere gelen soruları veritabanından alır
-      // (message_teacher_can_see → priv_teacher_ok); ekran da aynısını gösterir. Rehberlik'e veritabanı vermez.
-      const idare = teacherId === session?.user.id && this.isKurumAdmin();
       // Aşama 45: başka öğretmene yazılmış ya da başka öğretmenin cevapladığı soru görünmez (veritabanı da denetler)
       return this.messages.filter(
         (m) =>
           visibleStudents.has(m.studentId) &&
           !this.isTeacherAuthoredMessage(m) &&
-          (idare || ((!m.toTeacherId || m.toTeacherId === teacherId) && (!m.repliedById || m.repliedById === teacherId)))
+          (!m.toTeacherId || m.toTeacherId === teacherId) &&
+          (!m.repliedById || m.repliedById === teacherId)
       );
     }
 
@@ -10059,7 +9505,6 @@ class DataService {
   }
 
   public async sendMessage(msgData: Omit<StudentMessage, 'id' | 'createdAt' | 'read'>): Promise<StudentMessage> {
-    this.assertNotPreview(); // Aşama 107
     const newMsg: StudentMessage = {
       ...msgData,
       id: newId('msg'),
@@ -10452,7 +9897,6 @@ class DataService {
   }
 
   public markNotificationAsRead(id: string): void {
-    if (this.isStudentPreview()) return; // Aşama 107: önizleme öğrencinin bildirimlerini okundu yapmaz
     const target = this.studentNotifications.find((n) => n.id === id);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.id === id ? { ...n, read: true } : n
@@ -10466,7 +9910,6 @@ class DataService {
   }
 
   public markAllNotificationsAsRead(studentId: string): void {
-    if (this.isStudentPreview()) return; // Aşama 107
     const hadCloudUnread = this.studentNotifications.some((n) => n.studentId === studentId && n.cloud && !n.read);
     this.studentNotifications = this.studentNotifications.map((n) =>
       n.studentId === studentId ? { ...n, read: true } : n
@@ -10786,7 +10229,6 @@ class DataService {
       totalQuestions?: number;
     }
   ): Promise<StudentQuestionLog> {
-    this.assertNotPreview(); // Aşama 107
     // Girilen değerler doğrulanır; geçersiz kayıt hiç yazılmaz (Türkçe hata fırlatılır)
     const MAX_COUNT = 1000;
     const date = String(logData.date || '').trim();
@@ -10987,7 +10429,6 @@ class DataService {
   }
 
   public async deleteQuestionLog(id: string): Promise<void> {
-    this.assertNotPreview(); // Aşama 107
     const prevLogs = [...this.questionLogs];
     const wasTombstoned = this.deletedQuestionLogIds.has(id);
     this.deletedQuestionLogIds.add(id);
@@ -11054,7 +10495,6 @@ class DataService {
    * Çağrılar sırayla çalışır (art arda işaretlemede kayıtlar birbirini ezmez).
    */
   public setPlanTaskQuestions(opts: { itemId: string; subject: string; date: string; count: number }): Promise<{ date: string; subject: string; count: number; subjectTotal: number }> {
-    if (this.isStudentPreview()) return Promise.reject(new Error('Önizleme: öğrenci adına işlem yapılamaz.')); // Aşama 107
     const run = this.planQuestionQueue.then(
       () => this.setPlanTaskQuestionsNow(opts),
       () => this.setPlanTaskQuestionsNow(opts)

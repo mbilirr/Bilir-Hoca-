@@ -121,7 +121,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
       teachers
         .filter((t) => t.kurumId === k.id && t.isAdmin)
         .forEach((t) => {
-          // Aşama 98: yalnızca ad benzerliği birleştirme sebebi değildir (aynı adlı iki yönetici olabilir)
+          link('yon:' + norm(t.name), k.id);
           if (t.username) link('kad:' + norm(t.username), k.id);
           if (t.email) link('ep:' + norm(t.email), k.id);
           if (t.auth_user_id) link('auth:' + t.auth_user_id, k.id);
@@ -136,8 +136,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
     const dupNames: string[] = [];
     byGroup.forEach((group) => {
       if (group.length < 2) return;
-      // Aşama 98: yöneticisi olan kurum hiçbir zaman gizlenmez
-      const used = group.filter((k) => usage(k) > 0 || teachers.some((t) => t.kurumId === k.id && t.isAdmin));
+      const used = group.filter((k) => usage(k) > 0);
       // En az bir dolu kopya varsa boş kopyalar gizlenir; hepsi boşsa en eskisi kalır
       const keep = used.length > 0 ? used : [group[0]];
       group.forEach((k) => {
