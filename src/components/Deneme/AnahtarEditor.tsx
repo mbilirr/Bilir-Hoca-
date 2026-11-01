@@ -3,7 +3,8 @@ import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Spar
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
-import { listEslesmeler, listKazanimlar, saveEslesme, type BankRow } from '../../services/denemeService';
+import { listEslesmeler, listKazanimlar, listYillikPlan, saveEslesme, type BankRow } from '../../services/denemeService';
+import { isPlanSubject, planCutoff, planDateTr, planStartOf, planUsable, type PlanMap } from '../../lib/deneme/yillikPlan';
 import { codeKey } from '../../lib/deneme/kazanimBank';
 import { applyBank, applyKonu, bankIndexBySubject, bankOptionsBySubject, describeMatch, matchQuestionsWithBank, memoryKeyOf } from '../../lib/deneme/bankEslestir';
 import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
@@ -37,7 +38,8 @@ export const AnahtarEditor: React.FC<{
   questions: ExamQuestions;
   onChange: (qs: ExamQuestions) => void;
   onExcelMeta?: (r: ExcelKeyResult) => void;
-}> = ({ subjects, questions, onChange, onExcelMeta }) => {
+  examDate?: string; // Aşama 129: yıllık plan süzgeci için deneme tarihi
+}> = ({ subjects, questions, onChange, onExcelMeta, examDate }) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -48,6 +50,8 @@ export const AnahtarEditor: React.FC<{
   const [bank, setBank] = useState<BankRow[] | null>(null);
   // Aşama 128: eşleme hafızası (ders → yayınevi ifadesi → kod); bir kez okunur
   const memoryRef = useRef<Map<string, Map<string, string>> | null>(null);
+  // Aşama 129: yıllık planlar (Fen, Mat, İnkılap); bir kez okunur
+  const [plans, setPlans] = useState<PlanMap | null>(null);
   const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
   // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
   const [lastExcel, setLastExcel] = useState<ExcelKeyResult | null>(null);
@@ -70,6 +74,7 @@ export const AnahtarEditor: React.FC<{
     void listEslesmeler().then((m) => {
       if (alive && !memoryRef.current) memoryRef.current = m;
     });
+    void listYillikPlan().then((r) => alive && setPlans(r.plans));
     void aiStatus().then((r) => {
       if (alive && r.ok) setAi({ provider: !r.gemini && r.mistral ? 'mistral' : 'gemini', keys: { gemini: !!r.gemini, mistral: !!r.mistral } });
     });
@@ -84,6 +89,18 @@ export const AnahtarEditor: React.FC<{
 
   const setSubject = (key: string, list: ExamQuestion[]) => onChange({ ...questions, [key]: list });
 
+  // Aşama 129: deneme tarihine (+1 hafta) göre plan durumu; plan yoksa ya da başka yıla aitse süzgeç yok
+  const cutoff = planCutoff(examDate || '');
+  const planOf = (key: string) => (plans && isPlanSubject(key) && planUsable(plans[key], cutoff) ? plans[key] : undefined);
+  /** Plana göre henüz işlenmemişse ilk işleneceği hafta, değilse null */
+  const laterOf = (key: string, q: ExamQuestion): string | null => {
+    const plan = planOf(key);
+    const code = q.kazanimCode || q.konuCode;
+    if (!plan || !code || !cutoff) return null;
+    const start = planStartOf(plan, code);
+    return start && start > cutoff ? start : null;
+  };
+
   const ensureBank = async (): Promise<BankRow[]> => {
     if (bank) return bank;
     try {
@@ -96,7 +113,7 @@ export const AnahtarEditor: React.FC<{
   };
 
   // Excel'deki kazanım bilgilerini bankayla eşleştirir (kod → metin → yapay zekâ)
-  const runMatch = async (qs: ExamQuestions, clearUnmatched: boolean, prefix: string) => {
+  const runMatch = async (qs: ExamQuestions, clearUnmatched: boolean, prefix: string, date: string | undefined = examDate) => {
     const b = await ensureBank();
     if (!b.length) {
       onChange(qs);
@@ -105,7 +122,13 @@ export const AnahtarEditor: React.FC<{
     }
     setBusyText('Kazanımlar bankayla eşleştiriliyor…');
     if (!memoryRef.current) memoryRef.current = await listEslesmeler();
-    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText, memory: memoryRef.current });
+    // Aşama 129: plan henüz okunmadıysa beklenir
+    let pl = plans;
+    if (!pl) {
+      pl = (await listYillikPlan()).plans;
+      setPlans(pl);
+    }
+    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText, memory: memoryRef.current, plans: pl, examDate: date });
     onChange(r.questions);
     const d = describeMatch(subjects, r.stats);
     setMsg({ tone: d.tone === 'success' && !r.notes.length ? 'success' : 'warning', text: `${prefix}${d.text}${r.notes.length ? ' ' + r.notes.join(' ') : ''}` });
@@ -144,8 +167,45 @@ export const AnahtarEditor: React.FC<{
   };
 
   const applyExcel = async (r: ExcelKeyResult, base: ExamQuestions) => {
+    // Aşama 129b: cevapsız kazanım listesi (ör. Özdebir): cevaplara ve B sırasına dokunulmaz, yalnız kazanım bilgisi eklenir
+    if (r.kazanimOnly) {
+      const next: ExamQuestions = { ...base };
+      let n = 0;
+      for (const k of r.found) {
+        const s = subjects.find((x) => x.key === k);
+        if (!s) continue;
+        const byNo = new Map(r.questions[k].map((q) => [q.no, q]));
+        const cur = base[k] && base[k].length ? base[k] : Array.from({ length: s.count }, (_, i) => ({ no: i + 1, answer: '' }) as ExamQuestion);
+        next[k] = cur.map((q) => {
+          const a = byNo.get(q.no);
+          if (!a || (!a.srcCode && !a.srcText)) return q;
+          n++;
+          return { ...q, srcCode: a.srcCode, srcText: a.srcText };
+        });
+      }
+      onExcelMeta?.({ ...r, examDate: '', examName: '' });
+      setOffer(null);
+      const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.short);
+      const noAns = subjects.some((s) => !(base[s.key] || []).some((q) => q.answer));
+      await runMatch(
+        next,
+        true,
+        `Kazanım listesi okundu (dosyada cevap yok): ${names.join(', ')}, ${n} soru. Cevaplar ve B sırası değişmedi.${noAns ? ' Cevapları henüz girmediğiniz dersler var: cevap anahtarını (PDF / Excel) yükleyin ya da elle yazın; kazanımlar korunur.' : ''} `
+      );
+      return;
+    }
     const next: ExamQuestions = { ...base };
-    for (const k of r.found) next[k] = r.questions[k];
+    for (const k of r.found) {
+      // Aşama 129b: dosyada bu dersin kazanımı yoksa (ör. Özdebir cevap PDF'i) önceden yüklenen kazanım listesi korunur
+      const old = base[k] || [];
+      if (!hasSourceKazanim(r.questions[k]) && old.some((q) => q.srcCode || q.srcText)) {
+        const byNo = new Map(old.map((q) => [q.no, q]));
+        next[k] = r.questions[k].map((q) => {
+          const o = byNo.get(q.no);
+          return o && (o.srcCode || o.srcText) ? { ...q, srcCode: o.srcCode, srcText: o.srcText } : q;
+        });
+      } else next[k] = r.questions[k];
+    }
     onExcelMeta?.(r);
     // Aşama 89: B kitapçığının cevapları kontrol kutusuna yazılır; harflerden kurulan eşleşmeler işaretlenir
     const bk = r.method === 'yz' ? undefined : r.bKeys;
@@ -166,7 +226,7 @@ export const AnahtarEditor: React.FC<{
       (missing.length ? ` Bulunamayan dersler: ${missing.join(', ')} (elle girebilirsiniz).` : '') +
       (r.warnings.length ? ' ' + r.warnings.join(' ') : '') +
       ' ';
-    await runMatch(next, true, prefix);
+    await runMatch(next, true, prefix, examDate || r.examDate || undefined);
     // Cevaplar var ama kazanım okunamadıysa: yapay zekâ seçeneği
     const noKaz = r.found.filter((k) => !hasSourceKazanim(r.questions[k]));
     if (r.method !== 'yz' && noKaz.length && (r.textCells || 0) >= 8) {
@@ -320,6 +380,8 @@ export const AnahtarEditor: React.FC<{
           onClose={() => setAiOpen(false)}
           subjects={subjects}
           questions={questions}
+          plans={plans}
+          examDate={examDate}
           onApply={(qs, summary) => {
             onChange(qs);
             setMsg({ tone: 'success', text: `${summary} Kaydetmeyi unutmayın.` });
@@ -416,6 +478,7 @@ export const AnahtarEditor: React.FC<{
           const withKazanim = list.filter((q) => q.kazanimCode && byCode.has(codeKey(q.kazanimCode))).length;
           const unmatched = list.filter((q) => (q.srcCode || q.srcText) && !q.kazanimCode && !q.konuCode).length;
           const konuOnly = list.filter((q) => !q.kazanimCode && q.konuCode).length;
+          const planLater = list.filter((q) => laterOf(s.key, q)).length; // Aşama 129
           const opts = options[s.key] || [];
           const konular = Array.from(index[s.key]?.konular.values() || []);
           // Aşama 128: elle seçim eşleme hafızasına yazılır (yalnız yayınevi bilgisi olan sorularda)
@@ -441,6 +504,11 @@ export const AnahtarEditor: React.FC<{
                 <span className={cx('ui-chip', withKazanim ? 'ui-chip-info' : 'ui-chip-neutral')}>{withKazanim} kazanım</span>
                 {konuOnly > 0 && <span className="ui-chip ui-chip-neutral">{konuOnly} yalnız konu</span>}
                 {unmatched > 0 && <span className="ui-chip ui-chip-warning">{unmatched} eşleşmedi</span>}
+                {planLater > 0 && (
+                  <span className="ui-chip ui-chip-warning" title="Yıllık plana göre deneme tarihinde (+1 hafta) henüz işlenmemiş kazanım. Yayınevi kodu açık yazdığı için koda uyuldu; Sorular bölümünden kontrol edin.">
+                    {planLater} planda henüz işlenmedi
+                  </span>
+                )}
                 {bProblems.length > 0 && (
                   <span className="ui-chip ui-chip-danger" title={bProblems.join('\n')}>
                     B eşleşmesi hatalı ({bProblems.length})
@@ -692,6 +760,15 @@ export const AnahtarEditor: React.FC<{
                                     YZ
                                   </span>
                                 )}
+                                {(() => {
+                                  // Aşama 129: koda uyuldu ama plana göre henüz işlenmedi → yalnız uyarı (karar öğretmenin)
+                                  const later = laterOf(s.key, q);
+                                  return later ? (
+                                    <span className="ui-chip ui-chip-warning" title={`Yıllık plana göre bu ${q.kazanimCode ? 'kazanım' : 'konu'} ${planDateTr(later)} haftasında işlenecek. Doğruysa böyle bırakın; değilse listeden işlenmiş bir kazanım seçin (seçiminiz hatırlanır).`}>
+                                      Planda henüz işlenmedi ({planDateTr(later)})
+                                    </span>
+                                  ) : null;
+                                })()}
                                 {(q.srcCode || q.srcText) && (
                                   <span className={cx('text-[11px]', q.kazanimCode || q.konuCode ? 'text-muted' : 'text-warning-fg')}>
                                     Excel: {short([q.srcCode, q.srcText].filter(Boolean).join(' — '), 110)}
@@ -736,7 +813,8 @@ export const AnahtarEditor: React.FC<{
       </div>
       <p className="text-[11px] text-muted">
         Kazanımı listeden seçince konusu bankadan otomatik gelir; yalnız konu da seçilebilir. Elle yapılan seçim hatırlanır, sonraki denemelerde aynı ifade kendiliğinden eşleşir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
-        kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır.
+        kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır. Fen, Matematik ve İnkılap için yıllık plan
+        yüklüyse ad benzerliği ve yapay zekâ yalnız deneme tarihine kadar işlenen kazanımları önerir; yayınevinin açık kodu ise korunur ve "planda henüz işlenmedi" diye işaretlenir.
       </p>
     </div>
   );

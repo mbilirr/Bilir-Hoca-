@@ -24,6 +24,7 @@ export interface ExcelKeyResult {
   bModes?: Record<string, BMode>; // B eşleşmesinin nasıl bulunduğu
   source?: 'excel' | 'pdf';
   table?: boolean; // Aşama 118: dersler "Ders" sütunlu tek tablodan okundu (ızgara okuması bunun yerine geçmez)
+  kazanimOnly?: boolean; // Aşama 129b: dosyada cevap yok, yalnız soru → kazanım/konu listesi (ör. Özdebir)
 }
 
 const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)).replace(/\s+/g, ' ').trim();
@@ -138,7 +139,8 @@ export function splitKazanim(codeCell: string, textCell: string, konuCell: strin
       // Aşama 118: "8.1.1.2,8.1.1.3" gibi birden çok kod: ilki (birincil) kullanılır, gerisi metne karışmaz
       const rest = (m[2] || '').replace(/^(\s*[,;/]\s*(?:[A-Za-zÇĞİÖŞÜçğıöşü]{1,4}\s*\.\s*)?\d{1,2}(?:\s*\.\s*\d{1,2}){1,4}\.?)+/, '').trim();
       if (rest.length > 3) text = rest;
-    } else text = c; // kod sütununda metin yazılmış
+    } else if (!/^\d+$/.test(c) || !cellText(textCell)) text = c; // kod sütununda metin yazılmış
+    // Aşama 129b: yanında metin varsa noktasız yayınevi numarası (6004, 2080501) metne katılmaz (eşleme hafızası bozulmasın)
   }
   if (t) {
     const m = CODE_RE.exec(t);
@@ -177,6 +179,8 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
   let hint = '';
   let skippedB = 0;
   let table = false;
+  // Aşama 129b: "A KİTAPÇIĞI" gibi cevap başlığının altında harf değil metin varsa (Özdebir) dosya kazanım listesidir
+  let kazOnly = false;
 
   for (const sh of sheets) {
     const rows = sh.rows;
@@ -224,6 +228,22 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       const h = headerOf(cells);
       if (h) {
         col = h.cols;
+        if (col.ans >= 0) {
+          let letters = 0;
+          let texts = 0;
+          for (let j = i + 1, seen = 0; j < rows.length && seen < 15; j++) {
+            const v = (rows[j] || [])[col.ans];
+            const s = cellText(v);
+            if (!s) continue;
+            seen++;
+            if (ansOfCell(v)) letters++;
+            else if (s.length >= 3 && /[a-zçğıöşü]{2}/i.test(s)) texts++;
+          }
+          if (texts >= 3 && texts > letters * 3) {
+            col = { ...col, text: col.text >= 0 ? col.text : col.ans, konu: col.text >= 0 && col.konu < 0 ? col.ans : col.konu, ans: -1 };
+            kazOnly = true;
+          }
+        }
         if (!hint) hint = headerHint(cells, h.cols);
         if (h.subject) startSubject(h.subject, cells[h.subjectCol]);
         continue;
@@ -260,11 +280,11 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       const noIdx = c.no >= 0 ? c.no : filled.find((x) => !known.has(x.idx) && intOfCell(row[x.idx]))?.idx ?? filled[0].idx;
       const no = intOfCell(row[noIdx]);
       let ans = c.ans >= 0 ? ansOfCell(row[c.ans]) : '';
-      if (!ans && c.ans < 0) {
+      if (!ans && c.ans < 0 && !kazOnly) {
         const f = row.findIndex((v, k) => k !== c.no && !!ansOfCell(v));
         ans = f >= 0 ? ansOfCell(row[f]) : '';
       }
-      if (!no || !ans) continue;
+      if (!no || (!ans && !kazOnly)) continue;
       const list = (questions[subj] = questions[subj] || []);
       if (list.some((q) => q.no === no)) continue;
       const q: ExamQuestion = { no, answer: ans };
@@ -279,6 +299,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
       const kz = splitKazanim(c.code >= 0 ? cells[c.code] : '', tx, c.konu >= 0 ? cells[c.konu] : '');
       if (kz.code) q.srcCode = kz.code;
       if (kz.text) q.srcText = kz.text;
+      if (!ans && !kz.text && !kz.code) continue; // kazanım listesinde boş satır
       list.push(q);
     }
   }
@@ -331,6 +352,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
   rawText = rawText.slice(0, 40000);
   if (!found.length) warnings.push('Excel dosyasında cevap anahtarı tablosu bulunamadı.');
   else if (skippedB) warnings.push(`B kitapçığı satırları (${skippedB}) atlandı; B karşılıkları A satırlarından alındı.`);
+  const kazanimOnly = kazOnly && found.length > 0 && method === 'baslik' && found.every((k) => questions[k].every((q) => !q.answer));
   return {
     examName,
     examDate,
@@ -342,6 +364,7 @@ export function parseKeySheets(sheets: Array<{ name: string; rows: unknown[][] }
     textCells,
     bKeys: Object.keys(bKeys).length ? bKeys : undefined,
     table: table && method === 'baslik' && found.length >= 2,
+    kazanimOnly,
   };
 }
 
@@ -354,7 +377,7 @@ function finishKey(D: Duzen, r: ExcelKeyResult, subjects?: ExamSubject[]): Excel
 
 /** Izgara (A / B yan yana ders sütunları) okuması eski okumadan iyiyse onu kullanır */
 function pickGrid(D: Duzen, base: ExcelKeyResult, layout: LSheet[], subjects?: ExamSubject[]): ExcelKeyResult {
-  if (!subjects?.length) return base;
+  if (!subjects?.length || base.kazanimOnly) return base;
   // Aşama 118: "Ders" sütunlu, kazanımlı tablo güvenilirdir; ızgara okuması kazanımları taşımadığı için yerine geçmez
   if (base.table && base.found.some((k) => hasSourceKazanim(base.questions[k]))) return base;
   const g = D.parseGridKey(layout, subjects);
