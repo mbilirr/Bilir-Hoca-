@@ -12,7 +12,7 @@ import { kurumOzet, priorityKarne, veliKarneData } from '../../lib/deneme/veliKu
 import { dataService } from '../../services/dataService';
 import { Segmented, cx } from '../ui/kit';
 import type { ClassGroup, Student } from '../../types';
-import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
+import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, listResultsLite, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import {
   SCOPES,
   classCombinedBlocks,
@@ -26,13 +26,15 @@ import {
   dateTr,
   type ScopeKey,
 } from '../../lib/deneme/karneModel';
-import { downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
+import { buildKarnePdfParts, downloadKarnePdf, karnePdfBase64, karnePdfBlob, safeFileName, type PdfBlock } from '../../lib/deneme/karnePdf';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { fmtScore } from '../../lib/deneme/lgs';
 import { TUR_NAME, TUR_TITLE, buildStudentKarne, type KarneContext, type KarneExtra } from '../../lib/deneme/karneBuilder';
 import { downloadClassPdf, downloadClassZip, forEachStudentKarne, type TopluOpts } from '../../lib/deneme/topluKarne';
 import { KarneSmsModal, type KarneSendKind, type SmsAudience } from './KarneSmsModal';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
+import { BransGelisimView } from './BransGelisimView'; // Aşama 130
+import { bransGelisim, bransGelisimBlocks, bransTumSubeler, type BransSubject } from '../../lib/deneme/bransKarne';
 
 // ============================================================================
 // Karneler (Aşama 47): öğrenci, sınıf ve sınıflar arası karşılaştırma.
@@ -41,7 +43,7 @@ import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 
 type Mode = 'ogrenci' | 'sinif' | 'karsilastirma' | 'isi' | 'kurum';
 // Aşama 55: sınıf karnesinin türü
-type SinifTur = 'genel' | 'birlesik';
+type SinifTur = 'genel' | 'birlesik' | 'brans'; // Aşama 130: brans = branş (ders) şube gelişim karnesi
 type PdfOrientation = 'portrait' | 'landscape';
 // Aşama 59: Karneler › Sınıf ve Öğrenci seçim kutuları (ikisi aynı boyda; yazı text-sm, yükseklik 2.5rem)
 const PICKER_BOX = 'w-full sm:w-72';
@@ -142,8 +144,6 @@ const takenByStudent = (results: DenemeResult[]) => {
 // Aşama 101: ekranda seçili karne türü kullanılır; tek PDF / zip indirme; SMS ile 30 gün geçerli karne linki.
 type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
 const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
-// Aşama 119b: seçili öğrenci için dört ayrı düğme (eşit en / boy)
-const TEK_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center';
 
 const TopluKarneGonder: React.FC<{
   examIds: string[];
@@ -539,6 +539,7 @@ export const DenemeKarne: React.FC<{
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
   const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
+  const [sendOpen, setSendOpen] = useState<KarneSendKind | null>(null); // Aşama 119: seçili öğrenciye e-posta / SMS
   useEffect(() => setVeliNote(''), [studentId]);
   // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
   useEffect(() => setDetailExamId(''), [scope, picked]);
@@ -546,6 +547,8 @@ export const DenemeKarne: React.FC<{
   const teacherName = dataService.getCurrentTeacher()?.name || '';
   const [sinifTur, setSinifTur] = useHistoryState<SinifTur>('deneme.karne.sinifTur', 'genel'); // Aşama 55
   const [heatOpts, setHeatOpts] = useState<HeatOptions>(() => ({ ...DEFAULT_HEAT_OPTIONS, subjectKey: branchSubjectKey() }));
+  // Aşama 130: branş gelişim karnesinin dersi (branş öğretmeninde kendi dersi)
+  const [bransPick, setBransPick] = useState<string>(() => branchSubjectKey());
 
   // Aşama 54: kazanım takip karnesinde "Henüz sorulmadı" için kazanım bankası (bir kez okunur)
   useEffect(() => {
@@ -571,6 +574,13 @@ export const DenemeKarne: React.FC<{
   const student = students.find((s) => s.id === studentId) || null;
   const allClassIds = useMemo(() => classes.map((c) => c.id), [classes]);
   const cls = classes.find((c) => c.id === classId) || null;
+  // Aşama 130: kapsamdaki denemelerde bulunan dersler (liste özetinden; ek okuma yok)
+  const isBrans = mode === 'sinif' && sinifTur === 'brans';
+  const bransSubjects = useMemo(() => (isBrans ? usedSubjects(scoped) : []), [isBrans, scoped]);
+  const bransSubject: BransSubject | null = useMemo(() => {
+    const hit = bransSubjects.find((s) => s.key === bransPick) || bransSubjects[0];
+    return hit ? { key: hit.key, name: hit.name, short: hit.short } : null;
+  }, [bransSubjects, bransPick]);
 
   // Seçime göre veriler okunur
   useEffect(() => {
@@ -614,6 +624,12 @@ export const DenemeKarne: React.FC<{
     () => (mode === 'sinif' && sinifTur === 'birlesik' && results.length ? classCombined(fullExams, results, usedSubjects(fullExams)) : null),
     [mode, sinifTur, fullExams, results]
   );
+  // Aşama 130: branş gelişim karnesi (ekran ve PDF ortak); şubenin bugünkü öğrencileri de satırda
+  const bransData = useMemo(() => {
+    if (!isBrans || !cls || !bransSubject || !results.length) return null;
+    const roster = students.filter((s) => s.classId === cls.id).map((s) => ({ id: s.id, name: s.name, no: s.studentNumber }));
+    return bransGelisim(fullExams, results, bransSubject, cls.name, roster);
+  }, [isBrans, cls, bransSubject, fullExams, results, students]);
   const fullHeat = useMemo(() => (mode === 'isi' && results.length ? kazanimClassHeat(fullExams, results, usedSubjects(fullExams)) : null), [mode, fullExams, results]);
   // Aşama 56
   const veliData = useMemo(() => (mode === 'ogrenci' && tur === 'veli' && results.length ? veliKarneData(fullExams, results, target, usedSubjects(fullExams)) : null), [mode, tur, fullExams, results, target]);
@@ -622,6 +638,10 @@ export const DenemeKarne: React.FC<{
 
   const blocks = (): { blocks: PdfBlock[]; footer: string; file: string; orientation?: PdfOrientation } | null => {
     const label = scopeLabel(scope);
+    if (isBrans && cls) {
+      if (!bransData) return null;
+      return { blocks: bransGelisimBlocks(bransData, label), footer: `${cls.name} ${bransData.subject.name.toLocaleLowerCase('tr-TR')} şube gelişim karnesi`, file: `Brans-Gelisim-${bransData.subject.short}-${cls.name}`, orientation: 'landscape' };
+    }
     if (mode === 'sinif' && cls && sinifTur === 'birlesik') {
       if (!classData) return null;
       return { blocks: classCombinedBlocks(classData, label), footer: `${cls.name} sınıf birleştirilmiş karnesi`, file: `Sinif-Birlestirilmis-Karne-${cls.name}`, orientation: 'landscape' };
@@ -671,9 +691,39 @@ export const DenemeKarne: React.FC<{
       if (b) await downloadKarnePdf(b.blocks, b.footer, b.file, b.orientation);
     });
 
+  // Aşama 130: seçili ders, bütün şubeler — her şube ayrı sayfada tek PDF (hafif sonuç okuma: cevaplar inmez)
+  const onBransTumSubeler = () =>
+    run(async () => {
+      if (!bransSubject || !scoped.length) return;
+      const rs = await listResultsLite(scoped.map((e) => e.id));
+      const names = new Map(classes.map((c) => [c.id, c.name] as const));
+      const rosterMap = new Map<string, Array<{ id: string; name: string; no?: string }>>();
+      for (const s of students) {
+        if (!s.classId) continue;
+        const list = rosterMap.get(s.classId);
+        const entry = { id: s.id, name: s.name, no: s.studentNumber };
+        if (list) list.push(entry);
+        else rosterMap.set(s.classId, [entry]);
+      }
+      const list = bransTumSubeler(scoped, rs, bransSubject, (id) => names.get(id), (id) => rosterMap.get(id) || []);
+      if (!list.length) {
+        setNotice({ tone: 'warning', text: 'Seçilen denemelerde bu dersin şube sonucu bulunamadı.' });
+        return;
+      }
+      const label = scopeLabel(scope);
+      const lower = bransSubject.name.toLocaleLowerCase('tr-TR');
+      const doc = await buildKarnePdfParts(
+        list.map((g) => ({ blocks: bransGelisimBlocks(g, label), footer: `${g.className} ${lower} şube gelişim karnesi` })),
+        'landscape'
+      );
+      doc.save(`${safeFileName(`Brans-Gelisim-${bransSubject.short}-Tum-Subeler`)}.pdf`);
+      setNotice({ tone: 'success', text: `${list.length} şubenin ${bransSubject.name} karnesi tek PDF olarak indirildi.` });
+    });
+
   // Aşama 119: seçili öğrenci → yalnız o öğrenci ve/veya velisi (alıcı küçük pencerede seçilir)
   const onMail = (audience: SmsAudience) =>
     run(async () => {
+      setSendOpen(null);
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
@@ -689,6 +739,7 @@ export const DenemeKarne: React.FC<{
 
   const onSms = (audience: SmsAudience) =>
     run(async () => {
+      setSendOpen(null);
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
@@ -762,8 +813,34 @@ export const DenemeKarne: React.FC<{
               items={[
                 { value: 'genel', label: 'Sınıf karnesi' },
                 { value: 'birlesik', label: 'Sınıf birleştirilmiş karnesi' },
+                { value: 'brans', label: 'Branş gelişim karnesi' },
               ]}
             />
+            {/* Aşama 130: ders seçimi + bütün şubeler tek PDF (kutu ve düğme aynı yükseklikte, yazıyla orantılı) */}
+            {isBrans && bransSubjects.length > 0 && (
+              <>
+                <span className="text-xs font-semibold text-muted sm:ml-2">Ders:</span>
+                <div className="relative w-36">
+                  <select
+                    id="karne-brans-ders"
+                    aria-label="Ders"
+                    className="ui-input h-8 w-36 text-xs cursor-pointer appearance-none pr-7"
+                    value={bransSubject?.key || ''}
+                    onChange={(e) => setBransPick(e.target.value)}
+                  >
+                    {bransSubjects.map((s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.name.length > 18 ? s.short : s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-subtle" aria-hidden />
+                </div>
+                <button type="button" id="karne-brans-tum" className={TOPLU_BTN} disabled={busy || !bransSubject} onClick={() => void onBransTumSubeler()} title="Seçili dersin bütün şubeleri, her şube ayrı sayfada tek PDF">
+                  <FileArchive /> Tüm şubeler
+                </button>
+              </>
+            )}
           </div>
         )}
         {mode === 'ogrenci' && (
@@ -845,18 +922,11 @@ export const DenemeKarne: React.FC<{
             </button>
             {mode === 'ogrenci' && !limited && (
               <>
-                {/* Aşama 119b: tek tıkla yalnız seçili öğrenciye ya da onun velisine */}
-                <button type="button" id="karne-ogrenci-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: true, veli: false })}>
-                  <Mail /> Öğrenciye e-posta
+                <button type="button" id="karne-tek-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('mail')}>
+                  <Mail /> E-posta gönder
                 </button>
-                <button type="button" id="karne-veli-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: false, veli: true })}>
-                  <Mail /> Veliye e-posta
-                </button>
-                <button type="button" id="karne-ogrenci-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: true, veli: false })}>
-                  <MessageSquare /> Öğrenciye SMS
-                </button>
-                <button type="button" id="karne-veli-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: false, veli: true })}>
-                  <MessageSquare /> Veliye SMS
+                <button type="button" id="karne-tek-sms" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('sms')}>
+                  <MessageSquare /> SMS gönder
                 </button>
               </>
             )}
@@ -894,6 +964,18 @@ export const DenemeKarne: React.FC<{
             bank={bank}
             teacherName={teacherName}
             downloadOnly={limited}
+          />
+        )}
+        {student && !limited && (
+          <KarneSmsModal
+            open={sendOpen !== null}
+            kind={sendOpen || 'sms'}
+            single
+            onClose={() => setSendOpen(null)}
+            onSend={(a) => void (sendOpen === 'mail' ? onMail(a) : onSms(a))}
+            className={student.name}
+            count={1}
+            turName={TUR_NAME[tur]}
           />
         )}
       </div>
@@ -940,6 +1022,8 @@ export const DenemeKarne: React.FC<{
             )
           }
         />
+      ) : isBrans && cls ? (
+        <BransGelisimView data={bransData} scopeLabel={scopeLabel(scope)} />
       ) : mode === 'sinif' && cls && sinifTur === 'birlesik' ? (
         <ClassCombinedView data={classData} scopeLabel={scopeLabel(scope)} />
       ) : mode === 'kurum' ? (
