@@ -9,6 +9,7 @@ import type { ExamQuestion, ExamQuestions, ExamSubject } from './lgs';
 import { bankSubjectKey, buildSubjectIndex, codeKey, konuCodeOf, matchQuestion, srcKeyOf, type BankOption, type KonuOption, type SubjectIndex } from './kazanimBank';
 import type { BankRow } from '../../services/denemeService';
 import { AI_CONCURRENCY, aiCall, aiMatchKazanim, newAiState, runPool, type AiProvider } from '../aiApi';
+import { planFilterFor, type PlanMap } from './yillikPlan';
 
 export interface MatchStat {
   total: number; // kaynağı (Excel bilgisi) olan soru sayısı
@@ -17,6 +18,8 @@ export interface MatchStat {
   ai: number;
   hafiza: number; // Aşama 128: eşleme hafızasından
   konu: number; // Aşama 128: kazanım yok, yalnız konu atandı (yukarıdaki sayıların içinde)
+  plan: number; // Aşama 129: koda uyuldu ama yıllık plana göre henüz işlenmemiş (uyarı)
+  planOn: boolean; // Aşama 129: bu derste yıllık plan süzgeci kullanıldı
   none: number;
   noBank: boolean;
 }
@@ -95,6 +98,8 @@ export async function matchQuestionsWithBank(
     ai: { provider: AiProvider; keys: { gemini: boolean; mistral: boolean } | null } | null;
     onProgress?: (text: string) => void;
     memory?: Map<string, Map<string, string>>; // Aşama 128: ders → (yayınevi ifadesi → kod)
+    plans?: PlanMap | null; // Aşama 129: yıllık plan (Fen, Mat, İnkılap)
+    examDate?: string; // Aşama 129: deneme tarihi (+1 hafta pay)
   }
 ): Promise<{ questions: ExamQuestions; stats: Record<string, MatchStat>; notes: string[] }> {
   const options = bankOptionsBySubject(bank);
@@ -104,20 +109,29 @@ export async function matchQuestionsWithBank(
   const stats: Record<string, MatchStat> = {};
   const notes: string[] = [];
   const pending: Array<{ s: ExamSubject; items: Array<{ no: number; text: string }> }> = [];
+  // Aşama 129: yıllık plana göre işlenmiş kazanımlar (ad benzerliği ve yapay zekâ adayları)
+  const taught: Record<string, (code: string) => boolean> = {};
+  for (const s of subjects) {
+    const f = planFilterFor(opts.plans, s.key, opts.examDate);
+    if (f) taught[s.key] = f;
+  }
 
   for (const s of subjects) {
     const list = qs[s.key] || [];
     const opt = options[s.key] || [];
-    const st: MatchStat = { total: 0, kod: 0, metin: 0, ai: 0, hafiza: 0, konu: 0, none: 0, noBank: opt.length === 0 };
+    const isTaught = taught[s.key];
+    const st: MatchStat = { total: 0, kod: 0, metin: 0, ai: 0, hafiza: 0, konu: 0, plan: 0, planOn: !!isTaught, none: 0, noBank: opt.length === 0 };
     const left: Array<{ no: number; text: string }> = [];
     const idx = index[s.key];
+    const nameIdx = idx && isTaught ? buildSubjectIndex(opt.filter((o) => isTaught(o.code))) : idx;
     const mem = opts.memory?.get(s.key);
     out[s.key] = list.map((q) => {
       const src = sourceOf(q);
       if (!src.code && !src.text) return q;
       st.total++;
-      const m = idx ? matchQuestion(src, idx, mem) : null;
+      const m = idx ? matchQuestion(src, idx, mem, nameIdx) : null;
       if (m) {
+        if (isTaught && !isTaught(m.kind === 'konu' ? m.konu.code : m.code)) st.plan++;
         if (m.by === 'kod') st.kod++;
         else if (m.by === 'hafiza') st.hafiza++;
         else st.metin++;
@@ -130,7 +144,7 @@ export async function matchQuestionsWithBank(
       left.push({ no: q.no, text: [src.code, src.text].filter(Boolean).join(' — ').slice(0, 400) });
       return opts.clearUnmatched ? applyBank(q, undefined) : q;
     });
-    if (left.length && opt.length) pending.push({ s, items: left });
+    if (left.length && (isTaught ? opt.some((o) => isTaught(o.code)) : opt.length)) pending.push({ s, items: left });
     stats[s.key] = st;
   }
 
@@ -146,7 +160,11 @@ export async function matchQuestionsWithBank(
         if (stop || i >= pending.length) return null;
         const job = pending[i++];
         return async () => {
-          const kaz = (options[job.s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text }));
+          const f = taught[job.s.key];
+          const kaz = (options[job.s.key] || [])
+            .filter((k) => !f || f(k.code))
+            .slice(0, 400)
+            .map((k) => ({ code: k.code, konu: k.konu, text: k.text }));
           const r = await aiCall(state, (p, avoid) => aiMatchKazanim({ provider: p, subject: { name: job.s.name }, items: job.items, kazanimlar: kaz, avoid }), {
             stop: () => stop,
             onWait: (w) => w && opts.onProgress?.(w),
@@ -184,6 +202,8 @@ export function describeMatch(subjects: ExamSubject[], stats: Record<string, Mat
   const parts: string[] = [];
   let none = 0;
   const noBank: string[] = [];
+  const planWarn: string[] = [];
+  const planOn: string[] = [];
   for (const s of subjects) {
     const st = stats[s.key];
     if (!st || !st.total) continue;
@@ -195,13 +215,17 @@ export function describeMatch(subjects: ExamSubject[], stats: Record<string, Mat
     const ok = st.kod + st.metin + st.ai + st.hafiza;
     none += st.none;
     parts.push(`${s.short} ${ok}/${st.total}${st.konu ? ` (${st.konu} yalnız konu)` : ''}`);
+    if (st.planOn) planOn.push(s.short);
+    if (st.plan) planWarn.push(`${s.short} ${st.plan}`);
   }
   const text =
     (parts.length ? `Kazanımlar bankadan eşleştirildi: ${parts.join(', ')}.` : '') +
     (noBank.length ? ` Bankada kazanımı olmayan dersler: ${noBank.join(', ')} (önce Kazanım bankasına yükleyin).` : '') +
-    (none ? ` ${none} soru eşleşmedi; tablodaki "Sorular" bölümünden elle seçebilir ya da "Kitapçıktan kazanım bul"u kullanabilirsiniz.` : '');
+    (none ? ` ${none} soru eşleşmedi; tablodaki "Sorular" bölümünden elle seçebilir ya da "Kitapçıktan kazanım bul"u kullanabilirsiniz.` : '') +
+    (planOn.length ? ` Yıllık plan süzgeci: ${planOn.join(', ')} (ad benzerliğinde ve yapay zekâda yalnız deneme tarihine kadar işlenen kazanımlar).` : '') +
+    (planWarn.length ? ` Planda henüz işlenmemiş kazanıma yazılan sorular (yayınevi kodu açık): ${planWarn.join(', ')}; "Sorular" bölümünde turuncu işaretli, kontrol edin.` : '');
   return {
-    tone: none ? 'warning' : 'success',
+    tone: none || planWarn.length ? 'warning' : 'success',
     text: text.trim() || 'Dosyada sorulara ait kazanım bilgisi yok; kazanımları "Kitapçıktan kazanım bul" ile ekleyebilir ya da tablodan elle seçebilirsiniz.',
   };
 }

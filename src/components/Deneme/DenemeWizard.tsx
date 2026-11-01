@@ -918,6 +918,7 @@ export const DenemeWizard: React.FC<{
             <AnahtarEditor
               subjects={subjects}
               questions={questions}
+              examDate={examDate}
               onChange={(q) => setQuestions(normalizeQuestions(subjects, q))}
               onExcelMeta={(r) => {
                 if (!name.trim() && r.examName) setName(r.examName.slice(0, 200));

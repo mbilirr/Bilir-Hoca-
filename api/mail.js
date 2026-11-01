@@ -1274,6 +1274,26 @@ async function actionSmsTest(caller, body) {
   return { ok: true, sent: 1, raw: r.raw || '' };
 }
 
+// Aşama 129: SMS kayıtlarını listeden kaldırma ve takılı "Gönderiliyor" kaydını kapatma (yalnız genel yönetici)
+async function actionSmsLog(caller, body) {
+  if (!caller.isAdmin) throw new HttpError(403, 'SMS kayıtlarını yalnızca yönetici düzenleyebilir.');
+  const sm = await smsMod();
+  if (!sm || !sm.smsHide) throw new HttpError(503, 'SMS dosyası (api/_sms.js) güncel değil. Dosyayı GitHub\'da api klasörüne yükleyin.');
+  try {
+    if (body.op === 'close') return { ok: true, changed: await sm.smsCloseStuck(rest, body.id) };
+    if (body.op === 'hide') {
+      if (body.all === true) return { ok: true, changed: await sm.smsHide(rest, []) };
+      const ids = (Array.isArray(body.ids) ? body.ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      if (!ids.length) throw new HttpError(400, 'Listeden kaldırılacak kaydı seçin.');
+      return { ok: true, changed: await sm.smsHide(rest, ids) };
+    }
+  } catch (err) {
+    if (/hidden_at/i.test(String(err && err.message))) throw new HttpError(503, 'Önce Supabase SQL Editor\'de sql/129_yillik_plan_ve_sms_kayit.sql dosyasını çalıştırın.');
+    throw err;
+  }
+  throw new HttpError(400, 'Bilinmeyen işlem.');
+}
+
 // Aşama 78: SMS göndermeden kalan kontör ve onaylı gönderen başlıklarını sorgular (şimdilik yalnızca Gold Mesaj)
 async function actionSmsInfo(caller) {
   if (!caller.isAdmin) throw new HttpError(403, 'SMS bilgisini yalnızca yönetici görebilir.');
@@ -3765,6 +3785,9 @@ export default async function handler(req, res) {
         break;
       case 'sms-info':
         result = await actionSmsInfo(caller);
+        break;
+      case 'sms-log':
+        result = await actionSmsLog(caller, body);
         break;
       case 'reminders':
         if (!caller.isAdmin) throw new HttpError(403, 'Hatırlatmaları elle yalnızca yönetici çalıştırabilir.');

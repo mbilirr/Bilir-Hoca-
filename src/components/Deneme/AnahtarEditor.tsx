@@ -167,45 +167,8 @@ export const AnahtarEditor: React.FC<{
   };
 
   const applyExcel = async (r: ExcelKeyResult, base: ExamQuestions) => {
-    // Aşama 129b: cevapsız kazanım listesi (ör. Özdebir): cevaplara ve B sırasına dokunulmaz, yalnız kazanım bilgisi eklenir
-    if (r.kazanimOnly) {
-      const next: ExamQuestions = { ...base };
-      let n = 0;
-      for (const k of r.found) {
-        const s = subjects.find((x) => x.key === k);
-        if (!s) continue;
-        const byNo = new Map(r.questions[k].map((q) => [q.no, q]));
-        const cur = base[k] && base[k].length ? base[k] : Array.from({ length: s.count }, (_, i) => ({ no: i + 1, answer: '' }) as ExamQuestion);
-        next[k] = cur.map((q) => {
-          const a = byNo.get(q.no);
-          if (!a || (!a.srcCode && !a.srcText)) return q;
-          n++;
-          return { ...q, srcCode: a.srcCode, srcText: a.srcText };
-        });
-      }
-      onExcelMeta?.({ ...r, examDate: '', examName: '' });
-      setOffer(null);
-      const names = subjects.filter((s) => r.found.includes(s.key)).map((s) => s.short);
-      const noAns = subjects.some((s) => !(base[s.key] || []).some((q) => q.answer));
-      await runMatch(
-        next,
-        true,
-        `Kazanım listesi okundu (dosyada cevap yok): ${names.join(', ')}, ${n} soru. Cevaplar ve B sırası değişmedi.${noAns ? ' Cevapları henüz girmediğiniz dersler var: cevap anahtarını (PDF / Excel) yükleyin ya da elle yazın; kazanımlar korunur.' : ''} `
-      );
-      return;
-    }
     const next: ExamQuestions = { ...base };
-    for (const k of r.found) {
-      // Aşama 129b: dosyada bu dersin kazanımı yoksa (ör. Özdebir cevap PDF'i) önceden yüklenen kazanım listesi korunur
-      const old = base[k] || [];
-      if (!hasSourceKazanim(r.questions[k]) && old.some((q) => q.srcCode || q.srcText)) {
-        const byNo = new Map(old.map((q) => [q.no, q]));
-        next[k] = r.questions[k].map((q) => {
-          const o = byNo.get(q.no);
-          return o && (o.srcCode || o.srcText) ? { ...q, srcCode: o.srcCode, srcText: o.srcText } : q;
-        });
-      } else next[k] = r.questions[k];
-    }
+    for (const k of r.found) next[k] = r.questions[k];
     onExcelMeta?.(r);
     // Aşama 89: B kitapçığının cevapları kontrol kutusuna yazılır; harflerden kurulan eşleşmeler işaretlenir
     const bk = r.method === 'yz' ? undefined : r.bKeys;

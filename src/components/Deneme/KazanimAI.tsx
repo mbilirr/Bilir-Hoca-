@@ -4,6 +4,7 @@ import { Modal, cx } from '../ui/kit';
 import type { ExamQuestion, ExamQuestions, ExamSubject } from '../../lib/deneme/lgs';
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { bankSubjectKey, codeKey } from '../../lib/deneme/kazanimBank';
+import { planCutoff, planDateTr, planFilterFor, planStartOf, type PlanMap } from '../../lib/deneme/yillikPlan';
 import { formatPageRanges, openKitapcik, parsePageRanges, type Kitapcik } from '../../lib/deneme/kitapcik';
 import {
   AI_CONCURRENCY,
@@ -62,7 +63,9 @@ export const KazanimAI: React.FC<{
   subjects: ExamSubject[];
   questions: ExamQuestions;
   onApply: (qs: ExamQuestions, summary: string) => void;
-}> = ({ open, onClose, subjects, questions, onApply }) => {
+  plans?: PlanMap | null; // Aşama 129: yıllık plan (Fen, Mat, İnkılap)
+  examDate?: string;
+}> = ({ open, onClose, subjects, questions, onApply, plans, examDate }) => {
   const [step, setStep] = useState<Step>('pick');
   const [book, setBook] = useState<Kitapcik | null>(null);
   const [thumbs, setThumbs] = useState<string[]>([]);
@@ -123,6 +126,25 @@ export const KazanimAI: React.FC<{
     return m;
   }, [bank]);
   const bankByCode = useMemo(() => new Map(bank.map((r) => [codeKey(r.code), r])), [bank]);
+  // Aşama 129: yapay zekâya yalnız deneme tarihine (+1 hafta) kadar işlenen kazanımlar gönderilir (Fen, Mat, İnkılap)
+  const taught = useMemo(() => {
+    const m: Record<string, (code: string) => boolean> = {};
+    for (const s of subjects) {
+      const f = planFilterFor(plans, s.key, examDate);
+      if (f) m[s.key] = f;
+    }
+    return m;
+  }, [plans, examDate, subjects]);
+  const aiBankBySubject = useMemo(() => {
+    const m: Record<string, BankRow[]> = {};
+    for (const k of Object.keys(bankBySubject)) m[k] = taught[k] ? bankBySubject[k].filter((r) => taught[k](r.code)) : bankBySubject[k];
+    return m;
+  }, [bankBySubject, taught]);
+  const cutoff = planCutoff(examDate || '');
+  const laterOf = (key: string, code: string): string | null => {
+    if (!taught[key] || !code || !cutoff || taught[key](code)) return null;
+    return planStartOf(plans?.[key], code);
+  };
   const subjectKeys = useMemo(() => new Set(subjects.map((s) => s.key)), [subjects]);
 
   const pagesOf = (key: string) => (book ? parsePageRanges(ranges[key] || '', book.pageCount) : []);
@@ -302,7 +324,7 @@ export const KazanimAI: React.FC<{
             name: s.name,
             count: s.count,
             hint: hint.trim(),
-            kazanimlar: (bankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text, alt: k.alt || [] })),
+            kazanimlar: (aiBankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text, alt: k.alt || [] })),
           };
         });
         const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid }), {
@@ -587,6 +609,11 @@ export const KazanimAI: React.FC<{
                           </div>
                           <div className="flex flex-wrap gap-1">
                             <span className={cx('ui-chip', nBank ? 'ui-chip-success' : 'ui-chip-warning')}>{nBank ? `bankada ${nBank} kazanım` : 'bankada kazanım yok'}</span>
+                            {taught[s.key] && nBank > 0 && (
+                              <span className="ui-chip ui-chip-info" title="Yıllık plana göre deneme tarihine (+1 hafta) kadar işlenen kazanımlar yapay zekâya gönderilir.">
+                                planda işlenen {(aiBankBySubject[s.key] || []).length}
+                              </span>
+                            )}
                             {has > 0 && (
                               <span className="ui-chip ui-chip-neutral">
                                 {has}/{list.length} soruda kazanım var
@@ -711,6 +738,12 @@ export const KazanimAI: React.FC<{
                                       {second ? ` — ${short(second.text, 70)}` : ''}
                                     </p>
                                   )}
+                                  {(() => {
+                                    const later = laterOf(s.key, d.code);
+                                    return later ? (
+                                      <p className="text-[11px] text-warning-fg mt-0.5">Planda henüz işlenmedi ({planDateTr(later)} haftası). Doğruysa bırakın; değilse işlenmiş bir kazanım seçin.</p>
+                                    ) : null;
+                                  })()}
                                   {(q.kazanimCode || q.konu) && <p className="text-[11px] text-warning-fg mt-0.5">Şu an: {[q.kazanimCode, q.konu].filter(Boolean).join(' · ')}</p>}
                                   {!f && <p className="text-[11px] text-muted mt-0.5">Yapay zekâ bu soruyu bulamadı; isterseniz elle seçin.</p>}
                                 </td>

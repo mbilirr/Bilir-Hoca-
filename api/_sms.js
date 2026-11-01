@@ -394,6 +394,7 @@ export async function smsStatus(rest) {
     today: { sent: 0, dry: 0, failed: 0 },
     recent: [],
     tableMissing: false,
+    canHide: false,
     // Aşama 78: sunucunun gördüğü ayarların durumu (değerler gösterilmez; yalnızca SMS_PROVIDER değeri ve eksik ayarların adları)
     diag: smsDiag(e),
   };
@@ -404,10 +405,53 @@ export async function smsStatus(rest) {
       else if (r.status === 'dry') status.today.dry++;
       else if (r.status === 'failed') status.today.failed++;
     }
-    const last = await rest('sms_log?select=created_at,event,recipient_role,phone_masked,status,error&order=created_at.desc&limit=12', { token: 'service' });
+    // Aşama 129: yöneticinin listeden kaldırdığı kayıtlar gösterilmez (hidden_at; sütun yoksa eski sorgu)
+    let last;
+    try {
+      last = await rest('sms_log?select=id,created_at,event,recipient_role,phone_masked,status,error&hidden_at=is.null&order=created_at.desc&limit=30', { token: 'service' });
+      status.canHide = true;
+    } catch {
+      last = await rest('sms_log?select=id,created_at,event,recipient_role,phone_masked,status,error&order=created_at.desc&limit=12', { token: 'service' });
+      status.canHide = false;
+    }
     status.recent = last || [];
   } catch {
     status.tableMissing = true;
   }
   return status;
+}
+
+/**
+ * Aşama 129: yönetici ekranındaki SMS kayıtlarını listeden kaldırır (satır silinmez: tekrar gönderim
+ * engeli ve günlük sınır sayımı bozulmasın). ids boşsa bütün görünen kayıtlar kaldırılır.
+ */
+export async function smsHide(rest, ids) {
+  // ids boş dizi = hepsi (yalnız çağıran açıkça "all" dediğinde boş gönderilir)
+  const list = (Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 500);
+  if (Array.isArray(ids) && ids.length && !list.length) return 0;
+  const filter = list.length ? `id=in.(${list.join(',')})&hidden_at=is.null` : 'hidden_at=is.null';
+  const rows = await rest(`sms_log?${filter}`, {
+    token: 'service',
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: { hidden_at: new Date().toISOString() },
+  });
+  return (rows || []).length;
+}
+
+/**
+ * Aşama 129: "Gönderiliyor" durumunda takılı kalan kaydı kapatır. SMS sağlayıcıya iletildiyse geri alınamaz;
+ * bu işlem yalnız kaydı "Hata (yarıda kaldı)" yapar. 5 dakikadan yeni kayda dokunulmaz (gönderim sürüyor olabilir).
+ */
+export async function smsCloseStuck(rest, id) {
+  const n = Number(id);
+  if (!Number.isInteger(n) || n <= 0) return 0;
+  const before = new Date(Date.now() - 5 * 60000).toISOString();
+  const rows = await rest(`sms_log?id=eq.${n}&status=eq.sending&created_at=lt.${encodeURIComponent(before)}`, {
+    token: 'service',
+    method: 'PATCH',
+    prefer: 'return=representation',
+    body: { status: 'failed', error: 'Gönderim yarıda kaldı; yönetici kaydı kapattı.' },
+  });
+  return (rows || []).length;
 }

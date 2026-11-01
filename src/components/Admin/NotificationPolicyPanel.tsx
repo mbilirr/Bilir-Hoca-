@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info, MessageSquareText, Send, RefreshCw } from 'lucide-react';
+import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info, MessageSquareText, Send, RefreshCw, Trash2 } from 'lucide-react';
 import { callMail } from '../../lib/mailApi';
 import { supabase } from '../../lib/supabase';
 import { dataService } from '../../services/dataService';
@@ -309,8 +309,9 @@ interface SmsStatus {
   live: boolean;
   dailyLimit: number;
   today: { sent: number; dry: number; failed: number };
-  recent: Array<{ created_at: string; event: string; recipient_role: string; phone_masked: string; status: string; error: string | null }>;
+  recent: Array<{ id?: number; created_at: string; event: string; recipient_role: string; phone_masked: string; status: string; error: string | null }>;
   tableMissing: boolean;
+  canHide?: boolean; // Aşama 129: kayıtlar listeden kaldırılabilir (sql/129 çalıştı)
   diag?: { providerValue: string; missing: string[] };
 }
 
@@ -324,12 +325,20 @@ const SmsStatusBox: React.FC = () => {
   useAutoDismiss(testMsg, () => setTestMsg(null), 90_000);
   const [infoBusy, setInfoBusy] = useState(false);
   const [info, setInfo] = useState<{ credit: string | number | null; creditRaw: string; senderListed: boolean | null; sendersRaw: string; error: string } | null>(null);
+  // Aşama 129: kayıtları listeden kaldırma / takılı gönderimi kapatma
+  const [pick, setPick] = useState<Set<number>>(new Set());
+  const [logBusy, setLogBusy] = useState(false);
+  const [logMsg, setLogMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  useAutoDismiss(logMsg, () => setLogMsg(null), 15_000);
 
   const load = async () => {
     setLoading(true);
     setErr(null);
     const r = await callMail('sms-status');
-    if (r.ok && r.sms) setSt(r.sms as SmsStatus);
+    if (r.ok && r.sms) {
+      setSt(r.sms as SmsStatus);
+      setPick(new Set());
+    }
     else setErr(r.error || 'SMS durumu okunamadı.');
     setLoading(false);
   };
@@ -360,6 +369,18 @@ const SmsStatusBox: React.FC = () => {
     else setTestMsg({ type: 'err', text: r.error || 'Kontör bilgisi alınamadı.' });
     setInfoBusy(false);
   };
+
+  const logAction = async (payload: Record<string, unknown>, okText: (n: number) => string) => {
+    if (logBusy) return;
+    setLogBusy(true);
+    setLogMsg(null);
+    const r = await callMail('sms-log', payload);
+    setLogMsg(r.ok ? { type: 'ok', text: okText(Number(r.changed) || 0) } : { type: 'err', text: r.error || 'İşlem yapılamadı.' });
+    setLogBusy(false);
+    if (r.ok) load();
+  };
+  // 5 dakikadan eski "Gönderiliyor" kaydı takılı kalmış sayılır
+  const isStuck = (r: SmsStatus['recent'][number]) => r.status === 'sending' && Date.now() - new Date(r.created_at).getTime() > 5 * 60000;
 
   const providerName = st?.provider === 'goldmesaj' ? 'Gold Mesaj' : st?.provider === 'netgsm' ? 'Netgsm' : st?.provider === 'iletimerkezi' ? 'İleti Merkezi' : '—';
 
@@ -460,11 +481,43 @@ const SmsStatusBox: React.FC = () => {
             </div>
           )}
 
+          {st.recent.length > 0 && st.canHide && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="ui-btn ui-btn-secondary ui-btn-sm"
+                disabled={logBusy || pick.size === 0}
+                onClick={() => void logAction({ op: 'hide', ids: Array.from(pick) }, (n) => `${n} kayıt listeden kaldırıldı.`)}
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Seçilenleri listeden kaldır{pick.size ? ` (${pick.size})` : ''}
+              </button>
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" disabled={logBusy} onClick={() => void logAction({ op: 'hide', all: true }, (n) => `${n} kayıt listeden kaldırıldı.`)}>
+                <Trash2 className="w-3.5 h-3.5" /> Listeyi temizle
+              </button>
+              <span className="text-[10.5px] text-muted">
+                SMS'ler sırada beklemez, hemen gönderilir. "Deneme (gitmedi)" kayıtları hiç gönderilmemiştir. Kaldırılan kayıt yalnız listeden çıkar; aynı mesajın ikinci kez gitmemesi ve günlük sınır sayımı korunur.
+              </span>
+            </div>
+          )}
+          {st.recent.length > 0 && !st.canHide && (
+            <p className="text-[11px] text-muted">Kayıtları listeden kaldırmak için Supabase SQL Editor'de sql/129_yillik_plan_ve_sms_kayit.sql dosyasını çalıştırın.</p>
+          )}
+          {logMsg && <p className={cx('text-[11px] font-semibold', logMsg.type === 'ok' ? 'text-success-fg' : 'text-danger-fg')}>{logMsg.text}</p>}
           {st.recent.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-line bg-surface">
               <table className="w-full text-[11px] min-w-[30rem]">
                 <thead className="text-fg-2 bg-surface-2">
                   <tr>
+                    {st.canHide && (
+                      <th className="px-2 py-1.5 w-6">
+                        <input
+                          type="checkbox"
+                          aria-label="Bütün kayıtları seç"
+                          checked={st.recent.length > 0 && st.recent.every((r) => r.id !== undefined && pick.has(r.id))}
+                          onChange={(e) => setPick(e.target.checked ? new Set(st.recent.map((r) => r.id).filter((x): x is number => typeof x === 'number')) : new Set())}
+                        />
+                      </th>
+                    )}
                     <th className="text-left font-bold px-2 py-1.5">Zaman</th>
                     <th className="text-left font-bold px-2 py-1.5">Bilgi</th>
                     <th className="text-left font-bold px-2 py-1.5">Alıcı</th>
@@ -476,7 +529,26 @@ const SmsStatusBox: React.FC = () => {
                   {st.recent.map((r, i) => {
                     const s = STATUS_LABEL[r.status] || { text: r.status, cls: 'ui-chip ui-chip-neutral' };
                     return (
-                      <tr key={i} className="border-t border-line align-top">
+                      <tr key={r.id ?? i} className="border-t border-line align-top">
+                        {st.canHide && (
+                          <td className="px-2 py-1.5">
+                            {typeof r.id === 'number' && (
+                              <input
+                                type="checkbox"
+                                aria-label="Kaydı seç"
+                                checked={pick.has(r.id)}
+                                onChange={(e) =>
+                                  setPick((s) => {
+                                    const n = new Set(s);
+                                    if (e.target.checked) n.add(r.id as number);
+                                    else n.delete(r.id as number);
+                                    return n;
+                                  })
+                                }
+                              />
+                            )}
+                          </td>
+                        )}
                         <td className="px-2 py-1.5 whitespace-nowrap tabular-nums text-muted">
                           {new Date(r.created_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
                         </td>
@@ -486,6 +558,17 @@ const SmsStatusBox: React.FC = () => {
                         <td className="px-2 py-1.5">
                           <span className={s.cls}>{s.text}</span>
                           {r.error && <div className="mt-0.5 text-danger-fg break-words">{r.error}</div>}
+                          {st.canHide && typeof r.id === 'number' && isStuck(r) && (
+                            <button
+                              type="button"
+                              className="ui-btn ui-btn-ghost ui-btn-sm mt-0.5"
+                              disabled={logBusy}
+                              title="Sağlayıcıdan cevap gelmeden yarıda kalan kayıt. Kayıt 'Hata' yapılır; SMS sağlayıcıya iletildiyse geri alınamaz."
+                              onClick={() => void logAction({ op: 'close', id: r.id }, (n) => (n ? 'Takılı kayıt kapatıldı.' : 'Kayıt değişmedi (gönderim tamamlanmış olabilir).'))}
+                            >
+                              Kapat
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

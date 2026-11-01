@@ -26,6 +26,7 @@ export type MailAction =
   | 'sms-status' // Aşama 73: SMS ayar durumu (yönetici)
   | 'sms-test' // Aşama 73: SMS sınaması (yönetici)
   | 'sms-info' // Aşama 78: kalan kontör ve onaylı başlıklar (yönetici)
+  | 'sms-log' // Aşama 129: SMS kayıtlarını listeden kaldırma / takılı kaydı kapatma (yönetici)
   | 'kurum-mail-status' // Aşama 82: kurum gönderim hesabı
   | 'kurum-mail-connect'
   | 'kurum-mail-disconnect'

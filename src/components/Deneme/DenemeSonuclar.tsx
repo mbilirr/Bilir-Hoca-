@@ -574,7 +574,7 @@ export const DenemeSonuclar: React.FC<{
           </>
         }
       >
-        <AnahtarEditor subjects={subs} questions={draftKey} onChange={(q) => setDraftKey(normalizeQuestions(subs, q))} />
+        <AnahtarEditor subjects={subs} questions={draftKey} examDate={exam.examDate} onChange={(q) => setDraftKey(normalizeQuestions(subs, q))} />
       </Modal>
 
       {keyView && (

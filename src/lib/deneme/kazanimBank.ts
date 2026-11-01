@@ -474,7 +474,7 @@ function dice(a: Set<string>, b: Set<string>): number {
   return (2 * n) / (a.size + b.size);
 }
 
-const digitsKey = (c: string) => ((c || '').match(/\d+/g) || []).join('.');
+export const digitsKey = (c: string) => ((c || '').match(/\d+/g) || []).join('.');
 
 /**
  * Bir sorunun Excel'den gelen kazanım bilgisini bankadaki kazanımlarla eşleştirir.
@@ -635,7 +635,7 @@ export function resolveBankCode(code: string, idx: SubjectIndex): QuestionMatch 
 }
 
 /** Bir sorunun yayınevi bilgisini bankadaki kazanıma ya da konuya bağlar */
-export function matchQuestion(src: { code?: string; text?: string }, idx: SubjectIndex, memory?: Map<string, string>): QuestionMatch | null {
+export function matchQuestion(src: { code?: string; text?: string }, idx: SubjectIndex, memory?: Map<string, string>, nameIdx: SubjectIndex = idx): QuestionMatch | null {
   if (!idx.options.length) return null;
   const code = (src.code || '').trim();
   const text = (src.text || '').trim();
@@ -683,6 +683,7 @@ export function matchQuestion(src: { code?: string; text?: string }, idx: Subjec
     }
   }
 
+  // Aşama 129: ad / metin benzerliğinde yalnız yıllık plana göre işlenmiş kazanımlar aday olur (nameIdx)
   // 3) Ad: konu adı birebir → yalnız konu
   const names = new Set<string>();
   if (text) {
@@ -696,15 +697,15 @@ export function matchQuestion(src: { code?: string; text?: string }, idx: Subjec
   if (code && !isMebCode(code) && !/^\s*\d+\s*$/.test(code)) names.add(nameKey(code)); // kod sütununda ad yazılmış
   names.delete('');
   for (const n of names) {
-    const hit = idx.konuByName.get(n);
+    const hit = nameIdx.konuByName.get(n);
     if (hit && hit.length === 1) return { kind: 'konu', konu: hit[0], score: 90, by: 'metin' };
   }
 
   // 4) Kazanım cümlesi benzerliği (eski kurallar)
   const srcText = [text, code && !isMebCode(code) && !/^\s*\d+\s*$/.test(code) ? code : ''].filter(Boolean).join(' ');
   const st = tokens(srcText);
-  if (st.size >= 2) {
-    const scored = idx.options
+  if (st.size >= 2 && nameIdx.options.length) {
+    const scored = nameIdx.options
       .map((o) => ({ o, s: Math.max(dice(st, tokens(o.text)), dice(st, tokens(`${o.konu} ${o.text}`))) }))
       .sort((a, b) => b.s - a.s);
     const best = scored[0];
@@ -716,7 +717,7 @@ export function matchQuestion(src: { code?: string; text?: string }, idx: Subjec
   // 5) Konu adı benzerliği → yalnız konu
   const nameTokens = Array.from(names, (n) => tokens(n)).filter((t) => t.size > 0);
   if (nameTokens.length) {
-    const ranked = Array.from(idx.konular.values())
+    const ranked = Array.from(nameIdx.konular.values())
       .map((k) => {
         const kt = tokens(k.konu);
         return { k, s: Math.max(...nameTokens.map((t) => dice(t, kt))) };

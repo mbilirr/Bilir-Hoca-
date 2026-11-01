@@ -25,6 +25,7 @@ import {
   type BankParseResult,
 } from '../../lib/deneme/kazanimBank';
 import { foldTr, guessSubjectKey } from '../../lib/deneme/optik';
+import { YillikPlanPanel } from './YillikPlanPanel';
 import { extractPdfText, openKitapcik, type Kitapcik } from '../../lib/deneme/kitapcik';
 import {
   AI_CONCURRENCY,
@@ -50,6 +51,8 @@ import {
 // ============================================================================
 
 type Msg = { tone: 'success' | 'warning' | 'danger'; text: string } | null;
+
+const ALL = '__all';
 
 const MsgLine: React.FC<{ msg: Msg }> = ({ msg }) =>
   msg ? (
@@ -165,7 +168,9 @@ export const KazanimBankasi: React.FC = () => {
 
   // Elle yükleme
   const [manualOpen, setManualOpen] = useState(false);
-  const [subject, setSubject] = useState(LGS_SUBJECTS[0].name);
+  // Aşama 129: ALL = bütün dersler (Excel'deki "Ders" sütununa göre)
+  const [subject, setSubject] = useState(ALL);
+  const [replace, setReplace] = useState(false); // Aşama 129: dersin bankadaki eski kazanımlarını sil
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<BankParseResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -363,6 +368,10 @@ export const KazanimBankasi: React.FC = () => {
   // ----------------------------------------------------------------------------- Elle yükleme
   const doPreview = () => {
     setMsg(null);
+    if (subject === ALL) {
+      setMsg({ tone: 'warning', text: 'Yapıştırılan metin için önce dersi seçin.' });
+      return;
+    }
     const r = parseKazanimText(text, subject);
     setPreview(r);
     if (!r.rows.length) setMsg({ tone: 'danger', text: r.warnings.join(' ') });
@@ -373,7 +382,18 @@ export const KazanimBankasi: React.FC = () => {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await readKazanimFile(file, subject);
+      const r0 = await readKazanimFile(file, subject === ALL ? '' : subject);
+      // Aşama 129: ders seçildiyse yalnız o dersin satırları alınır; "Bütün dersler"de dersi belli olmayan satırlar atlanır
+      const keep = r0.rows.filter((x) => (subject === ALL ? !!x.subject : x.subject === subject));
+      const dropped = r0.rows.length - keep.length;
+      const warnings = r0.warnings.filter((w) => !/başka derse yazıldı/.test(w));
+      if (dropped)
+        warnings.push(
+          subject === ALL
+            ? `${dropped} satırda ders yazmadığı için alınmadı (dosyada "Ders" sütunu yoksa yukarıdan dersi seçin).`
+            : `Dosyadaki diğer derslerin ${dropped} kazanımı alınmadı (yalnız ${subject}).`
+        );
+      const r = { ...r0, rows: keep, warnings };
       setPreview(r);
       if (!r.rows.length) setMsg({ tone: 'danger', text: r.warnings.join(' ') || 'Dosyada kazanım bulunamadı.' });
     } catch {
@@ -383,13 +403,34 @@ export const KazanimBankasi: React.FC = () => {
     }
   };
 
+  // Aşama 129: "eski kazanımları sil" seçiliyse önizlemedeki derslerin bankada olup dosyada olmayan kazanımları
+  const staleCodes = useMemo(() => {
+    if (!preview?.rows.length) return [] as string[];
+    const keys = new Set(preview.rows.map((r) => bankSubjectKey(r.subject)).filter(Boolean));
+    // birebir kod karşılaştırılır: yazımı farklı eski kayıt (ör. sonda nokta) silinir, yenisi eklenir
+    const fresh = new Set(preview.rows.map((r) => r.code.trim().slice(0, 60)));
+    return rows.filter((r) => keys.has(bankSubjectKey(r.subject)) && !fresh.has(r.code)).map((r) => r.code);
+  }, [preview, rows]);
+  const previewSubjects = useMemo(() => {
+    const keys = new Set((preview?.rows || []).map((r) => bankSubjectKey(r.subject)));
+    return LGS_SUBJECTS.filter((s) => keys.has(s.key)).map((s) => s.short);
+  }, [preview]);
+
   const doSave = async () => {
     if (!preview?.rows.length) return;
     setBusy(true);
     setMsg(null);
     try {
+      let removed = 0;
+      if (replace && isHead && staleCodes.length) {
+        await deleteKazanimlar(staleCodes);
+        removed = staleCodes.length;
+      }
       const n = await saveKazanimBank(preview.rows);
-      setMsg({ tone: 'success', text: `${n} kazanım bankaya kaydedildi. Aynı kodlu eski kazanımlar güncellendi.` });
+      setMsg({
+        tone: 'success',
+        text: `${n} kazanım bankaya kaydedildi. Aynı kodlu eski kazanımlar güncellendi.${removed ? ` Dosyada olmayan ${removed} eski kazanım silindi.` : ''}`,
+      });
       setPreview(null);
       setText('');
       await load();
@@ -744,6 +785,7 @@ export const KazanimBankasi: React.FC = () => {
                     setPreview(null);
                   }}
                 >
+                  <option value={ALL}>Bütün dersler (Excel'deki "Ders" sütunu)</option>
                   {LGS_SUBJECTS.map((s) => (
                     <option key={s.key} value={s.name}>
                       {s.name}
@@ -783,12 +825,25 @@ export const KazanimBankasi: React.FC = () => {
                 Her kazanım kendi koduyla başlamalı. Kısa kodlu satırlar (ör. F.8.1.1.) ve kodsuz başlıklar konu olarak kullanılır. "a)", "b)" ile başlayan açıklamalar atlanır.
               </p>
             </div>
+            {isHead && (
+              <label className="flex items-start gap-2 text-xs text-fg-2">
+                <input type="checkbox" className="mt-0.5" checked={replace} onChange={(e) => setReplace(e.target.checked)} id="kb-replace" />
+                <span>
+                  Temiz yükleme: dosyadaki {subject === ALL ? 'derslerin' : 'dersin'} bankada olup dosyada <b>olmayan</b> eski kazanımlarını sil. Aynı kodlu kazanımlar her durumda güncellenir; diğer
+                  derslere dokunulmaz.
+                </span>
+              </label>
+            )}
             <div className="flex flex-wrap gap-2">
               <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={busy || !text.trim()} onClick={doPreview}>
                 Önizle
               </button>
               <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || !preview?.rows.length} onClick={() => void doSave()} id="kb-save">
-                {busy ? 'Kaydediliyor…' : preview?.rows.length ? `${preview.rows.length} kazanımı bankaya kaydet` : 'Bankaya kaydet'}
+                {busy
+                  ? 'Kaydediliyor…'
+                  : preview?.rows.length
+                    ? `${preview.rows.length} kazanımı bankaya kaydet${replace && isHead && staleCodes.length ? ` · ${staleCodes.length} eski kazanım silinecek` : ''}`
+                    : 'Bankaya kaydet'}
               </button>
             </div>
             <MsgLine msg={msg} />
@@ -797,6 +852,7 @@ export const KazanimBankasi: React.FC = () => {
                 <div className="px-3 py-2 bg-surface-2/60 border-b border-line flex flex-wrap items-center gap-2 text-xs">
                   <span className="font-semibold text-fg">Önizleme</span>
                   <span className="ui-chip ui-chip-info">{preview.rows.length} kazanım</span>
+                  {previewSubjects.length > 0 && <span className="ui-chip ui-chip-neutral">{previewSubjects.join(', ')}</span>}
                   <span className={cx('ui-chip', preview.rows.some((r) => r.konu) ? 'ui-chip-success' : 'ui-chip-warning')}>
                     {new Set(preview.rows.map((r) => r.konu).filter(Boolean)).size} konu
                   </span>
@@ -811,6 +867,8 @@ export const KazanimBankasi: React.FC = () => {
           </div>
         )}
       </Panel>
+
+      <YillikPlanPanel />
 
       {isHead && rows.length > 0 && (
         <Panel
@@ -894,11 +952,16 @@ export const KazanimBankasi: React.FC = () => {
         title="Bankadaki kazanımlar"
         description={
           isHead
-            ? 'Sistem yalnızca bu listedeki kazanımları kullanır. Silmek istediklerinizi işaretleyip "Seçilenleri sil" deyin.'
+            ? 'Sistem yalnızca bu listedeki kazanımları kullanır. Bir dersi "Dersi sil" ile, bankanın tamamını "Tümünü sil" ile, tek tek kazanımları işaretleyip "Seçilenleri sil" ile silebilirsiniz.'
             : 'Sistem yalnızca bu listedeki kazanımları kullanır.'
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {isHead && rows.length > 0 && sel.size === 0 && (
+              <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg" onClick={() => setDelTarget({ name: 'Bankanın tamamı', codes: rows.map((r) => r.code) })} id="kb-delete-all">
+                <Trash2 /> Tümünü sil
+              </button>
+            )}
             {isHead && sel.size > 0 && (
               <>
                 <button type="button" className="ui-btn ui-btn-danger ui-btn-sm" onClick={() => setDelTarget({ name: '', codes: Array.from(sel) })} id="kb-delete-selected">
@@ -954,6 +1017,16 @@ export const KazanimBankasi: React.FC = () => {
                     {konuCount > 0 && <span className="ui-chip ui-chip-info">{konuCount} konu</span>}
                     {nSel > 0 && <span className="ui-chip ui-chip-danger">{nSel} seçili</span>}
                     <span className="flex-1" />
+                    {isHead && g.rows.length > 0 && (
+                      <button
+                        type="button"
+                        className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg"
+                        onClick={() => setDelTarget({ name: g.name, codes: g.rows.map((r) => r.code) })}
+                        aria-label={`${g.name} kazanımlarının hepsini sil`}
+                      >
+                        <Trash2 /> Dersi sil
+                      </button>
+                    )}
                     {g.rows.length > 0 && (
                       <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setOpen(open === g.key ? null : g.key)} aria-expanded={isOpen}>
                         {isOpen ? <ChevronUp /> : <ChevronDown />} Kazanımlar
@@ -1018,7 +1091,7 @@ export const KazanimBankasi: React.FC = () => {
       <Modal
         open={!!delTarget}
         onClose={() => !busy && setDelTarget(null)}
-        title="Seçilen kazanımlar silinsin mi?"
+        title={delTarget?.name ? `${delTarget.name}: kazanımlar silinsin mi?` : 'Seçilen kazanımlar silinsin mi?'}
         description={delTarget ? `${delTarget.codes.length} kazanım bankadan silinir.` : ''}
         icon={Trash2}
         tone="danger"

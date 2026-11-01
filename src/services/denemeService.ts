@@ -671,3 +671,67 @@ export async function deleteKazanimlar(codes: string[]): Promise<void> {
     if (error) fail(error, 'Kazanımlar silinemedi.');
   }
 }
+
+// ----------------------------------------------------------------------------- Aşama 129: yıllık plan (Fen, Mat, İnkılap)
+export interface YillikPlanInfo {
+  subject: string; // fen | mat | sos
+  count: number;
+  first: string;
+  last: string;
+  year: string;
+  own: boolean; // kurumun kendi planı mı (değilse ortak plan)
+}
+
+/** Görülebilen planlar: kurumun kendi planı varsa o, yoksa ortak plan. Tablo yoksa (SQL çalışmadıysa) boş döner. */
+export async function listYillikPlan(): Promise<{ plans: Record<string, Map<string, string>>; info: YillikPlanInfo[] }> {
+  const rows: Array<{ kurum_id: string | null; subject: string; code: string; start_date: string; egitim_yili: string | null }> = [];
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await supabase.from('deneme_yillik_plan').select('kurum_id,subject,code,start_date,egitim_yili').range(from, from + 999);
+    if (error) return { plans: {}, info: [] };
+    rows.push(...((data || []) as typeof rows));
+    if (!data || data.length < 1000) break;
+  }
+  const plans: Record<string, Map<string, string>> = {};
+  const info: YillikPlanInfo[] = [];
+  for (const subject of Array.from(new Set(rows.map((r) => r.subject)))) {
+    const mine = rows.filter((r) => r.subject === subject && r.kurum_id);
+    const list = mine.length ? mine : rows.filter((r) => r.subject === subject && !r.kurum_id);
+    if (!list.length) continue;
+    const m = new Map<string, string>();
+    for (const r of list) m.set(r.code, String(r.start_date).slice(0, 10));
+    plans[subject] = m;
+    const dates = Array.from(m.values()).sort();
+    info.push({ subject, count: m.size, first: dates[0], last: dates[dates.length - 1], year: list[0].egitim_yili || '', own: mine.length > 0 && !!myKurumId() });
+  }
+  return { plans, info };
+}
+
+/** Bir dersin planını baştan yazar (önce eski plan silinir). Kurumsuz hesapta ortak plan yazılır. */
+export async function saveYillikPlan(subject: string, items: Array<{ code: string; start: string }>, year: number | null): Promise<number> {
+  const kurum = myKurumId();
+  await deleteYillikPlan(subject);
+  const stamp = new Date().toISOString();
+  const rows = items.map((i) => ({
+    kurum_id: kurum,
+    subject,
+    code: i.code.slice(0, 40),
+    start_date: i.start,
+    egitim_yili: year ? `${year}-${year + 1}` : null,
+    updated_at: stamp,
+  }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase.from('deneme_yillik_plan').insert(rows.slice(i, i + 500));
+    if (error) fail(error, 'Yıllık plan kaydedilemedi (sql/129_yillik_plan_ve_sms_kayit.sql çalıştırıldı mı?).');
+  }
+  return rows.length;
+}
+
+/** Bir dersin (bu kurumun ya da kurumsuz hesapta ortak) planını siler */
+export async function deleteYillikPlan(subject: string): Promise<void> {
+  const kurum = myKurumId();
+  let q = supabase.from('deneme_yillik_plan').delete().eq('subject', subject);
+  q = kurum ? q.eq('kurum_id', kurum) : q.is('kurum_id', null);
+  const { error } = await q;
+  if (error) fail(error, 'Yıllık plan silinemedi (sql/129_yillik_plan_ve_sms_kayit.sql çalıştırıldı mı?).');
+}
+
