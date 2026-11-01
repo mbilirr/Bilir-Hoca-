@@ -657,7 +657,9 @@ export function matchQuestion(src: { code?: string; text?: string }, idx: Subjec
       const key = parts.slice(0, n).join('.');
       const kz = idx.byDigits.get(key);
       // Aynı numaralı birden çok kazanım (ör. eski "8.1.1" ve yeni "D.8.1.1") varsa harf öneki aynı olan seçilir
-      const pick = kz && (kz.length === 1 ? kz[0] : kz.find((o) => prefixOf(o.code) === prefixOf(code)));
+      const same = kz && kz.length > 1 ? kz.filter((o) => prefixOf(o.code) === prefixOf(code)) : kz;
+      // İngilizcede E8.1.L1 / E8.1.R1 gibi rakamları aynı birden çok kazanım olabilir: tek aday yoksa kazanım seçilmez (konuya geçilir)
+      const pick = same && same.length === 1 ? same[0] : null;
       if (pick) return { kind: 'kazanim', code: pick.code, score: n === parts.length ? 95 : 85, by: 'kod' };
       const kn = idx.konular.get(key);
       if (kn) {
