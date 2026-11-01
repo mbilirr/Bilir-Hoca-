@@ -150,6 +150,21 @@ export async function listExams(opt: { drafts?: boolean } = {}): Promise<DenemeE
   return opt.drafts ? list : list.filter((e) => !e.draftInfo);
 }
 
+/** Aşama 98: Kurum Özeti için son sonuçlu denemenin özeti (yalnızca birkaç alan okunur; soru oranları gelmez) */
+export async function lastExamBrief(): Promise<{ id: string; name: string; examDate: string; count: number; avgScore: number | null; avgTotalNet: number | null } | null> {
+  const { data, error } = await supabase
+    .from('deneme_exams')
+    .select('id,name,exam_date,count:summary->count,avg:summary->avgScore,net:summary->avgTotalNet,taslak:summary->taslak')
+    .order('exam_date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (error) return null;
+  const r = (data || []).find((x: any) => !x.taslak && Number(x.count) > 0) as any;
+  if (!r) return null;
+  const num = (v: any) => (v === null || v === undefined || isNaN(Number(v)) ? null : Number(v));
+  return { id: r.id, name: r.name || 'Deneme', examDate: r.exam_date || '', count: Number(r.count) || 0, avgScore: num(r.avg), avgTotalNet: num(r.net) };
+}
+
 export async function getExam(id: string): Promise<DenemeExam> {
   const { data, error } = await supabase.from('deneme_exams').select('*').eq('id', id).maybeSingle();
   if (error) fail(error, 'Deneme yüklenemedi.');
@@ -356,6 +371,29 @@ export async function listResultsFor(opts: { examIds?: string[]; studentId?: str
       if (opts.studentId) q = q.eq('student_id', opts.studentId);
       if (opts.classId) q = q.eq('class_id', opts.classId);
       const { data, error } = await q.order('id').range(from, from + 999);
+      if (error) fail(error, 'Sonuçlar yüklenemedi.');
+      out.push(...(data || []).map(resultFromRow));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Aşama 115: ortalama sıralama için HAFİF sonuç okuma — cevaplar ve optik bilgisi gelmez (yalnız puan, net,
+ * ders netleri ve sınıf). 300 öğrenci × 5 denemede indirilen veri tam okumanın küçük bir kısmıdır.
+ */
+export async function listResultsLite(examIds: string[]): Promise<DenemeResult[]> {
+  const out: DenemeResult[] = [];
+  for (let i = 0; i < examIds.length; i += 40) {
+    const part = examIds.slice(i, i + 40);
+    for (let from = 0; from < 50000; from += 1000) {
+      const { data, error } = await supabase
+        .from('deneme_results')
+        .select('id,exam_id,student_id,student_name,class_id,class_name,stats,total_net,score')
+        .in('exam_id', part)
+        .order('id')
+        .range(from, from + 999);
       if (error) fail(error, 'Sonuçlar yüklenemedi.');
       out.push(...(data || []).map(resultFromRow));
       if (!data || data.length < 1000) break;

@@ -38,7 +38,16 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
+import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, type TeacherRole } from '../../lib/teacherRoles';
+import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
+import { GradeTicks } from './GradeTicks';
+
+// Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
+const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
+const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_CODE[r as TeacherRole]?.label || r).join(' / ');
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
+import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
+import { matchTurkishSearch } from '../../utils/turkishSearch';
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -85,6 +94,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [selectedAuthClassIds, setSelectedAuthClassIds] = useState<string[]>([]);
   const [selectedAuthStudentIds, setSelectedAuthStudentIds] = useState<string[]>([]);
   const [authStudentSearch, setAuthStudentSearch] = useState('');
+  // Aşama 102: görebileceği kademeler (kademedeki sınıflar listede kilitli işaretli görünür)
+  const [authGrades, setAuthGrades] = useState<TeacherGrades>(EMPTY_GRADES);
+  const [authGradesMissing, setAuthGradesMissing] = useState(false);
 
   // Edit form state
   const [editFormData, setEditFormData] = useState<{
@@ -149,6 +161,27 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     return () => unsub();
   }, []);
 
+  // Aşama 100: öğretmenin unvanları (teacher_roles) "Mevcut Rolü" sütununda görünür; rol verilince anında güncellenir
+  const [unvanlar, setUnvanlar] = useState<Map<string, TeacherRole[]>>(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    fetchTeacherRoles()
+      .then((m) => alive && setUnvanlar(m))
+      .catch(() => {}); // rol tabloları yoksa sütun eskisi gibi kalır
+    const off = onTeacherRolesSaved((teacherId, saved) =>
+      setUnvanlar((prev) => {
+        const next = new Map(prev);
+        if (saved.length) next.set(teacherId, saved);
+        else next.delete(teacherId);
+        return next;
+      })
+    );
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -167,15 +200,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   };
 
   // Summary Metrics
+  // Aşama 116: sayaç kartları seçili kurumla aynı kapsamı sayar (liste ile kartlar aynı sayıyı gösterir)
   const stats = useMemo(() => {
-    const total = users.length;
-    const admins = users.filter((u) => u.role === 'admin').length;
-    const teachers = users.filter((u) => u.role === 'teacher').length;
-    const students = users.filter((u) => u.role === 'student').length;
-    const suspended = users.filter((u) => u.isSuspended || u.status === 'suspended').length;
-    const pending = users.filter((u) => u.status === 'pending').length;
-    return { total, admins, teachers, students, suspended, pending };
-  }, [users]);
+    const scoped =
+      kurumFilter === 'merkez' ? users.filter((u) => !u.kurumId) : kurumFilter ? users.filter((u) => u.kurumId === kurumFilter) : users;
+    let admins = 0, teachers = 0, students = 0, suspended = 0, pending = 0;
+    for (const u of scoped) {
+      if (u.role === 'admin') admins++;
+      else if (u.role === 'teacher') teachers++;
+      else if (u.role === 'student') students++;
+      if (u.isSuspended || u.status === 'suspended') suspended++;
+      if (u.status === 'pending') pending++;
+    }
+    return { total: scoped.length, admins, teachers, students, suspended, pending };
+  }, [users, kurumFilter]);
 
   // Filtered Users (Aşama 15: arama bir adım geriden gelir, liste parça parça çizilir)
   const deferredQuery = useDeferredValue(searchQuery);
@@ -199,13 +237,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       // Search query
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const inName = (u.name || '').toLowerCase().includes(q);
-        const inUsername = (u.username || '').toLowerCase().includes(q);
-        const inEmail = (u.email || '').toLowerCase().includes(q);
+        const q = searchQuery.trim(); // Aşama 116: Türkçe harf duyarsız
+        const inName = matchTurkishSearch(u.name, q);
+        const inUsername = matchTurkishSearch(u.username, q);
+        const inEmail = matchTurkishSearch(u.email, q);
         const inPhone = (u.phone || '').includes(q);
-        const inBranch = (u.branch || '').toLowerCase().includes(q);
-        const inClass = (u.className || '').toLowerCase().includes(q);
+        const inBranch = matchTurkishSearch(u.branch, q);
+        const inClass = matchTurkishSearch(u.className, q);
         const inNumber = (u.studentNumber || '').includes(q);
         return inName || inUsername || inEmail || inPhone || inBranch || inClass || inNumber;
       }
@@ -217,6 +255,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   // Aşama 18: genel yönetici her şeyi, kurum yöneticisi yalnızca kendi kurumunu yönetir
   const isHead = dataService.isHeadAdmin();
+  // Aşama 104: kurum bilgisi sayfa açıldıktan sonra gelirse süzgeç hesaba göre yeniden kurulur (kurumda 'kurumsuz' kalmaz)
+  useEffect(() => {
+    setKurumFilter((f) => (isHead ? (f === '' ? 'merkez' : f) : ''));
+  }, [isHead]);
   const canManageTeachers = dataService.canManageTeachers();
   const kurumOptions = useMemo(() => {
     const ids = Array.from(new Set(users.map((u) => u.kurumId).filter(Boolean) as string[]));
@@ -401,8 +443,34 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     }
   };
 
+  const authGradeOptions = useMemo(() => gradeOptionsFrom(classes), [classes]);
+  const gradeCovered = useMemo(() => classesCoveredBy(classes, authGrades), [classes, authGrades]);
+  // Aşama 107: Müdür / Müdür Yrd. / Rehberlik / Ölçme rolü (rol yetkileri açıkken) kurumdaki tüm sınıfları zaten görür;
+  // matris bunu kilitli işaretli gösterir (veritabanına ayrıca yazılmaz, yetki rolden gelir)
+  const authWideRoles = useMemo(
+    () => (authModalTeacher ? (unvanlar.get(authModalTeacher.id) || []).filter((r) => WIDE_ROLES.includes(r)) : []),
+    [authModalTeacher, unvanlar]
+  );
+  const kurumRolesOn = dataService.getMyKurum().rolesEnabled === true;
+  const roleSeesAll = kurumRolesOn && authWideRoles.length > 0;
+  // Zümre Başkanı / Etüt Öğretmeni rolünden ek görüş (sınıf listesi veritabanında hesaplanır; burada bilgi notu)
+  const authExtraRoleNote = useMemo(() => {
+    if (!authModalTeacher || !kurumRolesOn || roleSeesAll) return '';
+    const rs = unvanlar.get(authModalTeacher.id) || [];
+    const parts: string[] = [];
+    if (rs.includes('zumre_baskani')) parts.push('Zümre Başkanı rolü gereği zümresinin sınıflarını da görür');
+    if (rs.includes('etut_ogretmeni')) parts.push('Etüt Öğretmeni rolü gereği kendi etütlerindeki öğrencileri de görür');
+    return parts.length ? `${parts.join('; ')}. Bunlar rolünden gelir, aşağıda işaretlemek gerekmez.` : '';
+  }, [authModalTeacher, unvanlar, kurumRolesOn, roleSeesAll]);
+
   // Open Teacher Authorization Modal
   const handleOpenAuthModal = async (teacher: UnifiedUser) => {
+    // Aşama 98: genel yönetici kendi panelinde kurum öğretmeninin kurum sınıflarını göremez; boş kayıtla mevcut
+    // yetkiler silinmesin diye pencere açılmaz (veritabanı da reddeder)
+    if (isHead && teacher.kurumId) {
+      showToast('Bu öğretmen bir kuruma bağlı. Yetkilerini üst menüdeki kurum seçiciyle o kuruma geçerek verin.', 'error');
+      return;
+    }
     // 1. auth_user_id doğrulama
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const authUserId = teacher.auth_user_id || (uuidRegex.test(teacher.id) ? teacher.id : null);
@@ -417,8 +485,10 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
     // 2. Doğrudan ve SADECE veritabanından çek (eski yerel dizilerle union yapma)
     try {
-      const cloudAccess = await dataService.getTeacherCloudAccess(authUserId);
+      const [cloudAccess, g] = await Promise.all([dataService.getTeacherCloudAccess(authUserId), fetchTeacherGrades(authUserId)]);
       setSelectedAuthClassIds(cloudAccess.classIds || []);
+      setAuthGrades({ grades: g.grades, all: g.all });
+      setAuthGradesMissing(g.missing === true);
       setSelectedAuthStudentIds(cloudAccess.studentIds || []);
       setAuthStudentSearch('');
       // SADECE sorgu başarılı olursa modalı aç
@@ -437,11 +507,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const handleSaveAuthModal = async () => {
     if (!authModalTeacher) return;
     try {
+      // Aşama 102: kademeden gelen sınıflar elle listeye yazılmaz; matris kaydı tüm satırları yeniden yazdığı için
+      // ardından kademeler yeniden uygulanır
       await dataService.adminUpdateTeacherAuthorizations(
         authModalTeacher.id,
-        selectedAuthClassIds,
+        selectedAuthClassIds.filter((id) => !gradeCovered.has(id)),
         selectedAuthStudentIds
       );
+      const authId = authModalTeacher.auth_user_id || authModalTeacher.id;
+      if (!authGradesMissing) await saveTeacherGrades(authId, authGrades);
+      else if (authGrades.all || authGrades.grades.length) throw new Error('Kademe kaydı için önce sql/102_ogretmen_kademe.sql çalıştırılmalı.');
       showToast(
         `✓ "${authModalTeacher.name}" için sınıf ve öğrenci erişim yetkileri başarıyla güncellendi.`,
         'success'
@@ -516,7 +591,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       </div>
 
       {/* Öğrenci kayıt başvuruları (onay / red) */}
-      {isHead && <StudentApplicationsPanel classes={classes} onToast={showToast} />}
+      {/* Aşama 99b: genel yönetici kendi (kurumsuz) başvurularını, kurum idaresi kendi kurumununkileri onaylar */}
+      {dataService.canReviewApplications() && (
+        <StudentApplicationsPanel
+          classes={isHead ? classes.filter((c) => !c.kurumId) : classes.filter((c) => !!c.kurumId && c.kurumId === dataService.getMyKurumId())}
+          onToast={showToast}
+        />
+      )}
 
       {/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
@@ -960,6 +1041,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <span>Öğrenci</span>
                           </span>
                         )}
+                        {u.role !== 'student' && (() => {
+                          // "Öğretmen" rozeti hesap türüdür; unvan(lar) altında gösterilir (yalnız Öğretmen ise tekrar yazılmaz)
+                          const rs = sortRoles(unvanlar.get(u.id) || []).filter((r) => r !== 'ogretmen') as TeacherRole[];
+                          return rs.length ? (
+                            <div className="mt-1 flex flex-wrap gap-1" data-unvan-for={u.id}>
+                              {rs.map((r) => (
+                                <span key={r} className={`ui-chip ui-chip-${ROLE_BY_CODE[r]?.chip || 'neutral'}`} title={ROLE_BY_CODE[r]?.description}>
+                                  {ROLE_BY_CODE[r]?.short || r}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
                       </td>
 
                       {/* Detail Unit */}
@@ -1019,7 +1113,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                       <td className="py-3.5 px-4 text-right sm:pr-6">
                         <div className="flex items-center justify-end space-x-1.5">
                           {/* Sınıf & Öğrenci Erişim Yetkilendirmesi (Erişim Matrisi) */}
-                          {u.role !== 'student' && manageable && (isHead || u.role === 'teacher') && (
+                          {u.role !== 'student' && manageable && (isHead ? !u.kurumId : u.role === 'teacher') && (
                             <button
                               type="button"
                               onClick={() => handleOpenAuthModal(u)}
@@ -1618,12 +1712,38 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 </p>
               </div>
 
+              {/* Aşama 102: Görebileceği kademeler */}
+              <div className="space-y-1.5">
+                {authWideRoles.length > 0 && !kurumRolesOn && (
+                  <p className="p-2.5 rounded-xl border text-xs font-semibold bg-warning-soft text-warning-fg border-warning/30" id="teacher-access-role-off">
+                    Kurumda "Rol yetkileri" kapalı: {wideRoleText(authWideRoles)} rolü şu an etkin değil; bu kişi yalnızca aşağıda işaretli sınıfları görür. Anahtar Kurum Ayarları'nda.
+                  </p>
+                )}
+                {authExtraRoleNote && (
+                  <p className="p-2.5 rounded-xl border text-xs font-semibold bg-info-soft text-info-fg border-info/30" id="teacher-access-role-extra">
+                    {authExtraRoleNote}
+                  </p>
+                )}
+                <GradeTicks
+                  id="teacher-access-grades"
+                  options={authGradeOptions}
+                  value={authGrades}
+                  onChange={setAuthGrades}
+                  roleNote={roleSeesAll ? `${wideRoleText(authWideRoles)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; işaretlemek gerekmez.` : undefined}
+                />
+                {authGradesMissing && (
+                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-access-grades-missing">
+                    Kademe için önce Supabase'de sql/102_ogretmen_kademe.sql çalıştırılmalı.
+                  </p>
+                )}
+              </div>
+
               {/* 1. Sınıf Yetkilendirmeleri */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-wider text-fg-2 flex items-center space-x-2">
                     <School className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span>Sınıf Erişim Yetkileri ({selectedAuthClassIds.length}/{classes.length} Sınıf Seçili)</span>
+                    <span>Sınıf Erişim Yetkileri ({roleSeesAll ? classes.length : new Set([...selectedAuthClassIds, ...gradeCovered]).size}/{classes.length} Sınıf Seçili)</span>
                   </h4>
                   <div className="flex items-center space-x-2 text-[11px]">
                     <button
@@ -1649,11 +1769,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {classes.map((cls) => {
-                      const isChecked = selectedAuthClassIds.includes(cls.id);
+                      const viaRole = roleSeesAll;
+                      const viaGrade = !viaRole && gradeCovered.has(cls.id);
+                      const locked = viaRole || viaGrade;
+                      const isChecked = locked || selectedAuthClassIds.includes(cls.id);
                       return (
                         <label
                           key={cls.id}
-                          className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
+                          title={viaRole ? 'Rolünden açık; rol değişince kendiliğinden güncellenir' : viaGrade ? 'Kademeden açık; kapatmak için yukarıdan kademeyi kaldırın' : undefined}
+                          className={`p-3 rounded-xl border flex items-center justify-between transition-all ${locked ? 'cursor-default' : 'cursor-pointer'} ${
                             isChecked
                               ? 'bg-indigo-600/15 border-indigo-500/50 text-fg'
                               : 'bg-canvas/80 border-line text-muted hover:border-line'
@@ -1663,6 +1787,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <input
                               type="checkbox"
                               checked={isChecked}
+                              disabled={locked}
                               onChange={(e) => {
                                 if (e.target.checked) {
                                   setSelectedAuthClassIds([...selectedAuthClassIds, cls.id]);
@@ -1681,7 +1806,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               </span>
                             </div>
                           </div>
-                          {isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-2" />}
+                          {viaRole ? (
+                            <span className="ui-chip ui-chip-info shrink-0 ml-2 text-[10px]">Rolünden</span>
+                          ) : viaGrade ? (
+                            <span className="ui-chip ui-chip-brand shrink-0 ml-2 text-[10px]">Kademeden</span>
+                          ) : (
+                            isChecked && <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-2" />
+                          )}
                         </label>
                       );
                     })}
@@ -1718,17 +1849,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     .getAllStudents()
                     .filter((s) => {
                       if (!authStudentSearch.trim()) return true;
-                      const q = authStudentSearch.toLowerCase();
+                      const q = authStudentSearch;
                       return (
-                        s.name.toLowerCase().includes(q) ||
-                        (s.className || '').toLowerCase().includes(q) ||
-                        (s.studentNumber || '').includes(q)
+                        matchTurkishSearch(s.name, q) ||
+                        matchTurkishSearch(s.className, q) ||
+                        (s.studentNumber || '').includes(q.trim())
                       );
                     })
                     .slice(0, 30)
                     .map((std) => {
                       const isDirectAuth = selectedAuthStudentIds.includes(std.id);
-                      const isViaClass = selectedAuthClassIds.includes(std.classId);
+                      const isViaClass = roleSeesAll || selectedAuthClassIds.includes(std.classId) || gradeCovered.has(std.classId);
 
                       return (
                         <div
@@ -1850,13 +1981,52 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [sendMail, setSendMail] = useState(true);
   const [mailNotice, setMailNotice] = useState<{ tone: string; text: string } | null>(null);
   useAutoDismiss(mailNotice, () => setMailNotice(null)); // Aşama 32: 15 sn sonra kaybolur
+  // Aşama 99b: kurumda açılan hesaba unvan / rol (genel yöneticinin kendi panelinde roller uygulanmadığı için yok)
+  const roleUi = !dataService.isHeadAdmin() && dataService.isKurumAdmin() && !!dataService.getMyKurumId();
+  const canMudur = dataService.isKurumGecis();
+  const rolesOff = roleUi && dataService.getMyKurum().rolesEnabled !== true;
+  const [roles, setRoles] = useState<TeacherRole[]>(['ogretmen']);
+  const [roleNote, setRoleNote] = useState<{ ok: boolean; text: string } | null>(null);
+  // Aşama 102: görebileceği kademeler (kurumdaki sınıflardan)
+  const gradeOptions = useMemo(() => gradeOptionsFrom(dataService.getAllClasses()), []);
+  const [grades, setGrades] = useState<TeacherGrades>(EMPTY_GRADES);
+  const [gradeNote, setGradeNote] = useState<{ ok: boolean; text: string } | null>(null);
+  // Aşama 107: geniş görüşlü rol seçilince kademeler "Tümü" kilitli görünür (rol yetkileri açıkken)
+  const createWide = roleUi ? roles.filter((r) => WIDE_ROLES.includes(r)) : [];
+  const createSeesAll = createWide.length > 0 && !rolesOff;
+  const toggleRole = (r: TeacherRole) =>
+    setRoles((cur) => {
+      if (cur.includes(r)) return cur.filter((x) => x !== r);
+      // Zümre başkanı öğretmen rolüyle birlikte verilir
+      return r === 'zumre_baskani' && !cur.includes('ogretmen') ? [...cur, r, 'ogretmen'] : [...cur, r];
+    });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSaving(true);
     try {
+      const wanted = roleUi ? roles.filter((r) => r !== 'zumre_baskani' || branch.trim()) : [];
       const res = await dataService.createTeacherAccount({ name, username, branch, email, password });
+      // Roller hesapla birlikte verilir; verilemezse hesap yine açılmış olur (Unvanlar ve Roller'den verilir)
+      if (wanted.length) {
+        try {
+          const saved = await saveTeacherRoles(res.teacher.id, wanted);
+          setRoleNote({ ok: true, text: `Unvan: ${saved.map(roleLabel).join(', ')}` });
+        } catch (er: any) {
+          setRoleNote({ ok: false, text: `Rol verilemedi (${er?.message || 'hata'}). "Unvanlar ve Roller" bölümünden verin.` });
+        }
+      }
+      // Aşama 102: kademeler hesapla birlikte verilir; verilemezse erişim (kalkan) penceresinden verilir
+      if (!createSeesAll && (grades.all || grades.grades.length)) {
+        try {
+          if (!res.teacher.auth_user_id) throw new Error('giriş hesabı bulunamadı');
+          const g = await saveTeacherGrades(res.teacher.auth_user_id, grades);
+          setGradeNote({ ok: true, text: `Kademe: ${gradesLabel(g)} (${g.classes} sınıf)` });
+        } catch (er: any) {
+          setGradeNote({ ok: false, text: `Kademe verilemedi (${er?.message || 'hata'}). Listedeki kalkan (erişim) düğmesinden verin.` });
+        }
+      }
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
       onCreated(res.teacher.name);
       // Hesap bilgileri öğretmenin e-posta adresine gönderilir (adres kayıttan okunur)
@@ -1903,6 +2073,16 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
               Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
             </div>
+            {roleNote && (
+              <div id="teacher-create-role-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${roleNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
+                {roleNote.text}
+              </div>
+            )}
+            {gradeNote && (
+              <div id="teacher-create-grade-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${gradeNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
+                {gradeNote.text}
+              </div>
+            )}
             {mailNotice && (
               <div
                 id="teacher-create-mail-notice"
@@ -1937,7 +2117,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                     await navigator.clipboard.writeText(credentialText);
                     setCopied(true);
                   } catch {
-                    window.prompt('Kopyalamak için metni seçiniz:', credentialText);
+                    void appCopyFallback('Giriş bilgileri', credentialText);
                   }
                 }}
                 className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg text-xs font-bold border border-line"
@@ -2018,8 +2198,49 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 </button>
               </div>
             </div>
+            {/* Aşama 99b: unvan / rol (kurumda) */}
+            {roleUi && (
+              <div className="space-y-1.5" id="teacher-create-roles">
+                <label className="block text-[11px] font-bold text-fg-2">Unvan / Rol</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" role="group" aria-label="Unvan / Rol">
+                  {ROLE_DEFS.filter((r) => r.code !== 'mudur' || canMudur).map((r) => {
+                    const on = roles.includes(r.code);
+                    const locked = r.code === 'zumre_baskani' && !branch.trim();
+                    return (
+                      <button
+                        key={r.code}
+                        type="button"
+                        id={`teacher-create-role-${r.code}`}
+                        aria-pressed={on}
+                        disabled={locked || (r.code === 'ogretmen' && on && roles.includes('zumre_baskani'))}
+                        title={locked ? 'Zümre başkanı için önce branşı yazın' : r.description}
+                        onClick={() => toggleRole(r.code)}
+                        className={`h-8 px-2 rounded-lg border text-xs font-semibold truncate transition-colors disabled:opacity-50 ${
+                          on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-canvas border-line text-fg-2 hover:border-indigo-400'
+                        }`}
+                      >
+                        {r.short}
+                      </button>
+                    );
+                  })}
+                </div>
+                {rolesOff && (
+                  <p className="text-[11px] font-semibold text-warning-fg" id="teacher-create-roles-off">
+                    Kurumda rol yetkileri kapalı: roller kaydedilir, rol yetkileri açılınca uygulanır.
+                  </p>
+                )}
+                <p className="text-[10px] text-muted">Sonradan "Unvanlar ve Roller" bölümünden değiştirilir.</p>
+              </div>
+            )}
+            <GradeTicks
+              id="teacher-create-grades"
+              options={gradeOptions}
+              value={grades}
+              onChange={setGrades}
+              roleNote={createSeesAll ? `${wideRoleText(createWide)} rolü gereği kurumdaki bütün sınıf ve öğrencileri görür; kademe seçmek gerekmez.` : undefined}
+            />
             <p className="text-[11px] text-muted">
-              Hesap açıldıktan sonra öğretmenin hangi sınıfları göreceğini listedeki kalkan (erişim) düğmesiyle belirleyiniz.
+              Kademe dışında tek tek sınıf ya da öğrenci vermek için listedeki kalkan (erişim) düğmesini kullanınız.
             </p>
             <MailOptIn
               id="teacher-create-notify"

@@ -1,21 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Database, Settings2,
   MailCheck,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
-import { TeacherProfileEditModal, TeacherPasswordModal } from './Teacher/TeacherProfileModals';
-import { TeacherApprovalModal } from './Teacher/TeacherApprovalModal';
-import { SentCommunicationsModal } from './Teacher/SentCommunicationsModal';
-import { MailSettingsModal } from './Teacher/MailSettingsModal';
-import { TeacherAvatarModal } from './Teacher/TeacherAvatarModal';
-import { StudentAvatarModal } from './Student/StudentAvatarModal';
-import { StudentProfileEditModal, StudentPasswordModal } from './Student/StudentProfileModals';
+import { lazyNamed } from '../lib/lazyLoad';
 import { SyncStatusIndicator } from './Common/SyncStatusIndicator';
 import { dataService } from '../services/dataService';
 import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
 import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
+
+// Aşama 103: profil / şifre / avatar / e-posta pencereleri ana dosyada taşınmaz; açılınca indirilir
+const TeacherProfileEditModal = lazyNamed(() => import('./Teacher/TeacherProfileModals'), 'TeacherProfileEditModal');
+const TeacherPasswordModal = lazyNamed(() => import('./Teacher/TeacherProfileModals'), 'TeacherPasswordModal');
+const TeacherApprovalModal = lazyNamed(() => import('./Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
+const SentCommunicationsModal = lazyNamed(() => import('./Teacher/SentCommunicationsModal'), 'SentCommunicationsModal');
+const MailSettingsModal = lazyNamed(() => import('./Teacher/MailSettingsModal'), 'MailSettingsModal');
+const TeacherAvatarModal = lazyNamed(() => import('./Teacher/TeacherAvatarModal'), 'TeacherAvatarModal');
+const StudentAvatarModal = lazyNamed(() => import('./Student/StudentAvatarModal'), 'StudentAvatarModal');
+const StudentProfileEditModal = lazyNamed(() => import('./Student/StudentProfileModals'), 'StudentProfileEditModal');
+const StudentPasswordModal = lazyNamed(() => import('./Student/StudentProfileModals'), 'StudentPasswordModal');
 
 export interface NavbarProps {
   role?: UserRole;
@@ -452,25 +457,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Öğretmen pencereleri */}
       {isTeacherSession && currentTeacher && (
         <>
-          <TeacherAvatarModal isOpen={isAvatarModalOpen} onClose={() => setIsAvatarModalOpen(false)} teacher={currentTeacher} />
-          <TeacherProfileEditModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} teacher={currentTeacher} />
-          <TeacherPasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />
-          <TeacherApprovalModal isOpen={isApprovalModalOpen} onClose={() => setIsApprovalModalOpen(false)} />
-          <SentCommunicationsModal isOpen={isSentCommunicationsOpen} onClose={() => setIsSentCommunicationsOpen(false)} />
-          <MailSettingsModal open={isMailSettingsOpen} onClose={() => setIsMailSettingsOpen(false)} />
+          <Suspense fallback={null}>
+            {isAvatarModalOpen && <TeacherAvatarModal isOpen onClose={() => setIsAvatarModalOpen(false)} teacher={currentTeacher} />}
+            {isEditProfileOpen && <TeacherProfileEditModal isOpen onClose={() => setIsEditProfileOpen(false)} teacher={currentTeacher} />}
+            {isChangePasswordOpen && <TeacherPasswordModal isOpen onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />}
+            {isApprovalModalOpen && <TeacherApprovalModal isOpen onClose={() => setIsApprovalModalOpen(false)} />}
+            {isSentCommunicationsOpen && <SentCommunicationsModal isOpen onClose={() => setIsSentCommunicationsOpen(false)} />}
+            {isMailSettingsOpen && <MailSettingsModal open onClose={() => setIsMailSettingsOpen(false)} />}
+          </Suspense>
         </>
       )}
 
       {/* Öğrenci pencereleri */}
       {isStudentSession && activeStudent && (
         <>
-          <StudentAvatarModal isOpen={isStudentAvatarModalOpen} onClose={() => setIsStudentAvatarModalOpen(false)} student={activeStudent} />
-          <StudentProfileEditModal isOpen={isStudentEditProfileOpen} onClose={() => setIsStudentEditProfileOpen(false)} student={activeStudent} />
-          <StudentPasswordModal
-            isOpen={isStudentChangePasswordOpen}
-            onClose={() => setIsStudentChangePasswordOpen(false)}
-            student={activeStudent}
-          />
+          <Suspense fallback={null}>
+            {isStudentAvatarModalOpen && <StudentAvatarModal isOpen onClose={() => setIsStudentAvatarModalOpen(false)} student={activeStudent} />}
+            {isStudentEditProfileOpen && <StudentProfileEditModal isOpen onClose={() => setIsStudentEditProfileOpen(false)} student={activeStudent} />}
+            {isStudentChangePasswordOpen && (
+              <StudentPasswordModal isOpen onClose={() => setIsStudentChangePasswordOpen(false)} student={activeStudent} />
+            )}
+          </Suspense>
         </>
       )}
     </>
