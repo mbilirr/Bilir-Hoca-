@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { FileSpreadsheet, Download, Info, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react';
 import { dataService, ADMIN_EMAIL, type InitialCredentialInfo } from '../../services/dataService';
 import type { ClassGroup, Student, Teacher } from '../../types';
 import { Panel, cx } from '../ui/kit';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+
+// Aşama 131: toplu şifre yenileme penceresi yalnız açılınca yüklenir (bölüm hafif kalır)
+const BulkPasswordResetModal = lazy(() => import('./BulkPasswordResetModal').then((m) => ({ default: m.BulkPasswordResetModal })));
 
 // ============================================================================
 // Aşama 25: ÖĞRENCİ VE ÖĞRETMEN LİSTESİ (EXCEL) — ilk giriş şifreleri dahil
@@ -57,6 +60,7 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false); // Aşama 131
   useAutoDismiss(msg, () => setMsg(null)); // Aşama 32: 15 sn sonra kaybolur
 
   // Görebileceği kişiler
@@ -82,12 +86,18 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
     [teachers, isHead, myKurumId]
   );
 
+  // Aşama 131: sınıf süzgecinden bağımsız, görebildiği tüm öğrenciler (toplu şifre yenileme bunu kullanır)
+  const scopeStudents = useMemo(
+    () => students.filter((s) => isHead || (!!myKurumId && s.kurumId === myKurumId)),
+    [students, isHead, myKurumId]
+  );
+
   const classOptions = useMemo(() => {
-    const ids = new Set(students.filter((s) => isHead || (!!myKurumId && s.kurumId === myKurumId)).map((s) => s.classId));
+    const ids = new Set(scopeStudents.map((s) => s.classId));
     return classes
       .filter((c) => ids.has(c.id))
       .sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true }));
-  }, [classes, students, isHead, myKurumId]);
+  }, [classes, scopeStudents]);
 
   const kurumLabel = (kurumId?: string | null) => (kurumId ? dataService.getKurumNameForId(kurumId) : 'Genel yönetici');
 
@@ -354,12 +364,35 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {/* Aşama 131: seçili sınıfa / öğrencilere toplu yeni şifre */}
+        <button
+          type="button"
+          className="ui-btn ui-btn-warning"
+          onClick={() => setBulkOpen(true)}
+          disabled={busy || classOptions.length === 0}
+          id="bulk-password-reset-btn"
+        >
+          <KeyRound className="w-4 h-4" />
+          Toplu şifre yenile
+        </button>
         <button type="button" className="ui-btn ui-btn-primary" onClick={handleExport} disabled={busy} id="user-credentials-export-btn">
           {fillMissing ? <KeyRound className="w-4 h-4" /> : <Download className="w-4 h-4" />}
           {busy ? 'Hazırlanıyor…' : confirmFill ? 'Onaylıyorum, şifre ver ve indir' : 'Excel listesini indir'}
         </button>
       </div>
+
+      {bulkOpen && (
+        <Suspense fallback={null}>
+          <BulkPasswordResetModal
+            open
+            onClose={() => setBulkOpen(false)}
+            students={scopeStudents}
+            classes={classOptions}
+            initialClassId={classFilter !== 'all' ? classFilter : undefined}
+          />
+        </Suspense>
+      )}
     </Panel>
   );
 };
