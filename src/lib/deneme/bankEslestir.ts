@@ -6,7 +6,7 @@
 // Eşleşen sorunun kazanımı, kazanım metni ve KONUSU bankadan gelir.
 // ============================================================================
 import type { ExamQuestion, ExamQuestions, ExamSubject } from './lgs';
-import { bankSubjectKey, codeKey, matchToBank, type BankOption } from './kazanimBank';
+import { bankSubjectKey, buildSubjectIndex, codeKey, konuCodeOf, matchQuestion, srcKeyOf, type BankOption, type KonuOption, type SubjectIndex } from './kazanimBank';
 import type { BankRow } from '../../services/denemeService';
 import { AI_CONCURRENCY, aiCall, aiMatchKazanim, newAiState, runPool, type AiProvider } from '../aiApi';
 
@@ -15,6 +15,8 @@ export interface MatchStat {
   kod: number;
   metin: number;
   ai: number;
+  hafiza: number; // Aşama 128: eşleme hafızasından
+  konu: number; // Aşama 128: kazanım yok, yalnız konu atandı (yukarıdaki sayıların içinde)
   none: number;
   noBank: boolean;
 }
@@ -29,8 +31,15 @@ export function bankOptionsBySubject(bank: BankRow[]): Record<string, BankOption
   return m;
 }
 
+/** Aşama 128: ders başına konu dizini (bir kez kurulur) */
+export function bankIndexBySubject(options: Record<string, BankOption[]>): Record<string, SubjectIndex> {
+  const m: Record<string, SubjectIndex> = {};
+  for (const k of Object.keys(options)) m[k] = buildSubjectIndex(options[k]);
+  return m;
+}
+
 /** Sorunun eşleştirmede kullanılacak kaynağı: Excel bilgisi; eski denemelerde mevcut kazanım/konu */
-function sourceOf(q: ExamQuestion): { code: string; text: string } {
+export function sourceOf(q: ExamQuestion): { code: string; text: string } {
   if (q.srcCode || q.srcText) return { code: q.srcCode || '', text: q.srcText || '' };
   return { code: q.kazanimCode || '', text: [q.kazanim, q.konu].filter(Boolean).join(' ') };
 }
@@ -43,10 +52,33 @@ export function applyBank(q: ExamQuestion, b: BankOption | undefined, ai?: strin
     srcCode: q.srcCode || (src.code ? src.code.slice(0, 60) : undefined),
     srcText: q.srcText || (src.text ? src.text.slice(0, 600) : undefined),
   };
-  if (!b) return { ...base, kazanimCode: undefined, kazanim: undefined, konu: undefined, alt: undefined, kazanimCode2: undefined, kazanim2: undefined, ai: undefined };
+  if (!b) return { ...base, kazanimCode: undefined, kazanim: undefined, konu: undefined, konuCode: undefined, alt: undefined, kazanimCode2: undefined, kazanim2: undefined, ai: undefined };
   // Aşama 48g: alt kazanım = bankadaki açıklama maddelerinden biri (aynı kazanımda kalınırsa seçim korunur)
   const alt = q.kazanimCode === b.code && q.alt && (b.alt || []).includes(q.alt) ? q.alt : undefined;
-  return { ...base, kazanimCode: b.code, kazanim: b.text, konu: b.konu || undefined, alt, kazanimCode2: undefined, kazanim2: undefined, ai };
+  return { ...base, kazanimCode: b.code, kazanim: b.text, konu: b.konu || undefined, konuCode: konuCodeOf(b.code), alt, kazanimCode2: undefined, kazanim2: undefined, ai };
+}
+
+/** Aşama 128: yalnız konu atanır (kazanım boş kalır; konu adı bankadan) */
+export function applyKonu(q: ExamQuestion, k: KonuOption): ExamQuestion {
+  const src = sourceOf(q);
+  return {
+    ...q,
+    srcCode: q.srcCode || (src.code ? src.code.slice(0, 60) : undefined),
+    srcText: q.srcText || (src.text ? src.text.slice(0, 600) : undefined),
+    kazanimCode: undefined,
+    kazanim: undefined,
+    konu: k.konu,
+    konuCode: k.code,
+    alt: undefined,
+    kazanimCode2: undefined,
+    kazanim2: undefined,
+    ai: undefined,
+  };
+}
+
+/** Aşama 128: eşleme hafızasının anahtarı (yalnız yayınevi bilgisi olan sorularda) */
+export function memoryKeyOf(q: ExamQuestion): string {
+  return q.srcCode || q.srcText ? srcKeyOf({ code: q.srcCode, text: q.srcText }) : '';
 }
 
 /**
@@ -62,9 +94,11 @@ export async function matchQuestionsWithBank(
     clearUnmatched: boolean;
     ai: { provider: AiProvider; keys: { gemini: boolean; mistral: boolean } | null } | null;
     onProgress?: (text: string) => void;
+    memory?: Map<string, Map<string, string>>; // Aşama 128: ders → (yayınevi ifadesi → kod)
   }
 ): Promise<{ questions: ExamQuestions; stats: Record<string, MatchStat>; notes: string[] }> {
   const options = bankOptionsBySubject(bank);
+  const index = bankIndexBySubject(options);
   const byCode = new Map(bank.map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] } as BankOption]));
   const out: ExamQuestions = { ...qs };
   const stats: Record<string, MatchStat> = {};
@@ -74,16 +108,23 @@ export async function matchQuestionsWithBank(
   for (const s of subjects) {
     const list = qs[s.key] || [];
     const opt = options[s.key] || [];
-    const st: MatchStat = { total: 0, kod: 0, metin: 0, ai: 0, none: 0, noBank: opt.length === 0 };
+    const st: MatchStat = { total: 0, kod: 0, metin: 0, ai: 0, hafiza: 0, konu: 0, none: 0, noBank: opt.length === 0 };
     const left: Array<{ no: number; text: string }> = [];
+    const idx = index[s.key];
+    const mem = opts.memory?.get(s.key);
     out[s.key] = list.map((q) => {
       const src = sourceOf(q);
       if (!src.code && !src.text) return q;
       st.total++;
-      const m = opt.length ? matchToBank(src, opt) : null;
+      const m = idx ? matchQuestion(src, idx, mem) : null;
       if (m) {
         if (m.by === 'kod') st.kod++;
+        else if (m.by === 'hafiza') st.hafiza++;
         else st.metin++;
+        if (m.kind === 'konu') {
+          st.konu++;
+          return applyKonu(q, m.konu);
+        }
         return applyBank(q, byCode.get(codeKey(m.code)));
       }
       left.push({ no: q.no, text: [src.code, src.text].filter(Boolean).join(' — ').slice(0, 400) });
@@ -133,7 +174,7 @@ export async function matchQuestionsWithBank(
   }
   for (const k of Object.keys(stats)) {
     const st = stats[k];
-    st.none = Math.max(0, st.total - st.kod - st.metin - st.ai);
+    st.none = Math.max(0, st.total - st.kod - st.metin - st.ai - st.hafiza);
   }
   return { questions: out, stats, notes };
 }
@@ -151,9 +192,9 @@ export function describeMatch(subjects: ExamSubject[], stats: Record<string, Mat
       none += st.total;
       continue;
     }
-    const ok = st.kod + st.metin + st.ai;
+    const ok = st.kod + st.metin + st.ai + st.hafiza;
     none += st.none;
-    parts.push(`${s.short} ${ok}/${st.total}`);
+    parts.push(`${s.short} ${ok}/${st.total}${st.konu ? ` (${st.konu} yalnız konu)` : ''}`);
   }
   const text =
     (parts.length ? `Kazanımlar bankadan eşleştirildi: ${parts.join(', ')}.` : '') +

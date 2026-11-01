@@ -320,6 +320,8 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
   const rawRows: string[][] = []; // Aşama 57: başlıksız dosyalar için hücre hücre satırlar
   let usedHeader = false;
   let otherSubjects = 0;
+  let konuKodCol = -1; // Aşama 128: "Konu Kodu" sütunu (yalnız denetim için; konu kodu kazanım kodundan türetilir)
+  let konuKodBad = 0;
 
   for (const name of wb.SheetNames) {
     const data = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, raw: false, defval: null, blankrows: false });
@@ -339,10 +341,15 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
         if (text < 0) text = folded.findIndex((c, i) => i !== code && /^(metin|aciklama|kazanim adi|hedef)/.test(c));
         if (code >= 0 && text >= 0) {
           const alt = folded.findIndex((c, i) => i !== text && /^alt kazanim|^aciklama/.test(c));
+          // Aşama 128: "Konu Kodu" sütunu konu adı sayılmaz; önce tam "Konu" başlığı aranır
+          const isKonu = (c: string, i: number) => i !== text && i !== code && !/kod/.test(c) && /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c);
+          let konu = folded.findIndex((c, i) => isKonu(c, i) && /^konu( adi| basligi)?$/.test(c));
+          if (konu < 0) konu = folded.findIndex((c, i) => isKonu(c, i));
+          konuKodCol = folded.findIndex((c, i) => i !== code && /^(konu|unite) ?kod/.test(c));
           col = {
             code,
             text,
-            konu: folded.findIndex((c, i) => i !== text && /^(konu|unite|ogrenme alani|alt ogrenme|tema)/.test(c)),
+            konu,
             subject: folded.findIndex((c) => /^ders/.test(c)),
             grade: folded.findIndex((c) => /^sinif/.test(c)),
             alt,
@@ -357,6 +364,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
       const code = normCode(cells[col.code] || '');
       const txt = cells[col.text] || '';
       if (!code || !txt) continue;
+      if (konuKodCol >= 0 && cells[konuKodCol] && digitsKey(cells[konuKodCol]) !== digitsKey(konuCodeOf(code))) konuKodBad++;
       let subject = defaultSubject;
       if (col.subject >= 0 && cells[col.subject]) {
         const k = bankSubjectKey(cells[col.subject]);
@@ -414,6 +422,7 @@ export async function readKazanimFile(file: File, defaultSubject: string, grade 
     return parseKazanimText(lines.join('\n'), defaultSubject, grade);
   }
   if (otherSubjects) warnings.push(`${otherSubjects} kazanım dosyadaki "Ders" sütununa göre başka derse yazıldı.`);
+  if (konuKodBad) warnings.push(`${konuKodBad} satırda "Konu Kodu", kazanım kodunun üst basamağıyla uyuşmuyor (ör. F.8.1.1.1 → F.8.1.1). Sistem konu kodunu kazanım kodundan alır; tabloyu kontrol edin.`);
   if (!rows.length) warnings.push('Dosyada kazanım satırı bulunamadı.');
   const seen = new Set<string>();
   return {
@@ -521,6 +530,199 @@ export function matchToBank(src: { code?: string; text?: string }, options: Bank
   const second = scored[1];
   const score = Math.round(best.s * 100);
   if (score >= 75 || (score >= 50 && (!second || best.s - second.s >= 0.08))) return { code: best.o.code, score, by: 'metin' };
+  return null;
+}
+
+// ----------------------------------------------------------------------------- Aşama 128: konu kodu → kazanım kodu → ad → eşleme hafızası
+// Yayınevi bilgisi bankaya HİÇ yazılmaz; yalnızca bankadaki karşılığı bulunur.
+//   1) MEB biçimli kod (harf öneki, büyük/küçük harf, sondaki nokta önemsiz; rakamlar karşılaştırılır):
+//      kazanım koduna denk → kazanım + konu;  konu koduna denk → yalnız konu (kazanım boş);
+//      bankada olmayan daha derin kod (T.8.3.5.1, T.8.4.9) → üst basamaklara çıkılır.
+//   2) Eşleme hafızası: öğretmenin daha önce elle seçtiği karşılık (yayınevi ifadesi → kod).
+//   3) Ad: konu adı birebir aynıysa yalnız konu; kazanım cümlesi benziyorsa kazanım; konu adı benziyorsa yalnız konu.
+// Noktasız yayınevi numaraları (2080501, 6004) kod sayılmaz.
+
+/** "F.8.1.1.1" → "F.8.1.1" (yazımı korur) */
+export function konuCodeOf(code: string): string {
+  const c = normCode(code);
+  const i = c.lastIndexOf('.');
+  return i > 0 ? c.slice(0, i) : c;
+}
+
+/** Kodun harf öneki: "İTA.8.1.1" → "ITA", "8.1.1" → "" */
+const prefixOf = (c: string) => foldTr((/^\s*([A-Za-zÇĞİÖŞÜçğıöşü]*)/.exec(c || '') || ['', ''])[1]).toUpperCase();
+
+/** MEB biçimli kod mu? (en az iki sayı noktayla ayrılmış: 8.2.2.2, F.8.1.1.1, İTA.8.1.1) */
+export const isMebCode = (c: string) => /\d\s*\.\s*\d/.test(c || '');
+
+/** Ad karşılaştırması için sade biçim: "1. Kader ve Kaza İnancı" → "kader ve kaza inanci" */
+export const nameKey = (s: string) =>
+  foldTr(s || '')
+    .replace(/^\s*\d{1,2}\s*[.)-]\s*/, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+/** Eşleme hafızasının anahtarı: yayınevi ifadesi (yoksa yayınevi kodu) */
+export function srcKeyOf(src: { code?: string; text?: string }): string {
+  const t = nameKey(src.text || '');
+  if (t.length >= 3) return t.slice(0, 200);
+  const c = codeKey(src.code || '');
+  return c ? `kod ${c}`.slice(0, 200) : '';
+}
+
+export interface KonuOption {
+  code: string; // F.8.1.1
+  konu: string; // Mevsimlerin Oluşumu
+  kids: BankOption[];
+}
+
+export interface SubjectIndex {
+  options: BankOption[];
+  byDigits: Map<string, BankOption[]>;
+  konular: Map<string, KonuOption>; // rakam anahtarı (8.1.1) → konu
+  konuByName: Map<string, KonuOption[]>;
+}
+
+/** Bir dersin bankadaki kazanımlarından konu dizini (bir kez kurulur; eşleştirme bellekte yapılır) */
+export function buildSubjectIndex(options: BankOption[]): SubjectIndex {
+  const byDigits = new Map<string, BankOption[]>();
+  const groups = new Map<string, { code: string; kids: BankOption[]; names: Map<string, number> }>();
+  for (const o of options) {
+    const dk = digitsKey(o.code);
+    byDigits.set(dk, [...(byDigits.get(dk) || []), o]);
+    const kc = konuCodeOf(o.code);
+    const kk = digitsKey(kc);
+    if (kk.split('.').length < 2) continue;
+    const g = groups.get(kk) || { code: kc, kids: [], names: new Map<string, number>() };
+    g.kids.push(o);
+    if (!isBadKonu(o.konu, o.text)) g.names.set(o.konu, (g.names.get(o.konu) || 0) + 1);
+    groups.set(kk, g);
+  }
+  const konular = new Map<string, KonuOption>();
+  const konuByName = new Map<string, KonuOption[]>();
+  for (const [kk, g] of groups) {
+    const best = Array.from(g.names.entries()).sort((a, b) => b[1] - a[1])[0];
+    if (!best) continue; // konu adı olmayan grup konu sayılmaz
+    const k: KonuOption = { code: g.code, konu: best[0], kids: g.kids };
+    konular.set(kk, k);
+    const nk = nameKey(k.konu);
+    if (nk) konuByName.set(nk, [...(konuByName.get(nk) || []), k]);
+  }
+  return { options, byDigits, konular, konuByName };
+}
+
+export type QuestionMatch =
+  | { kind: 'kazanim'; code: string; score: number; by: 'kod' | 'metin' | 'hafiza' }
+  | { kind: 'konu'; konu: KonuOption; score: number; by: 'kod' | 'metin' | 'hafiza' };
+
+/** Kazanım listesinde metne en yakın olan (yeterince benzer ve tek başına öne çıkıyorsa) */
+function bestByText(text: string, list: BankOption[], min: number): BankOption | null {
+  const st = tokens(text);
+  if (st.size < 2 || !list.length) return null;
+  const ranked = list.map((o) => ({ o, s: dice(st, tokens(o.text)) })).sort((a, b) => b.s - a.s);
+  if (ranked[0].s >= min && (ranked.length < 2 || ranked[0].s - ranked[1].s >= 0.05)) return ranked[0].o;
+  return null;
+}
+
+/** Hafızadaki ya da elle seçilen kodun bankadaki karşılığı */
+export function resolveBankCode(code: string, idx: SubjectIndex): QuestionMatch | null {
+  const k = codeKey(code);
+  const kz = idx.options.find((o) => codeKey(o.code) === k);
+  if (kz) return { kind: 'kazanim', code: kz.code, score: 100, by: 'hafiza' };
+  const kn = idx.konular.get(digitsKey(code));
+  if (kn && codeKey(kn.code) === k) return { kind: 'konu', konu: kn, score: 100, by: 'hafiza' };
+  return null;
+}
+
+/** Bir sorunun yayınevi bilgisini bankadaki kazanıma ya da konuya bağlar */
+export function matchQuestion(src: { code?: string; text?: string }, idx: SubjectIndex, memory?: Map<string, string>): QuestionMatch | null {
+  if (!idx.options.length) return null;
+  const code = (src.code || '').trim();
+  const text = (src.text || '').trim();
+
+  // 1) Kod: önce kazanım kodu, değilse konu kodu; bankada yoksa üst basamaklar
+  if (isMebCode(code)) {
+    const k = codeKey(code);
+    const exact = idx.options.find((o) => codeKey(o.code) === k);
+    if (exact) return { kind: 'kazanim', code: exact.code, score: 100, by: 'kod' };
+    // birleşik kodlar (M.8.1.2.4-5, E8.4.L1 / SI1)
+    const covering = idx.options.filter((o) => o.code && codeAliases(o.code).includes(k));
+    if (covering.length === 1) return { kind: 'kazanim', code: covering[0].code, score: 96, by: 'kod' };
+    for (const a of codeAliases(code).slice(1)) {
+      const hit = idx.options.find((o) => codeKey(o.code) === a);
+      if (hit) return { kind: 'kazanim', code: hit.code, score: 90, by: 'kod' };
+    }
+    const parts = digitsKey(code).split('.');
+    for (let n = parts.length; n >= 2; n--) {
+      const key = parts.slice(0, n).join('.');
+      const kz = idx.byDigits.get(key);
+      // Aynı numaralı birden çok kazanım (ör. eski "8.1.1" ve yeni "D.8.1.1") varsa harf öneki aynı olan seçilir
+      const pick = kz && (kz.length === 1 ? kz[0] : kz.find((o) => prefixOf(o.code) === prefixOf(code)));
+      if (pick) return { kind: 'kazanim', code: pick.code, score: n === parts.length ? 95 : 85, by: 'kod' };
+      const kn = idx.konular.get(key);
+      if (kn) {
+        // Bankada olmayan alt kod (ör. T.8.4.9): konunun kazanımlarından metni çok benzeyen varsa o, yoksa yalnız konu
+        if (n < parts.length && text) {
+          const b = bestByText(text, kn.kids, 0.6);
+          if (b) return { kind: 'kazanim', code: b.code, score: 80, by: 'kod' };
+        }
+        return { kind: 'konu', konu: kn, score: n === parts.length ? 95 : 80, by: 'kod' };
+      }
+    }
+  }
+
+  // 2) Eşleme hafızası (öğretmenin daha önce elle seçtiği karşılık)
+  if (memory && memory.size) {
+    const key = srcKeyOf({ code, text });
+    const hit = key ? memory.get(key) : undefined;
+    if (hit) {
+      const r = resolveBankCode(hit, idx);
+      if (r) return r;
+    }
+  }
+
+  // 3) Ad: konu adı birebir → yalnız konu
+  const names = new Set<string>();
+  if (text) {
+    names.add(nameKey(text));
+    const m = /^(.*?)\s*\(([^()]{3,})\)\s*$/.exec(text);
+    if (m) {
+      names.add(nameKey(m[1]));
+      names.add(nameKey(m[2]));
+    }
+  }
+  if (code && !isMebCode(code) && !/^\s*\d+\s*$/.test(code)) names.add(nameKey(code)); // kod sütununda ad yazılmış
+  names.delete('');
+  for (const n of names) {
+    const hit = idx.konuByName.get(n);
+    if (hit && hit.length === 1) return { kind: 'konu', konu: hit[0], score: 90, by: 'metin' };
+  }
+
+  // 4) Kazanım cümlesi benzerliği (eski kurallar)
+  const srcText = [text, code && !isMebCode(code) && !/^\s*\d+\s*$/.test(code) ? code : ''].filter(Boolean).join(' ');
+  const st = tokens(srcText);
+  if (st.size >= 2) {
+    const scored = idx.options
+      .map((o) => ({ o, s: Math.max(dice(st, tokens(o.text)), dice(st, tokens(`${o.konu} ${o.text}`))) }))
+      .sort((a, b) => b.s - a.s);
+    const best = scored[0];
+    const second = scored[1];
+    const score = Math.round(best.s * 100);
+    if (score >= 75 || (score >= 50 && (!second || best.s - second.s >= 0.08))) return { kind: 'kazanim', code: best.o.code, score, by: 'metin' };
+  }
+
+  // 5) Konu adı benzerliği → yalnız konu
+  const nameTokens = Array.from(names, (n) => tokens(n)).filter((t) => t.size > 0);
+  if (nameTokens.length) {
+    const ranked = Array.from(idx.konular.values())
+      .map((k) => {
+        const kt = tokens(k.konu);
+        return { k, s: Math.max(...nameTokens.map((t) => dice(t, kt))) };
+      })
+      .sort((a, b) => b.s - a.s);
+    const top = ranked[0];
+    if (top && top.s >= 0.6 && (ranked.length < 2 || top.s - ranked[1].s >= 0.1)) return { kind: 'konu', konu: top.k, score: Math.round(top.s * 100), by: 'metin' };
+  }
   return null;
 }
 

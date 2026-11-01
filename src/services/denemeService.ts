@@ -536,18 +536,75 @@ export async function saveKazanimBank(list: BankRow[], onProgress?: (done: numbe
       grade: (k.grade || '').slice(0, 10) || null,
       text: k.text.slice(0, 2000),
       konu: k.konu ? k.konu.slice(0, 300) : null,
-      alt: (k.alt || []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 20).map((x) => x.trim().slice(0, 600)),
+      alt: k.alt === undefined ? undefined : k.alt.filter((x) => typeof x === 'string' && x.trim()).slice(0, 20).map((x) => x.trim().slice(0, 600)),
       updated_at: stamp,
     });
   }
   const rows = Array.from(map.values());
   const head = dataService.isHeadAdmin();
-  for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await supabase.from('deneme_kazanimlar').upsert(rows.slice(i, i + 200), { onConflict: 'code', ignoreDuplicates: !head });
-    if (error) fail(error, 'Kazanım bankası kaydedilemedi.');
-    onProgress?.(Math.min(rows.length, i + 200), rows.length);
+  // Aşama 128: açıklama (alt kazanım) bilgisi gelmeyen satırlar ayrı gönderilir; böylece bankadaki
+  // açıklama maddeleri silinmez (yalnız gönderilen sütunlar güncellenir).
+  // Bankada henüz olmayan kodlar her zaman boş açıklamayla eklenir (sütun boş geçilemesin).
+  const missing = rows.filter((r) => r.alt === undefined);
+  const existing = new Set<string>();
+  for (let i = 0; i < missing.length; i += 200) {
+    const { data, error } = await supabase.from('deneme_kazanimlar').select('code').in('code', missing.slice(i, i + 200).map((r) => r.code));
+    if (error) fail(error, 'Kazanım bankası okunamadı.');
+    for (const r of data || []) existing.add(r.code);
+  }
+  for (const r of missing) if (!existing.has(r.code)) r.alt = [];
+  const withAlt = rows.filter((r) => r.alt !== undefined);
+  const noAlt = rows.filter((r) => r.alt === undefined).map(({ alt: _alt, ...r }) => r);
+  let done = 0;
+  for (const part of [withAlt, noAlt]) {
+    for (let i = 0; i < part.length; i += 200) {
+      const chunk = part.slice(i, i + 200);
+      const { error } = await supabase.from('deneme_kazanimlar').upsert(chunk, { onConflict: 'code', ignoreDuplicates: !head });
+      if (error) fail(error, 'Kazanım bankası kaydedilemedi.');
+      done += chunk.length;
+      onProgress?.(done, rows.length);
+    }
   }
   return rows.length;
+}
+
+// ----------------------------------------------------------------------------- Aşama 128: eşleme hafızası
+// Yayınevi ifadesi → bankadaki kazanım ya da konu kodu. Öğretmen bir soruda elle seçince kaydedilir;
+// sonraki denemelerde aynı ifade kendiliğinden eşleşir. Kurum başına ayrıdır (RLS: my_kurum_id()).
+
+/** Hafızanın tamamı: ders → (ifade → kod). Tablo yoksa (SQL henüz çalıştırılmadıysa) boş döner. */
+export async function listEslesmeler(): Promise<Map<string, Map<string, string>>> {
+  const out = new Map<string, Map<string, string>>();
+  for (let from = 0; from < 20000; from += 1000) {
+    const { data, error } = await supabase.from('deneme_kazanim_eslesme').select('subject,src_key,code').range(from, from + 999);
+    if (error) return out;
+    for (const r of data || []) {
+      const m = out.get(r.subject) || new Map<string, string>();
+      m.set(r.src_key, r.code);
+      out.set(r.subject, m);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Bir eşlemeyi yazar (code boşsa siler). Hata sessizce yutulur: eşleme yalnızca kolaylıktır. */
+export async function saveEslesme(subject: string, srcKey: string, code: string | null): Promise<boolean> {
+  if (!subject || !srcKey) return false;
+  const kurum = myKurumId();
+  if (!code) {
+    let q = supabase.from('deneme_kazanim_eslesme').delete().eq('subject', subject).eq('src_key', srcKey);
+    q = kurum ? q.eq('kurum_id', kurum) : q.is('kurum_id', null);
+    const { error } = await q;
+    return !error;
+  }
+  const { error } = await supabase
+    .from('deneme_kazanim_eslesme')
+    .upsert(
+      { kurum_id: kurum, subject: subject.slice(0, 20), src_key: srcKey.slice(0, 200), code: code.slice(0, 60), updated_at: new Date().toISOString() },
+      { onConflict: 'kurum_id,subject,src_key' }
+    );
+  return !error;
 }
 
 /** Aşama 48g: yalnızca konu alanını günceller (kazanım metni ve yükleme zamanı değişmez) */

@@ -3,9 +3,9 @@ import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Spar
 import { cx } from '../ui/kit';
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
-import { listKazanimlar, type BankRow } from '../../services/denemeService';
+import { listEslesmeler, listKazanimlar, saveEslesme, type BankRow } from '../../services/denemeService';
 import { codeKey } from '../../lib/deneme/kazanimBank';
-import { applyBank, bankOptionsBySubject, describeMatch, matchQuestionsWithBank } from '../../lib/deneme/bankEslestir';
+import { applyBank, applyKonu, bankIndexBySubject, bankOptionsBySubject, describeMatch, matchQuestionsWithBank, memoryKeyOf } from '../../lib/deneme/bankEslestir';
 import { aiCall, aiReadKey, aiStatus, newAiState, type AiProvider } from '../../lib/aiApi';
 import { KazanimAI } from './KazanimAI';
 import { badBNos, bMapProblems, checkWithBKey, cleanKey, parseBOrder } from '../../lib/deneme/bKitapcik';
@@ -46,6 +46,8 @@ export const AnahtarEditor: React.FC<{
   const [aiOpen, setAiOpen] = useState(false);
   const [kitOpen, setKitOpen] = useState(false); // Aşama 93
   const [bank, setBank] = useState<BankRow[] | null>(null);
+  // Aşama 128: eşleme hafızası (ders → yayınevi ifadesi → kod); bir kez okunur
+  const memoryRef = useRef<Map<string, Map<string, string>> | null>(null);
   const [ai, setAi] = useState<{ provider: AiProvider; keys: { gemini: boolean; mistral: boolean } } | null>(null);
   // Aşama 50: son okunan Excel (yapay zekâ seçeneği için) ve sunulan seçenek
   const [lastExcel, setLastExcel] = useState<ExcelKeyResult | null>(null);
@@ -65,6 +67,9 @@ export const AnahtarEditor: React.FC<{
     listKazanimlar()
       .then((b) => alive && setBank(b))
       .catch(() => alive && setBank([]));
+    void listEslesmeler().then((m) => {
+      if (alive && !memoryRef.current) memoryRef.current = m;
+    });
     void aiStatus().then((r) => {
       if (alive && r.ok) setAi({ provider: !r.gemini && r.mistral ? 'mistral' : 'gemini', keys: { gemini: !!r.gemini, mistral: !!r.mistral } });
     });
@@ -74,6 +79,7 @@ export const AnahtarEditor: React.FC<{
   }, []);
 
   const options = useMemo(() => bankOptionsBySubject(bank || []), [bank]);
+  const index = useMemo(() => bankIndexBySubject(options), [options]); // Aşama 128: konu dizini
   const byCode = useMemo(() => new Map((bank || []).map((r) => [codeKey(r.code), { code: r.code, text: r.text, konu: r.konu, alt: r.alt || [] }])), [bank]);
 
   const setSubject = (key: string, list: ExamQuestion[]) => onChange({ ...questions, [key]: list });
@@ -98,7 +104,8 @@ export const AnahtarEditor: React.FC<{
       return;
     }
     setBusyText('Kazanımlar bankayla eşleştiriliyor…');
-    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText });
+    if (!memoryRef.current) memoryRef.current = await listEslesmeler();
+    const r = await matchQuestionsWithBank(subjects, qs, b, { clearUnmatched, ai, onProgress: setBusyText, memory: memoryRef.current });
     onChange(r.questions);
     const d = describeMatch(subjects, r.stats);
     setMsg({ tone: d.tone === 'success' && !r.notes.length ? 'success' : 'warning', text: `${prefix}${d.text}${r.notes.length ? ' ' + r.notes.join(' ') : ''}` });
@@ -407,8 +414,22 @@ export const AnahtarEditor: React.FC<{
             setTool(s.key, { msg: { tone: 'success', text: `${s.count} sorunun B numarası yazıldı. Kaydetmeyi unutmayın.` } });
           };
           const withKazanim = list.filter((q) => q.kazanimCode && byCode.has(codeKey(q.kazanimCode))).length;
-          const unmatched = list.filter((q) => (q.srcCode || q.srcText) && !q.kazanimCode).length;
+          const unmatched = list.filter((q) => (q.srcCode || q.srcText) && !q.kazanimCode && !q.konuCode).length;
+          const konuOnly = list.filter((q) => !q.kazanimCode && q.konuCode).length;
           const opts = options[s.key] || [];
+          const konular = Array.from(index[s.key]?.konular.values() || []);
+          // Aşama 128: elle seçim eşleme hafızasına yazılır (yalnız yayınevi bilgisi olan sorularda)
+          const remember = (q: ExamQuestion, code: string | null) => {
+            const key = memoryKeyOf(q);
+            if (!key) return;
+            const all = memoryRef.current || new Map<string, Map<string, string>>();
+            const m = all.get(s.key) || new Map<string, string>();
+            if (code) m.set(key, code);
+            else m.delete(key);
+            all.set(s.key, m);
+            memoryRef.current = all;
+            void saveEslesme(s.key, key, code);
+          };
           const isOpen = open === s.key;
           return (
             <div key={s.key} className="border border-line rounded-xl bg-surface" data-key-subject={s.key}>
@@ -418,6 +439,7 @@ export const AnahtarEditor: React.FC<{
                   {filledCount}/{s.count} cevap
                 </span>
                 <span className={cx('ui-chip', withKazanim ? 'ui-chip-info' : 'ui-chip-neutral')}>{withKazanim} kazanım</span>
+                {konuOnly > 0 && <span className="ui-chip ui-chip-neutral">{konuOnly} yalnız konu</span>}
                 {unmatched > 0 && <span className="ui-chip ui-chip-warning">{unmatched} eşleşmedi</span>}
                 {bProblems.length > 0 && (
                   <span className="ui-chip ui-chip-danger" title={bProblems.join('\n')}>
@@ -620,22 +642,49 @@ export const AnahtarEditor: React.FC<{
                             <td className="px-3 py-1.5 text-fg-2 align-top">
                               <select
                                 className="ui-input py-0.5 text-xs"
-                                value={inBank ? q.kazanimCode : q.kazanimCode ? '__old' : ''}
+                                value={inBank ? q.kazanimCode : q.kazanimCode ? '__old' : q.konuCode && konular.some((k) => k.code === q.konuCode) ? `konu:${q.konuCode}` : ''}
                                 onChange={(e) => {
                                   const v = e.target.value;
                                   if (v === '__old') return;
+                                  if (v.startsWith('konu:')) {
+                                    const k = konular.find((x) => x.code === v.slice(5));
+                                    if (!k) return;
+                                    setSubject(s.key, list.map((x, j) => (j === i ? applyKonu(x, k) : x)));
+                                    remember(q, k.code);
+                                    return;
+                                  }
                                   const b = v ? byCode.get(codeKey(v)) : undefined;
                                   setSubject(s.key, list.map((x, j) => (j === i ? applyBank(x, b) : x)));
+                                  remember(q, b ? b.code : null);
                                 }}
                                 aria-label={`${q.no}. soru kazanımı`}
                               >
                                 <option value="">{opts.length ? '— kazanım seçin —' : '— bankada bu dersin kazanımı yok —'}</option>
                                 {q.kazanimCode && !inBank && <option value="__old">{q.kazanimCode} (bankada yok)</option>}
-                                {opts.map((o) => (
-                                  <option key={o.code} value={o.code}>
-                                    {o.code} — {short(o.text, 90)}
-                                  </option>
-                                ))}
+                                {konular.length > 0 ? (
+                                  <>
+                                    <optgroup label="Kazanımlar">
+                                      {opts.map((o) => (
+                                        <option key={o.code} value={o.code}>
+                                          {o.code} — {short(o.text, 90)}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="Yalnız konu (kazanım boş kalır)">
+                                      {konular.map((k) => (
+                                        <option key={k.code} value={`konu:${k.code}`}>
+                                          {k.code} — {short(k.konu, 90)}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  </>
+                                ) : (
+                                  opts.map((o) => (
+                                    <option key={o.code} value={o.code}>
+                                      {o.code} — {short(o.text, 90)}
+                                    </option>
+                                  ))
+                                )}
                               </select>
                               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                                 {q.ai && (
@@ -644,15 +693,15 @@ export const AnahtarEditor: React.FC<{
                                   </span>
                                 )}
                                 {(q.srcCode || q.srcText) && (
-                                  <span className={cx('text-[11px]', q.kazanimCode ? 'text-muted' : 'text-warning-fg')}>
+                                  <span className={cx('text-[11px]', q.kazanimCode || q.konuCode ? 'text-muted' : 'text-warning-fg')}>
                                     Excel: {short([q.srcCode, q.srcText].filter(Boolean).join(' — '), 110)}
-                                    {!q.kazanimCode && ' · eşleşmedi'}
+                                    {!q.kazanimCode && (q.konuCode ? ' · yalnız konu' : ' · eşleşmedi')}
                                   </span>
                                 )}
                               </div>
                             </td>
                             <td className="px-3 py-1.5 align-top">
-                              <input className="ui-input py-0.5 text-xs" value={q.konu || ''} maxLength={120} onChange={(e) => set({ konu: e.target.value || undefined })} aria-label={`${q.no}. soru konusu`} />
+                              <input className="ui-input py-0.5 text-xs" value={q.konu || ''} maxLength={120} onChange={(e) => set({ konu: e.target.value || undefined, konuCode: undefined })} aria-label={`${q.no}. soru konusu`} />
                             </td>
                             <td className="px-3 py-1.5 align-top">
                               {(() => {
@@ -686,7 +735,7 @@ export const AnahtarEditor: React.FC<{
         })}
       </div>
       <p className="text-[11px] text-muted">
-        Kazanımı listeden seçince konusu bankadan otomatik gelir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
+        Kazanımı listeden seçince konusu bankadan otomatik gelir; yalnız konu da seçilebilir. Elle yapılan seçim hatırlanır, sonraki denemelerde aynı ifade kendiliğinden eşleşir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
         kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır.
       </p>
     </div>

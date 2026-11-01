@@ -26,6 +26,7 @@ export interface ExamQuestion {
   ai?: string; // Aşama 48: kazanımı yapay zekâ önerdiyse sağlayıcının adı (gemini / mistral)
   srcCode?: string; // Aşama 48d: yayınevi Excel'indeki kazanım kodu (yalnızca bankayla eşleştirmek için; analizde kullanılmaz)
   srcText?: string; // Aşama 48d: yayınevi Excel'indeki kazanım/konu metni (yalnızca eşleştirme için)
+  konuCode?: string; // Aşama 128: bankadaki konu kodu (F.8.1.1). Kazanım seçilmeyip yalnız konu atanan sorularda da dolu
 }
 
 export type ExamQuestions = Record<string, ExamQuestion[]>;
