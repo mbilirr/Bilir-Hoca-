@@ -952,7 +952,7 @@ export const KazanimBankasi: React.FC = () => {
         title="Bankadaki kazanımlar"
         description={
           isHead
-            ? 'Sistem yalnızca bu listedeki kazanımları kullanır. Bir dersi "Dersi sil" ile, bankanın tamamını "Tümünü sil" ile, tek tek kazanımları işaretleyip "Seçilenleri sil" ile silebilirsiniz.'
+            ? 'Sistem yalnızca bu listedeki kazanımları kullanır. Bir dersin tamamını silmek için ders adının yanındaki kutuyu, tek tek kazanımları işaretleyip "Seçilenleri sil" deyin; bankanın tamamı için "Tümünü sil".'
             : 'Sistem yalnızca bu listedeki kazanımları kullanır.'
         }
         actions={
@@ -1017,16 +1017,6 @@ export const KazanimBankasi: React.FC = () => {
                     {konuCount > 0 && <span className="ui-chip ui-chip-info">{konuCount} konu</span>}
                     {nSel > 0 && <span className="ui-chip ui-chip-danger">{nSel} seçili</span>}
                     <span className="flex-1" />
-                    {isHead && g.rows.length > 0 && (
-                      <button
-                        type="button"
-                        className="ui-btn ui-btn-ghost ui-btn-sm text-danger-fg"
-                        onClick={() => setDelTarget({ name: g.name, codes: g.rows.map((r) => r.code) })}
-                        aria-label={`${g.name} kazanımlarının hepsini sil`}
-                      >
-                        <Trash2 /> Dersi sil
-                      </button>
-                    )}
                     {g.rows.length > 0 && (
                       <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setOpen(open === g.key ? null : g.key)} aria-expanded={isOpen}>
                         {isOpen ? <ChevronUp /> : <ChevronDown />} Kazanımlar
