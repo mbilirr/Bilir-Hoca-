@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useHistoryState } from '../../lib/useHistoryState';
-import { Ban, ChevronDown, Download, FileArchive, Mail, MessageCircle, MessageSquare, Save, Square } from 'lucide-react';
+import { Ban, ChevronDown, Download, FileArchive, Mail, MessageCircle, MessageSquare, Save, Send, Square } from 'lucide-react';
 import { CalismaPlaniView, KARNE_TURLERI, KazanimTakipView, type KarneTur } from './KarneIleri';
 import { PlanaAktarModal } from './PlanaAktarModal';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -32,6 +32,8 @@ import { fmtScore } from '../../lib/deneme/lgs';
 import { TUR_NAME, TUR_TITLE, buildStudentKarne, type KarneContext, type KarneExtra } from '../../lib/deneme/karneBuilder';
 import { downloadClassPdf, downloadClassZip, forEachStudentKarne, type TopluOpts } from '../../lib/deneme/topluKarne';
 import { KarneSmsModal, type KarneSendKind, type SmsAudience } from './KarneSmsModal';
+import { ParentPickModal, parentRelations, pickParents, reachableIndexes, type ParentChannel } from '../Common/ParentPicker'; // Aşama 134
+import { cleanParents } from '../../lib/parents';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 import { BransGelisimView } from './BransGelisimView'; // Aşama 130
 import { bransGelisim, bransGelisimBlocks, bransTumSubeler, type BransSubject } from '../../lib/deneme/bransKarne';
@@ -102,10 +104,10 @@ function karneExamName(examById: Map<string, DenemeExam>, order: string[], taken
   if (list.length <= 3) return `${list.slice(0, -1).join(', ')} ve ${list[list.length - 1]}`;
   return `${list.length} deneme (son: ${list[list.length - 1]})`;
 }
-type SmsSum = { sent: number; dry: number; skipped: number; limited: number; noPhone: number; failed: number };
-const emptySms = (): SmsSum => ({ sent: 0, dry: 0, skipped: 0, limited: 0, noPhone: 0, failed: 0 });
+type SmsSum = { sent: number; dry: number; skipped: number; limited: number; noPhone: number; failed: number; noVeliMatch: number };
+const emptySms = (): SmsSum => ({ sent: 0, dry: 0, skipped: 0, limited: 0, noPhone: 0, failed: 0, noVeliMatch: 0 });
 function addSms(sum: SmsSum, r: Record<string, any>) {
-  for (const f of ['sent', 'dry', 'skipped', 'limited', 'noPhone', 'failed'] as const) sum[f] += Number(r[f]) || 0;
+  for (const f of ['sent', 'dry', 'skipped', 'limited', 'noPhone', 'failed', 'noVeliMatch'] as const) sum[f] += Number(r[f]) || 0;
 }
 function smsNotice(sum: SmsSum, links: number, errors: string[]): Notice {
   const parts: string[] = [];
@@ -113,19 +115,21 @@ function smsNotice(sum: SmsSum, links: number, errors: string[]): Notice {
   else parts.push(`${sum.sent} SMS gönderildi`);
   if (sum.skipped) parts.push(`${sum.skipped} SMS daha önce gönderilmişti`);
   if (sum.noPhone) parts.push(`${sum.noPhone} öğrencide seçilen kişinin telefonu yok`);
+  if (sum.noVeliMatch) parts.push(`${sum.noVeliMatch} öğrencide seçilen yakınlıkta veli kayıtlı değil`); // Aşama 134
   if (sum.limited) parts.push(`${sum.limited} SMS günlük sınır yüzünden gitmedi`);
   if (sum.failed) parts.push(`${sum.failed} SMS gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
-  return { tone: sum.failed || sum.limited ? 'danger' : sum.dry || sum.noPhone ? 'warning' : 'success', text: parts.join(' · ') + '.' };
+  return { tone: sum.failed || sum.limited ? 'danger' : sum.dry || sum.noPhone || sum.noVeliMatch ? 'warning' : 'success', text: parts.join(' · ') + '.' };
 }
-type MailSum = { sent: number; skipped: number; noEmail: number; noParentEmail: number; failed: number };
-const emptyMail = (): MailSum => ({ sent: 0, skipped: 0, noEmail: 0, noParentEmail: 0, failed: 0 });
+type MailSum = { sent: number; skipped: number; noEmail: number; noParentEmail: number; failed: number; noVeliMatch?: number };
+const emptyMail = (): MailSum => ({ sent: 0, skipped: 0, noEmail: 0, noParentEmail: 0, failed: 0, noVeliMatch: 0 });
 function mailNotice(sum: MailSum, errors: string[]): Notice {
   const parts = [`${sum.sent} e-posta gönderildi`];
   if (sum.skipped) parts.push(`${sum.skipped} kişiye daha önce gönderilmişti`);
   if (sum.noEmail) parts.push(`${sum.noEmail} öğrencinin e-postası kayıtlı değil`);
   if (sum.noParentEmail) parts.push(`${sum.noParentEmail} öğrencinin velisinin e-postası kayıtlı değil`);
+  if (sum.noVeliMatch) parts.push(`${sum.noVeliMatch} öğrencide seçilen yakınlıkta veli kayıtlı değil`); // Aşama 134
   if (sum.failed) parts.push(`${sum.failed} gönderilemedi${errors[0] ? ` (${errors[0]})` : ''}`);
-  return { tone: sum.failed ? 'danger' : sum.noEmail || sum.noParentEmail || !sum.sent ? 'warning' : 'success', text: parts.join(' · ') + '.' };
+  return { tone: sum.failed ? 'danger' : sum.noEmail || sum.noParentEmail || sum.noVeliMatch || !sum.sent ? 'warning' : 'success', text: parts.join(' · ') + '.' };
 }
 const takenByStudent = (results: DenemeResult[]) => {
   const m = new Map<string, Set<string>>();
@@ -144,6 +148,9 @@ const takenByStudent = (results: DenemeResult[]) => {
 // Aşama 101: ekranda seçili karne türü kullanılır; tek PDF / zip indirme; SMS ile 30 gün geçerli karne linki.
 type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
 const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
+// Aşama 134: toplu işlemlerde "İndir" ve "Gönder" ayrı küçük kutular
+const TOPLU_KUTU = 'rounded-xl border border-line bg-surface p-2 space-y-1.5';
+const TOPLU_KUTU_BASLIK = 'flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted [&>svg]:w-3.5 [&>svg]:h-3.5';
 // Aşama 133 (119b): seçili öğrencinin 4 tek tık düğmesi (en-boy eşit, yazı sığsın diye w-40)
 const TEK_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center';
 
@@ -204,6 +211,17 @@ const TopluKarneGonder: React.FC<{
       .sort((a, b) => (a.className || '').localeCompare(b.className || '', 'tr', { numeric: true }) || a.name.localeCompare(b.name, 'tr'));
   }, [loaded, classStudents]);
 
+  // Aşama 134: yakınlık seçimi — veli bilgisi görünen rollerde; görünmeyende seçim yok (tüm veliler, eski davranış)
+  const parentsVisible = dataService.canSeeParentContacts();
+  const relations = useMemo(() => (parentsVisible ? parentRelations(classStudents) : []), [parentsVisible, classStudents]);
+  /** Yalnız veliye + yakınlık seçiliyse: o yakınlıkta velisi olmayan öğrencinin karnesi hiç hazırlanmaz (PDF + yükleme boşa gitmez) */
+  const targetsFor = (audience: SmsAudience, data: { results: DenemeResult[] }) => {
+    if (!parentsVisible || audience.ogrenci || !audience.veliYakinlik?.length) return { list: classStudents, skipped: 0 };
+    const ids = new Set(data.results.map((r) => r.studentId));
+    const list = classStudents.filter((s) => pickParents(s.parents, audience).length > 0);
+    return { list, skipped: classStudents.filter((s) => ids.has(s.id)).length - list.filter((s) => ids.has(s.id)).length };
+  };
+
   const ctxOf = (data: { exams: DenemeExam[] }): KarneContext => ({ tur, exams: data.exams, scopeLabel: scopeLabel(scope), bank: bank ?? null, teacherName });
   const loadExtra = async (s: Student): Promise<KarneExtra> => {
     if (tur !== 'genel' && tur !== 'veli') return { target: null };
@@ -251,7 +269,9 @@ const TopluKarneGonder: React.FC<{
       let warn: string | null = null;
       const examById = new Map(data.exams.map((e) => [e.id, e] as const));
       const taken = takenByStudent(data.results);
-      await forEachStudentKarne(ctxOf(data), classStudents, data, { ...opts, signal: stop.signal }, async (s, k) => {
+      const tg = targetsFor(audience, data);
+      sum.noVeliMatch = tg.skipped;
+      await forEachStudentKarne(ctxOf(data), tg.list, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
           const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
           const examName = karneExamName(examById, examIds, taken.get(s.id) || new Set());
@@ -264,6 +284,7 @@ const TopluKarneGonder: React.FC<{
             sum.sent += r.sent || 0;
             sum.noEmail += r.noEmail || 0;
             sum.noParentEmail += r.noParentEmail || 0;
+            sum.noVeliMatch = (sum.noVeliMatch || 0) + (r.noVeliMatch || 0);
             sum.skipped += r.skipped || 0;
             sum.failed += r.failed || 0;
             if (r.errors && r.errors[0]) errors.push(r.errors[0]);
@@ -293,7 +314,9 @@ const TopluKarneGonder: React.FC<{
       opts.signal?.addEventListener('abort', () => stop.abort());
       let fatal: string | null = null;
       let links = 0;
-      await forEachStudentKarne(ctxOf(data), classStudents, data, { ...opts, signal: stop.signal }, async (s, k) => {
+      const tg = targetsFor(audience, data);
+      sum.noVeliMatch = tg.skipped;
+      await forEachStudentKarne(ctxOf(data), tg.list, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
           const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
           const r = await callMail('karne-sms', { studentId: s.id, pdf, tur, examIds, audience });
@@ -306,7 +329,7 @@ const TopluKarneGonder: React.FC<{
             }
             return;
           }
-          if (!r.noPhone) links++;
+          if (!r.noPhone && !r.noVeliMatch) links++;
           addSms(sum, r);
           if (r.errors && r.errors[0]) errors.push(r.errors[0]);
         } catch (e: any) {
@@ -380,15 +403,27 @@ const TopluKarneGonder: React.FC<{
           </button>
         </div>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
+        // Aşama 134: indirme ve gönderme ayrı küçük kutularda, yan yana (dar ekranda alt alta)
+        <div className="flex flex-wrap items-stretch gap-2">
+          <div className={TOPLU_KUTU} id="karne-toplu-indir">
+            <span className={TOPLU_KUTU_BASLIK}>
+              <Download /> İndir
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
           <button type="button" id="karne-toplu-pdf" className={TOPLU_BTN} disabled={busy} onClick={() => void download('pdf')} title="Bütün sınıf tek PDF: her öğrenci yeni sayfadan başlar">
             <Download /> Tek PDF
           </button>
           <button type="button" id="karne-toplu-zip" className={TOPLU_BTN} disabled={busy} onClick={() => void download('zip')} title="Her öğrenci ayrı PDF, hepsi tek zip dosyasında">
             <FileArchive /> Zip
           </button>
+            </div>
+          </div>
           {!downloadOnly && (
-          <>
+          <div className={TOPLU_KUTU} id="karne-toplu-gonder">
+            <span className={TOPLU_KUTU_BASLIK}>
+              <Send /> Gönder
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             id="karne-toplu-mail"
@@ -428,7 +463,8 @@ const TopluKarneGonder: React.FC<{
           <button type="button" id="karne-link-iptal" className={TOPLU_BTN} disabled={busy} onClick={() => setConfirmRevoke(true)} title={cls ? 'Bu sınıfa SMS ile gönderilen karne linklerini kapatır' : 'Tüm sınıflara SMS ile gönderilen karne linklerini kapatır'}>
             <Ban /> Linkleri iptal et
           </button>
-          </>
+            </div>
+          </div>
           )}
         </div>
       )}
@@ -464,6 +500,7 @@ const TopluKarneGonder: React.FC<{
         className={label}
         count={loaded ? withResults.length : null}
         turName={TUR_NAME[tur]}
+        relations={relations}
       />
       {open && (
         <div className="rounded-xl border border-line bg-surface">
@@ -734,7 +771,7 @@ export const DenemeKarne: React.FC<{
         setNotice({ tone: d.tone, text: d.text });
         return;
       }
-      setNotice(mailNotice({ sent: r.sent || 0, skipped: r.skipped || 0, noEmail: r.noEmail || 0, noParentEmail: r.noParentEmail || 0, failed: r.failed || 0 }, r.errors || []));
+      setNotice(mailNotice({ sent: r.sent || 0, skipped: r.skipped || 0, noEmail: r.noEmail || 0, noParentEmail: r.noParentEmail || 0, failed: r.failed || 0, noVeliMatch: r.noVeliMatch || 0 }, r.errors || []));
     });
 
   const onSms = (audience: SmsAudience) =>
@@ -749,8 +786,24 @@ export const DenemeKarne: React.FC<{
       }
       const sum = emptySms();
       addSms(sum, r);
-      setNotice(smsNotice(sum, r.noPhone ? 0 : 1, r.errors || []));
+      setNotice(smsNotice(sum, r.noPhone || r.noVeliMatch ? 0 : 1, r.errors || []));
     });
+
+  // Aşama 134: "Veliye e-posta / SMS" — öğrencinin bu yolla ulaşılabilen birden çok velisi varsa önce küçük pencerede seçilir;
+  // tek velisi (ya da veli bilgisi bu rolde görünmüyorsa) eskisi gibi tek tıkla gider.
+  const [veliPick, setVeliPick] = useState<ParentChannel | null>(null);
+  const studentParents = useMemo(() => (student && dataService.canSeeParentContacts() ? cleanParents(student.parents) : []), [student]);
+  const onVeli = (ch: ParentChannel) => {
+    if (reachableIndexes(studentParents, [ch]).length > 1) return setVeliPick(ch);
+    return ch === 'mail' ? onMail({ ogrenci: false, veli: true }) : onSms({ ogrenci: false, veli: true });
+  };
+  const sendVeliPick = (veliSira: number[]) => {
+    const ch = veliPick;
+    setVeliPick(null);
+    const all = veliSira.length === reachableIndexes(studentParents, [ch || 'mail']).length;
+    const audience: SmsAudience = all ? { ogrenci: false, veli: true } : { ogrenci: false, veli: true, veliSira };
+    void (ch === 'mail' ? onMail(audience) : onSms(audience));
+  };
 
   const onWhatsapp = () =>
     run(async () => {
@@ -925,15 +978,23 @@ export const DenemeKarne: React.FC<{
                 <button type="button" id="karne-ogrenci-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: true, veli: false })} title="Karneyi yalnız öğrencinin e-posta adresine gönderir">
                   <Mail /> Öğrenciye e-posta
                 </button>
-                <button type="button" id="karne-veli-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: false, veli: true })} title="Karneyi yalnız velinin e-posta adresine gönderir">
+                <button type="button" id="karne-veli-mail" className={TEK_BTN} disabled={busy} onClick={() => void onVeli('mail')} title="Karneyi velinin e-posta adresine gönderir (birden çok velisi varsa seçilir)">
                   <Mail /> Veliye e-posta
                 </button>
                 <button type="button" id="karne-ogrenci-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: true, veli: false })} title="Karne linkini yalnız öğrencinin telefonuna SMS ile gönderir">
                   <MessageSquare /> Öğrenciye SMS
                 </button>
-                <button type="button" id="karne-veli-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: false, veli: true })} title="Karne linkini yalnız velinin telefonuna SMS ile gönderir">
+                <button type="button" id="karne-veli-sms" className={TEK_BTN} disabled={busy} onClick={() => void onVeli('sms')} title="Karne linkini velinin telefonuna SMS ile gönderir (birden çok velisi varsa seçilir)">
                   <MessageSquare /> Veliye SMS
                 </button>
+                <ParentPickModal
+                  open={veliPick !== null}
+                  onClose={() => setVeliPick(null)}
+                  onSend={sendVeliPick}
+                  studentName={student?.name || ''}
+                  parents={studentParents}
+                  channel={veliPick || 'mail'}
+                />
               </>
             )}
             {!limited && (

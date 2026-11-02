@@ -1147,6 +1147,32 @@ async function studentParentsMap(ids) {
   }
   return map;
 }
+// Aşama 134: elle gönderimde veli seçimi (karne e-posta / SMS, veli duyurusu).
+// audience.veliSira: [0..2] — tek öğrencide işaretlenen veliler (kayıtlı veli listesindeki sıra, boş veliler sayılmaz)
+// audience.veliYakinlik: ['Anne', …] — toplu gönderimde seçilen yakınlıklar (büyük/küçük harf duyarsız)
+// İkisi de yoksa ya da boşsa TÜM veliler (eski davranış). Seçim alıcıyı yalnız DARALTIR; adresler yine kayıttan okunur.
+const PARENT_MAX = 3;
+const relKey = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, 30).toLocaleLowerCase('tr-TR');
+const parentHasInfo = (p) => !!p && typeof p === 'object' && !!(clean(p.name) || clean(p.phone) || clean(p.email));
+function parentFilter(au) {
+  const a = au && typeof au === 'object' ? au : {};
+  if (Array.isArray(a.veliSira)) {
+    const idx = new Set(a.veliSira.slice(0, PARENT_MAX).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n < PARENT_MAX));
+    if (idx.size) return { kind: 'sira', idx };
+  }
+  if (Array.isArray(a.veliYakinlik)) {
+    const rels = new Set(a.veliYakinlik.slice(0, 12).map(relKey).filter(Boolean));
+    if (rels.size) return { kind: 'yakinlik', rels };
+  }
+  return null;
+}
+function pickParents(parents, filter) {
+  const list = (Array.isArray(parents) ? parents : []).filter(parentHasInfo).slice(0, PARENT_MAX);
+  if (!filter) return list;
+  if (filter.kind === 'sira') return list.filter((_, i) => filter.idx.has(i));
+  return list.filter((p) => filter.rels.has(relKey(p.relation)));
+}
+
 function veliCopy(it, parent, studentName) {
   const who = String((parent && parent.name) || '').trim() || 'Sayın Veli';
   const html = typeof it.html === 'string'
@@ -1335,6 +1361,7 @@ async function actionParentAnnounce(caller, body, deadline) {
   const toParents = au.parents !== false;
   const toStudents = au.students === true;
   if (!toParents && !toStudents) throw new HttpError(400, 'Alıcı seçin (veliler ve/veya öğrenciler).');
+  const pFilter = parentFilter(au); // Aşama 134
 
   // Aşama 82: rol yetkileri açık kurumda veli duyurusunu yalnızca yönetici, Rehberlik ve Ölçme Değerlendirme gönderir
   if (!caller.isAdmin && !caller.isKurumAdmin && caller.kurumId) {
@@ -1364,7 +1391,7 @@ async function actionParentAnnounce(caller, body, deadline) {
   const realMail = (em) => isEmail(em) && !/@(okul\.internal\.net|school\.internal|student\.school\.internal)$/i.test(em);
   for (const s of visible) {
     const info = pmap.get(String(s.id));
-    const parents = toParents && info ? info.parents : [];
+    const parents = toParents && info ? pickParents(info.parents, pFilter) : []; // Aşama 134: seçilen veliler
     let any = false;
     // Aşama 83: öğrencinin kendi e-postası / telefonu
     if (toStudents) {
@@ -3162,8 +3189,12 @@ async function actionDenemeKarne(caller, body, req, deadline) {
     });
   }
   let noParentEmail = 0;
+  let noVeliMatch = 0; // Aşama 134: seçilen yakınlık / veli bu öğrencide yok
   if (toVeli) {
     const st = (await studentParentsMap([studentId])).get(studentId) || { parents: [] };
+    const vf = parentFilter(au);
+    const chosen = pickParents(st.parents, vf);
+    if (vf && !chosen.length) noVeliMatch = 1;
     const { html, text } = layout({
       heading: title,
       greeting: `Değerli Velimiz,`,
@@ -3173,7 +3204,7 @@ async function actionDenemeKarne(caller, body, req, deadline) {
       footer: 'Bu e-posta yalnızca öğrencinin kayıtlı velisine gönderilmiştir; karnede kişisel bilgiler bulunur, başkasıyla paylaşmayın.',
     });
     const seen = new Set();
-    for (const p of st.parents || []) {
+    for (const p of chosen) {
       const em = String((p && p.email) || '').trim().toLowerCase();
       if (!isEmail(em) || seen.has(em)) continue;
       seen.add(em);
@@ -3193,12 +3224,12 @@ async function actionDenemeKarne(caller, body, req, deadline) {
         text,
       });
     }
-    if (!seen.size) noParentEmail = 1;
+    if (!seen.size && !noVeliMatch) noParentEmail = 1;
   }
-  if (!items.length) return { ok: true, sent: 0, failed: 0, skipped: 0, noEmail: toStudent ? 1 : 0, noParentEmail, remaining: 0, errors: [] };
+  if (!items.length) return { ok: true, sent: 0, failed: 0, skipped: 0, noEmail: toStudent ? 1 : 0, noParentEmail, noVeliMatch, remaining: 0, errors: [] };
   const sender = await resolveSender(caller);
   const summary = await deliver(sender, caller, items, deadline);
-  return { ok: true, ...summary, noParentEmail };
+  return { ok: true, ...summary, noParentEmail, noVeliMatch };
 }
 
 // ----------------------------------------------------------------------------- Aşama 101: karne linki (SMS)
@@ -3254,8 +3285,12 @@ async function actionKarneSms(caller, body, req) {
   const c = (await studentParentsMap([studentId])).get(studentId) || { phone: '', parents: [] };
   const targets = [];
   if (toStudent && sm.normPhone(c.phone)) targets.push({ role: 'ogrenci', phone: c.phone });
-  if (toVeli) for (const p of c.parents) if (p && sm.normPhone(p.phone)) targets.push({ role: 'veli', phone: p.phone });
-  if (!targets.length) return { ok: true, noPhone: 1, sent: 0, dry: 0, skipped: 0, limited: 0, failed: 0 };
+  // Aşama 134: yalnız seçilen veliler (seçim yoksa hepsi)
+  const vf = toVeli ? parentFilter(au) : null;
+  const chosen = toVeli ? pickParents(c.parents, vf) : [];
+  const noVeliMatch = toVeli && vf && !chosen.length ? 1 : 0;
+  for (const p of chosen) if (sm.normPhone(p.phone)) targets.push({ role: 'veli', phone: p.phone });
+  if (!targets.length) return { ok: true, noPhone: noVeliMatch && !toStudent ? 0 : 1, noVeliMatch, sent: 0, dry: 0, skipped: 0, limited: 0, failed: 0 };
 
   // Aynı gün aynı öğrenci + tür + denemeler: mevcut link kullanılır (kod linkin kimliğinden yeniden türetilir)
   const key = kl.linkKey(e.secretKey || e.service);

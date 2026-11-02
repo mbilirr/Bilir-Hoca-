@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Mail, MessageSquare } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
+import { RelationChips } from '../Common/ParentPicker';
 
 // ============================================================================
 // Aşama 101: "Tümüne SMS" penceresi — alıcı seçimi (öğrenci / veli). Gönderim döngüsü TopluKarneGonder'de.
 // Aşama 119: aynı küçük pencere e-posta için de kullanılır (kind) ve üç kapsamı gösterir:
 //   seçili öğrenci → yalnız o öğrenci / velisi · sınıf → sınıfın tamamı · tüm sınıflar → herkes.
 //   Veli kutusu işaretli açılır (karne çoğunlukla veliye gider); öğrenci de eklenebilir.
+// Aşama 134: Veli işaretliyse yakınlık seçilir (Tüm veliler · Anne · Baba …); boş = tüm veliler.
 // ============================================================================
 const BTN = 'ui-btn ui-btn-sm h-8 w-28 justify-center';
 
-export type SmsAudience = { ogrenci: boolean; veli: boolean };
+export type SmsAudience = { ogrenci: boolean; veli: boolean; veliYakinlik?: string[]; veliSira?: number[] };
 export type KarneSendKind = 'sms' | 'mail';
 
 export const KarneSmsModal: React.FC<{
@@ -24,15 +26,22 @@ export const KarneSmsModal: React.FC<{
   kind?: KarneSendKind;
   /** true: tek öğrenci (sayı yazılmaz) */
   single?: boolean;
-}> = ({ open, onClose, onSend, className, count, turName, kind = 'sms', single = false }) => {
+  /** Aşama 134: kayıtlı velilerde geçen yakınlıklar (boşsa seçim gösterilmez, tüm velilere gider) */
+  relations?: string[];
+}> = ({ open, onClose, onSend, className, count, turName, kind = 'sms', single = false, relations = [] }) => {
   const [aud, setAud] = useState<SmsAudience>({ ogrenci: false, veli: true });
+  const [rels, setRels] = useState<string[]>([]);
   useEffect(() => {
-    if (open) setAud({ ogrenci: false, veli: true });
+    if (open) {
+      setAud({ ogrenci: false, veli: true });
+      setRels([]);
+    }
   }, [open]);
   const any = aud.ogrenci || aud.veli;
   const sms = kind === 'sms';
   const Icon = sms ? MessageSquare : Mail;
-  const box = (key: keyof SmsAudience, label: string) => (
+  const send = () => onSend(aud.veli && rels.length ? { ...aud, veliYakinlik: rels } : aud);
+  const box = (key: 'ogrenci' | 'veli', label: string) => (
     <label className={cx('flex h-8 flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 text-xs font-semibold', aud[key] ? 'border-brand/40 bg-brand-soft text-fg' : 'border-line text-fg-2')}>
       <input type="checkbox" checked={aud[key]} onChange={() => setAud((a) => ({ ...a, [key]: !a[key] }))} className="accent-indigo-600" data-aud={key} />
       {label}
@@ -52,7 +61,7 @@ export const KarneSmsModal: React.FC<{
           <button type="button" className={cx(BTN, 'ui-btn-secondary')} onClick={onClose}>
             Vazgeç
           </button>
-          <button type="button" id={sms ? 'karne-sms-gonder' : 'karne-mail-gonder'} className={cx(BTN, 'ui-btn-primary')} disabled={!any} onClick={() => onSend(aud)}>
+          <button type="button" id={sms ? 'karne-sms-gonder' : 'karne-mail-gonder'} className={cx(BTN, 'ui-btn-primary')} disabled={!any} onClick={send}>
             <Icon className="w-3.5 h-3.5" /> Gönder
           </button>
         </>
@@ -64,6 +73,13 @@ export const KarneSmsModal: React.FC<{
           {box('veli', 'Veli')}
           {box('ogrenci', 'Öğrenci')}
         </div>
+        {aud.veli && relations.length > 0 && (
+          <>
+            <p className="font-semibold text-fg">Hangi veliler?</p>
+            <RelationChips relations={relations} value={rels} onChange={setRels} idPrefix="karne-veli-yakinlik" />
+            {rels.length > 0 && <p className="leading-relaxed">Yalnız {rels.join(', ')} olarak kayıtlı velilere gider; bu yakınlıkta velisi olmayan öğrenciler atlanır.</p>}
+          </>
+        )}
         <p className="leading-relaxed">
           {who === null
             ? 'Öğrenciler yükleniyor…'

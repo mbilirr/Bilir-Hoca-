@@ -5,12 +5,14 @@ import { callMail } from '../../lib/mailApi';
 import type { MailResult } from '../../lib/mailApi';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { ParentChecklist, RelationChips, parentRelations, pickParents, reachableIndexes, type ParentChannel, type ParentSelection } from '../Common/ParentPicker'; // Aşama 134
 
 // ============================================================================
 // VELİ / ÖĞRENCİ DUYURUSU (Aşama 73, 83)
 // Öğretmen, seçtiği sınıf ya da öğrencilerin velilerine ve/veya öğrencilerin kendilerine e-posta ve/veya SMS ile duyuru gönderir.
 // Aşama 83: alıcı olarak "Öğrenciler" de seçilebilir (öğrenci kaydındaki e-posta ve telefon).
 // Veli bilgileri öğrenci kaydındaki "Veliler" bölümünden alınır. Alıcıları sunucu bulur ve yetkiyi denetler.
+// Aşama 134: veli seçimi — tek öğrencide veliler adıyla işaretlenir, birden çok öğrencide yakınlık (Anne, Baba…) seçilir.
 // ============================================================================
 
 const SUBJECT_MAX = 100;
@@ -86,6 +88,36 @@ export const ParentAnnouncements: React.FC = () => {
     return students.filter((s) => set.has(s.id));
   }, [target, students, classIds, studentIds]);
 
+  // Aşama 134: veli seçimi (boş = tüm veliler). Tek öğrenci → sıra, birden çok → yakınlık.
+  const parentsVisible = dataService.canSeeParentContacts();
+  const channels: ParentChannel[] = useMemo(() => {
+    const c: ParentChannel[] = [];
+    if (useMail) c.push('mail');
+    if (useSms) c.push('sms');
+    return c.length ? c : ['mail', 'sms'];
+  }, [useMail, useSms]);
+  const single = toParents && parentsVisible && recipients.length === 1 ? recipients[0] : null;
+  const relations = useMemo(() => (toParents && parentsVisible && recipients.length > 1 ? parentRelations(recipients) : []), [toParents, parentsVisible, recipients]);
+  const [veliRels, setVeliRels] = useState<string[]>([]);
+  const [veliSira, setVeliSira] = useState<number[]>([]);
+  const singleId = single ? single.id : '';
+  useEffect(() => {
+    setVeliSira(single ? reachableIndexes(single.parents, channels) : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [singleId, channels]);
+  useEffect(() => {
+    // listede artık olmayan yakınlık seçili kalmasın
+    setVeliRels((v) => (v.length ? v.filter((r) => relations.includes(r)) : v));
+  }, [relations]);
+  const veliSel: ParentSelection | null = useMemo(() => {
+    if (!toParents) return null;
+    if (single) {
+      const all = reachableIndexes(single.parents, channels);
+      return veliSira.length && veliSira.length < all.length ? { veliSira } : null;
+    }
+    return veliRels.length ? { veliYakinlik: veliRels } : null;
+  }, [toParents, single, channels, veliSira, veliRels]);
+
   // Önizleme: kaç kişiye gidecek, hangi öğrencilerin uygun iletişim bilgisi yok
   const preview = useMemo(() => {
     const mails = new Set<string>();
@@ -105,7 +137,7 @@ export const ParentAnnouncements: React.FC = () => {
           any = true;
         }
       }
-      for (const p of toParents ? s.parents || [] : []) {
+      for (const p of toParents ? pickParents(s.parents, veliSel) : []) {
         const em = mailKey(p.email);
         const ph = mobileKey(p.phone);
         if (useMail && em) {
@@ -120,7 +152,7 @@ export const ParentAnnouncements: React.FC = () => {
       if (!any) noContact.push(`${s.name}${s.className ? ` (${s.className})` : ''}`);
     }
     return { mails: mails.size, phones: phones.size, noContact };
-  }, [recipients, useMail, useSms, toParents, toStudents]);
+  }, [recipients, useMail, useSms, toParents, toStudents, veliSel]);
   const whoWord = toParents && toStudents ? 'kişiye' : toStudents ? 'öğrenciye' : 'veliye';
 
   const visibleStudents = useMemo(() => {
@@ -136,7 +168,7 @@ export const ParentAnnouncements: React.FC = () => {
   // Gönderim kimliği: form değişmediği sürece aynı kalır (çift tıklamada aynı kişiye iki kez gitmez).
   // Metin, başlık, alıcı ya da yol değişirse yeni bir duyuru sayılır.
   const sendIdRef = useRef<string>(newSendId());
-  const formKey = `${subject}|${message}|${useMail}|${useSms}|${toParents}|${toStudents}|${recipients.map((s) => s.id).join(',')}`;
+  const formKey = `${subject}|${message}|${useMail}|${useSms}|${toParents}|${toStudents}|${JSON.stringify(veliSel)}|${recipients.map((s) => s.id).join(',')}`;
   const lastKeyRef = useRef(formKey);
   if (lastKeyRef.current !== formKey) {
     lastKeyRef.current = formKey;
@@ -145,8 +177,10 @@ export const ParentAnnouncements: React.FC = () => {
 
   const smsTooLong = useSms && message.length > SMS_MAX;
   const nobodyToSend = (useMail ? preview.mails : 0) + (useSms ? preview.phones : 0) === 0;
+  const noVeliPicked = !!single && toParents && !toStudents && veliSira.length === 0;
   const canAsk =
     !sending &&
+    !noVeliPicked &&
     (useMail || useSms) &&
     (toParents || toStudents) &&
     subject.trim().length > 0 &&
@@ -234,7 +268,7 @@ export const ParentAnnouncements: React.FC = () => {
         subject: subject.trim(),
         message: message.trim(),
         channels: { email: useMail, sms: useSms },
-        audience: { parents: toParents, students: toStudents },
+        audience: { parents: toParents, students: toStudents, ...(veliSel || {}) },
       });
       const res = buildResult(r);
       setFeedback(res);
@@ -296,6 +330,27 @@ export const ParentAnnouncements: React.FC = () => {
             </label>
           </div>
           {!toParents && !toStudents && <p className="text-[11px] text-rose-600">En az bir alıcı seçin.</p>}
+          {single && (
+            <div className="space-y-1.5" id="pa-veli-sec">
+              <span className="text-xs font-semibold text-fg-2">Hangi velilere? ({single.name})</span>
+              {reachableIndexes(single.parents, ['mail', 'sms']).length || (single.parents && single.parents.length) ? (
+                <ParentChecklist parents={single.parents || []} channels={channels} value={veliSira} onChange={setVeliSira} idPrefix="pa-veli-liste" />
+              ) : (
+                <p className="text-[11px] text-muted">Bu öğrencinin kayıtlı velisi yok.</p>
+              )}
+            </div>
+          )}
+          {!single && relations.length > 0 && (
+            <div className="space-y-1.5" id="pa-veli-yakinlik-kutu">
+              <span className="text-xs font-semibold text-fg-2">Hangi veliler?</span>
+              <div className="max-w-lg">
+                <RelationChips relations={relations} value={veliRels} onChange={setVeliRels} idPrefix="pa-veli-yakinlik" />
+              </div>
+              {veliRels.length > 0 && (
+                <p className="text-[11px] text-muted">Yalnız {veliRels.join(', ')} olarak kayıtlı velilere gider; bu yakınlıkta velisi olmayan öğrenciler atlanır.</p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
