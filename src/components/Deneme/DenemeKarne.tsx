@@ -144,6 +144,8 @@ const takenByStudent = (results: DenemeResult[]) => {
 // Aşama 101: ekranda seçili karne türü kullanılır; tek PDF / zip indirme; SMS ile 30 gün geçerli karne linki.
 type QueueState = 'bekliyor' | 'gonderildi' | 'atlandi' | 'hata';
 const TOPLU_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 justify-center';
+// Aşama 133 (119b): seçili öğrencinin 4 tek tık düğmesi (en-boy eşit, yazı sığsın diye w-40)
+const TEK_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center';
 
 const TopluKarneGonder: React.FC<{
   examIds: string[];
@@ -539,7 +541,6 @@ export const DenemeKarne: React.FC<{
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
   const [transfer, setTransfer] = useState<StudySuggestion[] | null>(null);
   const [veliNote, setVeliNote] = useState(''); // Aşama 56: veli karnesindeki öğretmen notu (kaydedilmez)
-  const [sendOpen, setSendOpen] = useState<KarneSendKind | null>(null); // Aşama 119: seçili öğrenciye e-posta / SMS
   useEffect(() => setVeliNote(''), [studentId]);
   // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
   useEffect(() => setDetailExamId(''), [scope, picked]);
@@ -720,10 +721,9 @@ export const DenemeKarne: React.FC<{
       setNotice({ tone: 'success', text: `${list.length} şubenin ${bransSubject.name} karnesi tek PDF olarak indirildi.` });
     });
 
-  // Aşama 119: seçili öğrenci → yalnız o öğrenci ve/veya velisi (alıcı küçük pencerede seçilir)
+  // Aşama 119 / 133: seçili öğrenci → yalnız o öğrenci ya da yalnız velisi (alıcı düğmeden gelir, pencere yok)
   const onMail = (audience: SmsAudience) =>
     run(async () => {
-      setSendOpen(null);
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
@@ -739,7 +739,6 @@ export const DenemeKarne: React.FC<{
 
   const onSms = (audience: SmsAudience) =>
     run(async () => {
-      setSendOpen(null);
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
@@ -922,11 +921,18 @@ export const DenemeKarne: React.FC<{
             </button>
             {mode === 'ogrenci' && !limited && (
               <>
-                <button type="button" id="karne-tek-mail" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('mail')}>
-                  <Mail /> E-posta gönder
+                {/* Aşama 133 (119b geri): seçili öğrencide tek tık — alıcı düğmeden belli, pencere açılmaz */}
+                <button type="button" id="karne-ogrenci-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: true, veli: false })} title="Karneyi yalnız öğrencinin e-posta adresine gönderir">
+                  <Mail /> Öğrenciye e-posta
                 </button>
-                <button type="button" id="karne-tek-sms" className={TOPLU_BTN} disabled={busy} onClick={() => setSendOpen('sms')}>
-                  <MessageSquare /> SMS gönder
+                <button type="button" id="karne-veli-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: false, veli: true })} title="Karneyi yalnız velinin e-posta adresine gönderir">
+                  <Mail /> Veliye e-posta
+                </button>
+                <button type="button" id="karne-ogrenci-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: true, veli: false })} title="Karne linkini yalnız öğrencinin telefonuna SMS ile gönderir">
+                  <MessageSquare /> Öğrenciye SMS
+                </button>
+                <button type="button" id="karne-veli-sms" className={TEK_BTN} disabled={busy} onClick={() => void onSms({ ogrenci: false, veli: true })} title="Karne linkini yalnız velinin telefonuna SMS ile gönderir">
+                  <MessageSquare /> Veliye SMS
                 </button>
               </>
             )}
@@ -964,18 +970,6 @@ export const DenemeKarne: React.FC<{
             bank={bank}
             teacherName={teacherName}
             downloadOnly={limited}
-          />
-        )}
-        {student && !limited && (
-          <KarneSmsModal
-            open={sendOpen !== null}
-            kind={sendOpen || 'sms'}
-            single
-            onClose={() => setSendOpen(null)}
-            onSend={(a) => void (sendOpen === 'mail' ? onMail(a) : onSms(a))}
-            className={student.name}
-            count={1}
-            turName={TUR_NAME[tur]}
           />
         )}
       </div>

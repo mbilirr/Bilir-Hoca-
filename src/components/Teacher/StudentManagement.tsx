@@ -35,7 +35,7 @@ import {
   ArrowUpDown,
   ShieldCheck,
 } from 'lucide-react';
-import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentParent } from '../../types';
+import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentAccountResult, StudentParent } from '../../types';
 import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { getStudentTcHash, setStudentTcHashes } from '../../services/denemeService';
@@ -2655,7 +2655,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             onClose={() => setIsExcelModalOpen(false)}
             classes={classes}
             existingStudents={students}
-            onAccountsCreated={(result) =>
+            onAccountsCreated={(result: StudentAccountResult) =>
               setCredentialsResult({ credentials: result.created, failures: result.failed, title: "Excel'den Eklenen Öğrenciler" })
             }
           />
@@ -2675,7 +2675,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             onClose={() => setIsExcelUpdateOpen(false)}
             classes={classes}
             students={students}
-            onDone={(msg) => setStudentSuccessFeedback(msg)}
+            onDone={(msg: string) => setStudentSuccessFeedback(msg)}
           />
         </Suspense>
       )}
