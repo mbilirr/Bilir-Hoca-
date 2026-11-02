@@ -10,7 +10,7 @@ import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { examKarneData } from './karneDetay';
 import { round2 } from './lgs';
 import { isLgsExam, lgsPercentiles } from './lgsYuzdelik';
-import { denemeKarneAdi } from './karneAdi';
+import { denemeKarneAdi, denemeKisaAd } from './karneAdi';
 
 /** Ders renkleri (başlık mor değil; her ders kendi rengini kullanır) */
 export const TEK_DERS_RENK: Record<string, [number, number, number]> = {
@@ -92,7 +92,8 @@ export interface TekSayfaData {
   yuzdelik: Array<{ year: number; value: number; below: boolean }>;
   dersler: TekDers[];
   /** Son denemelerdeki puan (eski → yeni, en çok 5); kurum: o denemenin kurum ortalaması */
-  gelisim: Array<{ name: string; score: number | null; kurum: number | null }>;
+  /** kisa: denemenin kısa adı (yayınevi; ör. Hız, Aday, Özdebir) — grafikte puanın üstünde (Aşama 140) */
+  gelisim: Array<{ name: string; kisa: string; score: number | null; kurum: number | null }>;
   degerlendirme: Array<{ tone: 'success' | 'danger' | 'warning' | 'info'; label: string; text: string }>;
 }
 
@@ -174,6 +175,7 @@ export function tekSayfaData(
   const upto = sorted.slice(0, Math.max(1, sorted.findIndex((e) => e.id === exam.id) + 1));
   const gelisim = upto.slice(-GELISIM_SAYI).map((e) => ({
     name: shortName(e),
+    kisa: denemeKisaAd(e),
     score: byExam.get(e.id)?.score ?? null,
     kurum: typeof e.summary.avgScore === 'number' ? e.summary.avgScore : null,
   }));

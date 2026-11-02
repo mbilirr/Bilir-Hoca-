@@ -8,6 +8,18 @@
 
 const EK = /\s*(yay[ıi]nlar[ıi]|yay[ıi]nevi|yay[ıi]nc[ıi]l[ıi]k|yay[ıi]n(lar)?|yay\.?)\s*$/i;
 
+/** Aşama 140: grafikte denemenin kısa adı — yayınevi eki atılır: "Hız Yayınları" → "Hız", "Özdebir Yayınları" → "Özdebir".
+ *  Yayınevi girilmemişse deneme adı (grafikte sığmazsa kısaltılır). */
+export function denemeKisaAd(exam: { name?: string; publisher?: string } | null | undefined): string {
+  const pub = String(exam?.publisher || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(EK, '')
+    .replace(/\s*denemes[iı]$/i, '')
+    .trim();
+  return pub || String(exam?.name || '').replace(/\s+/g, ' ').trim();
+}
+
 export function denemeKarneAdi(exam: { name?: string; publisher?: string } | null | undefined): string {
   const pub = String(exam?.publisher || '')
     .replace(/\s+/g, ' ')

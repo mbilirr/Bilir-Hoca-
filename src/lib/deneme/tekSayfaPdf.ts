@@ -491,13 +491,14 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     const pt = top + 5;
     const pb = y + gH - 5;
     if (vals.length) {
-      let mn = Math.floor((Math.min(...vals) - 10) / 10) * 10;
-      let mx = Math.ceil((Math.max(...vals) + 10) / 10) * 10;
+      let mn = Math.floor((Math.min(...vals) - 22) / 10) * 10; // Aşama 140: altta sayı için pay
+      let mx = Math.ceil((Math.max(...vals) + 18) / 10) * 10; // Aşama 140: üstte deneme adı için pay
       mn = Math.max(100, mn);
       mx = Math.min(500, Math.max(mx, mn + 20));
       const st = Math.max(10, Math.round((mx - mn) / 4 / 10) * 10);
       const Y = (v: number) => pb - ((pb - pt) * (v - mn)) / (mx - mn);
-      const X = (i: number) => (pts.length === 1 ? (pl + pr) / 2 : pl + ((pr - pl) * i) / (pts.length - 1));
+      // Aşama 140: uçlarda pay (ilk noktanın yazıları eksen sayılarına binmesin)
+      const X = (i: number) => (pts.length === 1 ? (pl + pr) / 2 : pl + 5 + ((pr - pl - 8) * i) / (pts.length - 1));
       font(4.8);
       for (let v = mn; v <= mx; v += st) {
         draw([238, 240, 244]);
@@ -523,8 +524,22 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
         if (a !== null && b !== null) doc.line(X(i - 1), Y(a), X(i), Y(b));
       }
       doc.setLineWidth(0.2);
+      const adW = Math.min(16, (pr - pl - 8) / Math.max(1, pts.length - 1) - 1);
       pts.forEach((p, i) => {
         const last = i === pts.length - 1;
+        // Aşama 140: kurum ortalaması da sayıyla. Kurum öğrencinin üstündeyse kurum sayısı noktanın üstüne,
+        // öğrencinin puanı ve deneme adı noktanın altına yazılır (yazılar üst üste binmesin)
+        const kurumUstte = p.kurum !== null && p.score !== null && p.kurum > p.score;
+        if (p.kurum !== null) {
+          fill([255, 255, 255]);
+          draw(KURUM_GRI);
+          doc.setLineWidth(0.3);
+          doc.circle(X(i), Y(p.kurum), 0.55, 'FD');
+          doc.setLineWidth(0.2);
+          font(4.3, true);
+          ink(MUTED);
+          text(fmt1(p.kurum), X(i), kurumUstte ? Y(p.kurum) - 1.4 : Y(p.kurum) + 2.5, { align: 'center' });
+        }
         if (p.score !== null) {
           fill(last ? TREND : [255, 255, 255]);
           draw(TREND);
@@ -533,7 +548,13 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
           doc.setLineWidth(0.2);
           font(4.7, true);
           ink(TREND);
-          text(fmt1(p.score), X(i), Y(p.score) - 1.6, { align: 'center' });
+          text(fmt1(p.score), X(i), kurumUstte ? Y(p.score) + 2.7 : Y(p.score) - 1.6, { align: 'center' });
+          // Aşama 140: puanın üstünde denemenin kısa adı (Hız, Aday, Özdebir…)
+          if (p.kisa) {
+            font(4.4, true);
+            ink(FG2);
+            doc.text(fit(p.kisa, adW), X(i), kurumUstte ? Y(p.score) + 4.7 : Y(p.score) - 3.6, { align: 'center' });
+          }
         }
         font(4.7, true);
         ink(FG2);
