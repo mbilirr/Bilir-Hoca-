@@ -192,7 +192,7 @@ export const TeacherRolesPanel: React.FC = () => {
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="İsim, branş veya e-posta ara…"
+              placeholder="İsim veya branş ile ara…"
               aria-label="Kişi ara"
               className={cx(CTRL, 'pl-8 cursor-text')}
             />

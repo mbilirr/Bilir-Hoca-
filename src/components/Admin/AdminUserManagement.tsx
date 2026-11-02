@@ -735,7 +735,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <Search className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input autoComplete="off"
               type="text"
-              placeholder="İsim, kullanıcı adı, e-posta, telefon, branş veya sınıf ile ara..."
+              placeholder="İsim, telefon, branş veya sınıf ile ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-canvas border border-line rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"

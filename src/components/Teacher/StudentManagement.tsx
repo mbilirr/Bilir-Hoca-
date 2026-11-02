@@ -1389,7 +1389,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <Search className="w-4 h-4 text-subtle absolute left-3.5 top-3" />
               <input autoComplete="off"
                 type="text"
-                placeholder="Öğrenci adı, no veya e-posta ara..."
+                placeholder="Öğrenci adı veya numarası ile ara..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-sm placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
