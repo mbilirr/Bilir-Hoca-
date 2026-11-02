@@ -36,6 +36,9 @@ import { ParentPickModal, parentRelations, pickParents, reachableIndexes, type P
 import { cleanParents } from '../../lib/parents';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 import { BransGelisimView } from './BransGelisimView'; // Aşama 130
+import { TekSayfaView } from './TekSayfaView'; // Aşama 135
+import { sonDeneme, tekSayfaData } from '../../lib/deneme/tekSayfaKarne';
+import { denemeKarneAdi } from '../../lib/deneme/karneAdi';
 import { bransGelisim, bransGelisimBlocks, bransTumSubeler, type BransSubject } from '../../lib/deneme/bransKarne';
 
 // ============================================================================
@@ -153,6 +156,8 @@ const TOPLU_KUTU = 'rounded-xl border border-line bg-surface p-2 space-y-1.5';
 const TOPLU_KUTU_BASLIK = 'flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-muted [&>svg]:w-3.5 [&>svg]:h-3.5';
 // Aşama 133 (119b): seçili öğrencinin 4 tek tık düğmesi (en-boy eşit, yazı sığsın diye w-40)
 const TEK_BTN = 'ui-btn ui-btn-secondary ui-btn-sm h-8 w-40 justify-center';
+// Aşama 135: yönetim ekranında "Tek sayfa karne" türü (öğrenci ekranının tür listesi değişmez)
+const KARNE_TURLERI_YONETIM: Array<{ value: KarneTur; label: string }> = [KARNE_TURLERI[0], { value: 'tek', label: 'Tek sayfa karne' }, ...KARNE_TURLERI.slice(1)];
 
 const TopluKarneGonder: React.FC<{
   examIds: string[];
@@ -167,7 +172,9 @@ const TopluKarneGonder: React.FC<{
   teacherName: string;
   /** Aşama 102: öğretmen — yalnızca indirme (e-posta, SMS, WhatsApp, link iptali yok) */
   downloadOnly?: boolean;
-}> = ({ examIds, cls, allClassIds = [], classStudents, scope, tur, bank, teacherName, downloadOnly = false }) => {
+  /** Aşama 135: tek sayfa karnenin denemesi */
+  tekExamId?: string;
+}> = ({ examIds, cls, allClassIds = [], classStudents, scope, tur, bank, teacherName, downloadOnly = false, tekExamId }) => {
   const [loaded, setLoaded] = useState<{ exams: DenemeExam[]; results: DenemeResult[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -222,7 +229,10 @@ const TopluKarneGonder: React.FC<{
     return { list, skipped: classStudents.filter((s) => ids.has(s.id)).length - list.filter((s) => ids.has(s.id)).length };
   };
 
-  const ctxOf = (data: { exams: DenemeExam[] }): KarneContext => ({ tur, exams: data.exams, scopeLabel: scopeLabel(scope), bank: bank ?? null, teacherName });
+  const ctxOf = (data: { exams: DenemeExam[] }): KarneContext => ({ tur, exams: data.exams, scopeLabel: scopeLabel(scope), bank: bank ?? null, teacherName, tekExamId });
+  // Aşama 135: tek sayfa karnede SMS linki ve e-posta başlığı yalnız seçili denemeye göre
+  const isTek = tur === 'tek' && !!tekExamId;
+  const linkExamIds = isTek ? [tekExamId!] : examIds;
   const loadExtra = async (s: Student): Promise<KarneExtra> => {
     if (tur !== 'genel' && tur !== 'veli') return { target: null };
     try {
@@ -274,8 +284,8 @@ const TopluKarneGonder: React.FC<{
       await forEachStudentKarne(ctxOf(data), tg.list, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
           const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
-          const examName = karneExamName(examById, examIds, taken.get(s.id) || new Set());
-          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: `${k.title} (${scopeLabel(scope)})`, examName, audience });
+          const examName = karneExamName(examById, examIds, taken.get(s.id) || new Set(), isTek ? tekExamId : undefined);
+          const r = await callMail('deneme-karne', { studentId: s.id, pdf, title: isTek ? k.title : `${k.title} (${scopeLabel(scope)})`, examName, audience });
           if (!r.ok) {
             sum.failed++;
             if (r.error) errors.push(`${s.name}: ${r.error}`);
@@ -319,7 +329,7 @@ const TopluKarneGonder: React.FC<{
       await forEachStudentKarne(ctxOf(data), tg.list, data, { ...opts, signal: stop.signal }, async (s, k) => {
         try {
           const pdf = await karnePdfBase64(k.blocks, k.footer, k.orientation);
-          const r = await callMail('karne-sms', { studentId: s.id, pdf, tur, examIds, audience });
+          const r = await callMail('karne-sms', { studentId: s.id, pdf, tur, examIds: linkExamIds, audience });
           if (!r.ok) {
             sum.failed++;
             if (r.error) errors.push(`${s.name}: ${r.error}`);
@@ -363,7 +373,7 @@ const TopluKarneGonder: React.FC<{
     try {
       const data = await load();
       setProgress(`${s.name} karnesi hazırlanıyor…`);
-      const k = buildStudentKarne(ctxOf(data), { id: s.id, name: s.name, className: s.className || (cls ? cls.name : '') }, data.results.filter((r) => r.studentId === s.id), await loadExtra(s));
+      const k = buildStudentKarne(ctxOf(data), { id: s.id, name: s.name, className: s.className || (cls ? cls.name : ''), no: s.studentNumber }, data.results.filter((r) => r.studentId === s.id), await loadExtra(s));
       if (!k) throw new Error('karne hazırlanamadı');
       const rs = data.results.filter((r) => r.studentId === s.id);
       const last = rs.slice().sort((a, b) => data.exams.findIndex((e) => e.id === a.examId) - data.exams.findIndex((e) => e.id === b.examId)).slice(-1)[0];
@@ -573,6 +583,7 @@ export const DenemeKarne: React.FC<{
   const [targetInput, setTargetInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [detailExamId, setDetailExamId] = useState(''); // Aşama 50: ayrıntılı karnesi gösterilen deneme
+  const [tekPick, setTekPick] = useState(''); // Aşama 135: tek sayfa karnenin denemesi (boş = kapsamdaki son deneme)
   const [tur, setTur] = useHistoryState<KarneTur>('deneme.karne.tur', 'genel'); // Aşama 54
   const [bank, setBank] = useState<BankRow[] | null | undefined>(undefined); // undefined: okunmadı · null: okunamadı
   const [planPicks, setPlanPicks] = useState<StudySuggestion[] | null>(null);
@@ -603,6 +614,11 @@ export const DenemeKarne: React.FC<{
   const asc = useMemo(() => exams.slice().sort(byUploadOrder), [exams]); // Aşama 51: yükleniş sırası
   const scoped = useMemo(() => pickScope(asc, scope, (e) => picked.has(e.id)), [asc, scope, picked]);
   const scopedIds = scoped.map((e) => e.id).join(',');
+  // Aşama 135: tek sayfa karnede deneme seçimi kapsamdaki denemelerden (varsayılan son deneme)
+  const isTek = mode === 'ogrenci' && tur === 'tek';
+  const tekExam = isTek ? scoped.find((e) => e.id === tekPick) || sonDeneme(scoped) : null;
+  const tekExamId = tekExam?.id;
+  const kapsamYazi = isTek && tekExam ? tekExam.name : scopeLabel(scope);
 
   const classOptions = useMemo(() => classes.slice().sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })), [classes]);
   const studentOptions = useMemo(
@@ -672,6 +688,12 @@ export const DenemeKarne: React.FC<{
   // Aşama 56
   const veliData = useMemo(() => (mode === 'ogrenci' && tur === 'veli' && results.length ? veliKarneData(fullExams, results, target, usedSubjects(fullExams)) : null), [mode, tur, fullExams, results, target]);
   const pk = useMemo(() => (mode === 'ogrenci' && tur === 'oncelik' ? priorityKarne(fullExams, results, usedSubjects(fullExams)) : null), [mode, tur, fullExams, results]);
+  // Aşama 135: ekrandaki özet ile PDF aynı veriden
+  const tekData = useMemo(
+    () => (isTek && student && tekExam ? tekSayfaData(fullExams.find((e) => e.id === tekExam.id) || tekExam, fullExams, results.filter((r) => r.studentId === student.id), { name: student.name, className: student.className || '', no: student.studentNumber }) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isTek, student, tekExamId, fullExams, results]
+  );
   const kurum = useMemo(() => (mode === 'kurum' && results.length ? kurumOzet(fullExams, results, students, usedSubjects(fullExams)) : null), [mode, fullExams, results, students]);
 
   const blocks = (): { blocks: PdfBlock[]; footer: string; file: string; orientation?: PdfOrientation } | null => {
@@ -696,8 +718,8 @@ export const DenemeKarne: React.FC<{
     // Aşama 101: öğrenci karneleri ortak üreticiden (toplu indirme / e-posta / SMS ile aynı karne)
     if (mode === 'ogrenci' && student) {
       const k = buildStudentKarne(
-        { tur, exams: fullExams, scopeLabel: label, bank, teacherName },
-        { id: student.id, name: student.name, className: student.className || '' },
+        { tur, exams: fullExams, scopeLabel: label, bank, teacherName, tekExamId },
+        { id: student.id, name: student.name, className: student.className || '', no: student.studentNumber },
         results,
         { target, detailExamId, veliNote, planPicks: planPicks ?? undefined }
       );
@@ -764,8 +786,8 @@ export const DenemeKarne: React.FC<{
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
-      const examName = karneExamName(new Map(fullExams.map((e) => [e.id, e] as const)), scoped.map((e) => e.id), new Set(results.map((r) => r.examId)), detailExamId);
-      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: `${TUR_TITLE[tur]} (${scopeLabel(scope)})`, examName, audience });
+      const examName = karneExamName(new Map(fullExams.map((e) => [e.id, e] as const)), scoped.map((e) => e.id), new Set(results.map((r) => r.examId)), isTek ? tekExamId : detailExamId);
+      const r = await callMail('deneme-karne', { studentId: student.id, pdf, title: isTek && tekExam ? denemeKarneAdi(tekExam) : `${TUR_TITLE[tur]} (${kapsamYazi})`, examName, audience });
       if (!r.ok || r.notConfigured || r.authError) {
         const d = describeMailResult(r);
         setNotice({ tone: d.tone, text: d.text });
@@ -779,7 +801,7 @@ export const DenemeKarne: React.FC<{
       const b = blocks();
       if (!b || !student) return;
       const pdf = await karnePdfBase64(b.blocks, b.footer, b.orientation);
-      const r = await callMail('karne-sms', { studentId: student.id, pdf, tur, examIds: scoped.map((e) => e.id), audience });
+      const r = await callMail('karne-sms', { studentId: student.id, pdf, tur, examIds: isTek && tekExamId ? [tekExamId] : scoped.map((e) => e.id), audience });
       if (!r.ok) {
         setNotice({ tone: 'danger', text: r.error || 'SMS gönderilemedi.' });
         return;
@@ -813,7 +835,9 @@ export const DenemeKarne: React.FC<{
       const last = lastExam ? results.find((r) => r.examId === lastExam.id && (!student || r.studentId === student.id)) : undefined;
       const msg =
         mode === 'ogrenci' && student
-          ? `${student.name} ${TUR_NAME[tur]} (${scopeLabel(scope)}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
+          ? isTek && tekExam
+            ? `${student.name} ${denemeKarneAdi(tekExam)} (${tekExam.name}).`
+            : `${student.name} ${TUR_NAME[tur]} (${kapsamYazi}).${last ? ` Son deneme: ${lastExam?.name}, puan ${fmtScore(last.score)}.` : ''}`
           : `${b.footer} (${scopeLabel(scope)}).`;
       const r = await shareKarneWhatsapp(b.blocks, b.footer, b.file, msg, mode === 'ogrenci' ? student?.phone : undefined, b.orientation);
       if (r === 'downloaded') setNotice({ tone: 'success', text: 'PDF indirildi ve WhatsApp açıldı; indirilen dosyayı mesaja ekleyebilirsiniz.' });
@@ -898,7 +922,33 @@ export const DenemeKarne: React.FC<{
         {mode === 'ogrenci' && (
           <div className="flex flex-wrap items-center gap-2" id="karne-tur">
             <span className="text-xs font-semibold text-muted">Karne türü:</span>
-            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI} />
+            <Segmented value={tur} onChange={(v) => setTur(v)} size="sm" items={KARNE_TURLERI_YONETIM} />
+            {/* Aşama 135: tek sayfa karnenin denemesi (kutu yazıyla aynı boyda; varsayılan son deneme) */}
+            {isTek && scoped.length > 0 && (
+              <>
+                <span className="text-xs font-semibold text-muted sm:ml-2">Deneme:</span>
+                <div className="relative w-72">
+                  <select
+                    id="karne-tek-deneme"
+                    aria-label="Deneme"
+                    className="ui-input h-8 w-72 text-xs cursor-pointer appearance-none pr-7"
+                    value={tekExamId || ''}
+                    onChange={(e) => setTekPick(e.target.value)}
+                  >
+                    {scoped
+                      .slice()
+                      .sort(byUploadOrder)
+                      .reverse()
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.name} · {dateTr(e.examDate)}
+                        </option>
+                      ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-subtle" aria-hidden />
+                </div>
+              </>
+            )}
           </div>
         )}
         {scope === 'custom' && (
@@ -1031,6 +1081,7 @@ export const DenemeKarne: React.FC<{
             bank={bank}
             teacherName={teacherName}
             downloadOnly={limited}
+            tekExamId={tekExamId}
           />
         )}
       </div>
@@ -1044,6 +1095,8 @@ export const DenemeKarne: React.FC<{
         <p className="text-sm text-muted">Yükleniyor…</p>
       ) : !hasData ? (
         <p className="text-sm text-muted">Seçilen denemelerde sonuç bulunamadı.</p>
+      ) : isTek ? (
+        <TekSayfaView data={tekData} />
       ) : mode === 'ogrenci' && tur === 'kazanim' ? (
         <KazanimTakipView exams={fullExams} results={results} bank={bank} bankLoading={bank === undefined} />
       ) : mode === 'ogrenci' && tur === 'plan' ? (

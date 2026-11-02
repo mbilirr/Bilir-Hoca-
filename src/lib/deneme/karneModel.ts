@@ -9,6 +9,8 @@ import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile } from './karneDetay';
 import { averageKarneData, type KarneData } from './karneOrtalama';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
+import { denemeKarneAdi } from './karneAdi'; // Aşama 135
+import { dersRengi } from './tekSayfaKarne';
 import {
   FOLLOW_INFO,
   KAZ_STATUS_INFO,
@@ -153,7 +155,7 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
   const blocks: PdfBlock[] = [
     {
       kind: 'hero',
-      eyebrow: avg ? 'Ortalama deneme karnesi' : 'Deneme karnesi',
+      eyebrow: avg ? 'Ortalama deneme karnesi' : denemeKarneAdi(exam), // Aşama 135: tek denemede denemenin adı
       title: studentName,
       sub: className || data.result.className || '',
       chips: avg ? [avg.scopeLabel, `${avg.n} denemenin ortalaması`, avg.range] : [exam.name, dateTr(exam.examDate), exam.publisher, data.result.booklet ? `${data.result.booklet} kitapçığı` : ''],
@@ -207,13 +209,17 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
           diff(data.totalNet, round2(kurumTotal), fmtNet),
         ],
       ],
-      rowTones: [...subjects.map((s) => levelTone(s.rate)), 'info'],
+      // Aşama 135: satırlar yeşil değil; her ders kendi renginde, başarı sütununda renkli çubuk
+      rowColors: [...subjects.map((s, i) => dersRengi(s.subject.key, i)), null],
+      rateColumn: 6,
+      widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 30],
       align: ['left', 'center', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const] : []), 'center', 'center'],
       fontSize: 7.8,
     },
     {
       kind: 'bar',
       title: 'Ders netleri: öğrenci, sınıf ve kurum',
+      solid: { colors: subjects.map((s, i) => dersRengi(s.subject.key, i)) },
       labels: subjects.map((s) => s.subject.short),
       series: [
         { name: 'Öğrenci', values: subjects.map((s) => s.net) },

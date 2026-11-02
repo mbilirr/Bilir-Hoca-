@@ -31,7 +31,7 @@ import {
 // ============================================================================
 
 // Öğrenci karnesinin türü (öğretmen ve öğrenci ekranı ortak)
-export type KarneTur = 'genel' | 'kazanim' | 'plan' | 'oncelik' | 'veli';
+export type KarneTur = 'genel' | 'kazanim' | 'plan' | 'oncelik' | 'veli' | 'tek'; // Aşama 135: tek = tek sayfa sonuç karnesi
 export const KARNE_TURLERI: Array<{ value: KarneTur; label: string }> = [
   { value: 'genel', label: 'Birleştirilmiş karne' },
   { value: 'kazanim', label: 'Kazanım takip' },

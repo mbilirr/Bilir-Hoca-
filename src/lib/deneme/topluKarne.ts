@@ -39,7 +39,7 @@ export async function forEachStudentKarne(
     const s = list[i];
     opts.onProgress?.(i, list.length, s.name);
     const extra = await opts.loadExtra(s);
-    const k = buildStudentKarne(ctx, { id: s.id, name: s.name, className: s.className || '' }, byStudent.get(s.id) || [], extra);
+    const k = buildStudentKarne(ctx, { id: s.id, name: s.name, className: s.className || '', no: s.studentNumber }, byStudent.get(s.id) || [], extra);
     if (k) {
       await fn(s, k);
       done++;

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -25,6 +25,9 @@ import { dateRange, dateTr, examShort, usedSubjects } from '../../lib/deneme/kar
 import { averageKarneData, type KarneData } from '../../lib/deneme/karneOrtalama';
 import { examKarneData, percentile, type ExamKarneData } from '../../lib/deneme/karneDetay';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from '../../lib/deneme/lgsYuzdelik';
+import { denemeKarneAdi } from '../../lib/deneme/karneAdi'; // Aşama 135
+import { getKurumBrand } from '../../lib/kurumBrand';
+import { kurumRenkHazirla, kurumRenkOnbellek, seritRenk, type KurumRenk } from '../../lib/kurumRenk';
 import { AveragesPanel, HeatTablePanel } from './KarneIleri';
 
 // ============================================================================
@@ -232,31 +235,52 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
   const strong = ranked.filter((t) => t.rate >= 70).slice(0, 4);
   const weak = ranked.filter((t) => t.rate < 50).slice(-5).reverse();
   const bySubject = subjects.map((s) => ({ s, list: topics.filter((t) => t.subject.key === s.subject.key) })).filter((x) => x.list.length);
+  // Aşama 135: başlık şeridi kurum logosunun renkleriyle (PDF ile aynı); logo yoksa eski mavi
+  const logo = getKurumBrand().logo;
+  const [kRenk, setKRenk] = useState<KurumRenk | null>(() => kurumRenkOnbellek(logo) || null);
+  useEffect(() => {
+    let canli = true;
+    kurumRenkHazirla(logo).then((r) => canli && setKRenk(r));
+    return () => {
+      canli = false;
+    };
+  }, [logo]);
+  const renk = useMemo(() => (kRenk ? seritRenk(kRenk) : null), [kRenk]);
+  const c = (x: [number, number, number]) => `rgb(${x[0]} ${x[1]} ${x[2]})`;
+  const cip = renk ? { background: c(renk.cip) } : undefined;
 
   return (
     <div className="space-y-4" id="exam-karne">
       {/* Başlık bandı */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-brand to-sky-600 text-white shadow-lg">
+      <div
+        className={cx('relative overflow-hidden rounded-3xl text-white shadow-lg', !renk && 'bg-gradient-to-br from-indigo-700 via-brand to-sky-600')}
+        style={renk ? { background: `linear-gradient(120deg, ${c(renk.zemin)}, ${c(renk.zemin)} 55%, ${c(renk.zemin2)})` } : undefined}
+      >
+        {renk && (
+          <div className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: c(renk.cizgi) }} aria-hidden />
+        )}
         <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10" aria-hidden />
         <div className="absolute -bottom-20 right-24 h-44 w-44 rounded-full bg-white/5" aria-hidden />
         <div className="relative grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">{avg ? 'Ortalama deneme karnesi' : 'Deneme karnesi'}</p>
+            <p className={cx('text-[11px] font-bold uppercase tracking-[0.2em]', renk ? 'text-white' : 'text-white/70')}>
+              {avg ? 'Ortalama deneme karnesi' : denemeKarneAdi(exam)}
+            </p>
             <h3 className="mt-1 text-xl sm:text-2xl font-extrabold leading-tight truncate">{studentName}</h3>
             <p className="text-sm text-white/85">{className || data.result.className || 'Sınıf bilgisi yok'}</p>
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
               {avg ? (
                 <>
-                  <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{avg.scopeLabel}</span>
-                  <span className="rounded-full bg-white/15 px-2.5 py-1">{avg.n} denemenin ortalaması</span>
-                  <span className="rounded-full bg-white/15 px-2.5 py-1">{avg.range}</span>
+                  <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{avg.scopeLabel}</span>
+                  <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1">{avg.n} denemenin ortalaması</span>
+                  <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1">{avg.range}</span>
                 </>
               ) : (
                 <>
-              <span className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{exam.name}</span>
-              <span className="rounded-full bg-white/15 px-2.5 py-1">{dateTr(exam.examDate)}</span>
-              {exam.publisher && <span className="rounded-full bg-white/15 px-2.5 py-1">{exam.publisher}</span>}
-              {data.result.booklet && <span className="rounded-full bg-white/15 px-2.5 py-1">{data.result.booklet} kitapçığı</span>}
+              <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1 font-semibold">{exam.name}</span>
+              <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1">{dateTr(exam.examDate)}</span>
+              {exam.publisher && <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1">{exam.publisher}</span>}
+              {data.result.booklet && <span style={cip} className="rounded-full bg-white/15 px-2.5 py-1">{data.result.booklet} kitapçığı</span>}
                 </>
               )}
             </div>
@@ -264,21 +288,23 @@ export const ExamKarneCard: React.FC<{ data: KarneData; studentName: string; cla
           <div className="flex items-center gap-3">
             <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white text-brand-fg shadow-xl ring-4 ring-white/30">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{avg ? 'Ort. LGS puanı' : 'LGS puanı'}</span>
-              <span className="text-2xl font-black tabular-nums leading-none mt-0.5">{fmtScore(data.score)}</span>
+              <span className="text-2xl font-black tabular-nums leading-none mt-0.5" style={renk ? { color: c(renk.cip) } : undefined}>
+                {fmtScore(data.score)}
+              </span>
               <span className="text-[10px] text-muted mt-0.5">/ 500</span>
             </div>
             <div className="grid gap-1.5 text-xs">
-              <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                <p className="text-white/70 text-[10px] uppercase tracking-wider">{avg ? 'Ort. sınıf sırası' : 'Sınıf sırası'}</p>
+              <div className={cx('rounded-xl px-3 py-1.5', !renk && 'bg-white/15')} style={renk ? { background: c(renk.kutu) } : undefined}>
+                <p className={cx('text-[10px] uppercase tracking-wider', renk ? 'text-white' : 'text-white/70')}>{avg ? 'Ort. sınıf sırası' : 'Sınıf sırası'}</p>
                 <p className="font-bold tabular-nums">{rank ? `${rank.cls} / ${rank.clsCount}` : '—'}</p>
               </div>
-              <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                <p className="text-white/70 text-[10px] uppercase tracking-wider">{avg ? 'Ort. kurum sırası' : 'Kurum sırası'}</p>
+              <div className={cx('rounded-xl px-3 py-1.5', !renk && 'bg-white/15')} style={renk ? { background: c(renk.kutu) } : undefined}>
+                <p className={cx('text-[10px] uppercase tracking-wider', renk ? 'text-white' : 'text-white/70')}>{avg ? 'Ort. kurum sırası' : 'Kurum sırası'}</p>
                 <p className="font-bold tabular-nums">{rank ? `${rank.overall} / ${rank.overallCount}` : '—'}</p>
               </div>
               {pct !== null && (
-                <div className="rounded-xl bg-white/15 px-3 py-1.5">
-                  <p className="text-white/70 text-[10px] uppercase tracking-wider">Kurum içi yüzdelik</p>
+                <div className={cx('rounded-xl px-3 py-1.5', !renk && 'bg-white/15')} style={renk ? { background: c(renk.kutu) } : undefined}>
+                  <p className={cx('text-[10px] uppercase tracking-wider', renk ? 'text-white' : 'text-white/70')}>Kurum içi yüzdelik</p>
                   <p className="font-bold tabular-nums">%{pct}</p>
                 </div>
               )}

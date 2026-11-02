@@ -3249,7 +3249,7 @@ async function karneLinkMod() {
   }
   return karneLinkModCache;
 }
-const KARNE_TURLERI = new Set(['genel', 'kazanim', 'plan', 'oncelik', 'veli']);
+const KARNE_TURLERI = new Set(['genel', 'kazanim', 'plan', 'oncelik', 'veli', 'tek']); // Aşama 135: tek = tek sayfa sonuç karnesi
 const karneDay = () => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10); // İstanbul günü
 
 async function actionKarneSms(caller, body, req) {
