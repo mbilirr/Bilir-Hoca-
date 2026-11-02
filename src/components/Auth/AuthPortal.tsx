@@ -222,7 +222,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     dataService.setAuthSession(session);
     confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     setSuccessMsg(greeting);
-    setTimeout(() => onAuthSuccess(session), 400);
+    // Aşama 139: panele geçiş beklemesi 400 ms → 150 ms (veri yüklemesi zaten başladı)
+    setTimeout(() => onAuthSuccess(session), 150);
   };
   const greetingOf = (session: AuthSession) =>
     session.role === 'teacher'
