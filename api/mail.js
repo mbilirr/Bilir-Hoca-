@@ -1277,7 +1277,7 @@ async function actionSmsTest(caller, body) {
     if (err instanceof HttpError) throw err;
     throw new HttpError(503, 'SMS kayıt tablosu bulunamadı. Supabase SQL Editor\'de sql/73_sms.sql dosyasını çalıştırın.');
   }
-  const text = `${e.appName}: SMS bağlantısı çalışıyor. Bu bir deneme mesajıdır.`;
+  const text = 'SMS bağlantısı çalışıyor. Bu bir deneme mesajıdır.'; // Aşama 137: başta uygulama adı yok
   const r = await providerSend([phone], text, e);
   try {
     await rest('sms_log', {
@@ -1433,7 +1433,7 @@ async function actionParentAnnounce(caller, body, deadline) {
     else if (!sm.smsConfigured()) smsRes = { available: false, error: 'SMS sağlayıcı bilgileri Vercel ayarlarında eksik.' };
     else {
       const e = sm.smsEnv();
-      const text = `${e.appName}: ${message}`.slice(0, 300);
+      const text = String(message).slice(0, 300); // Aşama 137: başta uygulama adı yok
       const jobs = [...phones].map(([phone, role]) => ({ event: 'parent-announce', refId: sendId, once: true, role, phone, text }));
       const r = await sm.dispatchSms(rest, jobs);
       smsRes = {
@@ -3335,8 +3335,11 @@ async function actionKarneSms(caller, body, req) {
     }
   }
   const url = `${appUrl(req)}/k/${kl.linkToken(key, link.id)}`;
-  const appName = sm.smsEnv().appName;
-  const jobs = targets.map((t) => ({ event: 'deneme-karne-link', refId: `karne-${link.id}`, once: true, role: t.role, phone: t.phone, text: kl.karneSmsText(t.role, url, appName) }));
+  // Aşama 137: tek denemede adı (çağıranın oturumuyla, yalnız görebildiği deneme); birden çokta "son N deneme karnesi"
+  let exams = [];
+  if (examIds.length === 1) exams = (await rest(`deneme_exams?select=name,publisher&id=eq.${encodeURIComponent(examIds[0])}&limit=1`, { token: caller.token }).catch(() => [])) || [];
+  const etiket = kl.karneDenemeEtiketi ? kl.karneDenemeEtiketi(exams, examIds.length) : '';
+  const jobs = targets.map((t) => ({ event: 'deneme-karne-link', refId: `karne-${link.id}`, once: true, role: t.role, phone: t.phone, text: kl.karneSmsText(t.role, url, etiket) }));
   const r = await sm.dispatchSms(rest, jobs);
   if (r.errors.length) console.error('[sms] karne', r.errors.join(' | '));
   return { ok: true, sent: r.sent, dry: r.dry, skipped: r.skipped, limited: r.limited, failed: r.failed, reused: reused ? 1 : 0, noPhone: 0, errors: r.errors.slice(0, 2) };

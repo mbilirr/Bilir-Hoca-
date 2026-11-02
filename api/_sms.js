@@ -272,7 +272,8 @@ export function smsTextFor(event, role, appUrl) {
   if (!base) return '';
   const url = String(appUrl || DEFAULT_APP_URL).replace(/\/+$/, '');
   const who = role === 'veli' ? 'Öğrenciniz için: ' : '';
-  return `${e.appName}: ${who}${base} Ayrıntı: ${url}`.slice(0, 300);
+  // Aşama 137: SMS başında uygulama adı yazmaz (gönderen başlığı kurumu gösterir)
+  return `${who}${base} Ayrıntı: ${url}`.slice(0, 300);
 }
 
 /**

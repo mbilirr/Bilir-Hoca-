@@ -34,9 +34,26 @@ export function examKey(examIds) {
   return crypto.createHash('sha256').update(ids.join(',')).digest('hex').slice(0, 32);
 }
 
-export function karneSmsText(role, link, appName) {
-  const head = role === 'veli' ? 'Öğrencinizin deneme karnesi hazır' : 'Deneme karnen hazır';
-  return `${appName}: ${head}: ${link} (${KARNE_LINK_DAYS} gün geçerli)`;
+/**
+ * Aşama 137: SMS metni — başta uygulama adı yok; tek denemede "'Ad (Yayınevi)'", birden çokta "son N" (metin: "son 3 deneme karnesi").
+ * Ad 32 karakterle sınırlı: link ile birlikte tek SMS'e (≈155 Türkçe karakter) sığar.
+ */
+export function karneDenemeEtiketi(exams, count) {
+  const n = Math.max(1, Number(count) || 0);
+  if (n > 1) return `son ${n}`; // "son 3 deneme karnesi" 
+  const ex = (Array.isArray(exams) ? exams : [])[0] || {};
+  const name = String(ex.name || '').replace(/\s+/g, ' ').trim();
+  const pub = String(ex.publisher || '').replace(/\s+/g, ' ').trim();
+  let label = name;
+  if (pub && !name.toLocaleLowerCase('tr').includes(pub.toLocaleLowerCase('tr'))) label = name ? `${name} (${pub})` : pub;
+  label = label.replace(/'/g, '');
+  if (label.length > 32) label = (label.slice(0, 33).replace(/\s+\S*$/, '') || label.slice(0, 32)).trim(); // kelime ortasında kesmez
+  return label ? `'${label}'` : '';
+}
+export function karneSmsText(role, link, etiket) {
+  const et = String(etiket || '').trim();
+  if (role === 'veli') return `Değerli velimiz, öğrencimizin ${et ? `${et} ` : ''}deneme karnesi hazır: ${link} Hayırlı günler.`;
+  return `Sevgili öğrencimiz, ${et ? `${et} ` : ''}deneme karnen hazır: ${link} Başarılar.`;
 }
 
 // ----------------------------------------------------------------------------- Supabase Storage (service_role)
