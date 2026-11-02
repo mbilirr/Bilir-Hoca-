@@ -610,7 +610,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           : 'Öğrenci Numarası *'
                       }
                       type="text"
+                      id="login-username"
+                      name="username"
                       required
+                      autoComplete="username"
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
                       autoCapitalize="none"
@@ -628,6 +631,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       ref={passwordInputRef}
                       label="Şifre *"
                       type={showPassword ? 'text' : 'password'}
+                      id="login-password"
+                      name="password"
                       required
                       autoComplete="current-password"
                       value={loginPassword}
