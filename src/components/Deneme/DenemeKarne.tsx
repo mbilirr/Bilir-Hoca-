@@ -37,7 +37,7 @@ import { cleanParents } from '../../lib/parents';
 import { ClassKarneView, CompareView, StudentKarneView } from './KarneViews';
 import { BransGelisimView } from './BransGelisimView'; // Aşama 130
 import { TekSayfaView } from './TekSayfaView'; // Aşama 135
-import { sonDeneme, tekSayfaData } from '../../lib/deneme/tekSayfaKarne';
+import { sonDeneme, tekOkunacakIds, tekSayfaData } from '../../lib/deneme/tekSayfaKarne';
 import { denemeKarneAdi } from '../../lib/deneme/karneAdi';
 import { bransGelisim, bransGelisimBlocks, bransTumSubeler, type BransSubject } from '../../lib/deneme/bransKarne';
 
@@ -619,6 +619,9 @@ export const DenemeKarne: React.FC<{
   const tekExam = isTek ? scoped.find((e) => e.id === tekPick) || sonDeneme(scoped) : null;
   const tekExamId = tekExam?.id;
   const kapsamYazi = isTek && tekExam ? tekExam.name : scopeLabel(scope);
+  // Aşama 135: tek sayfa karnede okunan denemeler = seçili deneme + ondan önceki denemeler (puan gelişimi için; kapsamdan bağımsız)
+  const loadExams = useMemo(() => (isTek && tekExam ? tekOkunacakIds(exams, tekExam) : scoped.map((e) => e.id)), [isTek, tekExam, exams, scoped]);
+  const loadIdsKey = loadExams.join(',');
 
   const classOptions = useMemo(() => classes.slice().sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })), [classes]);
   const studentOptions = useMemo(
@@ -641,7 +644,7 @@ export const DenemeKarne: React.FC<{
     let alive = true;
     setError(null);
     setNotice(null);
-    const ids = scoped.map((e) => e.id);
+    const ids = loadExams;
     const need = mode === 'ogrenci' ? !!studentId : mode === 'sinif' ? !!classId : true;
     if (!need || !ids.length) {
       setResults([]);
@@ -671,7 +674,7 @@ export const DenemeKarne: React.FC<{
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, studentId, classId, scopedIds]);
+  }, [mode, studentId, classId, scopedIds, loadIdsKey]);
 
   // Aşama 55: sınıf birleştirilmiş karnesi ve kazanım ısı haritası verileri (ekran ve PDF ortak)
   const classData = useMemo(
@@ -1072,7 +1075,7 @@ export const DenemeKarne: React.FC<{
             sınıfa toplu; hiçbiri seçili değil ("Tüm sınıflar") → bütün sınıflara toplu. Öğretmen (yalnız indirme) eskisi gibi sınıfta. */}
         {mode === 'ogrenci' && scoped.length > 0 && (limited ? !!cls : !student) && (
           <TopluKarneGonder
-            examIds={scoped.map((e) => e.id)}
+            examIds={loadExams}
             cls={cls}
             allClassIds={allClassIds}
             classStudents={cls ? students.filter((s) => s.classId === cls.id) : students}

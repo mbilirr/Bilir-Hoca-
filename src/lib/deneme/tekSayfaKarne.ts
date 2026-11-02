@@ -39,8 +39,10 @@ const KISA_AD: Record<string, string> = {
 };
 /** Kurumun bu oranından fazlasının doğru yaptığı soruyu kaçırmak "dikkat" işaretidir */
 export const TEK_KACAN_ORAN = 60;
-/** Puan gelişimi grafiğinde gösterilen deneme sayısı */
+/** Puan gelişimi grafiğinde gösterilen deneme sayısı (seçili deneme + öğrencinin girdiği önceki 4 deneme) */
 const GELISIM_SAYI = 5;
+/** Önceki denemeler için okunan aday sayısı (öğrencinin girmediği denemeler atlanabilsin diye 4'ten fazla) */
+const GELISIM_ADAY = 8;
 
 export interface TekSoru {
   no: number;
@@ -97,6 +99,21 @@ export interface TekSayfaData {
 /** denemeService.byUploadOrder ile aynı sıra (veri katmanını içe aktarmamak için burada) */
 const byUploadOrder = (a: { createdAt: string; examDate?: string }, b: { createdAt: string; examDate?: string }) =>
   (a.createdAt || '').localeCompare(b.createdAt || '') || (a.examDate || '').localeCompare(b.examDate || '');
+/** Aşama 135: denemelerin oluş sırası — sınav tarihi, aynı gün ise yükleniş sırası */
+export const byExamOrder = (a: { createdAt: string; examDate?: string }, b: { createdAt: string; examDate?: string }) =>
+  (a.examDate || '').localeCompare(b.examDate || '') || (a.createdAt || '').localeCompare(b.createdAt || '');
+/**
+ * Tek sayfa karne için okunacak denemeler: seçili deneme + oluş sırasına göre ondan önceki aynı sınıf
+ * düzeyindeki denemeler (en çok 8 aday). Kapsam seçimi (Son 3 / Seçerek…) puan gelişimini daraltmaz.
+ */
+export function tekOkunacakIds(all: DenemeExam[], exam: DenemeExam): string[] {
+  const once = all
+    .filter((e) => e.id !== exam.id && (e.grade || '8') === (exam.grade || '8') && byExamOrder(e, exam) < 0)
+    .sort(byExamOrder)
+    .slice(-GELISIM_ADAY)
+    .map((e) => e.id);
+  return [...once, exam.id];
+}
 /** Grafikte deneme etiketi: tarih (gg.aa); tarih yoksa kısaltılmış ad */
 const shortName = (e: DenemeExam) => {
   const m = /^\d{4}-(\d{2})-(\d{2})/.exec(e.examDate || '');
@@ -151,9 +168,9 @@ export function tekSayfaData(
     };
   });
 
-  // Puan gelişimi: kapsamdaki denemelerden öğrencinin girdikleri, seçili denemeye kadar (yükleniş sırası)
+  // Puan gelişimi: seçili deneme ve öğrencinin ondan önce girdiği son 4 deneme (oluş sırası: sınav tarihi)
   const byExam = new Map(results.map((r) => [r.examId, r] as const));
-  const sorted = exams.filter((e) => byExam.has(e.id)).sort(byUploadOrder);
+  const sorted = exams.filter((e) => byExam.has(e.id) && (e.id === exam.id || byExamOrder(e, exam) < 0)).sort(byExamOrder);
   const upto = sorted.slice(0, Math.max(1, sorted.findIndex((e) => e.id === exam.id) + 1));
   const gelisim = upto.slice(-GELISIM_SAYI).map((e) => ({
     name: shortName(e),
