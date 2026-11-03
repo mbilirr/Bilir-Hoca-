@@ -41,7 +41,7 @@ import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
-import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, type TeacherRole } from '../../lib/teacherRoles';
+import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
 import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
 import { GradeTicks } from './GradeTicks';
 import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
@@ -2230,12 +2230,20 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   // Aşama 107: geniş görüşlü rol seçilince kademeler "Tümü" kilitli görünür (rol yetkileri açıkken)
   const createWide = roleUi ? roles.filter((r) => WIDE_ROLES.includes(r)) : [];
   const createSeesAll = createWide.length > 0 && !rolesOff;
-  const toggleRole = (r: TeacherRole) =>
+  // Aşama 147: unvan elle değiştirilmediyse branşa göre otomatik işaretlenir (Rehberlik → Rehberlik, diğer → Öğretmen)
+  const [rolesTouched, setRolesTouched] = useState(false);
+  const changeBranch = (v: string) => {
+    setBranch(v);
+    if (!rolesTouched) setRoles([roleFromBranch(v)]);
+  };
+  const toggleRole = (r: TeacherRole) => {
+    setRolesTouched(true);
     setRoles((cur) => {
       if (cur.includes(r)) return cur.filter((x) => x !== r);
       // Zümre başkanı öğretmen rolüyle birlikte verilir
       return r === 'zumre_baskani' && !cur.includes('ogretmen') ? [...cur, r, 'ogretmen'] : [...cur, r];
     });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2420,7 +2428,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="grid grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">Branş</label>
-                <input autoComplete="off" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
+                <input autoComplete="off" value={branch} onChange={(e) => changeBranch(e.target.value)} placeholder="Örn: Matematik" className={inputCls} />
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">E-posta (iletişim)</label>

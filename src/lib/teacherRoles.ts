@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { normalizeBranch } from './subjects';
 
 // ============================================================================
 // UNVANLAR VE ROLLER (Aşama 81, 82, 83)
@@ -105,6 +106,11 @@ export function roleOpensPerm(
       if (!rs) return null; // kurum ayarına bağlı, ayar bilinmiyor
       return (reh && rs.rehberlik_ogrenci_ekle === true) || (olc && rs.olcme_ogrenci_ekle === true);
   }
+}
+
+/** Aşama 147: kayıtta branşa göre otomatik unvan (Rehberlik branşı → Rehberlik, diğerleri → Öğretmen) */
+export function roleFromBranch(branch?: string | null): TeacherRole {
+  return normalizeBranch(branch) === 'Rehberlik' ? 'rehberlik' : 'ogretmen';
 }
 
 /** Rolün bu bölümü açıp açmadığı (veritabanındaki role_section_ok ile aynı) */

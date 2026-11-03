@@ -15,6 +15,7 @@ import {
   isPermEntry,
   isIdare,
   roleOpensPerm,
+  roleFromBranch,
   saveTeacherRoles,
   saveTeacherSections,
   saveTeacherYetkiler,
@@ -84,6 +85,8 @@ const SegRow: React.FC<{
       <span className="inline-flex rounded-lg border border-line-strong overflow-hidden shrink-0 divide-x divide-line-strong">
         {MODE_OPTS.map((o) => {
           const on = mode === o.mode;
+          // Aşama 147: "Rolden" seçiliyken unvanın verdiği sonuç Açık / Kapalı düğmesinde açık renkle işaretlenir
+          const fromRole = mode === 'role' && byRole !== null && o.mode === (byRole ? 'allow' : 'deny');
           return (
             <button
               key={o.mode}
@@ -91,18 +94,24 @@ const SegRow: React.FC<{
               aria-pressed={on}
               disabled={disabled}
               onClick={() => onMode(o.mode)}
+              title={fromRole ? `Unvanından ${byRole ? 'açık' : 'kapalı'}` : undefined}
               className={cx(
                 SEG,
-                'disabled:cursor-not-allowed disabled:opacity-60',
+                'disabled:cursor-not-allowed',
                 on
                   ? o.mode === 'deny'
                     ? 'bg-danger-soft text-danger-fg'
                     : o.mode === 'allow'
                       ? 'bg-success-soft text-success-fg'
                       : 'bg-brand-soft text-fg'
-                  : 'bg-surface text-muted hover:bg-surface-2'
+                  : fromRole
+                    ? byRole
+                      ? 'bg-success-soft text-success-fg'
+                      : 'bg-surface-2 text-fg-2'
+                    : 'bg-surface text-muted hover:bg-surface-2 disabled:opacity-60'
               )}
               data-mode={o.mode}
+              data-rolden={fromRole ? '1' : undefined}
             >
               {o.label}
             </button>
@@ -125,7 +134,9 @@ export const YetkilerModal: React.FC<{
   onSaved: (r: { roles: TeacherRole[]; access: SectionAccess }) => void;
 }> = ({ teacher, roles, access, canGiveMudur, rolesOff, roleSettings, initialTab = 'unvan', onClose, onSaved }) => {
   const [tab, setTab] = useState<YetkiTab>(initialTab);
-  const [sel, setSel] = useState<TeacherRole[]>(roles);
+  // Aşama 147: kayıtlı unvanı olmayan öğretmende branşına göre unvan işaretli gelir (Kaydet ile kaydedilir)
+  const suggested = roles.length === 0 && !teacher.isAdmin ? roleFromBranch(teacher.branch) : null;
+  const [sel, setSel] = useState<TeacherRole[]>(suggested ? [suggested] : roles);
   const initialModes = useMemo(() => {
     const m: Record<string, SectionMode> = {};
     SECTION_DEFS.forEach((d) => (m[d.key] = modeOf(access, d.key)));
@@ -241,6 +252,15 @@ export const YetkilerModal: React.FC<{
 
         {rolesOff && <RolesOffWarning id="yetkiler-off-warning" />}
 
+        {suggested && (
+          <p className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold" id="yetkiler-oneri-note">
+            <Info className="w-3.5 h-3.5 shrink-0 mt-px" />
+            <span>
+              Kayıtlı unvanı yok; branşına göre <b>{roleLabel(suggested)}</b> işaretlendi. Bölüm ve işlemler bu unvana göre gösteriliyor; Kaydet'e basınca kaydedilir.
+            </span>
+          </p>
+        )}
+
         {tab === 'unvan' && (
           <>
             <p className="text-[11px] text-muted">Birden fazla unvan seçebilirsiniz. Bölüm ve işlem izinleri "Rolden" iken seçili unvana göre çalışır.</p>
@@ -290,7 +310,7 @@ export const YetkilerModal: React.FC<{
         {tab === 'bolum' && (
           <>
             <p className="text-[11px] text-muted">
-              <b>Rolden</b>: unvanına göre. <b>Açık</b> / <b>Kapalı</b>: unvanından bağımsız. Kurumda kapalı olan bölüm yine açılmaz.
+              <b>Rolden</b>: unvanına göre; unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde gri işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Kurumda kapalı olan bölüm yine açılmaz.
             </p>
             <ul className="rounded-lg border border-line divide-y divide-line" role="group" aria-label="Bölümler">
               {SECTION_DEFS.map((d) => (
@@ -316,7 +336,7 @@ export const YetkilerModal: React.FC<{
               </p>
             ) : (
               <p className="text-[11px] text-muted">
-                <b>Rolden</b>: unvanına göre (yetki tablosu). <b>Açık</b> / <b>Kapalı</b>: unvanından bağımsız. Ekrandaki düğmeler ve sunucu aynı kuralı
+                <b>Rolden</b>: unvanına göre (yetki tablosu); unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde gri işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Ekrandaki düğmeler ve sunucu aynı kuralı
                 uygular; kişi sayfayı yenileyince geçerli olur.
               </p>
             )}

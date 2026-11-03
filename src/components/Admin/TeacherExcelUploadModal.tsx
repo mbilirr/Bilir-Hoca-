@@ -7,6 +7,7 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { appCopyFallback } from '../../lib/appDialog';
 import { gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
 import { saveTeacherContact } from '../../lib/teacherContacts';
+import { roleFromBranch, roleLabel, saveTeacherRoles } from '../../lib/teacherRoles'; // Aşama 147
 import { describeTeacherCredentialResult, sendTeacherCredentials } from '../../lib/teacherCredentialSend';
 import {
   TEACHER_TEMPLATE_HEADERS,
@@ -61,6 +62,9 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
   const gradeOptions = useMemo(() => gradeOptionsFrom(dataService.getAllClasses()), []);
   // '' = seçilmedi, 'all' = tüm kademeler, '8' = 8. sınıf
   const [grade, setGrade] = useState('');
+  // Aşama 147: kurumda açılan hesaba branşa göre unvan verilir (Rehberlik → Rehberlik, diğerleri → Öğretmen)
+  const roleUi = !dataService.isHeadAdmin() && dataService.isKurumAdmin() && !!dataService.getMyKurumId();
+  const rolesOn = roleUi && dataService.getMyKurum().rolesEnabled === true;
   const [sendMail, setSendMail] = useState(true);
   const [progress, setProgress] = useState(0);
   const [created, setCreated] = useState<TeacherCredential[]>([]);
@@ -143,7 +147,14 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
       }
       if (res) {
         taken.add(res.teacher.username);
-        if (gradeSel && res.teacher.auth_user_id) {
+        const unvan = roleFromBranch(r.branch);
+        if (roleUi) {
+          await saveTeacherRoles(res.teacher.id, [unvan]).catch((er) =>
+            warn.push(`${r.name}: unvan verilemedi (${er?.message || 'hata'}), Yetkiler penceresinden verin.`)
+          );
+        }
+        // Rehberlik tüm kademeleri görür (rol yetkileri açıkken); tek tek eklemedeki gibi kademe kaydedilmez
+        if (gradeSel && res.teacher.auth_user_id && !(rolesOn && unvan === 'rehberlik')) {
           await saveTeacherGrades(res.teacher.auth_user_id, gradeSel).catch((er) =>
             warn.push(`${r.name}: kademe verilemedi (${er?.message || 'hata'}), listedeki erişim düğmesinden verin.`)
           );
@@ -387,7 +398,10 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
                           {r.error && <div className="text-[11px] text-danger-fg">{r.error}</div>}
                           {!r.error && r.warning && <div className="text-[11px] text-warning-fg">{r.warning}</div>}
                         </td>
-                        <td className="px-2 py-1.5">{r.branch || 'Öğretmen'}</td>
+                        <td className="px-2 py-1.5">
+                          <div>{r.branch || '—'}</div>
+                          {roleUi && <div className="text-[11px] text-brand-fg font-semibold">Unvan: {roleLabel(roleFromBranch(r.branch))}</div>}
+                        </td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{birthDateLabel(r.birthDate)}</td>
                         <td className="px-2 py-1.5 whitespace-nowrap">{r.phone}</td>
                         <td className="px-2 py-1.5">{r.email}</td>
