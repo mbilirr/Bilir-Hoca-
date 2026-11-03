@@ -33,18 +33,22 @@ export const ROLE_BY_CODE: Record<TeacherRole, RoleDef> = ROLE_DEFS.reduce(
 );
 
 export const roleLabel = (code: string) => {
-  // Aşama 83: kişiye özel bölüm izni kayıtları (bolum+homework / bolum-deneme)
-  const m = /^bolum([+-])(.+)$/.exec(code);
-  if (m) return `${sectionLabel(m[2])} bölümü ${m[1] === '+' ? 'açık' : 'kapalı'}`;
+  // Aşama 83: kişiye özel bölüm izni kayıtları (bolum+homework / bolum-deneme); 143: bolum~x = rolden'e döndü
+  const m = /^bolum([+~-])(.+)$/.exec(code);
+  if (m) return `${sectionLabel(m[2])} bölümü ${m[1] === '+' ? 'açık' : m[1] === '-' ? 'kapalı' : 'rolden'}`;
+  // Aşama 143: kişiye özel işlem izni (izin:karne_gonder, izin:karne_gonder~ = rolden'e döndü)
+  const p = /^izin:([a-z_]+)(~?)$/.exec(code);
+  if (p) return `${permLabel(p[1])}${p[2] ? ' (rolden)' : ''}`;
   return (ROLE_BY_CODE as Record<string, RoleDef>)[code]?.label || code;
 };
 
 // ----------------------------------------------------------------------------- Aşama 83: kişiye özel bölüm izni
 export type SectionKey = 'home' | 'students' | 'homework' | 'etuts' | 'messages' | 'archive' | 'grades' | 'question_tracking' | 'deneme';
 export type SectionMode = 'role' | 'allow' | 'deny';
+/** Kişiye özel kayıt: bölüm anahtarları ve (Aşama 143) "izin:<anahtar>" işlem izinleri aynı dizilerde */
 export interface SectionAccess {
-  allow: SectionKey[];
-  deny: SectionKey[];
+  allow: string[];
+  deny: string[];
 }
 export const SECTION_DEFS: Array<{ key: SectionKey; label: string }> = [
   { key: 'home', label: 'Ana Sayfa' },
@@ -58,6 +62,50 @@ export const SECTION_DEFS: Array<{ key: SectionKey; label: string }> = [
   { key: 'deneme', label: 'Deneme Analizi' },
 ];
 export const sectionLabel = (key: string) => SECTION_DEFS.find((d) => d.key === key)?.label || key;
+
+// ----------------------------------------------------------------------------- Aşama 143: kişiye özel İŞLEM izinleri
+// Veritabanında Bölümler ile aynı kayıtta "izin:<anahtar>" diye tutulur (sql/143). Rol yetkileri açıkken ve kişi idareden
+// (kurum yöneticisi, Müdür, Müdür Yrd.) değilse uygulanır. Rolden = aşağıdaki roleOpensPerm (veritabanıyla aynı).
+export type PermKey = 'karne_gonder' | 'duyuru' | 'veli_bilgi' | 'ogrenci_ekle_sil' | 'ogrenci_duzenle' | 'deneme_yonet' | 'etut_ata';
+export const PERM_PREFIX = 'izin:';
+export const PERM_DEFS: Array<{ key: PermKey; label: string; hint: string }> = [
+  { key: 'karne_gonder', label: 'Sınav karnesi gönderme', hint: 'Deneme karnesini öğrenciye / veliye e-posta ve SMS ile gönderir' },
+  { key: 'duyuru', label: 'Veli / öğrenci duyurusu', hint: 'Mesajlar › Veli / Öğrenci Duyurusu (e-posta, SMS)' },
+  { key: 'veli_bilgi', label: 'Veli iletişim bilgileri', hint: 'Veli ve öğrenci telefonu / e-postasını görür' },
+  { key: 'ogrenci_ekle_sil', label: 'Öğrenci ekleme / silme', hint: 'Kuruma öğrenci ekler, öğrenci siler' },
+  { key: 'ogrenci_duzenle', label: 'Öğrenci düzenleme', hint: 'Öğrenci bilgisini düzenler, sınıfını değiştirir' },
+  { key: 'deneme_yonet', label: 'Deneme yükleme / düzenleme', hint: 'Deneme ekler, optik okur, siler (deneme bölümü açıksa)' },
+  { key: 'etut_ata', label: 'Başkası adına etüt verme', hint: 'Etütte kurumun diğer öğretmenlerini seçebilir' },
+];
+export const permLabel = (key: string) => PERM_DEFS.find((d) => d.key === key)?.label || key;
+export const isPermEntry = (x: string) => x.startsWith(PERM_PREFIX);
+/** İdare (kurum yöneticisi / Müdür / Müdür Yrd.): kişiye özel izin uygulanmaz, her işlem açıktır */
+export const isIdare = (roles: string[], isAdmin?: boolean) => !!isAdmin || roles.includes('mudur') || roles.includes('mudur_yardimcisi');
+
+/** Rolün bu işlemi açıp açmadığı (veritabanındaki 143 işlevleriyle aynı). rs = kurumun rol ayarları (bilinmiyorsa null) */
+export function roleOpensPerm(
+  roles: string[],
+  key: PermKey,
+  rs: { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean } | null
+): boolean | null {
+  const reh = roles.includes('rehberlik');
+  const olc = roles.includes('olcme_degerlendirme');
+  switch (key) {
+    case 'karne_gonder':
+    case 'duyuru':
+    case 'veli_bilgi':
+    case 'ogrenci_duzenle':
+      return reh || olc;
+    case 'deneme_yonet':
+      return olc;
+    case 'etut_ata':
+      return reh;
+    case 'ogrenci_ekle_sil':
+      if (!reh && !olc) return false;
+      if (!rs) return null; // kurum ayarına bağlı, ayar bilinmiyor
+      return (reh && rs.rehberlik_ogrenci_ekle === true) || (olc && rs.olcme_ogrenci_ekle === true);
+  }
+}
 
 /** Rolün bu bölümü açıp açmadığı (veritabanındaki role_section_ok ile aynı) */
 export function roleOpensSection(roles: string[], key: SectionKey): boolean {
@@ -80,7 +128,7 @@ export async function fetchTeacherSections(): Promise<Map<string, SectionAccess>
   const { data, error } = await supabase.from('teacher_section_access').select('teacher_id,allow_sections,deny_sections');
   if (error) throw new Error(isSectionsMissing(error) ? sectionsMissingMsg : error.message);
   const map = new Map<string, SectionAccess>();
-  for (const r of (data || []) as Array<{ teacher_id: string; allow_sections: SectionKey[] | null; deny_sections: SectionKey[] | null }>) {
+  for (const r of (data || []) as Array<{ teacher_id: string; allow_sections: string[] | null; deny_sections: string[] | null }>) {
     map.set(r.teacher_id, { allow: r.allow_sections || [], deny: r.deny_sections || [] });
   }
   return map;
@@ -89,7 +137,20 @@ export async function fetchTeacherSections(): Promise<Map<string, SectionAccess>
 export async function saveTeacherSections(teacherId: string, access: SectionAccess): Promise<SectionAccess> {
   const { data, error } = await supabase.rpc('set_teacher_sections', { p_teacher_id: teacherId, p_allow: access.allow, p_deny: access.deny });
   if (error) throw new Error(isSectionsMissing(error) ? sectionsMissingMsg : error.message);
-  const d = (data || {}) as { allow?: SectionKey[]; deny?: SectionKey[] };
+  const d = (data || {}) as { allow?: string[]; deny?: string[] };
+  return { allow: Array.isArray(d.allow) ? d.allow : access.allow, deny: Array.isArray(d.deny) ? d.deny : access.deny };
+}
+
+/** Aşama 143: Yetkiler penceresi — bölümler + işlem izinleri tek kayıtta (sql/143 set_teacher_yetkiler) */
+export async function saveTeacherYetkiler(teacherId: string, access: SectionAccess): Promise<SectionAccess> {
+  const { data, error } = await supabase.rpc('set_teacher_yetkiler', { p_teacher_id: teacherId, p_allow: access.allow, p_deny: access.deny });
+  if (error) {
+    if (error.code === 'PGRST202' || /set_teacher_yetkiler/.test(error.message || '')) {
+      throw new Error("İşlem izinleri için Supabase SQL Editor'de sql/143_kisiye_ozel_yetkiler.sql dosyasını çalıştırın.");
+    }
+    throw new Error(error.message);
+  }
+  const d = (data || {}) as { allow?: string[]; deny?: string[] };
   return { allow: Array.isArray(d.allow) ? d.allow : access.allow, deny: Array.isArray(d.deny) ? d.deny : access.deny };
 }
 
@@ -109,6 +170,7 @@ export const PERMISSION_MATRIX: Array<{ area: string; cells: string[] }> = [
   { area: 'Deneme analizi', cells: ['Tümü', 'Tümü (salt okunur)', 'Tümü', 'Zümresi', 'Sınıfları', '—'] },
   { area: 'Veli bilgileri (tel, e-posta)', cells: ['Tümü', 'Tümü', 'Tümü', '—', '—', '—'] },
   { area: 'Veli / öğrenciye e-posta, SMS', cells: ['Evet', 'Evet', 'Evet', '—', '—', '—'] },
+  { area: 'Sınav karnesi gönderme (e-posta, SMS)', cells: ['Evet', 'Evet', 'Evet', '—', '—', '—'] }, // Aşama 143
   { area: 'Öğrenci listesi alma', cells: ['Tümü', 'Tümü', 'Tümü', 'Zümresinin sınıfları', 'Sınıfları', '—'] },
   { area: 'Arşiv', cells: ['Tümü', 'Görür', 'Görür', 'Zümresini düzenler', 'Görür · kendi yüklediğini düzenler', '—'] },
   { area: 'Kurum ayarları (mail, logo, isim)', cells: ['Evet', '—', '—', '—', '—', '—'] },
@@ -119,7 +181,7 @@ export const MATRIX_NOTES = [
   'Zümre başkanı öğretmen rolüyle birlikte verilir; zümresi öğretmenin kayıtlı branşıdır.',
   'Müdür rolünü yalnızca genel yönetici verebilir; kimse kendinde olmayan bir yetkiyi veremez.',
   'Kim, kime, hangi rolü ne zaman verdi kaydı tutulur.',
-  'Müdür / Müdür Yrd. bir kişiye rolünden bağımsız bir bölümü açabilir ya da kapatabilir (Bölümler düğmesi).',
+  'Müdür / Müdür Yrd. bir kişiye rolünden bağımsız bir bölümü ya da işlemi (karne gönderme, duyuru, veli bilgisi, öğrenci ekleme / düzenleme, deneme yükleme, başkası adına etüt) açabilir ya da kapatabilir (Yetkiler düğmesi). İdarede her işlem açıktır.',
 ];
 
 // ----------------------------------------------------------------------------- veri

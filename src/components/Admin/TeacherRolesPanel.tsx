@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Save, Loader2, LayoutGrid, AlertTriangle } from 'lucide-react';
+import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { Teacher } from '../../types';
 import { Panel, Modal, cx } from '../ui/kit';
+import { YetkilerModal, RolesOffWarning } from './YetkilerModal';
 import { SelectBox } from '../Teacher/FormParts';
 import {
   ROLE_DEFS,
@@ -11,26 +12,22 @@ import {
   PERMISSION_MATRIX,
   MATRIX_NOTES,
   fetchTeacherRoles,
-  saveTeacherRoles,
   onTeacherRolesSaved,
   fetchRoleLog,
   roleLabel,
   sortRoles,
-  SECTION_DEFS,
-  roleOpensSection,
+  isPermEntry,
   fetchTeacherSections,
-  saveTeacherSections,
   type TeacherRole,
   type RoleLogItem,
   type SectionAccess,
-  type SectionKey,
-  type SectionMode,
 } from '../../lib/teacherRoles';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 
 // ============================================================================
 // UNVANLAR VE ROLLER PANELİ (Aşama 81, 82, 83)
 // Aşama 83: Bölümler — kişiye rolünden bağımsız bölüm açma / kapatma (sql/83).
+// Aşama 143: Rol ver + Bölümler tek "Yetkiler" penceresinde (unvan, bölümler, işlem izinleri; sql/143).
 // Genel yönetici herkese, kurum yöneticisi kendi kurumundaki kişilere rol (unvan) verir.
 // Roller, kurumda "Rol yetkileri" açıkken uygulanır (Kurum Ayarları; sql/82).
 // Tüm kutu ve düğmeler aynı yükseklikte (2rem) ve aynı yazı boyutunda; düğmeler eşit genişlikte.
@@ -43,13 +40,23 @@ const NO_KURUM = '__none__';
 const whenText = (iso: string) =>
   new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-export const TeacherRolesPanel: React.FC = () => {
+/**
+ * Aşama 143: kurumId verilirse liste o kuruma kilitlenir (Yönetim › Kurumlar › seçili kurum; kurum seçici gizlenir).
+ * roleSettings: kurumun rol ayarları (Yetkiler penceresinde "Öğrenci ekleme / silme" rolden ne olur), bilinmiyorsa null.
+ */
+export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings?: { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean } | null; rolesOffOverride?: boolean }> = ({
+  kurumId,
+  roleSettings,
+  rolesOffOverride,
+}) => {
   const [tick, setTick] = useState(0);
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const isHead = dataService.isHeadAdmin();
   const gecis = dataService.isKurumGecis(); // Aşama 98: genel yönetici kuruma geçmiş — o kurumda genel yönetici yetkisiyle rol verir
   // Aşama 98: kurumda rol yetkileri kapalıysa roller uygulanmaz (pencerelerde uyarı)
-  const rolesOff = !isHead && dataService.getMyKurum().rolesEnabled !== true;
+  const rolesOff = rolesOffOverride ?? (!isHead && dataService.getMyKurum().rolesEnabled !== true);
+  const locked = kurumId !== undefined; // Aşama 143: kuruma kilitli
+  const rs = roleSettings !== undefined ? roleSettings : isHead ? null : dataService.getMyKurum().roleSettings || {};
   const me = dataService.getCurrentTeacher();
   const teachers = useMemo(
     () => dataService.getTeachers().filter((t) => t.status !== 'rejected').sort((a, b) => a.name.localeCompare(b.name, 'tr')),
@@ -71,7 +78,6 @@ export const TeacherRolesPanel: React.FC = () => {
   const [matrixOpen, setMatrixOpen] = useState(false);
   const [sections, setSections] = useState<Map<string, SectionAccess>>(new Map());
   const [sectionsError, setSectionsError] = useState<string | null>(null);
-  const [sectionEditing, setSectionEditing] = useState<Teacher | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,14 +130,16 @@ export const TeacherRolesPanel: React.FC = () => {
   const list = useMemo(() => {
     const term = q.trim().toLocaleLowerCase('tr-TR');
     return teachers.filter((t) => {
-      if (kurumFilter && (t.kurumId || NO_KURUM) !== kurumFilter) return false;
+      if (locked) {
+        if ((t.kurumId || null) !== (kurumId || null)) return false;
+      } else if (kurumFilter && (t.kurumId || NO_KURUM) !== kurumFilter) return false;
       const rs = roles?.get(t.id) || [];
       if (roleFilter === '__empty__' && rs.length) return false;
       if (roleFilter && roleFilter !== '__empty__' && !rs.includes(roleFilter as TeacherRole)) return false;
       if (!term) return true;
       return [t.name, t.branch, t.email].some((v) => (v || '').toLocaleLowerCase('tr-TR').includes(term));
     });
-  }, [teachers, roles, q, kurumFilter, roleFilter]);
+  }, [teachers, roles, q, kurumFilter, roleFilter, locked, kurumId]);
 
   /** Bu kişiye rol verebilir miyim? (veritabanı da aynı kuralı denetler) */
   const lockReason = (t: Teacher): string | null => {
@@ -185,7 +193,7 @@ export const TeacherRolesPanel: React.FC = () => {
           </p>
         )}
 
-        <div className={cx('grid grid-cols-1 gap-2', isHead ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+        <div className={cx('grid grid-cols-1 gap-2', isHead && !locked ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -197,7 +205,7 @@ export const TeacherRolesPanel: React.FC = () => {
               className={cx(CTRL, 'pl-8 cursor-text')}
             />
           </div>
-          {isHead && (
+          {isHead && !locked && (
             <SelectBox aria-label="Kurum" value={kurumFilter} onChange={(e) => setKurumFilter(e.target.value)} className={CTRL}>
               <option value="">Kurum seçiniz</option>
               {kurumOptions.map((k) => (
@@ -227,7 +235,9 @@ export const TeacherRolesPanel: React.FC = () => {
                 const rs = sortRoles(roles?.get(t.id) || []) as TeacherRole[];
                 const lock = lockReason(t);
                 const sec = sections.get(t.id);
-                const secCount = sec ? sec.allow.length + sec.deny.length : 0;
+                const all = sec ? [...sec.allow, ...sec.deny] : [];
+                const permCount = all.filter(isPermEntry).length;
+                const secCount = all.length - permCount;
                 return (
                   <li key={t.id} className="flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2" data-teacher-id={t.id}>
                     <div className="min-w-0 sm:w-56 shrink-0">
@@ -253,30 +263,25 @@ export const TeacherRolesPanel: React.FC = () => {
                         ))
                       )}
                       {secCount > 0 && (
-                        <span className="ui-chip ui-chip-info" title="Rolünden bağımsız açılan / kapatılan bölümler">
-                          Özel izin: {secCount}
+                        <span className="ui-chip ui-chip-info" title="Unvanından bağımsız açılan / kapatılan bölümler">
+                          Bölüm: {secCount}
+                        </span>
+                      )}
+                      {permCount > 0 && (
+                        <span className="ui-chip ui-chip-brand" title="Unvanından bağımsız açılan / kapatılan işlemler">
+                          İşlem: {permCount}
                         </span>
                       )}
                     </div>
                     <button
                       type="button"
                       className={cx(BTN, 'ui-btn-secondary shrink-0')}
-                      onClick={() => setSectionEditing(t)}
-                      disabled={!!lock || roles === null || !!sectionsError}
-                      title={sectionsError || lock || 'Bölüm izinlerini düzenle'}
-                      data-section-edit={t.id}
-                    >
-                      {lock ? <Lock className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />} Bölümler
-                    </button>
-                    <button
-                      type="button"
-                      className={cx(BTN, 'ui-btn-secondary shrink-0')}
                       onClick={() => setEditing(t)}
-                      disabled={!!lock || roles === null}
-                      title={lock || 'Rolleri düzenle'}
-                      data-role-edit={t.id}
+                      disabled={!!lock || roles === null || !!sectionsError}
+                      title={sectionsError || lock || 'Unvan, bölüm ve işlem izinleri'}
+                      data-yetki-edit={t.id}
                     >
-                      {lock ? <Lock className="w-3.5 h-3.5" /> : <BadgeCheck className="w-3.5 h-3.5" />} Rol ver
+                      {lock ? <Lock className="w-3.5 h-3.5" /> : <ShieldCheck className="w-3.5 h-3.5" />} Yetkiler
                     </button>
                   </li>
                 );
@@ -305,36 +310,24 @@ export const TeacherRolesPanel: React.FC = () => {
       </div>
 
       {editing && (
-        <RoleEditModal
+        <YetkilerModal
           teacher={editing}
-          current={(roles?.get(editing.id) || []) as TeacherRole[]}
+          roles={(roles?.get(editing.id) || []) as TeacherRole[]}
+          access={sections.get(editing.id) || { allow: [], deny: [] }}
           canGiveMudur={isHead || gecis}
           rolesOff={rolesOff}
+          roleSettings={rs}
           onClose={() => setEditing(null)}
-          onSaved={() => {
-            // Liste ve günlük onTeacherRolesSaved ile güncellenir
-            setNotice({ tone: 'ok', text: `${editing.name} için roller kaydedildi.` });
-            setEditing(null);
-          }}
-        />
-      )}
-
-      {sectionEditing && (
-        <SectionEditModal
-          teacher={sectionEditing}
-          roles={(roles?.get(sectionEditing.id) || []) as TeacherRole[]}
-          current={sections.get(sectionEditing.id) || { allow: [], deny: [] }}
-          rolesOff={rolesOff}
-          onClose={() => setSectionEditing(null)}
-          onSaved={(saved) => {
+          onSaved={({ access }) => {
+            // Liste onTeacherRolesSaved ile güncellenir (rol değiştiyse saveTeacherRoles haber verir)
             setSections((prev) => {
               const next = new Map(prev);
-              if (saved.allow.length || saved.deny.length) next.set(sectionEditing.id, saved);
-              else next.delete(sectionEditing.id);
+              if (access.allow.length || access.deny.length) next.set(editing.id, access);
+              else next.delete(editing.id);
               return next;
             });
-            setNotice({ tone: 'ok', text: `${sectionEditing.name} için bölüm izinleri kaydedildi.` });
-            setSectionEditing(null);
+            setNotice({ tone: 'ok', text: `${editing.name} için yetkiler kaydedildi.` });
+            setEditing(null);
             fetchRoleLog(20).then(setLog).catch(() => {});
           }}
         />
@@ -374,262 +367,5 @@ export const TeacherRolesPanel: React.FC = () => {
         </ul>
       </Modal>
     </Panel>
-  );
-};
-
-// Aşama 98: rol yetkileri kapalıyken verilen rol ve bölüm izinleri uygulanmaz
-const RolesOffWarning: React.FC<{ id: string }> = ({ id }) => (
-  <p id={id} role="note" className="flex items-start gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-[11px] font-semibold">
-    <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-    <span>
-      Bu kurumda <b>Rol yetkileri kapalı</b>. Verdiğiniz roller ve bölüm izinleri kaydedilir ama uygulanmaz; açmak için Kurum Ayarları &gt; Rol
-      yetkileri (genel yönetici).
-    </span>
-  </p>
-);
-
-// ----------------------------------------------------------------------------- Rol ver penceresi (küçük)
-const RoleEditModal: React.FC<{
-  teacher: Teacher;
-  current: TeacherRole[];
-  canGiveMudur: boolean;
-  rolesOff?: boolean;
-  onClose: () => void;
-  onSaved: (roles: TeacherRole[]) => void;
-}> = ({ teacher, current, canGiveMudur, rolesOff, onClose, onSaved }) => {
-  const [sel, setSel] = useState<TeacherRole[]>(current);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasBranch = !!(teacher.branch || '').trim();
-  const mudurLocked = !canGiveMudur;
-
-  const toggle = (code: TeacherRole) => {
-    setError(null);
-    setSel((prev) => {
-      if (prev.includes(code)) {
-        // Zümre başkanı seçiliyken öğretmen rolü kaldırılamaz
-        if (code === 'ogretmen' && prev.includes('zumre_baskani')) return prev;
-        return prev.filter((x) => x !== code);
-      }
-      const next = [...prev, code];
-      if (code === 'zumre_baskani' && !next.includes('ogretmen')) next.push('ogretmen');
-      return next;
-    });
-  };
-
-  const changed = sortRoles(sel).join(',') !== sortRoles(current).join(',');
-
-  const handleSave = async () => {
-    if (!changed || saving) return;
-    if (sel.includes('zumre_baskani') && !hasBranch) {
-      setError('Zümre başkanı rolü için öğretmenin branşı kayıtlı olmalıdır.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const saved = await saveTeacherRoles(teacher.id, sortRoles(sel) as TeacherRole[]);
-      onSaved(saved);
-    } catch (e: any) {
-      setError(e?.message || 'Roller kaydedilemedi.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      icon={BadgeCheck}
-      title="Rol ver"
-      description={`${teacher.name}${teacher.branch ? ` · ${teacher.branch}` : ''}`}
-      size="sm"
-      id="role-edit-modal"
-      footer={
-        <>
-          <button type="button" onClick={onClose} className={cx(BTN, 'ui-btn-secondary')}>
-            İptal
-          </button>
-          <button type="button" onClick={handleSave} disabled={!changed || saving} className={cx(BTN, 'ui-btn-primary')} id="role-edit-save">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
-          </button>
-        </>
-      }
-    >
-      <div className="space-y-2.5">
-        {rolesOff && <RolesOffWarning id="role-modal-off-warning" />}
-        <p className="text-[11px] text-muted">Birden fazla rol seçebilirsiniz. Seçili rolün açıklaması aşağıda görünür.</p>
-        <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Roller">
-          {ROLE_DEFS.map((r) => {
-            const on = sel.includes(r.code);
-            const locked = (r.code === 'mudur' && mudurLocked) || (r.code === 'ogretmen' && on && sel.includes('zumre_baskani')) || (r.code === 'zumre_baskani' && !hasBranch && !on);
-            const reason =
-              r.code === 'mudur' && mudurLocked
-                ? 'Müdür rolünü yalnızca genel yönetici verebilir'
-                : r.code === 'zumre_baskani' && !hasBranch
-                  ? 'Önce öğretmenin branşını kaydedin'
-                  : r.code === 'ogretmen' && locked
-                    ? 'Zümre başkanı öğretmen rolüyle birlikte verilir'
-                    : r.description;
-            return (
-              <label
-                key={r.code}
-                title={reason}
-                className={cx(
-                  'flex items-center gap-2 h-8 px-2.5 rounded-lg border text-xs transition-colors select-none',
-                  locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-                  on ? 'border-brand bg-brand-soft text-fg font-semibold' : 'border-line bg-surface text-fg-2 hover:bg-surface-2'
-                )}
-              >
-                <input type="checkbox" checked={on} disabled={locked} onChange={() => toggle(r.code)} className="accent-indigo-600" data-role={r.code} />
-                <span className="truncate">{r.label}</span>
-                {r.code === 'mudur' && mudurLocked && <Lock className="w-3 h-3 ml-auto shrink-0" />}
-              </label>
-            );
-          })}
-        </div>
-        {sel.length > 0 && (
-          <ul className="space-y-0.5 text-[11px] text-fg-2">
-            {sortRoles(sel).map((c) => (
-              <li key={c}>
-                <b>{roleLabel(c)}:</b> {ROLE_BY_CODE[c as TeacherRole]?.description}
-              </li>
-            ))}
-          </ul>
-        )}
-        {error && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {error}
-          </p>
-        )}
-      </div>
-    </Modal>
-  );
-};
-
-// ----------------------------------------------------------------------------- Aşama 83: Bölümler penceresi (küçük)
-const MODE_OPTS: Array<{ mode: SectionMode; label: string }> = [
-  { mode: 'role', label: 'Rolden' },
-  { mode: 'allow', label: 'Açık' },
-  { mode: 'deny', label: 'Kapalı' },
-];
-const SEG = 'h-7 w-14 inline-flex items-center justify-center text-[11px] font-semibold transition-colors';
-
-const SectionEditModal: React.FC<{
-  teacher: Teacher;
-  roles: TeacherRole[];
-  current: SectionAccess;
-  rolesOff?: boolean;
-  onClose: () => void;
-  onSaved: (access: SectionAccess) => void;
-}> = ({ teacher, roles, current, rolesOff, onClose, onSaved }) => {
-  const initial = useMemo(() => {
-    const m: Record<string, SectionMode> = {};
-    SECTION_DEFS.forEach((d) => {
-      m[d.key] = current.allow.includes(d.key) ? 'allow' : current.deny.includes(d.key) ? 'deny' : 'role';
-    });
-    return m;
-  }, [current]);
-  const [modes, setModes] = useState<Record<string, SectionMode>>(initial);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const changed = SECTION_DEFS.some((d) => modes[d.key] !== initial[d.key]);
-
-  const handleSave = async () => {
-    if (!changed || saving) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const allow = SECTION_DEFS.filter((d) => modes[d.key] === 'allow').map((d) => d.key) as SectionKey[];
-      const deny = SECTION_DEFS.filter((d) => modes[d.key] === 'deny').map((d) => d.key) as SectionKey[];
-      onSaved(await saveTeacherSections(teacher.id, { allow, deny }));
-    } catch (e: any) {
-      setError(e?.message || 'Bölüm izinleri kaydedilemedi.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      icon={LayoutGrid}
-      title="Bölüm izinleri"
-      description={`${teacher.name}${roles.length ? ` · ${sortRoles(roles).map(roleLabel).join(', ')}` : ' · Rol verilmedi'}`}
-      size="sm"
-      id="section-edit-modal"
-      footer={
-        <>
-          <button type="button" onClick={onClose} className={cx(BTN, 'ui-btn-secondary')}>
-            İptal
-          </button>
-          <button type="button" onClick={handleSave} disabled={!changed || saving} className={cx(BTN, 'ui-btn-primary')} id="section-edit-save">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
-          </button>
-        </>
-      }
-    >
-      <div className="space-y-2.5">
-        {rolesOff && <RolesOffWarning id="section-modal-off-warning" />}
-        <p className="text-[11px] text-muted">
-          <b>Rolden</b>: rolüne göre. <b>Açık</b> / <b>Kapalı</b>: rolünden bağımsız. Kurumda kapalı olan bölüm yine açılmaz; kişi kaydettikten sonra
-          sayfayı yenilemelidir.
-        </p>
-        <ul className="rounded-lg border border-line divide-y divide-line" role="group" aria-label="Bölümler">
-          {SECTION_DEFS.map((d) => {
-            const byRole = roleOpensSection(roles, d.key);
-            const mode = modes[d.key];
-            const effective = mode === 'allow' || (mode === 'role' && byRole);
-            return (
-              <li key={d.key} className="flex items-center gap-2 px-2.5 py-1.5" data-section={d.key}>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-semibold text-fg truncate">{d.label}</span>
-                  <span className={cx('block text-[10.5px]', effective ? 'text-success-fg' : 'text-subtle')}>
-                    {effective ? 'Açık' : 'Kapalı'}
-                    {mode === 'role' ? ` (rolüne göre)` : ' (özel izin)'}
-                  </span>
-                </span>
-                <span className="inline-flex rounded-lg border border-line-strong overflow-hidden shrink-0 divide-x divide-line-strong">
-                  {MODE_OPTS.map((o) => {
-                    const on = mode === o.mode;
-                    return (
-                      <button
-                        key={o.mode}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => {
-                          setError(null);
-                          setModes((prev) => ({ ...prev, [d.key]: o.mode }));
-                        }}
-                        className={cx(
-                          SEG,
-                          on
-                            ? o.mode === 'deny'
-                              ? 'bg-danger-soft text-danger-fg'
-                              : o.mode === 'allow'
-                                ? 'bg-success-soft text-success-fg'
-                                : 'bg-brand-soft text-fg'
-                            : 'bg-surface text-muted hover:bg-surface-2'
-                        )}
-                        data-mode={o.mode}
-                      >
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {error && (
-          <p role="alert" className="text-xs font-semibold text-danger-fg">
-            {error}
-          </p>
-        )}
-      </div>
-    </Modal>
   );
 };

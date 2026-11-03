@@ -593,6 +593,8 @@ export const DenemeKarne: React.FC<{
   // Aşama 92: kapsam değişince karne yeniden seçilen denemelerin ortalamasıyla açılır
   useEffect(() => setDetailExamId(''), [scope, picked]);
   const isAdmin = dataService.isCurrentUserAdmin();
+  // Aşama 143: karne e-posta / SMS düğmeleri sunucudaki karne_can_send ile aynı kurala bağlı (Rehberlik + kişiye özel izin)
+  const canSend = dataService.canSendKarne();
   const teacherName = dataService.getCurrentTeacher()?.name || '';
   const [sinifTur, setSinifTur] = useHistoryState<SinifTur>('deneme.karne.sinifTur', 'genel'); // Aşama 55
   const [heatOpts, setHeatOpts] = useState<HeatOptions>(() => ({ ...DEFAULT_HEAT_OPTIONS, subjectKey: branchSubjectKey() }));
@@ -1025,7 +1027,7 @@ export const DenemeKarne: React.FC<{
             <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy} onClick={() => void onPdf()}>
               <Download /> PDF indir
             </button>
-            {mode === 'ogrenci' && !limited && (
+            {mode === 'ogrenci' && canSend && (
               <>
                 {/* Aşama 133 (119b geri): seçili öğrencide tek tık — alıcı düğmeden belli, pencere açılmaz */}
                 <button type="button" id="karne-ogrenci-mail" className={TEK_BTN} disabled={busy} onClick={() => void onMail({ ogrenci: true, veli: false })} title="Karneyi yalnız öğrencinin e-posta adresine gönderir">
@@ -1083,7 +1085,7 @@ export const DenemeKarne: React.FC<{
             tur={tur}
             bank={bank}
             teacherName={teacherName}
-            downloadOnly={limited}
+            downloadOnly={limited || !canSend}
             tekExamId={tekExamId}
           />
         )}

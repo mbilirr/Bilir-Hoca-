@@ -4619,6 +4619,23 @@ class DataService {
     return r.length > 0 && r.every((x) => x === 'etut_ogretmeni');
   }
   /** Ders verebilir mi (ödev, etüt, plan, soru hedefi) — rolü olmayan öğretmen bugünkü gibi verir */
+  /**
+   * Aşama 143: kişiye özel İŞLEM izni ('allow' | 'deny' | null = rolden). Bölümlerle aynı kayıtta "izin:<anahtar>" diye
+   * tutulur; veritabanındaki perm_mode() ile aynı: yalnız rol yetkileri açıkken ve idare (kurum yön. / Müdür / Yrd.) değilse.
+   */
+  public permMode(key: string): 'allow' | 'deny' | null {
+    if (!this.rolesActive() || this.isKurumAdmin()) return null;
+    const k = 'izin:' + key;
+    const sec = this.myKurum.sections || { allow: [], deny: [] };
+    if ((sec.deny || []).includes(k)) return 'deny';
+    if ((sec.allow || []).includes(k)) return 'allow';
+    return null;
+  }
+  /** İzin "Rolden" ise rolün verdiği, değilse kişiye özel karar */
+  private permOr(key: string, byRole: () => boolean): boolean {
+    const m = this.permMode(key);
+    return m === 'allow' ? true : m === 'deny' ? false : byRole();
+  }
   /** Aşama 83: bu bölüm bana kişiye özel AÇILMIŞ mı */
   public sectionExplicitAllow(tab: string): boolean {
     return this.rolesActive() && (this.myKurum.sections?.allow || []).includes(tab);
@@ -4693,12 +4710,21 @@ class DataService {
   /** Veli iletişim bilgilerini görebilir mi (anahtar açıkken: yönetici, Rehberlik, Ölçme Değerlendirme) */
   public canSeeParentContacts(): boolean {
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
-    return this.roleWideView();
+    return this.permOr('veli_bilgi', () => this.roleWideView()); // Aşama 143: contact_role_ok ile aynı
   }
   /** Veli duyurusu (e-posta / SMS) gönderebilir mi — rol yetkileri açıkken yönetici, Rehberlik, Ölçme Değerlendirme */
   public canSendParentAnnouncements(): boolean {
     if (!this.rolesActive() || this.isKurumAdmin()) return true;
-    return this.roleWideView();
+    return this.permOr('duyuru', () => this.roleWideView()); // Aşama 143: duyuru_ok ile aynı
+  }
+  /**
+   * Aşama 143: sınav karnesi gönderebilir mi (e-posta / SMS / link iptali). Veritabanındaki karne_can_send ile aynı:
+   * genel yönetici; deneme modülü açık kurumda yönetici, Rehberlik, Ölçme Değerlendirme ya da kişiye özel izin.
+   */
+  public canSendKarne(): boolean {
+    if (this.isHeadAdmin()) return true;
+    if (!this.myKurum.kurumId || this.myKurum.modules?.deneme !== true) return false;
+    return this.permOr('karne_gonder', () => this.isKurumAdmin() || this.roleWideView());
   }
   /** Mesajlar › Etüt Notları sekmesi açık mı (Ölçme Değerlendirme gibi etütle ilgisi olmayan roller görmez) */
   public canSeeEtutNotesTab(): boolean {
@@ -4728,7 +4754,8 @@ class DataService {
   public canManageDeneme(): boolean {
     if (this.isHeadAdmin()) return true;
     const mod = this.myKurum.modules?.deneme === true;
-    return mod && (this.isKurumAdmin() || this.hasRole('olcme_degerlendirme'));
+    // Aşama 143: kişiye özel "Deneme yükleme / düzenleme" izni (deneme_can_manage ile aynı)
+    return mod && (this.isKurumAdmin() || this.permOr('deneme_yonet', () => this.hasRole('olcme_degerlendirme')));
   }
   /**
    * Aşama 102: Deneme Analizi'nde yalnızca öğrenci / sınıf karnesini ve puan sıralamasını gören öğretmen
@@ -4745,7 +4772,8 @@ class DataService {
   public canEditStudents(): boolean {
     if (!this.myKurum.supported) return this.canManageStudents();
     if (this.isHeadAdmin()) return true;
-    return (this.isKurumAdmin() || this.roleWideView()) && this.canUseModule('manage_students');
+    // Aşama 143: kişiye özel "Öğrenci düzenleme" izni (kurum_student_editor ile aynı)
+    return (this.isKurumAdmin() || this.permOr('ogrenci_duzenle', () => this.roleWideView())) && this.canUseModule('manage_students');
   }
   /** Bu öğrenci silinebilir mi (yönetici; müdür izin verdiyse Rehberlik / Ölçme Değerlendirme) */
   public canDeleteStudent(student?: Student | null): boolean {
@@ -4903,8 +4931,11 @@ class DataService {
     // Aşama 82: öğrenci ekle / sil — yönetici (Müdür, Müdür Yrd.), müdür izin verdiyse Rehberlik
     // Aşama 108: Ölçme Değerlendirme de yalnızca kurum ayarındaki izinle (veritabanındaki kurum_student_adder ile aynı)
     const rs = this.myKurum.roleSettings || {};
-    const roleAdder =
-      (this.hasRole('rehberlik') && rs.rehberlik_ogrenci_ekle === true) || (this.hasRole('olcme_degerlendirme') && rs.olcme_ogrenci_ekle === true);
+    // Aşama 143: kişiye özel "Öğrenci ekleme / silme" izni (kurum_student_adder ile aynı)
+    const roleAdder = this.permOr(
+      'ogrenci_ekle_sil',
+      () => (this.hasRole('rehberlik') && rs.rehberlik_ogrenci_ekle === true) || (this.hasRole('olcme_degerlendirme') && rs.olcme_ogrenci_ekle === true)
+    );
     return (this.isKurumAdmin() || roleAdder) && this.canUseModule('manage_students');
   }
 
@@ -9723,7 +9754,10 @@ class DataService {
   }
   /** Başka öğretmene etüt verebilir mi (veritabanı da denetler, sql/111): genel yönetici, idare, Rehberlik */
   public canAssignEtutToOthers(): boolean {
-    return this.seesAllEtuts();
+    if (this.getAuthSession()?.role !== 'teacher') return false;
+    if (this.isHeadAdmin() || this.isCurrentUserAdmin() || this.isKurumAdmin()) return true;
+    // Aşama 143: kişiye özel "Başka öğretmen adına etüt" izni (etut_teacher_options ile aynı)
+    return this.rolesActive() && this.permOr('etut_ata', () => this.hasRole('rehberlik'));
   }
   /** Ekranda düzenle / sil / yoklama düğmeleri açık mı (Rehberlik ve Zümre başkasınınkini yalnız görür) */
   public canEditEtutPublic(e: Etut): boolean {

@@ -28,7 +28,11 @@ const sameDraft = (a: Draft, k: KurumInfo) =>
   a.grantedClassIds.length === k.grantedClassIds.length &&
   a.grantedClassIds.every((id) => k.grantedClassIds.includes(id));
 
-export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }) => {
+/**
+ * Aşama 143 (Yönetim sayfası): onlyKurumId verilirse yalnız o kurum açık gösterilir (bölümler ve izinli sınıflar);
+ * "Yeni kurum" düğmesi ve açıklama kutusu Yönetim sayfasının üst satırında olduğu için gizlenir.
+ */
+export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: string; onChanged?: () => void }> = ({ classes, onlyKurumId, onChanged }) => {
   const [kurumlar, setKurumlar] = useState<KurumInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -160,6 +164,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
     try {
       await dataService.saveKurum({ id: k.id, name: d.name, modules: d.modules, grantedClassIds: d.grantedClassIds });
       setMsg({ id: k.id, tone: 'ok', text: 'Kaydedildi. Kurumdaki kullanıcılar bir sonraki yenilemede yeni izinleri görür.' });
+      onChanged?.();
       const list = await dataService.listKurumlar();
       setKurumlar(list);
       const fresh = list.find((x) => x.id === k.id);
@@ -178,21 +183,23 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
       id="kurum-management"
       icon={Building2}
       tone="info"
-      title="Kurumlar"
+      title={onlyKurumId ? 'Bölümler ve sınıflar' : 'Kurumlar'}
       description="Kurum yöneticilerinin kullanabileceği bölümler ve onlara izin verdiğiniz sınıflar"
       actions={
         <>
+          {!onlyKurumId && (
           <button type="button" className="ui-btn ui-btn-sm ui-btn-primary h-8 w-28 justify-center" onClick={() => setNewOpen(true)} id="kurum-yeni">
             <Plus className="w-3.5 h-3.5" />
             Yeni kurum
           </button>
+          )}
           <button type="button" className="ui-btn ui-btn-sm ui-btn-secondary h-8 w-8 px-0 justify-center" onClick={load} title="Yenile" aria-label="Kurumları yenile">
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </>
       }
     >
-      <div className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2.5 text-xs mb-4">
+      <div className={cx('flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2.5 text-xs mb-4', onlyKurumId && 'hidden')}>
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
           Yeni kurumu <strong>"Yeni kurum"</strong> düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve
@@ -214,7 +221,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
         </p>
       )}
 
-      {(hiddenCount > 0 || duplicateNames.length > 0) && (
+      {!onlyKurumId && (hiddenCount > 0 || duplicateNames.length > 0) && (
         <div className="flex items-start gap-2 rounded-xl bg-warning-soft text-warning-fg px-3 py-2.5 text-xs mb-4" id="kurum-duplicate-note">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>
@@ -231,16 +238,17 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
       )}
 
       <div className="space-y-3">
-        {visibleKurumlar.map((k) => {
+        {visibleKurumlar.filter((k) => !onlyKurumId || k.id === onlyKurumId).map((k) => {
           const d = drafts[k.id] || { name: k.name, modules: k.modules, grantedClassIds: k.grantedClassIds };
           const members = teachers.filter((t) => t.kurumId === k.id);
           const admins = members.filter((t) => t.isAdmin);
-          const open = openId === k.id;
+          const open = openId === k.id || k.id === onlyKurumId;
           const dirty = !sameDraft(d, k);
           const q = classSearch.trim().toLocaleLowerCase('tr-TR');
           const visibleClasses = ownClasses.filter((c) => !q || c.name.toLocaleLowerCase('tr-TR').includes(q));
           return (
-            <div key={k.id} className="border border-line rounded-2xl overflow-hidden" data-kurum-id={k.id}>
+            <div key={k.id} className={cx('overflow-hidden', !onlyKurumId && 'border border-line rounded-2xl')} data-kurum-id={k.id}>
+              {!onlyKurumId && (
               <button
                 type="button"
                 onClick={() => setOpenId(open ? null : k.id)}
@@ -255,10 +263,11 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[] }> = ({ classes }
                 </span>
                 <ChevronDown className={cx('w-4 h-4 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
               </button>
+              )}
 
               {open && (
-                <div className="p-4 space-y-5">
-                  <div>
+                <div className={cx('space-y-5', onlyKurumId ? 'p-0' : 'p-4')}>
+                  <div className={cx(onlyKurumId && 'hidden')}>
                     <label className="block text-xs font-bold text-fg-2 mb-1" htmlFor={`kurum-name-${k.id}`}>
                       Kurum adı
                     </label>

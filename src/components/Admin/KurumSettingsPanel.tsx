@@ -51,7 +51,16 @@ const Switch: React.FC<{ on: boolean; disabled?: boolean; onChange: () => void; 
   </button>
 );
 
-export const KurumSettingsPanel: React.FC = () => {
+/**
+ * Aşama 143 (Yönetim sayfası): kurumId verilirse genel yönetici o kurumu düzenler (kurum seçici gizlenir);
+ * part ile yalnızca bir kısım gösterilir: 'genel' (ad, logo, e-posta), 'roller' (rol yetkileri), 'bolumler' (kurum bölümleri, geçişte).
+ */
+export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'genel' | 'roller' | 'bolumler'; onChanged?: () => void }> = ({
+  kurumId,
+  part = 'all',
+  onChanged,
+}) => {
+  const show = (x: 'genel' | 'roller' | 'bolumler') => part === 'all' || part === x;
   const [tick, setTick] = useState(0);
   useEffect(() => dataService.subscribe(() => setTick((t) => t + 1)), []);
   const isHead = dataService.isHeadAdmin();
@@ -61,7 +70,10 @@ export const KurumSettingsPanel: React.FC = () => {
 
   const [rows, setRows] = useState<KurumRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(kurumId || '');
+  useEffect(() => {
+    if (kurumId !== undefined) setSelectedId(kurumId);
+  }, [kurumId]);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   useAutoDismiss(notice, () => setNotice(null));
 
@@ -107,6 +119,7 @@ export const KurumSettingsPanel: React.FC = () => {
   const idDirty = !!kurum && (name.trim() !== kurum.name || logo !== undefined);
 
   const refreshAfter = async () => {
+    onChanged?.();
     if (isHead) {
       await loadRows();
       dataService.listKurumlar().catch(() => {});
@@ -147,7 +160,7 @@ export const KurumSettingsPanel: React.FC = () => {
   const [appPass, setAppPass] = useState('');
   const [mailBusy, setMailBusy] = useState(false);
   const loadMail = useCallback(async () => {
-    if (!kurum) return setMailAccount(undefined);
+    if (!kurum || !show('genel')) return setMailAccount(undefined); // Aşama 143: yalnız Genel'de okunur (gereksiz istek yok)
     const r = await callMail('kurum-mail-status', { kurumId: kurum.id });
     if (r.ok) setMailAccount((r.account as any) || null);
     else {
@@ -276,11 +289,19 @@ export const KurumSettingsPanel: React.FC = () => {
       id="kurum-settings-panel"
       icon={Building2}
       tone="brand"
-      title="Kurum Ayarları"
-      description="Kurum adı ve logosu, kurum e-postası ve rol yetkileri"
+      title={part === 'genel' ? 'Kurum bilgileri' : part === 'roller' ? 'Rol yetkileri' : part === 'bolumler' ? 'Kurum bölümleri' : 'Kurum Ayarları'}
+      description={
+        part === 'genel'
+          ? 'Kurum adı ve logosu, kurum gönderim e-postası'
+          : part === 'roller'
+            ? 'Rollere göre yetkiler ve rol ayarları'
+            : part === 'bolumler'
+              ? 'Kurumun kullanabileceği bölümler'
+              : 'Kurum adı ve logosu, kurum e-postası ve rol yetkileri'
+      }
     >
       <div className="space-y-4">
-        {isHead && (
+        {isHead && kurumId === undefined && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <SelectBox aria-label="Kurum" value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className={cx(CTRL, 'cursor-pointer')} id="kurum-settings-select">
               <option value="">Kurum seçiniz</option>
@@ -306,8 +327,9 @@ export const KurumSettingsPanel: React.FC = () => {
         {!kurum ? (
           <p className="text-xs text-muted">{isHead ? 'Ayarlarını görmek için kurum seçiniz.' : 'Kurum bilgisi yükleniyor…'}</p>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className={cx('grid grid-cols-1 gap-3', part === 'all' ? 'lg:grid-cols-3' : part === 'genel' ? 'lg:grid-cols-2' : '')}>
             {/* Ad ve logo */}
+            {show('genel') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-identity">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-brand-fg" /> Kurum adı ve logosu
@@ -339,8 +361,10 @@ export const KurumSettingsPanel: React.FC = () => {
               </div>
               <p className="text-[11px] text-muted">Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. Yüksek çözünürlüklü PNG (saydam zeminli) önerilir; boş kenarlar kendiliğinden kırpılır.</p>
             </section>
+            )}
 
             {/* Kurum e-postası */}
+            {show('genel') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-mail">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-brand-fg" /> Kurum gönderim e-postası
@@ -370,8 +394,10 @@ export const KurumSettingsPanel: React.FC = () => {
                 Bağlanınca kurumdaki bütün e-postalar bu adresten gider; veli ya da öğrenci "Yanıtla"ya basarsa yanıt öğretmene gider. Gmail'de iki adımlı doğrulama açık olmalı ve "Uygulama şifresi" alınmalıdır.
               </p>
             </section>
+            )}
 
             {/* Rol yetkileri */}
+            {show('roller') && (
             <section className="rounded-xl border border-line p-3 space-y-2.5" id="kurum-roles">
               <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> Rol yetkileri
@@ -416,9 +442,10 @@ export const KurumSettingsPanel: React.FC = () => {
                 </span>
               </p>
             </section>
+            )}
 
             {/* Aşama 98: kurum bölümleri — genel yönetici kuruma geçmişken */}
-            {gecis && (
+            {gecis && show('bolumler') && (
               <section className="rounded-xl border border-line p-3 space-y-2.5 lg:col-span-3" id="kurum-modules">
                 <h3 className="text-xs font-bold text-fg flex items-center gap-1.5">
                   <LayoutGrid className="w-3.5 h-3.5 text-brand-fg" /> Kurum bölümleri

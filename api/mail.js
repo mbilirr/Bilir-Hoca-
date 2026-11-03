@@ -1372,8 +1372,15 @@ async function actionParentAnnounce(caller, body, deadline) {
       rolesOn = false; // 82 numaralı SQL yoksa eski davranış
     }
     if (rolesOn) {
-      const ok = await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false);
-      if (ok !== true) throw new HttpError(403, 'Veli / öğrenci duyurusunu yalnızca Müdür, Müdür Yardımcısı, Rehberlik ve Ölçme Değerlendirme gönderebilir.');
+      // Aşama 143: kişiye özel "Veli / öğrenci duyurusu" izni (duyuru_ok); 143 SQL'i yoksa eski rol kuralı
+      let ok = false;
+      try {
+        ok = (await rest('rpc/duyuru_ok', { token: caller.token, method: 'POST', body: {} })) === true;
+      } catch (err) {
+        if (!rpcMissing(err)) throw err;
+        ok = (await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false)) === true;
+      }
+      if (!ok) throw new HttpError(403, 'Veli / öğrenci duyurusu gönderme izniniz yok. Kurum yöneticinizden "Yetkiler" penceresinden izin isteyin.');
     }
   }
 
@@ -3131,6 +3138,16 @@ const karneSelam = () => {
   const h = istanbulHour();
   return h >= 6 && h < 18 ? 'Hayırlı günler 🙂' : 'Hayırlı geceler 🙂';
 };
+// Aşama 143: kişiye özel izinlerle karne / duyuru yetkisi. 143 SQL'i kurulmamışsa eski kurala düşer.
+const rpcMissing = (err) => !!err && (err.code === 'PGRST202' || err.code === '42883' || err.status === 404);
+async function karneCanSend(token) {
+  try {
+    return (await rest('rpc/karne_can_send', { token, method: 'POST', body: {} })) === true;
+  } catch (err) {
+    if (!rpcMissing(err)) throw err;
+    return (await rest('rpc/deneme_can_manage', { token, method: 'POST', body: {} })) === true;
+  }
+}
 async function actionDenemeKarne(caller, body, req, deadline) {
   const studentId = String(body.studentId || '');
   if (!studentId || studentId.length > 120) throw new HttpError(400, 'Eksik bilgi.');
@@ -3138,8 +3155,7 @@ async function actionDenemeKarne(caller, body, req, deadline) {
   const toStudent = au.ogrenci === true;
   const toVeli = au.veli === true;
   if (!toStudent && !toVeli) throw new HttpError(400, 'Alıcı seçin (öğrenci ve/veya veli).');
-  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
-  if (can !== true) throw new HttpError(403, 'Deneme karnesi göndermek için yetkiniz yok.');
+  if (!(await karneCanSend(caller.token))) throw new HttpError(403, 'Deneme karnesi göndermek için yetkiniz yok.');
   // Yöneticinin bu öğrencinin sonucunu görme yetkisi var mı? (kendi oturumuyla; veritabanı kuralları denetler)
   const vis = await rest(`deneme_results?select=id&student_id=eq.${encodeURIComponent(studentId)}&limit=1`, { token: caller.token });
   if (!vis || !vis.length) throw new HttpError(404, 'Bu öğrencinin size açık bir deneme sonucu yok.');
@@ -3249,7 +3265,7 @@ async function karneLinkMod() {
   }
   return karneLinkModCache;
 }
-const KARNE_TURLERI = new Set(['genel', 'kazanim', 'plan', 'oncelik', 'veli', 'tek']); // Aşama 135: tek = tek sayfa sonuç karnesi
+const KARNE_TURLERI = new Set(['genel', 'kazanim', 'plan', 'oncelik', 'veli']);
 const karneDay = () => new Date(Date.now() + 3 * 3600000).toISOString().slice(0, 10); // İstanbul günü
 
 async function actionKarneSms(caller, body, req) {
@@ -3270,8 +3286,7 @@ async function actionKarneSms(caller, body, req) {
   if (!KARNE_TURLERI.has(tur)) throw fatal(400, 'Karne türü geçersiz.');
   const examIds = Array.isArray(body.examIds) ? body.examIds.map(String).filter((x) => x && x.length <= 120).slice(0, 60) : [];
   if (!examIds.length) throw fatal(400, 'Deneme seçilmedi.');
-  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
-  if (can !== true) throw fatal(403, 'Karne göndermek için yetkiniz yok.');
+  if (!(await karneCanSend(caller.token))) throw fatal(403, 'Karne göndermek için yetkiniz yok.');
   const vis = await rest(`deneme_results?select=id&student_id=eq.${encodeURIComponent(studentId)}&limit=1`, { token: caller.token });
   if (!vis || !vis.length) throw new HttpError(404, 'Bu öğrencinin size açık bir deneme sonucu yok.');
   const st = (await rest(`students?select=id,status&id=eq.${encodeURIComponent(studentId)}`, { token: 'service' })) || [];
@@ -3353,8 +3368,7 @@ async function actionKarneLinkRevoke(caller, body) {
   // Aşama 119: "Tüm sınıflar" için classIds (en çok 200 sınıf); tek sınıf için eskisi gibi classId
   const classIds = (Array.isArray(body.classIds) ? body.classIds : [body.classId]).map((x) => String(x || '')).filter((x) => x && x.length <= 120).slice(0, 200);
   if (!classIds.length) throw new HttpError(400, 'Sınıf seçilmedi.');
-  const can = await rest('rpc/deneme_can_manage', { token: caller.token, method: 'POST', body: {} });
-  if (can !== true) throw new HttpError(403, 'Karne linklerini iptal etmek için yetkiniz yok.');
+  if (!(await karneCanSend(caller.token))) throw new HttpError(403, 'Karne linklerini iptal etmek için yetkiniz yok.');
   const ids = [];
   for (let i = 0; i < classIds.length; i += 20) {
     const sts = (await rest(`students?select=id&class_id=in.${inList(classIds.slice(i, i + 20))}`, { token: caller.token })) || [];

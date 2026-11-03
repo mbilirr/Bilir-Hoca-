@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition } from 'react';
 import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
-import { PageHeader } from './components/ui/kit';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
 import { TeacherBottomNav } from './components/Layout/BottomNav';
@@ -60,16 +59,10 @@ const EtutManagement = lazyNamed(PAGE_LOADERS.etuts, 'EtutManagement');
 const TeacherMessages = lazyNamed(PAGE_LOADERS.messages, 'TeacherMessages');
 const TeacherHome = lazyNamed(PAGE_LOADERS.home, 'TeacherHome');
 const TeacherDocumentsArchive = lazyNamed(PAGE_LOADERS.archive, 'TeacherDocumentsArchive');
-const KurumManagement = lazyNamed(() => import('./components/Admin/KurumManagement'), 'KurumManagement');
 const GradeAttendance = lazyNamed(PAGE_LOADERS.grades, 'GradeAttendance');
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
-const AdminMaintenancePanel = lazyNamed(() => import('./components/Admin/AdminMaintenancePanel'), 'AdminMaintenancePanel');
-const NotificationPolicyPanel = lazyNamed(() => import('./components/Admin/NotificationPolicyPanel'), 'NotificationPolicyPanel');
-const TeacherRolesPanel = lazyNamed(() => import('./components/Admin/TeacherRolesPanel'), 'TeacherRolesPanel'); // Aşama 81
-const KurumSettingsPanel = lazyNamed(() => import('./components/Admin/KurumSettingsPanel'), 'KurumSettingsPanel'); // Aşama 82
-const AdminUserManagement = lazyNamed(() => import('./components/Admin/AdminUserManagement'), 'AdminUserManagement');
-const UserCredentialsExport = lazyNamed(() => import('./components/Admin/UserCredentialsExport'), 'UserCredentialsExport');
+const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
 const Asama25Rehberi = lazyNamed(() => import('./components/Admin/Asama25Rehberi'), 'Asama25Rehberi');
 const StudentPortal = lazyNamed(STUDENT_LOADERS[0], 'StudentPortal');
 // Aşama 107: önizlemede öğrenci seçme kutusu (yalnız önizleme açılınca indirilir)
@@ -679,46 +672,13 @@ export default function App() {
 
                   {teacherTab === 'deneme' && <DenemeAnalizi students={students} classes={classes} />}
 
-                  {teacherTab === 'user_management' && dataService.isHeadAdmin() && (
-                    <div className="space-y-6 mb-6">
-                      <PageHeader
-                        icon={ShieldCheck}
-                        tone="warning"
-                        title="Yönetim"
-                        description="Veri yedeği, kurumlar, kullanıcılar ve yetkiler"
-                        actions={
-                          <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" onClick={() => setIsAsama25GuideOpen(true)}>
-                            Aşama 25 Rehberi
-                          </button>
-                        }
-                      />
-                      <AdminMaintenancePanel />
-                      <NotificationPolicyPanel />
-                      <UserCredentialsExport classes={classes} />
-                      {dataService.isKurumSupported() && <KurumManagement classes={classes} />}
-                      <KurumSettingsPanel />
-                      <TeacherRolesPanel />
-                    </div>
-                  )}
-
-                  {teacherTab === 'user_management' && dataService.isKurumAdmin() && (
-                    <div className="space-y-6 mb-6">
-                      <PageHeader
-                        icon={ShieldCheck}
-                        tone="warning"
-                        title={dataService.getMyKurum().kurumName || 'Kurumum'}
-                        description="Kurumunuzun öğretmenleri, öğrencileri ve yetkileri"
-                      />
-                      <UserCredentialsExport classes={classes} />
-                      <KurumSettingsPanel />
-                      <TeacherRolesPanel />
-                    </div>
-                  )}
-
+                  {/* Aşama 143: Yönetim sayfası bölümlere ayrıldı (Kurumlar · Bildirim ve SMS · Yedek ve bakım · Kendi alanım) */}
                   {teacherTab === 'user_management' && (
-                    <AdminUserManagement
-                      currentAdmin={currentTeacher}
+                    <YonetimSayfasi
+                      classes={classes}
+                      currentTeacher={currentTeacher}
                       onNavigateHome={() => setTeacherTab('home')}
+                      onOpenGuide={() => setIsAsama25GuideOpen(true)}
                     />
                   )}
                   </Suspense>

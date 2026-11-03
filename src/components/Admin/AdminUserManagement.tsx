@@ -32,6 +32,7 @@ import {
   Shield,
   CheckCircle2,
   UserPlus,
+  BadgeCheck,
 } from 'lucide-react';
 import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -41,6 +42,7 @@ import { MailOptIn } from '../Teacher/FormParts';
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, type TeacherRole } from '../../lib/teacherRoles';
 import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
 import { GradeTicks } from './GradeTicks';
+import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
 
 // Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
 const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
@@ -65,11 +67,23 @@ const toastType = (tone: string): 'success' | 'error' | 'info' => (tone === 'suc
 interface AdminUserManagementProps {
   currentAdmin?: Teacher | null;
   onNavigateHome?: () => void;
+  /**
+   * Aşama 143 (Yönetim sayfası): liste bir kuruma ('merkez' = kurumsuz kayıtlarınız) ve bir türe (öğretmen / öğrenci) kilitlenir;
+   * embedded iken büyük başlık, sayı kartları ve hızlı süzgeç düğmeleri gizlenir (Yönetim sayfası kendi başlığını gösterir).
+   */
+  kurumLock?: string;
+  roleLock?: 'teacher' | 'student';
+  embedded?: boolean;
+  roleSettings?: { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean } | null;
 }
 
 export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   currentAdmin,
   onNavigateHome,
+  kurumLock,
+  roleLock,
+  embedded = false,
+  roleSettings,
 }) => {
   // Data states
   const [users, setUsers] = useState<UnifiedUser[]>([]);
@@ -83,7 +97,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all');
   // Aşama 18: genel yönetici için kurum süzgeci ('' = tümü, 'merkez' = kurumsuz)
   // Aşama 97: genel yönetici listeyi önce kendi (kurumsuz) kayıtlarıyla görür; kurumlar süzgeçten seçilir
-  const [kurumFilter, setKurumFilter] = useState<string>(() => (dataService.isHeadAdmin() ? 'merkez' : ''));
+  const [kurumFilter, setKurumFilter] = useState<string>(() => kurumLock ?? (dataService.isHeadAdmin() ? 'merkez' : ''));
+  useEffect(() => {
+    if (kurumLock !== undefined) setKurumFilter(kurumLock);
+  }, [kurumLock]);
+  const [yetkiTeacherId, setYetkiTeacherId] = useState<string | null>(null); // Aşama 143
 
   // Modal states
   const [editModalUser, setEditModalUser] = useState<UnifiedUser | null>(null);
@@ -221,6 +239,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     const searchQuery = deferredQuery;
     return users.filter((u) => {
       // Role filter
+      if (roleLock === 'student' ? u.role !== 'student' : roleLock === 'teacher' ? u.role === 'student' : false) return false;
       if (roleFilter !== 'all' && u.role !== roleFilter) return false;
       // Kurum filter
       if (kurumFilter === 'merkez' && u.kurumId) return false;
@@ -250,8 +269,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       return true;
     });
-  }, [users, roleFilter, statusFilter, deferredQuery, kurumFilter]);
-  const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}|${kurumFilter}`);
+  }, [users, roleFilter, statusFilter, deferredQuery, kurumFilter, roleLock]);
+  const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}|${kurumFilter}|${roleLock || ''}`);
 
   // Aşama 18: genel yönetici her şeyi, kurum yöneticisi yalnızca kendi kurumunu yönetir
   const isHead = dataService.isHeadAdmin();
@@ -534,6 +553,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
+      {yetkiTeacherId && (
+        <YetkilerAcici
+          teacherId={yetkiTeacherId}
+          roleSettings={roleSettings}
+          onClose={() => setYetkiTeacherId(null)}
+          onSaved={(m) => showToast(m, 'success')}
+        />
+      )}
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-6 right-6 z-[10000] max-w-md animate-in slide-in-from-bottom-3 duration-200">
@@ -554,7 +581,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         </div>
       )}
 
-      {/* Bölüm başlığı */}
+      {!embedded && (
+        <>
+{/* Bölüm başlığı */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-warning-soft text-warning-fg flex items-center justify-center shrink-0">
@@ -589,17 +618,21 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           )}
         </div>
       </div>
+        </>
+      )}
 
       {/* Öğrenci kayıt başvuruları (onay / red) */}
       {/* Aşama 99b: genel yönetici kendi (kurumsuz) başvurularını, kurum idaresi kendi kurumununkileri onaylar */}
-      {dataService.canReviewApplications() && (
+      {dataService.canReviewApplications() && roleLock !== 'teacher' && (
         <StudentApplicationsPanel
           classes={isHead ? classes.filter((c) => !c.kurumId) : classes.filter((c) => !!c.kurumId && c.kurumId === dataService.getMyKurumId())}
           onToast={showToast}
         />
       )}
 
-      {/* Metric Cards - Clickable Interactive Filters */}
+      {!embedded && (
+        <>
+{/* Metric Cards - Clickable Interactive Filters */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {/* Toplam */}
         <button
@@ -727,6 +760,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <span className="text-[10px] text-orange-700/70 dark:text-orange-400/70 mt-1 block">Öğretmen Başvurusu</span>
         </button>
       </div>
+        </>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-surface/95 border border-line rounded-2xl p-4 shadow-md flex flex-col gap-3">
@@ -753,7 +788,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
           <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
             {/* Role Filter */}
-            <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5">
+            <div className={`flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5 ${roleLock ? 'hidden' : ''}`}>
               <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <select
                 value={roleFilter}
@@ -783,7 +818,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             </div>
 
             {/* Kurum Filter (genel yönetici) */}
-            {isHead && kurumOptions.length > 0 && (
+            {isHead && kurumLock === undefined && kurumOptions.length > 0 && (
               <div className="flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5">
                 <select
                   id="users-kurum-filter"
@@ -803,23 +838,51 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               </div>
             )}
 
-            {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all' || kurumFilter) && (
+            {(searchQuery || roleFilter !== 'all' || statusFilter !== 'all' || (kurumLock === undefined && kurumFilter)) && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
                   setRoleFilter('all');
                   setStatusFilter('all');
-                  setKurumFilter('');
+                  setKurumFilter(kurumLock ?? '');
                 }}
                 className="px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-fg text-xs font-bold transition-colors cursor-pointer"
               >
                 Temizle
               </button>
             )}
+            {embedded && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-8 px-0 justify-center"
+                  title="Verileri yeniden yükle"
+                  aria-label="Verileri yeniden yükle"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+                {canManageTeachers && roleLock !== 'student' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateTeacherOpen(true)}
+                    className="ui-btn ui-btn-primary ui-btn-sm h-8 w-28 justify-center"
+                    title="Yeni öğretmen için giriş hesabı aç"
+                    id="yonetim-yeni-ogretmen"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Öğretmen</span>
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
+        {!embedded && (
+          <>
         {/* Quick Role & Status Filter Pill Buttons */}
         <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-line">
           <span className="text-[11px] font-bold text-muted">Hızlı Filtre:</span>
@@ -913,6 +976,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             <span>Onay Bekleyen ({stats.pending})</span>
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* Users Table */}
@@ -1136,6 +1201,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             </button>
                           )}
 
+                          {/* Aşama 143: unvan, bölüm ve işlem izinleri (kurum öğretmeni) */}
+                          {u.role !== 'student' && !!u.kurumId && manageable && !isCurrentAdminSelf && (
+                            <button
+                              type="button"
+                              onClick={() => setYetkiTeacherId(u.id)}
+                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-brand-fg border border-line transition-colors cursor-pointer"
+                              title="Yetkiler (unvan, bölümler, işlem izinleri)"
+                              aria-label="Yetkiler"
+                              data-yetki-open={u.id}
+                            >
+                              <BadgeCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
                           {/* Bilgi & Şifre Düzenle (Admin Override) */}
                           <button
                             type="button"
@@ -1221,13 +1300,27 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditModalUser(null)}
-                className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Aşama 143: aynı Yetkiler penceresi (unvan, bölümler, işlem izinleri) */}
+                {editModalUser.role !== 'student' && !!editModalUser.kurumId && editModalUser.id !== currentAdmin?.id && (
+                  <button
+                    type="button"
+                    onClick={() => setYetkiTeacherId(editModalUser.id)}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    id="edit-yetkiler-btn"
+                    title="Unvan, bölümler ve işlem izinleri"
+                  >
+                    <BadgeCheck className="w-3.5 h-3.5" /> Yetkiler
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setEditModalUser(null)}
+                  className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Form */}
