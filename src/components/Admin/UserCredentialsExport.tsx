@@ -1,4 +1,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { fetchTeacherContacts, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
+import { birthDateLabel } from '../../lib/teacherImport';
 import { FileSpreadsheet, Download, Info, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react';
 import { dataService, ADMIN_EMAIL, type InitialCredentialInfo } from '../../services/dataService';
 import type { ClassGroup, Student, Teacher } from '../../types';
@@ -225,8 +227,11 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
           'Hesap Durumu',
           'E-posta',
           'Telefon',
+          'Doğum Tarihi', // Aşama 144
           'Şifre Verilme Tarihi',
         ];
+        // Aşama 144: öğretmen telefonu / doğum tarihi korumalı tablodan (SQL 144 yoksa boş)
+        const contacts = await fetchTeacherContacts(true).catch(() => new Map<string, TeacherContact>());
         const rows: Row[] = myTeachers.map((t, i) => {
           const cred = creds.get(`teacher:${t.id}`);
           if (cred?.password) withPassword++;
@@ -242,7 +247,8 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
             headRow ? 'Gerçek e-posta ile giriş (listelenmez)' : statusText(cred, !!t.auth_user_id || !!cred),
             t.isSuspended || t.status === 'suspended' ? 'Askıda' : t.status === 'pending' ? 'Onay bekliyor' : 'Aktif',
             t.email || '',
-            t.phone || '',
+            contacts.get(t.id)?.phone || t.phone || '',
+            birthDateLabel(contacts.get(t.id)?.birthDate),
             fmtDate(cred?.setAt),
           ];
         });

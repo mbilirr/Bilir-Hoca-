@@ -1572,11 +1572,14 @@ async function actionCredentialsSend(caller, body, req, deadline) {
   if (raw.length > CRED_MAX_TARGETS) throw new HttpError(400, `Bir istekte en çok ${CRED_MAX_TARGETS} kişi gönderilebilir.`);
   const targets = [];
   const seenIds = new Set();
+  // Aşama 144: öğretmen hedefleri ayrı dalda (bir istekte öğrenci ve öğretmen karışmaz)
+  const types = new Set(raw.map((t) => (t && t.type === 'teacher' ? 'teacher' : 'student')));
+  if (types.size > 1) throw new HttpError(400, 'Öğrenci ve öğretmen aynı gönderimde birleştirilemez.');
+  if (types.has('teacher')) return actionTeacherCredentialsSend(caller, body, raw, sendId, req, deadline);
   for (const t of raw) {
     const type = t && t.type === 'teacher' ? 'teacher' : t && t.type === 'student' ? 'student' : '';
     const id = String((t && t.id) || '');
     if (!type || !id || id.length > 120 || id.startsWith('__')) throw new HttpError(400, 'Geçersiz kişi.');
-    if (type === 'teacher') throw new HttpError(400, 'Öğretmen giriş bilgisi gönderimi bu sürümde yok.');
     if (seenIds.has(id)) continue;
     seenIds.add(id);
     let password = '';
@@ -1740,6 +1743,179 @@ async function actionCredentialsSend(caller, body, req, deadline) {
       role: m.role,
       noVeliCopy: true,
       ...credentialMail(m.role, m.st, m.password, url, kurumName, m.name),
+    }));
+    const sender = await resolveSender(caller);
+    const s = await deliver(sender, caller, items, deadline);
+    result.mail = {
+      recipients: items.length,
+      sent: s.sent,
+      failed: s.failed,
+      skipped: s.skipped,
+      remaining: s.remaining,
+      notConfigured: !!s.notConfigured,
+      errors: (s.errors || []).slice(0, 3),
+    };
+  }
+  return result;
+}
+
+// ----------------------------------------------------------------------------- Aşama 144: öğretmen giriş bilgisi SMS / e-posta
+// Öğretmene kullanıcı adı + ilk şifre. Şifre istekte gelir (Excel ile ekleme sonuç penceresi / listede yeni ilk şifre);
+// gelmezse initial_credentials'taki henüz değiştirilmemiş ilk şifre. Telefon korumalı teacher_contacts'tan (sql/144),
+// e-posta teachers.email. Yalnız genel yönetici ve kendi kurumunun yöneticisi gönderir. Şifre hiçbir kayda yazılmaz.
+function teacherCredentialSmsText(t, password, host) {
+  return `Sayın ${credShortName(t.name)}, ${host} öğretmen giriş bilgileriniz: Kullanıcı adı: ${clean(t.username)} Şifre: ${password}`;
+}
+async function actionTeacherCredentialsSend(caller, body, raw, sendId, req, deadline) {
+  if (!caller.isAdmin && !caller.isKurumAdmin) throw new HttpError(403, 'Öğretmen giriş bilgisini yalnızca kurum yöneticisi gönderebilir.');
+  const targets = [];
+  const seen = new Set();
+  for (const t of raw) {
+    const id = String((t && t.id) || '');
+    if (!id || id.length > 120 || id.startsWith('__')) throw new HttpError(400, 'Geçersiz kişi.');
+    if (seen.has(id)) continue;
+    seen.add(id);
+    let password = '';
+    if (t.password !== undefined && t.password !== null && t.password !== '') {
+      password = String(t.password).trim();
+      if (!CRED_PW_RE.test(password)) throw new HttpError(400, 'Şifre biçimi geçersiz.');
+    }
+    targets.push({ id, password });
+  }
+  const ch = body.channels && typeof body.channels === 'object' ? body.channels : {};
+  const wantSms = ch.sms === true;
+  const wantMail = ch.email === true;
+  if (!wantSms && !wantMail) throw new HttpError(400, 'En az bir gönderim yolu seçin (SMS veya e-posta).');
+
+  const ids = targets.map((t) => t.id);
+  const rows = (await rest(`teachers?select=id,name,username,email,kurum_id,status,is_admin,auth_user_id&id=in.${inList(ids)}`, { token: 'service' })) || [];
+  const byId = new Map();
+  for (const r of rows) {
+    if (r.status === 'suspended' || r.status === 'rejected') continue;
+    if (!caller.isAdmin && (r.is_admin || !caller.kurumId || String(r.kurum_id || '') !== caller.kurumId)) continue;
+    if (r.auth_user_id && r.auth_user_id === caller.authId) continue; // kendine gönderim yok
+    byId.set(String(r.id), r);
+  }
+  const notAllowed = ids.filter((id) => !byId.has(id)).length;
+
+  const need = targets.filter((t) => !t.password && byId.has(t.id)).map((t) => t.id);
+  const stored = new Map();
+  if (need.length) {
+    try {
+      const ic = (await rest(`initial_credentials?select=record_id,password,changed_at&account_type=eq.teacher&record_id=in.${inList(need)}`, { token: 'service' })) || [];
+      for (const r of ic) {
+        const pw = String(r.password || '').trim();
+        if (!r.changed_at && pw) stored.set(String(r.record_id), pw);
+      }
+    } catch (err) {
+      console.error('[giris-bilgisi] öğretmen ilk şifreleri okunamadı', err && err.message);
+    }
+  }
+  const noPassword = [];
+  const noAccount = [];
+  const ready = [];
+  for (const t of targets) {
+    const row = byId.get(t.id);
+    if (!row) continue;
+    if (!clean(row.username)) {
+      noAccount.push(t.id);
+      continue;
+    }
+    const pw = t.password || stored.get(t.id) || '';
+    if (!pw) {
+      noPassword.push(t.id);
+      continue;
+    }
+    ready.push({ t: row, password: pw });
+  }
+  const empty = { sent: 0, dry: 0, failed: 0, skipped: 0, limited: 0, errors: [] };
+  const result = {
+    ok: true,
+    students: ready.length,
+    notAllowed,
+    noAccount,
+    noPassword,
+    noPhone: 0,
+    noEmail: 0,
+    noVeliMatch: 0,
+    sms: wantSms ? { available: true, live: false, recipients: 0, ...empty } : null,
+    mail: wantMail ? { recipients: 0, sent: 0, failed: 0, skipped: 0, remaining: 0, notConfigured: false, errors: [] } : null,
+  };
+  if (!ready.length) return result;
+
+  // Telefonlar korumalı tablodan (SQL 144 kurulmamışsa boş: "telefon yok" sayılır)
+  const phones = new Map();
+  if (wantSms) {
+    try {
+      const pc = (await rest(`teacher_contacts?select=teacher_id,phone&teacher_id=in.${inList(ready.map((r) => r.t.id))}`, { token: 'service' })) || [];
+      for (const r of pc) if (r.phone) phones.set(String(r.teacher_id), String(r.phone));
+    } catch (err) {
+      console.error('[giris-bilgisi] öğretmen telefonları okunamadı', err && err.message);
+    }
+  }
+  const url = appUrl(req);
+  const host = hostOf(url).replace(/^www\./, '') || 'biliredu.com';
+  const sm = wantSms ? await smsMod() : null;
+  if (wantSms && !sm) result.sms = { ...result.sms, available: false, errors: ['SMS dosyası (api/_sms.js) sunucuda bulunamadı.'] };
+  else if (wantSms && !sm.smsConfigured()) result.sms = { ...result.sms, available: false, errors: ['SMS sağlayıcı bilgileri Vercel ayarlarında eksik.'] };
+  const smsOn = !!(wantSms && sm && sm.smsConfigured());
+
+  const jobs = [];
+  const mails = [];
+  for (const { t, password } of ready) {
+    const refId = `${sendId}:${t.id}`.slice(0, 200);
+    if (wantSms) {
+      const p = smsOn ? sm.normPhone(phones.get(String(t.id))) : phones.get(String(t.id)) || '';
+      if (!p) result.noPhone += 1;
+      else if (smsOn) jobs.push({ event: CRED_EVENT, refId, once: true, role: 'ogretmen', phone: p, text: teacherCredentialSmsText(t, password, host) });
+    }
+    if (wantMail) {
+      const em = String(t.email || '').trim().toLowerCase();
+      if (!isEmail(em) || /@(okul\.internal\.net|school\.internal|teacher\.school\.internal)$/i.test(em)) result.noEmail += 1;
+      else mails.push({ em, t, password });
+    }
+  }
+
+  if (smsOn && jobs.length) {
+    const r = await sm.dispatchSms(rest, jobs);
+    if (r.errors.length) console.error('[sms] giris-bilgisi ogretmen', r.errors.join(' | '));
+    result.sms = {
+      available: true,
+      live: sm.smsEnv().live,
+      recipients: jobs.length,
+      sent: r.sent,
+      dry: r.dry,
+      failed: r.failed,
+      skipped: r.skipped,
+      limited: r.limited,
+      errors: (r.errors || []).slice(0, 3),
+    };
+  }
+
+  if (wantMail && mails.length) {
+    const items = mails.map((m) => ({
+      event: CRED_EVENT,
+      refId: `${sendId}:${m.t.id}`.slice(0, 200),
+      refTitle: `${clean(m.t.name)} – giriş bilgisi`.slice(0, 200),
+      to: m.em,
+      toName: clean(m.t.name).slice(0, 120),
+      role: 'ogretmen',
+      noVeliCopy: true,
+      subject: 'Öğretmen giriş bilgileriniz',
+      ...layout({
+        heading: 'Öğretmen giriş bilgileriniz',
+        greeting: `Merhaba ${clean(m.t.name)},`,
+        intro: 'Eğitim & Öğrenci Takip Sistemi öğretmen giriş bilgileriniz aşağıdadır.',
+        rows: [
+          ['Giriş adresi', url],
+          ['Giriş', 'Giriş ekranında "Öğretmen" sekmesini seçin'],
+          ['Kullanıcı adı', clean(m.t.username)],
+          ['Şifre', m.password],
+        ],
+        buttonLabel: 'Sisteme giriş yap',
+        url,
+        footer: 'Giriş yaptıktan sonra profil menüsünden şifrenizi değiştirin. Bu e-postayı kimseyle paylaşmayın.',
+      }),
     }));
     const sender = await resolveSender(caller);
     const s = await deliver(sender, caller, items, deadline);

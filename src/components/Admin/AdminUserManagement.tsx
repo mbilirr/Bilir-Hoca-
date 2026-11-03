@@ -33,6 +33,8 @@ import {
   CheckCircle2,
   UserPlus,
   BadgeCheck,
+  FileSpreadsheet, // Aşama 144
+  Send,
 } from 'lucide-react';
 import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -43,6 +45,13 @@ import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles
 import { EMPTY_GRADES, classesCoveredBy, fetchTeacherGrades, gradeOptionsFrom, gradesLabel, saveTeacherGrades, type TeacherGrades } from '../../lib/teacherGrades';
 import { GradeTicks } from './GradeTicks';
 import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
+import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 144
+import { fetchTeacherContacts, saveTeacherContact, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
+import { normalizeTurkishPhone, PHONE_ERROR } from '../../lib/importNormalize';
+import { birthDateLabel } from '../../lib/teacherImport';
+// Aşama 144: Excel ile toplu öğretmen ekleme (xlsx kütüphanesi yalnız pencere açılınca yüklenir)
+const TeacherExcelUploadModal = lazyNamed(() => import('./TeacherExcelUploadModal'), 'TeacherExcelUploadModal');
+const TeacherCredentialSendModal = lazyNamed(() => import('./TeacherCredentialSendModal'), 'TeacherCredentialSendModal');
 
 // Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
 const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
@@ -122,6 +131,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     username: string;
     email: string;
     phone: string;
+    birthDate: string; // Aşama 144 (yalnız öğretmen)
     branch: string;
     classId: string;
     className: string;
@@ -136,6 +146,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     username: '',
     email: '',
     phone: '',
+    birthDate: '',
     branch: '',
     classId: '',
     className: '',
@@ -151,6 +162,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [selectedTargetRole, setSelectedTargetRole] = useState<SystemRole>('teacher');
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
+  const [isExcelTeacherOpen, setIsExcelTeacherOpen] = useState(false); // Aşama 144
+  const [isCredSendOpen, setIsCredSendOpen] = useState(false); // Aşama 144: giriş bilgisi SMS / e-posta
   const [notifyTeacher, setNotifyTeacher] = useState(true);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -199,6 +212,32 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       off();
     };
   }, []);
+
+  // Aşama 144: öğretmen telefonu ve doğum tarihi (korumalı tablo; yalnız yönetici okur, tek sorgu)
+  const [contacts, setContacts] = useState<Map<string, TeacherContact>>(() => new Map());
+  const reloadContacts = (force = false) => {
+    if (roleLock === 'student' || !dataService.canManageTeachers()) return;
+    fetchTeacherContacts(force)
+      .then(setContacts)
+      .catch(() => {}); // SQL 144 kurulmamışsa liste eskisi gibi
+  };
+  useEffect(() => {
+    reloadContacts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const phoneOf = (u: UnifiedUser) => (u.role !== 'student' && contacts.get(u.id)?.phone) || u.phone || '';
+  const birthOf = (u: UnifiedUser) => (u.role !== 'student' ? contacts.get(u.id)?.birthDate || '' : '');
+  // Giriş bilgisi gönderilebilecek öğretmenler: seçili kurum kapsamındaki yönetici olmayan öğretmenler (yalnız pencere açıkken hesaplanır)
+  const credTeachers = useMemo(() => {
+    if (!isCredSendOpen) return [];
+    const me = dataService.getCurrentTeacher()?.id;
+    return users
+      .filter((u) => u.role === 'teacher' && u.id !== me && !(u.isSuspended || u.status === 'suspended'))
+      .filter((u) => (kurumFilter === 'merkez' ? !u.kurumId : kurumFilter ? u.kurumId === kurumFilter : true))
+      .map((u) => ({ id: u.id, name: u.name, branch: u.branch, username: u.username, phone: phoneOf(u), email: u.email || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCredSendOpen, users, kurumFilter, contacts]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -260,7 +299,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         const inName = matchTurkishSearch(u.name, q);
         const inUsername = matchTurkishSearch(u.username, q);
         const inEmail = matchTurkishSearch(u.email, q);
-        const inPhone = (u.phone || '').includes(q);
+        const inPhone = phoneOf(u).includes(q);
         const inBranch = matchTurkishSearch(u.branch, q);
         const inClass = matchTurkishSearch(u.className, q);
         const inNumber = (u.studentNumber || '').includes(q);
@@ -269,7 +308,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
       return true;
     });
-  }, [users, roleFilter, statusFilter, deferredQuery, kurumFilter, roleLock]);
+  }, [users, roleFilter, statusFilter, deferredQuery, kurumFilter, roleLock, contacts]);
   const pagedUsers = usePagedList(filteredUsers, `${deferredQuery}|${roleFilter}|${statusFilter}|${kurumFilter}|${roleLock || ''}`);
 
   // Aşama 18: genel yönetici her şeyi, kurum yöneticisi yalnızca kendi kurumunu yönetir
@@ -323,7 +362,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       name: user.name || '',
       username: user.username || '',
       email: user.email || '',
-      phone: user.phone || '',
+      phone: phoneOf(user),
+      birthDate: birthOf(user),
       branch: user.branch || '',
       classId: user.classId || (classes[0]?.id || ''),
       className: user.className || '',
@@ -344,6 +384,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     if (!editModalUser) return;
 
     const before = editModalUser;
+    // Aşama 144: öğretmen telefonu korumalı tabloya yazılır; biçim önce denetlenir
+    const isTeacherEdit = isTeacherAccount(before);
+    const phoneN = normalizeTurkishPhone(editFormData.phone);
+    if (isTeacherEdit && !phoneN.valid) {
+      showToast(PHONE_ERROR, 'error');
+      return;
+    }
     try {
       await dataService.adminUpdateUserProfile(editModalUser.id, {
         name: editFormData.name,
@@ -361,6 +408,14 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         canViewAllStudentsAndClasses: editFormData.canViewAllStudentsAndClasses,
       });
 
+      if (isTeacherEdit && (phoneN.value !== phoneOf(before) || editFormData.birthDate !== birthOf(before))) {
+        try {
+          await saveTeacherContact(before.id, { phone: phoneN.value, birthDate: editFormData.birthDate });
+          reloadContacts();
+        } catch (er: any) {
+          showToast(`Telefon / doğum tarihi kaydedilemedi: ${er?.message || 'hata'}`, 'error');
+        }
+      }
       showToast(`✓ "${editFormData.name}" kullanıcı bilgileri başarıyla güncellendi.`, 'success');
       setEditModalUser(null);
       loadData();
@@ -372,7 +427,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         if (norm(editFormData.username) && norm(editFormData.username).toLowerCase() !== norm(before.username).toLowerCase())
           changes.push({ label: 'Kullanıcı adı', value: norm(editFormData.username).toLowerCase(), login: true });
         if (norm(editFormData.email) !== norm(before.email)) changes.push({ label: 'E-posta', value: norm(editFormData.email) || '(silindi)' });
-        if (norm(editFormData.phone) !== norm(before.phone)) changes.push({ label: 'Telefon', value: norm(editFormData.phone) || '(silindi)' });
+        if (norm(editFormData.phone) !== norm(phoneOf(before))) changes.push({ label: 'Telefon', value: norm(editFormData.phone) || '(silindi)' });
         if (norm(editFormData.branch) !== norm(before.branch)) changes.push({ label: 'Branş', value: norm(editFormData.branch) || '(silindi)' });
         const pw = norm(editFormData.newPassword);
         if (pw && editFormData.mustChangePassword) changes.push({ label: 'İlk girişte', value: 'Şifrenizi değiştirmeniz istenecek' });
@@ -616,6 +671,30 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <span>Yeni Öğretmen Hesabı</span>
             </button>
           )}
+          {canManageTeachers && (
+            <button
+              type="button"
+              onClick={() => setIsExcelTeacherOpen(true)}
+              className="ui-btn ui-btn-secondary"
+              title="Öğretmenleri Excel dosyasından toplu ekle"
+              id="ogretmen-excel-ekle-ust"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Excel ile Ekle</span>
+            </button>
+          )}
+          {canManageTeachers && (
+            <button
+              type="button"
+              onClick={() => setIsCredSendOpen(true)}
+              className="ui-btn ui-btn-secondary"
+              title="Öğretmenlere giriş bilgisini SMS / e-postayla gönder"
+              id="ogretmen-giris-gonder-ust"
+            >
+              <Send className="w-4 h-4" />
+              <span>Giriş Bilgisi Gönder</span>
+            </button>
+          )}
         </div>
       </div>
         </>
@@ -786,7 +865,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             )}
           </div>
 
-          <div className="flex items-center space-x-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* Role Filter */}
             <div className={`flex items-center space-x-1.5 bg-canvas border border-line rounded-xl px-2.5 py-1.5 ${roleLock ? 'hidden' : ''}`}>
               <Filter className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -874,6 +953,30 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Öğretmen</span>
+                  </button>
+                )}
+                {canManageTeachers && roleLock !== 'student' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsExcelTeacherOpen(true)}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    title="Öğretmenleri Excel dosyasından toplu ekle"
+                    id="yonetim-ogretmen-excel"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excel ile</span>
+                  </button>
+                )}
+                {canManageTeachers && roleLock !== 'student' && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCredSendOpen(true)}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    title="Öğretmenlere giriş bilgisini SMS / e-postayla gönder"
+                    id="yonetim-ogretmen-giris-gonder"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Giriş Bilgisi</span>
                   </button>
                 )}
               </>
@@ -1079,12 +1182,13 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <span className="text-subtle italic">E-posta yok</span>
                           )}
 
-                          {u.phone ? (
+                          {phoneOf(u) ? (
                             <div className="flex items-center space-x-1 text-muted">
                               <Phone className="w-3 h-3 text-muted shrink-0" />
-                              <span>{u.phone}</span>
+                              <span>{phoneOf(u)}</span>
                             </div>
                           ) : null}
+                          {birthOf(u) ? <div className="text-[11px] text-muted">Doğum: {birthDateLabel(birthOf(u))}</div> : null}
                         </div>
                       </td>
 
@@ -1372,6 +1476,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+
+                {/* Aşama 144: doğum tarihi (öğretmen) */}
+                {editModalUser.role !== 'student' && (
+                  <div>
+                    <label className="block text-xs font-bold text-fg-2 mb-1">Doğum Tarihi</label>
+                    <input autoComplete="off"
+                      type="date"
+                      id="ogretmen-duzen-dogum"
+                      value={editFormData.birthDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, birthDate: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                )}
 
                 {/* Öğretmen / Admin Branşı */}
                 {editModalUser.role !== 'student' && (
@@ -2031,8 +2149,29 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         onCreated={(name) => {
           showToast(`✓ "${name}" için öğretmen hesabı açıldı.`, 'success');
           loadData();
+          reloadContacts();
         }}
       />
+      {/* Aşama 144: ÖĞRETMENLERE GİRİŞ BİLGİSİ (SMS / e-posta) */}
+      {isCredSendOpen && (
+        <React.Suspense fallback={null}>
+          <TeacherCredentialSendModal open onClose={() => setIsCredSendOpen(false)} teachers={credTeachers} />
+        </React.Suspense>
+      )}
+      {/* Aşama 144: EXCEL İLE TOPLU ÖĞRETMEN */}
+      {isExcelTeacherOpen && (
+        <React.Suspense fallback={null}>
+          <TeacherExcelUploadModal
+            open
+            onClose={() => setIsExcelTeacherOpen(false)}
+            onCreated={(n: number) => {
+              showToast(`✓ ${n} öğretmenin hesabı açıldı.`, 'success');
+              loadData();
+              reloadContacts(true);
+            }}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 };
@@ -2066,6 +2205,10 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [branch, setBranch] = useState('');
   const [email, setEmail] = useState('');
+  // Aşama 144: telefon ve doğum tarihi korumalı tabloya yazılır (Excel ile eklemeyle aynı veri)
+  const [phone, setPhone] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [contactNote, setContactNote] = useState<string | null>(null);
   const [password, setPassword] = useState(() => dataService.generatePassword());
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -2097,6 +2240,11 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    const phoneN = normalizeTurkishPhone(phone);
+    if (!phoneN.valid) {
+      setError(PHONE_ERROR);
+      return;
+    }
     setIsSaving(true);
     try {
       const wanted = roleUi ? roles.filter((r) => r !== 'zumre_baskani' || branch.trim()) : [];
@@ -2118,6 +2266,13 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
           setGradeNote({ ok: true, text: `Kademe: ${gradesLabel(g)} (${g.classes} sınıf)` });
         } catch (er: any) {
           setGradeNote({ ok: false, text: `Kademe verilemedi (${er?.message || 'hata'}). Listedeki kalkan (erişim) düğmesinden verin.` });
+        }
+      }
+      if (phoneN.value || birthDate) {
+        try {
+          await saveTeacherContact(res.teacher.id, { phone: phoneN.value, birthDate });
+        } catch (er: any) {
+          setContactNote(`Telefon / doğum tarihi kaydedilemedi (${er?.message || 'hata'}). Düzenle penceresinden yeniden girin.`);
         }
       }
       setCreated({ name: res.teacher.name, username: res.teacher.username, password: res.password });
@@ -2166,6 +2321,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-200 text-xs">
               Hesap açıldı. Şifre güvenlik nedeniyle saklanmaz; bu pencereyi kapatmadan önce öğretmene iletiniz.
             </div>
+            {contactNote && <div className="p-2.5 rounded-xl border text-xs font-semibold bg-warning-soft text-warning-fg border-warning/30">{contactNote}</div>}
             {roleNote && (
               <div id="teacher-create-role-note" className={`p-2.5 rounded-xl border text-xs font-semibold ${roleNote.ok ? 'bg-info-soft text-info-fg border-info/30' : 'bg-warning-soft text-warning-fg border-warning/30'}`}>
                 {roleNote.text}
@@ -2269,6 +2425,16 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">E-posta (iletişim)</label>
                 <input autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-bold text-fg-2 mb-1">Telefon</label>
+                <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className={inputCls} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-fg-2 mb-1">Doğum tarihi</label>
+                <input autoComplete="off" type="date" id="teacher-create-birth" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={inputCls} />
               </div>
             </div>
             <div>
