@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
-import { Check, Copy, KeyRound, MessageCircle, Mail, Download, AlertTriangle, ShieldCheck, Printer } from 'lucide-react';
+import React, { Suspense, useMemo, useState } from 'react';
+import { Check, Copy, KeyRound, MessageCircle, Mail, Download, AlertTriangle, ShieldCheck, Printer, MessageSquare, Send } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { StudentCredential, StudentAccountFailure } from '../../types';
 import { Modal } from '../ui/kit';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
+import { dataService } from '../../services/dataService';
+import { lazyNamed } from '../../lib/lazyLoad';
+
+// Aşama 142: sistemden SMS / e-posta ile giriş bilgisi gönderimi (pencere ilk tıklamada yüklenir)
+const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
 
 interface StudentWelcomeCredentialsModalProps {
   isOpen: boolean;
@@ -49,6 +54,28 @@ const StudentWelcomeCredentialsContent: React.FC<StudentWelcomeCredentialsModalP
   const [savedAll, setSavedAll] = useState(false);
   const [sharedIds, setSharedIds] = useState<Set<string>>(() => new Set());
   const [confirmClose, setConfirmClose] = useState(false);
+  // Aşama 142: gönderim penceresi (hangi öğrenciler, hangi yol)
+  const [sendTarget, setSendTarget] = useState<{ ids: string[]; channel: 'sms' | 'email' } | null>(null);
+  const sendable = useMemo(() => credentials.filter((c) => dataService.canManageStudent(c.student)), [credentials]);
+  const pwMap = useMemo(() => new Map(credentials.map((c) => [c.student.id, c.password] as const)), [credentials]);
+  const sendStudents = useMemo(
+    () => (sendTarget ? sendable.filter((c) => sendTarget.ids.includes(c.student.id)).map((c) => c.student) : []),
+    [sendTarget, sendable]
+  );
+  const sendableIds = useMemo(() => new Set(sendable.map((c) => c.student.id)), [sendable]);
+  const openSend = (ids: string[], channel: 'sms' | 'email') => setSendTarget({ ids, channel });
+  const closeSend = () => {
+    if (sendTarget) {
+      // gönderim penceresi açıldıysa bilgiler iletilmiş sayılır (kapatırken uyarı çıkmasın)
+      const ids = sendTarget.ids;
+      setSharedIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+    setSendTarget(null);
+  };
 
   const isBulk = credentials.length > 1;
   const passwordsSaved = savedAll || credentials.every((c) => sharedIds.has(c.student.id));
@@ -222,6 +249,24 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
           </div>
         )}
 
+        {sendable.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-xs" id="giris-bilgisi-gonder-seridi">
+            <span className="font-semibold text-fg">
+              {single ? 'Giriş bilgisini sistemden gönder' : `Giriş bilgilerini sistemden gönder (${sendable.length} öğrenci)`}
+            </span>
+            <span className="flex gap-2">
+              <button type="button" id="gb-toplu-sms" onClick={() => openSend(sendable.map((c) => c.student.id), 'sms')} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32 justify-center">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>SMS Gönder</span>
+              </button>
+              <button type="button" id="gb-toplu-eposta" onClick={() => openSend(sendable.map((c) => c.student.id), 'email')} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32 justify-center">
+                <Mail className="w-3.5 h-3.5" />
+                <span>E-posta Gönder</span>
+              </button>
+            </span>
+          </div>
+        )}
+
         {credentials.length > 0 && (
           <div className="border border-line rounded-xl overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -275,6 +320,17 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
                           >
                             <MessageCircle className="w-3.5 h-3.5" />
                           </a>
+                          {sendableIds.has(c.student.id) && (
+                            <button
+                              type="button"
+                              onClick={() => openSend([c.student.id], 'sms')}
+                              className="ui-btn ui-btn-primary ui-btn-sm ui-btn-icon"
+                              title="Sistemden SMS / e-posta ile gönder"
+                              aria-label={`${c.student.name} giriş bilgisini sistemden gönder`}
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {c.student.email && (
                             <a
                               href={`mailto:${encodeURIComponent(c.student.email)}?subject=${encodeURIComponent('Öğrenci sistemi giriş bilgileriniz')}&body=${encodeURIComponent(text)}`}
@@ -313,6 +369,11 @@ p{margin:2px 0;font-size:13px}small{color:#555;font-size:11px}</style></head><bo
           </div>
         )}
       </div>
+      {sendTarget && (
+        <Suspense fallback={null}>
+          <CredentialSendModal open onClose={closeSend} students={sendStudents} passwords={pwMap} defaultChannel={sendTarget.channel} />
+        </Suspense>
+      )}
     </Modal>
   );
 };

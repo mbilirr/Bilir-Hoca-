@@ -1513,6 +1513,249 @@ async function actionParentAnnounce(caller, body, deadline) {
   };
 }
 
+// ----------------------------------------------------------------------------- Aşama 142: giriş bilgisi SMS / e-posta
+// Öğrenciye ve/veya velilerine öğrenci no + ilk şifre gönderilir. Şifre: istekte geldiyse o (giriş bilgileri penceresi),
+// gelmediyse initial_credentials'taki henüz değiştirilmemiş ilk şifre. Şifre hiçbir kayda yazılmaz
+// (sms_log metni, mail_log gövdeyi saklamaz). Gövde 144'te öğretmen (type: 'teacher') için de kullanılacak.
+const CRED_MAX_TARGETS = 10; // istemci 10'arlı parçalarla gönderir (60 sn sınırı)
+const CRED_EVENT = 'giris-bilgisi';
+const CRED_PW_RE = /^[A-Za-z0-9._-]{6,40}$/;
+const credShortName = (v) => {
+  const s = clean(v);
+  return s.length > 32 ? `${s.slice(0, 31).trim()}…` : s;
+};
+function credentialSmsText(role, st, password, host) {
+  const no = clean(st.student_number);
+  if (role === 'veli') return `Değerli velimiz, ${credShortName(st.name)} için ${host} giriş bilgileri: Öğrenci No: ${no} Şifre: ${password}`;
+  return `Sevgili öğrencimiz, ${host} giriş bilgilerin: Öğrenci No: ${no} Şifre: ${password} İlk girişte şifreni değiştirmen istenecek.`;
+}
+function credentialMail(role, st, password, url, kurumName, parentName) {
+  const isVeli = role === 'veli';
+  const who = isVeli ? clean(parentName) || 'Veli' : clean(st.name);
+  return {
+    subject: isVeli ? `[Veli] ${clean(st.name)} giriş bilgileri` : 'Giriş bilgileriniz',
+    ...layout({
+      heading: isVeli ? 'Öğrencinizin giriş bilgileri' : 'Giriş bilgileriniz',
+      greeting: isVeli ? `Sayın ${who},` : `Merhaba ${who},`,
+      intro: isVeli
+        ? `${clean(st.name)} için öğrenci takip sistemi giriş bilgileri aşağıdadır.`
+        : 'Öğrenci takip sistemi giriş bilgilerin aşağıdadır.',
+      rows: [
+        ['Kurum', kurumName],
+        ...(isVeli ? [['Öğrenci', clean(st.name)]] : []),
+        ['Giriş adresi', url],
+        ['Giriş', 'Giriş ekranında "Öğrenci Portalı" sekmesini seçin'],
+        ['Öğrenci No', clean(st.student_number)],
+        ['Şifre', password],
+      ],
+      buttonLabel: 'Sisteme giriş yap',
+      url,
+      footer: 'İlk girişte yeni bir şifre belirlemeniz istenecektir. Bu e-postayı kimseyle paylaşmayın.',
+    }),
+  };
+}
+async function credentialEditorOk(caller) {
+  if (caller.isAdmin || caller.isKurumAdmin) return true;
+  if (!caller.kurumId) return false; // kurumsuz eski kurulum: yalnız yönetici
+  try {
+    return (await rest('rpc/kurum_student_editor', { token: caller.token, method: 'POST', body: {} })) === true;
+  } catch (err) {
+    if (!rpcMissing(err)) throw err;
+    return (await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false)) === true;
+  }
+}
+async function actionCredentialsSend(caller, body, req, deadline) {
+  const sendId = String(body.sendId || '');
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(sendId)) throw new HttpError(400, 'Gönderim kimliği eksik. Sayfayı yenileyip tekrar deneyin.');
+  const raw = Array.isArray(body.targets) ? body.targets : [];
+  if (!raw.length) throw new HttpError(400, 'Öğrenci seçilmedi.');
+  if (raw.length > CRED_MAX_TARGETS) throw new HttpError(400, `Bir istekte en çok ${CRED_MAX_TARGETS} kişi gönderilebilir.`);
+  const targets = [];
+  const seenIds = new Set();
+  for (const t of raw) {
+    const type = t && t.type === 'teacher' ? 'teacher' : t && t.type === 'student' ? 'student' : '';
+    const id = String((t && t.id) || '');
+    if (!type || !id || id.length > 120 || id.startsWith('__')) throw new HttpError(400, 'Geçersiz kişi.');
+    if (type === 'teacher') throw new HttpError(400, 'Öğretmen giriş bilgisi gönderimi bu sürümde yok.');
+    if (seenIds.has(id)) continue;
+    seenIds.add(id);
+    let password = '';
+    if (t.password !== undefined && t.password !== null && t.password !== '') {
+      password = String(t.password).trim();
+      if (!CRED_PW_RE.test(password)) throw new HttpError(400, 'Şifre biçimi geçersiz.');
+    }
+    targets.push({ id, password });
+  }
+  const ch = body.channels && typeof body.channels === 'object' ? body.channels : {};
+  const wantSms = ch.sms === true;
+  const wantMail = ch.email === true;
+  if (!wantSms && !wantMail) throw new HttpError(400, 'En az bir gönderim yolu seçin (SMS veya e-posta).');
+  const au = body.audience && typeof body.audience === 'object' ? body.audience : {};
+  const toStudent = au.ogrenci === true;
+  const toVeli = au.veli === true;
+  if (!toStudent && !toVeli) throw new HttpError(400, 'Alıcı seçin (öğrenci ve/veya veli).');
+  const pFilter = toVeli ? parentFilter(au) : null; // Aşama 134 ile aynı veli seçimi
+
+  // Yetki: öğrenciye şifre verebilenler (genel yönetici; kurumda yönetici / Rehberlik / Ölçme / 143 "Öğrenci düzenleme" izni)
+  if (!(await credentialEditorOk(caller))) throw new HttpError(403, 'Giriş bilgisi göndermek için yetkiniz yok (öğrenci düzenleme izni gerekir).');
+
+  // Öğrenciler çağıranın kendi oturumuyla okunur (RLS); kurum dışı öğrenci kabul edilmez
+  const ids = targets.map((t) => t.id);
+  const rows = (await rest(`students?select=id,name,student_number,kurum_id,status,auth_user_id&id=in.${inList(ids)}`, { token: caller.token })) || [];
+  const byId = new Map();
+  for (const r of rows) {
+    if (r.status && r.status !== 'active') continue;
+    if (!caller.isAdmin && (!caller.kurumId || String(r.kurum_id || '') !== caller.kurumId)) continue;
+    byId.set(String(r.id), r);
+  }
+  const notAllowed = ids.filter((id) => !byId.has(id)).length;
+
+  // Kayıtlı ilk şifreler (yalnız istekte şifresi olmayanlar için; kullanıcı değiştirdiyse kullanılmaz)
+  const need = targets.filter((t) => !t.password && byId.has(t.id)).map((t) => t.id);
+  const stored = new Map();
+  if (need.length) {
+    try {
+      const ic = (await rest(`initial_credentials?select=record_id,password,changed_at&account_type=eq.student&record_id=in.${inList(need)}`, { token: 'service' })) || [];
+      for (const r of ic) {
+        const pw = String(r.password || '').trim();
+        if (!r.changed_at && pw) stored.set(String(r.record_id), pw);
+      }
+    } catch (err) {
+      console.error('[giris-bilgisi] ilk şifreler okunamadı', err && err.message);
+    }
+  }
+
+  const noPassword = [];
+  const noAccount = [];
+  const ready = [];
+  for (const t of targets) {
+    const st = byId.get(t.id);
+    if (!st) continue;
+    if (!clean(st.student_number)) {
+      noAccount.push(t.id);
+      continue;
+    }
+    const pw = t.password || stored.get(t.id) || '';
+    if (!pw) {
+      // hesabı yoksa da şifresi yoktur; istemci "yeni ilk şifre ver" ile hesap açıp şifre verebilir
+      noPassword.push(t.id);
+      continue;
+    }
+    ready.push({ st, password: pw });
+  }
+
+  const empty = { sent: 0, dry: 0, failed: 0, skipped: 0, limited: 0, errors: [] };
+  const result = {
+    ok: true,
+    students: ready.length,
+    notAllowed,
+    noAccount,
+    noPassword,
+    noPhone: 0,
+    noEmail: 0,
+    noVeliMatch: 0,
+    sms: wantSms ? { available: true, live: false, recipients: 0, ...empty } : null,
+    mail: wantMail ? { recipients: 0, sent: 0, failed: 0, skipped: 0, remaining: 0, notConfigured: false, errors: [] } : null,
+  };
+  if (!ready.length) return result;
+
+  // öğrenci e-postası + telefonu + veliler (student_contacts; 85 öncesi eski sütunlar) tek okumada
+  const contacts = await studentContactsMap(ready.map((r) => r.st.id));
+  const url = appUrl(req);
+  const host = hostOf(url).replace(/^www\./, '') || 'biliredu.com';
+  const sm = wantSms ? await smsMod() : null;
+  if (wantSms && !sm) result.sms = { ...result.sms, available: false, errors: ['SMS dosyası (api/_sms.js) sunucuda bulunamadı.'] };
+  else if (wantSms && !sm.smsConfigured()) result.sms = { ...result.sms, available: false, errors: ['SMS sağlayıcı bilgileri Vercel ayarlarında eksik.'] };
+  const smsOn = !!(wantSms && sm && sm.smsConfigured());
+
+  const jobs = [];
+  const mails = [];
+  for (const { st, password } of ready) {
+    const c = contacts.get(String(st.id)) || { email: '', phone: '', parents: [] };
+    const parents = toVeli ? pickParents(c.parents, pFilter) : [];
+    if (toVeli && pFilter && !parents.length) result.noVeliMatch += 1;
+    const refId = `${sendId}:${st.id}`.slice(0, 200);
+    let anySms = false;
+    let anyMail = false;
+    if (smsOn) {
+      const seen = new Set();
+      const add = (role, phone) => {
+        const p = sm.normPhone(phone);
+        if (!p || seen.has(p)) return;
+        seen.add(p);
+        anySms = true;
+        jobs.push({ event: CRED_EVENT, refId, once: true, role, phone: p, text: credentialSmsText(role, st, password, host) });
+      };
+      if (toStudent) add('ogrenci', c.phone);
+      for (const p of parents) add('veli', p && p.phone);
+    }
+    if (wantMail) {
+      const seen = new Set();
+      const realMail = (em) => isEmail(em) && !/@(okul\.internal\.net|school\.internal|student\.school\.internal)$/i.test(em);
+      const add = (role, email, name) => {
+        const em = String(email || '').trim().toLowerCase();
+        if (!realMail(em) || seen.has(em)) return;
+        seen.add(em);
+        anyMail = true;
+        mails.push({ role, em, name, st, password });
+      };
+      if (toStudent) add('ogrenci', c.email || '', st.name);
+      for (const p of parents) add('veli', p && p.email, p && p.name);
+    }
+    if (wantSms && !anySms) result.noPhone += 1;
+    if (wantMail && !anyMail) result.noEmail += 1;
+  }
+
+  if (smsOn && jobs.length) {
+    const r = await sm.dispatchSms(rest, jobs);
+    if (r.errors.length) console.error('[sms] giris-bilgisi', r.errors.join(' | '));
+    result.sms = {
+      available: true,
+      live: sm.smsEnv().live,
+      recipients: jobs.length,
+      sent: r.sent,
+      dry: r.dry,
+      failed: r.failed,
+      skipped: r.skipped,
+      limited: r.limited,
+      errors: (r.errors || []).slice(0, 3),
+    };
+  }
+
+  if (wantMail && mails.length) {
+    let kurumName = '';
+    const kid = String((ready[0] && ready[0].st.kurum_id) || caller.kurumId || '');
+    if (kid) {
+      try {
+        const k = await rest(`kurumlar?select=name&id=eq.${encodeURIComponent(kid)}`, { token: 'service' });
+        kurumName = clean(k && k[0] && k[0].name);
+      } catch {}
+    }
+    const items = mails.map((m) => ({
+      event: CRED_EVENT,
+      refId: `${sendId}:${m.st.id}`.slice(0, 200),
+      refTitle: `${clean(m.st.name)} – giriş bilgisi`.slice(0, 200),
+      to: m.em,
+      toName: (m.role === 'veli' ? `${clean(m.name) || 'Veli'} (${clean(m.st.name)} velisi)` : clean(m.st.name)).slice(0, 120),
+      role: m.role,
+      noVeliCopy: true,
+      ...credentialMail(m.role, m.st, m.password, url, kurumName, m.name),
+    }));
+    const sender = await resolveSender(caller);
+    const s = await deliver(sender, caller, items, deadline);
+    result.mail = {
+      recipients: items.length,
+      sent: s.sent,
+      failed: s.failed,
+      skipped: s.skipped,
+      remaining: s.remaining,
+      notConfigured: !!s.notConfigured,
+      errors: (s.errors || []).slice(0, 3),
+    };
+  }
+  return result;
+}
+
 async function applyMailPolicy(items) {
   const pm = await policyMod();
   if (!pm) return items; // izin dosyası yoksa eski davranış: e-postalar olduğu gibi gider
@@ -3816,6 +4059,9 @@ export default async function handler(req, res) {
         break;
       case 'karne-link-revoke':
         result = await actionKarneLinkRevoke(caller, body);
+        break;
+      case 'credentials-send': // Aşama 142
+        result = await actionCredentialsSend(caller, body, req, deadline);
         break;
       case 'parent-announce':
         result = await actionParentAnnounce(caller, body, deadline);

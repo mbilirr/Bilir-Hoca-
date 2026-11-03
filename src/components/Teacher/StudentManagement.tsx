@@ -35,6 +35,7 @@ import {
   CheckSquare,
   ArrowUpDown,
   ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentAccountResult, StudentParent } from '../../types';
 import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue } from '../../lib/parents';
@@ -50,6 +51,8 @@ const ExcelStudentUpdateModal = lazyNamed(() => import('./ExcelStudentUpdateModa
 const ExcelClassUploadModal = lazyNamed(() => import('./ExcelClassUploadModal'), 'ExcelClassUploadModal');
 const StudentListExportModal = lazyNamed(() => import('./StudentListExportModal'), 'StudentListExportModal');
 const StudentWelcomeCredentialsModal = lazyNamed(() => import('./StudentWelcomeCredentialsModal'), 'StudentWelcomeCredentialsModal');
+// Aşama 142: seçilen öğrencilere giriş bilgisi SMS / e-posta (pencere ilk tıklamada yüklenir)
+const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import {
   SCHOOL_LEVELS,
@@ -140,6 +143,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [selectedClassFilter, setSelectedClassFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState<'default' | 'name-asc' | 'name-desc' | 'number-asc'>('default');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  // Aşama 142: seçilenlerden giriş bilgisi gönderilebilenler (öğrenciye şifre verebilen; kendi kurumu)
+  const [credSendList, setCredSendList] = useState<Student[] | null>(null); // pencere açıkken liste sabit kalır
+  const credSendStudents = useMemo(() => {
+    if (!selectedStudentIds.length) return [];
+    const sel = new Set(selectedStudentIds);
+    return students.filter((s) => sel.has(s.id) && dataService.canManageStudent(s));
+  }, [selectedStudentIds, students]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useHistoryState<'students' | 'classes'>('students.tab', 'students'); // Aşama 52: geri tuşu
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
@@ -1483,6 +1493,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 >
                   Temizle
                 </button>
+                {credSendStudents.length > 0 && (
+                  <button
+                    type="button"
+                    id="ogrenci-giris-bilgisi-gonder"
+                    onClick={() => setCredSendList(credSendStudents)}
+                    className="ui-btn ui-btn-primary ui-btn-sm h-8 justify-center"
+                    title="Seçilen öğrencilere ve/veya velilerine giriş bilgisini SMS / e-posta ile gönder"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Giriş Bilgisi Gönder ({credSendStudents.length})</span>
+                  </button>
+                )}
                 {canAddStudents && (
                 <button
                   type="button"
@@ -2753,6 +2775,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         description={`"${classToDelete?.name}" sınıfını silmek istediğinize emin misiniz? Bu sınıfa kayıtlı öğrencilerin sınıf atamaları sıfırlanacaktır.`}
         confirmButtonText="Sınıfı Sil"
       />
+
+      {/* Aşama 142: seçilenlere giriş bilgisi gönder (yeni şifre verilenler kapanınca giriş bilgileri penceresinde görünür) */}
+      {credSendList && (
+        <Suspense fallback={null}>
+          <CredentialSendModal
+            open
+            onClose={() => setCredSendList(null)}
+            students={credSendList}
+            allowReset
+            onNewCredentials={(creds: StudentCredential[]) => setCredentialsResult({ credentials: creds, failures: [], title: 'Yeni Giriş Bilgileri' })}
+          />
+        </Suspense>
+      )}
 
       {/* GİRİŞ BİLGİLERİ (hesap açıldıktan / şifre belirlendikten sonra, yalnızca bir kez gösterilir) */}
       {!!credentialsResult && (

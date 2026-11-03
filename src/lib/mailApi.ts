@@ -23,6 +23,7 @@ export type MailAction =
   | 'karne-sms' // Aşama 101: karne linki SMS ile (öğrenci / veli)
   | 'karne-link-revoke' // Aşama 101: sınıfın karne linklerini iptal
   | 'parent-announce' // Aşama 73: velilere e-posta / SMS duyurusu
+  | 'credentials-send' // Aşama 142: giriş bilgisi (öğrenci no + ilk şifre) SMS / e-posta
   | 'sms-status' // Aşama 73: SMS ayar durumu (yönetici)
   | 'sms-test' // Aşama 73: SMS sınaması (yönetici)
   | 'sms-info' // Aşama 78: kalan kontör ve onaylı başlıklar (yönetici)
