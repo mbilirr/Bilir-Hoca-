@@ -42,6 +42,9 @@ const MODE_OPTS: Array<{ mode: SectionMode; label: string }> = [
   { mode: 'deny', label: 'Kapalı' },
 ];
 
+// Aşama 146: Kullanıcı Bilgileri penceresi (z-[9999]) ve bildirim (z-[10000]) üstünde açılır
+const YETKI_LAYER = 'z-[10001]';
+
 export type YetkiTab = 'unvan' | 'bolum' | 'islem';
 type RoleSettings = { rehberlik_ogrenci_ekle?: boolean; olcme_ogrenci_ekle?: boolean } | null;
 
@@ -200,6 +203,7 @@ export const YetkilerModal: React.FC<{
       description={`${teacher.name}${teacher.branch ? ` · ${teacher.branch}` : ''}`}
       size="sm"
       id="yetkiler-modal"
+      layerClass={YETKI_LAYER}
       footer={
         <>
           <button type="button" onClick={onClose} className={cx(BTN, 'ui-btn-secondary')}>
@@ -393,7 +397,7 @@ export const YetkilerAcici: React.FC<{
   }, [teacherId]);
   if (err) {
     return (
-      <Modal open onClose={onClose} icon={ShieldCheck} title="Yetkiler" size="sm" id="yetkiler-modal-err">
+      <Modal open onClose={onClose} icon={ShieldCheck} title="Yetkiler" size="sm" id="yetkiler-modal-err" layerClass={YETKI_LAYER}>
         <p role="alert" className="text-xs font-semibold text-danger-fg">
           {err}
         </p>

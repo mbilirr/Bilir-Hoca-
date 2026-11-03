@@ -216,7 +216,9 @@ export const Modal: React.FC<{
   children?: React.ReactNode;
   id?: string;
   closeOnBackdrop?: boolean;
-}> = ({ open, onClose, title, description, icon, tone = 'brand', size = 'md', footer, children, id, closeOnBackdrop = true }) => {
+  /** Aşama 146: katman sınıfı; z-[9999] düz pencerelerin (ör. Kullanıcı Bilgileri) üstünde açılacak pencereler için */
+  layerClass?: string;
+}> = ({ open, onClose, title, description, icon, tone = 'brand', size = 'md', footer, children, id, closeOnBackdrop = true, layerClass = 'z-[80]' }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -251,7 +253,7 @@ export const Modal: React.FC<{
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/55 backdrop-blur-[2px]"
+      className={cx('fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/55 backdrop-blur-[2px]', layerClass)}
       onMouseDown={(e) => {
         if (closeOnBackdrop && e.target === e.currentTarget) onClose();
       }}

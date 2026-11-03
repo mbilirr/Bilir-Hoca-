@@ -200,6 +200,11 @@ const EtutFormContent: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Aşama 98: idare (ayar kapalıyken) etüdü yalnızca başka öğretmen adına planlar — kendisi listede yer almaz
+  // Aşama 146: genel yönetici kuruma geçtiğinde oturum kurum yöneticisinin hesabıdır; o hesap da (idare) listede/ders
+  // seçeneklerinde çıkmaz, etüt başka öğretmen adına planlanır
+  const idareAdina = dataService.idareDersKapali() || dataService.isKurumGecis();
+
   // ---- ders seçenekleri
   const subjectOptions = useMemo(() => {
     let list: string[];
@@ -207,12 +212,13 @@ const EtutFormContent: React.FC<Props> = ({
     else {
       const levels = Array.from(new Set(classes.map((c) => classLevel(c))));
       const base = levels.length === 1 ? subjectsForLevel(levels[0]) : subjectsForLevel(null);
-      const fromTeachers = (teacherOptions || []).flatMap((o) => o.subjects);
+      // Aşama 146: idare listede yoksa branşı ("Kurum Yöneticisi" gibi) ders seçeneği olmaz
+      const fromTeachers = (teacherOptions || []).filter((o) => !(idareAdina && (o.isMe || o.id === me?.id))).flatMap((o) => o.subjects);
       list = Array.from(new Set([...base, ...fromTeachers]));
     }
     if ((isEdit || isCopy) && initial.subject && !list.includes(initial.subject)) list.push(initial.subject);
     return list;
-  }, [mySubjects, classes, teacherOptions, isEdit, isCopy, initial.subject]);
+  }, [mySubjects, classes, teacherOptions, isEdit, isCopy, initial.subject, idareAdina, me]);
   const [subject, setSubject] = useState<string>(() => {
     const cands = [initial.subject, prefs.subject, ...subjectsForBranch(me?.branch)].filter(Boolean) as string[];
     return cands[0] || '';
@@ -246,8 +252,6 @@ const EtutFormContent: React.FC<Props> = ({
 
   // ---- bu dersin ve aynı zümrenin öğretmenleri (Aşama 12: Fen seçilince Fizik/Kimya/Biyoloji öğretmenleri de)
   const zumre = useMemo(() => zumreOf(effectiveSubject), [effectiveSubject]);
-  // Aşama 98: idare (ayar kapalıyken) etüdü yalnızca başka öğretmen adına planlar — kendisi listede yer almaz
-  const idareAdina = dataService.idareDersKapali();
   // Aşama 111: başka öğretmene etüt yalnız Rehberlik ve idare verir; diğer öğretmenler yalnız kendine (veritabanı da denetler)
   // Aşama 132: Rehberlik / idare listesinde yalnız SEÇİLEN DERSİN (ve zümresinin) öğretmenleri çıkar; kendisi de
   // yalnız kendi dersi seçiliyken listededir (Aşama 12 kuralı geri geldi)
@@ -535,7 +539,8 @@ const EtutFormContent: React.FC<Props> = ({
     setConfirmDiscard(false);
     if (!effectiveSubject) return setErrorText('Ders seçin.');
     if (!selectedTeacher) return setErrorText('Etüt öğretmenini seçin.');
-    if (idareAdina && selectedTeachers.some((o) => o.isMe || o.id === me?.id))
+    // Aşama 146: eski etüdü düzenlerken mevcut öğretmeni korunuyorsa engellenmez (veritabanı kuralıyla aynı)
+    if (idareAdina && selectedTeachers.some((o) => (o.isMe || o.id === me?.id) && !(isEdit && initial.teacherIds.includes(o.id))))
       return setErrorText('İdare etüdü yalnızca başka bir öğretmen adına planlar. Etüt öğretmenini seçin.');
     if (!topic.trim()) return setErrorText('Etüt konusunu yazın.');
     if (selectedIds.length === 0) return setErrorText('En az bir öğrenci seçin.');
