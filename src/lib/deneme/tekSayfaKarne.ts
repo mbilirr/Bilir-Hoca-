@@ -7,7 +7,7 @@
 // Çizimi karnePdf.ts yapar ('tekSayfa' bloğu).
 // ============================================================================
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
-import { examKarneData } from './karneDetay';
+import { examKarneData, percentile } from './karneDetay';
 import { round2 } from './lgs';
 import { isLgsExam, lgsPercentiles } from './lgsYuzdelik';
 import { denemeKarneAdi, denemeKisaAd } from './karneAdi';
@@ -28,8 +28,8 @@ const YEDEK_RENK: Array<[number, number, number]> = [
 ];
 /** Aşama 135: dersin rengi (tek sayfa ve birleştirilmiş karnede aynı) */
 export const dersRengi = (key: string, i: number): [number, number, number] => TEK_DERS_RENK[key] || YEDEK_RENK[i % YEDEK_RENK.length];
-/** Kısa ders adı (tablo, grafik ve kazanım başlığı) */
-const KISA_AD: Record<string, string> = {
+/** Kısa ders adı (tablo, grafik ve kazanım başlığı). Aşama 141: birleştirilmiş karnenin kazanım kartlarında da */
+export const KISA_AD: Record<string, string> = {
   tr: 'Türkçe',
   sos: 'İnkılap Tarihi',
   din: 'Din Kültürü',
@@ -84,16 +84,16 @@ export interface TekSayfaData {
   totalNet: number | null;
   totals: { count: number; d: number; y: number; b: number };
   clsAvgScore: number | null;
-  kurumAvgScore: number | null;
   clsTotalNet: number | null;
-  kurumTotalNet: number | null;
   rank: { cls: number; clsCount: number; overall: number; overallCount: number } | null;
+  /** Aşama 141: öğrencinin kurum içi yüzdeliği (kurum ortalamaları karneden kalktı; sıra ve yüzdelik kalır) */
+  kurumYuzdelik: number | null;
   /** Son 3 yıl LGS yüzdelik dilimi (LGS dışı denemede boş) */
   yuzdelik: Array<{ year: number; value: number; below: boolean }>;
   dersler: TekDers[];
-  /** Son denemelerdeki puan (eski → yeni, en çok 5); kurum: o denemenin kurum ortalaması */
+  /** Son denemelerdeki puan (eski → yeni, en çok 5); sinif: o denemede öğrencinin sınıfının ortalaması (Aşama 141: kurum yerine) */
   /** kisa: denemenin kısa adı (yayınevi; ör. Hız, Aday, Özdebir) — grafikte puanın üstünde (Aşama 140) */
-  gelisim: Array<{ name: string; kisa: string; score: number | null; kurum: number | null }>;
+  gelisim: Array<{ name: string; kisa: string; score: number | null; sinif: number | null }>;
   degerlendirme: Array<{ tone: 'success' | 'danger' | 'warning' | 'info'; label: string; text: string }>;
 }
 
@@ -177,7 +177,11 @@ export function tekSayfaData(
     name: shortName(e),
     kisa: denemeKisaAd(e),
     score: byExam.get(e.id)?.score ?? null,
-    kurum: typeof e.summary.avgScore === 'number' ? e.summary.avgScore : null,
+    sinif: (() => {
+      const cid = byExam.get(e.id)?.classId;
+      const c = cid ? (e.summary.classes || {})[cid] : undefined;
+      return c && typeof c.avgScore === 'number' ? c.avgScore : null;
+    })(),
   }));
   const prev = upto.length > 1 ? byExam.get(upto[upto.length - 2].id)?.score ?? null : null;
 
@@ -194,16 +198,11 @@ export function tekSayfaData(
   }
   const kacan = dersler.reduce((a, d) => a + d.sorular.filter((q) => q.kacan).length, 0);
   if (kacan) degerlendirme.push({ tone: 'warning', label: 'Dikkat:', text: `Kurumun çoğunluğunun doğru yaptığı ${kacan} soru kaçırıldı (turuncu nokta).` });
-  if (k.score !== null && k.kurumAvgScore !== null) {
-    const fk = round2(k.score - k.kurumAvgScore);
-    const fs = k.clsAvgScore !== null ? round2(k.score - k.clsAvgScore) : null;
-    const yon = (n: number) => (n >= 0 ? 'üzerinde' : 'altında');
+  // Aşama 141: karşılaştırma yalnız sınıf ortalamasıyla (kurum ortalaması karneden kalktı)
+  if (k.score !== null && k.clsAvgScore !== null) {
+    const fs = round2(k.score - k.clsAvgScore);
     const fmt = (n: number) => Math.abs(n).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    degerlendirme.push({
-      tone: 'info',
-      label: 'Puan:',
-      text: `Kurum ortalamasının ${fmt(fk)} puan ${yon(fk)}${fs !== null ? `, sınıf ortalamasının ${fmt(fs)} puan ${yon(fs)}` : ''}.`,
-    });
+    degerlendirme.push({ tone: 'info', label: 'Puan:', text: `Sınıf ortalamasının ${fmt(fs)} puan ${fs >= 0 ? 'üzerinde' : 'altında'}.` });
   }
   if (!degerlendirme.length) degerlendirme.push({ tone: 'info', label: 'Durum:', text: 'Dengeli bir sonuç; yanlış ve boş sorular aşağıda işaretli.' });
 
@@ -221,10 +220,9 @@ export function tekSayfaData(
     totalNet: k.totalNet,
     totals: k.totals,
     clsAvgScore: k.clsAvgScore,
-    kurumAvgScore: k.kurumAvgScore,
     clsTotalNet: sum(k.subjects.map((x) => x.clsAvgNet)),
-    kurumTotalNet: sum(k.subjects.map((x) => x.kurumAvgNet)),
     rank: k.rank,
+    kurumYuzdelik: percentile(k.rank),
     yuzdelik,
     dersler,
     gelisim,

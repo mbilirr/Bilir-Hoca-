@@ -9,8 +9,10 @@ import type { PdfBlock, PdfTone } from './karnePdf';
 import { examKarneData, percentile } from './karneDetay';
 import { averageKarneData, type KarneData } from './karneOrtalama';
 import { LGS_PERCENTILE_NOTE, isLgsExam, lgsPercentiles } from './lgsYuzdelik';
-import { denemeKarneAdi } from './karneAdi'; // Aşama 135
-import { dersRengi } from './tekSayfaKarne';
+import { denemeKarneAdi, denemeKisaAd } from './karneAdi'; // Aşama 135
+import { birlesikKazanim, type BirlesikDers } from './kazanimBirlesik'; // Aşama 141
+import type { GelisimPanoData, IsiNoktaData } from './karnePdfB';
+import { KISA_AD, dersRengi } from './tekSayfaKarne';
 import {
   FOLLOW_INFO,
   KAZ_STATUS_INFO,
@@ -120,14 +122,14 @@ function adviceBlocks(analysis: SubjectTopics[]): PdfBlock[] {
 }
 
 // ----------------------------------------------------------------------------- Aşama 50: tek deneme karnesi (PDF)
-export function examKarneBlocks(data: KarneData, studentName: string, className: string): PdfBlock[] {
+/** Aşama 141: birlesik verilirse "Konu ve kazanım analizi" B tasarımında tek bölüm (bu deneme + seçilen denemelerin toplamı) */
+export function examKarneBlocks(data: KarneData, studentName: string, className: string, birlesik?: { dersler: BirlesikDers[]; n: number }): PdfBlock[] {
   const { exam, subjects, topics, rank } = data;
   // Aşama 92: ortalama karne (D / Y / B ortalamadır; cevap çizelgesi yoktur)
   const avg = data.avg;
   const N = (v: number) => (avg ? fmtNet(v) : v);
   const pct = percentile(rank);
   const clsTotal = subjects.reduce((a, s) => a + (s.clsAvgNet ?? 0), 0);
-  const kurumTotal = subjects.reduce((a, s) => a + (s.kurumAvgNet ?? 0), 0);
   const hasCls = subjects.some((s) => s.clsAvgNet !== null);
   const diff = (a: number | null, b: number | null, f: (n: number) => string) =>
     a === null || b === null || Math.abs(a - b) < 0.005 ? '-' : `${a - b > 0 ? '+' : '-'}${f(Math.abs(a - b))}`;
@@ -166,23 +168,21 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
     {
       kind: 'tiles',
       items: [
-        { label: avg ? 'Ort. toplam net' : 'Toplam net', value: fmtNet(data.totalNet), sub: `${hasCls ? `Sınıf ${fmtNet(round2(clsTotal))} · ` : ''}Kurum ${fmtNet(round2(kurumTotal))}` },
+        // Aşama 141: kurum ortalamaları karneden kalktı (sınıf ortalaması kalır)
+        { label: avg ? 'Ort. toplam net' : 'Toplam net', value: fmtNet(data.totalNet), sub: hasCls ? `Sınıf ort. ${fmtNet(round2(clsTotal))}` : `${data.totals.count} sorudan` },
         { label: avg ? 'Ort. doğru' : 'Doğru', value: String(N(data.totals.d)), sub: avg ? `deneme başına ${data.totals.count} sorudan` : `${data.totals.count} sorudan`, tone: 'success' },
         { label: avg ? 'Ort. yanlış' : 'Yanlış', value: String(N(data.totals.y)), sub: '3 yanlış 1 doğruyu götürür', tone: 'danger' },
         { label: avg ? 'Ort. boş' : 'Boş', value: String(N(data.totals.b)), tone: 'muted' },
-        {
-          label: 'Kurum ort. puan',
-          value: fmtScore(data.kurumAvgScore),
-          sub: `Fark ${diff(data.score, data.kurumAvgScore, fmtScore)}${data.clsAvgScore !== null ? ` · Sınıf ort. ${fmtScore(data.clsAvgScore)}` : ''}`,
-          tone: 'info',
-        },
+        ...(data.clsAvgScore !== null
+          ? [{ label: 'Sınıf ort. puan', value: fmtScore(data.clsAvgScore), sub: `Fark ${diff(data.score, data.clsAvgScore, fmtScore)}`, tone: 'info' as const }]
+          : []),
       ],
     },
     ...lgsBlocks,
     { kind: 'heading', text: avg ? `Ders sonuçları (${avg.n} denemenin ortalaması)` : 'Ders sonuçları' },
     {
       kind: 'table',
-      head: ['Ders', 'Soru', 'D', 'Y', 'B', 'Net', 'Başarı', ...(hasCls ? ['Sınıf ort.'] : []), 'Kurum ort.', 'Kuruma göre'],
+      head: ['Ders', 'Soru', 'D', 'Y', 'B', 'Net', 'Başarı', ...(hasCls ? ['Sınıf ort.', 'Sınıfa göre'] : [])],
       rows: [
         ...subjects.map((s) => [
           s.subject.name,
@@ -192,9 +192,7 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
           N(s.b),
           fmtNet(s.net),
           `%${s.rate}`,
-          ...(hasCls ? [fmtNet(s.clsAvgNet)] : []),
-          fmtNet(s.kurumAvgNet),
-          diff(s.net, s.kurumAvgNet, fmtNet),
+          ...(hasCls ? [fmtNet(s.clsAvgNet), diff(s.net, s.clsAvgNet, fmtNet)] : []),
         ]),
         [
           'Toplam',
@@ -204,27 +202,24 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
           N(data.totals.b),
           fmtNet(data.totalNet),
           `%${data.totals.count ? Math.round((data.totals.d / data.totals.count) * 100) : 0}`,
-          ...(hasCls ? [fmtNet(round2(clsTotal))] : []),
-          fmtNet(round2(kurumTotal)),
-          diff(data.totalNet, round2(kurumTotal), fmtNet),
+          ...(hasCls ? [fmtNet(round2(clsTotal)), diff(data.totalNet, round2(clsTotal), fmtNet)] : []),
         ],
       ],
       // Aşama 135: satırlar yeşil değil; her ders kendi renginde, başarı sütununda renkli çubuk
       rowColors: [...subjects.map((s, i) => dersRengi(s.subject.key, i)), null],
       rateColumn: 6,
       widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto', 30],
-      align: ['left', 'center', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const] : []), 'center', 'center'],
+      align: ['left', 'center', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const, 'center' as const] : [])],
       fontSize: 7.8,
     },
     {
       kind: 'bar',
-      title: 'Ders netleri: öğrenci, sınıf ve kurum',
+      title: hasCls ? 'Ders netleri: öğrenci ve sınıf' : 'Ders netleri',
       solid: { colors: subjects.map((s, i) => dersRengi(s.subject.key, i)) },
       labels: subjects.map((s) => s.subject.short),
       series: [
         { name: 'Öğrenci', values: subjects.map((s) => s.net) },
         ...(hasCls ? [{ name: 'Sınıf ortalaması', values: subjects.map((s) => s.clsAvgNet ?? 0) }] : []),
-        { name: 'Kurum ortalaması', values: subjects.map((s) => s.kurumAvgNet ?? 0) },
       ],
     },
     ...(avg
@@ -239,14 +234,15 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
             })),
           },
         ] as PdfBlock[])),
-    { kind: 'heading', text: avg ? `Konu ve kazanım analizi (${avg.n} denemedeki bütün sorular)` : 'Konu ve kazanım analizi' },
+    ...(birlesik ? [] : ([{ kind: 'heading', text: avg ? `Konu ve kazanım analizi (${avg.n} denemedeki bütün sorular)` : 'Konu ve kazanım analizi' },
     {
       kind: 'text',
       tone: 'muted',
       text: 'Çubuk öğrencinin başarısını, dikey çizgi kurumun başarısını gösterir. Yeşil %70+ başarılı · Mavi %50-69 tekrar · Turuncu %30-49 takviye · Kırmızı %30 altı kritik.',
-    },
+    }] as PdfBlock[])),
   ];
-  for (const s of subjects) {
+  if (birlesik) blocks.push(...kazanimKartBlocks(birlesik.dersler, birlesik.n));
+  else for (const s of subjects) {
     const list = topics.filter((t) => t.subject.key === s.subject.key);
     if (!list.length) continue;
     blocks.push({
@@ -278,6 +274,16 @@ export function examKarneBlocks(data: KarneData, studentName: string, className:
   return blocks;
 }
 
+/** Aşama 141: birleşik "Konu ve kazanım analizi" bölümü (B tasarımı, iki sütunlu ders kartları) */
+export function kazanimKartBlocks(dersler: BirlesikDers[], n: number): PdfBlock[] {
+  if (!dersler.length) return [];
+  return [
+    { kind: 'pagebreak' },
+    { kind: 'heading', text: 'Konu ve kazanım analizi', minFollow: 60 },
+    { kind: 'kazanimKart', dersler, n },
+  ];
+}
+
 // ----------------------------------------------------------------------------- Öğrenci karnesi
 export interface StudentKarneInput {
   studentName: string;
@@ -304,27 +310,15 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
   const avgData = inp.detailExamId !== 'none' && !picked && exams.length >= 2 ? averageKarneData(exams, inp.results, inp.scopeLabel, dateRange(exams)) : null;
   const detailExam = inp.detailExamId === 'none' || avgData ? undefined : picked || exams[exams.length - 1];
   const detailResult = detailExam ? rByExam.get(detailExam.id) : undefined;
-  const head: PdfBlock[] = avgData
-    ? [...examKarneBlocks(avgData, inp.studentName, inp.className), { kind: 'pagebreak' }]
-    : detailExam && detailResult
-      ? [...examKarneBlocks(examKarneData(detailExam, detailResult), inp.studentName, inp.className), { kind: 'pagebreak' }]
-      : [];
+  const detailData = avgData || (detailExam && detailResult ? examKarneData(detailExam, detailResult) : null);
+  // Aşama 141: iki "Konu ve kazanım analizi" bölümü tek bölüm (bu deneme + seçilen denemelerin toplamı)
+  const analysis = topicAnalysis(exams, inp.results, subs);
+  const birlesik = { dersler: birlesikKazanim(detailData, analysis, exams.length), n: exams.length };
+  const head: PdfBlock[] = detailData ? [...examKarneBlocks(detailData, inp.studentName, inp.className, birlesik), { kind: 'pagebreak' }] : [];
   const blocks: PdfBlock[] = [
     ...head,
     { kind: 'title', text: head.length ? 'Deneme Gelişimi' : 'Deneme Karnesi', sub: `${inp.studentName}${inp.className ? ` · ${inp.className}` : ''}` },
-    {
-      kind: 'kv',
-      rows: [
-        ['Kapsam', `${inp.scopeLabel} (${exams.length} deneme)`],
-        ['Tarih aralığı', dateRange(exams)],
-        ['Son puan', fmtScore(last?.score)],
-        ['Ortalama puan', fmtScore(avg)],
-        ['Son sınıf sırası', last?.stats.rank ? `${last.stats.rank.cls} / ${last.stats.rank.clsCount}` : '-'],
-        ['Son genel sıra', last?.stats.rank ? `${last.stats.rank.overall} / ${last.stats.rank.overallCount}` : '-'],
-        ['Hedef puan', inp.target !== null ? fmtScore(inp.target) : 'Belirlenmedi'],
-        ['Son toplam net', fmtNet(last?.totalNet)],
-      ],
-    },
+    { kind: 'text', tone: 'muted', text: `${inp.scopeLabel}${inp.scopeLabel.includes(String(exams.length)) ? '' : ` (${exams.length} deneme)`} · ${dateRange(exams)}` },
   ];
   if (gap) {
     blocks.push({
@@ -336,58 +330,73 @@ export function studentKarneBlocks(inp: StudentKarneInput): PdfBlock[] {
           : `Tebrikler! Son denemede hedef puanın ${fmtScore(-gap.points)} puan üstündesin.`,
     });
   }
-  blocks.push({ kind: 'heading', text: 'Deneme sonuçları (Doğru / Yanlış / Net)' });
-  blocks.push({
-    kind: 'table',
-    head: ['Deneme', 'Tarih', ...subs.map((s) => `${s.short} D/Y/N`), 'Top. net', 'Puan', 'Sınıf sırası'],
-    rows: exams.map((e) => {
-      const r = rByExam.get(e.id)!;
-      return [
-        e.name,
-        dateTr(e.examDate),
-        ...subs.map((s) => {
-          const x = r.stats.subjects?.[s.key];
-          return x ? `${x.d}/${x.y}/${fmtNet(x.net)}` : '-';
-        }),
-        fmtNet(r.totalNet),
-        fmtScore(r.score),
-        r.stats.rank ? `${r.stats.rank.cls}/${r.stats.rank.clsCount}` : '-',
-      ];
-    }),
-    align: ['left', 'center', ...subs.map(() => 'center' as const), 'center', 'center', 'center'],
-    fontSize: 7.2,
-  });
-  if (exams.length >= 1) {
-    const clsAvg = exams.map((e) => {
-      const r = rByExam.get(e.id);
-      const c = r?.classId ? (e.summary.classes || {})[r.classId] : undefined;
-      return c ? c.avgScore : null;
-    });
-    const series: Array<{ name: string; values: Array<number | null> }> = [{ name: 'Puan', values: scores }];
-    if (clsAvg.some((v) => v !== null)) series.push({ name: 'Sınıf ortalaması', values: clsAvg });
-    if (inp.target !== null) series.push({ name: 'Hedef', values: exams.map(() => inp.target) });
-    blocks.push({ kind: 'line', title: 'Puan gelişimi', labels: exams.map(examShort), series });
-    blocks.push({
-      kind: 'line',
-      title: 'Ders netlerinin gelişimi',
-      labels: exams.map(examShort),
-      series: subs.map((s) => ({ name: s.short, values: exams.map((e) => rByExam.get(e.id)?.stats.subjects?.[s.key]?.net ?? null) })),
-    });
-  }
+  // Aşama 141: gelişim panosu (B tasarımı) — eski bilgi satırları, D/Y/N tablosu ve iki çizgi grafiğinin yerine
+  if (exams.length) blocks.push({ kind: 'gelisimPano', data: gelisimPanoData(exams, rByExam, subs, inp.target, avg) });
   // Aşama 54: seçilen denemelerin ortalaması ve konu ısı tablosu
   if (!avgData) blocks.push(...averageBlocks(exams, inp.results, subs));
   blocks.push(...heatBlocks(exams, inp.results, subs));
-  const analysis = topicAnalysis(exams, inp.results, subs);
-  blocks.push(...topicBlocks(analysis));
+  if (!head.length) blocks.push(...kazanimKartBlocks(birlesik.dersler, birlesik.n));
   blocks.push(...adviceBlocks(analysis));
   blocks.push({ kind: 'text', tone: 'muted', text: 'Puanlar yaklaşık LGS puanıdır (3 yanlış 1 doğruyu götürür; ağırlıklı net × 1,13 + 194,75).' });
   return blocks;
 }
 
+/** Aşama 141: gelişim panosunun verisi (deneme sırasıyla; ekran ve PDF aynı) */
+export function gelisimPanoData(exams: DenemeExam[], rByExam: Map<string, DenemeResult>, subs: ExamSubject[], target: number | null, ortalama: number | null): GelisimPanoData {
+  const kisaAdlar = exams.map((e) => denemeKisaAd(e));
+  // aynı yayınevinin denemeleri ayırt edilsin: kısa ad tekrar ediyorsa sıra numarası eklenir
+  const sayac = new Map<string, number>();
+  kisaAdlar.forEach((k) => sayac.set(k, (sayac.get(k) || 0) + 1));
+  const sira = new Map<string, number>();
+  const kisa = kisaAdlar.map((k) => {
+    if ((sayac.get(k) || 0) < 2) return k;
+    const i = (sira.get(k) || 0) + 1;
+    sira.set(k, i);
+    return `${k} ${i}`;
+  });
+  const cls = (e: DenemeExam) => {
+    const r = rByExam.get(e.id);
+    return r?.classId ? (e.summary.classes || {})[r.classId] : undefined;
+  };
+  return {
+    hedef: target,
+    ortalama,
+    denemeler: exams.map((e, i) => {
+      const r = rByExam.get(e.id)!;
+      const rk = r.stats.rank;
+      return {
+        ad: e.name,
+        kisa: kisa[i],
+        tarih: dateTr(e.examDate).slice(0, 5),
+        puan: r.score,
+        sinifOrt: cls(e)?.avgScore ?? null,
+        sinifSira: rk ? `${rk.cls}/${rk.clsCount}` : '-',
+        kurumSira: rk ? `${rk.overall}/${rk.overallCount}` : '-',
+        toplamNet: r.totalNet,
+        netler: subs.map((s) => {
+          const x = r.stats.subjects?.[s.key];
+          return x ? `${x.d}/${x.y}/${fmtNet(x.net)}` : '-';
+        }),
+      };
+    }),
+    dersler: subs.map((s, i) => ({
+      ad: KISA_AD[s.key] || s.name,
+      kisa: s.short,
+      renk: dersRengi(s.key, i),
+      soru: s.count,
+      netler: exams.map((e) => rByExam.get(e.id)?.stats.subjects?.[s.key]?.net ?? null),
+      sinifNetler: exams.map((e) => {
+        const v = cls(e)?.avgNet?.[s.key];
+        return typeof v === 'number' ? v : null;
+      }),
+    })),
+  };
+}
+
 // ============================================================================ Aşama 54: birleştirilmiş karne ekleri
 const signed = (v: number | null, f: (n: number) => string) => (v === null || Math.abs(v) < 0.005 ? '-' : `${v > 0 ? '+' : '-'}${f(Math.abs(v))}`);
 
-/** Seçilen denemelerin ortalaması (ders ders; sınıf ve kurum ortalamasıyla) */
+/** Seçilen denemelerin ortalaması (ders ders; sınıf ortalamasıyla — Aşama 141: kurum ortalaması kalktı) */
 export function averageBlocks(exams: DenemeExam[], results: DenemeResult[], subs: ExamSubject[]): PdfBlock[] {
   const a = selectedAverages(exams, results, subs);
   if (!a || a.n < 2) return [];
@@ -399,14 +408,13 @@ export function averageBlocks(exams: DenemeExam[], results: DenemeResult[], subs
       items: [
         { label: 'Ortalama puan', value: fmtScore(a.score), sub: a.clsScore !== null ? `Sınıf ort. ${fmtScore(a.clsScore)}` : undefined, tone: 'info' },
         { label: 'Ortalama toplam net', value: fmtNet(a.totalNet) },
-        { label: 'Kurum ort. puan', value: fmtScore(a.kurumScore), sub: `Fark ${signed(a.score !== null && a.kurumScore !== null ? a.score - a.kurumScore : null, fmtScore)}` },
         { label: 'En iyi deneme', value: fmtScore(a.best?.score), sub: a.best ? a.best.exam.name : undefined, tone: 'success' },
         { label: 'İlk / son puan', value: `${fmtScore(a.first)} / ${fmtScore(a.last)}`, sub: `Değişim ${signed(a.first !== null && a.last !== null ? a.last - a.first : null, fmtScore)}` },
       ],
     },
     {
       kind: 'table',
-      head: ['Ders', 'Ort. D', 'Ort. Y', 'Ort. B', 'Ort. net', 'Başarı', ...(hasCls ? ['Sınıf ort.'] : []), 'Kurum ort.', 'Kuruma göre', 'En iyi', 'En düşük'],
+      head: ['Ders', 'Ort. D', 'Ort. Y', 'Ort. B', 'Ort. net', 'Başarı', ...(hasCls ? ['Sınıf ort.', 'Sınıfa göre'] : []), 'En iyi', 'En düşük'],
       rows: a.rows.map((r) => [
         r.subject.name,
         fmtNet(r.d),
@@ -414,9 +422,7 @@ export function averageBlocks(exams: DenemeExam[], results: DenemeResult[], subs
         fmtNet(r.b),
         fmtNet(r.net),
         `%${r.rate}`,
-        ...(hasCls ? [fmtNet(r.clsNet)] : []),
-        fmtNet(r.kurumNet),
-        signed(r.kurumNet !== null ? r.net - r.kurumNet : null, fmtNet),
+        ...(hasCls ? [fmtNet(r.clsNet), signed(r.clsNet !== null ? r.net - r.clsNet : null, fmtNet)] : []),
         fmtNet(r.best),
         fmtNet(r.worst),
       ]),
@@ -424,51 +430,47 @@ export function averageBlocks(exams: DenemeExam[], results: DenemeResult[], subs
         const row: Array<PdfTone | null> = [null, null, null, null, null, levelTone(r.rate)];
         return row;
       }),
-      align: ['left', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const] : []), 'center', 'center', 'center', 'center'],
+      align: ['left', 'center', 'center', 'center', 'center', 'center', ...(hasCls ? ['center' as const, 'center' as const] : []), 'center', 'center'],
       fontSize: 7.6,
     },
   ];
 }
 
-const HEAT_MAX_EXAMS = 8;
+export const HEAT_MAX_EXAMS = 8;
 
-/** Konu ısı tablosu: satır kazanım, sütun deneme, hücre başarı rengi */
+/** Konu ısı tablosu: satır kazanım, sütun deneme, hücre başarı. Aşama 141: renkli daireler ve gidişat çizgisi (B tasarımı) */
 export function heatBlocks(examsAll: DenemeExam[], results: DenemeResult[], subs: ExamSubject[]): PdfBlock[] {
   const done = examsAll.filter((e) => results.some((r) => r.examId === e.id));
   if (!done.length) return [];
   const exams = done.slice(-HEAT_MAX_EXAMS);
-  const heat = topicHeat(kazanimTracking(exams, results, subs), exams);
-  if (!heat.length) return [];
-  const blocks: PdfBlock[] = [
+  const data = isiNoktaData(exams, results, subs);
+  if (!data) return [];
+  return [
     { kind: 'pagebreak' },
-    {
-      kind: 'heading',
-      text: 'Konu ısı tablosu',
-      sub: 'Satırlar kazanımlar, sütunlar denemeler; hücre o denemedeki başarıdır. Yeşil %70+ · Mavi %50-69 · Turuncu %30-49 · Kırmızı %30 altı · "-" o denemede sorulmadı.',
-    },
+    { kind: 'heading', text: 'Konu ısı tablosu', sub: 'Satırlar kazanımlar, sütunlar denemeler; her daire o denemedeki başarıdır (içindeki sayı yüzde). Kesikli boş daire o denemede sorulmadı demektir. Gidişat çizgisi denemeler boyunca başarıyı gösterir.' },
     { kind: 'text', tone: 'muted', text: `Sütunlar: ${exams.map((e, i) => `${i + 1}) ${e.name}`).join('  ')}${done.length > exams.length ? ` (son ${exams.length} deneme gösterilir)` : ''}` },
+    { kind: 'isiNokta', data },
   ];
-  for (const h of heat) {
-    blocks.push({ kind: 'heading', text: h.subject.name, minFollow: 24 });
-    const rows: Array<Array<string | number>> = [];
-    const tones: Array<Array<PdfTone | null>> = [];
-    for (const r of h.rows) {
-      rows.push([r.row.short, ...r.cells.map((c) => (c === null ? '-' : `%${c}`)), `%${r.row.rate}`]);
-      tones.push([null, ...r.cells.map((c) => (c === null ? null : levelTone(c))), levelTone(r.row.rate)]);
-    }
-    rows.push(['Ders geneli', ...h.examRates.map((c) => (c === null ? '-' : `%${c}`)), '']);
-    tones.push([null, ...h.examRates.map((c) => (c === null ? null : levelTone(c))), null]);
-    blocks.push({
-      kind: 'table',
-      head: ['Kazanım', ...exams.map((_, i) => String(i + 1)), 'Genel'],
-      rows,
-      cellTones: tones,
-      align: ['left', ...exams.map(() => 'center' as const), 'center'],
-      widths: ['auto', ...exams.map(() => 11), 13],
-      fontSize: 7,
-    });
-  }
-  return blocks;
+}
+
+/** Aşama 141: ısı tablosunun verisi (ekran ve PDF aynı); exams: gösterilecek denemeler (en çok HEAT_MAX_EXAMS) */
+export function isiNoktaData(exams: DenemeExam[], results: DenemeResult[], subs: ExamSubject[]): IsiNoktaData | null {
+  const heat = topicHeat(kazanimTracking(exams, results, subs), exams);
+  if (!heat.length) return null;
+  return {
+    denemeler: exams.map((e, i) => ({ no: i + 1, tarih: dateTr(e.examDate).slice(0, 5) })),
+    dersler: heat.map((h, i) => {
+      const t = h.rows.reduce((a, r) => a + r.row.total, 0);
+      const d = h.rows.reduce((a, r) => a + r.row.d, 0);
+      return {
+        ad: KISA_AD[h.subject.key] || h.subject.name,
+        renk: dersRengi(h.subject.key, i),
+        genelOran: t ? Math.round((d / t) * 100) : 0,
+        satirlar: h.rows.map((r) => ({ ad: r.row.short, hucre: r.cells, genel: r.row.rate })),
+        genel: h.examRates,
+      };
+    }),
+  };
 }
 
 // ============================================================================ Aşama 54: Kazanım Takip Karnesi

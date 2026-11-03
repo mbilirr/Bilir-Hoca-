@@ -5,6 +5,8 @@
 // ============================================================================
 import { getKurumBrand } from '../kurumBrand';
 import type { TekSayfaData } from './tekSayfaKarne';
+import type { BirlesikDers } from './kazanimBirlesik';
+import { drawGelisimPano, drawIsiNokta, drawKazanimKart, type GelisimPanoData, type IsiNoktaData, type PdfCtx } from './karnePdfB'; // Aşama 141
 import { kurumRenkHazirla, seritRenk } from '../kurumRenk';
 
 export type PdfTone = 'success' | 'info' | 'warning' | 'danger' | 'muted';
@@ -73,7 +75,11 @@ export type PdfBlock =
     }
   | { kind: 'rates'; title?: string; items: Array<{ label: string; sub?: string; rate: number; marker?: number | null; tone: PdfTone; right?: string }> }
   // Aşama 135: tek sayfa deneme sonuç karnesi — kendi sayfasına sabit yerleşimle çizilir (kurum başlığı ve alt yazı kendi içinde)
-  | { kind: 'tekSayfa'; data: TekSayfaData };
+  | { kind: 'tekSayfa'; data: TekSayfaData }
+  // Aşama 141: birleştirilmiş karne B tasarımı (karnePdfB.ts çizer)
+  | { kind: 'kazanimKart'; dersler: BirlesikDers[]; n: number }
+  | { kind: 'gelisimPano'; data: GelisimPanoData }
+  | { kind: 'isiNokta'; data: IsiNoktaData };
 
 const PALETTE: Array<[number, number, number]> = [
   [79, 70, 229],
@@ -211,6 +217,17 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
         if (tekMod) tekMod.drawTekSayfa(doc, F, t, b.data, getKurumBrand(), parts[pi].footer, kRenk);
         ownPages.add(doc.getNumberOfPages());
         y = H; // sonraki blok (varsa) yeni sayfadan başlar
+        continue;
+      }
+      // ------------------------------------------------------------------- Aşama 141: B tasarımı blokları
+      if (b.kind === 'kazanimKart' || b.kind === 'gelisimPano' || b.kind === 'isiNokta') {
+        const ctx: PdfCtx = { doc, F, t, W, H, M, TOP, y, vurgu: renk ? renk.zemin : [79, 70, 229] };
+        if (b.kind === 'kazanimKart') drawKazanimKart(ctx, b.dersler, b.n);
+        else if (b.kind === 'gelisimPano') drawGelisimPano(ctx, b.data);
+        else drawIsiNokta(ctx, b.data);
+        y = ctx.y;
+        doc.setFont(F, 'normal');
+        doc.setLineWidth(0.2);
         continue;
       }
       // ------------------------------------------------------------------- Aşama 50: başlık bandı

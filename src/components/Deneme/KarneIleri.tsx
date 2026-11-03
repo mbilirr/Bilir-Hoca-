@@ -96,9 +96,9 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
     return <span className={cx('font-semibold tabular-nums', x > y ? 'text-success-fg' : 'text-danger-fg')}>{x > y ? `▲ ${f(x - y)}` : `▼ ${f(y - x)}`}</span>;
   };
   return (
-    <Panel title={`Seçilen ${a.n} denemenin ortalaması`} description="Ders ders ortalama doğru, yanlış, boş ve net; sınıf ve kurum ortalamasıyla" icon={LayoutGrid} tone="info" id="karne-ortalama">
+    <Panel title={`Seçilen ${a.n} denemenin ortalaması`} description="Ders ders ortalama doğru, yanlış, boş ve net; sınıf ortalamasıyla" icon={LayoutGrid} tone="info" id="karne-ortalama">
       <div className="space-y-3">
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-info/25 bg-info-soft px-3 py-2">
             <p className="ui-eyebrow">Ortalama puan</p>
             <p className="text-lg font-bold text-info-fg tabular-nums">{fmtScore(a.score)}</p>
@@ -107,11 +107,6 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
           <div className="rounded-xl border border-line bg-surface px-3 py-2">
             <p className="ui-eyebrow">Ortalama toplam net</p>
             <p className="text-lg font-bold text-fg tabular-nums">{fmtNet(a.totalNet)}</p>
-          </div>
-          <div className="rounded-xl border border-line bg-surface px-3 py-2">
-            <p className="ui-eyebrow">Kurum ort. puan</p>
-            <p className="text-lg font-bold text-fg tabular-nums">{fmtScore(a.kurumScore)}</p>
-            <p className="text-[11px]">{diff(a.score, a.kurumScore, fmtScore)}</p>
           </div>
           <div className="rounded-xl border border-success/25 bg-success-soft px-3 py-2">
             <p className="ui-eyebrow">En iyi deneme</p>
@@ -136,8 +131,7 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
                   <th className="px-2 py-2 font-semibold text-center">Ort. net</th>
                   <th className="px-2 py-2 font-semibold text-center">Başarı</th>
                   {hasCls && <th className="px-2 py-2 font-semibold text-center">Sınıf ort.</th>}
-                  <th className="px-2 py-2 font-semibold text-center">Kurum ort.</th>
-                  <th className="px-2 py-2 font-semibold text-center">Kuruma göre</th>
+                  {hasCls && <th className="px-2 py-2 font-semibold text-center">Sınıfa göre</th>}
                   <th className="px-3 py-2 font-semibold text-center">En iyi / en düşük</th>
                 </tr>
               </thead>
@@ -153,8 +147,7 @@ export const AveragesPanel: React.FC<{ exams: DenemeExam[]; results: DenemeResul
                       <span className={chipFor(r.rate)}>%{r.rate}</span>
                     </td>
                     {hasCls && <td className="px-2 py-1.5 text-center tabular-nums">{fmtNet(r.clsNet)}</td>}
-                    <td className="px-2 py-1.5 text-center tabular-nums">{fmtNet(r.kurumNet)}</td>
-                    <td className="px-2 py-1.5 text-center">{diff(r.net, r.kurumNet, fmtNet)}</td>
+                    {hasCls && <td className="px-2 py-1.5 text-center">{diff(r.net, r.clsNet, fmtNet)}</td>}
                     <td className="px-3 py-1.5 text-center tabular-nums whitespace-nowrap">
                       <span className="text-success-fg font-semibold">{fmtNet(r.best)}</span> / <span className="text-danger-fg">{fmtNet(r.worst)}</span>
                     </td>

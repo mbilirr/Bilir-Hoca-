@@ -39,7 +39,7 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
           value={fmtScore(d.score)}
           sub={dlt === null ? 'İlk deneme' : <span className={dlt >= 0 ? 'text-success-fg font-semibold' : 'text-danger-fg font-semibold'}>{`Önceki denemeye göre ${dlt >= 0 ? '+' : '-'}${fmtScore(Math.abs(dlt))}`}</span>}
         />
-        <Kutu label="Toplam net" value={fmtNet(d.totalNet)} sub={`Kurum ort. ${fmtNet(d.kurumTotalNet)}`} />
+        <Kutu label="Toplam net" value={fmtNet(d.totalNet)} sub={`Sınıf ort. ${fmtNet(d.clsTotalNet)}`} />
         <Kutu
           label="D · Y · B"
           value={
@@ -52,7 +52,7 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
           sub={`${d.totals.count} soru`}
         />
         <Kutu label="Sınıf sırası" value={d.rank ? `${d.rank.cls} / ${d.rank.clsCount}` : '-'} sub={`Sınıf ort. ${fmtScore(d.clsAvgScore)}`} />
-        <Kutu label="Kurum sırası" value={d.rank ? `${d.rank.overall} / ${d.rank.overallCount}` : '-'} sub={`Kurum ort. ${fmtScore(d.kurumAvgScore)}`} />
+        <Kutu label="Kurum sırası" value={d.rank ? `${d.rank.overall} / ${d.rank.overallCount}` : '-'} sub={d.kurumYuzdelik !== null ? `Kurum içi yüzdelik %${d.kurumYuzdelik}` : ''} />
       </div>
 
       <div className={cx('grid gap-3', d.yuzdelik.length > 0 && 'lg:grid-cols-[1fr_16rem]')}>
@@ -68,13 +68,12 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
                 <th className="px-2">Net</th>
                 <th className="px-2">Başarı</th>
                 <th className="px-2">Sınıf ort.</th>
-                <th className="px-2">Kurum ort.</th>
-                <th className="px-2">Fark</th>
+                <th className="px-2">Sınıfa göre</th>
               </tr>
             </thead>
             <tbody>
               {d.dersler.map((s) => {
-                const f = s.kurumAvgNet !== null ? Math.round((s.net - s.kurumAvgNet) * 100) / 100 : null;
+                const f = s.clsAvgNet !== null ? Math.round((s.net - s.clsAvgNet) * 100) / 100 : null; // Aşama 141: fark sınıfa göre
                 return (
                   <tr key={s.key} className="border-b border-line text-center">
                     <td className="text-left px-3 py-1.5 font-semibold text-fg whitespace-nowrap">
@@ -88,7 +87,6 @@ export const TekSayfaView: React.FC<{ data: TekSayfaData | null }> = ({ data: d 
                     <td className="font-bold text-fg">{fmtNet(s.net)}</td>
                     <td>%{s.rate}</td>
                     <td>{fmtNet(s.clsAvgNet)}</td>
-                    <td>{fmtNet(s.kurumAvgNet)}</td>
                     <td className={cx('font-semibold', f === null ? '' : f >= 0 ? 'text-success-fg' : 'text-danger-fg')}>{f === null ? '-' : `${f >= 0 ? '+' : ''}${fmtNet(f)}`}</td>
                   </tr>
                 );

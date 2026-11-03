@@ -22,7 +22,7 @@ const WARN: RGB = [217, 119, 6];
 const INFO: RGB = [37, 99, 235];
 const EMPTY: RGB = [203, 213, 225];
 const BAD_SOFT: RGB = [253, 236, 236];
-const KURUM_GRI: RGB = [203, 213, 225];
+const SINIF_GRI: RGB = [148, 163, 184]; // Aşama 141: puan gelişiminde sınıf ortalaması (kurum ortalaması kalktı)
 const TREND: RGB = [15, 118, 110];
 
 const fmt2 = (n: number | null | undefined) =>
@@ -218,7 +218,7 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     dlt === null ? FG2 : dlt >= 0 ? OK : BAD,
     dlt === null ? undefined : 'Önceki denemeye göre'
   );
-  kpi(1, 'Toplam net', big(fmt2(d.totalNet), 14, FG), `Kurum ort. ${fmt2(d.kurumTotalNet)}`);
+  kpi(1, 'Toplam net', big(fmt2(d.totalNet), 14, FG), `Sınıf ort. ${fmt2(d.clsTotalNet)}`);
   kpi(
     2,
     'Doğru · Yanlış · Boş',
@@ -241,7 +241,7 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     '3 yanlış 1 doğruyu götürür'
   );
   kpi(1 + 2, 'Sınıf sırası', big(d.rank ? String(d.rank.cls) : '-', 14, FG, d.rank ? `/ ${d.rank.clsCount}` : undefined), `Sınıf ort. puan ${fmt2(d.clsAvgScore)}`);
-  kpi(4, 'Kurum sırası', big(d.rank ? String(d.rank.overall) : '-', 14, FG, d.rank ? `/ ${d.rank.overallCount}` : undefined), `Kurum ort. puan ${fmt2(d.kurumAvgScore)}`);
+  kpi(4, 'Kurum sırası', big(d.rank ? String(d.rank.overall) : '-', 14, FG, d.rank ? `/ ${d.rank.overallCount}` : undefined), d.kurumYuzdelik !== null ? `Kurum içi yüzdelik %${d.kurumYuzdelik}` : '');
   y += kh + 2.5;
 
   // ------------------------------------------------------------------ 3. Ders tablosu + yüzdelik
@@ -250,7 +250,7 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
   const tW = hasYz ? CW - yzW - 2.4 : CW;
   const rowH = 5.3;
   const tH = 6.1 + 5.2 + (d.dersler.length + 1) * rowH + 0.6;
-  let ty = card(M, y, tW, tH, 'Ders sonuçları', 'Sınıf ve kurum ortalaması net olarak');
+  let ty = card(M, y, tW, tH, 'Ders sonuçları', 'Sınıf ortalaması net olarak; fark sınıfa göre');
   // sütunlar: Ders | Soru D Y B Net | Başarı | Sınıf Kurum Fark
   const cols = [
     { k: 'Soru', w: 9 },
@@ -260,7 +260,6 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     { k: 'Net', w: 11 },
     { k: 'Başarı', w: 23 },
     { k: 'Sınıf ort.', w: 14 },
-    { k: 'Kurum ort.', w: 15 },
     { k: 'Fark', w: 11 },
   ];
   const fixedW = cols.reduce((a, c) => a + c.w, 0);
@@ -278,7 +277,7 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
   ty += 5.2;
   draw(LINE);
   doc.line(M, ty, M + tW, ty);
-  const rowFn = (r: { label: string; color?: RGB; count: number; d: number; y: number; b: number; net: number | null; rate: number; cls: number | null; kur: number | null }, total: boolean) => {
+  const rowFn = (r: { label: string; color?: RGB; count: number; d: number; y: number; b: number; net: number | null; rate: number; cls: number | null }, total: boolean) => {
     if (total) {
       fill(BG2);
       doc.rect(M + 0.1, ty, tW - 0.2, rowH, 'F');
@@ -321,20 +320,20 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     font(6.8, total);
     ink(FG2);
     text(fmt2(r.cls), colX[6], by, { align: 'center' });
-    text(fmt2(r.kur), colX[7], by, { align: 'center' });
-    if (r.net !== null && r.kur !== null) {
-      const f = Math.round((r.net - r.kur) * 100) / 100;
+    // Aşama 141: fark sınıf ortalamasına göre
+    if (r.net !== null && r.cls !== null) {
+      const f = Math.round((r.net - r.cls) * 100) / 100;
       font(6.8, true);
       ink(f >= 0 ? OK : BAD);
-      text(`${f >= 0 ? '+' : '-'}${fmt2(Math.abs(f))}`, colX[8], by, { align: 'center' });
-    } else text('-', colX[8], by, { align: 'center' });
+      text(`${f >= 0 ? '+' : '-'}${fmt2(Math.abs(f))}`, colX[7], by, { align: 'center' });
+    } else text('-', colX[7], by, { align: 'center' });
     ty += rowH;
     if (!total) {
       draw(LINE);
       doc.line(M, ty, M + tW, ty);
     }
   };
-  d.dersler.forEach((x) => rowFn({ label: x.short, color: x.color, count: x.count, d: x.d, y: x.y, b: x.b, net: x.net, rate: x.rate, cls: x.clsAvgNet, kur: x.kurumAvgNet }, false));
+  d.dersler.forEach((x) => rowFn({ label: x.short, color: x.color, count: x.count, d: x.d, y: x.y, b: x.b, net: x.net, rate: x.rate, cls: x.clsAvgNet }, false));
   rowFn(
     {
       label: 'Toplam',
@@ -345,7 +344,6 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
       net: d.totalNet,
       rate: d.totals.count ? Math.round((d.totals.d / d.totals.count) * 100) : 0,
       cls: d.clsTotalNet,
-      kur: d.kurumTotalNet,
     },
     true
   );
@@ -436,7 +434,6 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     legend(x0 + chW - 2.6, y + 4.1, [
       ['Öğrenci', colors.slice(0, 3)],
       ['Sınıf', colors.slice(0, 3).map((c) => mix(c, 0.6))],
-      ['Kurum', KURUM_GRI],
     ]);
     const pl = x0 + 7;
     const pr = x0 + chW - 2;
@@ -455,12 +452,11 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     }
     const g = (pr - pl) / Math.max(1, d.dersler.length);
     d.dersler.forEach((s, i) => {
-      const bw = (g * 0.72) / 3;
-      const bx = pl + i * g + g * 0.14;
+      const bw = (g * 0.6) / 2; // Aşama 141: öğrenci ve sınıf (kurum sütunu kalktı)
+      const bx = pl + i * g + g * 0.2;
       const vals: Array<[number | null, RGB]> = [
         [s.net, s.color],
         [s.clsAvgNet, mix(s.color, 0.6)],
-        [s.kurumAvgNet, KURUM_GRI],
       ];
       vals.forEach(([v, c], k) => {
         if (v === null) return;
@@ -482,10 +478,10 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
     const top = card(x0, y, chW, gH, 'Puan gelişimi');
     legend(x0 + chW - 2.6, y + 4.1, [
       ['Öğrenci', TREND],
-      ['Kurum ort.', KURUM_GRI],
+      ['Sınıf ort.', SINIF_GRI],
     ]);
     const pts = d.gelisim;
-    const vals = pts.flatMap((p) => [p.score, p.kurum]).filter((v): v is number => v !== null);
+    const vals = pts.flatMap((p) => [p.score, p.sinif]).filter((v): v is number => v !== null);
     const pl = x0 + 10;
     const pr = x0 + chW - 6;
     const pt = top + 5;
@@ -506,13 +502,13 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
         ink(SUBTLE);
         text(String(v), pl - 1.5, Y(v) + 0.8, { align: 'right' });
       }
-      // kurum ortalaması (kesik çizgi)
-      draw(KURUM_GRI);
+      // Aşama 141: sınıf ortalaması (kesik çizgi; kurum ortalaması kalktı)
+      draw(SINIF_GRI);
       doc.setLineWidth(0.45);
       doc.setLineDashPattern([1, 0.7], 0);
       for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1].kurum;
-        const b = pts[i].kurum;
+        const a = pts[i - 1].sinif;
+        const b = pts[i].sinif;
         if (a !== null && b !== null) doc.line(X(i - 1), Y(a), X(i), Y(b));
       }
       doc.setLineDashPattern([], 0);
@@ -527,18 +523,18 @@ export function drawTekSayfa(doc: jsPDF, F: string, t: (s: unknown) => string, d
       const adW = Math.min(16, (pr - pl - 8) / Math.max(1, pts.length - 1) - 1);
       pts.forEach((p, i) => {
         const last = i === pts.length - 1;
-        // Aşama 140: kurum ortalaması da sayıyla. Kurum öğrencinin üstündeyse kurum sayısı noktanın üstüne,
+        // Aşama 140: ortalama da sayıyla (Aşama 141: sınıf ortalaması). Ortalama öğrencinin üstündeyse sayısı noktanın üstüne,
         // öğrencinin puanı ve deneme adı noktanın altına yazılır (yazılar üst üste binmesin)
-        const kurumUstte = p.kurum !== null && p.score !== null && p.kurum > p.score;
-        if (p.kurum !== null) {
+        const kurumUstte = p.sinif !== null && p.score !== null && p.sinif > p.score;
+        if (p.sinif !== null) {
           fill([255, 255, 255]);
-          draw(KURUM_GRI);
+          draw(SINIF_GRI);
           doc.setLineWidth(0.3);
-          doc.circle(X(i), Y(p.kurum), 0.55, 'FD');
+          doc.circle(X(i), Y(p.sinif), 0.55, 'FD');
           doc.setLineWidth(0.2);
           font(4.3, true);
           ink(MUTED);
-          text(fmt1(p.kurum), X(i), kurumUstte ? Y(p.kurum) - 1.4 : Y(p.kurum) + 2.5, { align: 'center' });
+          text(fmt1(p.sinif), X(i), kurumUstte ? Y(p.sinif) - 1.4 : Y(p.sinif) + 2.5, { align: 'center' });
         }
         if (p.score !== null) {
           fill(last ? TREND : [255, 255, 255]);
