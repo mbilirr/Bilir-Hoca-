@@ -8,6 +8,7 @@ import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
 import { KURUM_AC_STEPS, openKurum, type KurumAcResult, type KurumAcStep } from '../../lib/kurumAc';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
+import { sifreSorunu } from '../../lib/sifreKurali';
 
 // ============================================================================
 // Aşama 95: "Yeni kurum" sihirbazı — tek pencerede kurum adı, kurum yöneticisi, bölümler ve logo.
@@ -68,6 +69,12 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
   const run = async () => {
     if (!ready || busy) return;
     setErr(null);
+    // Aşama 145: kurum açılmadan önce yönetici şifresi denetlenir (yarım kalan kurum olmasın)
+    const sifreHata = sifreSorunu(password.trim(), { identifier: username.trim(), name: adminName });
+    if (sifreHata) {
+      setErr(sifreHata);
+      return;
+    }
     try {
       const res = await openKurum({ kurumName, adminName, username, email, password, modules, logo: logo || undefined }, setStep);
       setDone({ ...res, kurumName: kurumName.trim().replace(/\s+/g, ' ') });

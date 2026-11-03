@@ -454,12 +454,15 @@ interface TeacherPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
   teacher: Teacher;
+  /** Aşama 145: basit şifreyle girildi; yeni şifre belirlenmeden kapatılamaz */
+  isMandatory?: boolean;
 }
 
 export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
   isOpen,
   onClose,
   teacher,
+  isMandatory = false,
 }) => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -525,7 +528,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
   const modalContent = (
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
-      onClick={onClose}
+      onClick={isMandatory ? undefined : onClose}
     >
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
@@ -539,16 +542,21 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-fg">Şifre Değiştir</h3>
+                <h3 className="text-sm font-bold text-fg">{isMandatory ? 'Zorunlu Şifre Güncelleme' : 'Şifre Değiştir'}</h3>
+                {isMandatory && (
+                  <p className="text-[11px] text-muted">Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirleyiniz.</p>
+                )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 text-muted hover:text-fg hover:bg-surface-3/60 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {!isMandatory && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 text-muted hover:text-fg hover:bg-surface-3/60 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
           {/* Form */}
@@ -637,13 +645,15 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
 
           {/* Footer Save Button */}
           <div className="pt-4 border-t border-line flex items-center justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors"
-            >
-              İptal
-            </button>
+            {!isMandatory && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium transition-colors"
+              >
+                İptal
+              </button>
+            )}
             <button
               type="submit"
               className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"

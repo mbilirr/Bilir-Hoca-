@@ -36,6 +36,7 @@ import {
   TeacherTabType,
 } from '../types';
 import { supabase, invokeCreateUserEdgeFunction, invokeEdgeFunction, clearPasswordRecovery } from '../lib/supabase';
+import { sifreSorunu, type SifreKisi } from '../lib/sifreKurali';
 import { uploadFile, removeStoredFiles, storedPathsOf, clearSignedUrlCache } from '../lib/fileStorage';
 import {
   generateHomeworkEmail,
@@ -5445,6 +5446,14 @@ class DataService {
       if (teacherUpdates.username && !/^[a-z0-9_-]{3,30}$/.test(teacherUpdates.username) && !isHeadAdmin) {
         throw new Error('Kullanıcı adı 3-30 karakter olmalı; yalnızca küçük harf, rakam, - ve _ içerebilir (Türkçe karakter ve boşluk kullanılamaz).');
       }
+      // Aşama 145: basit şifre profil kaydedilmeden önce reddedilir
+      if (newPassword) {
+        const kuralHata = sifreSorunu(newPassword, {
+          identifier: teacherUpdates.username || teacher.username,
+          name: teacherUpdates.name || teacher.name,
+        });
+        if (kuralHata) throw new Error(kuralHata);
+      }
 
       const updated = await this.saveTeacherProfile(userId, teacherUpdates);
       const usernameChanged = (updated.username || '') !== previousUsername;
@@ -5793,6 +5802,15 @@ class DataService {
 
   // Okunması kolay, karışan karakterleri (0/O, 1/l/I) içermeyen rastgele şifre
   public generatePassword(length = 8): string {
+    // Aşama 145: üretilen şifre de basit şifre kuralına uymalı (pratikte ilk denemede uyar)
+    for (let i = 0; i < 20; i++) {
+      const pw = this.generatePasswordOnce(length);
+      if (!sifreSorunu(pw)) return pw;
+    }
+    return this.generatePasswordOnce(length);
+  }
+
+  private generatePasswordOnce(length: number): string {
     const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     const bytes = new Uint8Array(length);
     try {
@@ -5829,6 +5847,11 @@ class DataService {
         : ((record as Student).studentNumber || '').trim();
     if (!identifier) {
       throw new Error(type === 'teacher' ? 'Öğretmenin kullanıcı adı boş olamaz.' : 'Öğrenci numarası boş olamaz (giriş için kullanılır).');
+    }
+    // Aşama 145: yöneticinin/öğretmenin verdiği şifre de basit olamaz (sunucu da aynı kuralı uygular)
+    if (password) {
+      const kuralHata = sifreSorunu(password, { identifier, name: record.name });
+      if (kuralHata) throw new Error(kuralHata);
     }
 
     const result = await invokeCreateUserEdgeFunction({
@@ -5900,6 +5923,8 @@ class DataService {
     if (password.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
     }
+    const kuralHata = sifreSorunu(password, { identifier: username, name }); // Aşama 145
+    if (kuralHata) throw new Error(kuralHata);
     if (this.teachers.some((t) => (t.username || '').toLowerCase() === username)) {
       throw new Error(`"${username}" kullanıcı adı başka bir öğretmende kullanılıyor.`);
     }
@@ -6116,6 +6141,8 @@ class DataService {
     if (oldPassword === newPassword) {
       throw new Error('Yeni şifreniz mevcut şifrenizden farklı olmalıdır.');
     }
+    const kuralHata = sifreSorunu(newPassword, this.oturumSifreKisi()); // Aşama 145
+    if (kuralHata) throw new Error(kuralHata);
 
     const { data: sessionData } = await supabase.auth.getSession();
     const email = sessionData?.session?.user?.email;
@@ -6142,6 +6169,54 @@ class DataService {
       throw new Error(this.translatePasswordError(updateError.message));
     }
     await this.markMyInitialPasswordChanged();
+    this.basitSifreTemizle(); // Aşama 145: zorunlu şifre penceresi kapanır
+  }
+
+  // =========================================================================
+  // Aşama 145: BASİT ŞİFRE ENGELİ
+  // Girişte yazılan şifre kurala uymuyorsa bu sekmede işaret tutulur; öğrenci ve öğretmen/yönetici yeni şifre
+  // belirleyene kadar zorunlu şifre penceresi açık kalır. Şifre saklanmaz, yalnız kullanıcı kimliği tutulur.
+  // Sunucuya yazılmaz: her şifreyle girişte yeniden denetlenir (ek ağ isteği yok).
+  // =========================================================================
+  private static readonly BASIT_SIFRE_KEY = 'edu_sys_basit_sifre_v6';
+  private basitSifreId: string | null | undefined = undefined;
+
+  private oturumSifreKisi(): SifreKisi {
+    const session = this.getAuthSession();
+    if (!session?.user) return {};
+    const u = session.user as Teacher & Student;
+    return { identifier: session.role === 'student' ? u.studentNumber || u.username : u.username, name: u.name };
+  }
+
+  /** Girişte yazılan şifreyi denetler; basitse işaretler. Basitse true döner. */
+  public basitSifreDenetle(password: string, userId: string, kisi: SifreKisi): boolean {
+    if (!userId || !sifreSorunu(password, kisi)) return false;
+    this.basitSifreId = userId;
+    try {
+      sessionStorage.setItem(DataService.BASIT_SIFRE_KEY, userId);
+    } catch {}
+    return true;
+  }
+
+  public basitSifreVarMi(userId?: string | null): boolean {
+    if (!userId) return false;
+    if (this.basitSifreId === undefined) {
+      try {
+        this.basitSifreId = sessionStorage.getItem(DataService.BASIT_SIFRE_KEY);
+      } catch {
+        this.basitSifreId = null;
+      }
+    }
+    return this.basitSifreId === userId;
+  }
+
+  public basitSifreTemizle(): void {
+    const vardi = !!this.basitSifreId;
+    this.basitSifreId = null;
+    try {
+      sessionStorage.removeItem(DataService.BASIT_SIFRE_KEY);
+    } catch {}
+    if (vardi) this.notify();
   }
 
   // Aşama 25: Kullanıcı kendi şifresini belirleyince yöneticinin listesindeki ilk şifre silinir
@@ -6227,6 +6302,8 @@ class DataService {
     if (!newPassword || newPassword.length < DataService.MIN_PASSWORD_LENGTH) {
       throw new Error(`Yeni şifreniz en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`);
     }
+    const kuralHata = sifreSorunu(newPassword, this.oturumSifreKisi()); // Aşama 145
+    if (kuralHata) throw new Error(kuralHata);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       throw new Error(this.translatePasswordError(error.message));
@@ -6946,6 +7023,7 @@ class DataService {
     this.questionHistoryLoaded = new Set();
     this.questionLoadPromises = new Map();
     this.pendingApplicationCount = 0;
+    this.basitSifreId = null; // Aşama 145
     // Uygulama oturumu kapanınca Supabase oturumu da kapansın.
     // Aşama 97: genel yönetici bir kurumdayken yalnızca bu sekmedeki oturum kapanır (kurum yöneticisinin kendi
     // cihazlarındaki oturumları etkilenmez).
@@ -7102,48 +7180,54 @@ class DataService {
       return null;
     }
 
+    // Aşama 145: "Beni hatırla" düzeltmesi. Giriş ekranında öğretmen/öğrenci listeleri boştur (çıkışta silinir,
+    // giriş yapılmadan bulut verisi gelmez). Eskiden kişi listede bulunamayınca kayıt yok sayılıyordu; artık
+    // kaydedilen bilgiler kullanılır. Kişi listedeyse (ör. oturum açıkken) güncel ad/avatar gösterilir.
+    // Eşleştirme yalnız kimlikle yapılır (aynı adlı başka kişinin bilgisi gelmesin).
+    const key = (saved.identifier || '').toLowerCase();
     if (saved.role === 'teacher') {
-      const liveTeacher = this.teachers.find(
-        (t) =>
-          (t.username && t.username.toLowerCase() === saved!.identifier.toLowerCase()) ||
-          (t.email && t.email.toLowerCase() === saved!.identifier.toLowerCase()) ||
-          (t.name && t.name.toLowerCase() === saved!.name.toLowerCase()) ||
-          t.id === saved!.identifier
-      );
+      const liveTeacher = key
+        ? this.teachers.find(
+            (t) =>
+              (t.username && t.username.toLowerCase() === key) ||
+              (t.email && t.email.toLowerCase() === key) ||
+              t.id === saved!.identifier
+          )
+        : undefined;
       if (liveTeacher) {
         return {
           role: 'teacher',
-          identifier: liveTeacher.username,
+          identifier: liveTeacher.username || saved.identifier,
           name: liveTeacher.name,
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
           deviceId: saved.deviceId,
         };
       }
-      return null;
     } else if (saved.role === 'student') {
-      const liveStudent = this.students.find(
-        (s) =>
-          (s.username && s.username.toLowerCase() === saved!.identifier.toLowerCase()) ||
-          (s.studentNumber && s.studentNumber.toLowerCase() === saved!.identifier.toLowerCase()) ||
-          (s.email && s.email.toLowerCase() === saved!.identifier.toLowerCase()) ||
-          (s.name && s.name.toLowerCase() === saved!.name.toLowerCase()) ||
-          s.id === saved!.identifier
-      );
+      const liveStudent = key
+        ? this.students.find(
+            (s) =>
+              (s.studentNumber && s.studentNumber.toLowerCase() === key) ||
+              (s.username && s.username.toLowerCase() === key) ||
+              (s.email && s.email.toLowerCase() === key) ||
+              s.id === saved!.identifier
+          )
+        : undefined;
       if (liveStudent) {
         return {
           role: 'student',
-          identifier: liveStudent.username,
+          identifier: liveStudent.studentNumber || liveStudent.username || saved.identifier,
           name: liveStudent.name,
           avatar: liveStudent.avatar,
           className: liveStudent.className,
           deviceId: saved.deviceId,
         };
       }
-      return null;
     }
-
-    return saved;
+    if (!saved.identifier) return null;
+    const { savedPassword: _eskiKalinti, ...guvenli } = saved; // eski sürüm kalıntısı şifre alanı asla dönmez
+    return guvenli;
   }
 
   public getRememberedTeacher() {
@@ -7830,6 +7914,9 @@ class DataService {
       if (clash) { fail(`Bu numara "${clash.name}" adlı öğrenciye ait.`); continue; }
       const password = (item.password || '').trim() || this.generatePassword();
       if (password.length < DataService.MIN_PASSWORD_LENGTH) { fail(`Şifre en az ${DataService.MIN_PASSWORD_LENGTH} karakter olmalıdır.`); continue; }
+      // Aşama 145: basit şifre (123456, yaygın şifre, kendi numarası/adı) bu satırda reddedilir, diğer satırlar yüklenir
+      const kuralHata = sifreSorunu(password, { identifier: studentNumber, name });
+      if (kuralHata) { fail(kuralHata); continue; }
       // Aşama 76: sınıfsız öğrenci (class-default) — kurumuna kayıtlı, henüz bir sınıfa bağlı değil
       const noClass = item.classId === DataService.NO_CLASS_ID;
       const cls = noClass ? null : this.classes.find((c) => c.id === item.classId);

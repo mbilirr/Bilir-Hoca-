@@ -133,6 +133,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Yönetici kontrolü tek yerden yapılır (isim değil, kayıttaki yönetici yetkisi esas alınır)
   const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
+  // Aşama 145: basit şifreyle giren öğretmen/yönetici yeni şifre belirleyene kadar zorunlu pencere açık kalır
+  const teacherMustChange = !!currentTeacher && dataService.basitSifreVarMi(currentTeacher.id) && !dataService.isStudentPreview();
   // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
   const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
 
@@ -460,7 +462,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Suspense fallback={null}>
             {isAvatarModalOpen && <TeacherAvatarModal isOpen onClose={() => setIsAvatarModalOpen(false)} teacher={currentTeacher} />}
             {isEditProfileOpen && <TeacherProfileEditModal isOpen onClose={() => setIsEditProfileOpen(false)} teacher={currentTeacher} />}
-            {isChangePasswordOpen && <TeacherPasswordModal isOpen onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />}
+            {(isChangePasswordOpen || teacherMustChange) && (
+              <TeacherPasswordModal isOpen isMandatory={teacherMustChange} onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />
+            )}
             {isApprovalModalOpen && <TeacherApprovalModal isOpen onClose={() => setIsApprovalModalOpen(false)} />}
             {isSentCommunicationsOpen && <SentCommunicationsModal isOpen onClose={() => setIsSentCommunicationsOpen(false)} />}
             {isMailSettingsOpen && <MailSettingsModal open onClose={() => setIsMailSettingsOpen(false)} />}

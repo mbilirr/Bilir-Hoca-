@@ -116,8 +116,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Profile and Avatar Modals state
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  // Aşama 145: basit şifreyle girildiyse de zorunlu (girişte işaretlenir)
   const isMandatoryPasswordChange =
-    Boolean(currentStudent.mustChangePassword);
+    Boolean(currentStudent.mustChangePassword) || dataService.basitSifreVarMi(currentStudent.id);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(isMandatoryPasswordChange && !preview); // Aşama 107: önizlemede açılmaz
   const [isStudentDropdownOpen, setIsStudentDropdownOpen] = useState(false);
 

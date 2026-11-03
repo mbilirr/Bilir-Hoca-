@@ -8,6 +8,7 @@ import { setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../constants/schoolConstants';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { sifreSorunu } from '../../lib/sifreKurali';
 import {
   STUDENT_COLUMNS,
   SheetRow,
@@ -175,6 +176,9 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
       else if ((counts.get(num.toLowerCase()) || 0) > 1) error = 'Numara listede tekrar ediyor';
       else if (taken.has(num.toLowerCase())) error = 'Bu numara sistemde kayıtlı';
       else if (r.password && r.password.trim().length > 0 && r.password.trim().length < 6) error = 'Şifre en az 6 karakter';
+      // Aşama 145: basit şifre bu satırda gösterilir, satır yüklenmez (şifre boşsa sistem güçlü şifre üretir)
+      else if (r.password && r.password.trim() && sifreSorunu(r.password.trim(), { identifier: num, name: r.fullName }))
+        error = sifreSorunu(r.password.trim(), { identifier: num, name: r.fullName }) || undefined;
       else if (emailIssue(r.email)) error = emailIssue(r.email) || undefined;
       else if (!normalizeTurkishPhone(r.phone).valid) error = PHONE_ERROR;
       else if (r.classError) error = r.classError;

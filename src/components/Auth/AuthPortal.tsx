@@ -248,6 +248,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         dataService.setRememberedUser(null, 'teacher');
         setRememberedTeacher(null);
       }
+      // Aşama 145: basit şifreyle girene panelde zorunlu şifre penceresi açılır
+      dataService.basitSifreDenetle(cleanPass, teacher.id, { identifier: teacher.username || cleanUser, name: teacher.name });
       return { role: 'teacher', user: teacher };
     }
     const student = await dataService.authenticateStudent(cleanUser, cleanPass);
@@ -265,6 +267,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       dataService.setRememberedUser(null, 'student');
       setRememberedStudent(null);
     }
+    dataService.basitSifreDenetle(cleanPass, student.id, { identifier: student.studentNumber || cleanUser, name: student.name }); // Aşama 145
     return { role: 'student', user: student };
   };
 

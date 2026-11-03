@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useDeferredValue, Suspense } from 'react';
 import { ExpandableStrip, StripAction } from '../ui/ExpandableStrip';
+import { sifreSorunu } from '../../lib/sifreKurali';
 import { usePagedList, useMediaQuery, ShowMoreBar } from '../../lib/listPaging';
 import {
   Users,
@@ -660,6 +661,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       setStudentFormError('Yeni şifre en az 6 karakter olmalıdır (şifreyi değiştirmeyecekseniz alanı boş bırakınız).');
       return;
     }
+    // Aşama 145: basit şifre (123456, yaygın şifre, öğrencinin kendi numarası/adı) kabul edilmez
+    const sifreHata = cleanPassword ? sifreSorunu(cleanPassword, { identifier: cleanNumber, name: cleanName }) : null;
+    if (sifreHata) {
+      setStudentFormError(sifreHata);
+      return;
+    }
 
     if (pendingGradeClass) {
       const num = gradeNumOf(pendingGradeClass);
@@ -878,6 +885,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const pw = passwordTargetValue.trim();
     if (pw.length < 6) {
       setPasswordTargetError('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    const sifreHata = sifreSorunu(pw, { identifier: passwordTarget.studentNumber, name: passwordTarget.name }); // Aşama 145
+    if (sifreHata) {
+      setPasswordTargetError(sifreHata);
       return;
     }
     setIsSettingPassword(true);

@@ -348,7 +348,9 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
               </h3>
               <p className="text-[11px] sm:text-xs text-muted">
                 {isMandatory
-                  ? 'Sisteme ilk girişinizde güvenliğiniz için şifrenizi güncellemeniz zorunludur'
+                  ? dataService.basitSifreVarMi(student.id) // Aşama 145
+                    ? 'Şifreniz çok basit. Güvenliğiniz için yeni bir şifre belirlemeniz zorunludur'
+                    : 'Sisteme ilk girişinizde güvenliğiniz için şifrenizi güncellemeniz zorunludur'
                   : 'Giriş güvenliğinizi sağlamak için yeni şifrenizi belirleyin'}
               </p>
             </div>
