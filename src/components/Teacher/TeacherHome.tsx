@@ -23,7 +23,7 @@ import {
 import { Teacher, Etut, Homework, HomeworkSubmission, Student, ClassGroup, StudentMessage, TeacherTabType, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { setQuickFocus } from '../../lib/quickFocus';
-import { timeGreeting, firstNameOf } from '../../lib/greeting';
+import { timeGreeting, titleCaseTr, givenNamesOf } from '../../lib/greeting';
 import { Panel, StatCard, EmptyState, IconBox, cx } from '../ui/kit';
 import { TeacherEtutBell } from './TeacherEtutBell';
 import { useSeenIds } from '../../lib/useSeenIds';
@@ -328,7 +328,8 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     };
   }, [scopedHomeworks, expectedFor, doneByHw, todayStr, etutByDay, dates.weekStart, dates.weekEnd, questionLogs, studentById]);
 
-  const firstName = firstNameOf(currentTeacher?.name, '');
+  // Aşama 159: "İyi Akşamlar Ali Kemal Öğretmenim" — soyadı dışındaki bütün adlar, her kelime büyük harfle
+  const givenName = givenNamesOf(currentTeacher?.name, '');
   const branch = idare
     ? 'Kurum Yönetimi'
     : currentTeacher?.branch
@@ -434,7 +435,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
             {longDate(todayStr)} · {branch}
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg mt-1">
-            {timeGreeting()} {idare ? firstName || '' : firstName ? `${firstName} öğretmenim` : 'öğretmenim'}
+            {titleCaseTr(timeGreeting())} {givenName ? `${givenName} Öğretmenim` : 'Öğretmenim'}
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">

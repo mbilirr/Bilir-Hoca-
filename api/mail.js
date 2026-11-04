@@ -1055,7 +1055,9 @@ async function kurumSender(teacher) {
 
 // Aşama 83: kurum öğretmeninin e-postası hangi hesaptan giderse gitsin başlıkta kendi kurumunun adı ve logosu görünür
 async function resolveSender(teacher) {
-  const s = await resolveSenderAccount(teacher || {});
+  // Aşama 159: unvan bilgisi gönderen hesabıyla AYNI ANDA okunur (ek bekleme yok); okunamazsa yalnız ad kalır
+  const [acc, info] = await Promise.all([resolveSenderAccount(teacher || {}), senderInfoFor(teacher || {})]);
+  const s = withSignature(acc, teacher || {}, info);
   if (!s || s.via === 'kurum') return s;
   try {
     const kid = await kurumIdForSender(teacher || {});
@@ -1063,6 +1065,69 @@ async function resolveSender(teacher) {
     if (brand && (brand.name || brand.logo)) return { ...s, brandName: brand.name, brandLogo: brand.logo, brandKid: kid };
   } catch {}
   return s;
+}
+
+// ----------------------------------------------------------------------------- Aşama 159: gönderen adı + unvan
+// "Kimden" adı: "İrem GİRGİN Rehberlik Öğretmeni" — ad(lar) ilk harf büyük, soyadı (son kelime) tamamen büyük, ardından unvan.
+// Unvan: rol (teacher_roles) önceliğiyle, yoksa branş ("Matematik Öğretmeni"). Kişi başına 5 dk önbellek.
+const senderInfoCache = new Map();
+const SENDER_INFO_TTL = 5 * 60 * 1000;
+async function senderInfoFor(teacher) {
+  const auth = (teacher && (teacher.authId || teacher.auth_user_id)) || null;
+  if (!auth) return null;
+  const hit = senderInfoCache.get(auth);
+  if (hit && Date.now() - hit.at < SENDER_INFO_TTL) return hit.v;
+  let v = null;
+  try {
+    const rows = await rest(`teachers?select=id,branch,is_admin&auth_user_id=eq.${encodeURIComponent(auth)}`, { token: 'service' });
+    const t = rows && rows[0];
+    if (t) {
+      let roles = [];
+      try {
+        const rr = await rest(`teacher_roles?select=role&teacher_id=eq.${encodeURIComponent(t.id)}`, { token: 'service' });
+        roles = (rr || []).map((r) => String(r.role));
+      } catch {
+        roles = []; // rol tablosu yoksa (81 öncesi) branşa göre
+      }
+      v = { branch: String(t.branch || ''), isAdmin: !!t.is_admin, roles };
+    }
+  } catch {
+    return null; // okunamadı: önbelleğe yazılmaz, e-posta yalnız adla gider
+  }
+  senderInfoCache.set(auth, { at: Date.now(), v });
+  return v;
+}
+const capTr = (w) => {
+  const l = String(w).toLocaleLowerCase('tr-TR');
+  return l.charAt(0).toLocaleUpperCase('tr-TR') + l.slice(1);
+};
+function unvanOf(info) {
+  if (!info) return '';
+  const roles = info.roles || [];
+  const branch = info.branch.trim();
+  if (roles.includes('mudur')) return 'Müdür';
+  if (roles.includes('mudur_yardimcisi')) return 'Müdür Yardımcısı';
+  if (roles.includes('rehberlik') || /rehber/i.test(branch)) return 'Rehberlik Öğretmeni';
+  if (roles.includes('olcme_degerlendirme')) return 'Ölçme Değerlendirme Sorumlusu';
+  if (info.isAdmin && !roles.length) return 'Kurum Yöneticisi';
+  if (branch) return /öğretmen/i.test(branch) ? branch : `${branch} Öğretmeni`; // ana sayfadaki branş satırıyla aynı
+  return 'Öğretmen';
+}
+function signatureName(name, info) {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+  const base = words.length > 1
+    ? `${words.slice(0, -1).map(capTr).join(' ')} ${words[words.length - 1].toLocaleUpperCase('tr-TR')}`
+    : capTr(words[0]);
+  const unvan = unvanOf(info);
+  return unvan ? `${base} ${unvan}` : base;
+}
+// Yalnızca öğretmen adından gelen "Kimden" değişir (kurum / okul adı yedeği olduğu gibi kalır)
+function withSignature(s, teacher, info) {
+  const name = String((teacher && teacher.name) || '').trim();
+  if (!s || !name || s.fromName !== teacher.name) return s;
+  const fromName = signatureName(name, info);
+  return fromName ? { ...s, fromName } : s;
 }
 
 async function resolveSenderAccount(teacher) {
