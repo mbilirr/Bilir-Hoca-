@@ -54,6 +54,8 @@ const StudentListExportModal = lazyNamed(() => import('./StudentListExportModal'
 const StudentWelcomeCredentialsModal = lazyNamed(() => import('./StudentWelcomeCredentialsModal'), 'StudentWelcomeCredentialsModal');
 // Aşama 142: seçilen öğrencilere giriş bilgisi SMS / e-posta (pencere ilk tıklamada yüklenir)
 const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
+// Aşama 151: sayfa başlığındaki "Giriş Bilgisi" düğmesi (sınıf seç → öğrencileri işaretle → gönder)
+const StudentCredentialPickModal = lazyNamed(() => import('../Admin/StudentCredentialPickModal'), 'StudentCredentialPickModal');
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import {
   SCHOOL_LEVELS,
@@ -152,6 +154,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const sel = new Set(selectedStudentIds);
     return students.filter((s) => sel.has(s.id) && canSendCredentials(s, grantCredOn));
   }, [selectedStudentIds, students, grantCredOn]);
+  const [credPickOpen, setCredPickOpen] = useState(false); // Aşama 151
+  const credPickStudents = useMemo(
+    () => (credPickOpen ? students.filter((s) => !s.isSuspended && s.status !== 'suspended' && canSendCredentials(s, grantCredOn)) : []),
+    [credPickOpen, students, grantCredOn]
+  );
+  const canSendAnyCred = useMemo(() => students.some((s) => canSendCredentials(s, grantCredOn)), [students, grantCredOn]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useHistoryState<'students' | 'classes'>('students.tab', 'students'); // Aşama 52: geri tuşu
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
@@ -1284,6 +1292,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <Download className="w-4 h-4 text-brand-fg" />
               <span>Liste Al</span>
             </button>
+            {canSendAnyCred && (
+              <button
+                type="button"
+                onClick={() => setCredPickOpen(true)}
+                className="ui-btn ui-btn-secondary"
+                id="ogrenciler-giris-bilgisi-btn"
+                title="Sınıf seçip öğrencilere ve/veya velilerine giriş bilgisini SMS / e-posta ile gönder"
+              >
+                <KeyRound className="w-4 h-4 text-brand-fg" />
+                <span>Giriş Bilgisi</span>
+              </button>
+            )}
             {canAddStudents ? (
               <>
                 <button
@@ -2786,6 +2806,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             onClose={() => setCredSendList(null)}
             students={credSendList}
             allowReset
+            onNewCredentials={(creds: StudentCredential[]) => setCredentialsResult({ credentials: creds, failures: [], title: 'Yeni Giriş Bilgileri' })}
+          />
+        </Suspense>
+      )}
+
+      {/* Aşama 151: başlıktaki "Giriş Bilgisi" — sınıf seçimli pencere (sınıf süzgeci seçiliyse o sınıfla açılır) */}
+      {credPickOpen && (
+        <Suspense fallback={null}>
+          <StudentCredentialPickModal
+            open
+            onClose={() => setCredPickOpen(false)}
+            students={credPickStudents}
+            initialClassKey={selectedClassFilter}
             onNewCredentials={(creds: StudentCredential[]) => setCredentialsResult({ credentials: creds, failures: [], title: 'Yeni Giriş Bilgileri' })}
           />
         </Suspense>

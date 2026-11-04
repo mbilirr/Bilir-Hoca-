@@ -19,8 +19,12 @@ export const StudentCredentialPickModal: React.FC<{
   onClose: () => void;
   students: Student[];
   onNewCredentials?: (creds: StudentCredential[]) => void;
-}> = ({ open, onClose, students, onNewCredentials }) => {
-  const [classKey, setClassKey] = useState('');
+  /** Aşama 151: açılışta seçili gelecek sınıf (ör. Öğrenciler sayfasındaki sınıf süzgeci) */
+  initialClassKey?: string;
+}> = ({ open, onClose, students, onNewCredentials, initialClassKey }) => {
+  const [classKey, setClassKey] = useState(() =>
+    initialClassKey && students.some((s) => (s.classId || '') === initialClassKey) ? initialClassKey : ''
+  );
   const [query, setQuery] = useState('');
   const dq = useDeferredValue(query);
   const [off, setOff] = useState<Set<string>>(() => new Set()); // işareti kaldırılanlar
