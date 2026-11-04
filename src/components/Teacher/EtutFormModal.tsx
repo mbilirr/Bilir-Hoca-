@@ -20,6 +20,7 @@ import {
   DiscardBar,
   MailOptIn,
   StudentPicker,
+  SelectBox,
 } from './FormParts';
 
 // ============================================================================
@@ -61,6 +62,9 @@ interface Props {
 const LESSON_PERIODS = ['1. Ders', '2. Ders', '3. Ders', '4. Ders', '5. Ders', '6. Ders', '7. Ders', '8. Ders', '9. Ders', '10. Ders'];
 const DURATIONS = [30, 40, 45, 60, 80, 90];
 const DEFAULT_DURATION = 40;
+// Aşama 157: penceredeki tek satırlık tüm kutular (yazı, tarih, saat, sayı, açılır liste) aynı yükseklikte.
+// Açılır listeler SelectBox ile çizilir (tarayıcının küçük yerli görünümü yerine aynı kutu + ok simgesi).
+const ctrlCls = cx(inputCls, 'h-10');
 
 const toMin = (t: string) => {
   const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
@@ -726,20 +730,20 @@ const EtutFormContent: React.FC<Props> = ({
         {/* 1. DERS VE ÖĞRETMEN */}
         <FormSection title="1. Ders ve etüt öğretmeni" hint={mySubjects ? 'Branşınıza göre sınırlı' : undefined}>
           {subjectOptions.length <= 1 ? (
-            <div id="etut-subject-fixed" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
+            <div id="etut-subject-fixed" className="flex items-center gap-2 h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
               <CalendarDays className="w-4 h-4 text-info-fg" />
               {effectiveSubject || 'Branş bilgisi yok'}
             </div>
           ) : (
             <div>
               <FieldLabel htmlFor="etut-subject">Ders</FieldLabel>
-              <select id="etut-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={inputCls}>
+              <SelectBox id="etut-subject" value={effectiveSubject} onChange={(e) => setSubject(e.target.value)} className={ctrlCls}>
                 {subjectOptions.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
                 ))}
-              </select>
+              </SelectBox>
             </div>
           )}
 
@@ -803,11 +807,12 @@ const EtutFormContent: React.FC<Props> = ({
             <FieldLabel htmlFor="etut-topic">Etüt konusu / kazanım</FieldLabel>
             <input
               id="etut-topic"
+              type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               maxLength={160}
               placeholder="Örn: Üslü ifadeler – soru çözümü"
-              className={inputCls}
+              className={ctrlCls}
             />
           </div>
           <div>
@@ -816,11 +821,12 @@ const EtutFormContent: React.FC<Props> = ({
             </FieldLabel>
             <input
               id="etut-notes"
+              type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               maxLength={300}
               placeholder="Örn: Soru bankanızı getirin"
-              className={inputCls}
+              className={ctrlCls}
             />
           </div>
         </FormSection>
@@ -875,7 +881,7 @@ const EtutFormContent: React.FC<Props> = ({
             )}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="col-span-2 sm:col-span-1">
+            <div>
               <FieldLabel htmlFor="etut-date">Tarih</FieldLabel>
               <input
                 id="etut-date"
@@ -883,14 +889,14 @@ const EtutFormContent: React.FC<Props> = ({
                 min={isEdit ? undefined : today}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className={cx(inputCls, isCopy && !date && 'ring-2 ring-warning/40 border-warning')}
+                className={cx(ctrlCls, isCopy && !date && 'ring-2 ring-warning/40 border-warning')}
               />
             </div>
             <div>
               <FieldLabel htmlFor="etut-period" optional>
                 Ders saati
               </FieldLabel>
-              <select
+              <SelectBox
                 id="etut-period"
                 value={lessonPeriod}
                 onChange={(e) => {
@@ -898,7 +904,7 @@ const EtutFormContent: React.FC<Props> = ({
                   setLessonPeriod(v);
                   if (v && periodTimes[v]) setTime(periodTimes[v]);
                 }}
-                className={inputCls}
+                className={ctrlCls}
               >
                 <option value="">—</option>
                 {LESSON_PERIODS.map((p) => (
@@ -907,15 +913,15 @@ const EtutFormContent: React.FC<Props> = ({
                     {periodTimes[p] ? ` (${periodTimes[p]})` : ''}
                   </option>
                 ))}
-              </select>
+              </SelectBox>
             </div>
             <div>
               <FieldLabel htmlFor="etut-time" optional>
                 Başlangıç
               </FieldLabel>
-              <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputCls} />
+              <input id="etut-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={ctrlCls} />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+            <div>
               <FieldLabel htmlFor="etut-duration" optional>
                 Süre (dk)
               </FieldLabel>
@@ -928,7 +934,7 @@ const EtutFormContent: React.FC<Props> = ({
                 value={duration || ''}
                 placeholder="40"
                 onChange={(e) => setDuration(Number(e.target.value))}
-                className={inputCls}
+                className={ctrlCls}
               />
             </div>
           </div>
@@ -949,12 +955,13 @@ const EtutFormContent: React.FC<Props> = ({
             </FieldLabel>
             <input
               id="etut-location"
+              type="text"
               list="etut-location-list"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               maxLength={80}
               placeholder="Örn: Fen Laboratuvarı, 8-A sınıfı"
-              className={inputCls}
+              className={ctrlCls}
             />
             <datalist id="etut-location-list">
               {locationSuggestions.map((l) => (
@@ -979,7 +986,7 @@ const EtutFormContent: React.FC<Props> = ({
                       id="etut-repeat-count"
                       value={repeatWeeks}
                       onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-                      className="bg-surface border border-line rounded-lg px-2 py-1 text-xs"
+                      className="h-7.5 bg-surface border border-line rounded-full px-3 text-xs font-semibold text-fg-2 cursor-pointer"
                     >
                       {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
                         <option key={n} value={n}>
