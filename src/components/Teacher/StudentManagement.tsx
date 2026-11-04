@@ -77,6 +77,7 @@ import {
   PHONE_ERROR,
   currentAcademicYear,
   normalizeAcademicYear,
+  sheetSource, // Aşama 154
 } from '../../lib/importNormalize';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
@@ -1036,7 +1037,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       try {
         const buffer = e.target?.result;
         const XLSX = await import('xlsx'); // Aşama 124
-        const workbook = XLSX.read(buffer, { type: 'binary', cellDates: true });
+        const src = sheetSource(buffer as string, 'binary'); // Aşama 154: CSV Türkçe harf
+        const workbook = XLSX.read(src.data, { type: src.type, cellDates: true });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         // Başlık satırı ilk 10 satır içinde aranır (e-Okul listelerinde üstte başlık satırları olur)
         const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });

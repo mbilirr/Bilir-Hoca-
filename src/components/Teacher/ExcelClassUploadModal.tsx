@@ -23,6 +23,7 @@ import {
   normalizeClassKey,
   normalizeAcademicYear,
   currentAcademicYear,
+  sheetSource, // Aşama 154
 } from '../../lib/importNormalize';
 
 interface ExcelClassUploadModalProps {
@@ -164,7 +165,8 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
 
     try {
       const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
+      const src = sheetSource(buffer, 'array'); // Aşama 154: CSV Türkçe harf
+      const workbook = XLSX.read(src.data, { type: src.type });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });
       if (!matrix || matrix.length === 0) {

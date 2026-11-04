@@ -401,3 +401,27 @@ export function normalizeTurkishPhone(raw?: string | number | null): { value: st
 }
 
 export const PHONE_ERROR = 'Geçersiz telefon (örn. 0532 123 45 67)';
+
+// ----------------------------------------------------------------------------- Aşama 154: CSV Türkçe harf
+// Türkçe Excel "CSV" kaydını çoğu zaman Windows-1254 (ANSI) ile, bazen de BOM'suz UTF-8 ile yapar. SheetJS bu baytları
+// Latin-1 sanıp "AYŞE" -> "AYÞE" / "AYÅ\u009EE" diye okuyordu. Gerçek Excel dosyası (xlsx = ZIP, eski xls = OLE) olduğu gibi
+// geçer; yalnız metin dosyası önce UTF-8 (hatasız ise) yoksa Windows-1254 olarak çözülüp metin olarak okunur.
+export function sheetSource(
+  raw: ArrayBuffer | Uint8Array | string | null | undefined,
+  type: 'array' | 'binary'
+): { data: ArrayBuffer | Uint8Array | string; type: 'array' | 'binary' | 'string' } {
+  if (raw === null || raw === undefined) return { data: '', type: 'string' };
+  const bytes = typeof raw === 'string' ? null : raw instanceof Uint8Array ? raw : new Uint8Array(raw);
+  const b0 = bytes ? bytes[0] : raw.toString().charCodeAt(0);
+  const b1 = bytes ? bytes[1] : raw.toString().charCodeAt(1);
+  // ZIP (xlsx) / OLE (eski xls) gerçek Excel dosyasıdır: hiç dokunulmaz (hız: büyük dosyada kopya yok)
+  if ((b0 === 0x50 && b1 === 0x4b) || (b0 === 0xd0 && b1 === 0xcf) || typeof TextDecoder === 'undefined') return { data: raw, type };
+  const buf = bytes || Uint8Array.from(raw as string, (c) => c.charCodeAt(0) & 255);
+  let text: string;
+  try {
+    text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    text = new TextDecoder('windows-1254').decode(buf);
+  }
+  return { data: text.replace(/^\uFEFF/, ''), type: 'string' };
+}

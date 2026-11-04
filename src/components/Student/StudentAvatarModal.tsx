@@ -16,6 +16,7 @@ import confetti from 'canvas-confetti';
 import { Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
+import { matchTurkishSearch } from '../../utils/turkishSearch'; // Aşama 154
 
 interface StudentAvatarModalProps {
   isOpen: boolean;
@@ -261,7 +262,7 @@ export const StudentAvatarModal: React.FC<StudentAvatarModalProps> = ({
 
   const filteredEmojis = STUDENT_EMOJI_PRESETS.filter((item) => {
     const matchesCategory = emojiCategory === 'Tümü' || item.category === emojiCategory;
-    const matchesSearch = !searchTerm || item.label.toLowerCase().includes(searchTerm.toLowerCase()) || item.emoji.includes(searchTerm);
+    const matchesSearch = !searchTerm || matchTurkishSearch(item.label, searchTerm) || item.emoji.includes(searchTerm);
     return matchesCategory && matchesSearch;
   });
 

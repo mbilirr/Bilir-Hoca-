@@ -984,6 +984,8 @@ export async function buildKarnePdfParts(parts: KarnePart[], orientation: 'portr
 
 export const safeFileName = (s: string) =>
   (s || 'karne')
+    .replace(/ı/g, 'i') // Aşama 154: "ı" ayrışmaz, eskiden siliniyordu ("Yılmaz" -> "Ylmaz")
+    .replace(/İ/g, 'I')
     .normalize('NFKD')
     .replace(/[^\w\- ]+/g, '')
     .trim()

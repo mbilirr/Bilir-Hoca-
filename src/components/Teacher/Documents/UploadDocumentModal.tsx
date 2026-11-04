@@ -119,7 +119,7 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
     // Auto title if empty
     if (!title) {
       const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-      setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+      setTitle(cleanName.charAt(0).toLocaleUpperCase('tr-TR') + cleanName.slice(1));
     }
   };
 

@@ -22,6 +22,7 @@ import {
   emailIssue,
   normalizeTurkishPhone,
   PHONE_ERROR,
+  sheetSource, // Aşama 154
 } from '../../lib/importNormalize';
 
 interface ExcelStudentUploadModalProps {
@@ -249,7 +250,8 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
     reader.onload = (e) => {
       try {
         const buffer = e.target?.result;
-        const workbook = XLSX.read(buffer, { type: 'binary', cellDates: true });
+        const src = sheetSource(buffer as string, 'binary'); // Aşama 154: CSV Türkçe harf
+        const workbook = XLSX.read(src.data, { type: src.type, cellDates: true });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         // Başlık satırını kendimiz buluyoruz (e-Okul çıktılarında üstte okul adı vb. satırlar olur)
         const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '', raw: false });

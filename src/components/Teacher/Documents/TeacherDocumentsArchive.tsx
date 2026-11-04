@@ -519,7 +519,7 @@ export const TeacherDocumentsArchive: React.FC<TeacherDocumentsArchiveProps> = (
               categoryDocs = categoryDocs.filter((doc) => {
                 if (doc.gradeLevel === weeklyPlanSelectedClass) return true;
                 if (doc.gradeLevel && weeklyPlanSelectedClass && doc.gradeLevel.startsWith(weeklyPlanSelectedClass.split('.')[0])) return true;
-                if (doc.tags?.some((t) => t.toLowerCase().includes(weeklyPlanSelectedClass.toLowerCase()))) return true;
+                if (doc.tags?.some((t) => matchTurkishSearch(t, weeklyPlanSelectedClass))) return true; // Aşama 154
                 return false;
               });
             }

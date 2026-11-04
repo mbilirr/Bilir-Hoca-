@@ -9,6 +9,7 @@ import { MailOptIn } from '../Teacher/FormParts';
 import { KURUM_AC_STEPS, openKurum, type KurumAcResult, type KurumAcStep } from '../../lib/kurumAc';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { sifreSorunu } from '../../lib/sifreKurali';
+import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
 // ============================================================================
 // Aşama 95: "Yeni kurum" sihirbazı — tek pencerede kurum adı, kurum yöneticisi, bölümler ve logo.
@@ -216,7 +217,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
                   spellCheck={false}
                   onChange={(e) => {
                     setUserTouched(true);
-                    setUsername(e.target.value.toLowerCase());
+                    setUsername(trFold(e.target.value)); // Aşama 154: ş→s, ı→i
                   }}
                   placeholder="aysedemir"
                 />

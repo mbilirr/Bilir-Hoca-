@@ -19,6 +19,8 @@ const noteWithCount = (i: { note: string; questionCount?: number }) =>
 
 const safeName = (s: string) =>
   s
+    .replace(/ı/g, 'i') // Aşama 154: "ı" eskiden siliniyordu
+    .replace(/İ/g, 'I')
     .normalize('NFKD')
     .replace(/[^\w\- ]+/g, '')
     .trim()

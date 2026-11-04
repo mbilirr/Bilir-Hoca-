@@ -48,7 +48,7 @@ import { GradeTicks } from './GradeTicks';
 import { YetkilerAcici } from './YetkilerModal'; // Aşama 143
 import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 144
 import { fetchTeacherContacts, saveTeacherContact, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
-import { normalizeTurkishPhone, PHONE_ERROR } from '../../lib/importNormalize';
+import { normalizeTurkishPhone, PHONE_ERROR, trFold } from '../../lib/importNormalize';
 import { birthDateLabel } from '../../lib/teacherImport';
 // Aşama 144: Excel ile toplu öğretmen ekleme (xlsx kütüphanesi yalnız pencere açılınca yüklenir)
 const TeacherExcelUploadModal = lazyNamed(() => import('./TeacherExcelUploadModal'), 'TeacherExcelUploadModal');
@@ -1167,7 +1167,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                                 <img loading="lazy" decoding="async" src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                               ) : (
                                 <span className="text-xs font-bold text-fg-2">
-                                  {u.name.slice(0, 2).toUpperCase()}
+                                  {u.name.slice(0, 2).toLocaleUpperCase('tr-TR')}
                                 </span>
                               )}
                             </div>
@@ -1501,7 +1501,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     type="text"
                     required
                     value={editFormData.username}
-                    onChange={(e) => setEditFormData({ ...editFormData, username: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, username: trFold(e.target.value) })} // Aşama 154
                     className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
                 </div>
@@ -2483,7 +2483,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 value={username}
                 onChange={(e) => {
                   setUsernameTouched(true);
-                  setUsername(e.target.value.toLowerCase());
+                  setUsername(trFold(e.target.value)); // Aşama 154: ş→s, ı→i (giriş adı yalnız ASCII)
                 }}
                 autoCapitalize="none"
                 autoCorrect="off"

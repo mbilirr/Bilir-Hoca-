@@ -6003,7 +6003,7 @@ class DataService {
     }
     const cleanName = data.name.trim();
     const cleanUsername = cleanName
-      .toLowerCase()
+      .toLocaleLowerCase('tr-TR') // Aşama 154: "İsmail" -> "ismail" (eskiden "i.smail")
       .replace(/ğ/g, 'g')
       .replace(/ü/g, 'u')
       .replace(/ş/g, 's')
@@ -6113,6 +6113,18 @@ class DataService {
   private canonicalAuthEmail(type: 'teacher' | 'student', identifier: string): string {
     const clean = (identifier || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
     return `${type === 'teacher' ? 'tch' : 'std'}_${clean || 'user'}@okul.internal.net`;
+  }
+
+  // Aşama 154: girişte yazılan Türkçe harfler ASCII karşılığına çevrilir ("ayşedemir" -> "aysedemir", "İ/I" -> "i").
+  // Eski kural harfi SİLİYORDU ("ayşedemir" -> "ayedemir"); o adresle açılmış eski hesaplar bozulmasın diye
+  // giriş, önce çevrilmiş sonra eski (silinmiş) adresi dener. Yazılan ad ASCII ise ikisi aynıdır, fazladan istek olmaz.
+  private static trLoginFold(v: string): string {
+    return (v || '')
+      .trim()
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[çğıöşüâîû]/g, (c) => ({ ç: 'c', ğ: 'g', ı: 'i', ö: 'o', ş: 's', ü: 'u', â: 'a', î: 'i', û: 'u' } as Record<string, string>)[c] || c)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
   }
 
   private translatePasswordError(message?: string): string {
@@ -6647,8 +6659,12 @@ class DataService {
     if (term.includes('@')) {
       candidates.push(term);
     } else {
+      const folded = DataService.trLoginFold(usernameOrEmail); // Aşama 154
+      candidates.push(this.canonicalAuthEmail('teacher', folded));
       candidates.push(this.canonicalAuthEmail('teacher', term));
-      const known = this.teachers.find((t) => (t.username || '').toLowerCase() === term || t.id.toLowerCase() === term);
+      const known = this.teachers.find(
+        (t) => (t.username || '').toLowerCase() === term || (!!folded && DataService.trLoginFold(t.username || '') === folded) || t.id.toLowerCase() === term
+      );
       if (known?.email) candidates.push(known.email);
       if (known) candidates.push(this.canonicalAuthEmail('teacher', known.username || known.id));
     }
@@ -6761,11 +6777,14 @@ class DataService {
     if (term.includes('@')) {
       candidates.push(term);
     } else {
+      const folded = DataService.trLoginFold(identifier); // Aşama 154
+      candidates.push(this.canonicalAuthEmail('student', folded));
       candidates.push(this.canonicalAuthEmail('student', term));
       const known = this.students.find(
         (s) =>
           s.studentNumber?.toLowerCase() === term ||
           (s.username || '').toLowerCase() === term ||
+          (!!folded && DataService.trLoginFold(s.username || '') === folded) ||
           s.id.toLowerCase() === term
       );
       if (known?.studentNumber) candidates.push(this.canonicalAuthEmail('student', known.studentNumber));
@@ -9747,21 +9766,22 @@ class DataService {
     className?: string,
     excludeId?: string
   ): Student | null {
-    const cleanName = (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    // Aşama 154: Türkçe küçük harf ("YILMAZ" = "Yılmaz", "İSMAİL" = "İsmail")
+    const cleanName = (name || '').trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
     if (!cleanName) return null;
     const cleanNum = (studentNumber || '').trim();
-    const cleanCls = (className || '').trim().toLowerCase();
+    const cleanCls = (className || '').trim().toLocaleLowerCase('tr-TR');
 
     return (
       this.students.find((s) => {
         if (excludeId && s.id === excludeId) return false;
         if (this.deletedStudentIds.has(s.id)) return false;
-        const sName = (s.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const sName = (s.name || '').trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ');
         if (sName !== cleanName) return false;
         // Same name AND same student number
         if (cleanNum && s.studentNumber && s.studentNumber.trim() === cleanNum) return true;
         // Same name AND same class
-        if (cleanCls && s.className && s.className.trim().toLowerCase() === cleanCls) return true;
+        if (cleanCls && s.className && s.className.trim().toLocaleLowerCase('tr-TR') === cleanCls) return true;
         return false;
       }) || null
     );
@@ -11787,7 +11807,8 @@ class DataService {
 
   public getTeachersForSubject(subject: string): string[] {
     const map = this.getSubjectTeachersMap();
-    const cleanSub = (subject || '').trim().toLowerCase();
+    const trLc = (v: string) => v.toLocaleLowerCase('tr-TR'); // Aşama 154: "İNGİLİZCE" = "İngilizce"
+    const cleanSub = trLc((subject || '').trim());
     const resultTeachers: string[] = [];
 
     // 1. Kullanıcının daha önce bu ders için kaydettiği öğretmenler
@@ -11796,9 +11817,9 @@ class DataService {
     }
     const foundKey = Object.keys(map).find(
       (k) =>
-        k.toLowerCase() === cleanSub ||
-        cleanSub.includes(k.toLowerCase()) ||
-        k.toLowerCase().includes(cleanSub)
+        trLc(k) === cleanSub ||
+        cleanSub.includes(trLc(k)) ||
+        trLc(k).includes(cleanSub)
     );
     if (foundKey && map[foundKey] && Array.isArray(map[foundKey])) {
       resultTeachers.push(...map[foundKey]);
@@ -11811,7 +11832,7 @@ class DataService {
         const trimmed = t.name.trim();
         if (DataService.AUTO_SEEDED_TEACHER_NAMES.has(trimmed)) return;
 
-        const tb = (t.branch || '').toLowerCase();
+        const tb = trLc(t.branch || '');
         if (!tb || tb === cleanSub || tb.includes(cleanSub) || cleanSub.includes(tb)) {
           resultTeachers.push(trimmed);
         }

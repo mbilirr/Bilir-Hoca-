@@ -17,6 +17,7 @@ import {
   usernameBase,
   type ParsedTeacherRow,
 } from '../../lib/teacherImport';
+import { sheetSource } from '../../lib/importNormalize'; // Aşama 154
 
 // ============================================================================
 // Aşama 144: ÖĞRETMENLERİ EXCEL İLE TOPLU EKLEME
@@ -88,7 +89,8 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const wb = XLSX.read(e.target?.result, { type: 'array', cellDates: true });
+        const src = sheetSource(e.target?.result as ArrayBuffer, 'array'); // Aşama 154: CSV Türkçe harf
+        const wb = XLSX.read(src.data, { type: src.type, cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: true });
         const existing = dataService.getTeachers().map((t) => ({ name: t.name, username: t.username, email: t.email }));

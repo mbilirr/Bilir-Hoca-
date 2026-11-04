@@ -9,6 +9,7 @@
 // ============================================================================
 import { foldTr, guessSubjectKey } from './optik';
 import { LGS_SUBJECTS } from './lgs';
+import { sheetSource } from '../importNormalize'; // Aşama 154
 
 export interface BankKazanim {
   code: string;
@@ -313,7 +314,8 @@ const cellText = (v: unknown) => (v === null || v === undefined ? '' : String(v)
 /** Excel / CSV dosyasından kazanımlar. Başlık satırı yoksa satırlar metin gibi çözümlenir. */
 export async function readKazanimFile(file: File, defaultSubject: string, grade = '8'): Promise<BankParseResult> {
   const XLSX = await import('xlsx');
-  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const src = sheetSource(await file.arrayBuffer(), 'array'); // Aşama 154: CSV Türkçe harf
+  const wb = XLSX.read(src.data, { type: src.type });
   const rows: BankKazanim[] = [];
   const warnings: string[] = [];
   const lines: string[] = [];

@@ -172,7 +172,7 @@ export const TeacherAvatarModal: React.FC<TeacherAvatarModalProps> = ({
         .map((n) => n[0] || '')
         .join('')
         .slice(0, 2)
-        .toUpperCase() || 'ÖĞ'
+        .toLocaleUpperCase('tr-TR') || 'ÖĞ'
     : 'ÖĞ';
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

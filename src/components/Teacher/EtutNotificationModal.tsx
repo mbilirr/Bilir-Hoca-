@@ -267,7 +267,7 @@ Eğitim & Öğrenci Takip Sistemi`.trim();
                   >
                     <div className="flex items-center space-x-2.5">
                       <div className="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/40 flex items-center justify-center text-teal-700 dark:text-teal-300 font-bold text-xs shrink-0">
-                        {std.name.substring(0, 2).toUpperCase()}
+                        {std.name.substring(0, 2).toLocaleUpperCase('tr-TR')}
                       </div>
                       <div>
                         <span className="text-xs font-bold text-fg block">{std.name}</span>

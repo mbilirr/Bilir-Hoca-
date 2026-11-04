@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { TeacherDocument } from '../../../types';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
+import { matchTurkishSearch } from '../../../utils/turkishSearch'; // Aşama 154
 
 // Word'den gelen önizlemenin okunaklı görünmesi için temel biçimler (başlıklar, listeler, tablolar)
 const DOC_PREVIEW_CLASSES = [
@@ -114,7 +115,7 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
         if (rIdx === 0) return true; // Keep headers
         if (!sheetSearchQuery.trim()) return true;
         return row.some((cell) =>
-          String(cell).toLowerCase().includes(sheetSearchQuery.toLowerCase())
+          matchTurkishSearch(String(cell), sheetSearchQuery) // Aşama 154: İ/ı, ş/s duyarsız
         );
       })
     : [];

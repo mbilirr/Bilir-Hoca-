@@ -54,6 +54,8 @@ const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
 // Aşama 109: genel yönetici e-postası bu dosyada tek yerde (veritabanındaki is_admin kuralıyla aynı olmalı)
 const HEAD_ADMIN_EMAIL = 'm.bilirr@gmail.com';
 const TIME_BUDGET_MS = 30000; // bir çağrıda en fazla bu kadar süre e-posta gönderilir, kalanlar sonraki çağrıya kalır
+// Aşama 153: zamanlayıcı çağrısında (her 10 dk) daha uzun süre: işlev sınırı 60 sn, Gmail bekleme payı 12 sn
+const CRON_TIME_BUDGET_MS = 40000;
 const SOCKET_TIMEOUT_MS = 12000;
 const REPEAT_LIMIT_PER_DAY = 4; // aynı etüt için aynı kişiye günde en fazla bu kadar 'değişti/iptal' e-postası
 const HOURLY_LIMIT_PER_SENDER = 400; // bir öğretmenin saatte gönderebileceği en fazla e-posta
@@ -462,7 +464,15 @@ function buildMessage({ fromName, fromAddr, toName, toAddr, replyTo, subject, te
   const mixed = 'm_' + crypto.randomBytes(12).toString('hex');
   const parts = files
     .map((f) => {
-      const name = String(f.filename).replace(/[^\w.-]+/g, '_').slice(0, 80) || 'ek.pdf';
+      // Aşama 154: Türkçe harfler ASCII karşılığına çevrilir (eskiden "_" oluyordu: "Ayşe" -> "Ay_e")
+      const name =
+        String(f.filename)
+          .replace(/ı/g, 'i')
+          .replace(/İ/g, 'I')
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^\w.-]+/g, '_')
+          .slice(0, 80) || 'ek.pdf';
       const type = /^[\w.+-]+\/[\w.+-]+$/.test(String(f.contentType || '')) ? f.contentType : 'application/octet-stream';
       return (
         `--${mixed}\r\nContent-Type: ${type}; name="${name}"\r\nContent-Transfer-Encoding: base64\r\n` +
@@ -1988,7 +1998,7 @@ async function applyMailPolicy(items) {
   return out;
 }
 
-async function deliver(sender, senderMeta, items, deadline) {
+async function deliver(sender, senderMeta, items, deadline, opts = {}) {
   const summary = {
     sent: 0,
     failed: 0,
@@ -2016,12 +2026,21 @@ async function deliver(sender, senderMeta, items, deadline) {
         refId: it.refId,
       });
   const already = new Set();
+  // Aşama 153: aynı türdeki kayıtlar tek sorguda (eskiden kayıt başına bir sorgu)
+  const refsByEvent = new Map();
   for (const g of onceGroups.values()) {
-    const rows = await rest(
-      `mail_log?select=recipient&status=in.(sent,sending)&event=eq.${encodeURIComponent(g.event)}&ref_id=eq.${encodeURIComponent(g.refId)}`,
-      { token: 'service' },
-    );
-    for (const r of rows || []) already.add(`${g.event}|${g.refId}|${r.recipient}`);
+    if (!refsByEvent.has(g.event)) refsByEvent.set(g.event, []);
+    refsByEvent.get(g.event).push(g.refId);
+  }
+  for (const [ev, refs] of refsByEvent) {
+    const ids = refs.map((x) => String(x)); // kimliksiz kayıt eskisi gibi "null" metniyle aranır
+    for (let i = 0; i < ids.length; i += 50) {
+      const rows = await rest(
+        `mail_log?select=ref_id,recipient&status=in.(sent,sending)&event=eq.${encodeURIComponent(ev)}&ref_id=in.${inList(ids.slice(i, i + 50))}`,
+        { token: 'service' },
+      );
+      for (const r of rows || []) already.add(`${ev}|${r.ref_id}|${r.recipient}`);
+    }
   }
   // Tekrarlanabilen (değişti/iptal) e-postalarda günlük sınır
   const since = new Date(Date.now() - 86400000).toISOString();
@@ -2063,9 +2082,16 @@ async function deliver(sender, senderMeta, items, deadline) {
       { token: 'service' },
     );
     if ((recent || []).length + queue.length > HOURLY_LIMIT_PER_SENDER) {
-      summary.failed = queue.length;
-      summary.errors.push(`Saatlik e-posta sınırına ulaşıldı (${HOURLY_LIMIT_PER_SENDER}). Bir saat sonra tekrar deneyin.`);
-      return summary;
+      // Aşama 153: zamanlanmış etütte sınıra kadar olanlar gider, kalanı sonraki turda (önce başlayan etüt önde)
+      const room = HOURLY_LIMIT_PER_SENDER - (recent || []).length;
+      if (!opts.partialHourly || room <= 0) {
+        summary.failed = queue.length;
+        summary.errors.push(`Saatlik e-posta sınırına ulaşıldı (${HOURLY_LIMIT_PER_SENDER}). Bir saat sonra tekrar deneyin.`);
+        return summary;
+      }
+      summary.remaining += queue.length - room;
+      summary.errors.push(`Saatlik e-posta sınırı (${HOURLY_LIMIT_PER_SENDER}): ${queue.length - room} e-posta sonraki tura kaldı.`);
+      queue.length = room;
     }
   }
 
@@ -2098,7 +2124,7 @@ async function deliver(sender, senderMeta, items, deadline) {
     for (let i = 0; i < queue.length; i++) {
       const it = queue[i];
       if (Date.now() > deadline) {
-        summary.remaining = queue.length - i;
+        summary.remaining += queue.length - i;
         break;
       }
       // Tek seferlik e-postada önce "gönderiliyor" kaydı alınır: aynı anda iki çağrı aynı kişiye iki kez gönderemez
@@ -2140,7 +2166,7 @@ async function deliver(sender, senderMeta, items, deadline) {
         try {
           client = await openSmtp(sender);
         } catch {
-          summary.remaining = queue.length - i - 1;
+          summary.remaining += queue.length - i - 1;
           break;
         }
       }
@@ -2584,17 +2610,71 @@ function etutMailDueMinute(etut) {
   const st = etutStartMinute(etut);
   return st === null ? ETUT_DEFAULT_MAIL_MINUTE : Math.max(0, st - 60);
 }
-async function sendScheduledEtut(row, url, deadline) {
-  const etut = etutView(row);
-  const students = await studentsByIds(etut.studentIds, 'service');
-  const teachers = await resolveEtutTeachers(etut.teacherIds, etut.teacherName);
+// Aşama 153: zamanlanmış etüt e-postaları TOPLU hazırlanır. Eskiden her 10 dakikalık turda günün bütün etütleri
+// sırasız ve tek tek (etüt başına 15-20 veritabanı isteği + ayrı Gmail bağlantısı) işleniyordu; tur süresi
+// bitince sıradaki etütler bekliyor, bazıları etüt bitene kadar sıra bulamıyordu. Şimdi: etütler başlama saatine
+// göre sıralanır, öğrenci / öğretmen bilgileri birkaç toplu istekle okunur, aynı gönderenin bütün e-postaları
+// tek Gmail bağlantısından gider; daha önce gönderilmiş olanlar deliver içinde toplu sorguyla elenir.
+const isUuid = (x) => /^[0-9a-f-]{36}$/i.test(String(x || ''));
+async function restInChunks(prefix, ids, size = 100) {
+  const out = [];
+  const list = [...new Set(ids.filter(Boolean).map(String))];
+  for (let i = 0; i < list.length; i += size) {
+    const rows = await rest(`${prefix}=in.${inList(list.slice(i, i + size))}`, { token: 'service' });
+    out.push(...(rows || []));
+  }
+  return out;
+}
+// resolveEtutTeacher ile aynı kurallar, tek seferde birçok etüt için
+async function loadEtutPeople(views) {
+  const studentIds = [];
+  const teacherIds = [];
+  const extIds = [];
+  for (const v of views) {
+    studentIds.push(...v.studentIds);
+    if (v.createdById && !String(v.createdById).startsWith('ext-')) teacherIds.push(v.createdById);
+    for (const id of v.teacherIds) {
+      if (String(id).startsWith('ext-')) {
+        if (isUuid(String(id).slice(4))) extIds.push(String(id).slice(4));
+      } else teacherIds.push(id);
+    }
+  }
+  const students = new Map();
+  const uniqStudents = [...new Set(studentIds.map(String))];
+  if (uniqStudents.length) for (const s of await studentsByIds(uniqStudents, 'service')) students.set(String(s.id), s);
+  const teachers = new Map();
+  for (const t of await restInChunks('teachers?select=id,name,email,auth_user_id&id', teacherIds)) teachers.set(String(t.id), t);
+  // Kayıtlı öğretmene ek bilgi olarak girilmiş e-posta (öğretmen kaydında e-posta yoksa)
+  const extraEmail = new Map();
+  const noMail = [...teachers.values()].filter((t) => !isEmail(t.email)).map((t) => t.id);
+  if (noMail.length) {
+    try {
+      for (const r of await restInChunks('etut_teachers?select=teacher_id,email&teacher_id', noMail))
+        if (r.teacher_id && isEmail(r.email) && !extraEmail.has(String(r.teacher_id))) extraEmail.set(String(r.teacher_id), r.email);
+    } catch {}
+  }
+  const ext = new Map();
+  if (extIds.length) for (const r of await restInChunks('etut_teachers?select=id,name,email&id', extIds)) ext.set(String(r.id).toLowerCase(), r);
+  const teacherOf = (id, fallbackName) => {
+    if (!id) return null;
+    if (String(id).startsWith('ext-')) {
+      const r = ext.get(String(id).slice(4).toLowerCase());
+      return r ? { id, name: r.name, email: r.email || '', authId: null } : null;
+    }
+    const t = teachers.get(String(id));
+    if (!t) return fallbackName ? { id, name: fallbackName, email: '', authId: null } : null;
+    return { id: t.id, name: t.name, email: isEmail(t.email) ? t.email : extraEmail.get(String(t.id)) || t.email || '', authId: t.auth_user_id };
+  };
+  return { students, teachers, teacherOf };
+}
+function buildScheduledEtutItems(etut, people, url) {
+  const students = etut.studentIds.map((id) => people.students.get(String(id))).filter(Boolean);
+  const teachers = etut.teacherIds.map((id) => people.teacherOf(id, etut.teacherIds.length === 1 ? etut.teacherName : null)).filter(Boolean);
   const teacherName = teachers.length ? teachers.map((t) => t.name).join(', ') : etut.teacherName || 'Öğretmen';
   // Gönderen: etüdü kaydeden öğretmen (kendi Gmail'i varsa o), yoksa okulun hesabı
   let owner = null;
-  if (etut.createdById) {
-    const t = await rest(`teachers?select=id,name,email,auth_user_id&id=eq.${encodeURIComponent(etut.createdById)}`, { token: 'service' });
-    if (t && t[0]) owner = { authId: t[0].auth_user_id || null, name: t[0].name, email: t[0].email || '' };
-  }
+  const c = etut.createdById ? people.teachers.get(String(etut.createdById)) : null;
+  if (c) owner = { authId: c.auth_user_id || null, name: c.name, email: c.email || '' };
   if (!owner) owner = teachers[0] ? { authId: teachers[0].authId || null, name: teachers[0].name, email: teachers[0].email || '' } : { authId: null, name: 'Etüt', email: '' };
   const refTitle = `${etut.subject} – ${etut.topic}`;
   const items = students.map((s) => ({
@@ -2620,9 +2700,27 @@ async function sendScheduledEtut(row, url, deadline) {
       ...etutTeacherMail('etut-scheduled', etut, t, students, owner.name, url),
     });
   }
-  if (!items.length) return null;
-  const sender = await resolveSender(owner);
-  return deliver(sender, owner, items, deadline);
+  // Aşama 153: süre biterse önce öğretmen e-postası gitmiş olsun (öğretmen önde, sonra öğrenciler)
+  items.sort((x, y) => (x.role === 'ogretmen' ? 0 : 1) - (y.role === 'ogretmen' ? 0 : 1));
+  return { owner, items };
+}
+// Yarıda kesilen bir çağrıda "gönderiliyor"da kalan zamanlanmış etüt kaydı, 15 dakika sonra "başarısız" sayılır;
+// böylece o kişiye bir sonraki turda yeniden gönderilir (aksi hâlde hiç gitmezdi).
+const STALE_SENDING_MIN = 15;
+async function releaseStaleEtutClaims(ids) {
+  if (!ids.length) return;
+  const before = new Date(Date.now() - STALE_SENDING_MIN * 60000).toISOString();
+  const list = [...new Set(ids)];
+  for (let i = 0; i < list.length; i += 100) {
+    try {
+      await rest(
+        `mail_log?status=eq.sending&event=eq.etut-scheduled&created_at=lt.${encodeURIComponent(before)}&ref_id=in.${inList(list.slice(i, i + 100))}`,
+        { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { status: 'failed', error: 'Gönderim yarıda kaldı; yeniden denenecek' } },
+      );
+    } catch (err) {
+      console.error('[mail] takılı etüt kaydı açılamadı', err && err.message);
+    }
+  }
 }
 // Sabit zamanlı karşılaştırma (gizli anahtar tahmin saldırısına karşı)
 function safeEqual(a, b) {
@@ -2636,6 +2734,7 @@ async function actionEtutReminders(req, deadline) {
   const rows = await rest(`etuts?select=*&date=like.${now.date}*`, { token: 'service' });
   const url = appUrl(req);
   const out = { ok: true, date: now.date, scheduled: 0, due: 0, leftover: 0, total: null };
+  const due = [];
   for (const row of rows || []) {
     if (!row || typeof row.id !== 'string' || row.id.startsWith('__')) continue;
     const etut = etutView(row);
@@ -2645,21 +2744,50 @@ async function actionEtutReminders(req, deadline) {
     const st = etutStartMinute(etut);
     // Saati geçmiş (bitmiş) etüt için artık e-posta gitmez
     if (st !== null && now.minutes > st + (Number(etut.duration) || 45)) continue;
+    due.push({ etut, sort: st === null ? ETUT_DEFAULT_MAIL_MINUTE + 60 : st });
+  }
+  if (!due.length) return { ...out, sent: 0, failed: 0, skipped: 0, noEmail: 0, errors: [], total: undefined };
+  // Aşama 153: önce başlayacak etüt önce gönderilir
+  due.sort((x, y) => x.sort - y.sort || String(x.etut.time || '').localeCompare(String(y.etut.time || '')));
+  out.due = due.length;
+  await releaseStaleEtutClaims(due.map((d) => d.etut.id));
+  let people;
+  try {
+    people = await loadEtutPeople(due.map((d) => d.etut));
+  } catch (err) {
+    console.error('[mail] etüt kişileri okunamadı', err && err.message);
+    return { ...out, ok: false, sent: 0, failed: 0, skipped: 0, noEmail: 0, errors: [String((err && err.message) || err).slice(0, 200)], total: undefined };
+  }
+  // Aynı gönderenin (etüdü kaydeden) bütün e-postaları tek grupta, etüt saati sırasıyla
+  const groups = new Map();
+  for (const d of due) {
+    try {
+      const { owner, items } = buildScheduledEtutItems(d.etut, people, url);
+      if (!items.length) continue;
+      const key = `${owner.authId || ''}|${owner.name || ''}|${owner.email || ''}`;
+      if (!groups.has(key)) groups.set(key, { owner, items: [] });
+      groups.get(key).items.push(...items);
+    } catch (err) {
+      console.error('[mail] etüt e-postası hazırlanamadı', d.etut.id, err && err.message);
+      out.total = mergeSummaries(out.total, { sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [`${d.etut.subject}: ${err && err.message}`] });
+    }
+  }
+  for (const g of groups.values()) {
     if (Date.now() > deadline) {
-      out.leftover++;
+      out.leftover += new Set(g.items.map((it) => it.refId)).size;
       continue;
     }
-    out.due++;
     try {
-      const summary = await sendScheduledEtut(row, url, deadline);
+      const sender = await resolveSender(g.owner);
+      const summary = await deliver(sender, g.owner, g.items, deadline, { partialHourly: true });
       if (summary) out.total = mergeSummaries(out.total, summary);
     } catch (err) {
-      console.error('[mail] etüt e-postası hatası', row.id, err && err.message);
-      out.total = mergeSummaries(out.total, { sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [`${etut.subject}: ${err && err.message}`] });
+      console.error('[mail] etüt e-postası hatası', g.owner && g.owner.name, err && err.message);
+      out.total = mergeSummaries(out.total, { sent: 0, failed: 0, skipped: 0, noEmail: 0, remaining: 0, errors: [String((err && err.message) || err).slice(0, 200)] });
     }
   }
   const t = out.total || {};
-  return { ...out, sent: t.sent || 0, failed: t.failed || 0, skipped: t.skipped || 0, noEmail: t.noEmail || 0, errors: t.errors || [], total: undefined };
+  return { ...out, sent: t.sent || 0, failed: t.failed || 0, skipped: t.skipped || 0, noEmail: t.noEmail || 0, remaining: t.remaining || 0, errors: t.errors || [], total: undefined };
 }
 
 // ----------------------------------------------------------------------------- Yoklaması alınmayan etüt uyarısı (Aşama 24)
@@ -3530,6 +3658,8 @@ async function actionPlanMail(caller, body, req, deadline) {
     if (buf.length > PLAN_PDF_MAX_BYTES) throw new HttpError(413, 'PDF dosyası çok büyük.');
     if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(400, 'Ek bir PDF dosyası değil.');
     const safe = clean(student.name)
+      .replace(/ı/g, 'i') // Aşama 154: "ı" eskiden siliniyordu
+      .replace(/İ/g, 'I')
       .normalize('NFKD')
       .replace(/[^\w ]+/g, '')
       .trim()
@@ -3609,6 +3739,8 @@ async function actionDenemeKarne(caller, body, req, deadline) {
   const examName = clean(String(body.examName || '')).slice(0, 160) || title;
   const name = clean(student.name);
   const safe = name
+    .replace(/ı/g, 'i') // Aşama 154: "ı" eskiden siliniyordu
+    .replace(/İ/g, 'I')
     .normalize('NFKD')
     .replace(/[^\w ]+/g, '')
     .trim()
@@ -4120,49 +4252,50 @@ export default async function handler(req, res) {
         return res.status(401).json({ ok: false, error: 'Yetkisiz' });
       }
       if (!e.service) return res.status(503).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY eksik' });
+      const cronDeadline = Date.now() + CRON_TIME_BUDGET_MS; // Aşama 153
       // Aşama 19: etüt e-postaları (Supabase zamanlayıcısı her 10 dakikada çağırır); Aşama 22: plan raporları da
       if (task === 'etut-reminders') {
-        const er = await actionEtutReminders(req, deadline);
+        const er = await actionEtutReminders(req, cronDeadline);
         // Aşama 22: haftalık plan raporları (son görev günü 20:00)
         let pr = null;
         try {
-          pr = await actionPlanReports(req, deadline);
+          pr = await actionPlanReports(req, cronDeadline);
         } catch (err) {
           console.error('[mail] plan raporu hatası', err && err.message);
         }
         // Aşama 24: etüdü bitmiş ama yoklaması alınmamış etütler için yöneticiye uyarı
         let na = null;
         try {
-          na = await actionNoAttendanceAlerts(req, deadline);
+          na = await actionNoAttendanceAlerts(req, cronDeadline);
         } catch (err) {
           console.error('[mail] yoklama uyarısı hatası', err && err.message);
         }
         return res.status(200).json({ ok: er.ok, date: er.date, scheduled: er.scheduled, due: er.due, leftover: er.leftover, sent: er.sent, failed: er.failed, skipped: er.skipped, noEmail: er.noEmail, planReports: pr ? pr.sent : 0, noAttendance: na ? na.sent : 0 });
       }
-      const r = await actionReminders(req, deadline);
+      const r = await actionReminders(req, cronDeadline);
       // Günlük görevde de bir kez bakılır (10 dakikalık zamanlayıcı kurulmadıysa etüt e-postası hiç kaybolmasın)
       let er = null;
       try {
-        er = await actionEtutReminders(req, deadline);
+        er = await actionEtutReminders(req, cronDeadline);
       } catch (err) {
         console.error('[mail] günlük etüt e-postası hatası', err && err.message);
       }
       let pr = null;
       try {
-        pr = await actionPlanReports(req, deadline);
+        pr = await actionPlanReports(req, cronDeadline);
       } catch (err) {
         console.error('[mail] günlük plan raporu hatası', err && err.message);
       }
       let na = null;
       try {
-        na = await actionNoAttendanceAlerts(req, deadline);
+        na = await actionNoAttendanceAlerts(req, cronDeadline);
       } catch (err) {
         console.error('[mail] günlük yoklama uyarısı hatası', err && err.message);
       }
       // Aşama 101: süresi dolan karne linkleri ve PDF'leri
       let karneCleaned = 0;
       try {
-        karneCleaned = await cleanupKarneLinks(deadline);
+        karneCleaned = await cleanupKarneLinks(cronDeadline);
       } catch (err) {
         console.error('[mail] karne linki temizliği hatası', err && err.message);
       }

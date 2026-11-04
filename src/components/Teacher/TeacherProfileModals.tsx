@@ -22,6 +22,7 @@ import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { createEmojiSvgDataUrl } from './TeacherAvatarModal';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
+import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
 interface TeacherProfileEditModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
         .map((n) => n[0] || '')
         .join('')
         .slice(0, 2)
-        .toUpperCase() || 'MB'
+        .toLocaleUpperCase('tr-TR') || 'MB'
     : 'MB';
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -347,7 +348,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
               <input
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(trFold(e.target.value))} // Aşama 154: ş→s, ı→i
                 readOnly={!canEditUsername}
                 placeholder="Örn: mbilir veya mehmetb"
                 className={`w-full bg-canvas border border-line rounded-xl pl-8 pr-3.5 py-2.5 text-xs font-mono placeholder-subtle focus:outline-none focus:border-indigo-500 transition-colors ${
