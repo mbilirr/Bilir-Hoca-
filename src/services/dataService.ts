@@ -6073,7 +6073,8 @@ class DataService {
         name: updated.name,
         branch: updated.branch,
         avatar: updated.avatar,
-        identifier: updated.username || remembered.identifier,
+        // Aşama 155: e-postayla hatırlanan hesapta e-posta korunur; yalnız kullanıcı adı hatırlanıyorsa güncellenir
+        identifier: remembered.identifier.includes('@') ? remembered.identifier : updated.username || remembered.identifier,
       });
     }
     this.notify();
@@ -6107,6 +6108,16 @@ class DataService {
   // =========================================================================
   // ŞİFRE İŞLEMLERİ (Supabase Auth)
   // =========================================================================
+  // Aşama 155: "Beni hatırla" kutusuna yazılacak bilgi, hesabın GERÇEK giriş adresiyle birebir tutmalı.
+  // Giriş adresi gerçek e-posta olan hesapta (ör. genel yönetici) kullanıcı adından adres üretilemez; bu yüzden
+  // e-posta saklanır. Sistemin ürettiği adresi (…@okul.internal.net) olan hesaplarda kullanıcı adı saklanır.
+  private lastTeacherLoginEmail = '';
+  public rememberIdentifierForTeacher(teacher: Teacher, typed: string): string {
+    const loginEmail = this.lastTeacherLoginEmail;
+    if (loginEmail && loginEmail.includes('@') && !loginEmail.endsWith('@okul.internal.net')) return loginEmail;
+    return teacher.username || typed;
+  }
+
   public static readonly MIN_PASSWORD_LENGTH = 6;
 
   // Sistemin öğretmen/öğrenci hesapları için ürettiği giriş adresi (create-user fonksiyonu ile aynı kural)
@@ -6676,6 +6687,7 @@ class DataService {
       return null;
     }
     const authUser = signed.user;
+    this.lastTeacherLoginEmail = (authUser.email || '').trim().toLowerCase(); // Aşama 155: beni hatırla gerçek giriş adresini saklar
 
     const appRole = authUser.app_metadata?.role;
     const isAppAdmin = appRole === 'admin' || authUser.app_metadata?.is_admin === true ||
@@ -7216,7 +7228,8 @@ class DataService {
       if (liveTeacher) {
         return {
           role: 'teacher',
-          identifier: liveTeacher.username || saved.identifier,
+          // Aşama 155: kayıtlı e-posta (gerçek giriş adresi) kullanıcı adıyla ezilmez
+          identifier: saved.identifier.includes('@') ? saved.identifier : liveTeacher.username || saved.identifier,
           name: liveTeacher.name,
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,

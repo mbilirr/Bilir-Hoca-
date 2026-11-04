@@ -79,6 +79,20 @@ interface AuthPortalProps {
   teachers: Teacher[];
 }
 
+// Aşama 155: "Beni hatırla" açıkken başarılı girişten sonra tarayıcının KENDİ şifre kasasına kaydetme sorusu
+// (Chrome, Edge, Android, Samsung Internet). Şifre uygulamada saklanmaz; kasayı telefonun/tarayıcının kilidi korur.
+// Safari bu arabirimi desteklemez; orada tarayıcı, form işaretlerinden (username / current-password) kendisi sorar.
+// Kullanıcı "Kaydetme" derse ya da tarayıcı desteklemezse sessizce geçilir, girişi asla bekletmez.
+function saveToBrowserPasswordStore(id: string, password: string, name: string): void {
+  try {
+    const PC = (window as any).PasswordCredential;
+    if (!PC || !navigator.credentials?.store || !id || !password) return;
+    navigator.credentials.store(new PC({ id, password, name: name || id })).catch(() => {});
+  } catch {
+    /* desteklenmiyor */
+  }
+}
+
 export const AuthPortal: React.FC<AuthPortalProps> = ({
   onAuthSuccess,
   classes,
@@ -238,7 +252,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       if (rememberMe) {
         dataService.setRememberedUser({
           role: 'teacher',
-          identifier: teacher.username,
+          identifier: dataService.rememberIdentifierForTeacher(teacher, cleanUser), // Aşama 155
           name: teacher.name,
           avatar: teacher.avatar,
           branch: teacher.branch,
@@ -277,8 +291,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    const cleanUser = loginUsername.trim();
-    const cleanPass = loginPassword.trim();
+    // Aşama 155: tarayıcı şifre kasası kutuları doldurmuş ama React henüz haber almamışsa kutunun kendi değeri okunur
+    const form = e.currentTarget as HTMLFormElement;
+    const domUser = (form.elements.namedItem('username') as HTMLInputElement | null)?.value || '';
+    const cleanUser = (loginUsername || domUser).trim();
+    const cleanPass = (loginPassword || passwordInputRef.current?.value || '').trim();
 
     if (!cleanUser || !cleanPass) {
       setError('Lütfen kullanıcı adı ve şifrenizi giriniz.');
@@ -297,6 +314,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         );
         return;
       }
+      // Aşama 155: kasaya, bir sonraki açılışta kutuda duracak bilgiyle (hatırlanan giriş bilgisi) kaydedilir; böylece tarayıcı eşleştirir
+      if (rememberMe) saveToBrowserPasswordStore(dataService.getRememberedUser(selectedRole)?.identifier || cleanUser, cleanPass, session.user.name);
       if (enableBio && bioAvailable) {
         // Parmak izi kaydı için ayrı bir onay adımı gösterilir (oturum bu adımdan sonra açılır)
         setPendingBio({ session, identifier: cleanUser, name: session.user.name, password: cleanPass });
@@ -600,7 +619,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       </div>
 
                       <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-between text-[11px] text-muted">
-                        <span>Şifrenizi girip “Giriş Yap”a basın. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
+                        <span>Şifrenizi girip “Giriş Yap”a basın. Tarayıcınız şifreyi kaydettiyse şifre kendiliğinden dolar. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
                       </div>
                     </div>
                   )}
