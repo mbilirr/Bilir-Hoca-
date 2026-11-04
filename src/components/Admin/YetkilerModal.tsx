@@ -107,7 +107,7 @@ const SegRow: React.FC<{
                   : fromRole
                     ? byRole
                       ? 'bg-success-soft text-success-fg'
-                      : 'bg-surface-2 text-fg-2'
+                      : 'bg-danger-soft text-danger-fg' // Aşama 148: unvanın vermediği yetki kırmızı
                     : 'bg-surface text-muted hover:bg-surface-2 disabled:opacity-60'
               )}
               data-mode={o.mode}
@@ -310,7 +310,7 @@ export const YetkilerModal: React.FC<{
         {tab === 'bolum' && (
           <>
             <p className="text-[11px] text-muted">
-              <b>Rolden</b>: unvanına göre; unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde gri işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Kurumda kapalı olan bölüm yine açılmaz.
+              <b>Rolden</b>: unvanına göre; unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Kurumda kapalı olan bölüm yine açılmaz.
             </p>
             <ul className="rounded-lg border border-line divide-y divide-line" role="group" aria-label="Bölümler">
               {SECTION_DEFS.map((d) => (
@@ -336,7 +336,7 @@ export const YetkilerModal: React.FC<{
               </p>
             ) : (
               <p className="text-[11px] text-muted">
-                <b>Rolden</b>: unvanına göre (yetki tablosu); unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde gri işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Ekrandaki düğmeler ve sunucu aynı kuralı
+                <b>Rolden</b>: unvanına göre (yetki tablosu); unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Ekrandaki düğmeler ve sunucu aynı kuralı
                 uygular; kişi sayfayı yenileyince geçerli olur.
               </p>
             )}
