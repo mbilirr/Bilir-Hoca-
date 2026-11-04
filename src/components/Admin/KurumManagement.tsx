@@ -4,6 +4,7 @@ import { dataService, KURUM_MODULES } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
 import { Panel, cx } from '../ui/kit';
+import { loadKurumGrantCred, setKurumGrantCred } from '../../lib/grantCred'; // Aşama 149
 
 // ============================================================================
 // KURUMLAR (Aşama 18) – yalnızca genel yönetici görür
@@ -41,6 +42,9 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
   const [msg, setMsg] = useState<{ id: string; tone: 'ok' | 'err'; text: string } | null>(null);
   const [classSearch, setClassSearch] = useState('');
   const [newOpen, setNewOpen] = useState(false);
+  // Aşama 149: açılan sınıflara giriş bilgisi izni (kurum başına tek anahtar). null = 149 SQL'i henüz yok
+  const [credSrv, setCredSrv] = useState<Record<string, boolean> | null>({});
+  const [credDraft, setCredDraft] = useState<Record<string, boolean>>({});
   const [teachers, setTeachers] = useState<Teacher[]>(() => dataService.getAllTeachersInternal());
   const [students, setStudents] = useState<Student[]>(() => dataService.getAllStudents());
 
@@ -68,6 +72,10 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
     try {
       const list = await dataService.listKurumlar();
       setKurumlar(list);
+      void loadKurumGrantCred().then((m) => {
+        setCredSrv(m);
+        if (m) setCredDraft((prev) => ({ ...m, ...Object.fromEntries(Object.entries(prev).filter(([id, v]) => m[id] !== undefined && v !== m[id])) }));
+      });
       setDrafts((prev) => {
         const next: Record<string, Draft> = {};
         list.forEach((k) => {
@@ -163,6 +171,10 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
     setMsg(null);
     try {
       await dataService.saveKurum({ id: k.id, name: d.name, modules: d.modules, grantedClassIds: d.grantedClassIds });
+      if (credSrv && credDraft[k.id] !== undefined && !!credDraft[k.id] !== !!credSrv[k.id]) {
+        const on = await setKurumGrantCred(k.id, !!credDraft[k.id]);
+        setCredSrv((p) => ({ ...(p || {}), [k.id]: on }));
+      }
       setMsg({ id: k.id, tone: 'ok', text: 'Kaydedildi. Kurumdaki kullanıcılar bir sonraki yenilemede yeni izinleri görür.' });
       onChanged?.();
       const list = await dataService.listKurumlar();
@@ -243,7 +255,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
           const members = teachers.filter((t) => t.kurumId === k.id);
           const admins = members.filter((t) => t.isAdmin);
           const open = openId === k.id || k.id === onlyKurumId;
-          const dirty = !sameDraft(d, k);
+          const credChanged = !!credSrv && !!credDraft[k.id] !== !!credSrv[k.id];
+          const dirty = !sameDraft(d, k) || credChanged;
           const q = classSearch.trim().toLocaleLowerCase('tr-TR');
           const visibleClasses = ownClasses.filter((c) => !q || c.name.toLocaleLowerCase('tr-TR').includes(q));
           return (
@@ -356,6 +369,30 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         })}
                       </div>
                     )}
+                    {/* Aşama 149: açılan sınıflara giriş bilgisi izni — yalnız genel yönetici değiştirir */}
+                    <label
+                      className={cx(
+                        'mt-2 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs',
+                        credSrv ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
+                        credDraft[k.id] ? 'border-brand bg-brand-soft text-fg' : 'border-line text-fg-2'
+                      )}
+                      title={credSrv ? undefined : '149 numaralı SQL çalıştırılınca açılır'}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`kurum-grant-cred-${k.id}`}
+                        data-testid="kurum-grant-cred"
+                        className="mt-0.5 accent-indigo-600"
+                        disabled={!credSrv}
+                        checked={!!credDraft[k.id]}
+                        onChange={(e) => setCredDraft((p) => ({ ...p, [k.id]: e.target.checked }))}
+                      />
+                      <span>
+                        <strong className="text-fg">Açtığım sınıflara giriş bilgisi gönderebilir ve yeni ilk şifre verebilir.</strong> Kurumun yöneticileri,
+                        Rehberlik, Ölçme ve "Öğrenci düzenleme" izni olanlar bu sınıfların öğrencilerine SMS / e-posta ile giriş bilgisi gönderir;
+                        öğrenci numarası ve diğer bilgiler yine yalnız sizde değişir.
+                      </span>
+                    </label>
                   </fieldset>
 
                   {msg && msg.id === k.id && (
@@ -373,7 +410,10 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                       <button
                         type="button"
                         className="ui-btn ui-btn-ghost"
-                        onClick={() => setDraft(k.id, { name: k.name, modules: { ...k.modules }, grantedClassIds: [...k.grantedClassIds] })}
+                        onClick={() => {
+                          setDraft(k.id, { name: k.name, modules: { ...k.modules }, grantedClassIds: [...k.grantedClassIds] });
+                          if (credSrv) setCredDraft((p) => ({ ...p, [k.id]: !!credSrv[k.id] }));
+                        }}
                       >
                         Değişiklikleri geri al
                       </button>

@@ -293,10 +293,43 @@ Deno.serve(async (req: Request) => {
         ? `"${identifier}" numarası başka bir okulda kullanılıyor. Öğrenciye farklı bir numara verin.`
         : `"${identifier}" kullanıcı adı başka bir okulda kullanılıyor. Farklı bir kullanıcı adı verin.`;
 
+    // Aşama 149: çağıranın KENDİ oturumuyla veritabanı kuralını sorar (ekranla aynı kural = TAM SENKRON).
+    // is_kurum_admin(): kurum yöneticisi hesabı + rol yetkileri açık kurumda unvanla Müdür / Müdür Yrd.
+    // kurum_student_editor() / kurum_student_adder(): Aşama 143 kişiye özel izinler (Rehberlik, Ölçme, izin:...).
+    // Fonksiyon yoksa ya da hata olursa "hayır" sayılır (eski davranış).
+    const rpcCache = new Map<string, Promise<boolean>>();
+    const userRpc = (fn: 'is_kurum_admin' | 'kurum_student_editor' | 'kurum_student_adder'): Promise<boolean> => {
+      if (!rpcCache.has(fn)) {
+        rpcCache.set(
+          fn,
+          (async () => {
+            const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+            if (!kurumSupported || callerIsHead || !callerKurumId || !anonKey) return false;
+            if ((callerRow?.status || 'approved') !== 'approved') return false;
+            try {
+              const userClient = createClient(supabaseUrl, anonKey, {
+                global: { headers: { Authorization: `Bearer ${token}` } },
+                auth: { persistSession: false, autoRefreshToken: false },
+              });
+              const { data, error } = await userClient.rpc(fn);
+              return !error && data === true;
+            } catch {
+              return false;
+            }
+          })()
+        );
+      }
+      return rpcCache.get(fn)!;
+    };
+    /** Kurum idaresi: is_admin işaretli kurum yöneticisi VEYA veritabanındaki is_kurum_admin() (unvanla Müdür / Yrd.) */
+    const callerIsKurumIdare = async (): Promise<boolean> => callerIsKurumAdmin || (await userRpc('is_kurum_admin'));
+
     // Öğretmen yalnızca yetkili olduğu sınıftaki veya kendisine atanmış öğrenciyi yönetebilir
-    const assertCanManage = async (type: AccountType, row: Record<string, any>) => {
+    // Aşama 149: op 'delete' → öğrenci silmede "Öğrenci ekleme / silme" izni (kurum_student_adder) de kabul edilir.
+    const assertCanManage = async (type: AccountType, row: Record<string, any>, op: 'manage' | 'delete' = 'manage') => {
       if (callerIsAdmin) return;
-      if (callerIsKurumAdmin) {
+      const studentDeleter = type === 'student' && op === 'delete' && kurumSupported && (await userRpc('kurum_student_adder'));
+      if ((await callerIsKurumIdare()) || studentDeleter) {
         const sameKurum = !!row.kurum_id && String(row.kurum_id) === callerKurumId;
         if (type === 'teacher') {
           if (callerModules.manage_teachers !== true) throw new HttpError(403, 'Kurumunuza öğretmen yönetimi izni verilmemiş.');
@@ -334,6 +367,45 @@ Deno.serve(async (req: Request) => {
       throw new HttpError(403, `"${row.name}" için yetkiniz yok. Yalnızca yetkili olduğunuz sınıflardaki öğrencilerin hesaplarını yönetebilirsiniz.`);
     };
 
+    // Aşama 149: öğrenci hesabı (şifre ver / hesap aç) — ekrandaki kuralla aynı (TAM SENKRON).
+    // Kurumda kurum_student_editor() doğru olan kişi (kurum yöneticisi, Müdür/Yrd., Rehberlik, Ölçme, "Öğrenci düzenleme"
+    // izni) kendi kurumunun öğrencisine; genel yönetici anahtarı açtıysa (kurumlar.grant_cred) kuruma AÇILAN sınıfların
+    // öğrencilerine YALNIZ ŞİFRE verebilir. Silme / askıya alma bu kuraldan geçmez (assertCanManage aynen).
+    const callerIsStudentEditor = async (): Promise<boolean> =>
+      (await callerIsKurumIdare()) || (await userRpc('kurum_student_editor'));
+    const grantCredClass = async (classId: unknown): Promise<boolean> => {
+      if (!callerKurumId || !classId) return false;
+      const { data: k, error: kErr } = await admin.from('kurumlar').select('grant_cred').eq('id', callerKurumId).maybeSingle();
+      if (kErr || !k || (k as any).grant_cred !== true) return false; // 149 SQL'i yoksa kapalı sayılır
+      const { data: g } = await admin
+        .from('kurum_class_grants')
+        .select('class_id')
+        .eq('kurum_id', callerKurumId)
+        .eq('class_id', String(classId))
+        .limit(1);
+      return !!(g && g.length > 0);
+    };
+    const assertCanUpsertStudent = async (row: Record<string, any>, input: any, password: string | undefined) => {
+      if (callerIsAdmin) return;
+      if (!kurumSupported) return assertCanManage('student', row); // kurum öncesi eski kural
+      // Hesabı olmayan öğrenciye hesap açmak (öğrenci ekleme) "Öğrenci ekleme / silme" izniyle de olur
+      const isNew = !row.auth_user_id;
+      if (!(await callerIsStudentEditor()) && !(isNew && (await userRpc('kurum_student_adder')))) {
+        throw new HttpError(403, 'Öğrenci hesaplarını yönetme yetkiniz yok. Kurum yöneticinizden "Öğrenci düzenleme" izni isteyin.');
+      }
+      if (callerModules.manage_students !== true) throw new HttpError(403, 'Kurumunuza öğrenci yönetimi izni verilmemiş.');
+      if (!!row.kurum_id && String(row.kurum_id) === callerKurumId) return;
+      if (await grantCredClass(row.class_id)) {
+        if (!password) throw new HttpError(403, `"${row.name}" için yalnızca şifre verebilirsiniz.`);
+        const ident = String(input?.identifier || '').trim();
+        if (ident && ident !== String(row.student_number || '').trim()) {
+          throw new HttpError(403, `"${row.name}" öğrencisinin numarasını yalnızca genel yönetici değiştirebilir.`);
+        }
+        return;
+      }
+      throw new HttpError(403, `"${row.name}" kurumunuzun öğrencisi değil. Bu öğrencinin hesabını yalnızca genel yönetici yönetebilir.`);
+    };
+
     const getAuthUser = async (id: string | null | undefined) => {
       if (!id) return null;
       const { data, error } = await admin.auth.admin.getUserById(id);
@@ -369,7 +441,8 @@ Deno.serve(async (req: Request) => {
       const password = checkPassword(input?.password);
 
       const row = await loadRow(type, id);
-      await assertCanManage(type, row);
+      if (type === 'student') await assertCanUpsertStudent(row, input, password); // Aşama 149
+      else await assertCanManage(type, row);
 
       const identifier = String(
         input?.identifier || (type === 'teacher' ? row.username : row.student_number) || ''
@@ -557,7 +630,7 @@ Deno.serve(async (req: Request) => {
             results.push({ id, ok: true, deleted: false });
             continue;
           }
-          await assertCanManage(type, row);
+          await assertCanManage(type, row, 'delete');
           const user = await getAuthUser(row.auth_user_id);
           if (!user) {
             results.push({ id, ok: true, deleted: false });
@@ -580,7 +653,7 @@ Deno.serve(async (req: Request) => {
       const type = parseType(body?.type);
       const row = await loadRow(type, String(body?.id || ''));
       if (!callerIsAdmin) {
-        if (!callerIsKurumAdmin) requireAdmin();
+        if (!(await callerIsKurumIdare())) requireAdmin(); // Aşama 149: unvanla Müdür / Yrd. de
         await assertCanManage(type, row);
       }
       const suspend = body?.suspended === true;

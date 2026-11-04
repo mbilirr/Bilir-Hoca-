@@ -1564,6 +1564,23 @@ async function credentialEditorOk(caller) {
     return (await rest('rpc/has_any_role', { token: caller.token, method: 'POST', body: { p_roles: ['rehberlik', 'olcme_degerlendirme'] } }).catch(() => false)) === true;
   }
 }
+// Aşama 149: çağıranın kurumuna açılan ve giriş bilgisi izni (kurumlar.grant_cred) açık sınıflar (service ile okunur)
+async function credGrantedClasses(caller, rows) {
+  const out = new Set();
+  if (caller.isAdmin || !caller.kurumId) return out;
+  const classIds = [...new Set((rows || []).filter((r) => r.class_id && String(r.kurum_id || '') !== caller.kurumId).map((r) => String(r.class_id)))];
+  if (!classIds.length) return out;
+  try {
+    const k = await rest(`kurumlar?select=grant_cred&id=eq.${encodeURIComponent(caller.kurumId)}`, { token: 'service' });
+    if (!(k && k[0] && k[0].grant_cred === true)) return out;
+    const g = await rest(`kurum_class_grants?select=class_id&kurum_id=eq.${encodeURIComponent(caller.kurumId)}&class_id=in.${inList(classIds)}`, { token: 'service' });
+    for (const r of g || []) out.add(String(r.class_id));
+  } catch (err) {
+    // 149 SQL'i çalıştırılmadıysa (grant_cred yok) eski davranış: yalnız kendi kurumu
+    console.error('[giris-bilgisi] açılan sınıf izni okunamadı', err && err.message);
+  }
+  return out;
+}
 async function actionCredentialsSend(caller, body, req, deadline) {
   const sendId = String(body.sendId || '');
   if (!/^[A-Za-z0-9_-]{8,80}$/.test(sendId)) throw new HttpError(400, 'Gönderim kimliği eksik. Sayfayı yenileyip tekrar deneyin.');
@@ -1602,13 +1619,16 @@ async function actionCredentialsSend(caller, body, req, deadline) {
   // Yetki: öğrenciye şifre verebilenler (genel yönetici; kurumda yönetici / Rehberlik / Ölçme / 143 "Öğrenci düzenleme" izni)
   if (!(await credentialEditorOk(caller))) throw new HttpError(403, 'Giriş bilgisi göndermek için yetkiniz yok (öğrenci düzenleme izni gerekir).');
 
-  // Öğrenciler çağıranın kendi oturumuyla okunur (RLS); kurum dışı öğrenci kabul edilmez
+  // Öğrenciler çağıranın kendi oturumuyla okunur (RLS); kurum dışı öğrenci kabul edilmez.
+  // Aşama 149: genel yönetici anahtarı açtıysa (kurumlar.grant_cred) kuruma AÇILAN sınıfların öğrencileri de kabul edilir.
   const ids = targets.map((t) => t.id);
-  const rows = (await rest(`students?select=id,name,student_number,kurum_id,status,auth_user_id&id=in.${inList(ids)}`, { token: caller.token })) || [];
+  const rows = (await rest(`students?select=id,name,student_number,kurum_id,class_id,status,auth_user_id&id=in.${inList(ids)}`, { token: caller.token })) || [];
+  const grantOk = await credGrantedClasses(caller, rows);
   const byId = new Map();
   for (const r of rows) {
     if (r.status && r.status !== 'active') continue;
-    if (!caller.isAdmin && (!caller.kurumId || String(r.kurum_id || '') !== caller.kurumId)) continue;
+    const own = !!caller.kurumId && String(r.kurum_id || '') === caller.kurumId;
+    if (!caller.isAdmin && !own && !(r.class_id && grantOk.has(String(r.class_id)))) continue;
     byId.set(String(r.id), r);
   }
   const notAllowed = ids.filter((id) => !byId.has(id)).length;

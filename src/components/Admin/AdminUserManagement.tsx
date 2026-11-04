@@ -36,7 +36,8 @@ import {
   FileSpreadsheet, // Aşama 144
   Send,
 } from 'lucide-react';
-import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student } from '../../types';
+import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student, StudentCredential } from '../../types';
+import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
 import { callMail, describeMailResult } from '../../lib/mailApi';
@@ -52,6 +53,10 @@ import { birthDateLabel } from '../../lib/teacherImport';
 // Aşama 144: Excel ile toplu öğretmen ekleme (xlsx kütüphanesi yalnız pencere açılınca yüklenir)
 const TeacherExcelUploadModal = lazyNamed(() => import('./TeacherExcelUploadModal'), 'TeacherExcelUploadModal');
 const TeacherCredentialSendModal = lazyNamed(() => import('./TeacherCredentialSendModal'), 'TeacherCredentialSendModal');
+// Aşama 149: Yönetim › Öğrenciler — öğrencilere giriş bilgisi (pencereler yalnız açılınca yüklenir)
+const StudentCredentialPickModal = lazyNamed(() => import('./StudentCredentialPickModal'), 'StudentCredentialPickModal');
+const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
+const StudentWelcomeCredentialsModal = lazyNamed(() => import('../Teacher/StudentWelcomeCredentialsModal'), 'StudentWelcomeCredentialsModal');
 
 // Aşama 107: rolü gereği kurumdaki tüm öğrencileri gören unvanlar (veritabanındaki role_wide_view / kurum yöneticisi ile aynı)
 const WIDE_ROLES: TeacherRole[] = ['mudur', 'mudur_yardimcisi', 'rehberlik', 'olcme_degerlendirme'];
@@ -164,6 +169,17 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
   const [isExcelTeacherOpen, setIsExcelTeacherOpen] = useState(false); // Aşama 144
   const [isCredSendOpen, setIsCredSendOpen] = useState(false); // Aşama 144: giriş bilgisi SMS / e-posta
+  // Aşama 149: öğrencilere giriş bilgisi (Yönetim › Öğrenciler): toplu seçim penceresi / tek öğrenci / yeni şifreler
+  const [stuPickOpen, setStuPickOpen] = useState(false);
+  const [stuSendOne, setStuSendOne] = useState<Student | null>(null);
+  const [stuNewCreds, setStuNewCreds] = useState<StudentCredential[] | null>(null);
+  const grantCredOn = useMyGrantCred();
+  const canSendStudentCreds = dataService.isHeadAdmin() || dataService.canEditStudents();
+  const studentById = useMemo(() => {
+    if (roleLock === 'teacher') return new Map<string, Student>();
+    return new Map(dataService.getAllStudents().map((s) => [s.id, s] as const));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, roleLock]);
   const [notifyTeacher, setNotifyTeacher] = useState(true);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -238,6 +254,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCredSendOpen, users, kurumFilter, contacts]);
+
+  // Aşama 149: seçim penceresindeki öğrenciler — listedeki kurum kapsamı + gönderilebilenler (yalnız pencere açıkken)
+  const credStudents = useMemo(() => {
+    if (!stuPickOpen) return [];
+    return users
+      .filter((u) => u.role === 'student' && !(u.isSuspended || u.status === 'suspended'))
+      .filter((u) => (kurumFilter === 'merkez' ? !u.kurumId : kurumFilter ? u.kurumId === kurumFilter : true))
+      .map((u) => studentById.get(u.id))
+      .filter((st): st is Student => !!st && canSendCredentials(st, grantCredOn));
+  }, [stuPickOpen, users, kurumFilter, studentById, grantCredOn]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -979,6 +1005,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     <span>Giriş Bilgisi</span>
                   </button>
                 )}
+                {canSendStudentCreds && roleLock !== 'teacher' && (
+                  <button
+                    type="button"
+                    onClick={() => setStuPickOpen(true)}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    title="Öğrencilere ve velilerine giriş bilgisini SMS / e-postayla gönder"
+                    id="yonetim-ogrenci-giris-gonder"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{roleLock === 'student' ? 'Giriş Bilgisi' : 'Öğrenci Girişi'}</span>
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1316,6 +1354,20 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                               data-yetki-open={u.id}
                             >
                               <BadgeCheck className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Aşama 149: öğrenciye / veliye giriş bilgisi (SMS / e-posta) */}
+                          {u.role === 'student' && studentById.has(u.id) && canSendCredentials(studentById.get(u.id), grantCredOn) && (
+                            <button
+                              type="button"
+                              onClick={() => setStuSendOne(studentById.get(u.id) || null)}
+                              className="p-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 hover:text-indigo-600 dark:hover:text-indigo-300 border border-line transition-colors cursor-pointer"
+                              title="Giriş bilgisini SMS / e-postayla gönder"
+                              aria-label={`${u.name} giriş bilgisini gönder`}
+                              data-testid="ogrenci-giris-gonder-satir"
+                            >
+                              <Send className="w-3.5 h-3.5" />
                             </button>
                           )}
 
@@ -2156,6 +2208,22 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {isCredSendOpen && (
         <React.Suspense fallback={null}>
           <TeacherCredentialSendModal open onClose={() => setIsCredSendOpen(false)} teachers={credTeachers} />
+        </React.Suspense>
+      )}
+      {/* Aşama 149: ÖĞRENCİLERE GİRİŞ BİLGİSİ (sınıf seçimli pencere / tek öğrenci) + yeni verilen şifreler */}
+      {stuPickOpen && (
+        <React.Suspense fallback={null}>
+          <StudentCredentialPickModal open onClose={() => setStuPickOpen(false)} students={credStudents} onNewCredentials={(c: StudentCredential[]) => setStuNewCreds(c)} />
+        </React.Suspense>
+      )}
+      {stuSendOne && (
+        <React.Suspense fallback={null}>
+          <CredentialSendModal open onClose={() => setStuSendOne(null)} students={[stuSendOne]} allowReset onNewCredentials={(c: StudentCredential[]) => setStuNewCreds(c)} />
+        </React.Suspense>
+      )}
+      {stuNewCreds && stuNewCreds.length > 0 && (
+        <React.Suspense fallback={null}>
+          <StudentWelcomeCredentialsModal isOpen onClose={() => setStuNewCreds(null)} credentials={stuNewCreds} failures={[]} title="Yeni Giriş Bilgileri" />
         </React.Suspense>
       )}
       {/* Aşama 144: EXCEL İLE TOPLU ÖĞRETMEN */}

@@ -4,8 +4,8 @@ import * as XLSX from 'xlsx';
 import { StudentCredential, StudentAccountFailure } from '../../types';
 import { Modal } from '../ui/kit';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
-import { dataService } from '../../services/dataService';
 import { lazyNamed } from '../../lib/lazyLoad';
+import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 
 // Aşama 142: sistemden SMS / e-posta ile giriş bilgisi gönderimi (pencere ilk tıklamada yüklenir)
 const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
@@ -56,7 +56,8 @@ const StudentWelcomeCredentialsContent: React.FC<StudentWelcomeCredentialsModalP
   const [confirmClose, setConfirmClose] = useState(false);
   // Aşama 142: gönderim penceresi (hangi öğrenciler, hangi yol)
   const [sendTarget, setSendTarget] = useState<{ ids: string[]; channel: 'sms' | 'email' } | null>(null);
-  const sendable = useMemo(() => credentials.filter((c) => dataService.canManageStudent(c.student)), [credentials]);
+  const grantCredOn = useMyGrantCred();
+  const sendable = useMemo(() => credentials.filter((c) => canSendCredentials(c.student, grantCredOn)), [credentials, grantCredOn]);
   const pwMap = useMemo(() => new Map(credentials.map((c) => [c.student.id, c.password] as const)), [credentials]);
   const sendStudents = useMemo(
     () => (sendTarget ? sendable.filter((c) => sendTarget.ids.includes(c.student.id)).map((c) => c.student) : []),

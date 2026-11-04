@@ -45,6 +45,7 @@ import { hashTcs, validTc } from '../../lib/tcApi';
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
+import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 // Aşama 124: Excel pencereleri (ve xlsx kütüphanesi) yalnız açılınca indirilir
 const ExcelStudentUploadModal = lazyNamed(() => import('./ExcelStudentUploadModal'), 'ExcelStudentUploadModal');
 const ExcelStudentUpdateModal = lazyNamed(() => import('./ExcelStudentUpdateModal'), 'ExcelStudentUpdateModal');
@@ -145,11 +146,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   // Aşama 142: seçilenlerden giriş bilgisi gönderilebilenler (öğrenciye şifre verebilen; kendi kurumu)
   const [credSendList, setCredSendList] = useState<Student[] | null>(null); // pencere açıkken liste sabit kalır
+  const grantCredOn = useMyGrantCred(); // Aşama 149: genel yöneticinin açtığı sınıflar
   const credSendStudents = useMemo(() => {
     if (!selectedStudentIds.length) return [];
     const sel = new Set(selectedStudentIds);
-    return students.filter((s) => sel.has(s.id) && dataService.canManageStudent(s));
-  }, [selectedStudentIds, students]);
+    return students.filter((s) => sel.has(s.id) && canSendCredentials(s, grantCredOn));
+  }, [selectedStudentIds, students, grantCredOn]);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useHistoryState<'students' | 'classes'>('students.tab', 'students'); // Aşama 52: geri tuşu
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null); // Aşama 21: açık sınıf şeridi
