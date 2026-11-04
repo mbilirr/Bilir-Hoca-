@@ -181,6 +181,8 @@ interface MyKurumState {
   hasMail: boolean;
   /** Aşama 83: kişiye özel bölüm izinleri (rolden bağımsız açılan / kapatılan bölümler) */
   sections: { allow: string[]; deny: string[] };
+  /** Aşama 158: "Açılan sınıflara giriş bilgisi" anahtarı (kurumlar.grant_cred); null = henüz bilinmiyor (158 SQL'i yok / tam okuma) */
+  grantCred: boolean | null;
 }
 const EMPTY_KURUM_STATE: MyKurumState = {
   loaded: false,
@@ -197,6 +199,7 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   logo: '',
   hasMail: false,
   sections: { allow: [], deny: [] },
+  grantCred: null,
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
 function loadMyKurumCache(): Partial<MyKurumState> {
@@ -4443,6 +4446,7 @@ class DataService {
         allow: Array.isArray(d.sections?.allow) ? d.sections.allow.map(String) : [],
         deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
       },
+      grantCred: typeof d.grant_cred === 'boolean' ? d.grant_cred : null, // Aşama 158 (my_kurum_state)
     };
   }
 
@@ -4496,6 +4500,10 @@ class DataService {
   }
 
   private setMyKurum(next: MyKurumState) {
+    // Aşama 158: tam okuma (my_kurum) anahtarı taşımaz; aynı kurumda bilinen değer korunur, yoksa ekran gidip gelir
+    if (next.grantCred === null && next.kurumId === this.myKurum.kurumId && typeof this.myKurum.grantCred === 'boolean') {
+      next = { ...next, grantCred: this.myKurum.grantCred };
+    }
     const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
     const accessChanged = this.myKurum.loaded && DataService.kurumAccessKey(this.myKurum) !== DataService.kurumAccessKey(next);
     this.myKurum = next;

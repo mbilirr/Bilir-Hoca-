@@ -373,17 +373,33 @@ Deno.serve(async (req: Request) => {
     // öğrencilerine YALNIZ ŞİFRE verebilir. Silme / askıya alma bu kuraldan geçmez (assertCanManage aynen).
     const callerIsStudentEditor = async (): Promise<boolean> =>
       (await callerIsKurumIdare()) || (await userRpc('kurum_student_editor'));
+    // Aşama 158: anahtar ve sınıf izni istek başına BİR kez okunur (toplu işlemde öğrenci başına 2 sorgu yerine)
+    let grantCredOnP: Promise<boolean> | null = null;
+    const grantCredOn = (): Promise<boolean> =>
+      (grantCredOnP ??= (async () => {
+        const { data: k, error: kErr } = await admin.from('kurumlar').select('grant_cred').eq('id', callerKurumId).maybeSingle();
+        return !kErr && !!k && (k as any).grant_cred === true; // 149 SQL'i yoksa kapalı sayılır
+      })());
+    const grantedClassP = new Map<string, Promise<boolean>>();
     const grantCredClass = async (classId: unknown): Promise<boolean> => {
       if (!callerKurumId || !classId) return false;
-      const { data: k, error: kErr } = await admin.from('kurumlar').select('grant_cred').eq('id', callerKurumId).maybeSingle();
-      if (kErr || !k || (k as any).grant_cred !== true) return false; // 149 SQL'i yoksa kapalı sayılır
-      const { data: g } = await admin
-        .from('kurum_class_grants')
-        .select('class_id')
-        .eq('kurum_id', callerKurumId)
-        .eq('class_id', String(classId))
-        .limit(1);
-      return !!(g && g.length > 0);
+      if (!(await grantCredOn())) return false;
+      const cid = String(classId);
+      if (!grantedClassP.has(cid)) {
+        grantedClassP.set(
+          cid,
+          (async () => {
+            const { data: g } = await admin
+              .from('kurum_class_grants')
+              .select('class_id')
+              .eq('kurum_id', callerKurumId)
+              .eq('class_id', cid)
+              .limit(1);
+            return !!(g && g.length > 0);
+          })()
+        );
+      }
+      return grantedClassP.get(cid)!;
     };
     const assertCanUpsertStudent = async (row: Record<string, any>, input: any, password: string | undefined) => {
       if (callerIsAdmin) return;

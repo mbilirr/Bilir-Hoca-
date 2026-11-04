@@ -8,13 +8,25 @@ import type { Student } from '../types';
 // Açıkken kurumdaki öğrenci düzenleyicileri (kurum yöneticisi, Müdür/Yrd., Rehberlik, Ölçme, "Öğrenci düzenleme" izni)
 // genel yöneticinin kuruma açtığı sınıfların öğrencilerine giriş bilgisi gönderir ve yeni ilk şifre verir.
 // Sunucu (api/mail.js, create-user) aynı kuralı ayrıca uygular; buradaki yalnız düğmelerin görünmesi içindir.
-// Değer oturum başına BİR kez okunur (my_grant_cred); 149 SQL'i yoksa kapalı sayılır.
+// Aşama 158 (TAM SENKRON): değer kurum bilgisiyle (my_kurum_state, dakikada bir / yetki sinyalinde) gelir; genel
+// yönetici anahtarı değiştirince ekran yeniden giriş beklemeden güncellenir ve ayrı sorgu gerekmez.
+// Kurum bilgisi değeri henüz taşımıyorsa (158 SQL'i yok ya da ilk tam okuma) eski yol: my_grant_cred bir kez okunur.
+// 149 SQL'i yoksa kapalı sayılır.
 // ============================================================================
 
 let cache: { kurumId: string | null; on: boolean } | null = null;
 let pending: Promise<boolean> | null = null;
 
+/** Aşama 158: kurum bilgisindeki güncel değer (bilinmiyorsa null) */
+function liveGrantCred(): boolean | null {
+  const v = dataService.getMyKurum().grantCred;
+  return typeof v === 'boolean' ? v : null;
+}
+
 export function myGrantCredCached(): boolean {
+  if (dataService.isHeadAdmin()) return false;
+  const live = liveGrantCred();
+  if (live !== null) return live;
   const k = dataService.getMyKurumId();
   return !!cache && cache.kurumId === k && cache.on;
 }
@@ -22,6 +34,8 @@ export function myGrantCredCached(): boolean {
 export async function loadMyGrantCred(): Promise<boolean> {
   const kurumId = dataService.getMyKurumId();
   if (!kurumId || dataService.isHeadAdmin()) return false;
+  const live = liveGrantCred();
+  if (live !== null) return live;
   if (cache && cache.kurumId === kurumId) return cache.on;
   if (!pending) {
     pending = (async () => {
@@ -45,9 +59,14 @@ export function useMyGrantCred(): boolean {
   const [on, setOn] = useState(myGrantCredCached);
   useEffect(() => {
     let alive = true;
-    void loadMyGrantCred().then((v) => alive && setOn(v));
+    void loadMyGrantCred().then(() => alive && setOn(myGrantCredCached()));
+    // Aşama 158: kurum bilgisi yenilenince (anahtar açıldı / kapandı) düğmeler hemen güncellenir; değer aynıysa çizim olmaz
+    const off = dataService.subscribe(() => {
+      if (alive && liveGrantCred() !== null) setOn(liveGrantCred() === true);
+    });
     return () => {
       alive = false;
+      off();
     };
   }, []);
   return on;
