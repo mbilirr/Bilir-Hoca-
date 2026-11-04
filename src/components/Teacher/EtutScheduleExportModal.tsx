@@ -11,6 +11,9 @@ import {
   downloadSchedulePdf,
   downloadTeacherGroupedPdf,
   buildTeacherPagesFor,
+  buildTeacherSections,
+  filterScheduleByTeacher,
+  teacherOptionsOf,
   periodRange,
   todayYmd,
   type ScheduleMeta,
@@ -37,6 +40,10 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
   const [sort, setSort] = useState<ScheduleSort>('time');
   // Aşama 32b: 'classic' = mevcut tek tablo · 'teacher' = her ders/gün ayrı sayfa, öğretmene göre ayrı tablolar (PDF)
   const [layout, setLayout] = useState<'classic' | 'teacher'>('teacher');
+  // Aşama 152: öğretmen tabloları PDF'inde bölme (sınıfa göre = bugünkü düzen) ve sayfa düzeni; öğretmen süzgeci
+  const [split, setSplit] = useState<'class' | 'teacher'>('class');
+  const [pageMode, setPageMode] = useState<'each' | 'together'>('each');
+  const [teacherPick, setTeacherPick] = useState<string>('all');
   const [busy, setBusy] = useState<'excel' | 'pdf' | null>(null);
   const [feedback, setFeedback] = useState('');
 
@@ -50,17 +57,41 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
   // Seçili sınıf listeden kalktıysa "tüm sınıflar"a dön
   const classId = classPick === 'all' || classOptions.some((o) => o.id === classPick) ? classPick : 'all';
   const range = useMemo(() => periodRange(period, anchor), [period, anchor]);
-  const result = useMemo(
+  const baseResult = useMemo(
     () => buildSchedule(etuts, students, classes, { from: range.from, to: range.to, classId, sort }),
     [etuts, students, classes, range.from, range.to, classId, sort]
   );
+  // Aşama 152: öğretmen seçenekleri seçili dönem ve sınıftaki etütlerden; seçilen öğretmen listede yoksa "Tüm öğretmenler"e dönülür
+  const teacherOptions = useMemo(() => teacherOptionsOf(baseResult.rows), [baseResult.rows]);
+  const teacherKey = teacherPick !== 'all' && teacherOptions.some((o) => o.key === teacherPick) ? teacherPick : 'all';
+  const teacherLabel = teacherKey === 'all' ? '' : teacherOptions.find((o) => o.key === teacherKey)?.name || '';
+  const showTeacherPick = teacherOptions.length > 1 || teacherKey !== 'all';
+  const result = useMemo(() => filterScheduleByTeacher(baseResult, teacherKey), [baseResult, teacherKey]);
   const rows = result.rows;
   const classLabel = classId === 'all' ? 'Tüm sınıflar' : classOptions.find((o) => o.id === classId)?.label || '-';
-  const meta: ScheduleMeta = { classLabel, allClasses: classId === 'all', periodLabel: range.label, period, sort, from: range.from, to: range.to };
+  const byTeacher = layout === 'teacher' && split === 'teacher';
+  const meta: ScheduleMeta = {
+    classLabel,
+    allClasses: classId === 'all',
+    periodLabel: range.label,
+    period,
+    sort,
+    from: range.from,
+    to: range.to,
+    teacherLabel,
+    teacherKey,
+    split: layout === 'teacher' ? split : undefined,
+    pageMode: byTeacher ? pageMode : undefined,
+  };
   // Aşama 57: tüm sınıflarda her sayfa yalnızca bir sınıf (önizleme PDF ile aynı)
   const teacherPages = useMemo(
-    () => (layout === 'teacher' ? buildTeacherPagesFor(rows, { allClasses: classId === 'all', classLabel, sort }) : []),
-    [layout, rows, classId, classLabel, sort]
+    () => (layout === 'teacher' && split === 'class' ? buildTeacherPagesFor(rows, { allClasses: classId === 'all', classLabel, sort }) : []),
+    [layout, split, rows, classId, classLabel, sort]
+  );
+  // Aşama 152: öğretmene göre bölüm (önizleme PDF ile aynı kaynaktan)
+  const teacherSections = useMemo(
+    () => (byTeacher ? buildTeacherSections(rows, { onlyKey: teacherKey, together: pageMode === 'together' }) : []),
+    [byTeacher, rows, teacherKey, pageMode]
   );
 
   const shift = (dir: -1 | 1) => setAnchor((a) => addDaysYmd(a, dir * (period === 'day' ? 1 : 7)));
@@ -93,7 +124,9 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
       title="Etüt listesi indir"
       description={
         layout === 'teacher'
-          ? 'Ders ve güne göre sayfa, öğretmene göre ayrı tablolar: etüt saati ve yeri, konu ve öğrenci listesi'
+          ? byTeacher
+            ? 'Öğretmene göre: her öğretmenin etütleri; tarih, ders, saat ve yer, konu ve sınıflarıyla öğrenci listesi'
+            : 'Ders ve güne göre sayfa, öğretmene göre ayrı tablolar: etüt saati ve yeri, konu ve öğrenci listesi'
           : 'Sınıfa göre: hangi öğrenci, hangi saatte, hangi öğretmenle, hangi konudan etüt alıyor'
       }
       id="etut-schedule-export-modal"
@@ -125,11 +158,46 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
             value={layout}
             onChange={setLayout}
             items={[
-              { value: 'teacher', label: 'Öğretmene göre (PDF)', icon: Users, id: 'etut-schedule-layout-teacher' },
+              { value: 'teacher', label: 'Etüt tabloları (PDF)', icon: Users, id: 'etut-schedule-layout-teacher' },
               { value: 'classic', label: 'Tek tablo (Excel / PDF)', icon: ListChecks, id: 'etut-schedule-layout-classic' },
             ]}
           />
           {layout === 'teacher' && (
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-2 mt-3" id="etut-schedule-split-row">
+              <div>
+                <span className="block text-xs font-semibold text-muted mb-1">Bölme</span>
+                <Segmented<'class' | 'teacher'>
+                  value={split}
+                  onChange={setSplit}
+                  items={[
+                    { value: 'class', label: 'Sınıfa göre', id: 'etut-schedule-split-class' },
+                    { value: 'teacher', label: 'Öğretmene göre', id: 'etut-schedule-split-teacher' },
+                  ]}
+                />
+              </div>
+              {split === 'teacher' && (
+                <div>
+                  <span className="block text-xs font-semibold text-muted mb-1">Sayfa</span>
+                  <Segmented<'each' | 'together'>
+                    value={pageMode}
+                    onChange={setPageMode}
+                    items={[
+                      { value: 'each', label: 'Her öğretmen ayrı', id: 'etut-schedule-page-each' },
+                      { value: 'together', label: 'Hepsi bir arada', id: 'etut-schedule-page-together' },
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {byTeacher && (
+            <p className="text-[11px] text-muted mt-1.5" id="etut-schedule-teacher-help">
+              {pageMode === 'each'
+                ? 'Her öğretmen ayrı sayfa olur: en üstte öğretmenin adı ve dönem; altında o öğretmenin her etüdü için bir tablo (tarih ve ders, saat ve yer, konu, öğrenciler ve sınıfları). Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez, tek tabloda çıkar. Sayfa gerekirse yazı küçültülüp iki sütuna dizilerek sığdırılır.'
+                : 'Bütün öğretmenlerin tabloları art arda dizilir ve sığdığı kadar az sayfaya yerleşir (gerekirse yazı küçültülür, iki sütun kullanılır). Her tabloda öğretmenin adı da yazar. Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez.'}
+            </p>
+          )}
+          {layout === 'teacher' && split === 'class' && (
             <p className="text-[11px] text-muted mt-1.5">
               Her ders ve gün ayrı sayfa olur: en üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo
               (öğretmen, etüt saati ve yeri, etüt konusu ve öğrencilerin adı soyadı). Yazdırmaya uygun A4 PDF; her ders/gün listesi
@@ -138,7 +206,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
             </p>
           )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className={layout === 'classic' && showTeacherPick ? 'grid gap-3 sm:grid-cols-2 lg:grid-cols-5' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4'}>
           <div>
             <label htmlFor="etut-schedule-class" className="block text-xs font-semibold text-muted mb-1">
               Sınıf
@@ -152,6 +220,21 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
               ))}
             </select>
           </div>
+          {showTeacherPick && (
+            <div>
+              <label htmlFor="etut-schedule-teacher" className="block text-xs font-semibold text-muted mb-1">
+                Öğretmen
+              </label>
+              <select id="etut-schedule-teacher" value={teacherKey} onChange={(e) => setTeacherPick(e.target.value)} className={inputCls}>
+                <option value="all">Tüm öğretmenler</option>
+                {teacherOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <span className="block text-xs font-semibold text-muted mb-1">Dönem</span>
             <Segmented<SchedulePeriod>
@@ -191,7 +274,14 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
         </div>
 
         <p className="text-sm text-fg-2" id="etut-schedule-summary">
-          <strong>{classLabel}</strong> · {range.label} · <strong>{result.etutCount}</strong> etüt · <strong>{result.studentCount}</strong> öğrenci · <strong>{rows.length}</strong> satır
+          <strong>{classLabel}</strong>
+          {teacherLabel && (
+            <>
+              {' '}
+              · <strong>{teacherLabel}</strong>
+            </>
+          )}{' '}
+          · {range.label} · <strong>{result.etutCount}</strong> etüt{byTeacher && <> · <strong>{teacherSections.length}</strong> öğretmen</>} · <strong>{result.studentCount}</strong> öğrenci · <strong>{rows.length}</strong> satır
         </p>
 
         {result.missingCount > 0 && (
@@ -205,6 +295,51 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
 
         {rows.length === 0 ? (
           <EmptyState title="Bu seçimde etüt yok" description="Başka bir sınıf ya da tarih seçin." />
+        ) : byTeacher ? (
+          <div className="space-y-4" id="etut-teacher-section-preview">
+            {(pageMode === 'together' ? [{ key: 'bir-arada', name: '', blocks: teacherSections.flatMap((sec) => sec.blocks).slice(0, 6) }] : teacherSections.slice(0, 3)).map((sec) => (
+              <div key={sec.key} className="rounded-xl border border-line overflow-hidden" data-teacher-section={sec.key}>
+                <div className="text-center py-3 bg-surface-2 border-b border-line">
+                  <p className="text-sm font-black tracking-wide text-fg">
+                    {sec.name
+                      ? `${sec.name.toLocaleUpperCase('tr-TR')} · ETÜT LİSTESİ`
+                      : teacherLabel
+                        ? `${teacherLabel.toLocaleUpperCase('tr-TR')} · ETÜT LİSTESİ`
+                        : 'ETÜT LİSTESİ · ÖĞRETMENLERE GÖRE'}
+                  </p>
+                  <p className="text-xs text-muted">{range.label}</p>
+                  {classId !== 'all' && <p className="mt-0.5 text-xs text-muted">Sınıf: {classLabel}</p>}
+                </div>
+                <div className="p-3 grid gap-3 md:grid-cols-2">
+                  {sec.blocks.map((b, bi) => (
+                    <div key={`${sec.key}|${b.etutId}|${bi}`} className="rounded-lg border border-line text-xs overflow-hidden" data-teacher-block={b.etutId}>
+                      <div className="bg-brand-soft px-3 py-2 space-y-0.5 text-fg">
+                        {(b.lines || []).map(([l, v]) => (
+                          <p key={l}>
+                            <strong>{l}:</strong> {v || '-'}
+                          </p>
+                        ))}
+                      </div>
+                      <ol className="divide-y divide-line">
+                        {b.students.slice(0, 8).map((st, i) => (
+                          <li key={st.id} className="flex items-center gap-2 px-3 py-1.5">
+                            <span className="w-5 text-right text-muted tabular-nums">{i + 1}.</span>
+                            <span className="flex-1 font-semibold text-fg">{st.name}</span>
+                            <span className="text-muted">{st.className}</span>
+                          </li>
+                        ))}
+                        {b.students.length > 8 && <li className="px-3 py-1.5 text-muted">… ve {b.students.length - 8} öğrenci daha (PDF'te tamamı)</li>}
+                      </ol>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {pageMode === 'each' && teacherSections.length > 3 && <p className="text-xs text-muted">… ve {teacherSections.length - 3} öğretmen daha (PDF'te tamamı)</p>}
+            {pageMode === 'together' && teacherSections.reduce((n, sec) => n + sec.blocks.length, 0) > 6 && (
+              <p className="text-xs text-muted">… ve {teacherSections.reduce((n, sec) => n + sec.blocks.length, 0) - 6} etüt tablosu daha (PDF'te tamamı)</p>
+            )}
+          </div>
         ) : layout === 'teacher' ? (
           <div className="space-y-4" id="etut-teacher-preview">
             {teacherPages.slice(0, 3).map((p) => (
@@ -286,7 +421,9 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
           Liste, Etütler sayfasında seçili kapsamdaki etütlerden (Tüm okul / Benim etütlerim) hazırlanır.
           {layout === 'classic'
             ? ' “Tüm sınıflar” seçilirse dosya sınıf sınıf bölünür.'
-            : ' “Tüm sınıflar” seçilirse tek PDF içinde her sayfa bir sınıf olur; bir sınıf seçerseniz yalnızca o sınıfın öğrencileri yer alır.'}
+            : byTeacher
+              ? ' Bir sınıf seçerseniz etütlerde yalnızca o sınıfın öğrencileri yer alır.'
+              : ' “Tüm sınıflar” seçilirse tek PDF içinde her sayfa bir sınıf olur; bir sınıf seçerseniz yalnızca o sınıfın öğrencileri yer alır.'}
         </p>
       </div>
     </Modal>

@@ -28,6 +28,9 @@ export interface ScheduleRow {
   subject: string;
   topic: string;
   teacher: string;
+  /** Aşama 152: etüdün öğretmen anahtarları (öğretmen kimliği, yoksa ad) ve adları; aynı etüdün satırları AYNI diziyi paylaşır */
+  teacherKeys: string[];
+  teacherNames: string[];
   note: string; // etüt açıklaması
 }
 
@@ -46,6 +49,13 @@ export interface ScheduleMeta {
   sort: ScheduleSort;
   from: string;
   to: string;
+  /** Aşama 152: öğretmen süzgeci ("Tüm öğretmenler" iken boş / 'all') */
+  teacherLabel?: string;
+  teacherKey?: string;
+  /** Aşama 152: öğretmen tabloları PDF'inde bölme ('class' = bugünkü ders/gün + sınıf sayfaları, 'teacher' = öğretmene göre) */
+  split?: 'class' | 'teacher';
+  /** Aşama 152: öğretmene göre bölmede sayfa düzeni ('each' = her öğretmen ayrı sayfa, 'together' = hepsi bir arada) */
+  pageMode?: 'each' | 'together';
 }
 
 export const SORT_LABEL: Record<ScheduleSort, string> = {
@@ -132,6 +142,30 @@ function compareRows(sort: ScheduleSort) {
         cs(a.dateYmd, b.dateYmd) || cs(a.startKey, b.startKey) || tr(a.className, b.className) || tr(a.student, b.student) || cs(a.studentId, b.studentId) || cs(a.etutId, b.etutId);
 }
 
+// Aşama 152: etüdün öğretmenleri (kimlik + ad). Kimlik yoksa ad anahtar olur; hiç öğretmen yoksa "-".
+function teacherKeysOf(e: Etut): { keys: string[]; names: string[] } {
+  const ids = (e.teacherIds && e.teacherIds.length ? e.teacherIds : e.teacherId ? [e.teacherId] : []).map((x) => String(x || '').trim()).filter(Boolean);
+  const nameList = (e.teacherNames && e.teacherNames.length ? e.teacherNames : e.teacherName ? [e.teacherName] : []).map((n) => String(n || '').trim()).filter(Boolean);
+  const keys: string[] = [];
+  const names: string[] = [];
+  if (ids.length) {
+    ids.forEach((id, i) => {
+      if (keys.includes(id)) return;
+      keys.push(id);
+      names.push(nameList[i] || (ids.length === 1 ? nameList.join(', ') : '') || '-');
+    });
+  } else {
+    for (const n of nameList) {
+      const k = `ad:${n.toLocaleLowerCase('tr-TR')}`;
+      if (keys.includes(k)) continue;
+      keys.push(k);
+      names.push(n);
+    }
+  }
+  if (!keys.length) return { keys: ['-'], names: ['Öğretmen belirtilmemiş'] };
+  return { keys, names };
+}
+
 export function buildSchedule(
   etuts: Etut[],
   students: Student[],
@@ -168,6 +202,7 @@ export function buildSchedule(
 
     const teacherList = e.teacherNames && e.teacherNames.length ? e.teacherNames : e.teacherName ? [e.teacherName] : [];
     const teacher = Array.from(new Set(teacherList.map((n) => String(n || '').trim()).filter(Boolean))).join(', ') || '-';
+    const tk = teacherKeysOf(e);
     const tp = timeParts(e.time);
 
     for (const s of assigned) {
@@ -189,6 +224,8 @@ export function buildSchedule(
         subject: String(e.subject || '').trim(),
         topic: String(e.topic || '').trim(),
         teacher,
+        teacherKeys: tk.keys,
+        teacherNames: tk.names,
         note: String(e.notes || '').trim(),
       });
       etutIds.add(e.id);
@@ -198,6 +235,37 @@ export function buildSchedule(
 
   rows.sort(compareRows(opts.sort));
   return { rows, etutCount: etutIds.size, studentCount: studentIds.size, missingCount: missing.size };
+}
+
+// ----------------------------------------------------------------------------- Aşama 152: öğretmen süzgeci
+export interface TeacherOption {
+  key: string;
+  name: string;
+}
+/** Satırlardaki öğretmenler (tek geçiş, Türkçe sıralı). Birden çok öğretmenli etütte her öğretmen ayrı seçenektir. */
+export function teacherOptionsOf(rows: ScheduleRow[]): TeacherOption[] {
+  const m = new Map<string, string>();
+  let last: string[] | null = null; // aynı etüdün satırları aynı diziyi paylaşır: bir kez işlenir
+  for (const r of rows) {
+    if (r.teacherKeys === last) continue;
+    last = r.teacherKeys;
+    r.teacherKeys.forEach((k, i) => {
+      if (!m.has(k)) m.set(k, r.teacherNames[i] || '-');
+    });
+  }
+  return Array.from(m, ([key, name]) => ({ key, name })).sort((a, b) => tr(a.name, b.name) || cs(a.key, b.key));
+}
+/** Seçilen öğretmenin satırları; sayılar yeniden hesaplanır. 'all' ise sonuç aynen döner. */
+export function filterScheduleByTeacher(res: ScheduleResult, teacherKey: string): ScheduleResult {
+  if (teacherKey === 'all') return res;
+  const rows = res.rows.filter((r) => r.teacherKeys.includes(teacherKey));
+  const etutIds = new Set<string>();
+  const studentIds = new Set<string>();
+  for (const r of rows) {
+    etutIds.add(r.etutId);
+    studentIds.add(r.studentId);
+  }
+  return { rows, etutCount: etutIds.size, studentCount: studentIds.size, missingCount: res.missingCount };
 }
 
 // Tüm sınıflar seçiliyken çıktı sınıf sınıf bölünür (her sınıf ayrı sayfa / sayfa). Tek sınıfta tek bölüm olur.
@@ -242,7 +310,7 @@ const safeName = (s: string) =>
     .replace(/\s+/g, '_')
     .slice(0, 40);
 export const scheduleFileBase = (m: ScheduleMeta) =>
-  `Etut-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
+  `Etut-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}${m.teacherLabel ? `_${safeName(m.teacherLabel)}` : ''}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
 
 // ----------------------------------------------------------------------------- Excel
 export const EXCEL_HEAD = ['Tarih', 'Gün', 'Saat', 'Öğrenci', 'Sınıf', 'Etüt yeri', 'Ders', 'Konu', 'Öğretmen', 'Açıklama'];
@@ -424,6 +492,8 @@ export interface TeacherBlock {
   place: string;
   topic: string;
   students: Array<{ id: string; name: string; className: string }>;
+  /** Aşama 152: tablonun üst bilgi satırları (verilmezse Öğretmen · Etüt saati ve yeri · Etüt konusu) */
+  lines?: Array<[string, string]>;
 }
 export interface SubjectDayPage {
   key: string;
@@ -479,8 +549,69 @@ export function buildTeacherPagesFor(rows: ScheduleRow[], meta: Pick<ScheduleMet
   return splitSections(rows, meta).flatMap((sec) => buildTeacherPages(sec.rows).map((p) => ({ ...p, key: `${sec.key}|${p.key}`, classLabel: sec.title })));
 }
 
+// ----------------------------------------------------------------------------- Aşama 152: öğretmene göre bölme
+// Her öğretmen bir bölüm; bölümde o öğretmenin dönemdeki etütleri (tarih → saat sırası). Bir etüt sınıflara BÖLÜNMEZ:
+// farklı sınıflardan öğrenciler tek tabloda, sınıflarıyla birlikte. Birden çok öğretmenli etüt her öğretmenin bölümünde çıkar.
+export interface TeacherSection {
+  key: string;
+  name: string;
+  blocks: TeacherBlock[];
+  dateYmd: string[]; // bloklarla aynı sırada (sıralama için)
+}
+export function buildTeacherSections(rows: ScheduleRow[], opts: { onlyKey?: string; together: boolean }): TeacherSection[] {
+  const sections = new Map<string, TeacherSection>();
+  const blocks = new Map<string, TeacherBlock & { _date: string; _subject: string }>();
+  for (const r of rows) {
+    r.teacherKeys.forEach((key, i) => {
+      if (opts.onlyKey && opts.onlyKey !== 'all' && key !== opts.onlyKey) return;
+      let sec = sections.get(key);
+      if (!sec) sections.set(key, (sec = { key, name: r.teacherNames[i] || '-', blocks: [], dateYmd: [] }));
+      const bk = `${key}|${r.etutId}`;
+      let b = blocks.get(bk);
+      if (!b) {
+        const lines: Array<[string, string]> = [];
+        // Hepsi bir aradayken her tablo kendi öğretmenini taşır; ayrı sayfada öğretmen sayfa başlığındadır (yalnız ortak öğretmenler yazılır)
+        if (opts.together) lines.push(['Öğretmen', r.teacher || sec.name]);
+        else if (r.teacherKeys.length > 1) lines.push(['Öğretmenler', r.teacher]);
+        lines.push(['Tarih ve ders', `${r.dateText} ${r.dayName}${r.subject ? `  ·  ${r.subject}` : ''}`]);
+        lines.push(['Etüt saati ve yeri', [r.time, r.place].filter(Boolean).join('  ·  ')]);
+        lines.push(['Etüt konusu', r.topic]);
+        b = { etutId: r.etutId, teacher: r.teacher || '-', time: r.time, startKey: r.startKey, place: r.place, topic: r.topic, students: [], lines, _date: r.dateYmd, _subject: r.subject };
+        blocks.set(bk, b);
+        sec.blocks.push(b);
+      }
+      if (!b.students.some((st) => st.id === r.studentId)) b.students.push({ id: r.studentId, name: r.student, className: r.className });
+    });
+  }
+  const list = Array.from(sections.values());
+  for (const sec of list) {
+    const bs = sec.blocks as Array<TeacherBlock & { _date: string; _subject: string }>;
+    bs.sort((a, b) => cs(a._date, b._date) || cs(a.startKey, b.startKey) || tr(a._subject, b._subject) || cs(a.etutId, b.etutId));
+    for (const b of bs) b.students.sort((x, y) => tr(x.className, y.className) || tr(x.name, y.name) || cs(x.id, y.id));
+    sec.dateYmd = bs.map((b) => b._date);
+  }
+  return list.sort((a, b) => tr(a.name, b.name) || cs(a.key, b.key));
+}
+/** Ayrı sayfa düzeninde öğretmen bölümü bir sayfa olur: başlık "AD SOYAD · ETÜT LİSTESİ", altında dönem. */
+export function teacherSectionPages(sections: TeacherSection[], periodLabel: string): SubjectDayPage[] {
+  return sections.map((sec) => ({
+    key: `ogr|${sec.key}`,
+    subject: '',
+    dateYmd: sec.dateYmd[0] || '',
+    title: `${sec.name.toLocaleUpperCase('tr-TR')} · ETÜT LİSTESİ`,
+    dateLabel: periodLabel,
+    blocks: sec.blocks,
+  }));
+}
+
 export const teacherListFileBase = (m: ScheduleMeta) =>
-  `Etut-Ogretmen-Listesi_${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}`;
+  `Etut-Ogretmen-Listesi_${
+    m.split === 'teacher'
+      ? safeName(m.teacherLabel || '') || 'Tum-Ogretmenler'
+      : `${m.allClasses ? 'Tum-Siniflar' : safeName(m.classLabel) || 'Sinif'}${m.teacherLabel ? `_${safeName(m.teacherLabel)}` : ''}`
+  }${m.split === 'teacher' && !m.allClasses ? `_${safeName(m.classLabel)}` : ''}_${m.period === 'day' ? 'Gunluk' : 'Haftalik'}_${m.from}${
+    m.split === 'teacher' && m.pageMode === 'together' ? '_Bir-arada' : ''
+  }`;
 
 // Aşama 32c: her ders/gün listesi TEK A4 sayfaya sığdırılır.
 // Sırasıyla denenir: tek sütun 10 pt → ... → 7 pt, sonra iki sütun 10 pt → ... → 5.5 pt.
@@ -508,8 +639,52 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     const ok = fonts.registerTurkishPdfFont(d);
     return { d, ok };
   };
-  const pages = buildTeacherPagesFor(rows, meta); // Aşama 57: tüm sınıflarda her sayfa tek sınıf
+  // Aşama 152: öğretmene göre bölmede bölümler öğretmen öğretmen (etüt sınıflara bölünmez)
+  const byTeacher = meta.split === 'teacher';
+  const together = byTeacher && meta.pageMode === 'together';
+  const sections = byTeacher ? buildTeacherSections(rows, { onlyKey: meta.teacherKey, together }) : [];
+  const pages = byTeacher ? (together ? [] : teacherSectionPages(sections, meta.periodLabel)) : buildTeacherPagesFor(rows, meta); // Aşama 57: tüm sınıflarda her sayfa tek sınıf
   const M = 12;
+
+  // Bir etüt tablosunu (x, y) noktasına çizer; tablonun bittiği y'yi döner. Sınıfa göre listede Aşama 32c'deki tabloyla birebir aynıdır.
+  const drawBlock = (doc: any, F: string, t: (v: unknown) => string, b: TeacherBlock, x: number, y: number, colW: number, fit: TeacherPdfFit): number => {
+    const pageW = doc.internal.pageSize.getWidth();
+    const fs = fit.fontSize;
+    const k = fs / 10;
+    const pad = Math.max(0.8, 2 * k);
+    const info = (label: string, value: string, strong = false): any[] => [
+      {
+        content: t(`${label}: ${value || '-'}`),
+        colSpan: 3,
+        styles: { halign: 'left', fontStyle: 'bold', fillColor: strong ? [199, 210, 254] : [238, 242, 255], textColor: [30, 27, 75], fontSize: fs },
+      },
+    ];
+    const body: any[] = b.students.length
+      ? b.students.map((st, i) => [String(i + 1), t(st.name), t(st.className || '-')])
+      : [[{ content: t('Bu etüde öğrenci atanmamış.'), colSpan: 3, styles: { textColor: [156, 163, 175] } }]];
+    const headLines = b.lines
+      ? b.lines.map(([l, v], i) => info(l, v, i === 0 && l === 'Öğretmen'))
+      : [info('Öğretmen', b.teacher), info('Etüt saati ve yeri', [b.time, b.place].filter(Boolean).join('  ·  ')), info('Etüt konusu', b.topic)];
+    autoTable(doc, {
+      startY: y,
+      margin: { left: x, right: pageW - x - colW, top: 12, bottom: 12 },
+      tableWidth: colW,
+      head: <any[]>[...headLines, [t('Sıra'), t('Öğrenci (Ad Soyad)'), t('Sınıf')]],
+      body,
+      theme: 'grid',
+      showHead: 'everyPage',
+      pageBreak: 'auto',
+      styles: { font: F, fontSize: fs, cellPadding: pad, textColor: [31, 41, 55], lineColor: [209, 213, 219], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
+      headStyles: { font: F, fillColor: [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: Math.max(7, 12 * k), halign: 'center' },
+        1: { cellWidth: 'auto', fontStyle: 'bold' },
+        2: { cellWidth: Math.max(14, (fit.cols === 2 ? 20 : 28) * k), halign: 'center' },
+      },
+      rowPageBreak: 'avoid',
+    });
+    return doc.lastAutoTable?.finalY || y;
+  };
 
   // Bir ders/gün sayfasını verilen ayarla `doc`un SON sayfasına çizer. Taşma olduysa false döner.
   // trial = true: taslak denemesi, taşınca hemen durur. trial = false: gerçek çizim, taşsa da bütün bloklar çizilir.
@@ -556,46 +731,12 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     const colW = fit.cols === 2 ? (pageW - 2 * M - gap) / 2 : pageW - 2 * M;
     const colX = fit.cols === 2 ? [M, M + colW + gap] : [M];
     const colY = colX.map(() => top);
-    const pad = Math.max(0.8, 2 * k);
     const blockGap = Math.max(3, 7 * k);
 
     for (const b of p.blocks) {
       // Bloğu en kısa sütuna koy
       const ci = colY.length === 2 && colY[1] < colY[0] ? 1 : 0;
-      const x = colX[ci];
-      const info = (label: string, value: string): any[] => [
-        {
-          content: t(`${label}: ${value || '-'}`),
-          colSpan: 3,
-          styles: { halign: 'left', fontStyle: 'bold', fillColor: [238, 242, 255], textColor: [30, 27, 75], fontSize: fs },
-        },
-      ];
-      const body: any[] = b.students.length
-        ? b.students.map((st, i) => [String(i + 1), t(st.name), t(st.className || '-')])
-        : [[{ content: t('Bu etüde öğrenci atanmamış.'), colSpan: 3, styles: { textColor: [156, 163, 175] } }]];
-      autoTable(doc, {
-        startY: colY[ci],
-        margin: { left: x, right: pageW - x - colW, top: 12, bottom: 12 },
-        tableWidth: colW,
-        head: <any[]>[
-          info('Öğretmen', b.teacher),
-          info('Etüt saati ve yeri', [b.time, b.place].filter(Boolean).join('  ·  ')),
-          info('Etüt konusu', b.topic),
-          [t('Sıra'), t('Öğrenci (Ad Soyad)'), t('Sınıf')],
-        ],
-        body,
-        theme: 'grid',
-        showHead: 'everyPage',
-        pageBreak: 'auto',
-        styles: { font: F, fontSize: fs, cellPadding: pad, textColor: [31, 41, 55], lineColor: [209, 213, 219], lineWidth: 0.15, valign: 'middle', overflow: 'linebreak' },
-        headStyles: { font: F, fillColor: [67, 56, 202], textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: {
-          0: { cellWidth: Math.max(7, 12 * k), halign: 'center' },
-          1: { cellWidth: 'auto', fontStyle: 'bold' },
-          2: { cellWidth: Math.max(14, (fit.cols === 2 ? 20 : 28) * k), halign: 'center' },
-        },
-        rowPageBreak: 'avoid',
-      });
+      drawBlock(doc, F, t, b, colX[ci], colY[ci], colW, fit);
       if (trial && doc.getNumberOfPages() > startPages) return false; // taştı
       colY[ci] = (doc.lastAutoTable?.finalY || colY[ci]) + blockGap;
     }
@@ -624,16 +765,127 @@ export async function downloadTeacherGroupedPdf(rows: ScheduleResult['rows'], me
     return { fit: TEACHER_PDF_FITS[hi], fits: true };
   };
 
+  // ---- Aşama 152: "Hepsi bir arada" — tüm öğretmenlerin tabloları art arda, sayfa sayfa (iki sütuna kadar).
+  // Önce her tablonun yüksekliği taslak belgede ölçülür (10 pt, tek ve iki sütun genişliğinde), yazı boyuyla orantılı
+  // varsayılarak her ayar için sayfa sayısı hesaplanır: EN AZ sayfa, eşitse EN BÜYÜK yazı seçilir (7 pt altına inilmez).
+  // Seçilen ayarla tablolar yeniden ölçülür ve gerçek yerleşim bu ölçülerle yapılır; tablo iki sayfa arasında bölünmez
+  // (bir sütundan uzun tek tablo hariç: o yeni sayfada başlar, kendi kendine devam eder). Hiçbir öğrenci kaybolmaz.
+  const togetherBlocks = together ? sections.flatMap((sec) => sec.blocks) : [];
+  const togetherTitle = meta.teacherLabel ? `${meta.teacherLabel.toLocaleUpperCase('tr-TR')} · ETÜT LİSTESİ` : 'ETÜT LİSTESİ · ÖĞRETMENLERE GÖRE';
+  const togetherHeader = (doc: any, F: string, t: (v: unknown) => string, k: number): number => {
+    const pageW = doc.internal.pageSize.getWidth();
+    doc.setFont(F, 'bold');
+    doc.setFontSize(Math.max(12, 17 * k));
+    doc.setTextColor(30, 27, 75);
+    doc.text(t(togetherTitle), pageW / 2, 14 + 2 * k, { align: 'center' });
+    doc.setFont(F, 'normal');
+    doc.setFontSize(Math.max(9, 11.5 * k));
+    doc.setTextColor(55, 65, 81);
+    let top = 20 + 3 * k;
+    doc.text(t(meta.periodLabel), pageW / 2, top, { align: 'center' });
+    if (!meta.allClasses) {
+      top += 4.5 * k + 1;
+      doc.setFontSize(Math.max(7.5, 9 * k));
+      doc.setTextColor(107, 114, 128);
+      doc.text(t(`Sınıf: ${meta.classLabel}`), pageW / 2, top, { align: 'center' });
+    }
+    top += 3;
+    doc.setDrawColor(199, 210, 254);
+    doc.line(M, top, pageW - M, top);
+    return top + 4;
+  };
+  const geom = (doc: any, fit: TeacherPdfFit) => {
+    const pageW = doc.internal.pageSize.getWidth();
+    const gap = 6;
+    const colW = fit.cols === 2 ? (pageW - 2 * M - gap) / 2 : pageW - 2 * M;
+    const colX = fit.cols === 2 ? [M, M + colW + gap] : [M];
+    return { colW, colX, blockGap: Math.max(3, 7 * (fit.fontSize / 10)), bottom: doc.internal.pageSize.getHeight() - 12 };
+  };
+  // Taslak belgede her tabloyu boş bir sayfanın tepesine çizip yüksekliğini ölçer (sayfa taşarsa taşan kısım eklenir)
+  const measureBlocks = (fit: TeacherPdfFit): number[] => {
+    const { d, ok } = newDoc();
+    const F = ok ? fonts.PDF_FONT : 'helvetica';
+    const t = (v: unknown) => (ok ? analytics.cleanForPdfFont(v) : String(v ?? '').replace(/[^\x20-\x7E]/g, ''));
+    const g = geom(d, fit);
+    const usable = g.bottom - 12;
+    return togetherBlocks.map((b, i) => {
+      if (i > 0) d.addPage();
+      const before = d.getNumberOfPages();
+      const end = drawBlock(d, F, t, b, M, 12, g.colW, fit);
+      const extra = d.getNumberOfPages() - before;
+      if (extra > 0) for (let j = 0; j < extra; j++) d.addPage(); // sonraki ölçüm temiz sayfada başlasın
+      return extra * usable + (end - 12);
+    });
+  };
+  // Yerleşim: her tablo en kısa sütuna; sığmazsa yeni sayfa. Sonuç: her tablonun sayfası/sütunu/y'si ve toplam sayfa.
+  const layoutTogether = (heights: number[], fit: TeacherPdfFit, firstTop: number, colX: number[], blockGap: number, bottom: number) => {
+    const place: Array<{ page: number; x: number; y: number; tall: boolean }> = [];
+    let page = 0;
+    let colY = colX.map(() => firstTop);
+    let pageTop = firstTop;
+    for (const h of heights) {
+      let ci = colY.length === 2 && colY[1] < colY[0] ? 1 : 0;
+      if (colY[ci] + h > bottom && colY[ci] > pageTop + 0.01) {
+        page++;
+        pageTop = 12;
+        colY = colX.map(() => 12);
+        ci = 0;
+      }
+      const tall = colY[ci] + h > bottom;
+      place.push({ page, x: colX[ci], y: colY[ci], tall });
+      if (tall) {
+        // Uzun tablo kendi kendine sonraki sayfalara taşar; bittiği sayfada sonraki tablolar altından devam eder
+        const usable = bottom - 12;
+        const over = colY[ci] + h - bottom;
+        const more = Math.ceil(over / usable);
+        page += more;
+        pageTop = 12;
+        const endY = 12 + (over - (more - 1) * usable) + blockGap;
+        colY = colX.map(() => endY);
+      } else colY[ci] += h + blockGap;
+    }
+    return { place, pages: page + 1 };
+  };
+  const drawTogether = (doc: any, fontOk: boolean) => {
+    const F = fontOk ? fonts.PDF_FONT : 'helvetica';
+    const t = (v: unknown) => (fontOk ? analytics.cleanForPdfFont(v) : String(v ?? '').replace(/[^\x20-\x7E]/g, ''));
+    const g10 = { 1: measureBlocks({ cols: 1, fontSize: 10 }), 2: measureBlocks({ cols: 2, fontSize: 10 }) };
+    // Başlık yüksekliği yazı boyuna bağlı: ayar başına taslakta hesaplanmaz, formülle bulunur (togetherHeader ile aynı)
+    const headTop = (k: number) => 20 + 3 * k + (!meta.allClasses ? 4.5 * k + 1 : 0) + 7;
+    let best: { fit: TeacherPdfFit; pages: number } | null = null;
+    for (const fit of TEACHER_PDF_FITS) {
+      if (fit.fontSize < 7) continue;
+      const k = fit.fontSize / 10;
+      const g = geom(doc, fit);
+      const est = layoutTogether(g10[fit.cols].map((h) => h * k), fit, headTop(k), g.colX, g.blockGap, g.bottom).pages;
+      if (!best || est < best.pages || (est === best.pages && fit.fontSize > best.fit.fontSize)) best = { fit, pages: est };
+    }
+    const fit = best ? best.fit : SINGLE_FALLBACK;
+    const k = fit.fontSize / 10;
+    const g = geom(doc, fit);
+    const heights = measureBlocks(fit); // seçilen ayarda gerçek ölçüler
+    const top = togetherHeader(doc, F, t, k);
+    const { place } = layoutTogether(heights, fit, top, g.colX, g.blockGap, g.bottom);
+    togetherBlocks.forEach((b, i) => {
+      const pl = place[i];
+      while (doc.getNumberOfPages() < pl.page + 1) doc.addPage();
+      doc.setPage(pl.page + 1);
+      drawBlock(doc, F, t, b, pl.x, pl.y, g.colW, fit);
+    });
+  };
+
   const { d: doc, ok: fontOk } = newDoc();
   const F = fontOk ? fonts.PDF_FONT : 'helvetica';
   const t = (v: unknown) => (fontOk ? analytics.cleanForPdfFont(v) : String(v ?? '').replace(/[^\x20-\x7E]/g, ''));
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
 
-  if (!pages.length) {
+  if (together ? !togetherBlocks.length : !pages.length) {
     doc.setFont(F, 'normal');
     doc.setFontSize(12);
     doc.text(t('Bu seçimde etüt yok.'), pageW / 2, 30, { align: 'center' });
+  } else if (together) {
+    drawTogether(doc, fontOk);
   }
   pages.forEach((p, pi) => {
     if (pi > 0) doc.addPage();
