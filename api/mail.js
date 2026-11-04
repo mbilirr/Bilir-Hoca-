@@ -1009,6 +1009,30 @@ async function kurumBrandFor(kid) {
   kurumBrandCache.set(kid, { at: Date.now(), v });
   return v;
 }
+// Aşama 156: kurum logosu herkese açık adresten verilir (yalnızca logo resmi; başka bilgi verilmez)
+//   GET /api/mail?logo=<kurum kimliği>&v=<logo özeti>
+// v değeri logo değişince değişir; böylece Gmail ve Vercel önbelleği eski logoyu göstermez.
+const KURUM_ID_RE = /^[A-Za-z0-9_-]{1,64}$/; // kurum kimliği (uuid) — adrese yalnız güvenli karakterler girer
+const LOGO_DATA_RE = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/;
+function kurumLogoUrl(kid, logo) {
+  if (!kid || !KURUM_ID_RE.test(String(kid)) || !LOGO_DATA_RE.test(String(logo || ''))) return '';
+  const v = crypto.createHash('sha1').update(String(logo)).digest('hex').slice(0, 10);
+  return `${appUrl(null)}/api/mail?logo=${encodeURIComponent(String(kid))}&v=${v}`;
+}
+async function kurumLogoOpen(res, kid) {
+  const m = KURUM_ID_RE.test(kid) ? LOGO_DATA_RE.exec(String(((await kurumBrandFor(kid)) || {}).logo || '')) : null;
+  if (!m) {
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
+    return res.status(404).end();
+  }
+  const buf = Buffer.from(m[2], 'base64');
+  res.setHeader('Content-Type', m[1]);
+  res.setHeader('Content-Length', String(buf.length));
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Adres logo özetini (v) taşıdığı için uzun süre önbellekte kalabilir: veritabanına tekrar tekrar gidilmez
+  res.setHeader('Cache-Control', 'public, max-age=2592000, s-maxage=2592000, immutable');
+  return res.status(200).end(buf);
+}
 
 async function kurumSender(teacher) {
   const kid = await kurumIdForSender(teacher);
@@ -1023,7 +1047,7 @@ async function kurumSender(teacher) {
     const brandLogo = (brand && brand.logo) || '';
     const gmail = String(row.gmail || '').toLowerCase();
     const replyTo = isEmail(teacher.email) && String(teacher.email).toLowerCase() !== gmail ? teacher.email : null;
-    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName, brandLogo };
+    return { via: 'kurum', user: row.gmail, pass, fromName: teacher.name || brandName || env().schoolName, replyTo, brandName, brandLogo, brandKid: kid };
   } catch {
     return null; // tablo yoksa (82 numaralı SQL çalışmadıysa) eski davranış
   }
@@ -1034,8 +1058,9 @@ async function resolveSender(teacher) {
   const s = await resolveSenderAccount(teacher || {});
   if (!s || s.via === 'kurum') return s;
   try {
-    const brand = await kurumBrandFor(await kurumIdForSender(teacher || {}));
-    if (brand && (brand.name || brand.logo)) return { ...s, brandName: brand.name, brandLogo: brand.logo };
+    const kid = await kurumIdForSender(teacher || {});
+    const brand = await kurumBrandFor(kid);
+    if (brand && (brand.name || brand.logo)) return { ...s, brandName: brand.name, brandLogo: brand.logo, brandKid: kid };
   } catch {}
   return s;
 }
@@ -2096,18 +2121,18 @@ async function deliver(sender, senderMeta, items, deadline, opts = {}) {
   }
 
   // Aşama 82-83: kurum öğretmenlerinin e-postalarında başlıktaki okul adı yerine kurumun adı ve logosu görünür
+  // Aşama 156: logo e-postaya gömülü dosya (cid, "logo.png" eki) olarak değil, sitenin https adresinden gelir.
+  // Böylece Gmail / telefon uygulamaları e-postanın altında "logo.png" eki göstermez; e-posta da küçülür.
   if (sender.brandName || sender.brandLogo) {
-    const m = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(String(sender.brandLogo || ''));
-    const logo = m ? { cid: 'kurum-logo@biliredu', contentType: m[1], content: Buffer.from(m[2], 'base64') } : null;
+    const logoSrc = kurumLogoUrl(sender.brandKid, sender.brandLogo);
     const from = `letter-spacing:.3px">${esc(env().schoolName)}</td>`;
-    const img = logo
-      ? `<img src="cid:${logo.cid}" alt="" width="28" height="28" style="display:inline-block;vertical-align:middle;width:28px;height:28px;border:0;border-radius:6px;background:#ffffff;padding:2px;margin-right:10px;object-fit:contain">`
+    const img = logoSrc
+      ? `<img src="${esc(logoSrc)}" alt="" width="28" height="28" style="display:inline-block;vertical-align:middle;width:28px;height:28px;border:0;border-radius:6px;background:#ffffff;padding:2px;margin-right:10px;object-fit:contain">`
       : '';
     const to = `letter-spacing:.3px">${img}<span style="vertical-align:middle">${esc(sender.brandName || env().schoolName)}</span></td>`;
     for (const it of queue) {
       if (typeof it.html !== 'string' || !it.html.includes(from)) continue;
       it.html = it.html.replace(from, to);
-      if (logo) it.inline = [logo];
     }
   }
 
@@ -4240,6 +4265,9 @@ export default async function handler(req, res) {
       // Aşama 101: SMS'teki karne linki (/k/<kod> → /api/mail?k=<kod>; giriş gerektirmez)
       const karneK = (req.query && req.query.k) || new URL(req.url, 'http://x').searchParams.get('k');
       if (karneK) return await karneLinkOpen(res, String(karneK));
+      // Aşama 156: e-posta başlığındaki kurum logosu
+      const logoK = (req.query && req.query.logo) || new URL(req.url, 'http://x').searchParams.get('logo');
+      if (logoK) return await kurumLogoOpen(res, String(logoK));
       const task = (req.query && req.query.task) || new URL(req.url, 'http://x').searchParams.get('task');
       const isCron = /vercel-cron/i.test(String(req.headers['user-agent'] || ''));
       if (task !== 'reminders' && task !== 'etut-reminders' && !isCron) return res.status(200).json({ ok: true, service: 'mail' });
