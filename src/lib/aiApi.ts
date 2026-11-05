@@ -146,6 +146,7 @@ export function aiClassifyPage(input: {
   images: AiImage[];
   avoid?: string[];
   subjects: Array<{ key: string; name: string; count: number; kazanimlar: AiKazanimInput[]; hint?: string }>;
+  fast?: boolean; // Aşama 162: zaman aşımından sonra tek sayfa yeniden gönderilirken kısa düşünme
 }): Promise<AiResult> {
   return post({ action: 'classify', ...input });
 }
@@ -267,8 +268,9 @@ export const newAiState = (provider: AiProvider, fallback: boolean, keys: { gemi
 export async function aiCall(
   state: AiCallState,
   call: (p: AiProvider, avoid: string[]) => Promise<AiResult>,
-  opts: { stop: () => boolean; onWait?: (text: string | null) => void; onNote?: (text: string) => void }
+  opts: { stop: () => boolean; onWait?: (text: string | null) => void; onNote?: (text: string) => void; timeoutTries?: number }
 ): Promise<AiResult> {
+  const timeoutTries = Math.max(1, opts.timeoutTries || 2); // Aşama 162: kaç zaman aşımından sonra çağırana dönülür
   let r: AiResult = { ok: false, error: 'Durduruldu.' };
   for (let attempt = 0; attempt < 6 && !opts.stop(); attempt++) {
     if (state.dayDone && state.provider === 'gemini') return { ok: false, code: 'quota-day', error: DAY_DONE_MSG };
@@ -319,7 +321,7 @@ export async function aiCall(
       continue;
     }
     if (r.code === 'no-key' || r.code === 'size' || r.code === 'long') return r;
-    if (r.code === 'timeout' && attempt >= 1) return r; // iki kez zaman aşımı: çağıran işi küçültsün
+    if (r.code === 'timeout' && attempt + 1 >= timeoutTries) return r; // zaman aşımı: çağıran işi küçültsün
     await sleep(2500, opts.stop); // geçici hata: tekrar dene
   }
   return r;

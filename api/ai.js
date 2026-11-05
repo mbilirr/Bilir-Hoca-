@@ -26,10 +26,13 @@
 // Hiçbir ek paket gerektirmez.
 // ============================================================================
 
-export const config = { maxDuration: 60 };
+// Aşama 162: Fluid Compute açıkken Hobby planda en çok 300 sn. (vercel.json'daki değerle aynı olmalı)
+export const config = { maxDuration: 300 };
 
 const DEFAULT_SUPABASE_URL = 'https://zzdchsxfjzedgciejuxd.supabase.co';
-const PROVIDER_TIMEOUT_MS = 54000;
+const PROVIDER_TIMEOUT_MS = 90000; // Aşama 162: bir modele en çok 90 sn; yanıt gelmezse sıradaki modele geçilir
+const REQUEST_BUDGET_MS = 280000; // Aşama 162: isteğin toplam süresi (300 sn sınırından önce düzgün yanıt dönsün)
+const MIN_TRY_MS = 12000; // kalan süre bundan azsa yeni model denenmez
 const MAX_IMAGES_BYTES = 3_300_000; // bir istekteki resimlerin toplamı (Vercel isteği en çok ~4,5 MB olabilir)
 const MAX_IMAGES = 10;
 const MAX_PROGRAM_CHARS = 40000;
@@ -116,9 +119,12 @@ const subjectKeyOf = (v) => {
   return Object.prototype.hasOwnProperty.call(SUBJECTS, k) ? k : '';
 };
 
-async function withTimeout(url, opts) {
+// Aşama 162: `deadline` isteğin bitmesi gereken an; bekleme hem model sınırını hem toplam süreyi aşmaz
+async function withTimeout(url, opts, deadline) {
+  const left = (deadline || Date.now() + REQUEST_BUDGET_MS) - Date.now();
+  if (left < MIN_TRY_MS) throw new HttpError(504, 'Yapay zekâ zamanında yanıt vermedi.', { code: 'timeout' });
   const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), PROVIDER_TIMEOUT_MS);
+  const t = setTimeout(() => ac.abort(), Math.min(PROVIDER_TIMEOUT_MS, left - 3000));
   try {
     return await fetch(url, { ...opts, signal: ac.signal });
   } catch (err) {
@@ -222,14 +228,17 @@ function quotaInfo(data) {
 
 // Ortak çağrı: sistem metni + kullanıcı metni + resimler → yapay zekânın metin yanıtı
 // `avoid`: bugün hakkı biten modeller (tarayıcı hatırlar ve her istekte gönderir)
-async function callGemini(e, system, prompt, images, mode = 'normal', avoid = []) {
+async function callGemini(e, system, prompt, images, mode = 'normal', avoid = [], deadline = 0) {
   const skip = new Set(avoid);
   const models = Array.from(new Set([e.geminiModel, ...GEMINI_FALLBACK_MODELS].filter(Boolean))).filter((m) => !skip.has(m));
   const exhausted = [];
   let lastErr = null;
   let dailyErr = null;
   let minuteErr = null;
+  let timeoutErr = null;
   for (const model of models) {
+    // Aşama 162: süre bitmek üzereyse yeni model denenmez (Vercel isteği yarıda kesmesin)
+    if (deadline && deadline - Date.now() < MIN_TRY_MS) break;
     const gemma = /^gemma/i.test(model);
     // Gemma: sistem metni ve JSON modu desteklenmez → metnin başına eklenir, yanıt metinden okunur
     const options = gemma ? [null] : THINKING[mode] || THINKING.normal;
@@ -242,11 +251,27 @@ async function callGemini(e, system, prompt, images, mode = 'normal', avoid = []
       for (const img of images) parts.push({ inlineData: { mimeType: img.mime, data: img.data } });
       const payload = { contents: [{ role: 'user', parts }], generationConfig };
       if (!gemma) payload.systemInstruction = { parts: [{ text: system }] };
-      const r = await withTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': e.gemini },
-        body: JSON.stringify(payload),
-      });
+      let r;
+      try {
+        r = await withTimeout(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': e.gemini },
+            body: JSON.stringify(payload),
+          },
+          deadline
+        );
+      } catch (err) {
+        // Aşama 162: bu model zamanında yanıt vermedi → süre kaldıysa sıradaki model denenir
+        if (err instanceof HttpError && err.extra && err.extra.code === 'timeout') {
+          console.warn('[ai] gemini zaman aşımı', model);
+          timeoutErr = new HttpError(504, 'Yapay zekâ zamanında yanıt vermedi.', { code: 'timeout', exhausted });
+          next = true;
+          break;
+        }
+        throw err;
+      }
       const text = await r.text();
       let data = null;
       try {
@@ -312,12 +337,13 @@ async function callGemini(e, system, prompt, images, mode = 'normal', avoid = []
     if (!next) break;
   }
   if (minuteErr) throw minuteErr; // bazı modeller yalnızca dakikalık sınırda: kısa bekleme yeter
+  if (timeoutErr) throw timeoutErr;
   if (dailyErr) throw dailyErr;
   if (!models.length) throw new HttpError(429, 'Gemini\'nin bugünkü ücretsiz kullanım hakkı doldu.', { code: 'quota-day', exhausted });
   throw lastErr || new HttpError(502, 'Gemini modeli bulunamadı.', { code: 'model', exhausted });
 }
 
-async function callMistral(e, system, prompt, images) {
+async function callMistral(e, system, prompt, images, deadline = 0) {
   const models = Array.from(new Set([e.mistralModel, 'mistral-small-latest', 'mistral-medium-latest'].filter(Boolean)));
   let lastErr = null;
   for (const model of models) {
@@ -337,7 +363,7 @@ async function callMistral(e, system, prompt, images) {
           { role: 'user', content },
         ],
       }),
-    });
+    }, deadline);
     const text = await r.text();
     let data = null;
     try {
@@ -368,11 +394,12 @@ async function callMistral(e, system, prompt, images) {
 
 async function ask(body, system, prompt, images, mode = 'normal') {
   const e = env();
+  const deadline = Number(body._deadline) || Date.now() + REQUEST_BUDGET_MS;
   const provider = body.provider === 'mistral' ? 'mistral' : 'gemini';
   if (provider === 'gemini' && !e.gemini) throw new HttpError(503, 'Gemini anahtarı tanımlı değil (Vercel > GEMINI_API_KEY).', { code: 'no-key' });
   if (provider === 'mistral' && !e.mistral) throw new HttpError(503, 'Mistral anahtarı tanımlı değil (Vercel > MISTRAL_API_KEY).', { code: 'no-key' });
   const avoid = (Array.isArray(body.avoid) ? body.avoid : []).filter((m) => typeof m === 'string' && /^[a-z0-9.\-]{3,60}$/i.test(m)).slice(0, 12);
-  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images) : await callGemini(e, system, prompt, images, mode, avoid);
+  const out = provider === 'mistral' ? await callMistral(e, system, prompt, images, deadline) : await callGemini(e, system, prompt, images, mode, avoid, deadline);
   const exhausted = out.exhausted || [];
   const parsed = parseJsonLoose(out.text);
   if (!parsed || typeof parsed !== 'object') {
@@ -542,7 +569,8 @@ async function actionClassify(body) {
     '',
     ...blocks,
   ].join('\n');
-  const { provider, model, parsed, exhausted } = await ask(body, CLASSIFY_SYSTEM, prompt, images, 'normal');
+  // Aşama 162: zaman aşımından sonra tek sayfa yeniden gönderilirken düşünme kısaltılır (hızlı mod)
+  const { provider, model, parsed, exhausted } = await ask(body, CLASSIFY_SYSTEM, prompt, images, body.fast === true ? 'fast' : 'normal');
   const raw = Array.isArray(parsed.sorular) ? parsed.sorular : Array.isArray(parsed) ? parsed : [];
   const byKey = new Map(prepared.map((s) => [s.key, s]));
   const seen = new Set();
@@ -752,6 +780,7 @@ async function actionKonular(body) {
 }
 
 export default async function handler(req, res) {
+  const started = Date.now();
   res.setHeader('Cache-Control', 'no-store');
   try {
     if (req.method === 'OPTIONS') return res.status(204).end();
@@ -766,6 +795,7 @@ export default async function handler(req, res) {
       }
     }
     body = body && typeof body === 'object' ? body : {};
+    body._deadline = started + REQUEST_BUDGET_MS; // Aşama 162: isteğin süre bütçesi (tarayıcıdan gelen değer yok sayılır)
     const caller = await getCaller(req);
     if (body.action === 'status') {
       const e = env();

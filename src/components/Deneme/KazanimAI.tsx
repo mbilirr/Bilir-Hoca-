@@ -82,6 +82,7 @@ export const KazanimAI: React.FC<{
   const [log, setLog] = useState<string[]>([]);
   const [found, setFound] = useState<Record<string, Record<number, Found>>>({});
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [failedPages, setFailedPages] = useState<number[]>([]); // Aşama 162: işlenemeyen sayfalar (yeniden denenebilir)
   const stopRef = useRef(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const bookRef = useRef<Kitapcik | null>(null);
@@ -159,6 +160,7 @@ export const KazanimAI: React.FC<{
     setThumbs([]);
     setPageMap({});
     setRanges({});
+    setFailedPages([]);
     book?.destroy();
     setBook(null);
     let b: Kitapcik | null = null;
@@ -267,9 +269,12 @@ export const KazanimAI: React.FC<{
   };
 
   // ----------------------------------------------------------------------------- 3) Kazanım bulma
-  const run = async () => {
+  // Aşama 162: `only` verilirse yalnız o sayfalar (işlenemeyenler) yeniden gönderilir; bulunan sonuçlar ve
+  // öğretmenin seçimleri korunur. Zaman aşımına uğrayan iki sayfa tek tek, tek sayfa da hızlı modda yeniden gönderilir.
+  const run = async (only?: number[]) => {
     if (!book || !selected.length) return;
     const bk: Kitapcik = book;
+    const retry = !!only && only.length > 0;
     stopRef.current = false;
     setError(null);
     setStep('run');
@@ -278,27 +283,38 @@ export const KazanimAI: React.FC<{
     // Sayfa → o sayfadaki dersler
     const byPage = new Map<number, ExamSubject[]>();
     for (const s of selected) for (const p of pagesOf(s.key)) byPage.set(p, [...(byPage.get(p) || []), s]);
-    const pageList = Array.from(byPage.keys()).sort((a, b) => a - b);
+    const onlySet = new Set(only || []);
+    const pageList = Array.from(byPage.keys())
+      .filter((p) => !retry || onlySet.has(p))
+      .sort((a, b) => a - b);
     // Hız için ardışık iki sayfa tek istekte gönderilir
-    const groups: number[][] = [];
+    type Job = { pages: number[]; fast: boolean };
+    const queue: Job[] = [];
     for (let i = 0; i < pageList.length; i++) {
       if (i + 1 < pageList.length && pageList[i + 1] === pageList[i] + 1) {
-        groups.push([pageList[i], pageList[i + 1]]);
+        queue.push({ pages: [pageList[i], pageList[i + 1]], fast: false });
         i++;
-      } else groups.push([pageList[i]]);
+      } else queue.push({ pages: [pageList[i]], fast: false });
     }
 
+    const prevFound = found;
     const result: Record<string, Record<number, Found>> = {};
-    const notes: string[] = [...log];
+    if (retry) for (const k of Object.keys(prevFound)) result[k] = { ...prevFound[k] };
+    const notes: string[] = retry ? [] : [...log];
+    const failed = new Set<number>();
     const state = newAiState(provider, fallback, keysRef.current);
     let done = 0;
     let gi = 0;
     let noKey = false;
     const usedModels = new Set<string>();
-    const progressOf = () => ({ done, total: groups.length, label: `Sorular inceleniyor (aynı anda ${AI_CONCURRENCY} istek)` });
+    const progressOf = () => ({
+      done,
+      total: queue.length,
+      label: `${retry ? 'Kalan sayfalar' : 'Sorular'} inceleniyor (aynı anda ${AI_CONCURRENCY} istek)`,
+    });
     setProgress(progressOf());
 
-    const job = (pages: number[]) => async () => {
+    const job = ({ pages, fast }: Job) => async () => {
       const images: AiImage[] = [];
       for (const p of pages) {
         const img = await bk.render(p, 1400, 0.8, 1_400_000).catch(() => null);
@@ -327,10 +343,12 @@ export const KazanimAI: React.FC<{
             kazanimlar: (aiBankBySubject[s.key] || []).slice(0, 400).map((k) => ({ code: k.code, konu: k.konu, text: k.text, alt: k.alt || [] })),
           };
         });
-        const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid }), {
+        // Hızlı moda geçmemiş iş ilk zaman aşımında küçültülür; hızlı moddaki tek sayfa iki kez denenir
+        const r = await aiCall(state, (pv, avoid) => aiClassifyPage({ provider: pv, images, subjects: payloadSubjects, avoid, fast }), {
           stop: () => stopRef.current,
           onWait: (w) => setProgress({ ...progressOf(), wait: w }),
           onNote: (n) => notes.push(n),
+          timeoutTries: fast ? 2 : 1,
         });
         if (r.ok) {
           if (r.model) usedModels.add(r.model);
@@ -340,30 +358,41 @@ export const KazanimAI: React.FC<{
             if (!prev || it.guven > prev.sug.guven) map[it.no] = { sug: it, page: it.sayfa || pages[0], provider: (r.provider as AiProvider) || state.provider };
           }
           setFound({ ...result });
-        } else if (!stopRef.current) {
-          if (r.code === 'quota-day') {
-            if (!notes.includes(DAY_DONE_MSG)) notes.push(DAY_DONE_MSG);
-          } else notes.push(`${pages.join('-')}. sayfa işlenemedi: ${r.error || 'hata'}`);
-          if (r.code === 'no-key' || r.code === 'quota-day') noKey = true;
+        } else if (r.code === 'timeout' && !stopRef.current && !fast) {
+          // Aşama 162: sayfalar kaybolmasın: tek tek ve hızlı modda kuyruğun sonuna eklenir
+          for (const p of pages) queue.push({ pages: [p], fast: true });
+        } else {
+          for (const p of pages) failed.add(p);
+          if (!stopRef.current) {
+            if (r.code === 'quota-day') {
+              if (!notes.includes(DAY_DONE_MSG)) notes.push(DAY_DONE_MSG);
+            } else notes.push(`${pages.join('-')}. sayfa işlenemedi: ${r.error || 'hata'}`);
+            if (r.code === 'no-key' || r.code === 'quota-day') noKey = true;
+          }
         }
-      }
+      } else for (const p of pages) failed.add(p);
       done++;
       setProgress(progressOf());
     };
-    await runPool(AI_CONCURRENCY, () => (gi < groups.length && !noKey ? job(groups[gi++]) : null), () => stopRef.current);
+    await runPool(AI_CONCURRENCY, () => (gi < queue.length && !noKey ? job(queue[gi++]) : null), () => stopRef.current);
+    // Durdurulan ya da kota nedeniyle gönderilemeyen sayfalar da "kalan" sayılır
+    for (; gi < queue.length; gi++) for (const p of queue[gi].pages) failed.add(p);
     if (usedModels.size > 1) notes.push(`Sınırlar nedeniyle birden çok model kullanıldı: ${Array.from(usedModels).join(', ')}. Güveni düşük satırları kontrol edin.`);
     setProgress(null);
     setLog(notes);
     setFound(result);
+    setFailedPages(Array.from(failed).sort((a, b) => a - b));
 
-    // Karar tablosu
-    const dec: Record<string, Decision> = {};
+    // Karar tablosu (yeniden denemede daha önce bulunan soruların seçimleri korunur)
+    const dec: Record<string, Decision> = retry ? { ...decisions } : {};
     for (const s of selected) {
       for (const q of questions[s.key] || []) {
+        const k = `${s.key}:${q.no}`;
+        if (retry && prevFound[s.key]?.[q.no] && dec[k]) continue;
         const f = result[s.key]?.[q.no];
         const b = f && f.sug.kod ? bankByCode.get(codeKey(f.sug.kod)) : undefined;
         const had = !!(q.kazanimCode || q.kazanim || q.konu);
-        dec[`${s.key}:${q.no}`] = {
+        dec[k] = {
           apply: !!f && (!!f.sug.kod || !!f.sug.konu) && f.sug.guven >= 50 && !had,
           code: f?.sug.kod || '',
           code2: f?.sug.kod2 || '',
@@ -650,6 +679,16 @@ export const KazanimAI: React.FC<{
                     <p key={i}>{l}</p>
                   ))}
                   {log.length > 8 && <p>… {log.length - 8} not daha.</p>}
+                </div>
+              )}
+              {failedPages.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl px-3 py-2 bg-warning-soft text-warning-fg">
+                  <span className="text-xs font-semibold flex-1 min-w-0">
+                    {failedPages.length} sayfa işlenemedi (s. {formatPageRanges(failedPages)}). Bulunan sonuçlar korunur; yalnız bu sayfalar yeniden gönderilir.
+                  </span>
+                  <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={!!noKeys} onClick={() => void run(failedPages)} id="kai-retry">
+                    <RefreshCw /> Kalanları yeniden dene
+                  </button>
                 </div>
               )}
               <p className="text-[11px] text-muted">
