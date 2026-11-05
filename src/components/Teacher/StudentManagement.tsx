@@ -46,6 +46,7 @@ import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { lazyNamed, useEverTrue } from '../../lib/lazyLoad';
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
+import { canMoveGrantedStudent, useMyGrantMove } from '../../lib/grantMove'; // Aşama 161
 // Aşama 124: Excel pencereleri (ve xlsx kütüphanesi) yalnız açılınca indirilir
 const ExcelStudentUploadModal = lazyNamed(() => import('./ExcelStudentUploadModal'), 'ExcelStudentUploadModal');
 const ExcelStudentUpdateModal = lazyNamed(() => import('./ExcelStudentUpdateModal'), 'ExcelStudentUpdateModal');
@@ -102,7 +103,9 @@ const QuickClassSelect: React.FC<{
   className: string;
   title: string;
   onPick: (classId: string) => void;
-}> = ({ value, options, className, title, onPick }) => {
+  /** Aşama 161: açılan sınıf öğrencisinde "Yok" seçeneği yoktur (öğrenci sınıfsız bırakılamaz) */
+  allowNone?: boolean;
+}> = ({ value, options, className, title, onPick, allowNone = true }) => {
   const [armed, setArmed] = useState(false);
   const arm = () => {
     if (!armed) setArmed(true);
@@ -122,7 +125,7 @@ const QuickClassSelect: React.FC<{
     >
       {armed ? (
         <>
-          <option value="unassigned">Yok</option>
+          {allowNone && <option value="unassigned">Yok</option>}
           {options
             .filter((o) => o.id === value || o.manageable)
             .map((o) => (
@@ -150,6 +153,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   // Aşama 142: seçilenlerden giriş bilgisi gönderilebilenler (öğrenciye şifre verebilen; kendi kurumu)
   const [credSendList, setCredSendList] = useState<Student[] | null>(null); // pencere açıkken liste sabit kalır
   const grantCredOn = useMyGrantCred(); // Aşama 149: genel yöneticinin açtığı sınıflar
+  const grantMoveOn = useMyGrantMove(); // Aşama 161: açılan sınıflar arasında sınıf değiştirme
   const credSendStudents = useMemo(() => {
     if (!selectedStudentIds.length) return [];
     const sel = new Set(selectedStudentIds);
@@ -568,6 +572,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     label: formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel),
     manageable: dataService.canManageClass(cls),
   }));
+  // Aşama 161: açılan sınıftaki genel yönetici öğrencisi yalnız açılan sınıflara taşınır (anahtar kapalıyken hesaplanmaz)
+  const grantedQuickOptions: QuickClassOption[] = useMemo(() => {
+    if (!grantMoveOn) return [];
+    const granted = new Set(dataService.getMyKurum().grantedClassIds || []);
+    return quickClassOptions.map((o) => ({ ...o, manageable: granted.has(o.id) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grantMoveOn, classes]);
   // Aşama 84: liste önce 15 satırla açılır, kalan satırlar hemen ardından eklenir (ilk açılış hızlanır)
   // Aşama 116: sınıf süzgecindeki sayılar tek geçişte sayılır (her sınıf için tüm öğrenciler taranmaz)
   const classCountMap = useMemo(() => {
@@ -1740,7 +1751,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       </td>
 
                       <td className="px-6 py-4">
-                        {!dataService.canManageStudent(std) ? (
+                        {canMoveGrantedStudent(std, grantMoveOn) ? (
+                        <QuickClassSelect
+                          value={std.classId || 'unassigned'}
+                          options={grantedQuickOptions}
+                          allowNone={false}
+                          onPick={(v) => handleQuickChangeStudentClass(std, v)}
+                          className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all shadow-2xs ${
+                            isDuplicate && dupInfo
+                              ? `${dupInfo.colorTheme.badgeBg} ${dupInfo.colorTheme.badgeText} ${dupInfo.colorTheme.badgeBorder}`
+                              : 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-200 border-indigo-200 dark:border-indigo-500/30 hover:border-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/15'
+                          }`}
+                          title="Genel yöneticinin açtığı sınıflar arasında taşımak için seçiniz"
+                        />
+                        ) : !dataService.canManageStudent(std) ? (
                           <span className="text-xs font-semibold text-fg-2">{std.className || 'Yok'}</span>
                         ) : (
                         <QuickClassSelect

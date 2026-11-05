@@ -5,6 +5,7 @@ import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../..
 import { formatClassDisplayName } from '../../constants/schoolConstants';
 import { Panel, cx } from '../ui/kit';
 import { loadKurumGrantCred, setKurumGrantCred } from '../../lib/grantCred'; // Aşama 149
+import { loadKurumGrantMove, setKurumGrantMove } from '../../lib/grantMove'; // Aşama 161
 
 // ============================================================================
 // KURUMLAR (Aşama 18) – yalnızca genel yönetici görür
@@ -45,6 +46,9 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
   // Aşama 149: açılan sınıflara giriş bilgisi izni (kurum başına tek anahtar). null = 149 SQL'i henüz yok
   const [credSrv, setCredSrv] = useState<Record<string, boolean> | null>({});
   const [credDraft, setCredDraft] = useState<Record<string, boolean>>({});
+  // Aşama 161: açılan sınıflarda sınıf değiştirme izni. null = 161 SQL'i henüz yok
+  const [moveSrv, setMoveSrv] = useState<Record<string, boolean> | null>({});
+  const [moveDraft, setMoveDraft] = useState<Record<string, boolean>>({});
   const [teachers, setTeachers] = useState<Teacher[]>(() => dataService.getAllTeachersInternal());
   const [students, setStudents] = useState<Student[]>(() => dataService.getAllStudents());
 
@@ -75,6 +79,10 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
       void loadKurumGrantCred().then((m) => {
         setCredSrv(m);
         if (m) setCredDraft((prev) => ({ ...m, ...Object.fromEntries(Object.entries(prev).filter(([id, v]) => m[id] !== undefined && v !== m[id])) }));
+      });
+      void loadKurumGrantMove().then((m) => {
+        setMoveSrv(m);
+        if (m) setMoveDraft((prev) => ({ ...m, ...Object.fromEntries(Object.entries(prev).filter(([id, v]) => m[id] !== undefined && v !== m[id])) }));
       });
       setDrafts((prev) => {
         const next: Record<string, Draft> = {};
@@ -175,6 +183,10 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
         const on = await setKurumGrantCred(k.id, !!credDraft[k.id]);
         setCredSrv((p) => ({ ...(p || {}), [k.id]: on }));
       }
+      if (moveSrv && moveDraft[k.id] !== undefined && !!moveDraft[k.id] !== !!moveSrv[k.id]) {
+        const on = await setKurumGrantMove(k.id, !!moveDraft[k.id]);
+        setMoveSrv((p) => ({ ...(p || {}), [k.id]: on }));
+      }
       setMsg({ id: k.id, tone: 'ok', text: 'Kaydedildi. Kurumdaki kullanıcılar bir sonraki yenilemede yeni izinleri görür.' });
       onChanged?.();
       const list = await dataService.listKurumlar();
@@ -256,7 +268,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
           const admins = members.filter((t) => t.isAdmin);
           const open = openId === k.id || k.id === onlyKurumId;
           const credChanged = !!credSrv && !!credDraft[k.id] !== !!credSrv[k.id];
-          const dirty = !sameDraft(d, k) || credChanged;
+          const moveChanged = !!moveSrv && !!moveDraft[k.id] !== !!moveSrv[k.id];
+          const dirty = !sameDraft(d, k) || credChanged || moveChanged;
           const q = classSearch.trim().toLocaleLowerCase('tr-TR');
           const visibleClasses = ownClasses.filter((c) => !q || c.name.toLocaleLowerCase('tr-TR').includes(q));
           return (
@@ -393,6 +406,30 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         öğrenci numarası ve diğer bilgiler yine yalnız sizde değişir.
                       </span>
                     </label>
+                    {/* Aşama 161: açılan sınıflarda sınıf değiştirme izni — yalnız genel yönetici değiştirir */}
+                    <label
+                      className={cx(
+                        'mt-2 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs',
+                        moveSrv ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
+                        moveDraft[k.id] ? 'border-brand bg-brand-soft text-fg' : 'border-line text-fg-2'
+                      )}
+                      title={moveSrv ? undefined : '161 numaralı SQL çalıştırılınca açılır'}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`kurum-grant-move-${k.id}`}
+                        data-testid="kurum-grant-move"
+                        className="mt-0.5 accent-indigo-600"
+                        disabled={!moveSrv}
+                        checked={!!moveDraft[k.id]}
+                        onChange={(e) => setMoveDraft((p) => ({ ...p, [k.id]: e.target.checked }))}
+                      />
+                      <span>
+                        <strong className="text-fg">Açtığım sınıflardaki öğrencilerin sınıfını değiştirebilir.</strong> Aynı kişiler bu öğrencileri
+                        Öğrenciler listesindeki sınıf kutusundan yalnız açtığınız sınıflar arasında taşır; öğrenci sizin kaydınız olarak kalır,
+                        adı, numarası ve silme yine yalnız sizde.
+                      </span>
+                    </label>
                   </fieldset>
 
                   {msg && msg.id === k.id && (
@@ -413,6 +450,7 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         onClick={() => {
                           setDraft(k.id, { name: k.name, modules: { ...k.modules }, grantedClassIds: [...k.grantedClassIds] });
                           if (credSrv) setCredDraft((p) => ({ ...p, [k.id]: !!credSrv[k.id] }));
+                          if (moveSrv) setMoveDraft((p) => ({ ...p, [k.id]: !!moveSrv[k.id] }));
                         }}
                       >
                         Değişiklikleri geri al

@@ -183,6 +183,8 @@ interface MyKurumState {
   sections: { allow: string[]; deny: string[] };
   /** Aşama 158: "Açılan sınıflara giriş bilgisi" anahtarı (kurumlar.grant_cred); null = henüz bilinmiyor (158 SQL'i yok / tam okuma) */
   grantCred: boolean | null;
+  /** Aşama 161: "Açılan sınıflarda sınıf değiştirme" anahtarı (kurumlar.grant_move); null = henüz bilinmiyor (161 SQL'i yok / tam okuma) */
+  grantMove: boolean | null;
 }
 const EMPTY_KURUM_STATE: MyKurumState = {
   loaded: false,
@@ -200,6 +202,7 @@ const EMPTY_KURUM_STATE: MyKurumState = {
   hasMail: false,
   sections: { allow: [], deny: [] },
   grantCred: null,
+  grantMove: null,
 };
 const MY_KURUM_KEY = 'edu_my_kurum_v1';
 function loadMyKurumCache(): Partial<MyKurumState> {
@@ -4447,6 +4450,7 @@ class DataService {
         deny: Array.isArray(d.sections?.deny) ? d.sections.deny.map(String) : [],
       },
       grantCred: typeof d.grant_cred === 'boolean' ? d.grant_cred : null, // Aşama 158 (my_kurum_state)
+      grantMove: typeof d.grant_move === 'boolean' ? d.grant_move : null, // Aşama 161 (my_kurum_state)
     };
   }
 
@@ -4503,6 +4507,10 @@ class DataService {
     // Aşama 158: tam okuma (my_kurum) anahtarı taşımaz; aynı kurumda bilinen değer korunur, yoksa ekran gidip gelir
     if (next.grantCred === null && next.kurumId === this.myKurum.kurumId && typeof this.myKurum.grantCred === 'boolean') {
       next = { ...next, grantCred: this.myKurum.grantCred };
+    }
+    // Aşama 161: sınıf değiştirme anahtarı için aynı kural
+    if (next.grantMove === null && next.kurumId === this.myKurum.kurumId && typeof this.myKurum.grantMove === 'boolean') {
+      next = { ...next, grantMove: this.myKurum.grantMove };
     }
     const changed = JSON.stringify(next) !== JSON.stringify(this.myKurum);
     const accessChanged = this.myKurum.loaded && DataService.kurumAccessKey(this.myKurum) !== DataService.kurumAccessKey(next);
@@ -9715,6 +9723,8 @@ class DataService {
 
     const prevStudents = JSON.parse(JSON.stringify(this.students));
     const currentStudent = this.students[studentIdx];
+    // Aşama 161: açılan sınıftaki genel yönetici öğrencisi — kurum yalnız sınıfını, sunucu işleviyle değiştirir
+    if (!this.canManageStudent(currentStudent)) return this.moveGrantedStudent(currentStudent, newClassId);
     let newClassName = 'Atanmadı';
     let newGradeLevel: string | undefined = undefined;
     let newSchoolLevel: 'İlkokul' | 'Ortaokul' | 'Lise' | undefined = currentStudent.schoolLevel;
@@ -9776,6 +9786,43 @@ class DataService {
       throw new Error(`[updateStudentClass] Sınıf güncelleme başarısız: ${errMsg}`);
     }
 
+    this.notify();
+    return updated;
+  }
+
+  /**
+   * Aşama 161: genel yöneticinin kuruma açtığı sınıflar arasında taşıma (kurumlar.grant_move açıkken).
+   * Yetkiyi sunucu (kurum_move_granted_student) denetler; ekran yalnız sonucu yazar. Tek istek, liste yeniden okunmaz.
+   */
+  private async moveGrantedStudent(student: Student, newClassId: string): Promise<Student> {
+    const granted = this.myKurum.grantedClassIds || [];
+    if (!newClassId || !granted.includes(newClassId) || !granted.includes(student.classId || '')) {
+      throw new Error('Bu öğrenci yalnız kurumunuza açılan sınıflar arasında taşınabilir.');
+    }
+    const { data, error } = await supabase.rpc('kurum_move_granted_student', { p_student_id: student.id, p_class_id: newClassId });
+    if (error) {
+      const raw = `${error.code || ''} ${error.message || ''}`;
+      const msg = /kurum_move_granted_student|PGRST202|schema cache/i.test(raw)
+        ? 'Sınıf değiştirme için 161 numaralı SQL dosyası henüz çalıştırılmamış.'
+        : error.message || 'Öğrencinin sınıfı değiştirilemedi.';
+      this.showFloatingErrorToast(`Hata: ${msg}`);
+      throw new Error(`[updateStudentClass] ${msg}`);
+    }
+    const cls = this.classes.find((c) => c.id === newClassId);
+    const d: any = data || {};
+    const idx = this.students.findIndex((s) => s.id === student.id);
+    const updated: Student = {
+      ...(idx >= 0 ? this.students[idx] : student),
+      classId: String(d.class_id || newClassId),
+      className: String(d.class_name || cls?.name || ''),
+      gradeLevel: cls?.gradeLevel || student.gradeLevel,
+      schoolLevel: cls?.schoolLevel || student.schoolLevel,
+      branch: cls?.branch || student.branch,
+    };
+    if (idx >= 0) {
+      this.students[idx] = updated;
+      saveData(STORAGE_KEYS.STUDENTS, this.students);
+    }
     this.notify();
     return updated;
   }
