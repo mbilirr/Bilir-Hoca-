@@ -442,6 +442,33 @@ Deno.serve(async (req: Request) => {
       return null;
     };
 
+    // Aşama 160: yöneticinin/öğretmenin verdiği şifre "ilk şifre" kaydına (initial_credentials) da yazılır.
+    // Giriş bilgisi gönderimi (api/mail.js) şifreyi bu kayıttan alır; eskiden kayıt hiç güncellenmediği için
+    // şifresi yenilenen kişiye SMS/e-postayla ESKİ şifre gidiyordu. Eski satır silinip yenisi yazılır; yazılamazsa
+    // silinmiş kalır (eski şifre bir daha gönderilmez, gönderim ekranı "şifresi yok" der). Hata şifre işlemini bozmaz.
+    const recordInitialCredential = async (type: string, recordId: string, loginId: string, password: string, mustChange: boolean) => {
+      try {
+        const del = await admin.from('initial_credentials').delete().eq('account_type', type).eq('record_id', recordId);
+        if (del.error) {
+          if (/initial_credentials|does not exist|PGRST205|42P01/i.test(`${del.error.code || ''} ${del.error.message || ''}`)) return; // tablo yok (09c kurulmamış)
+          console.error('[ilk-sifre] eski kayıt silinemedi', del.error.message);
+          return;
+        }
+        const ins = await admin.from('initial_credentials').insert({
+          account_type: type,
+          record_id: recordId,
+          login_id: loginId,
+          password,
+          must_change: mustChange,
+          set_at: new Date().toISOString(),
+          changed_at: null,
+        });
+        if (ins.error) console.error('[ilk-sifre] kayıt yazılamadı', ins.error.message);
+      } catch (err: any) {
+        console.error('[ilk-sifre] beklenmeyen hata', err?.message);
+      }
+    };
+
     const isEmailExistsError = (err: any) =>
       err?.code === 'email_exists' ||
       err?.status === 422 ||
@@ -507,6 +534,7 @@ Deno.serve(async (req: Request) => {
         };
         const { error: updError } = await admin.auth.admin.updateUserById(linked.id, updates);
         if (updError) throw new HttpError(400, `Hesap güncellenemedi: ${updError.message}`);
+        if (password) await recordInitialCredential(type, String(row.id), identifier, password, mustChange); // Aşama 160
         return { id: row.id, auth_user_id: linked.id, email, account: true, created: false, password_set: !!password };
       }
 
@@ -596,6 +624,7 @@ Deno.serve(async (req: Request) => {
         throw new HttpError(500, `Hesap kayda bağlanamadı: ${linkError.message}`);
       }
 
+      await recordInitialCredential(type, String(row.id), identifier, password, mustChange); // Aşama 160
       return { id: row.id, auth_user_id: authUserId, email, account: true, created: createdNow, password_set: true };
     };
 
