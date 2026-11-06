@@ -194,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <img src={brandLogo} alt="" className="h-full w-auto max-w-full object-contain" />
         </span>
       ) : (
-        <img src="/logo.svg" alt="" className="w-9 h-9 rounded-xl shadow-sm shrink-0" />
+        <img src="/logo.svg?v=167" alt="" className="w-9 h-9 rounded-xl shadow-sm shrink-0" />
       )}
       <span className="hidden sm:block text-left leading-tight min-w-0">
         <span className="block text-sm font-bold text-fg tracking-tight truncate max-w-[14rem]">{brandName}</span>

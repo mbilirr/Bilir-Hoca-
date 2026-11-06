@@ -66,10 +66,9 @@ const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
 const AuthLockup: React.FC = () => (
   <div className="auth-lockup flex flex-col items-center md:flex-row md:items-center gap-0 md:gap-5 xl:gap-[22px]">
     <div className="relative shrink-0 w-[76px] h-[76px] md:w-[92px] md:h-[92px] xl:w-[98px] xl:h-[98px]">
-      <img src="/logo.svg" alt="blrEdu" className="w-full h-full" draggable={false} />
-      <span className="absolute inset-x-0 top-full mt-2 text-center text-[11px] md:text-xs font-bold tracking-[.12em] text-amber-300">blrEdu</span>
+      <img src="/logo.svg?v=167" alt="Başarı ve Eğitim" className="w-full h-full" draggable={false} />
     </div>
-    <div className="mt-11 md:mt-0 flex flex-col justify-center md:h-[92px] xl:h-[98px] w-max">
+    <div className="mt-4 md:mt-0 flex flex-col justify-center md:h-[92px] xl:h-[98px] w-max">
       <h1 className="auth-word relative leading-none whitespace-nowrap text-[24.8px] md:text-[30px] lg:text-[28px] xl:text-[32px]" aria-label="Başarı ve Eğitim">
         <span aria-hidden="true" className="auth-word-shadow absolute left-[3px] top-[3px]">BAŞARI <i>&amp;</i> EĞİTİM</span>
         <span className="auth-word-main relative">BAŞARI <i>&amp;</i> EĞİTİM</span>
@@ -399,7 +398,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       <div className="auth-aurora hidden lg:block" aria-hidden="true" />
       <div className="auth-glow lg:hidden" aria-hidden="true" />
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-12 xl:px-[150px]">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-[clamp(48px,calc((100vw_-_884px)/2),150px)] xl:px-[150px]">
         {/* Marka: logo + (yalnız bilgisayarda) başlık, cümle, liste */}
         <section id="auth-brand-panel" className="relative flex flex-col items-center lg:items-start lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-16 lg:self-stretch">
           <div className="mb-5 lg:mb-0 xl:-ml-[98px]">
