@@ -63,6 +63,20 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": "pusulaedu.vercel.app" }],
+      "destination": "https://www.biliredu.com/$1",
+      "permanent": false
+    },
+    {
+      "source": "/((?!api/).*)",
+      "has": [{ "type": "host", "value": "biliredu.vercel.app" }],
+      "destination": "https://www.biliredu.com/$1",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/k/:t",

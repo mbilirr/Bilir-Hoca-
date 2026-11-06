@@ -968,6 +968,20 @@ async function getCaller(req) {
   throw new HttpError(403, 'Hesap bulunamadı.');
 }
 
+// Aşama 169: abonelik isteğinin geldiği site. Bildirim, aboneliği açan sitenin adıyla görünür
+// (Safari/Chrome bildirimin altında o adresi yazar); bu yüzden yalnız asıl adres ve yerel deneme kabul edilir.
+// Origin/Referer başlığı hiç yoksa (eski tarayıcı) engellenmez.
+const PUSH_SITE_HOSTS = new Set(['www.biliredu.com', 'biliredu.com', 'localhost', '127.0.0.1']);
+function subscribeOriginOk(req) {
+  const raw = String((req.headers && (req.headers.origin || req.headers.referer)) || '');
+  if (!raw) return true;
+  try {
+    return PUSH_SITE_HOSTS.has(new URL(raw).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 function cleanSubscription(sub) {
   const endpoint = sub && typeof sub.endpoint === 'string' ? sub.endpoint : '';
   const keys = (sub && sub.keys) || {};
@@ -1015,6 +1029,9 @@ export default async function handler(req, res) {
     let result;
     switch (body.action) {
       case 'subscribe': {
+        // Aşama 169: bildirim aboneliği yalnız asıl adresten (www.biliredu.com) kaydedilir. Eski Vercel adresinden
+        // (ör. pusulaedu.vercel.app) açılan abonelikte bildirim altında o adres yazdığı için kaydedilmez.
+        if (!subscribeOriginOk(req)) throw new HttpError(400, 'Bildirimleri www.biliredu.com adresinden açın.');
         const s = cleanSubscription(body.subscription);
         // Aynı cihaz başka bir hesapla açılırsa cihaz yeni hesaba geçer (endpoint birincil anahtar)
         await rest('push_subscriptions?on_conflict=endpoint', {
