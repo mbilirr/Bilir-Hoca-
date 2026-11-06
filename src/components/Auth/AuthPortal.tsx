@@ -395,13 +395,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   return (
     <div className="auth-v2 relative min-h-screen w-full overflow-hidden font-sans" data-theme="dark">
       {/* Aşama 166: zemin — bilgisayarda aurora ışıkları, tablet ve telefonda bakır parıltı */}
-      <div className="auth-aurora hidden lg:block" aria-hidden="true" />
-      <div className="auth-glow lg:hidden" aria-hidden="true" />
+      <div className="auth-aurora" aria-hidden="true" />
 
       <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-[clamp(48px,calc((100vw_-_884px)/2),150px)] xl:px-[150px]">
         {/* Marka: logo + (yalnız bilgisayarda) başlık, cümle, liste */}
         <section id="auth-brand-panel" className="relative flex flex-col items-center lg:items-start lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-16 lg:self-stretch">
-          <div className="mb-5 lg:mb-0 xl:-ml-[98px]">
+          <div className="mb-5 lg:mb-0">
             <AuthLockup />
           </div>
           <div className="hidden lg:block">
@@ -429,8 +428,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         <main className="w-full max-w-[342px] md:max-w-[520px] lg:max-w-[420px] lg:w-[420px] lg:flex-none">
           <div className="auth-card w-full p-[22px] md:p-9 lg:p-[34px]">
             <h2 className="text-[22px] md:text-[26px] lg:text-2xl font-bold text-fg tracking-tight">
-              <span className="lg:hidden">Giriş yap</span>
-              <span className="hidden lg:inline">Hoş geldiniz</span>
+              Hoş geldiniz
             </h2>
             <p className="text-xs text-muted mt-1 mb-5">Hesabınızla devam edin</p>
 

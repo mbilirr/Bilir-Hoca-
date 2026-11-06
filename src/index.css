@@ -611,14 +611,14 @@ html, body {
   background-image: radial-gradient(800px 520px at 25% 25%, rgb(43 82 70 / 0.67), transparent 70%),
     radial-gradient(520px 380px at 85% 85%, rgb(196 129 63 / 0.2), transparent 70%);
 }
-@media (min-width: 1024px) {
-  .auth-aurora {
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(620px 620px at calc(100% - 40px) 0px, rgb(20 184 166 / 0.67), transparent 68%),
-      radial-gradient(560px 560px at 62% 100%, rgb(252 211 77 / 0.33), transparent 68%),
-      radial-gradient(480px 480px at 0 0, rgb(52 211 153 / 0.4), transparent 68%);
-  }
+/* Aşama 168: cam ve ışık zemini her ekranda (telefon/tablet de bilgisayar tasarımında) */
+.auth-aurora {
+  position: absolute;
+  inset: 0;
+  background-color: #17302a;
+  background-image: radial-gradient(620px 620px at calc(100% - 40px) 0px, rgb(20 184 166 / 0.67), transparent 68%),
+    radial-gradient(560px 560px at 62% 100%, rgb(252 211 77 / 0.33), transparent 68%),
+    radial-gradient(480px 480px at 0 0, rgb(52 211 153 / 0.4), transparent 68%);
 }
 
 /* Logo yazısı: BAŞARI & EĞİTİM — tek geçiş (koyu → açık → koyu), arkada yarı saydam katman */
@@ -652,6 +652,32 @@ html, body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+/* Aşama 168: telefon ve tablette BAŞARI EĞİTİM yazısı bilgisayardaki başlık rengi (bakır-altın), & işareti turkuaz; logo yazısının arkası
+   bilgisayardaki gibi koyu kalsın diye üst ışık köşeye çekilir (yazı rengi bilgisayardakiyle aynı görünür) */
+@media (max-width: 1023px) {
+  .auth-aurora {
+    background-image: radial-gradient(300px 300px at 100% 0, rgb(20 184 166 / 0.55), transparent 70%),
+      radial-gradient(420px 420px at 60% 100%, rgb(252 211 77 / 0.3), transparent 70%),
+      radial-gradient(260px 260px at 0 0, rgb(52 211 153 / 0.32), transparent 70%);
+  }
+  .auth-word-main {
+    background: linear-gradient(100deg, #ffe7b8 0%, #ffc56e 28%, #f5a54a 52%, #ffd08a 74%, #e8913f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 10px rgb(255 190 100 / 0.28));
+  }
+  .auth-word-shadow {
+    background: linear-gradient(100deg, #8a5420, #6b3d14);
+    -webkit-background-clip: text;
+    background-clip: text;
+    opacity: 0.55;
+  }
+  .auth-word i {
+    background: linear-gradient(135deg, #a7f3e8, #5eead4 45%, #2dd4bf);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
 }
 .auth-sub b {
   display: inline-block;
@@ -727,46 +753,44 @@ html, body {
   transform: scale(0.98);
 }
 
-/* Giriş kartı — bilgisayar: buzlu cam */
-@media (min-width: 1024px) {
-  .auth-card {
-    border: 1px solid rgb(255 255 255 / 0.22);
-    background: linear-gradient(145deg, rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.05));
-    -webkit-backdrop-filter: blur(26px);
-    backdrop-filter: blur(26px);
-    box-shadow: 0 30px 60px rgb(0 0 0 / 0.33), inset 0 1px 0 rgb(255 255 255 / 0.25);
-  }
-  .auth-card label.uppercase {
-    color: rgb(255 255 255 / 0.8);
-    font-size: 12px;
-    letter-spacing: 0.02em;
-  }
-  .auth-card input {
-    background: rgb(255 255 255 / 0.08);
-    border-width: 1px;
-    border-color: rgb(255 255 255 / 0.2);
-    border-radius: 14px;
-    min-height: 46px;
-  }
-  .auth-card input:focus {
-    border-color: #5eead4;
-    box-shadow: 0 0 0 3px rgb(94 234 212 / 0.22);
-  }
-  .auth-seg {
-    background: rgb(0 0 0 / 0.18);
-    border: 1px solid rgb(255 255 255 / 0.12);
-  }
-  .auth-seg-btn.is-on {
-    background: #fff;
-    color: #0f5c52;
-    box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
-  }
-  .auth-cta,
-  .auth-cta:hover {
-    background: linear-gradient(135deg, #2dd4bf, #10b981);
-    color: #05332b;
-    box-shadow: 0 10px 24px rgb(16 185 129 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.4);
-  }
+/* Giriş kartı — buzlu cam (Aşama 168: tüm ekranlarda) */
+.auth-card {
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.15), rgb(255 255 255 / 0.05));
+  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(26px);
+  box-shadow: 0 30px 60px rgb(0 0 0 / 0.33), inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+.auth-card label.uppercase {
+  color: rgb(255 255 255 / 0.8);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.auth-card input {
+  background: rgb(255 255 255 / 0.08);
+  border-width: 1px;
+  border-color: rgb(255 255 255 / 0.2);
+  border-radius: 14px;
+  min-height: 46px;
+}
+.auth-card input:focus {
+  border-color: #5eead4;
+  box-shadow: 0 0 0 3px rgb(94 234 212 / 0.22);
+}
+.auth-seg {
+  background: rgb(0 0 0 / 0.18);
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+.auth-seg-btn.is-on {
+  background: #fff;
+  color: #0f5c52;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+}
+.auth-cta,
+.auth-cta:hover {
+  background: linear-gradient(135deg, #2dd4bf, #10b981);
+  color: #05332b;
+  box-shadow: 0 10px 24px rgb(16 185 129 / 0.4), inset 0 1px 0 rgb(255 255 255 / 0.4);
 }
 @media (prefers-reduced-motion: reduce) {
   .auth-cta,
