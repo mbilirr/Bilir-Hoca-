@@ -20,7 +20,6 @@ import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types
 import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { ThemeToggle } from '../ui/kit';
 import {
   getBiometricSupport,
   getBiometricProfile,
@@ -62,10 +61,29 @@ const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-// Aşama 110: giriş ekranının sol paneli — kara tahta yeşili ve tebeşir çizimleri (kitap, kalem, cetvel, küre, π, a²+b²).
-// Desen küçük bir SVG'dir (resim dosyası indirilmez); panel telefonda gizlidir.
-const CHALK_BG = '#1f3b33';
-const CHALK_PATTERN = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22260%22%20height%3D%22260%22%20viewBox%3D%220%200%20260%20260%22%3E%3Cg%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.11%22%20fill%3D%22none%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M20%2040h34a6%206%200%200%201%206%206v30H26a6%206%200%200%200-6%206zM60%2046a6%206%200%200%201%206-6h34v36H66a6%206%200%200%200-6%206%22%2F%3E%3Cpath%20d%3D%22M150%2020l50%2050-8%208-50-50zM142%2028l-6%2014%2014-6%22%2F%3E%3Crect%20x%3D%2230%22%20y%3D%22150%22%20width%3D%2280%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M40%20150v7M50%20150v5M60%20150v7M70%20150v5M80%20150v7M90%20150v5M100%20150v7%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22170%22%20r%3D%2226%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22170%22%20rx%3D%2211%22%20ry%3D%2226%22%2F%3E%3Cpath%20d%3D%22M174%20170h52M178%20157h44M178%20183h44M120%20220l18-30%2018%2030zM190%20225q10-14%2020%200t20%200%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%23fff%22%20fill-opacity%3D%22.11%22%20font-family%3D%22Georgia%2Cserif%22%20font-style%3D%22italic%22%3E%3Ctext%20x%3D%22120%22%20y%3D%22120%22%20font-size%3D%2222%22%3Ea%C2%B2%2Bb%C2%B2%3C%2Ftext%3E%3Ctext%20x%3D%2220%22%20y%3D%22115%22%20font-size%3D%2226%22%3E%CF%80%3C%2Ftext%3E%3Ctext%20x%3D%22215%22%20y%3D%22115%22%20font-size%3D%2220%22%3E%E2%88%91%3C%2Ftext%3E%3C%2Fg%3E%3C%2Fsvg%3E';
+// Aşama 166: yeni logo — B-E simgesi + "BAŞARI & EĞİTİM" yazısı (turkuaz-yeşil geçiş) + ÖĞRENCİ – ÖĞRETMEN – VELİ satırı.
+// Telefonda dikey, tablet ve bilgisayarda yatay dizilir; yazı bloğu simgeyle dikey ortalıdır. Resim dosyası yalnızca /logo.svg.
+const AuthLockup: React.FC = () => (
+  <div className="auth-lockup flex flex-col items-center md:flex-row md:items-center gap-0 md:gap-5 xl:gap-[22px]">
+    <div className="relative shrink-0 w-[76px] h-[76px] md:w-[92px] md:h-[92px] xl:w-[98px] xl:h-[98px]">
+      <img src="/logo.svg" alt="blrEdu" className="w-full h-full" draggable={false} />
+      <span className="absolute inset-x-0 top-full mt-2 text-center text-[11px] md:text-xs font-bold tracking-[.12em] text-amber-300">blrEdu</span>
+    </div>
+    <div className="mt-11 md:mt-0 flex flex-col justify-center md:h-[92px] xl:h-[98px] w-max">
+      <h1 className="auth-word relative leading-none whitespace-nowrap text-[24.8px] md:text-[30px] lg:text-[28px] xl:text-[32px]" aria-label="Başarı ve Eğitim">
+        <span aria-hidden="true" className="auth-word-shadow absolute left-[3px] top-[3px]">BAŞARI <i>&amp;</i> EĞİTİM</span>
+        <span className="auth-word-main relative">BAŞARI <i>&amp;</i> EĞİTİM</span>
+      </h1>
+      <div className="auth-sub mt-2 md:mt-2.5 w-full flex items-center justify-between whitespace-nowrap font-semibold text-slate-400 text-[9.5px] tracking-[.1em] md:text-[11.5px] md:tracking-[.14em] xl:text-xs">
+        <span className="inline-flex items-center"><b className="bg-amber-400" />ÖĞRENCİ</span>
+        <span className="opacity-50">–</span>
+        <span className="inline-flex items-center"><b className="bg-white" />ÖĞRETMEN</span>
+        <span className="opacity-50">–</span>
+        <span className="inline-flex items-center"><b className="bg-emerald-300" />VELİ</span>
+      </div>
+    </div>
+  </div>
+);
 const CHALK_FEATURES = [
   { icon: BookOpen, text: 'Ödev ve haftalık plan' },
   { icon: CalendarCheck, text: 'Etüt ve yoklama' },
@@ -77,20 +95,6 @@ interface AuthPortalProps {
   classes: ClassGroup[];
   students: Student[];
   teachers: Teacher[];
-}
-
-// Aşama 155: "Beni hatırla" açıkken başarılı girişten sonra tarayıcının KENDİ şifre kasasına kaydetme sorusu
-// (Chrome, Edge, Android, Samsung Internet). Şifre uygulamada saklanmaz; kasayı telefonun/tarayıcının kilidi korur.
-// Safari bu arabirimi desteklemez; orada tarayıcı, form işaretlerinden (username / current-password) kendisi sorar.
-// Kullanıcı "Kaydetme" derse ya da tarayıcı desteklemezse sessizce geçilir, girişi asla bekletmez.
-function saveToBrowserPasswordStore(id: string, password: string, name: string): void {
-  try {
-    const PC = (window as any).PasswordCredential;
-    if (!PC || !navigator.credentials?.store || !id || !password) return;
-    navigator.credentials.store(new PC({ id, password, name: name || id })).catch(() => {});
-  } catch {
-    /* desteklenmiyor */
-  }
 }
 
 export const AuthPortal: React.FC<AuthPortalProps> = ({
@@ -236,8 +240,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     dataService.setAuthSession(session);
     confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
     setSuccessMsg(greeting);
-    // Aşama 139: panele geçiş beklemesi 400 ms → 150 ms (veri yüklemesi zaten başladı)
-    setTimeout(() => onAuthSuccess(session), 150);
+    setTimeout(() => onAuthSuccess(session), 400);
   };
   const greetingOf = (session: AuthSession) =>
     session.role === 'teacher'
@@ -252,7 +255,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       if (rememberMe) {
         dataService.setRememberedUser({
           role: 'teacher',
-          identifier: dataService.rememberIdentifierForTeacher(teacher, cleanUser), // Aşama 155
+          identifier: teacher.username,
           name: teacher.name,
           avatar: teacher.avatar,
           branch: teacher.branch,
@@ -262,8 +265,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         dataService.setRememberedUser(null, 'teacher');
         setRememberedTeacher(null);
       }
-      // Aşama 145: basit şifreyle girene panelde zorunlu şifre penceresi açılır
-      dataService.basitSifreDenetle(cleanPass, teacher.id, { identifier: teacher.username || cleanUser, name: teacher.name });
       return { role: 'teacher', user: teacher };
     }
     const student = await dataService.authenticateStudent(cleanUser, cleanPass);
@@ -281,7 +282,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       dataService.setRememberedUser(null, 'student');
       setRememberedStudent(null);
     }
-    dataService.basitSifreDenetle(cleanPass, student.id, { identifier: student.studentNumber || cleanUser, name: student.name }); // Aşama 145
     return { role: 'student', user: student };
   };
 
@@ -291,11 +291,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setError(null);
     setSuccessMsg(null);
 
-    // Aşama 155: tarayıcı şifre kasası kutuları doldurmuş ama React henüz haber almamışsa kutunun kendi değeri okunur
-    const form = e.currentTarget as HTMLFormElement;
-    const domUser = (form.elements.namedItem('username') as HTMLInputElement | null)?.value || '';
-    const cleanUser = (loginUsername || domUser).trim();
-    const cleanPass = (loginPassword || passwordInputRef.current?.value || '').trim();
+    const cleanUser = loginUsername.trim();
+    const cleanPass = loginPassword.trim();
 
     if (!cleanUser || !cleanPass) {
       setError('Lütfen kullanıcı adı ve şifrenizi giriniz.');
@@ -314,8 +311,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
         );
         return;
       }
-      // Aşama 155: kasaya, bir sonraki açılışta kutuda duracak bilgiyle (hatırlanan giriş bilgisi) kaydedilir; böylece tarayıcı eşleştirir
-      if (rememberMe) saveToBrowserPasswordStore(dataService.getRememberedUser(selectedRole)?.identifier || cleanUser, cleanPass, session.user.name);
       if (enableBio && bioAvailable) {
         // Parmak izi kaydı için ayrı bir onay adımı gösterilir (oturum bu adımdan sonra açılır)
         setPendingBio({ session, identifier: cleanUser, name: session.user.name, password: cleanPass });
@@ -399,59 +394,49 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
   };
 
   return (
-    <div className="auth-chalk min-h-screen w-full flex bg-surface-2 text-fg font-sans">
-      {/* Aşama 110: sol marka paneli (yalnızca geniş ekranda) — kara tahta yeşili, tebeşir çizimleri (resim dosyası yok) */}
-      <aside
-        className="hidden lg:flex w-[44%] max-w-[640px] shrink-0 flex-col justify-between p-10 xl:p-14 text-white"
-        style={{ backgroundColor: CHALK_BG, backgroundImage: `url("${CHALK_PATTERN}")` }}
-        id="auth-brand-panel"
-      >
-        <div className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 p-1.5 flex items-center justify-center">
-            <img src="/logo.svg" alt="" className="w-full h-full object-contain" />
-          </span>
-          <span className="text-base font-bold tracking-tight">Eğitim & Öğrenci Takip Sistemi</span>
-        </div>
-        <div>
-          <h1 className="text-3xl xl:text-4xl font-extrabold leading-tight tracking-tight">
-            Okulunuzun tüm takibi
-            <br />
-            tek ekranda
-          </h1>
-          <p className="mt-3 text-sm text-white/70">Ödev, etüt, yoklama ve deneme sonuçları tek yerde.</p>
-          <ul className="mt-8 space-y-3.5">
-            {CHALK_FEATURES.map((f) => (
-              <li key={f.text} className="flex items-center gap-3 text-sm text-white/85">
-                <span className="w-8 h-8 rounded-lg bg-amber-300/15 border border-amber-300/35 text-amber-300 flex items-center justify-center">
-                  <f.icon className="w-4 h-4" />
-                </span>
-                {f.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <p className="text-[11px] text-white/45">© {new Date().getFullYear()} • Eğitim & Öğrenci Takip Sistemi</p>
-      </aside>
+    <div className="auth-v2 relative min-h-screen w-full overflow-hidden font-sans" data-theme="dark">
+      {/* Aşama 166: zemin — bilgisayarda aurora ışıkları, tablet ve telefonda bakır parıltı */}
+      <div className="auth-aurora hidden lg:block" aria-hidden="true" />
+      <div className="auth-glow lg:hidden" aria-hidden="true" />
 
-      {/* Sağ: giriş formu */}
-      <main className="flex-1 min-w-0 flex flex-col">
-        <header className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4">
-          <div className="flex items-center gap-2.5 lg:invisible min-w-0">
-            <span className="w-9 h-9 rounded-xl border border-line bg-surface p-1.5 flex items-center justify-center shrink-0">
-              <img src="/logo.svg" alt="Eğitim Takip Logo" className="w-full h-full object-contain" />
-            </span>
-            <span className="text-sm font-bold text-fg truncate">Eğitim & Öğrenci Takip Sistemi</span>
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-12 xl:px-[150px]">
+        {/* Marka: logo + (yalnız bilgisayarda) başlık, cümle, liste */}
+        <section id="auth-brand-panel" className="relative flex flex-col items-center lg:items-start lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-16 lg:self-stretch">
+          <div className="mb-5 lg:mb-0 xl:-ml-[98px]">
+            <AuthLockup />
           </div>
-          <ThemeToggle />
-        </header>
+          <div className="hidden lg:block">
+            <p className="auth-headline text-[34px] xl:text-[38px] font-extrabold leading-[1.15] tracking-tight">
+              Ödevden karneye
+              <br />
+              her adım takipte
+            </p>
+            <p className="mt-3 text-sm text-white/70">Ödev, etüt, yoklama ve deneme sonuçları tek yerde.</p>
+            <ul className="mt-8 space-y-3.5">
+              {CHALK_FEATURES.map((f) => (
+                <li key={f.text} className="flex items-center gap-3 text-sm text-white/85">
+                  <span className="w-8 h-8 rounded-lg bg-amber-300/15 border border-amber-300/35 text-amber-300 flex items-center justify-center">
+                    <f.icon className="w-4 h-4" />
+                  </span>
+                  {f.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="hidden lg:block absolute left-0 bottom-8 text-[11px] text-white/45">© {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM</p>
+        </section>
 
-        <div className="flex-1 flex items-center justify-center px-4 pb-8 sm:px-6">
-          <div className="w-full max-w-[400px] bg-surface border border-line rounded-2xl shadow-sm p-6 sm:p-7">
-            <h2 className="text-lg font-extrabold text-fg tracking-tight">Giriş Yap</h2>
-            <p className="text-xs text-muted mt-0.5 mb-5">Hesabınızla devam edin</p>
+        {/* Giriş formu */}
+        <main className="w-full max-w-[342px] md:max-w-[520px] lg:max-w-[420px] lg:w-[420px] lg:flex-none">
+          <div className="auth-card w-full p-[22px] md:p-9 lg:p-[34px]">
+            <h2 className="text-[22px] md:text-[26px] lg:text-2xl font-bold text-fg tracking-tight">
+              <span className="lg:hidden">Giriş yap</span>
+              <span className="hidden lg:inline">Hoş geldiniz</span>
+            </h2>
+            <p className="text-xs text-muted mt-1 mb-5">Hesabınızla devam edin</p>
 
             {/* Rol seçimi (tek şerit) */}
-            <div className="grid grid-cols-2 gap-1 p-1 mb-5 rounded-xl bg-surface-2 border border-line" role="tablist" aria-label="Giriş yapılacak rol">
+            <div className="auth-seg grid grid-cols-2 gap-1 p-1 mb-5" role="tablist" aria-label="Giriş yapılacak rol">
               {(
                 [
                   { role: 'teacher', label: 'Öğretmen', icon: ShieldCheck },
@@ -467,8 +452,8 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                     aria-selected={on}
                     id={`auth-role-${r.role}`}
                     onClick={() => handleSelectRole(r.role)}
-                    className={`h-9 inline-flex items-center justify-center gap-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                      on ? 'bg-surface text-brand-fg shadow-sm border border-line' : 'text-muted hover:text-fg'
+                    className={`auth-seg-btn h-9 inline-flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer ${
+                      on ? 'is-on' : 'text-muted hover:text-fg'
                     }`}
                   >
                     <r.icon className="w-3.5 h-3.5" />
@@ -518,7 +503,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       isLoading={isLoading}
                       loadingText="Parmak izi bekleniyor..."
                       leftIcon={<Fingerprint className="w-4 h-4" />}
-                      className="flex-1"
+                      className="auth-cta flex-1"
                     >
                       Parmak izimi kaydet
                     </Button>
@@ -552,7 +537,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                         isLoading={isLoading}
                         loadingText="Parmak izi bekleniyor..."
                         leftIcon={<Fingerprint className="w-4 h-4" />}
-                        className="w-full"
+                        className="auth-cta w-full"
                       >
                         Giriş
                       </Button>
@@ -619,7 +604,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       </div>
 
                       <div className="mt-3 pt-2.5 border-t border-line flex items-center justify-between text-[11px] text-muted">
-                        <span>Şifrenizi girip “Giriş Yap”a basın. Tarayıcınız şifreyi kaydettiyse şifre kendiliğinden dolar. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
+                        <span>Şifrenizi girip “Giriş Yap”a basın. Farklı hesapla girmek için kullanıcı adını değiştirin.</span>
                       </div>
                     </div>
                   )}
@@ -633,10 +618,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                           : 'Öğrenci Numarası *'
                       }
                       type="text"
-                      id="login-username"
-                      name="username"
                       required
-                      autoComplete="username"
                       value={loginUsername}
                       onChange={(e) => setLoginUsername(e.target.value)}
                       autoCapitalize="none"
@@ -654,8 +636,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       ref={passwordInputRef}
                       label="Şifre *"
                       type={showPassword ? 'text' : 'password'}
-                      id="login-password"
-                      name="password"
                       required
                       autoComplete="current-password"
                       value={loginPassword}
@@ -716,7 +696,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       isLoading={isLoading}
                       loadingText="Giriş Yapılıyor..."
                       rightIcon={<ArrowRight className="w-4 h-4" />}
-                      className="w-full"
+                      className="auth-cta w-full"
                     >
                       Giriş Yap
                     </Button>
@@ -725,13 +705,13 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                 </div>
               )}
 
-            </div>
-        </div>
+          </div>
+        </main>
 
-        <footer className="lg:hidden text-center py-4 text-[11px] text-subtle">
-          © {new Date().getFullYear()} • Eğitim & Öğrenci Takip Sistemi
+        <footer className="lg:hidden text-center text-[11px] text-white/45">
+          © {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM
         </footer>
-      </main>
+      </div>
     </div>
   );
 };

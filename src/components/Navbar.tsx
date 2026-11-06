@@ -133,8 +133,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Yönetici kontrolü tek yerden yapılır (isim değil, kayıttaki yönetici yetkisi esas alınır)
   const isTeacherAdmin = isTeacherSession && dataService.isTeacherAdmin(currentTeacher);
-  // Aşama 145: basit şifreyle giren öğretmen/yönetici yeni şifre belirleyene kadar zorunlu pencere açık kalır
-  const teacherMustChange = !!currentTeacher && dataService.basitSifreVarMi(currentTeacher.id) && !dataService.isStudentPreview();
   // Aşama 18: kurumuna kapalı bölümler ve yetkisi olmadığı yönetim sekmesi menüde görünmez
   const navItems = teacherNavFor((tab) => (tab === 'user_management' ? !!isTeacherAdmin && dataService.canUseTab(tab) : dataService.canUseTab(tab)));
 
@@ -180,7 +178,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Aşama 82-83: öğretmende ve öğrencide kendi kurumunun adı ve logosu görünür
   const kurumBrand = dataService.getBrand();
-  const brandName = kurumBrand.name || 'Eğitim Takip';
+  const brandName = kurumBrand.name || 'BAŞARI & EĞİTİM';
   const brandLogo = kurumBrand.logo || '';
 
   const brand = (
@@ -196,9 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <img src={brandLogo} alt="" className="h-full w-auto max-w-full object-contain" />
         </span>
       ) : (
-        <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 p-1.5 flex items-center justify-center shadow-sm">
-          <img src="/logo.svg" alt="" className="w-full h-full object-contain" />
-        </span>
+        <img src="/logo.svg" alt="" className="w-9 h-9 rounded-xl shadow-sm shrink-0" />
       )}
       <span className="hidden sm:block text-left leading-tight min-w-0">
         <span className="block text-sm font-bold text-fg tracking-tight truncate max-w-[14rem]">{brandName}</span>
@@ -462,9 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Suspense fallback={null}>
             {isAvatarModalOpen && <TeacherAvatarModal isOpen onClose={() => setIsAvatarModalOpen(false)} teacher={currentTeacher} />}
             {isEditProfileOpen && <TeacherProfileEditModal isOpen onClose={() => setIsEditProfileOpen(false)} teacher={currentTeacher} />}
-            {(isChangePasswordOpen || teacherMustChange) && (
-              <TeacherPasswordModal isOpen isMandatory={teacherMustChange} onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />
-            )}
+            {isChangePasswordOpen && <TeacherPasswordModal isOpen onClose={() => setIsChangePasswordOpen(false)} teacher={currentTeacher} />}
             {isApprovalModalOpen && <TeacherApprovalModal isOpen onClose={() => setIsApprovalModalOpen(false)} />}
             {isSentCommunicationsOpen && <SentCommunicationsModal isOpen onClose={() => setIsSentCommunicationsOpen(false)} />}
             {isMailSettingsOpen && <MailSettingsModal open onClose={() => setIsMailSettingsOpen(false)} />}
