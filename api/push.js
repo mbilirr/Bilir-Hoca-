@@ -658,7 +658,7 @@ async function tickPlanDaily(now, deadline) {
   if (plans && plans.length) {
     const planIds = plans.map((p) => p.id);
     const items = await chunked(planIds, 60, (part) =>
-      rest(`study_plan_items?select=plan_id,student_id,week_start,day,subject,done_at&plan_id=in.${inList(part)}`, { token: 'service' })
+      rest(`study_plan_items?select=plan_id,student_id,week_start,day,subject,done_at&plan_id=in.${inList(part)}&sent_at=not.is.null`, { token: 'service' }) // Aşama 164: yalnız gönderilmiş görevler
     );
     for (const it of items) {
       if (it.done_at) continue;

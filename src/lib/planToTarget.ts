@@ -91,6 +91,8 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
   const countsBySubject = new Map<string, Map<string, number>>();
   const nameOf = new Map<string, string>(); // anahtar → ders adı
   for (const it of items) {
+    // Aşama 164: Soru Kaydet'e yalnız öğrenciye GÖNDERİLMİŞ görevler aktarılır (taslak görev öğrencide görünmez)
+    if (!it.sentAt) continue;
     const subject = normalizeSubject(it.subject || '');
     if (!subject) continue;
     if (!canSubject(it.subject)) {
@@ -337,14 +339,22 @@ const queues = new Map<string, Promise<unknown>>();
  * Gönderilmiş planı Soru Kaydet'e yeniden aktarır (plan gönderilmemişse hiçbir şey yapmaz).
  * Planda görev eklendiğinde / değiştirildiğinde / silindiğinde kendiliğinden çağrılır.
  */
-export function syncSentPlan(student: Student, weekStart: string, canSubject: (subject: string) => boolean): Promise<PlanTransferResult | null> {
+export function syncSentPlan(
+  student: Student,
+  weekStart: string,
+  canSubject: (subject: string) => boolean,
+  force = false
+): Promise<PlanTransferResult | null> {
   const key = `${student.id}|${weekStart}`;
   const prev = queues.get(key) || Promise.resolve();
   const run = prev
     .catch(() => undefined)
     .then(async () => {
       const p = await loadPlan(student.id, weekStart);
-      if (!p.header?.sentAt) return null;
+      // Aşama 164: planda HERHANGİ bir öğretmenin gönderilmiş görevi varsa eşitlenir (öğretmen ekranındaki sentAt yalnız "benim").
+      // force = geri çekmeden sonra: gönderilmiş görev kalmasa da Soru Kaydet'teki plan konuları temizlensin.
+      if (!p.header || (!force && !p.header.anySentAt && !p.items.some((i) => i.sentAt))) return null;
+      // Aktarım yalnız gönderilmiş görevleri alır (transferPlanTopicsToQuestionEntry içinde süzülür)
       return transferPlanTopicsToQuestionEntry({ student, weekStart, items: p.items, canSubject });
     });
   queues.set(key, run);
@@ -358,15 +368,45 @@ export function syncSentPlan(student: Student, weekStart: string, canSubject: (s
  * Plan başka öğrencilere / haftaya uygulanıp HEMEN GÖNDERİLDİĞİNDE (ya da sonradan düzenlendiğinde)
  * görevler o öğrencilerin Soru Kaydet bölümüne de aktarılır. Hata gönderimi bozmaz; aktarılan öğrenci sayısını döndürür.
  */
-export async function transferPlansForStudents(students: Student[], weekStart: string, canSubject: (subject: string) => boolean): Promise<number> {
+export async function transferPlansForStudents(
+  students: Student[],
+  weekStart: string,
+  canSubject: (subject: string) => boolean,
+  onProgress?: (done: number, total: number) => void,
+  force = false
+): Promise<number> {
   let ok = 0;
-  for (const s of students) {
+  // Aşama 164: öğrenciler 6'şar paralel işlenir (82 öğrencide dakikalarca kilitlenme yerine saniyeler)
+  await runPool(students, 6, async (s) => {
     try {
-      const r = await syncSentPlan(s, weekStart, canSubject);
+      const r = await syncSentPlan(s, weekStart, canSubject, force);
       if (r && r.subjects.length) ok++;
     } catch {
       /* bir öğrencide aktarılamazsa diğerleri sürer; "Planı yenile" ile tekrar aktarılabilir */
     }
-  }
+  }, onProgress);
   return ok;
+}
+
+/**
+ * Aşama 164: işleri en fazla `limit` tanesi aynı anda olacak şekilde çalıştırır; her biten iş için ilerleme bildirir.
+ * Aynı öğrencinin işleri zaten syncSentPlan kuyruğunda sıralıdır; farklı öğrenciler birbirini beklemez.
+ */
+export async function runPool<T>(list: T[], limit: number, work: (item: T, index: number) => Promise<void>, onProgress?: (done: number, total: number) => void): Promise<void> {
+  let next = 0;
+  let done = 0;
+  const total = list.length;
+  onProgress?.(0, total);
+  const worker = async () => {
+    while (next < total) {
+      const i = next++;
+      try {
+        await work(list[i], i);
+      } finally {
+        done++;
+        onProgress?.(done, total);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, total)) }, worker));
 }

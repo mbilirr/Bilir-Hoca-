@@ -16,9 +16,9 @@ import {
   listBooksFor,
   loadPlansFor,
   planGroupKey,
-  sendPlan,
+  planItemOwnership,
+  setPlanItemsSent,
   shortDayLabel,
-  unsendPlans,
   updatePlanItems,
   weekRangeLabel,
   weekStartOf,
@@ -36,7 +36,8 @@ import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, chipCls, classLevel, inputCls, PICKER_BOX_CLS } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
 import { StudyPlanSendModal } from './StudyPlanSendModal';
-import { transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
+import { StudyPlanUnsendModal } from './StudyPlanUnsendModal';
+import { transferPlansForStudents } from '../../lib/planToTarget';
 import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
@@ -103,6 +104,19 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   const mySubjects = dataService.getMySubjects();
   const teacherName = me?.name || 'Öğretmen';
   const canSubject = useCallback((s: string) => isAdmin || !mySubjects || mySubjects.includes(s), [isAdmin, mySubjects]);
+  // Aşama 164: "benim görevim" (veritabanındaki plan_item_mine ile aynı kural); gönder / geri çek yalnız benim görevlerime uygulanır
+  const [isMine, setIsMine] = useState<((it: PlanItem) => boolean) | null>(null);
+  useEffect(() => {
+    let alive = true;
+    planItemOwnership()
+      .then((f) => alive && setIsMine(() => f))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // Planın tamamını geri çekebilenler: genel yönetici, kurum yöneticisi, Müdür / Müdür Yrd. (veritabanı da aynı kuralla izin verir)
+  const canUnsendAll = dataService.isHeadAdmin() || dataService.isKurumAdmin();
   // Aşama 39: kurum yöneticisi / genel yönetici olmayan öğretmen planda YALNIZCA kendi branşını görür
   const restricted = !isAdmin && !!mySubjects;
   const ownBook = (b: StudentBook) => !restricted || (!!b.subject && (mySubjects || []).some((m) => subjKey(m) === subjKey(b.subject)));
@@ -288,16 +302,30 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
 
   // ---- gönderim durumu
   const withItems = useMemo(() => viewStudents.filter((s) => shownItems.some((i) => i.studentId === s.id)), [viewStudents, shownItems]);
-  const sentCount = withItems.filter((s) => headers[s.id]?.sentAt).length;
-  const mailedCount = withItems.filter((s) => headers[s.id]?.sentAt && headers[s.id]?.mailedAt).length;
+  // Aşama 164: gönderim durumu BENİM görevlerime göre (görev satırındaki sent_at = veritabanındaki gerçek durum)
+  const myItemsOf = useMemo(() => {
+    const m = new Map<string, PlanItem[]>();
+    const mine = isMine || ((i: PlanItem) => canSubject(i.subject));
+    for (const i of viewItems) {
+      if (!mine(i)) continue;
+      if (!m.has(i.studentId)) m.set(i.studentId, []);
+      m.get(i.studentId)!.push(i);
+    }
+    return m;
+  }, [viewItems, isMine, canSubject]);
+  const myWith = useMemo(() => viewStudents.filter((s) => myItemsOf.has(s.id)), [viewStudents, myItemsOf]);
+  const sentCount = myWith.filter((s) => myItemsOf.get(s.id)!.every((i) => i.sentAt)).length;
+  const mailedCount = myWith.filter((s) => headers[s.id]?.sentAt && headers[s.id]?.mailedAt).length;
   const anySent = viewStudents.some((s) => headers[s.id]?.sentAt);
-  const allSent = withItems.length > 0 && sentCount === withItems.length;
+  const othersSentCount = viewStudents.filter((s) => headers[s.id]?.anySentAt).length;
+  const canUnsend = anySent || (canUnsendAll && othersSentCount > 0);
+  const allSent = myWith.length > 0 && sentCount === myWith.length;
 
   const [sendModal, setSendModal] = useState<{ students: Student[]; kind: PlanGroupKind; classId?: string; title?: string } | null>(null);
   // Aşama 52: "Ödev olarak gönder" plandaki her sınıfa kendiliğinden göndermez; açılan pencerede
   // hangi sınıflara gönderileceği sorulur (birden çok sınıf varsa hiçbiri önceden seçili gelmez).
   const openSend = (title?: string) => {
-    const list = withItems;
+    const list = myWith;
     if (!list.length) return;
     const cids = Array.from(new Set(list.map((s) => s.classId)));
     let kind: PlanGroupKind = list.length === 1 ? 'student' : 'students';
@@ -310,27 +338,10 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   };
   const classSizes = useMemo(() => Object.fromEntries(classTotal.entries()) as Record<string, number>, [classTotal]);
   const [busy, setBusy] = useState(false);
-  const doUnsend = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const wasSent = viewStudents.filter((s) => headers[s.id]?.sentAt);
-      const n = await unsendPlans(viewIds, weekStart);
-      // Aşama 53: geri çekilen planların Soru Kaydet'teki konuları ve hedefleri de kaldırılır
-      for (const s of wasSent) {
-        try {
-          await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: [], canSubject });
-        } catch {
-          /* temizlenemezse sonraki gönderimde düzelir */
-        }
-      }
-      await reload(true);
-      say({ tone: 'info', text: `${n} öğrencinin planı geri çekildi; artık görmüyorlar. Soru Kaydet bölümlerindeki plan konuları ve hedefleri de kaldırıldı.` });
-    } catch (e: any) {
-      say({ tone: 'danger', text: e?.message || 'Plan geri çekilemedi.' });
-    } finally {
-      setBusy(false);
-    }
+  // Aşama 164: geri çekme penceresi (kimden + yöneticide "Yalnız benimkiler / Planın tamamı"); düğmeler kilitlenmez
+  const [unsendOpen, setUnsendOpen] = useState(false);
+  const doUnsend = () => {
+    if (!busy) setUnsendOpen(true);
   };
 
   // Aşama 52: "Soru Kaydet'e aktar" düğmesi kaldırıldı. Görevler "Ödev olarak gönder" ve "Planı yenile" sırasında
@@ -340,40 +351,25 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   //      plan yeniden gönderilir ve görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna yeniden aktarılır.
   //      Aşama 52: yalnızca planı DAHA ÖNCE GÖNDERİLMİŞ öğrenciler yenilenir; gönderilmemiş sınıflara plan gitmez
   //      (onlara "Ödev olarak gönder" ile sınıf seçilerek gönderilir).
+  const [refreshBar, setRefreshBar] = useState<{ done: number; total: number } | null>(null);
   const doRefresh = async () => {
-    if (busy || !withItems.length) return;
+    if (busy || !myWith.length) return;
     setBusy(true);
-    const failed: string[] = [];
-    let topics = 0;
-    let qTotal = 0;
-    const manual = new Set<string>();
     try {
-      // Planı gönderilmiş öğrenciler (görevi sonradan tamamen çıkarılanlar dahil; Soru Kaydet'teki eski konuları da temizlensin)
-      // + planı gönderilmiş SINIFLARDA sonradan görev verilen öğrenciler. Hiç gönderilmemiş sınıflara dokunulmaz.
+      // Benim görevlerimi gönderdiğim öğrenciler + o sınıflarda sonradan görev verdiğim öğrenciler (hiç gönderilmemiş sınıflara dokunulmaz)
       const sentClassIds = new Set(viewStudents.filter((s) => headers[s.id]?.sentAt).map((s) => s.classId));
-      const targets = viewStudents.filter((s) => headers[s.id]?.sentAt || (sentClassIds.has(s.classId) && withItems.includes(s)));
-      for (const s of targets) {
-        const own = viewItems.filter((i) => i.studentId === s.id);
-        try {
-          if (shownItems.some((i) => i.studentId === s.id)) await sendPlan(s.id, weekStart, teacherName);
-          const r = await transferPlanTopicsToQuestionEntry({ student: s, weekStart, items: own, canSubject });
-          if (r.subjects.length) topics++;
-          qTotal += r.questionTotal;
-          r.manualKept.forEach((x) => manual.add(x));
-        } catch {
-          failed.push(s.name);
-        }
-      }
+      const targets = viewStudents.filter((s) => headers[s.id]?.sentAt || (sentClassIds.has(s.classId) && myItemsOf.has(s.id)));
+      // Aşama 164: tek veritabanı çağrısı (yalnız benim görevlerim), sonra Soru Kaydet 6'şar paralel ve ilerlemeli
+      const toSend = targets.filter((s) => myItemsOf.has(s.id)).map((s) => s.id);
+      if (toSend.length) await setPlanItemsSent(toSend, weekStart, true);
+      const topics = await transferPlansForStudents(targets, weekStart, canSubject, (done, total) => setRefreshBar({ done, total }), true);
       await reload(true);
       void dataService.syncPlanWeekStarts(); // Aşama 43
-      say(
-        {
-          tone: failed.length ? 'warning' : 'success',
-          text: `Plan ${targets.length - failed.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.${qTotal ? ` Soru hedefi olarak ${qTotal} soru aktarıldı.` : ''}${manual.size ? ` ${[...manual].join(', ')}: elle verdiğiniz soru hedefi korundu, plandaki sayılar aktarılmadı.` : ''}${failed.length ? ` Yenilenemeyen: ${failed.join(', ')}.` : ''}`,
-        },
-        8000
-      );
+      say({ tone: 'success', text: `Görevleriniz ${toSend.length} öğrenciye yeniden gönderildi; ${topics} öğrencinin Soru Kaydet konuları güncellendi.` }, 8000);
+    } catch (e: any) {
+      say({ tone: 'danger', text: e?.message || 'Plan yenilenemedi.' });
     } finally {
+      setRefreshBar(null);
       setBusy(false);
     }
   };
@@ -494,12 +490,12 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   //      Planı gönderilmemiş (taslak) öğrencilere dokunulmaz.
   const autoSync = (studentIds: string[]) => {
     const list = Array.from(new Set(studentIds))
-      .filter((id) => headers[id]?.sentAt)
+      .filter((id) => headers[id]?.sentAt || headers[id]?.anySentAt) // Aşama 164: planda gönderilmiş görev olan öğrenciler
       .map((id) => studentById.get(id))
       .filter((s): s is Student => !!s);
     if (!list.length) return;
     const ws = weekStart;
-    void transferPlansForStudents(list, ws, canSubject)
+    void transferPlansForStudents(list, ws, canSubject, undefined, true)
       .then(() => say({ tone: 'info', text: `Değişiklik planı gönderilmiş ${list.length} öğrencinin Soru Kaydet bölümüne de işlendi.` }, 3500))
       .catch(() => say({ tone: 'warning', text: 'Görev kaydedildi ama bazı öğrencilerin Soru Kaydet bölümüne işlenemedi. "Planı yenile" ile tekrar deneyin.' }, 8000));
   };
@@ -689,13 +685,22 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                 </span>
               ) : withItems.length === 0 ? (
                 <span className="ui-chip ui-chip-neutral">Bu hafta görev yok</span>
+              ) : myWith.length === 0 ? (
+                <span className="ui-chip ui-chip-neutral" id="plan-status-none">
+                  Bu hafta sizin göreviniz yok
+                </span>
               ) : allSent ? (
                 <span className="ui-chip ui-chip-success" id="plan-status-sent">
-                  <Check className="w-3.5 h-3.5" /> {withItems.length} öğrenciye gönderildi
+                  <Check className="w-3.5 h-3.5" /> Görevleriniz {myWith.length} öğrenciye gönderildi
                 </span>
               ) : (
                 <span className="ui-chip ui-chip-neutral" id="plan-status-draft">
-                  {sentCount > 0 ? `${sentCount} / ${withItems.length} öğrenciye gönderildi` : 'Taslak · öğrenciler henüz görmüyor'}
+                  {sentCount > 0 ? `Görevleriniz ${sentCount} / ${myWith.length} öğrenciye gönderildi` : 'Taslak · öğrenciler görevlerinizi henüz görmüyor'}
+                </span>
+              )}
+              {refreshBar && refreshBar.total > 0 && (
+                <span className="ui-chip ui-chip-brand" role="status" id="plan-refresh-progress">
+                  Yenileniyor {refreshBar.done} / {refreshBar.total}
                 </span>
               )}
               {mailedCount > 0 && <span className="ui-chip ui-chip-info">{mailedCount} öğrenciye e-postayla gitti</span>}
@@ -715,8 +720,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           primary: (
             <>
               {!allSent && (
-                <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || withItems.length === 0} onClick={() => openSend()}>
-                  <Send className="w-4 h-4 shrink-0" /> Ödev olarak gönder{withItems.length ? ` (${withItems.length})` : ''}
+                <button type="button" id="plan-send" className={cx(planMainBtnCls, 'ui-btn-primary')} disabled={busy || myWith.length === 0} onClick={() => openSend()}>
+                  <Send className="w-4 h-4 shrink-0" /> Ödev olarak gönder{myWith.length ? ` (${myWith.length})` : ''}
                 </button>
               )}
               {anySent && (
@@ -725,19 +730,21 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                     type="button"
                     id="plan-refresh"
                     className={cx(planMainBtnCls, 'ui-btn-secondary')}
-                    disabled={busy || withItems.length === 0}
+                    disabled={busy || myWith.length === 0}
                     onClick={doRefresh}
                     title="Gönderdikten sonra yaptığınız değişiklikleri öğrencilere ve Soru Kaydet bölümüne yeniden gönderir"
                   >
                     <RefreshCw className={cx('w-4 h-4 shrink-0', busy && 'animate-spin')} /> Planı yenile
                   </button>
-                  <button type="button" id="plan-resend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy || withItems.length === 0} onClick={() => openSend('E-posta / WhatsApp ile gönder')}>
+                  <button type="button" id="plan-resend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy || myWith.length === 0} onClick={() => openSend('E-posta / WhatsApp ile gönder')}>
                     <Send className="w-4 h-4 shrink-0" /> E-posta / WhatsApp
                   </button>
-                  <button type="button" id="plan-unsend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy} onClick={doUnsend}>
-                    <Undo2 className="w-4 h-4 shrink-0" /> Geri çek
-                  </button>
                 </>
+              )}
+              {canUnsend && (
+                <button type="button" id="plan-unsend" className={cx(planMainBtnCls, 'ui-btn-secondary')} disabled={busy} onClick={doUnsend}>
+                  <Undo2 className="w-4 h-4 shrink-0" /> Geri çek
+                </button>
               )}
             </>
           ),
@@ -857,7 +864,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
                   {list.length === 0 && <p className="text-xs text-subtle px-1 py-2">Görev yok</p>}
                   {list.map((g) => {
                     const editable = canSubject(g.subject);
-                    const sentItems = g.items.filter((i) => headers[i.studentId]?.sentAt);
+                    const sentItems = g.items.filter((i) => i.sentAt); // Aşama 164: görev satırındaki gerçek durum
                     const done = g.items.filter((i) => i.doneAt).length;
                     return (
                       <article key={g.key} data-plan-group={g.key} data-subject={g.subject} data-count={g.items.length} className="rounded-xl border border-line bg-surface p-2.5 space-y-1.5">
@@ -968,7 +975,7 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               .sort((a, b) => (studentById.get(a.studentId)?.name || '').localeCompare(studentById.get(b.studentId)?.name || '', 'tr'))
               .map((i) => {
                 const s = studentById.get(i.studentId);
-                const sent = !!headers[i.studentId]?.sentAt;
+                const sent = !!i.sentAt; // Aşama 164: görev satırındaki gerçek durum
                 return (
                   <li key={i.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm" data-detail-student={i.studentId}>
                     <span className="min-w-0 truncate">
@@ -1006,6 +1013,21 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
           onClose={(changed) => {
             setSendModal(null);
             if (changed) void reload(true);
+          }}
+        />
+      )}
+      {unsendOpen && (
+        <StudyPlanUnsendModal
+          weekStart={weekStart}
+          students={viewStudents}
+          classes={classes}
+          headers={headers}
+          canSubject={canSubject}
+          canAll={canUnsendAll}
+          onClose={(changed, message) => {
+            setUnsendOpen(false);
+            if (changed) void reload(true);
+            if (message) say({ tone: changed ? 'info' : 'warning', text: message });
           }}
         />
       )}

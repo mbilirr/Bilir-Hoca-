@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { newId } from '../lib/ids';
 import { callMail, type MailResult } from '../lib/mailApi';
+import { dataService } from './dataService';
 
 // ============================================================================
 // Haftalık çalışma planı (Aşama 19)
@@ -43,12 +44,21 @@ export interface PlanItem {
   doneAt: string | null;
   /** Aşama 43: görev için verilen soru sayısı (0 = soru sayısı verilmedi) */
   questionCount: number;
+  /** Aşama 164: görev öğrenciye gönderildi mi (öğrenci yalnız gönderilmiş görevi görür) */
+  sentAt: string | null;
+  /** Aşama 164: görevi ekleyen hesap (auth kimliği; eski görevlerde boş olabilir) */
+  createdBy: string;
+  /** Aşama 164: görev öğrenciye e-postayla gönderildiği an */
+  mailedAt: string | null;
 }
 export interface PlanHeader {
   id: string;
   studentId: string;
   weekStart: string;
+  /** Aşama 164: öğretmen ekranında = BENİM bu öğrenciye gönderilmiş görevim var mı (veritabanıyla aynı kural: plan_item_mine) */
   sentAt: string | null;
+  /** Aşama 164: planda herhangi bir öğretmenin gönderilmiş görevi (öğrencinin planı görüp görmediği) */
+  anySentAt?: string | null;
   sentByName: string;
   mailedAt?: string | null; // Aşama 22: öğrenciye e-postayla gönderildiği an
   weekStartDay: WeekStartDay; // planın başladığı gün (kolon yoksa / boşsa week_start tarihinden çıkarılır)
@@ -187,6 +197,9 @@ function itemFromRow(r: any): PlanItem {
     createdByName: String(r.created_by_name || ''),
     doneAt: r.done_at || null,
     questionCount: cleanQuestionCount(r.question_count),
+    sentAt: r.sent_at || null,
+    createdBy: r.created_by ? String(r.created_by) : '',
+    mailedAt: r.mailed_at || null,
   };
 }
 function headerFromRow(r: any): PlanHeader {
@@ -195,6 +208,7 @@ function headerFromRow(r: any): PlanHeader {
     studentId: String(r.student_id),
     weekStart: String(r.week_start),
     sentAt: r.sent_at || null,
+    anySentAt: r.sent_at || null,
     sentByName: String(r.sent_by_name || ''),
     mailedAt: r.mailed_at || null,
     weekStartDay:
@@ -213,6 +227,68 @@ async function insertPlanRows(rows: Array<{ id: string; student_id: string; week
   if (first.error && isMissingWeekStartDayColumn(first.error)) return run(rows);
   return first;
 }
+// ----------------------------------------------------------------------------- Aşama 164: görev bazında gönderim
+// "Benim görevim" kuralı veritabanındaki public.plan_item_mine ile birebir aynıdır:
+//   ekleyen hesap benim · ekleyen kayıt benim öğretmen kaydım · sahibi kaydedilmemiş eski görevde ad benim adım
+//   (adı da yoksa yalnız genel yönetici). Ekrandaki "gönderildi" etiketi bu kurala göre hesaplanır.
+type MyIdentity = { uid: string; teacherIds: Set<string>; name: string; head: boolean };
+async function myIdentity(): Promise<MyIdentity> {
+  let uid = '';
+  try {
+    uid = (await supabase.auth.getSession()).data.session?.user?.id || '';
+  } catch {
+    uid = '';
+  }
+  const t = dataService.getCurrentTeacher();
+  const teacherIds = new Set<string>([t?.id, (t as any)?.auth_user_id, (t as any)?.authUserId].filter(Boolean).map(String));
+  return { uid, teacherIds, name: String(t?.name || '').trim().toLocaleLowerCase('tr-TR'), head: dataService.isHeadAdmin() };
+}
+const isMineWith = (me: MyIdentity, it: Pick<PlanItem, 'createdBy' | 'createdByName'>): boolean => {
+  if (it.createdBy) return (!!me.uid && it.createdBy === me.uid) || me.teacherIds.has(it.createdBy);
+  const n = String(it.createdByName || '').trim().toLocaleLowerCase('tr-TR');
+  return n ? !!me.name && n === me.name : me.head;
+};
+/** Öğretmen ekranı için başlığın "gönderildi / e-postayla gitti" bilgisini BENİM görevlerimden hesaplar */
+function myHeader(h: PlanHeader | null, items: PlanItem[], me: MyIdentity): PlanHeader | null {
+  if (!h) return h;
+  let sent: string | null = null;
+  let mailed: string | null = null;
+  for (const it of items) {
+    if (it.planId !== h.id || !isMineWith(me, it)) continue;
+    if (it.sentAt && (!sent || it.sentAt > sent)) sent = it.sentAt;
+    if (it.sentAt && it.mailedAt && (!mailed || it.mailedAt > mailed)) mailed = it.mailedAt;
+  }
+  return { ...h, sentAt: sent, mailedAt: mailed };
+}
+/** Görevin "benim" olup olmadığını söyleyen fonksiyonu verir (ekranlar için; bir kez çözülür) */
+export async function planItemOwnership(): Promise<(it: Pick<PlanItem, 'createdBy' | 'createdByName'>) => boolean> {
+  const me = await myIdentity();
+  return (it) => isMineWith(me, it);
+}
+/** Gönderilmiş görevler (öğrencinin gördükleri) */
+export const sentItemsOnly = <T extends { sentAt: string | null }>(items: T[]): T[] => items.filter((i) => !!i.sentAt);
+
+/**
+ * Görevleri gönder / geri çek (tek veritabanı çağrısıyla çok öğrenci).
+ * Yalnız KENDİ görevleri; all = true yalnız yöneticilerde ve yalnız geri çekmede (planın tamamı).
+ * Dönen: öğrenci → değişen görev sayısı.
+ */
+export async function setPlanItemsSent(studentIds: string[], weekStart: string, send: boolean, all = false): Promise<Record<string, number>> {
+  const ids = Array.from(new Set(studentIds.filter(Boolean)));
+  const out: Record<string, number> = {};
+  for (let i = 0; i < ids.length; i += 500) {
+    const res = await supabase.rpc('plan_items_set_sent', { p_student_ids: ids.slice(i, i + 500), p_week_start: weekStart, p_send: send, p_all: all });
+    if (res.error) {
+      if (isMissingRpc(res.error)) throw new Error('Görev bazında gönderim için 164 numaralı SQL\'in Supabase\'te çalıştırılması gerekiyor.');
+      const msg = String(res.error.message || '');
+      if (/yalnız yöneticiler|adına gönderilemez|Oturum bulunamadı/i.test(msg)) throw new Error(msg);
+      fail(res.error, send ? 'Görevler gönderilemedi.' : 'Görevler geri çekilemedi.');
+    }
+    for (const r of (res.data || []) as any[]) out[String(r.student_id)] = (out[String(r.student_id)] || 0) + (Number(r.changed) || 0);
+  }
+  return out;
+}
+
 function bookFromRow(r: any): StudentBook {
   return { id: String(r.id), studentId: String(r.student_id), title: String(r.title || ''), subject: String(r.subject || '') };
 }
@@ -244,7 +320,9 @@ export async function loadPlan(studentId: string, weekStart: string): Promise<St
   ]);
   if (h.error) fail(h.error, 'Plan okunamadı.');
   if (i.error) fail(i.error, 'Plan görevleri okunamadı.');
-  return { header: h.data ? headerFromRow(h.data) : null, items: (i.data || []).map(itemFromRow) };
+  const items = (i.data || []).map(itemFromRow);
+  const me = await myIdentity();
+  return { header: myHeader(h.data ? headerFromRow(h.data) : null, items, me), items };
 }
 
 // Planın başlık satırını (yoksa) oluşturur
@@ -318,22 +396,21 @@ export async function deletePlan(studentId: string, weekStart: string): Promise<
 }
 
 // Planı öğrenciye ödev olarak gönderir (öğrenci ana sayfasında "Bugün yapılması gerekenler" çıkar)
-export async function sendPlan(studentId: string, weekStart: string, senderName: string): Promise<PlanHeader> {
-  const plan = await ensurePlan(studentId, weekStart);
-  const res = await supabase
-    .from('study_plans')
-    .update({ sent_at: new Date().toISOString(), sent_by_name: clean(senderName, 120) || null })
-    .eq('id', plan.id)
-    .select('*');
-  if (res.error) fail(res.error, 'Plan gönderilemedi.');
-  if (!res.data || res.data.length === 0) throw new Error('Plan gönderilemedi (yetki yok).');
-  return headerFromRow(res.data[0]);
+// Aşama 164: yalnız KENDİ görevlerimi gönderir; başka öğretmenin görevleri onun gönderimine bağlıdır.
+// Dönen başlık öğretmen ekranı içindir (sentAt = benim gönderilmiş görevim var mı).
+export async function sendPlan(studentId: string, weekStart: string, _senderName?: string): Promise<PlanHeader> {
+  await ensurePlan(studentId, weekStart);
+  await setPlanItemsSent([studentId], weekStart, true);
+  const p = await loadPlan(studentId, weekStart);
+  if (!p.header) throw new Error('Plan gönderilemedi.');
+  return p.header;
 }
+// Aşama 164: yalnız KENDİ görevlerimi geri çeker
 export async function unsendPlan(studentId: string, weekStart: string): Promise<PlanHeader> {
-  const res = await supabase.from('study_plans').update({ sent_at: null }).eq('id', planIdOf(studentId, weekStart)).select('*');
-  if (res.error) fail(res.error, 'Plan geri çekilemedi.');
-  if (!res.data || res.data.length === 0) throw new Error('Plan geri çekilemedi (yetki yok).');
-  return headerFromRow(res.data[0]);
+  await setPlanItemsSent([studentId], weekStart, false);
+  const p = await loadPlan(studentId, weekStart);
+  if (!p.header) throw new Error('Plan geri çekilemedi.');
+  return p.header;
 }
 
 // Seçili haftayla çakışan (farklı başlangıç günlü) kayıtlı planları bulur; öğretmen bunlara tek tıkla geçebilir
@@ -483,6 +560,9 @@ export async function loadPlansFor(studentIds: string[], weekStart: string): Pro
       for (const r of i.data || []) items.push(itemFromRow(r));
     })
   );
+  // Aşama 164: öğretmen ekranında "gönderildi" = BENİM görevlerim gönderildi
+  const me = await myIdentity();
+  for (const k of Object.keys(headers)) headers[k] = myHeader(headers[k], items, me)!;
   return { headers, items };
 }
 
@@ -591,31 +671,11 @@ export async function deletePlanItems(ids: string[]): Promise<number> {
   if (ids.length && n === 0) throw new Error('Bu görevi silme yetkiniz yok (yalnızca kendi branşınızdaki görevleri silebilirsiniz).');
   return n;
 }
-export async function unsendPlans(studentIds: string[], weekStart: string): Promise<number> {
-  let n = 0;
-  let blocked = 0;
-  for (const part of chunks(Array.from(new Set(studentIds)), 100)) {
-    const res = await supabase
-      .from('study_plans')
-      .update({ sent_at: null })
-      .in('id', part.map((s) => planIdOf(s, weekStart)))
-      .select('id');
-    if (!res.error) {
-      n += (res.data || []).length;
-      continue;
-    }
-    if (!/sp_privacy_update/i.test(String(res.error?.message || ''))) fail(res.error, 'Plan geri çekilemedi.');
-    // Aşama 45: başka öğretmenin görevi olan plan geri çekilemez; diğerleri tek tek geri çekilir
-    for (const sid of part) {
-      const one = await supabase.from('study_plans').update({ sent_at: null }).eq('id', planIdOf(sid, weekStart)).select('id');
-      if (one.error) blocked++;
-      else n += (one.data || []).length;
-    }
-  }
-  if (blocked && !n) {
-    throw new Error('Seçili planlarda başka öğretmenlerin de görevleri var; bu planlar geri çekilemez. Yalnızca kendi görevlerinizi silebilirsiniz.');
-  }
-  return n;
+// Aşama 164: seçili öğrencilerden görevleri geri çeker (varsayılan yalnız KENDİ görevlerim; all = planın tamamı, yalnız yöneticiler).
+// Dönen: görevi geri çekilen öğrenci sayısı.
+export async function unsendPlans(studentIds: string[], weekStart: string, all = false): Promise<number> {
+  const r = await setPlanItemsSent(studentIds, weekStart, false, all);
+  return Object.values(r).filter((n) => n > 0).length;
 }
 
 // Kitabı, listesinde olmayan öğrencilerin kitap listesine ekler; yeni eklenen kayıtları döndürür
@@ -812,7 +872,8 @@ export async function applyPlan(opts: {
           /* kitap listesi yazılamazsa görevler yine de eklenmiş olur */
         }
       }
-      if (opts.send && (toAdd.length > 0 || current.items.length > 0)) await sendPlan(sid, opts.targetWeek, opts.senderName);
+      // Aşama 164: yalnız benim görevlerim gönderilir (tek çağrı; başlık zaten oluşturuldu)
+      if (opts.send && (toAdd.length > 0 || current.items.length > 0)) await setPlanItemsSent([sid], opts.targetWeek, true);
       out.students++;
     } catch (e: any) {
       out.failed.push({ studentId: sid, message: e?.message || 'Bilinmeyen hata' });
@@ -856,7 +917,7 @@ export async function loadSentPlanItemsInRange(studentId: string, from: string, 
       const it = itemFromRow(r);
       return { ...it, date: dateOfDay(it.weekStart, it.day) };
     })
-    .filter((it: DatedPlanItem) => it.date >= from && it.date <= to);
+    .filter((it: DatedPlanItem) => !!it.sentAt && it.date >= from && it.date <= to); // Aşama 164: yalnız gönderilmiş görevler
 }
 
 // ----------------------------------------------------------------------------- Öğrenci

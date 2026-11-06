@@ -4,10 +4,11 @@ import type { ClassGroup, Student } from '../../types';
 import { Modal, cx } from '../ui/kit';
 import {
   createPlanGroup,
-  loadPlan,
+  loadPlansFor,
   mailPlanToStudent,
+  planItemOwnership,
   planWhatsappText,
-  sendPlan,
+  setPlanItemsSent,
   weekRangeLabel,
   whatsappUrl,
   type PlanGroupKind,
@@ -15,7 +16,8 @@ import {
 } from '../../services/studyPlanService';
 import { planPdfBase64 } from '../../lib/studyPlanExport';
 import { dataService } from '../../services/dataService';
-import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
+import { runPool, syncSentPlan } from '../../lib/planToTarget';
+import { PlanTargetPicker, usePlanTarget } from './PlanTargetPicker';
 
 // ============================================================================
 // Haftalık planı gönder (Aşama 22)
@@ -24,6 +26,11 @@ import { transferPlanTopicsToQuestionEntry } from '../../lib/planToTarget';
 //  * İsteğe bağlı: WhatsApp (tıklayınca hazır mesaj açılır, öğretmen gönderir).
 //  * E-posta gönderilirse planın son görev günü 20:00'de öğretmene rapor gelir
 //    (tek öğrenci: öğrenci raporu; sınıf / seçili öğrenciler: toplu karne).
+// Aşama 164:
+//  * Yalnız GÖNDERENİN kendi görevleri gönderilir (tek veritabanı çağrısı); diğer öğretmenlerin görevleri onların gönderimine bağlıdır.
+//  * "Kime gönderilsin?": Tüm sınıflar · Seçtiğim sınıflar · Seçtiğim öğrenciler.
+//  * Soru Kaydet aktarımı ve e-posta 6'şar / 3'er paralel, ilerleme çubuğuyla (kilitlenme yok).
+//  * E-posta / PDF / WhatsApp yalnız gönderenin gönderilmiş görevlerini içerir.
 // ============================================================================
 
 const isEmail = (s?: string) => !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
@@ -47,11 +54,11 @@ export interface StudyPlanSendModalProps {
   title?: string;
   /** Aşama 35: verilirse gönderimden sonra görevler öğrencinin Soru Kaydet formuna da aktarılır (öğretmenin yetkili olduğu dersler) */
   canSubject?: (subject: string) => boolean;
-  /** Aşama 52: gönderilecek sınıflar pencerede sorulur (sınıf görünümü) */
+  /** Aşama 52/164: kime gönderileceği pencerede sorulur (sınıf görünümü) */
   pickClasses?: boolean;
   /** Aşama 52: sınıf mevcutları (tüm sınıf seçilince sınıf karnesi için) */
   classSizes?: Record<string, number>;
-  /** Aşama 52: planı daha önce gönderilmiş öğrenciler (sınıf satırında bilgi olarak gösterilir) */
+  /** Aşama 52/164: görevlerimi daha önce gönderdiğim öğrenciler ("gönderildi" etiketi) */
   sentIds?: string[];
   onClose: (changed: boolean) => void;
 }
@@ -62,7 +69,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
   classes,
   kind: kindProp,
   classId: classIdProp,
-  teacherName,
+  teacherName: _teacherName,
   title,
   canSubject,
   pickClasses,
@@ -70,44 +77,25 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
   sentIds,
   onClose,
 }) => {
-  // ---- Aşama 52: sınıf seçimi
-  const classGroups = useMemo(() => {
-    const m = new Map<string, Student[]>();
-    for (const s of allStudents) {
-      const k = s.classId || '';
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(s);
-    }
-    const nameOf = (cid: string) => classes.find((c) => c.id === cid)?.name || m.get(cid)?.[0]?.className || 'Sınıfsız';
-    return Array.from(m.entries())
-      .map(([cid, list]) => ({ cid, name: nameOf(cid), list }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true }));
-  }, [allStudents, classes]);
-  const askClasses = !!pickClasses && allStudents.length > 1;
+  // ---- Aşama 164: kime gönderilsin?
+  const askTarget = !!pickClasses && allStudents.length > 1;
+  const target = usePlanTarget(allStudents, classes);
   const sentSet = useMemo(() => new Set(sentIds || []), [sentIds]);
-  // Tek sınıf varsa seçili gelir; birden çok sınıf varsa öğretmen seçer
-  const [chosen, setChosen] = useState<Set<string>>(() => (classGroups.length === 1 ? new Set([classGroups[0].cid]) : new Set()));
-  const toggleClass = (cid: string) =>
-    setChosen((cur) => {
-      const n = new Set(cur);
-      if (n.has(cid)) n.delete(cid);
-      else n.add(cid);
-      return n;
-    });
-  const students = useMemo(() => (askClasses ? allStudents.filter((s) => chosen.has(s.classId || '')) : allStudents), [askClasses, allStudents, chosen]);
+  const students = askTarget ? target.selected : allStudents;
   const { kind, classId } = useMemo((): { kind: PlanGroupKind; classId?: string } => {
-    if (!askClasses) return { kind: kindProp, classId: classIdProp };
+    if (!askTarget) return { kind: kindProp, classId: classIdProp };
     if (students.length <= 1) return { kind: 'student' };
-    const cids = Array.from(chosen);
+    const cids = Array.from(new Set(students.map((s) => s.classId || '')));
     if (cids.length === 1 && classSizes && classSizes[cids[0]] === students.length) return { kind: 'class', classId: cids[0] };
     return { kind: 'students' };
-  }, [askClasses, kindProp, classIdProp, students, chosen, classSizes]);
+  }, [askTarget, kindProp, classIdProp, students, classSizes]);
 
   const withEmail = useMemo(() => students.filter((s) => isEmail(s.email)).length, [students]);
   const [mail, setMail] = useState(false);
   const [wa, setWa] = useState(false);
   const [phase, setPhase] = useState<'form' | 'running' | 'done'>('form');
   const [progress, setProgress] = useState('');
+  const [bar, setBar] = useState<{ done: number; total: number } | null>(null);
   const [rows, setRows] = useState<RowState[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
@@ -126,70 +114,101 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
 
   const run = async () => {
     if (phase !== 'form' || students.length === 0) return;
+    const list0 = students;
     setPhase('running');
     setError(null);
-    const list: RowState[] = students.map((s) => ({ student: s, items: [], mail: mail ? (isEmail(s.email) ? 'idle' : 'no-email') : 'skipped' }));
+    const list: RowState[] = list0.map((s) => ({ student: s, items: [], mail: mail ? (isEmail(s.email) ? 'idle' : 'no-email') : 'skipped' }));
     setRows(list);
     try {
-      // 1) Plan uygulamada görünsün (ödev olarak gönder)
-      for (let i = 0; i < students.length; i++) {
-        setProgress(`Plan gönderiliyor (${i + 1}/${students.length})…`);
-        await sendPlan(students[i].id, weekStart, teacherName);
-      }
+      // 1) Benim görevlerim tek çağrıda gönderilir (öğrenci uygulamasında görünür)
+      setProgress('Görevleriniz gönderiliyor…');
+      await setPlanItemsSent(
+        list0.map((s) => s.id),
+        weekStart,
+        true
+      );
       setChanged(true);
       // Aşama 43: öğrencinin soru haftası bu planın başladığı günden başlasın
       void dataService.syncPlanWeekStarts();
-      // 2) E-posta / WhatsApp için gönderim grubu ve kişisel bağlantılar
-      let groupId = '';
-      let links: Record<string, string> = {};
+      // 2) Soru Kaydet'e aktarım (6'şar paralel, ilerlemeli)
+      if (canSubject) {
+        setProgress("Soru Kaydet'e aktarılıyor…");
+        await runPool(
+          list0,
+          6,
+          async (st) => {
+            try {
+              const t = await syncSentPlan(st, weekStart, canSubject);
+              if (t?.subjects.length) setTransferred((n) => n + 1);
+              if (t?.questionTotal) setTransferredQ((n) => n + t.questionTotal);
+            } catch {
+              /* aktarılamazsa "Planı yenile" ile tekrar denenebilir */
+            }
+          },
+          (done, total) => setBar({ done, total })
+        );
+      }
+      // 3) E-posta / WhatsApp: yalnız BENİM gönderilmiş görevlerim
       if (mail || wa) {
         setProgress('E-posta / WhatsApp hazırlanıyor…');
+        setBar(null);
+        const [fresh, mine] = await Promise.all([loadPlansFor(list0.map((s) => s.id), weekStart), planItemOwnership()]);
+        const byStudent = new Map<string, PlanItem[]>();
+        for (const it of fresh.items) {
+          if (!it.sentAt || !mine(it)) continue;
+          if (!byStudent.has(it.studentId)) byStudent.set(it.studentId, []);
+          byStudent.get(it.studentId)!.push(it);
+        }
+        let groupId = '';
+        let links: Record<string, string> = {};
         try {
-          const g = await createPlanGroup({ weekStart, studentIds: students.map((s) => s.id), kind, classId, mailStudents: mail });
+          const g = await createPlanGroup({ weekStart, studentIds: list0.map((s) => s.id), kind, classId, mailStudents: mail });
           groupId = g.groupId;
           links = g.links;
         } catch (e: any) {
           if (mail) throw e;
           // Yalnız WhatsApp: işaretleme bağlantısı olmadan da mesaj hazırlanabilir
         }
-      }
-      // 3) Her öğrenci: plan görevleri (WhatsApp metni ve PDF için) ve e-posta
-      for (let i = 0; i < list.length; i++) {
-        const st = list[i].student;
-        setProgress(mail ? `E-posta gönderiliyor (${i + 1}/${list.length})…` : `Soru Kaydet'e aktarılıyor (${i + 1}/${list.length})…`);
-        const p = await loadPlan(st.id, weekStart).catch(() => ({ header: null, items: [] as PlanItem[] }));
-        patchRow(st.id, { items: p.items, link: links[st.id] });
-        list[i] = { ...list[i], items: p.items, link: links[st.id] };
-        // Aşama 35: görevler Soru Kaydet → "Çalışılan Konu / Test" kutusuna da aktarılır (hata gönderimi durdurmaz)
-        if (canSubject && p.items.length) {
-          try {
-            const t = await transferPlanTopicsToQuestionEntry({ student: st, weekStart, items: p.items, canSubject });
-            if (t.subjects.length) setTransferred((n) => n + 1);
-            if (t.questionTotal) setTransferredQ((n) => n + t.questionTotal);
-          } catch {
-            /* aktarılamazsa öğretmen "Soru Kaydet'e aktar" düğmesiyle tekrar deneyebilir */
-          }
+        for (let i = 0; i < list.length; i++) {
+          const its = byStudent.get(list[i].student.id) || [];
+          list[i] = { ...list[i], items: its, link: links[list[i].student.id] };
         }
-        if (mail && groupId && isEmail(st.email)) {
-          patchRow(st.id, { mail: 'sending' });
-          try {
-            const pdf = await planPdfBase64({ studentName: st.name, className: st.className || classes.find((c) => c.id === st.classId)?.name, weekStart, items: p.items });
-            const r = await mailPlanToStudent(groupId, st.id, pdf);
-            if (r.ok && (r.sent || 0) > 0) patchRow(st.id, { mail: 'sent' });
-            else if (r.ok && r.rateLimited) patchRow(st.id, { mail: 'error', mailError: 'Bugün bu öğrenciye yeterince e-posta gönderildi.' });
-            else if (r.ok && r.noEmail) patchRow(st.id, { mail: 'no-email' });
-            else patchRow(st.id, { mail: 'error', mailError: (r.errors && r.errors[0]) || r.error || (r.notConfigured ? 'E-posta hesabı ayarlanmamış.' : 'Gönderilemedi.') });
-          } catch (e: any) {
-            patchRow(st.id, { mail: 'error', mailError: e?.message || 'Gönderilemedi.' });
-          }
+        setRows([...list]);
+        if (mail && groupId) {
+          setProgress('E-posta gönderiliyor…');
+          const mailList = list.filter((r) => isEmail(r.student.email));
+          await runPool(
+            mailList,
+            3,
+            async (r) => {
+              const st = r.student;
+              if (!r.items.length) {
+                patchRow(st.id, { mail: 'error', mailError: 'Bu öğrencide gönderilmiş göreviniz yok.' });
+                return;
+              }
+              patchRow(st.id, { mail: 'sending' });
+              try {
+                const pdf = await planPdfBase64({ studentName: st.name, className: st.className || classes.find((c) => c.id === st.classId)?.name, weekStart, items: r.items });
+                const m = await mailPlanToStudent(groupId, st.id, pdf);
+                if (m.ok && (m.sent || 0) > 0) patchRow(st.id, { mail: 'sent' });
+                else if (m.ok && m.rateLimited) patchRow(st.id, { mail: 'error', mailError: 'Bugün bu öğrenciye yeterince e-posta gönderildi.' });
+                else if (m.ok && m.noEmail) patchRow(st.id, { mail: 'no-email' });
+                else patchRow(st.id, { mail: 'error', mailError: (m.errors && m.errors[0]) || m.error || (m.notConfigured ? 'E-posta hesabı ayarlanmamış.' : 'Gönderilemedi.') });
+              } catch (e: any) {
+                patchRow(st.id, { mail: 'error', mailError: e?.message || 'Gönderilemedi.' });
+              }
+            },
+            (done, total) => setBar({ done, total })
+          );
         }
       }
       setPhase('done');
     } catch (e: any) {
-      setError(e?.message || 'Plan gönderilemedi.');
+      setError(e?.message || 'Görevler gönderilemedi.');
       setPhase('done');
     } finally {
       setProgress('');
+      setBar(null);
     }
   };
 
@@ -211,7 +230,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
       tone="brand"
       size={single ? 'md' : 'lg'}
       title={title || 'Planı öğrenciye gönder'}
-      description={`${single ? students[0].name : students.length ? `${students.length} öğrenci` : 'Sınıf seçilmedi'} · ${weekRangeLabel(weekStart)}`}
+      description={`Yalnız sizin görevleriniz · ${single ? students[0].name : students.length ? `${students.length} öğrenci` : 'Öğrenci seçilmedi'} · ${weekRangeLabel(weekStart)}`}
       footer={
         phase === 'form' ? (
           <>
@@ -219,7 +238,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
               Vazgeç
             </button>
             <button type="button" id="plan-send-run" className="ui-btn ui-btn-primary" disabled={students.length === 0} onClick={run}>
-              <Send className="w-4 h-4" /> {askClasses ? (students.length ? `${students.length} öğrenciye gönder` : 'Önce sınıf seçin') : 'Gönder'}
+              <Send className="w-4 h-4" /> {askTarget ? (students.length ? `${students.length} öğrenciye gönder` : 'Önce seçim yapın') : 'Gönder'}
             </button>
           </>
         ) : (
@@ -231,49 +250,19 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
     >
       {phase === 'form' ? (
         <div className="space-y-3">
-          {askClasses && (
-            <div className="rounded-xl border border-brand/30 bg-brand-soft/30 px-3 py-2.5 space-y-2" id="plan-send-classes">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-fg">Hangi sınıflara ödev olarak gönderilsin?</p>
-                {classGroups.length > 1 && (
-                  <button
-                    type="button"
-                    id="plan-send-classes-all"
-                    className="ui-btn ui-btn-ghost ui-btn-sm"
-                    onClick={() => setChosen(chosen.size === classGroups.length ? new Set() : new Set(classGroups.map((g) => g.cid)))}
-                  >
-                    {chosen.size === classGroups.length ? 'Seçimi kaldır' : 'Tümünü seç'}
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Gönderilecek sınıflar">
-                {classGroups.map((g) => {
-                  const on = chosen.has(g.cid);
-                  const sentN = g.list.filter((s) => sentSet.has(s.id)).length;
-                  return (
-                    <button
-                      key={g.cid || 'none'}
-                      type="button"
-                      data-send-class={g.cid}
-                      aria-pressed={on}
-                      onClick={() => toggleClass(g.cid)}
-                      className={cx(
-                        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors cursor-pointer',
-                        on ? 'border-brand bg-brand text-white' : 'border-line bg-surface text-fg-2 hover:border-brand/50'
-                      )}
-                    >
-                      {on && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      {g.name}
-                      <span className={cx('text-[10px] font-bold', on ? 'text-white/80' : 'text-muted')}>
-                        {g.list.length} öğr.{sentN ? ` · ${sentN} gönderildi` : ''}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-muted">
-                Yalnızca seçtiğiniz sınıfların öğrencileri planı görür ve görevler onların Soru Kaydet bölümüne aktarılır. Diğer sınıflar taslak kalır; sonra
-                gönderebilirsiniz.
+          {askTarget && (
+            <div className="space-y-1.5" id="plan-send-classes">
+              <PlanTargetPicker
+                idPrefix="plan-send"
+                question="Kime gönderilsin?"
+                classRows={target.classRows}
+                state={target.state}
+                setState={target.setState}
+                sentSet={sentSet}
+              />
+              <p className="text-[11px] text-muted" id="plan-send-mine-note">
+                {students.length ? `Seçilen ${students.length} öğrenciye` : 'Seçtiğiniz öğrencilere'} yalnız sizin görevleriniz gider. Diğer öğretmenlerin görevleri onların
+                gönderimine bağlıdır. Seçilmeyenlerde görevleriniz taslak kalır; sonra gönderebilirsiniz.
               </p>
             </div>
           )}
@@ -294,7 +283,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                 <Mail className="w-4 h-4" /> E-posta ile de gönder (PDF ekli)
               </span>
               <span className="block text-[11px] text-muted">
-                Plan e-postanın içinde ve PDF eki olarak gider. Öğrenci e-postadaki kişisel bağlantıdan görevlerini "yaptım" diye işaretleyebilir; işaretler sisteme kaydedilir.
+                Yalnız sizin görevleriniz yazılır; e-postanın içinde ve PDF eki olarak gider. Öğrenci e-postadaki kişisel bağlantıdan görevlerini "yaptım" diye işaretleyebilir; işaretler sisteme kaydedilir.
               </span>
               <span className="block text-[11px] text-muted mt-1" id="plan-send-email-count">
                 {withEmail === students.length
@@ -318,7 +307,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                 <MessageCircle className="w-4 h-4" /> WhatsApp mesajı hazırla
               </span>
               <span className="block text-[11px] text-muted">
-                Gönderdikten sonra her öğrenci için bir WhatsApp düğmesi çıkar; tıklayınca planın özeti ve işaretleme bağlantısı hazır mesaj olarak açılır, siz gönderirsiniz. Telefonu kayıtlı değilse kişiyi WhatsApp'ta siz seçersiniz.
+                Gönderdikten sonra her öğrenci için bir WhatsApp düğmesi çıkar; tıklayınca sizin görevlerinizin özeti ve işaretleme bağlantısı hazır mesaj olarak açılır, siz gönderirsiniz. Telefonu kayıtlı değilse kişiyi WhatsApp'ta siz seçersiniz.
               </span>
             </span>
           </label>
@@ -327,9 +316,19 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
       ) : (
         <div className="space-y-3" id="plan-send-result">
           {progress && (
-            <p className="text-sm font-semibold text-fg" role="status">
-              {progress}
-            </p>
+            <div className="space-y-1.5" role="status" id="plan-send-progress">
+              <p className="text-sm font-semibold text-fg">{progress}</p>
+              {bar && bar.total > 0 && (
+                <>
+                  <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                    <div className="h-full bg-brand transition-[width] duration-200" style={{ width: `${Math.round((bar.done / bar.total) * 100)}%` }} />
+                  </div>
+                  <p className="text-[11px] text-muted">
+                    {bar.done} / {bar.total} öğrenci işlendi…
+                  </p>
+                </>
+              )}
+            </div>
           )}
           {error && (
             <div role="alert" id="plan-send-error" className="rounded-xl bg-danger-soft text-danger-fg px-3 py-2 text-xs font-semibold">
@@ -338,7 +337,7 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
           )}
           {phase === 'done' && !error && (
             <div className="rounded-xl bg-success-soft text-success-fg px-3 py-2 text-sm font-semibold" id="plan-send-summary">
-              Plan {single ? 'öğrenciye' : `${students.length} öğrenciye`} gönderildi; uygulamada görünüyor.
+              Görevleriniz {rows.length === 1 ? 'öğrenciye' : `${rows.length} öğrenciye`} gönderildi; uygulamada görünüyor.
               {transferred > 0 ? ` Görevler ${transferred} öğrencinin Soru Kaydet bölümüne de aktarıldı.` : ''}
               {transferredQ > 0 ? ` Plandaki ${transferredQ} soru, öğrencilerin gün gün soru hedeflerine eklendi.` : ''}
               {mail ? ` ${sentCount} öğrenciye e-posta gitti.` : ''}

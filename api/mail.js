@@ -3609,12 +3609,14 @@ function readPlanToken(token) {
   if (!(Number(data.x) > Date.now() / 1000)) throw new HttpError(410, 'Bu plan bağlantısının süresi dolmuş.');
   return { planId: data.p, studentId: data.s };
 }
-async function planItemsFor(planIds) {
+// Aşama 164: yalnız GÖNDERİLMİŞ görevler (sent_at); groupId verilirse yalnız o gönderimin (öğretmenin) görevleri
+async function planItemsFor(planIds, groupId) {
   if (!planIds.length) return [];
   const out = [];
+  const byGroup = groupId ? `&group_id=eq.${encodeURIComponent(groupId)}` : '';
   for (let i = 0; i < planIds.length; i += 60) {
     const rows = await rest(
-      `study_plan_items?select=id,plan_id,student_id,day,subject,book,note,position,created_by_name,done_at&plan_id=in.${inList(planIds.slice(i, i + 60))}&order=day.asc,position.asc`,
+      `study_plan_items?select=id,plan_id,student_id,day,subject,book,note,position,created_by_name,done_at,mailed_at&plan_id=in.${inList(planIds.slice(i, i + 60))}&sent_at=not.is.null${byGroup}&order=day.asc,position.asc`,
       { token: 'service' },
     );
     out.push(...(rows || []));
@@ -3672,10 +3674,21 @@ async function actionPlanGroup(caller, body, req) {
   if (!ids.length) throw new HttpError(400, 'Öğrenci seçilmedi.');
   if (ids.length > PLAN_MAX_STUDENTS) throw new HttpError(400, `Bir seferde en fazla ${PLAN_MAX_STUDENTS} öğrenciye gönderilebilir.`);
   // Öğretmen bu öğrencilerin planlarını görebiliyor mu? (veritabanı kuralları öğretmenin oturumuyla denetlenir)
+  // Aşama 164: gönderim grubu yalnız ÇAĞIRANIN gönderilmiş görevlerini kapsar (başka öğretmenin görevi e-postaya girmez)
   const planIds = ids.map((sid) => planIdOf(sid, weekStart));
-  const visible = await rest(`study_plans?select=id,student_id,sent_at&id=in.${inList(planIds)}`, { token: caller.token });
-  const ok = (visible || []).filter((p) => p.sent_at);
-  if (!ok.length) throw new HttpError(404, 'Gönderilmiş plan bulunamadı. Önce planı öğrenciye gönderin.');
+  if (!caller.authId) throw new HttpError(403, 'Oturum bulunamadı.');
+  const mine = await rest(
+    `study_plan_items?select=plan_id,student_id&plan_id=in.${inList(planIds)}&sent_at=not.is.null&created_by=eq.${encodeURIComponent(caller.authId)}`,
+    { token: caller.token },
+  );
+  const seen = new Set();
+  const ok = [];
+  for (const r of mine || []) {
+    if (seen.has(r.plan_id)) continue;
+    seen.add(r.plan_id);
+    ok.push({ id: r.plan_id, student_id: r.student_id });
+  }
+  if (!ok.length) throw new HttpError(404, 'Gönderilmiş görev bulunamadı. Önce görevlerinizi öğrenciye gönderin.');
   const students = await studentsByIds(ok.map((p) => p.student_id), caller.token);
   let kind = ['student', 'students', 'class'].includes(body.kind) ? body.kind : ok.length === 1 ? 'student' : 'students';
   if (ok.length === 1) kind = 'student';
@@ -3707,7 +3720,13 @@ async function actionPlanGroup(caller, body, req) {
       mail_students: !!body.mailStudents,
     },
   });
-  await rest(`study_plans?id=in.${inList(ok.map((p) => p.id))}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { group_id: groupId } });
+  // Aşama 164: grup görev satırına yazılır (iki öğretmenin gönderimi birbirini ezmez)
+  for (let i = 0; i < ok.length; i += 60) {
+    await rest(
+      `study_plan_items?plan_id=in.${inList(ok.slice(i, i + 60).map((p) => p.id))}&sent_at=not.is.null&created_by=eq.${encodeURIComponent(caller.authId)}`,
+      { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { group_id: groupId } },
+    );
+  }
   const base = appUrl(req);
   const links = {};
   for (const p of ok) links[p.student_id] = planMarkUrl(base, p.id, p.student_id, weekStart);
@@ -3733,15 +3752,15 @@ async function actionPlanMail(caller, body, req, deadline) {
   if (group.teacher_auth_id !== caller.authId && !caller.isAdmin) throw new HttpError(403, 'Bu gönderimi yalnızca planı gönderen öğretmen kullanabilir.');
   const planId = planIdOf(studentId, group.week_start);
   // Öğretmenin bu öğrenciye erişimi hâlâ var mı? (kendi oturumuyla)
-  const vis = await rest(`study_plans?select=id,sent_at,group_id&id=eq.${encodeURIComponent(planId)}`, { token: caller.token });
+  const vis = await rest(`study_plans?select=id&id=eq.${encodeURIComponent(planId)}`, { token: caller.token });
   const plan = vis && vis[0];
-  if (!plan || plan.group_id !== groupId) throw new HttpError(404, 'Bu öğrencinin planı bu gönderimde değil.');
-  if (!plan.sent_at) throw new HttpError(409, 'Plan geri çekilmiş; önce planı yeniden gönderin.');
+  if (!plan) throw new HttpError(404, 'Bu öğrencinin planı bulunamadı.');
   const students = await studentsByIds([studentId], caller.token);
   const student = students[0];
   if (!student) throw new HttpError(404, 'Öğrenci bulunamadı.');
-  const items = await planItemsFor([planId]);
-  if (!items.length) throw new HttpError(409, 'Planda görev yok.');
+  // Aşama 164: e-postada yalnız bu gönderimin (gönderen öğretmenin) gönderilmiş görevleri
+  const items = await planItemsFor([planId], groupId);
+  if (!items.length) throw new HttpError(409, 'Görevler geri çekilmiş ya da bu gönderimde değil; önce yeniden gönderin.');
   let attachments;
   if (typeof body.pdf === 'string' && body.pdf) {
     const buf = Buffer.from(body.pdf.replace(/^data:application\/pdf;[^,]*,/, ''), 'base64');
@@ -3780,7 +3799,12 @@ async function actionPlanMail(caller, body, req, deadline) {
     deadline,
   );
   if (summary.sent > 0) {
-    await rest(`study_plans?id=eq.${encodeURIComponent(planId)}`, { token: 'service', method: 'PATCH', prefer: 'return=minimal', body: { mailed_at: new Date().toISOString() } });
+    await rest(`study_plan_items?plan_id=eq.${encodeURIComponent(planId)}&group_id=eq.${encodeURIComponent(groupId)}&sent_at=not.is.null`, {
+      token: 'service',
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { mailed_at: new Date().toISOString() },
+    });
   }
   return { ok: true, markUrl, ...summary };
 }
@@ -4141,7 +4165,7 @@ async function actionPlanMark(body) {
   const itemId = String(body.itemId || '');
   if (!itemId || itemId.length > 120) throw new HttpError(400, 'Görev bulunamadı.');
   const doneAt = body.done ? new Date().toISOString() : null;
-  const rows = await rest(`study_plan_items?id=eq.${encodeURIComponent(itemId)}&plan_id=eq.${encodeURIComponent(plan.id)}`, {
+  const rows = await rest(`study_plan_items?id=eq.${encodeURIComponent(itemId)}&plan_id=eq.${encodeURIComponent(plan.id)}&sent_at=not.is.null`, { // Aşama 164
     token: 'service',
     method: 'PATCH',
     prefer: 'return=representation',
@@ -4273,10 +4297,20 @@ async function actionPlanReports(req, deadline) {
   for (const g of groups || []) {
     if (Date.now() > deadline) break;
     out.groups++;
-    const plans = (await rest(`study_plans?select=id,student_id,sent_at,mailed_at&group_id=eq.${encodeURIComponent(g.id)}`, { token: 'service' })) || [];
-    const live = plans.filter((p) => p.sent_at);
+    // Aşama 164: grubun görevleri görev satırından (gönderilmiş olanlar); plan başına e-posta bilgisi görevlerden
+    const items =
+      (await rest(
+        `study_plan_items?select=id,plan_id,student_id,day,subject,book,note,position,created_by_name,done_at,mailed_at&group_id=eq.${encodeURIComponent(g.id)}&sent_at=not.is.null&order=day.asc,position.asc&limit=5000`,
+        { token: 'service' },
+      )) || [];
+    const planMap = new Map();
+    for (const it of items) {
+      const p = planMap.get(it.plan_id) || { id: it.plan_id, student_id: it.student_id, mailed_at: null };
+      if (it.mailed_at && (!p.mailed_at || it.mailed_at > p.mailed_at)) p.mailed_at = it.mailed_at;
+      planMap.set(it.plan_id, p);
+    }
+    const live = Array.from(planMap.values());
     if (!live.length || !live.some((p) => p.mailed_at)) continue; // öğrenciye e-posta gitmediyse rapor yok
-    const items = await planItemsFor(live.map((p) => p.id));
     if (!items.length) continue;
     const lastDay = Math.max(...items.map((i) => Number(i.day) || 0));
     const lastDate = addDaysYmd(g.week_start, lastDay);
