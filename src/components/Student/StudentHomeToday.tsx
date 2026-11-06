@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { Etut, GradeRecord, Homework, HomeworkSubmission, Student, StudentMessage, StudentQuestionLog } from '../../types';
 import type { StudentTabType } from './StudentHeroBanner';
+import type { OgrBolum } from '../../lib/ogrenciBolum';
 import { dataService } from '../../services/dataService';
 import { homeworkStateFor } from './StudentHomeUtils';
 import { StudentTodayPlan } from './StudentTodayPlan';
@@ -82,6 +83,11 @@ interface DenemeSummary {
   weak: Array<{ key: string; label: string; subject: string; rate: number }>;
 }
 
+const HEPSI_ACIK = () => true;
+const NONE_HW: Homework[] = [];
+const NONE_ETUT: Etut[] = [];
+const NONE_GRADE: GradeRecord[] = [];
+
 export const StudentHomeToday: React.FC<{
   student: Student;
   homeworks: Homework[];
@@ -93,7 +99,18 @@ export const StudentHomeToday: React.FC<{
   /** Deneme Sonuçlarım sayfasını "Çalışma planı" karnesiyle açar */
   onOpenStudyPlan: () => void;
   onOpenAvatarModal: () => void;
-}> = ({ student, homeworks, etuts, submissions, grades, announcements, onNavigateTab, onOpenStudyPlan, onOpenAvatarModal }) => {
+  /** Aşama 165: öğrenciye açık bölümler (kapalı bölümün kutusu çıkmaz, verisi de hazırlanmaz) */
+  acik?: (b: OgrBolum) => boolean;
+}> = ({ student, homeworks: allHomeworks, etuts: allEtuts, submissions, grades: allGrades, announcements, onNavigateTab, onOpenStudyPlan, onOpenAvatarModal, acik = HEPSI_ACIK }) => {
+  const showQ = acik('questions');
+  const showPlan = acik('plan');
+  const showHw = acik('homework');
+  const showEtut = acik('etut');
+  const showGrades = acik('grades');
+  const showDeneme = acik('deneme');
+  const homeworks = showHw ? allHomeworks : NONE_HW;
+  const etuts = showEtut ? allEtuts : NONE_ETUT;
+  const grades = showGrades ? allGrades : NONE_GRADE;
   const now = useLiveNow();
   const dataVersion = useDataVersion();
   const todayStr = useMemo(() => ymdOf(now), [now]);
@@ -234,6 +251,10 @@ export const StudentHomeToday: React.FC<{
   const [deneme, setDeneme] = useState<DenemeSummary | null | undefined>(undefined);
   useEffect(() => {
     let alive = true;
+    if (!showDeneme) {
+      setDeneme(null); // bölüm kapalı: deneme verisi hiç indirilmez
+      return;
+    }
     (async () => {
       try {
         const [svc, kk, km] = await Promise.all([
@@ -276,20 +297,22 @@ export const StudentHomeToday: React.FC<{
     return () => {
       alive = false;
     };
-  }, [student.id]);
+  }, [student.id, showDeneme]);
 
   const dateText = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
   const avatarUrl = student.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
   const summary = [
-    q.todayGoal > 0 ? (goalDone ? 'soru hedefi tamam' : `${fmt(Math.max(0, q.todayGoal - q.todayGoalSolved))} soru kaldı`) : '',
+    showQ && q.todayGoal > 0 ? (goalDone ? 'soru hedefi tamam' : `${fmt(Math.max(0, q.todayGoal - q.todayGoalSolved))} soru kaldı`) : '',
     dueHomeworks.length ? `${dueHomeworks.length} ödev teslimi` : '',
     todayEtuts.length ? `${todayEtuts.length} etüt` : '',
   ].filter(Boolean);
+  // Aşama 165: "Bu hafta" duvarı soru, deneme ve notlardan oluşur; üçü de kapalıysa duvar çıkmaz
+  const showWeek = showQ || (showDeneme && !!deneme) || showGrades;
   const netDiff = deneme && deneme.net !== null && deneme.prevNet !== null ? Math.round((deneme.net - deneme.prevNet) * 100) / 100 : null;
 
   return (
     <div className="@container" id="student-home-today" data-v={dataVersion}>
-    <div className="grid grid-cols-1 @4xl:grid-cols-2 gap-4 sm:gap-6 items-stretch">
+    <div className={cx('grid grid-cols-1 gap-4 sm:gap-6 items-stretch', showWeek && '@4xl:grid-cols-2')}>
       {/* ============================== BUGÜN ============================== */}
       <Panel
         id="student-today-panel"
@@ -312,6 +335,7 @@ export const StudentHomeToday: React.FC<{
         }
       >
         {/* Soru hedefi */}
+        {showQ && (
         <section id="student-today-goal">
           <div className="flex items-center justify-between gap-2 mb-2">
             <h3 className="ui-eyebrow">Soru hedefi</h3>
@@ -347,28 +371,42 @@ export const StudentHomeToday: React.FC<{
             </p>
           )}
         </section>
+        )}
 
         {/* Plan görevleri (yaptım işareti; görevin soruları soru kaydına aktarılır) */}
+        {showPlan && (
         <section id="student-today-tasks">
           <h3 className="ui-eyebrow mb-2">Görevlerim</h3>
           <StudentTodayPlan compact />
         </section>
+        )}
 
         {/* Ödevler ve etütler */}
+        {(showHw || showEtut) && (
         <section id="student-today-schedule">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <h3 className="ui-eyebrow">Ödev ve etütler</h3>
+            <h3 className="ui-eyebrow">{showHw && showEtut ? 'Ödev ve etütler' : showHw ? 'Ödevler' : 'Etütler'}</h3>
             <span className="flex items-center gap-3">
+              {showHw && (
               <button type="button" className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('homework')}>
                 Ödevlerim
               </button>
+              )}
+              {showEtut && (
               <button type="button" className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer" onClick={() => go('etuts')}>
                 Etütlerim
               </button>
+              )}
             </span>
           </div>
           {todayEtuts.length === 0 && dueHomeworks.length === 0 && newHomeworks.length === 0 ? (
-            <p className="text-sm text-muted">Bugün etüdün yok; bugün ve yarın teslim edilecek ödevin de yok.</p>
+            <p className="text-sm text-muted">
+              {showHw && showEtut
+                ? 'Bugün etüdün yok; bugün ve yarın teslim edilecek ödevin de yok.'
+                : showHw
+                  ? 'Bugün ve yarın teslim edilecek ödevin yok.'
+                  : 'Bugün etüdün yok.'}
+            </p>
           ) : (
             <ul className="space-y-1.5">
               {todayEtuts.map((e) => (
@@ -399,6 +437,7 @@ export const StudentHomeToday: React.FC<{
             </ul>
           )}
         </section>
+        )}
 
         {/* Öğretmen duyuruları ve yeni notlar */}
         {notices.length > 0 && (
@@ -433,6 +472,7 @@ export const StudentHomeToday: React.FC<{
       </Panel>
 
       {/* ============================== BU HAFTA ============================== */}
+      {showWeek && (
       <Panel
         id="student-week-panel"
         className="min-w-0 h-full flex flex-col"
@@ -440,14 +480,17 @@ export const StudentHomeToday: React.FC<{
         icon={CalendarDays}
         tone="brand"
         title="Bu hafta"
-        description={`${fmt(week.weekTotal)} soru${week.weekGoal > 0 ? ` · hedef ${fmt(week.weekGoal)}` : ''}`}
+        description={showQ ? `${fmt(week.weekTotal)} soru${week.weekGoal > 0 ? ` · hedef ${fmt(week.weekGoal)}` : ''}` : undefined}
         actions={
+          showQ && (
           <button type="button" className="text-xs font-semibold text-brand-fg hover:underline cursor-pointer inline-flex items-center gap-1" onClick={() => go('questions')}>
             Soru takibi <ArrowRight className="w-3.5 h-3.5" />
           </button>
+          )
         }
       >
         {/* Gün gün mini görünüm */}
+        {showQ && (
         <section id="student-week-days">
           <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {week.tiles.map((t) => (
@@ -478,12 +521,16 @@ export const StudentHomeToday: React.FC<{
           </div>
         </section>
 
+        )}
+
         {/* Haftanın durumu */}
+        {showQ && (
         <section id="student-week-status" className="grid grid-cols-1 @md:grid-cols-3 gap-2">
           <StatTile icon={Target} tone="success" value={week.goalDays ? `${week.metDays}/${week.goalDays}` : '—'} label={week.goalDays ? 'günde hedef tuttun' : 'bu hafta hedef günü yok'} />
           <StatTile icon={Flame} tone="warning" value={fmt(week.streak)} label={week.streak > 0 ? 'gündür art arda çalışıyorsun' : 'art arda çalışma yok'} />
           <StatTile icon={BarChart3} tone="brand" value={fmt(week.weekTotal)} label="soru bu hafta" />
         </section>
+        )}
 
         {/* Son deneme */}
         {deneme && (
@@ -551,6 +598,7 @@ export const StudentHomeToday: React.FC<{
         )}
 
         {/* Notlarım */}
+        {showGrades && (
         <section id="student-week-grades">
           <div className="flex items-center justify-between gap-2 mb-2">
             <h3 className="ui-eyebrow">Notlarım</h3>
@@ -567,7 +615,9 @@ export const StudentHomeToday: React.FC<{
             <p className="text-sm text-muted">Henüz notun girilmedi.</p>
           )}
         </section>
+        )}
       </Panel>
+      )}
     </div>
     </div>
   );

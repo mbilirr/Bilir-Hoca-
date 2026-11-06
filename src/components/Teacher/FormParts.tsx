@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, X, Mail, AlertTriangle, Check, Users, ChevronDown } from 'lucide-react';
+import { Search, X, Mail, AlertTriangle, Check, Users, ChevronDown, Lock } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { cx } from '../ui/kit';
 import { callMail, type MailResult } from '../../lib/mailApi';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { OGR_KAPALI_ETIKET, ogrBolumAcik, ogrBolumHicKapaliYok, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
 
 // ============================================================================
 // Ödev ve etüt formlarının ortak parçaları (Aşama 9)
@@ -171,9 +172,24 @@ export const StudentPicker: React.FC<{
   idPrefix: string;
   /** Aşama 50: deneme konusundaki başarı (öğrenci → %). %30 altı kırmızı, %30-49 turuncu, %50-59 mavi. */
   badges?: Record<string, { rate: number; total: number; exams?: number }> | null;
-}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges }) => {
+  /** Aşama 165: bu öğrenci bölümü kapalı sınıf / öğrenci seçilemez (seçiliyse yalnız kaldırılabilir) */
+  bolum?: OgrBolum;
+}> = ({ variant, classes, students, classIds, onClassIdsChange, selectedIds, onSelectedChange, idPrefix, badges, bolum }) => {
   const [query, setQuery] = useState('');
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  // Aşama 165: kapalı sınıf / öğrenci kümeleri (hiç kapalı ayar yoksa hesap yapılmaz)
+  const bolumSurum = useOgrBolumSurum();
+  const kapali = useMemo(() => {
+    const cls = new Set<string>();
+    const stu = new Set<string>();
+    if (!bolum || ogrBolumHicKapaliYok(bolum)) return { cls, stu };
+    const kurumOf = new Map(classes.map((c) => [c.id, c.kurumId || null] as const));
+    for (const c of classes) if (!ogrBolumAcik(bolum, c.id, c.kurumId || null)) cls.add(c.id);
+    for (const st of students) if (!ogrBolumOgrenciAcik(bolum, st, (cid) => kurumOf.get(cid))) stu.add(st.id);
+    return { cls, stu };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bolum, classes, students, bolumSurum]);
+  const anyKapali = kapali.cls.size > 0 || kapali.stu.size > 0;
   const byClass = useMemo(() => {
     const m = new Map<string, Student[]>();
     for (const s of students) {
@@ -190,22 +206,25 @@ export const StudentPicker: React.FC<{
 
   const toggleClass = (id: string) => {
     const on = classIds.includes(id);
+    if (!on && kapali.cls.has(id) && variant === 'classes') return;
     if (variant === 'classes') {
-      const ids = (byClass.get(id) || []).map((s) => s.id);
+      const ids = (byClass.get(id) || []).map((s) => s.id).filter((sid) => on || !kapali.stu.has(sid));
       onClassIdsChange(on ? classIds.filter((x) => x !== id) : [...classIds, id]);
       onSelectedChange(on ? selectedIds.filter((x) => !ids.includes(x)) : Array.from(new Set([...selectedIds, ...ids])));
     } else {
       onClassIdsChange(on ? [] : [id]);
     }
   };
-  const toggleStudent = (id: string) =>
+  const toggleStudent = (id: string) => {
+    if (!selected.has(id) && kapali.stu.has(id)) return;
     onSelectedChange(selected.has(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  };
 
   const visibleClassIds = variant === 'classes' ? classIds : classIds.length ? classIds : Array.from(byClass.keys());
   const groups = visibleClassIds
     .map((cid) => ({ cid, list: (byClass.get(cid) || []).filter(match) }))
     .filter((g) => g.list.length > 0 || variant === 'classes');
-  const visibleIds = groups.flatMap((g) => g.list.map((s) => s.id));
+  const visibleIds = groups.flatMap((g) => g.list.map((s) => s.id)).filter((id) => !kapali.stu.has(id) || selected.has(id));
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
   const toggleVisible = () =>
     onSelectedChange(
@@ -225,13 +244,17 @@ export const StudentPicker: React.FC<{
         {classes.map((c) => {
           const on = classIds.includes(c.id);
           const count = (byClass.get(c.id) || []).length;
+          const off = variant === 'classes' && kapali.cls.has(c.id);
           return (
             <button
               key={c.id}
               type="button"
               id={`${idPrefix}-class-${c.id}`}
               aria-pressed={on}
-              className={chipCls(on)}
+              data-ogr-kapali={off ? '1' : undefined}
+              disabled={off && !on}
+              title={off ? `${c.name}: ${OGR_KAPALI_ETIKET}` : undefined}
+              className={cx(chipCls(on), off && 'opacity-50 line-through disabled:cursor-not-allowed')}
               onClick={() => toggleClass(c.id)}
             >
               {variant === 'classes' && on && <Check className="w-3.5 h-3.5" />}
@@ -242,6 +265,12 @@ export const StudentPicker: React.FC<{
         })}
         {classes.length === 0 && <span className="text-xs text-muted">Size tanımlı sınıf bulunmuyor.</span>}
       </div>
+      {anyKapali && (
+        <p className="flex items-center gap-1.5 text-[11px] text-muted" id={`${idPrefix}-ogr-kapali-not`}>
+          <Lock className="w-3 h-3 shrink-0" />
+          Soluk sınıf ve öğrencilerde bu bölüm {OGR_KAPALI_ETIKET}; seçilemez.
+        </p>
+      )}
 
       {showList ? (
         <div className="rounded-xl border border-line bg-surface">
@@ -280,14 +309,17 @@ export const StudentPicker: React.FC<{
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {g.list.map((s) => {
                       const on = selected.has(s.id);
+                      const off = kapali.stu.has(s.id);
                       const bd = badges ? badges[s.id] : undefined;
                       const band = bd ? (bd.rate < 30 ? 'red' : bd.rate < 50 ? 'orange' : bd.rate < 60 ? 'blue' : 'ok') : null;
                       return (
                         <label
                           key={s.id}
                           title={bd ? `Seçilen deneme konusunda başarı %${bd.rate} (${bd.total} soru${bd.exams ? `, ${bd.exams} deneme ortalaması` : ''})` : undefined}
+                          data-ogr-kapali={off ? '1' : undefined}
                           className={cx(
                             'flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors',
+                            off && !on && 'opacity-50 cursor-not-allowed',
                             on
                               ? 'bg-brand-soft border-brand/40 text-fg font-semibold'
                               : band === 'red'
@@ -299,8 +331,9 @@ export const StudentPicker: React.FC<{
                                     : 'bg-surface-2/60 border-line text-fg-2 hover:bg-surface-2'
                           )}
                         >
-                          <input type="checkbox" checked={on} onChange={() => toggleStudent(s.id)} className="w-3.5 h-3.5 accent-[var(--color-brand)]" />
+                          <input type="checkbox" checked={on} disabled={off && !on} onChange={() => toggleStudent(s.id)} className="w-3.5 h-3.5 accent-[var(--color-brand)]" />
                           <span className="truncate flex-1">{s.name}</span>
+                          {off && <span className="shrink-0 text-[10px] font-semibold text-muted">{OGR_KAPALI_ETIKET}</span>}
                           {bd && (
                             <span
                               className={cx(

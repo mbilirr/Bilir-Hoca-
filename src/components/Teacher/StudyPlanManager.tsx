@@ -61,7 +61,8 @@ import type { PlanGroupKind } from '../../services/studyPlanService';
 import { StudyPlanClassView } from './StudyPlanClassView';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { StudyPlanWeekBar, planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
-import { User as UserIcon, School } from 'lucide-react';
+import { User as UserIcon, School, Lock } from 'lucide-react';
+import { ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
 import { syncSentPlan, transferPlanTopicsToQuestionEntry, transferPlansForStudents } from '../../lib/planToTarget';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
@@ -205,6 +206,13 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
   }, [studentId]);
   const student = students.find((s) => s.id === studentId) || null;
   const studentClass = student ? classes.find((c) => c.id === student.classId) : undefined;
+  // Aşama 165: Haftalık Plan bu öğrenciye kapalıysa eski planı görülür ama yeni görev eklenemez (veritabanı da reddeder)
+  const bolumSurum = useOgrBolumSurum();
+  const planKapali = useMemo(
+    () => !!student && !ogrBolumOgrenciAcik('plan', student, (cid) => { const c = classes.find((x) => x.id === cid); return c ? c.kurumId || null : undefined; }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [student, classes, bolumSurum]
+  );
 
   const todayStr = ymd(new Date());
   const [startDay, setStartDay] = useState<WeekStartDay>(readStartDay);
@@ -561,6 +569,11 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
         {renderWeekNav({
           status: (
             <div className="flex flex-wrap items-center gap-2" id="plan-status">
+              {planKapali && (
+                <span className="ui-chip ui-chip-warning" id="plan-ogr-kapali" title="Yönetim › Bölümler ve sınıflar › Öğrenci bölümlerinden açılabilir">
+                  <Lock className="w-3.5 h-3.5" /> Haftalık plan bu öğrenciye kapalı
+                </span>
+              )}
               {sent ? (
                 <span className="ui-chip ui-chip-success" id="plan-status-sent">
                   <Check className="w-3.5 h-3.5" /> Görevleriniz öğrenciye gönderildi
@@ -730,7 +743,7 @@ export const StudyPlanManager: React.FC<Props> = ({ students, classes }) => {
                   </p>
                   <p className="text-[11px] text-muted">{shortDayLabel(date)}</p>
                 </div>
-                {dataService.canEditPlans() && (
+                {dataService.canEditPlans() && !planKapali && (
                 <button
                   type="button"
                   id={`plan-add-${d}`}
@@ -1049,6 +1062,7 @@ const ApplyPlanModal: React.FC<{
               selectedIds={selectedIds}
               onSelectedChange={setSelectedIds}
               idPrefix="plan-apply"
+              bolum="plan"
             />
           </section>
           <section className="space-y-2">

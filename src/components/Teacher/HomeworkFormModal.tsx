@@ -304,6 +304,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
           <StudentPicker
             variant="classes"
             idPrefix="hw"
+            bolum="homework"
             classes={classes}
             students={students}
             classIds={classIds}

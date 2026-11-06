@@ -6,6 +6,7 @@ import { dataService } from '../../services/dataService';
 import { addDaysYmd, addPlanItem, dateOfDay, loadPlan, planDayName, sendPlan, shortDayLabel, weekRangeLabel, weekStartOf, type StudyPlan } from '../../services/studyPlanService';
 import { syncSentPlan } from '../../lib/planToTarget';
 import type { StudySuggestion } from '../../lib/deneme/kazanimKarne';
+import { ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
 
 // ============================================================================
 // Aşama 54: Çalışma Planı Karnesi → Haftalık plan + gün gün soru hedefi (tek tuş)
@@ -58,6 +59,16 @@ export const PlanaAktarModal: React.FC<{
   suggestions: StudySuggestion[];
   onDone?: (text: string) => void;
 }> = ({ open, onClose, student, suggestions, onDone }) => {
+  // Aşama 165: Haftalık Plan bu öğrenciye kapalıysa aktarılamaz (veritabanı da reddeder)
+  const bolumSurum = useOgrBolumSurum();
+  const planKapali = useMemo(() => {
+    const classes = dataService.getClasses();
+    return !ogrBolumOgrenciAcik('plan', student, (cid) => {
+      const c = classes.find((x) => x.id === cid);
+      return c ? c.kurumId || null : undefined;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student, bolumSurum]);
   const me = dataService.getCurrentTeacher();
   const isAdmin = dataService.isCurrentUserAdmin();
   const mySubjects = dataService.getMySubjects();
@@ -195,7 +206,7 @@ export const PlanaAktarModal: React.FC<{
             {done ? 'Kapat' : 'Vazgeç'}
           </button>
           {!done && (
-            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || loading || !usable.length} onClick={() => void run()}>
+            <button type="button" className="ui-btn ui-btn-primary ui-btn-sm" disabled={busy || loading || !usable.length || planKapali} onClick={() => void run()}>
               <CalendarPlus /> {busy ? 'Aktarılıyor…' : `${usable.length} kazanımı aktar (${total} soru)`}
             </button>
           )}
@@ -203,6 +214,11 @@ export const PlanaAktarModal: React.FC<{
       }
     >
       <div className="space-y-3" id="plana-aktar-modal">
+        {planKapali && (
+          <p className="flex items-center gap-1.5 rounded-lg bg-warning-soft text-warning-fg px-2.5 py-1.5 text-xs font-semibold" id="plana-aktar-ogr-kapali">
+            <Info className="w-3.5 h-3.5 shrink-0" /> Haftalık plan bu öğrenciye kapalı; görev aktarılamaz.
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Segmented
             size="sm"

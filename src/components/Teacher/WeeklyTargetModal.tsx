@@ -8,6 +8,7 @@ import { addDaysYmd, loadPlanQuestionCountsMany, weekStartOf, type PlanQuestionC
 import { SubjectMultiSelect } from './SubjectMultiSelect';
 import { syncSentPlan } from '../../lib/planToTarget';
 import { callMail, describeMailResult } from '../../lib/mailApi';
+import { OGR_KAPALI_ETIKET, ogrBolumAcik, ogrBolumHicKapaliYok, ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
 import { StudentSearchSelect } from '../Common/StudentSearchSelect'; // Aşama 57: aranabilir öğrenci listesi
 import { FormSection, FieldLabel, inputCls, chipCls, classLevel, localDateStr, addDays, shortTrDate, DiscardBar, MailOptIn, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
 
@@ -156,10 +157,24 @@ const TargetFormContent: React.FC<Props> = ({
   }, [errorText]);
 
   const selectedClass = classes.find((c) => c.id === classId) || null;
+  // Aşama 165: Soru Takibi öğrenciye kapalı sınıf / öğrenciye YENİ hedef verilemez (veritabanı da reddeder).
+  // Var olan hedefin düzenlenmesi serbest (sınıf / öğrenci değiştirilemediği için).
+  const bolumSurum = useOgrBolumSurum();
+  const qKapali = useMemo(() => {
+    const cls = new Set<string>();
+    const stu = new Set<string>();
+    if (isEdit || ogrBolumHicKapaliYok('questions')) return { cls, stu };
+    const kurumOf = new Map(classes.map((c) => [c.id, c.kurumId || null] as const));
+    for (const c of classes) if (!ogrBolumAcik('questions', c.id, c.kurumId || null)) cls.add(c.id);
+    for (const st of students) if (!ogrBolumOgrenciAcik('questions', st, (cid) => kurumOf.get(cid))) stu.add(st.id);
+    return { cls, stu };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, classes, students, bolumSurum]);
   const classStudents = useMemo(
-    () => students.filter((s) => s.classId === classId).sort((a, b) => a.name.localeCompare(b.name, 'tr')),
-    [students, classId]
+    () => students.filter((s) => s.classId === classId && !qKapali.stu.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    [students, classId, qKapali]
   );
+  const hedefKapali = kind === 'class' ? !!classId && qKapali.cls.has(classId) : !!studentId && qKapali.stu.has(studentId);
   const selectedStudent = students.find((s) => s.id === studentId) || null;
   const level = classLevel(kind === 'student' ? classes.find((c) => c.id === selectedStudent?.classId) || selectedClass : selectedClass);
 
@@ -507,6 +522,7 @@ const TargetFormContent: React.FC<Props> = ({
     if (!canEdit) return 'Bu hedefi yalnızca hedefi veren öğretmen değiştirebilir.';
     if (kind === 'class' && !classId) return 'Hedef verilecek sınıfı seçin.';
     if (kind === 'student' && !studentId) return 'Hedef verilecek öğrenciyi seçin.';
+    if (hedefKapali) return `Soru Takibi bölümü bu ${kind === 'class' ? 'sınıfa' : 'öğrenciye'} kapalı; hedef verilemez.`;
     if (!parseYmd(start) || !parseYmd(end)) return 'Başlangıç ve bitiş tarihini seçin.';
     if (end < start) return 'Bitiş tarihi başlangıçtan önce olamaz.';
     if (days > 366) return 'Hedef süresi en fazla 1 yıl olabilir.';
@@ -778,11 +794,14 @@ const TargetFormContent: React.FC<Props> = ({
                 }}
               >
                 <option value="">Sınıf seçin</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({students.filter((s) => s.classId === c.id).length} öğrenci)
-                  </option>
-                ))}
+                {classes.map((c) => {
+                  const off = kind === 'class' && qKapali.cls.has(c.id);
+                  return (
+                    <option key={c.id} value={c.id} disabled={off && c.id !== classId}>
+                      {c.name} ({students.filter((s) => s.classId === c.id).length} öğrenci){off ? ` · ${OGR_KAPALI_ETIKET}` : ''}
+                    </option>
+                  );
+                })}
               </SelectBox>
             </div>
             {kind === 'student' && (
@@ -801,6 +820,11 @@ const TargetFormContent: React.FC<Props> = ({
               </div>
             )}
           </div>
+          {(qKapali.cls.size > 0 || qKapali.stu.size > 0) && (
+            <p className="text-[11px] text-muted" id="qt-ogr-kapali-not">
+              Soru Takibi {OGR_KAPALI_ETIKET} olan sınıf ve öğrencilere hedef verilemez{kind === 'student' ? '; bu öğrenciler listede yok' : ''}.
+            </p>
+          )}
           {kind === 'class' && classId && (
             <p className="text-[11px] text-muted">Sınıf hedefi sınıftaki tüm öğrencilere görünür; sınıfa sonradan katılan öğrenciler de görür.</p>
           )}

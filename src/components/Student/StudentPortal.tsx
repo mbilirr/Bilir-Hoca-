@@ -41,7 +41,7 @@ import { HomeworkResourceUploader } from '../Teacher/HomeworkResourceUploader';
 import { getStudentNote } from '../Teacher/SubmissionViewModal';
 import { removeStoredFiles, safeHttpUrl, storedPathsOf } from '../../lib/fileStorage';
 import { WeeklyEtutCalendar } from '../Teacher/WeeklyEtutCalendar';
-import { StudentNotificationCenterModal } from './StudentNotificationCenterModal';
+import { StudentNotificationCenterModal, bildirimAcik } from './StudentNotificationCenterModal';
 import { StudentAvatarModal } from './StudentAvatarModal';
 import type { StudentTabType } from './StudentHeroBanner';
 import { StudentHomeToday } from './StudentHomeToday';
@@ -54,6 +54,7 @@ import { IconBox, type Tone } from '../ui/kit';
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
+import { loadOgrBolumCache, myBolumAcik, ogrBolumOgrenciAcik, useOgrBolumSurum, type OgrBolum } from '../../lib/ogrenciBolum';
 
 // Aşama 15: soru modülü (grafik kütüphanesiyle birlikte) yalnız Sorular sekmesi açılınca yüklenir
 const StudentQuestionModule = lazyNamed(() => import('./StudentQuestionModule'), 'StudentQuestionModule');
@@ -71,6 +72,16 @@ const STUDENT_TILES: Array<{ tab: StudentTabType; id: string; label: string; ico
   { tab: 'messages', id: 'student-nav-messages-card-btn', label: 'Öğretmene Soru Sor', icon: MessageSquare, tone: 'info' },
   { tab: 'deneme', id: 'student-nav-deneme-card-btn', label: 'Deneme Sonuçlarım', icon: BarChart3, tone: 'neutral' },
 ];
+
+// Aşama 165: sekme → öğrenci bölümü
+const TAB_BOLUM: Record<Exclude<StudentTabType, 'home'>, OgrBolum> = {
+  homework: 'homework',
+  etuts: 'etut',
+  questions: 'questions',
+  grades: 'grades',
+  messages: 'messages',
+  deneme: 'deneme',
+};
 
 interface StudentPortalProps {
   currentStudent: Student;
@@ -107,6 +118,37 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const selfList = useMemo(() => [currentStudent], [currentStudent]);
+
+  // Aşama 165: öğrenci bölüm izinleri. Öğrenci: kendi geçerli bölümleri (veritabanı). Önizleme (öğretmen): aynı kural
+  // öğretmenin bildiği ayarlardan hesaplanır, böylece öğretmen öğrencinin gördüğünü birebir görür.
+  const bolumSurum = useOgrBolumSurum();
+  useEffect(() => {
+    if (preview) return;
+    const s = dataService.getAuthSession();
+    if (s?.role === 'student' && s.user?.id) loadOgrBolumCache(`student:${s.user.id}`);
+  }, [preview]);
+  const acik = React.useCallback(
+    (b: OgrBolum): boolean => {
+      if (!preview) return myBolumAcik(b);
+      const classes = dataService.getClasses();
+      const on = ogrBolumOgrenciAcik(b, currentStudent, (cid) => {
+        const c = classes.find((x) => x.id === cid);
+        return c ? c.kurumId || null : undefined;
+      });
+      if (!on) return false;
+      const my = dataService.getMyKurum();
+      if (b !== 'plan' && currentStudent.kurumId && my.kurumId === currentStudent.kurumId && (my.modules as Record<string, boolean | undefined>)?.[b] !== true) return false;
+      return true;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [preview, currentStudent, bolumSurum]
+  );
+  const tabOpen = React.useCallback((tab: StudentTabType) => tab === 'home' || acik(TAB_BOLUM[tab]), [acik]);
+  // Kapalı bölüme (adres / geri tuşu / eski bağlantı) gelinirse Ana Sayfa açılır
+  useEffect(() => {
+    if (!tabOpen(activeTab)) setActiveTab('home');
+  }, [activeTab, tabOpen, setActiveTab]);
+  const tiles = useMemo(() => STUDENT_TILES.filter((t) => tabOpen(t.tab)), [tabOpen]);
   // Aşama 66: ana sayfadaki zayıf kazanıma tıklanınca Deneme Sonuçlarım "Çalışma planı" karnesiyle açılır
   const [denemeTur, setDenemeTur] = useState<'genel' | 'plan'>('genel');
   useEffect(() => {
@@ -153,9 +195,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   // Notification center modal state
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [studentAvatar, setStudentAvatar] = useState<string>(currentStudent.avatar || '');
-  const [unreadNotifsCount, setUnreadNotifsCount] = useState(() =>
-    dataService.getUnreadNotificationsCount(currentStudent.id)
-  );
+  // Aşama 165: kapalı bölümün okunmamış bildirimi sayılmaz
+  const acikRef = React.useRef(acik);
+  acikRef.current = acik;
+  const countUnread = () =>
+    dataService.getStudentNotifications(currentStudent.id).filter((n) => !n.read && bildirimAcik(n.type, acikRef.current)).length;
+  const [unreadNotifsCount, setUnreadNotifsCount] = useState(countUnread);
   const [classes, setClasses] = useState<ClassGroup[]>(() => dataService.getClasses());
   const [etutViewMode, setEtutViewMode] = useState<'calendar' | 'cards'>('calendar');
   const [notificationTrigger, setNotificationTrigger] = useState(0);
@@ -168,7 +213,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   useEffect(() => {
     const updateUnread = () => {
-      setUnreadNotifsCount(dataService.getUnreadNotificationsCount(currentStudent.id));
+      setUnreadNotifsCount(countUnread());
       setClasses(dataService.getClasses());
       setNotificationTrigger((prev) => prev + 1);
     };
@@ -176,6 +221,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
     const unsubscribe = dataService.subscribe(updateUnread);
     return () => unsubscribe();
   }, [currentStudent.id]);
+  // Aşama 165: bölüm ayarı değişince rozet de birebir güncellenir
+  useEffect(() => {
+    setUnreadNotifsCount(countUnread());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acik]);
 
   // Helper to get submissions safely
   const getSubmissionsList = () => propSubmissions || dataService.getSubmissions() || [];
@@ -334,7 +384,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       <div id="student-top-navigation-wall" className="@container static lg:sticky lg:top-[4.5rem] z-30 bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-3.5 shadow-sm space-y-3 transition-all">
         {/* Row 1 (Aşama 109): ana bölümler — sistemin ortak kart / simge kutusu görünümü */}
         <div id="student-action-cards-grid" className="hidden md:flex flex-wrap gap-2">
-          {STUDENT_TILES.map((t) => {
+          {tiles.map((t) => {
             const on = activeTab === t.tab;
             return (
               <button
@@ -390,6 +440,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             </button>
 
             {/* Öğretmene Soru Sor / Deneme: geniş ekranda üst sırada; burada yalnız mobilde görünür (Aşama 109) */}
+            {tabOpen('messages') && (
             <button
               id="student-subnav-messages-btn"
               type="button"
@@ -399,8 +450,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <MessageSquare className="w-3.5 h-3.5" />
               <span>Öğretmene Soru Sor ({myMessages.length})</span>
             </button>
+            )}
 
             {/* Aşama 47: Deneme Sonuçlarım */}
+            {tabOpen('deneme') && (
             <button
               id="student-subnav-deneme-btn"
               type="button"
@@ -410,6 +463,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <BarChart3 className="w-3.5 h-3.5" />
               <span>Deneme Sonuçlarım</span>
             </button>
+            )}
           </div>
 
           {/* Sınıf ve Öğrenci Bilgisi */}
@@ -458,6 +512,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
             grades={myGrades}
             announcements={myAnnouncements}
             onNavigateTab={(tab) => setActiveTab(tab)}
+            acik={acik}
             onOpenStudyPlan={() => {
               setDenemeTur('plan');
               setActiveTab('deneme');
@@ -469,7 +524,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       )}
 
       {/* TAB 1: HOMEWORKS */}
-      {activeTab === 'homework' && (
+      {activeTab === 'homework' && tabOpen('homework') && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {myHomeworks.map((hw) => {
@@ -636,7 +691,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       )}
 
       {/* TAB 2: ETUTS */}
-      {activeTab === 'etuts' && (
+      {activeTab === 'etuts' && tabOpen('etuts') && (
         <div className="space-y-4">
           {/* Header & View Mode Switcher */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-surface border border-line p-4 rounded-2xl">
@@ -769,7 +824,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       )}
 
       {/* TAB 3: GRADES & ATTENDANCE */}
-      {activeTab === 'grades' && (
+      {activeTab === 'grades' && tabOpen('grades') && (
         <div className="space-y-6">
           {/* Quick Metrics */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -849,7 +904,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       )}
 
       {/* TAB 4: MESSAGES */}
-      {activeTab === 'messages' && (
+      {activeTab === 'messages' && tabOpen('messages') && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Send Form */}
           <div className="lg:col-span-5 bg-surface border border-line rounded-2xl p-6 shadow-xl space-y-4">
@@ -1013,7 +1068,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       {/* =========================================================================
           VIEW 6: QUESTIONS (ÖĞRENCİ SORU SAYISI KAYIT VE ANALİZ MODÜLÜ)
          ========================================================================= */}
-      {activeTab === 'questions' && (
+      {activeTab === 'questions' && tabOpen('questions') && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <Suspense fallback={<PageLoading />}>
             <StudentQuestionModule currentStudent={currentStudent} classes={dataService.getClasses()} students={selfList} />
@@ -1022,7 +1077,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       )}
 
       {/* VIEW 7: DENEME SONUÇLARIM (Aşama 47) — yalnızca öğrencinin kendi sonuçları */}
-      {activeTab === 'deneme' && (
+      {activeTab === 'deneme' && tabOpen('deneme') && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <Suspense fallback={<PageLoading />}>
             <StudentDenemeSonuclari key={denemeTur} currentStudent={currentStudent} initialTur={denemeTur} />
@@ -1113,6 +1168,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
         onClose={() => setIsNotificationModalOpen(false)}
         currentStudent={currentStudent}
         onNavigateTab={(tab) => setActiveTab(tab)}
+        acik={acik}
       />
 
       {/* Student Profile Photo / Avatar Modal */}
@@ -1131,7 +1187,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
       />
 
       {/* Telefon alt menüsü */}
-      <StudentBottomNav activeTab={activeTab} onSelect={(t) => setActiveTab(t)} />
+      <StudentBottomNav activeTab={activeTab} onSelect={(t) => setActiveTab(t)} isOpen={tabOpen} />
 
       {/* Student Password Change Modal */}
       <StudentPasswordModal

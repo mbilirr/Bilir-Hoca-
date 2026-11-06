@@ -58,6 +58,7 @@ import {
 import { newId } from '../lib/ids';
 import { cleanParents } from '../lib/parents';
 import { setKurumBrand } from '../lib/kurumBrand';
+import { loadOgrBolumCache, resetOgrBolum, syncOgrBolum } from '../lib/ogrenciBolum';
 import { isPendingPlanTarget, isPlanTopicRecord } from '../utils/targetDays';
 import { notifyPush } from '../lib/push';
 import {
@@ -1640,13 +1641,18 @@ class DataService {
     // Aşama 114: anlık kanal çalışıyorsa öğrenci için yoklama gerekmez; öğretmende yalnız kurum ayarı (modüller,
     // rol sistemi açık/kapalı) tek küçük istekle sorulur, rol ve yetkiler kanaldan gelir
     const live = this.optionalChannelsLive();
-    if (live && role === 'student') return;
+    if (live && role === 'student') {
+      // Aşama 165: anlık kanalda da öğrenci bölüm ayarı dakikada bir tek küçük istekle sorulur (değişmezse ekran yenilenmez)
+      this.lightPollAt = Date.now();
+      void this.syncOgrenciBolum();
+      return;
+    }
     this.lightPollAt = Date.now();
     this.lightPollRunning = true;
     const jobs: Promise<unknown>[] =
       role === 'teacher'
-        ? live ? [this.syncMyKurum()] : [this.syncMyKurum(), this.syncMyTeacherAccess()]
-        : [this.syncEtutsFromSupabase(true), this.syncAttendanceFromSupabase(true), this.syncStudentNotifications()];
+        ? live ? [this.syncMyKurum(), this.syncOgrenciBolum()] : [this.syncMyKurum(), this.syncMyTeacherAccess(), this.syncOgrenciBolum()]
+        : [this.syncEtutsFromSupabase(true), this.syncAttendanceFromSupabase(true), this.syncStudentNotifications(), this.syncOgrenciBolum()];
     Promise.allSettled(jobs).finally(() => {
       this.lightPollRunning = false;
     });
@@ -4277,6 +4283,7 @@ class DataService {
         this.syncMyTeacherAccess(),
         this.syncMyKurum(),
         this.syncStudentBrand(),
+        this.syncOgrenciBolum(), // Aşama 165
         this.backgroundDue('planWeekStarts', isBackground) ? this.syncPlanWeekStarts() : Promise.resolve(),
         this.syncStudentNotifications(),
       ]);
@@ -4562,6 +4569,14 @@ class DataService {
       return { name: '', logo: '' };
     }
   })();
+  // Aşama 165: öğrenci bölüm izinleri (öğretmen: ayar satırları, öğrenci: kendi bölümleri); değişince ekran yenilenir
+  public async syncOgrenciBolum(): Promise<void> {
+    const session = this.getAuthSession();
+    if (!session?.user?.id || (session.role !== 'teacher' && session.role !== 'student')) return;
+    loadOgrBolumCache(`${session.role}:${session.user.id}`);
+    if (await syncOgrBolum(session.role)) this.notify();
+  }
+
   public async syncStudentBrand(): Promise<void> {
     if (this.getAuthSession()?.role !== 'student') return;
     try {
@@ -7058,6 +7073,7 @@ class DataService {
     this.myKurum = { ...EMPTY_KURUM_STATE };
     this.studentBrand = { name: '', logo: '' };
     setKurumBrand(null);
+    resetOgrBolum(); // Aşama 165
     try {
       sessionStorage.removeItem(MY_KURUM_KEY);
       sessionStorage.removeItem(DataService.STUDENT_BRAND_KEY);

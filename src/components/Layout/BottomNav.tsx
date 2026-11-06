@@ -177,15 +177,19 @@ export const StudentBottomNav: React.FC<{
   activeTab: string;
   onSelect: (tab: StudentBottomTab) => void;
   badges?: Partial<Record<StudentBottomTab, number>>;
-}> = ({ activeTab, onSelect, badges = {} }) => (
+  /** Aşama 165: öğrenciye kapalı bölümler alt menüde görünmez */
+  isOpen?: (tab: StudentBottomTab) => boolean;
+}> = ({ activeTab, onSelect, badges = {}, isOpen }) => {
+  const items = isOpen ? STUDENT_ITEMS.filter((i) => i.id === 'home' || isOpen(i.id)) : STUDENT_ITEMS;
+  return (
   <nav
     id="student-mobile-bottom-nav"
     aria-label="Alt menü"
     className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur-md border-t border-line"
     style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
   >
-    <div className="grid grid-cols-5 h-16">
-      {STUDENT_ITEMS.map((item) => {
+    <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+      {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activeTab;
         const badge = badges[item.id] || 0;
@@ -218,4 +222,5 @@ export const StudentBottomNav: React.FC<{
       })}
     </div>
   </nav>
-);
+  );
+};

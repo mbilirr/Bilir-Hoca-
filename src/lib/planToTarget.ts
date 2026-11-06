@@ -2,6 +2,7 @@ import type { Student, WeeklyQuestionTarget } from '../types';
 import { dataService } from '../services/dataService';
 import { addDaysYmd, cleanQuestionCount, dateOfDay, loadPlan, type PlanItem } from '../services/studyPlanService';
 import { normalizeSubject, sameSubjectName, sameTargetSubjects, targetSubjectList } from './subjects';
+import { ogrBolumOgrenciAcik } from './ogrenciBolum';
 import { isFlexibleTarget, isPlanTopicRecord, PLAN_QUESTION_TARGET_NOTE, PLAN_TOPIC_NOTE_PREFIX } from '../utils/targetDays';
 
 // ============================================================================
@@ -85,6 +86,15 @@ export async function transferPlanTopicsToQuestionEntry(opts: {
     questionTotal: 0,
     manualKept: [],
   };
+  // Aşama 165: Soru Takibi bu öğrenciye kapalıysa plan Soru Kaydet'e aktarılmaz (veritabanı soru hedefini reddeder)
+  {
+    const classes = dataService.getClasses();
+    const acik = ogrBolumOgrenciAcik('questions', student, (cid) => {
+      const c = classes.find((x) => x.id === cid);
+      return c ? c.kurumId || null : undefined;
+    });
+    if (!acik) return result;
+  }
 
   // ---- 1) Plan: ders → gün → konu listesi / soru sayısı (yalnızca yetkili dersler)
   const topicsBySubject = new Map<string, Map<string, string[]>>();

@@ -39,6 +39,7 @@ const KurumSettingsPanel = lazyNamed(() => import('./KurumSettingsPanel'), 'Kuru
 const AdminUserManagement = lazyNamed(() => import('./AdminUserManagement'), 'AdminUserManagement');
 const UserCredentialsExport = lazyNamed(() => import('./UserCredentialsExport'), 'UserCredentialsExport');
 const YeniKurumModal = lazyNamed(() => import('./YeniKurumModal'), 'YeniKurumModal');
+const OgrenciBolumPanel = lazyNamed(() => import('./OgrenciBolumPanel'), 'OgrenciBolumPanel'); // Aşama 165
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
 type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler';
@@ -257,6 +258,17 @@ export const YonetimSayfasi: React.FC<{
               <p className="text-[11px] text-muted">Bölümleri ve izinli sınıfları genel yönetici açar.</p>
             </div>
           ))}
+        {alt === 'bolumler' && (
+          // Aşama 165: öğrenci bölümleri (genel yönetici: kurum varsayılanı; kuruma geçince ve kurum yöneticisinde sınıflar da)
+          <OgrenciBolumPanel
+            key={`ob-${kid}`}
+            kurumId={kid}
+            classes={classes.filter((c) => (c.kurumId || '') === kid)}
+            kurumModules={isHead ? undefined : ((my.modules || {}) as Record<string, boolean | undefined>)}
+            canEdit={isHead || gecis || dataService.isKurumAdmin()}
+            classesNote={isHead ? 'Kurumun sınıfları sizin panelinize inmez; sınıfa özel ayar için "Kuruma geç" ile girin.' : undefined}
+          />
+        )}
       </Suspense>
     </div>
   );
@@ -361,6 +373,8 @@ export const YonetimSayfasi: React.FC<{
           <div className="space-y-3">
             <AdminUserManagement key="kendi" currentAdmin={currentTeacher} onNavigateHome={onNavigateHome} kurumLock="merkez" embedded />
             <UserCredentialsExport classes={classes} />
+            {/* Aşama 165: kendi (kurumsuz) sınıflarım ve kurumlara açtığım sınıflar için öğrenci bölümleri */}
+            <OgrenciBolumPanel key="ob-kendi" kurumId={null} classes={classes.filter((c) => !c.kurumId)} kurumModules={null} canEdit />
           </div>
         )}
       </Suspense>

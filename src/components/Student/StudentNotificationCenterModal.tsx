@@ -21,12 +21,23 @@ import { dataService } from '../../services/dataService';
 import { EmailPreviewModal } from './EmailPreviewModal';
 import { requestBrowserNotificationPermission } from '../../lib/browserNotifications';
 import { StudentTabType } from './StudentHeroBanner';
+import type { OgrBolum } from '../../lib/ogrenciBolum';
 
 interface StudentNotificationCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentStudent: Student;
   onNavigateTab?: (tab: StudentTabType) => void;
+  /** Aşama 165: öğrenciye kapalı bölümün (ödev / etüt) bildirimleri ve e-postaları listelenmez */
+  acik?: (b: OgrBolum) => boolean;
+}
+
+/** Aşama 165: bildirim / e-posta öğrenciye açık bir bölümden mi */
+export function bildirimAcik(type: string | undefined, acik?: (b: OgrBolum) => boolean): boolean {
+  if (!acik) return true;
+  if (type === 'new_homework' || type === 'homework_assigned') return acik('homework');
+  if (type === 'new_etut' || type === 'etut_assigned') return acik('etut');
+  return true;
 }
 
 export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterModalProps> = ({
@@ -34,6 +45,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
   onClose,
   currentStudent,
   onNavigateTab,
+  acik,
 }) => {
   const [filter, setFilter] = useState<'all' | 'homework' | 'etuts' | 'emails'>('all');
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
@@ -58,8 +70,8 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
   const refreshData = () => {
     if (!currentStudent) return;
-    const notifs = dataService.getStudentNotifications(currentStudent.id);
-    const sentMails = dataService.getSentEmails(currentStudent.id);
+    const notifs = dataService.getStudentNotifications(currentStudent.id).filter((n) => bildirimAcik(n.type, acik));
+    const sentMails = dataService.getSentEmails(currentStudent.id).filter((m) => bildirimAcik(m.type, acik));
     setNotifications(notifs);
     setEmails(sentMails);
   };
@@ -234,6 +246,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 Tümü ({notifications.length})
               </button>
 
+              {(!acik || acik('homework')) && (
               <button
                 type="button"
                 onClick={() => setFilter('homework')}
@@ -246,7 +259,9 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>Ödevler</span>
               </button>
+              )}
 
+              {(!acik || acik('etut')) && (
               <button
                 type="button"
                 onClick={() => setFilter('etuts')}
@@ -259,6 +274,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Etütler</span>
               </button>
+              )}
 
               <button
                 type="button"

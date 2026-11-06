@@ -1,6 +1,6 @@
 import { NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Trash2, Undo2, Users } from 'lucide-react';
+import { AlertCircle, BookOpen, Check, Copy, Edit3, FileSpreadsheet, FileText, Library, Plus, RefreshCw, Send, Trash2, Undo2, Users, Lock } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import {
@@ -42,6 +42,7 @@ import { MultiCheckSelect } from './MultiCheckSelect';
 import { subjectTone, PLAN_DAYS_GRID_CLS, PLAN_DAY_CARD_CLS, PLAN_DAY_BODY_CLS } from './StudyPlanManager';
 import { StudyPlanBooksModal } from './StudyPlanBooksModal';
 import { planMainBtnCls, planTileCls, type PlanWeekBarSlots } from './StudyPlanWeekBar';
+import { OGR_KAPALI_ETIKET, ogrBolumHicKapaliYok, ogrBolumOgrenciAcik, useOgrBolumSurum } from '../../lib/ogrenciBolum';
 
 // ============================================================================
 // Haftalık plan — SINIF görünümü (Aşama 23)
@@ -383,13 +384,24 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
     return list;
   }, [classIds, classes, isAdmin, mySubjects]);
 
+  // Aşama 165: Haftalık Plan bölümü öğrenciye kapalıysa ona yeni görev verilemez (veritabanı da reddeder)
+  const bolumSurum = useOgrBolumSurum();
+  const planKapali = useMemo(() => {
+    const set = new Set<string>();
+    if (ogrBolumHicKapaliYok('plan')) return set;
+    const kurumOf = new Map(classes.map((c) => [c.id, c.kurumId || null] as const));
+    for (const s of viewStudents) if (!ogrBolumOgrenciAcik('plan', s, (cid) => kurumOf.get(cid))) set.add(s.id);
+    return set;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewStudents, classes, bolumSurum]);
+
   const [taskModal, setTaskModal] = useState<{ mode: 'add' | 'edit'; day: number; group?: Group } | null>(null);
   const [taskClassIds, setTaskClassIds] = useState<string[]>([]);
   const [taskStudentIds, setTaskStudentIds] = useState<string[]>([]);
   const openAdd = (day: number) => {
-    const cids = classIds.filter((cid) => viewStudents.some((s) => s.classId === cid));
+    const cids = classIds.filter((cid) => viewStudents.some((s) => s.classId === cid && !planKapali.has(s.id)));
     setTaskClassIds(cids);
-    setTaskStudentIds(viewStudents.filter((s) => cids.includes(s.classId)).map((s) => s.id));
+    setTaskStudentIds(viewStudents.filter((s) => cids.includes(s.classId) && !planKapali.has(s.id)).map((s) => s.id));
     setTaskModal({ mode: 'add', day });
   };
   // Aşama 37: düzenlemede sınıf / öğrenci seçicileri görevin ŞU ANKİ öğrencileriyle açılır
@@ -402,13 +414,18 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
   };
   const toggleTaskClass = (cid: string) => {
     const on = taskClassIds.includes(cid);
-    const ids = viewStudents.filter((s) => s.classId === cid).map((s) => s.id);
+    const ids = viewStudents.filter((s) => s.classId === cid && (on || !planKapali.has(s.id))).map((s) => s.id);
+    if (!on && ids.length === 0) return; // sınıfın bütün öğrencilerine plan kapalı
     setTaskClassIds(on ? taskClassIds.filter((x) => x !== cid) : [...taskClassIds, cid]);
     setTaskStudentIds(on ? taskStudentIds.filter((x) => !ids.includes(x)) : Array.from(new Set([...taskStudentIds, ...ids])));
   };
   const taskStudentOptions = useMemo(
-    () => viewStudents.filter((s) => taskClassIds.includes(s.classId)).map((s) => ({ id: s.id, label: s.name, sub: s.studentNumber ? `No ${s.studentNumber}` : undefined, group: className(s.classId) })), // Aşama 57: numarayla da aranır
-    [viewStudents, taskClassIds, className]
+    () =>
+      viewStudents
+        // Aşama 165: plana kapalı öğrenci listede yok (düzenlenen görevde zaten olan öğrenci kalır)
+        .filter((s) => taskClassIds.includes(s.classId) && (!planKapali.has(s.id) || !!taskModal?.group?.items.some((i) => i.studentId === s.id)))
+        .map((s) => ({ id: s.id, label: s.name, sub: s.studentNumber ? `No ${s.studentNumber}` : undefined, group: className(s.classId) })), // Aşama 57: numarayla da aranır
+    [viewStudents, taskClassIds, className, planKapali, taskModal]
   );
   const taskTargets = useMemo(() => taskStudentIds.filter((id) => taskStudentOptions.some((o) => o.id === id)), [taskStudentIds, taskStudentOptions]);
   const taskBooks = useMemo(() => {
@@ -514,14 +531,31 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
               .filter((cid) => viewStudents.some((s) => s.classId === cid))
               .map((cid) => {
                 const on = taskClassIds.includes(cid);
+                const off = planKapali.size > 0 && viewStudents.every((s) => s.classId !== cid || planKapali.has(s.id));
                 return (
-                  <button key={cid} type="button" id={`plan-task-class-${cid}`} aria-pressed={on} className={chipCls(on)} onClick={() => toggleTaskClass(cid)}>
+                  <button
+                    key={cid}
+                    type="button"
+                    id={`plan-task-class-${cid}`}
+                    aria-pressed={on}
+                    data-ogr-kapali={off ? '1' : undefined}
+                    disabled={off && !on}
+                    title={off ? `${className(cid)}: ${OGR_KAPALI_ETIKET}` : undefined}
+                    className={cx(chipCls(on), off && 'opacity-50 line-through disabled:cursor-not-allowed')}
+                    onClick={() => toggleTaskClass(cid)}
+                  >
                     {on && <Check className="w-3.5 h-3.5" />}
                     {className(cid)}
                   </button>
                 );
               })}
           </div>
+          {planKapali.size > 0 && (
+            <p className="flex items-center gap-1.5 text-[11px] text-muted mt-1" id="plan-task-ogr-kapali">
+              <Lock className="w-3 h-3 shrink-0" />
+              Haftalık plan {planKapali.size} öğrenciye kapalı; onlar listede yok.
+            </p>
+          )}
         </div>
         <div>
           <FieldLabel>2. Öğrenciler</FieldLabel>
@@ -1034,7 +1068,8 @@ export const StudyPlanClassView: React.FC<Props> = ({ students, classes, weekSta
       {copyOpen && (
         <CopyWeekModal
           weekStart={weekStart}
-          students={withItems}
+          students={planKapali.size ? withItems.filter((s) => !planKapali.has(s.id)) : withItems}
+          kapaliSayisi={planKapali.size ? withItems.filter((s) => planKapali.has(s.id)).length : 0}
           items={shownItems}
           canSubject={canSubject}
           senderName={teacherName}
@@ -1065,7 +1100,9 @@ const CopyWeekModal: React.FC<{
   canSubject: (s: string) => boolean;
   senderName: string;
   onClose: () => void;
-}> = ({ weekStart, students, items, canSubject, senderName, onClose }) => {
+  /** Aşama 165: haftalık planı kapalı olduğu için kopyalanmayan öğrenci sayısı */
+  kapaliSayisi?: number;
+}> = ({ weekStart, students, items, canSubject, senderName, onClose, kapaliSayisi = 0 }) => {
   const [mode, setMode] = useState<'next' | 'custom'>('next');
   const [date, setDate] = useState(addDaysYmd(weekStart, 7));
   const [send, setSend] = useState(false);
@@ -1108,7 +1145,7 @@ const CopyWeekModal: React.FC<{
       icon={Copy}
       tone="brand"
       title="Planı başka haftaya kopyala"
-      description={`${students.length} öğrencinin ${weekRangeLabel(weekStart)} planı`}
+      description={`${students.length} öğrencinin ${weekRangeLabel(weekStart)} planı${kapaliSayisi ? ` · ${kapaliSayisi} öğrenciye plan kapalı, kopyalanmaz` : ''}`}
       footer={
         result ? (
           <button type="button" id="plan-copy-close" className="ui-btn ui-btn-primary" onClick={onClose}>

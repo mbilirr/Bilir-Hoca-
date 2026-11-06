@@ -836,6 +836,7 @@ const EtutFormContent: React.FC<Props> = ({
           <StudentPicker
             variant="filter"
             idPrefix="etut"
+            bolum="etut"
             classes={classes}
             students={students}
             classIds={filterClassIds}
