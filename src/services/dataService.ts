@@ -5246,42 +5246,55 @@ class DataService {
     return this.teachers.filter((t) => t.status === 'pending');
   }
 
-  public approveTeacher(teacherId: string): void {
-    const teacher = this.teachers.find((t) => t.id === teacherId);
-    if (teacher) {
-      teacher.status = 'approved';
+  // Aşama 173: öğretmen onay / ret / yönetici değişikliği önce ekranda görünür, buluta yazılamazsa geri alınır.
+  // (Eskiden hata yalnız konsola yazılıyordu; ekran "onaylandı" deyip sonraki eşitlemede eski hâline dönüyordu.)
+  private async commitTeacherPatch(teacherId: string, patch: Partial<Teacher>): Promise<{ success: boolean; error?: string }> {
+    const idx = this.teachers.findIndex((t) => t.id === teacherId);
+    if (idx === -1) return { success: false, error: 'Öğretmen kaydı bulunamadı.' };
+    const before = this.teachers[idx];
+    const after: Teacher = { ...before, ...patch };
+    const setOne = (t: Teacher) => {
+      const i = this.teachers.findIndex((x) => x.id === teacherId);
+      if (i === -1) return;
+      this.teachers = this.teachers.map((x, j) => (j === i ? t : x));
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-      this.syncTeacherToCloud(teacher);
+      const s = this.getAuthSession();
+      if (s?.role === 'teacher' && s.user.id === teacherId) this.setAuthSession({ ...s, user: t });
       this.notify();
-    }
+    };
+    setOne(after);
+    const res = await this.writeTeacherRow(after);
+    if (res.success) return { success: true };
+    setOne(before);
+    console.warn('[TeacherSync] Öğretmen buluta yazılamadı, değişiklik geri alındı:', res.error?.message || res.error);
+    return { success: false, error: DataService.teacherWriteErrorText(res.error) };
   }
 
-  public rejectTeacher(teacherId: string): void {
-    const teacher = this.teachers.find((t) => t.id === teacherId);
-    if (teacher) {
-      teacher.status = 'rejected';
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-      this.syncTeacherToCloud(teacher);
-      this.notify();
-    }
+  private static teacherWriteErrorText(error: any): string {
+    const m = `${error?.code || ''} ${error?.message || ''}`;
+    if (/42501|row-level security|yetki/i.test(m)) return 'Bu işlem için yetkiniz yok; değişiklik kaydedilmedi.';
+    if (/fetch|network|Failed/i.test(m)) return 'Sunucuya ulaşılamadı; değişiklik kaydedilmedi. İnternet bağlantınızı kontrol edin.';
+    return `Değişiklik kaydedilmedi: ${error?.message || 'bilinmeyen hata'}`;
   }
 
-  public deleteTeacher(teacherId: string): void {
+  public approveTeacher(teacherId: string): Promise<{ success: boolean; error?: string }> {
+    return this.commitTeacherPatch(teacherId, { status: 'approved' });
+  }
+
+  public rejectTeacher(teacherId: string): Promise<{ success: boolean; error?: string }> {
+    return this.commitTeacherPatch(teacherId, { status: 'rejected' });
+  }
+
+  // Aşama 173: önce bulutta silinir; silinemezse yerel liste değişmez ve neden söylenir
+  public async deleteTeacher(teacherId: string): Promise<{ success: boolean; error?: string }> {
+    const res = await this.deleteTeacherFromCloud(teacherId);
+    if (!res.success) return { success: false, error: DataService.teacherWriteErrorText(res.error) };
     this.deletedTeacherIds.add(teacherId);
     saveData(STORAGE_KEYS.DELETED_TEACHERS, Array.from(this.deletedTeacherIds));
     this.teachers = this.teachers.filter((t) => t.id !== teacherId);
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
-    this.deleteTeacherFromCloud(teacherId);
     this.notify();
+    return { success: true };
   }
 
   public updateTeacherClassPermissions(teacherId: string, assignedClassIds: string[]): void {
@@ -5309,29 +5322,8 @@ class DataService {
     }
   }
 
-  public toggleTeacherAdmin(teacherId: string, isAdmin: boolean): void {
-    const idx = this.teachers.findIndex((t) => t.id === teacherId);
-    if (idx !== -1) {
-      this.teachers[idx] = {
-        ...this.teachers[idx],
-        isAdmin,
-      };
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-
-      const currentSession = this.getAuthSession();
-      if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
-        this.setAuthSession({
-          ...currentSession,
-          user: this.teachers[idx],
-        });
-      }
-
-      this.syncTeacherToCloud(this.teachers[idx]);
-      this.notify();
-    }
+  public toggleTeacherAdmin(teacherId: string, isAdmin: boolean): Promise<{ success: boolean; error?: string }> {
+    return this.commitTeacherPatch(teacherId, { isAdmin }); // Aşama 173
   }
 
   public toggleTeacherCanViewAll(teacherId: string, canView: boolean): void {
@@ -5679,80 +5671,16 @@ class DataService {
       );
     }
 
-    // 2. Supabase Veritabanına Yazma (Öncelikli olarak atomik PostgreSQL RPC fonksiyonu)
-    let rpcExecuted = false;
-    try {
-      const { data, error } = await supabase.rpc('admin_set_teacher_access', {
-        p_teacher_auth_id: authUserId,
-        p_class_ids: assignedClassIds,
-        p_student_ids: assignedStudentIds,
-      });
-
-      if (error) {
-        // Fonksiyon henüz DB'de yoksa doğrudan sorgu bloğuna geç, aksi takdirde hatayı fırlat
-        if (
-          error.code === 'PGRST202' ||
-          error.message?.includes('function') ||
-          error.message?.includes('does not exist')
-        ) {
-          console.warn('RPC admin_set_teacher_access bulunamadı, doğrudan sorgu bloğuna geçiliyor...');
-        } else {
-          throw new Error(`Veritabanı yetkilendirme hatası (RPC): ${error.message}`);
-        }
-      } else {
-        rpcExecuted = true;
-      }
-    } catch (rpcErr: any) {
-      if (!rpcErr.message?.includes('function') && !rpcErr.message?.includes('does not exist')) {
-        throw rpcErr;
-      }
-    }
-
-    // RPC fonksiyonu yoksa doğrudan PostgREST DELETE + INSERT ile doğrulamalı yaz
-    if (!rpcExecuted) {
-      // A) Sınıf erişimlerini sil
-      const { error: delClassErr } = await supabase
-        .from('teacher_class_access')
-        .delete()
-        .eq('teacher_auth_id', authUserId);
-
-      if (delClassErr) {
-        throw new Error(`Eski sınıf yetkileri temizlenemedi: ${delClassErr.message}`);
-      }
-
-      // B) Öğrenci erişimlerini sil
-      const { error: delStdErr } = await supabase
-        .from('teacher_student_access')
-        .delete()
-        .eq('teacher_auth_id', authUserId);
-
-      if (delStdErr) {
-        throw new Error(`Eski öğrenci yetkileri temizlenemedi: ${delStdErr.message}`);
-      }
-
-      // C) Yeni sınıf erişimlerini ekle
-      if (assignedClassIds.length > 0) {
-        const classRows = assignedClassIds.map((cid) => ({
-          teacher_auth_id: authUserId,
-          class_id: cid,
-        }));
-        const { error: tcErr } = await supabase.from('teacher_class_access').insert(classRows);
-        if (tcErr) {
-          throw new Error(`Yeni sınıf yetkileri kaydedilemedi: ${tcErr.message}`);
-        }
-      }
-
-      // D) Yeni öğrenci erişimlerini ekle
-      if (assignedStudentIds.length > 0) {
-        const studentRows = assignedStudentIds.map((sid) => ({
-          teacher_auth_id: authUserId,
-          student_id: sid,
-        }));
-        const { error: tsErr } = await supabase.from('teacher_student_access').insert(studentRows);
-        if (tsErr) {
-          throw new Error(`Yeni öğrenci yetkileri kaydedilemedi: ${tsErr.message}`);
-        }
-      }
+    // 2. Supabase veritabanına yazma: yalnız tek işlemlik (atomik) RPC.
+    // Aşama 173: eski "önce hepsini sil, sonra ekle" yedek yolu kaldırıldı. O yol tek işlem değildi (ekleme
+    // hata verirse öğretmen bütün yetkisini kaybediyordu) ve mesajında "function" geçen her hatada devreye giriyordu.
+    const { error: rpcError } = await supabase.rpc('admin_set_teacher_access', {
+      p_teacher_auth_id: authUserId,
+      p_class_ids: assignedClassIds,
+      p_student_ids: assignedStudentIds,
+    });
+    if (rpcError) {
+      throw new Error(`Yetkiler kaydedilemedi, hiçbir değişiklik yapılmadı: ${rpcError.message || 'bilinmeyen hata'}`);
     }
 
     // 3. Veritabanı başarıyla güncellendikten sonra yerel durumu güncelle
@@ -6561,14 +6489,22 @@ class DataService {
     }
   }
 
-  public async deleteTeacherFromCloud(teacherId: string): Promise<void> {
+  // Aşama 173: sonuç döner. Yetki yoksa veritabanı hata vermeden 0 satır siler; o zaman kayıt hâlâ duruyor mu bakılır.
+  public async deleteTeacherFromCloud(teacherId: string): Promise<{ success: boolean; error?: any }> {
     try {
-      const { error } = await supabase.from('teachers').delete().eq('id', teacherId);
+      const { data, error } = await supabase.from('teachers').delete().eq('id', teacherId).select('id');
       if (error) {
         console.warn('[TeacherSync] Error deleting teacher from public.teachers:', error.message);
+        return { success: false, error };
       }
+      if (Array.isArray(data) && data.length > 0) return { success: true };
+      const still = await supabase.from('teachers').select('id').eq('id', teacherId).maybeSingle();
+      if (still.error) return { success: false, error: still.error };
+      if (still.data) return { success: false, error: { code: '42501', message: 'Bu öğretmeni silme yetkiniz yok.' } };
+      return { success: true }; // bulutta zaten yok (yalnız yerel kopya)
     } catch (e: any) {
       console.warn('[TeacherSync] Exception deleting teacher from cloud:', e?.message || e);
+      return { success: false, error: e };
     }
   }
 
