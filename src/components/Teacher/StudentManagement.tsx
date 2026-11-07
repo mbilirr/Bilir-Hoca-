@@ -72,7 +72,7 @@ import {
 import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
-import { PageHeader, Segmented, Modal, cx } from '../ui/kit';
+import { PageHeader, Segmented, Modal, OverlayLayer, cx } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182, 184
 import {
   STUDENT_COLUMNS,
@@ -3114,9 +3114,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         return (
           <div
-            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
             onClick={() => setViewingClassStudents(null)}
           >
+            <OverlayLayer onClose={() => setViewingClassStudents(null)} />
             <div
               className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden my-6 flex flex-col max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}
@@ -3481,9 +3482,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         return (
           <div
-            className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+            className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
             onClick={() => setTransferTargetClass(null)}
           >
+            <OverlayLayer onClose={() => setTransferTargetClass(null)} />
             <div
               className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
               onClick={(e) => e.stopPropagation()}

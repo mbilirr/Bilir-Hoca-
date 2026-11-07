@@ -62,7 +62,7 @@ import {
   getSubmissionAttachmentCount,
 } from './SubmissionViewModal';
 import { useQuickFocus } from '../../lib/quickFocus';
-import { PageHeader, Segmented } from '../ui/kit';
+import { OverlayLayer, PageHeader, Segmented } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { StudyPlanManager } from './StudyPlanManager';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
@@ -1700,9 +1700,10 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
       {/* EDIT HOMEWORK RESOURCES MODAL */}
       {editingResourcesHw && (
         <div
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
+          className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
           onClick={closeEditResourcesModal}
         >
+          <OverlayLayer onClose={closeEditResourcesModal} />
           <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
             <div
               className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-6 max-h-[88vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"

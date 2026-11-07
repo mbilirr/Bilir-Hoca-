@@ -18,6 +18,7 @@ import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -117,6 +118,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
           className="relative w-full max-w-3xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"

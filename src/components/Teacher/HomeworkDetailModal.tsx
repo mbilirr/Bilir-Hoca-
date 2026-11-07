@@ -20,6 +20,7 @@ import {
 import { Homework, Student, ClassGroup, HomeworkSubmission } from '../../types';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
 import { dataService } from '../../services/dataService';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface HomeworkDetailModalProps {
   isOpen: boolean;
@@ -163,9 +164,10 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-in fade-in duration-200"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
           className="relative bg-surface border border-line w-full max-w-4xl rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"

@@ -19,6 +19,7 @@ import { dataService } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { profilResmi } from '../../lib/profilResmi';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface EtutAttendanceModalProps {
   isOpen: boolean;
@@ -180,9 +181,10 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div
         className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}

@@ -89,6 +89,7 @@ import {
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 
 const NO_LOGS: StudentQuestionLog[] = [];
@@ -248,17 +249,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
   const [monthFilterTab, setMonthFilterTab] = useState<'all' | 'with_questions'>('all');
   const [monthSearchQuery, setMonthSearchQuery] = useState<string>('');
 
-  // ESC tuşu ile açılır pencereleri kapatma
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isWeekModalOpen) setIsWeekModalOpen(false);
-        if (isMonthModalOpen) setIsMonthModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isWeekModalOpen, isMonthModalOpen]);
+  // Aşama 191: açılır pencerelerde Esc ortak katmandan (OverlayLayer)
 
   // Soru logları
   const [allLogs, setAllLogs] = useState<StudentQuestionLog[]>(() => dataService.getQuestionLogs());
@@ -2690,13 +2681,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isManageLogsModalOpen && activeStudent && (
         <div
           id="modal-manage-logs-backdrop"
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsManageLogsModalOpen(false);
             }
           }}
         >
+          <OverlayLayer onClose={() => setIsManageLogsModalOpen(false)} />
           <div
             id="modal-manage-logs-content"
             className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
@@ -2818,13 +2810,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isWeekModalOpen && activeStudent && (
         <div
           id="modal-week-picker-backdrop"
-          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
+          className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/75 backdrop-blur-xs p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsWeekModalOpen(false);
             }
           }}
         >
+          <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
           <div
             id="modal-week-picker-content"
             className="bg-surface rounded-2xl shadow-2xl border border-line w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
@@ -3130,13 +3123,14 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {isMonthModalOpen && activeStudent && (
         <div
           id="month-picker-modal-backdrop"
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs"
+          className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setIsMonthModalOpen(false);
             }
           }}
         >
+          <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
           <div
             id="month-picker-modal-content"
             className="w-full max-w-2xl bg-surface border border-line-strong rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150"
@@ -3478,7 +3472,8 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       {/* ÖĞRETMEN TEBRİK VE AFERİN BİLDİRİMİ GÖNDERME MODALI                     */}
       {/* ========================================================================= */}
       {praiseTargetDay && activeStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setPraiseTargetDay(null)} />
           <div className="bg-surface rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-amber-200 dark:border-amber-500/30 relative overflow-hidden">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start space-x-3">

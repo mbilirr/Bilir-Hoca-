@@ -22,6 +22,7 @@ import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { profilResmi, ogretmenProfilRol, cizimSecenekleri } from '../../lib/profilResmi'; // Aşama 171
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
 interface TeacherProfileEditModalProps {
@@ -169,6 +170,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
           className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"
@@ -502,6 +504,7 @@ export const TeacherPasswordModal: React.FC<TeacherPasswordModalProps> = ({
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5"
       onClick={isMandatory ? undefined : onClose}
     >
+      <OverlayLayer onClose={isMandatory ? undefined : onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
           className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden max-h-[88vh] flex flex-col animate-in fade-in zoom-in-95 duration-200"

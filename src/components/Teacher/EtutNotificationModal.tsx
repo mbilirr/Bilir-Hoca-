@@ -22,6 +22,7 @@ import {
   createMailtoLink,
 } from '../../lib/emailTemplates';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface EtutNotificationModalProps {
   isOpen: boolean;
@@ -128,9 +129,10 @@ biliredu`.trim();
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-4 flex items-center justify-center animate-fade-in"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div
         className="bg-surface border border-line rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl text-fg relative"
         onClick={(e) => e.stopPropagation()}

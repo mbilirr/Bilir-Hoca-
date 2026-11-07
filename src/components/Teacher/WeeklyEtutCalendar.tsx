@@ -28,6 +28,7 @@ import { createGoogleCalendarUrlForEtut, downloadIcsFile } from '../../lib/calen
 import { isEtutAttendanceMissing } from '../../lib/etutTiming';
 import { ETUT_STATUS_STYLE, etutTeacherNames, getEtutStatus, periodShort, subjectDot, subjectShort, teacherShort } from '../../lib/etutStatus';
 import { EtutStatusLegend } from './EtutStatusLegend';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // ============================================================================
 // HAFTALIK PLAN (Aşama 28)
@@ -260,13 +261,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
   useEffect(() => {
     if (openId && !openEtut) setOpenId(null);
   }, [openId, openEtut]);
-  // Esc tuşu ayrıntı penceresini kapatır
-  useEffect(() => {
-    if (!openId) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenId(null);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [openId]);
+  // Aşama 191: ayrıntı penceresinde Esc ortak katmandan (OverlayLayer)
 
   // ---------------------------------------------------------------------
   // Etüt işlem düğmeleri (kart altı ve ayrıntı penceresi ortak)
@@ -765,12 +760,13 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
         })();
         return (
           <div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm"
             onClick={() => setOpenId(null)}
             role="dialog"
             aria-modal="true"
             aria-label="Etüt ayrıntısı"
           >
+            <OverlayLayer onClose={() => setOpenId(null)} />
             <div
               className={`w-full sm:max-w-lg max-h-[88vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-l-4 bg-surface shadow-2xl ${st.accent} border-line`}
               onClick={(e) => e.stopPropagation()}

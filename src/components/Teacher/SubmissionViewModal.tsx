@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, FileText, Clock, CheckCircle2, AlertTriangle, MessageSquareText, Paperclip } from 'lucide-react';
 import { Homework, HomeworkSubmission, Student, HomeworkCheckStatus } from '../../types';
 import { HomeworkResourceViewer } from '../Common/HomeworkResourceViewer';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // Öğretmenin "Yaptı / Eksik ..." işaretlerken otomatik yazılan notlar (öğrencinin yazdığı not değildir)
 const TEACHER_CHECK_NOTES = new Set([
@@ -57,14 +58,7 @@ interface SubmissionViewModalProps {
 export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homework, student, submission, onClose }) => {
   const isOpen = !!homework && !!submission;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+// Aşama 191: Esc ile kapanma ortak katmandan (OverlayLayer)
 
   if (!isOpen || !homework || !submission) return null;
 
@@ -78,12 +72,13 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-5"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`${studentName} teslimi`}
     >
+      <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4">
         <div
           className="relative w-full max-w-2xl bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6 text-fg"

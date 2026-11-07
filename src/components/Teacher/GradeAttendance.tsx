@@ -33,6 +33,7 @@ import { useQuickFocus } from '../../lib/quickFocus';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { subjectsForBranch, subjectsForLevel } from '../../lib/subjects';
 import { detectSchoolLevelFromGrade } from '../../constants/schoolConstants';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // Yerel tarih (UTC değil): Türkiye'de gece 00:00–03:00 arası bir önceki gün yazılmasın
 const todayLocal = () => {
@@ -1403,7 +1404,8 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
 
       {/* ADD GRADE MODAL */}
       {isAddGradeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setIsAddGradeOpen(false)} />
           <div className="relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 sm:p-6">
             <div className="flex items-center justify-between pb-3 border-b border-line mb-4">
               <h3 className="text-base font-bold text-fg flex items-center space-x-2">
