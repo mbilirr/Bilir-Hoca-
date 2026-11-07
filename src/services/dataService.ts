@@ -1069,27 +1069,6 @@ function saveDataNow<T>(key: string, data: T): void {
   if (storageFrozen) return;
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    if (key === STORAGE_KEYS.STUDENTS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.CLASSES) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.TEACHERS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.ETUTS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.GRADES) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.HOMEWORK) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.ATTENDANCE) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.SUBMISSIONS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.QUESTION_LOGS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    } else if (key === STORAGE_KEYS.DOCUMENTS) {
-      try { /* eski kalıcı yedek kopya artık yazılmaz */ void 0; } catch {}
-    }
   } catch (e) {
     console.warn(`Quota or write issue when saving ${key}. Freeing legacy storage and retrying...`, e);
     try {
@@ -1343,9 +1322,6 @@ class DataService {
     });
     if (studentsEmailCleaned) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
     }
 
     // Clean up any old duplicate legacy version keys to keep storage lean and prevent quota limit errors
@@ -1690,9 +1666,6 @@ class DataService {
           saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
           this.students = this.students.filter((s) => s.id !== oldRow.id);
           saveData(STORAGE_KEYS.STUDENTS, this.students);
-          try {
-            /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-          } catch {}
           this.notify();
         }
         return;
@@ -1764,9 +1737,6 @@ class DataService {
           saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
           this.classes = this.classes.filter((c) => c.id !== oldRow.id);
           saveData(STORAGE_KEYS.CLASSES, this.classes);
-          try {
-            /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-          } catch {}
           this.notify();
         }
         return;
@@ -1800,9 +1770,6 @@ class DataService {
       }
       this.classes = this.deduplicateClasses(this.classes);
       saveData(STORAGE_KEYS.CLASSES, this.classes);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
     } catch (e) {
       console.warn('Error handling class realtime event:', e);
@@ -2224,9 +2191,6 @@ class DataService {
         saveData(STORAGE_KEYS.STUDENTS, this.students);
         saveData(STORAGE_KEYS.CLASSES, this.classes);
         saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-        try {
-          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-        } catch {}
         this.notify();
       }
     } catch {}
@@ -2873,23 +2837,47 @@ class DataService {
   // Mevcut öğrenci satırlarını günceller. (Eskiden "upsert" kullanılıyordu; öğretmen ve öğrenci
   // rollerinde ekleme yetkisi olmadığından sessizce başarısız oluyordu.) Her satırın gerçekten
   // güncellendiği doğrulanır: yetki yoksa veritabanı hata vermeden 0 satır döndürür.
-  public async syncStudentsToCloud(onlyThese?: Student[]): Promise<{ success: boolean; error?: any }> {
+  // Aşama 181: öğrencilerin YALNIZ sınıf bilgisini toplu yazar. Eskiden her öğrencinin bütün satırı (ad, e-posta,
+  // veliler...) ayrı istekle ve sırayla gidiyordu: 300 öğrenci = 300 ardışık istek, üstelik cihazdaki eski kopya
+  // başka bir cihazda yapılan ad / veli değişikliğini ezebiliyordu. Şimdi 150'lik gruplar paralel gider; veritabanının
+  // gerçekten güncellediği öğrenciler döner. Eksik kalan varsa (yetki / kayıt yok) hata ile birlikte bildirilir.
+  private async setStudentsClassInCloud(
+    ids: string[],
+    classId: string,
+    className: string
+  ): Promise<{ success: boolean; error?: any; writtenIds: Set<string> }> {
+    const writtenIds = new Set<string>();
+    const uniq = [...new Set(ids.filter((id) => id && !this.deletedStudentIds.has(id)))];
+    if (uniq.length === 0) return { success: true, writtenIds };
+    const patch = { class_id: classId || 'class-default', class_name: className || 'Atanmadı' };
+    const CHUNK = 150;
+    const parts: string[][] = [];
+    for (let i = 0; i < uniq.length; i += CHUNK) parts.push(uniq.slice(i, i + CHUNK));
     try {
-      const source = onlyThese ?? this.students;
-      const activeStudents = source.filter((s) => s && s.id && !this.deletedStudentIds.has(s.id));
-      for (const s of activeStudents) {
-        const res = await this.patchStudentRow(s.id, this.studentToRow(s));
-        if (!res.success) return res;
+      const results = await Promise.all(parts.map((part) => supabase.from('students').update(patch).in('id', part).select('id')));
+      let firstError: any = null;
+      for (const r of results) {
+        if (r.error) firstError = firstError || r.error;
+        for (const row of (r.data || []) as Array<{ id: string }>) writtenIds.add(String(row.id));
       }
-      return { success: true };
+      if (firstError) return { success: false, error: firstError, writtenIds };
     } catch (e) {
-      console.warn('Error syncing students to cloud:', e);
-      return { success: false, error: e };
+      return { success: false, error: e, writtenIds };
     }
+    const missing = uniq.length - uniq.filter((id) => writtenIds.has(id)).length;
+    if (missing > 0) {
+      return {
+        success: false,
+        error: { code: '42501', message: `${missing} öğrencinin sınıf bilgisi güncellenemedi (kayıt bulunamadı veya bu öğrenciler için yetkiniz yok).` },
+        writtenIds,
+      };
+    }
+    return { success: true, writtenIds };
   }
 
-  public async syncStudentToCloud(student: Student): Promise<{ success: boolean; error?: any }> {
-    return this.syncStudentsToCloud([student]);
+  // Aşama 181: toplu yazım yarım kaldıysa (bir kısmı yazıldı) ekran veritabanındaki gerçek hâle çekilir
+  private resyncStudentsAfterPartialWrite(written: Set<string>): void {
+    if (written.size > 0) void this.syncStudentsFromSupabase(true);
   }
 
   private async patchStudentRow(id: string, patch: Record<string, unknown>): Promise<{ success: boolean; error?: any }> {
@@ -4413,9 +4401,6 @@ class DataService {
 
   private persistQuestionLogsLocal(): void {
     saveData(STORAGE_KEYS.QUESTION_LOGS, this.questionLogs);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
   }
 
   // HIZ (Aşama 88): kimliğe göre öğrenci bulma. Eskiden her not / teslim satırı için öğrenci listesi baştan
@@ -5730,9 +5715,6 @@ class DataService {
           : t
       );
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
       return;
     }
@@ -5904,17 +5886,11 @@ class DataService {
         t.id === userId ? { ...t, isSuspended: suspend, status: suspend ? 'suspended' : 'approved' } : t
       );
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
     } else {
       this.students = this.students.map((s) =>
         s.id === userId ? { ...s, isSuspended: suspend, status: suspend ? 'suspended' : 'active' } : s
       );
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
     }
     this.notify();
   }
@@ -6058,9 +6034,6 @@ class DataService {
       saveData(STORAGE_KEYS.DELETED_TEACHERS, Array.from(this.deletedTeacherIds));
       this.teachers = this.teachers.filter((t) => t.id !== userId);
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
       return;
     }
@@ -6303,9 +6276,6 @@ class DataService {
     // Anlık güncelleme aynı öğretmeni daha önce eklemiş olabilir: aynı kimlik iki kez listelenmez
     this.teachers = [teacher, ...this.teachers.filter((t) => t.id !== teacher.id)];
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
     this.notify();
     return { teacher, password };
   }
@@ -6320,9 +6290,6 @@ class DataService {
     const updated = { ...previous, ...updates };
     this.teachers[idx] = updated;
     saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
     try {
       localStorage.setItem(`edu_sys_teacher_custom_profile_${teacherId}`, JSON.stringify(updated));
     } catch (e) {
@@ -6565,9 +6532,6 @@ class DataService {
       s.id === studentId ? { ...s, mustChangePassword: false, password: '' } : s
     );
     saveData(STORAGE_KEYS.STUDENTS, this.students);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
     const session = this.getAuthSession();
     if (session?.role === 'student' && session.user.id === studentId) {
       const fresh = this.students.find((s) => s.id === studentId);
@@ -6712,44 +6676,6 @@ class DataService {
     } catch (e: any) {
       console.warn('[TeacherSync] Exception deleting teacher from cloud:', e?.message || e);
       return { success: false, error: e };
-    }
-  }
-
-  public async syncAllTeachersToCloud(): Promise<void> {
-    if (!this.isHeadAdmin()) return;
-    try {
-      const activeTeachers = this.teachers.filter((t) => !this.deletedTeacherIds.has(t.id));
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-      const payload = activeTeachers.map((teacher) => {
-        const authUserId =
-          teacher.auth_user_id && uuidRegex.test(teacher.auth_user_id) ? teacher.auth_user_id : null;
-        const row: any = {
-          id: teacher.id,
-          name: teacher.name,
-          username: teacher.username || null,
-          email: teacher.email || null,
-          branch: teacher.branch || null,
-          avatar: teacher.avatar || null,
-          role: teacher.role || 'teacher',
-          status: teacher.status || 'approved',
-          is_admin: Boolean(teacher.isAdmin),
-          created_at: teacher.createdAt || new Date().toISOString(),
-        };
-        if (authUserId) {
-          row.auth_user_id = authUserId;
-        }
-        return row;
-      });
-
-      if (payload.length > 0) {
-        const { error } = await supabase.from('teachers').upsert(payload);
-        if (error) {
-          console.warn('[TeacherSync] Error in syncAllTeachersToCloud:', error.message);
-        }
-      }
-    } catch (e: any) {
-      console.warn('[TeacherSync] Exception in syncAllTeachersToCloud:', e?.message || e);
     }
   }
 
@@ -6899,9 +6825,6 @@ class DataService {
 
       if (changed) {
         saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-        try {
-          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-        } catch {}
 
         if (newPendingCount > 0) {
           playNotificationChime();
@@ -7831,10 +7754,6 @@ class DataService {
 
     if (autoAssignedCount > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-      this.syncStudentsToCloud(this.students.filter((s) => s.classId === newClass.id)).catch(() => {});
     }
 
     saveData(STORAGE_KEYS.CLASSES, this.classes);
@@ -7858,6 +7777,23 @@ class DataService {
 
       this.showFloatingErrorToast(`Hata: ${errMsg} Değişiklikler geri alındı.`);
       throw new Error(`[addClass] Sınıf buluta kaydedilemedi: ${errMsg}`);
+    }
+
+    // Aşama 181: sınıfsız öğrencilerin yeni sınıfa aktarımı sınıf bulutta açıldıktan SONRA yazılır ve beklenir
+    // (eskiden sınıftan önce, sonucu beklenmeden gidiyordu; hata olursa öğrenci yalnız bu cihazda sınıflı görünüyordu)
+    if (autoAssignedCount > 0) {
+      const movedIds = this.students.filter((s) => s.classId === newClass.id).map((s) => s.id);
+      const moveRes = await this.setStudentsClassInCloud(movedIds, newClass.id, newClass.name);
+      if (!moveRes.success) {
+        const failed = new Set(movedIds.filter((id) => !moveRes.writtenIds.has(id)));
+        const prevById = new Map(prevStudents.map((s) => [s.id, s] as const));
+        this.students = this.students.map((s) => (failed.has(s.id) ? prevById.get(s.id) || s : s));
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+        autoAssignedCount = movedIds.length - failed.size;
+        this.showFloatingErrorToast(
+          `Sınıf oluşturuldu, ancak ${failed.size} öğrenci sınıfa aktarılamadı: ${moveRes.error?.message || 'bağlantı sorunu'}`
+        );
+      }
     }
 
     this.notify();
@@ -7890,21 +7826,16 @@ class DataService {
 
     if (count > 0) {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
 
-      // Sadece sınıfı değişen öğrencileri buluta senkronize et ve sonucunu doğrula
-      const studentRes = await this.syncStudentsToCloud(this.students.filter((s) => studentIds.includes(s.id)));
+      // Aşama 181: yalnız sınıf bilgisi, toplu ve paralel yazılır; sonucu doğrulanır
+      const studentRes = await this.setStudentsClassInCloud(studentIds, cls.id, cls.name);
 
       if (!studentRes.success) {
-        // ROLLBACK: Öğrenciler buluta yazılamadıysa yerel state'i geri al
+        // ROLLBACK: Öğrenciler buluta yazılamadıysa yerel state'i geri al (yarım yazıldıysa ekran veritabanından yenilenir)
         this.students = prevStudents;
         saveData(STORAGE_KEYS.STUDENTS, this.students);
-        try {
-          /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-        } catch {}
         this.notify();
+        this.resyncStudentsAfterPartialWrite(studentRes.writtenIds);
 
         const errMsg =
           studentRes.error?.message ||
@@ -7938,20 +7869,14 @@ class DataService {
       return s;
     });
     saveData(STORAGE_KEYS.STUDENTS, this.students);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
 
-    const updated = this.students.find((s) => s.id === studentId);
-    const cloudRes = updated ? await this.syncStudentToCloud(updated) : { success: true };
+    // Aşama 181: yalnız sınıf bilgisi yazılır (öğrencinin diğer bilgileri bu cihazdaki kopyayla ezilmez)
+    const cloudRes = await this.setStudentsClassInCloud([studentId], '', 'Atanmadı');
 
     if (!cloudRes.success) {
       // ROLLBACK
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
 
       const errMsg =
@@ -8011,10 +7936,6 @@ class DataService {
     this.students = this.students.map((s) => (s.classId === id ? { ...s, classId: '', className: 'Atanmadı' } : s));
     saveData(STORAGE_KEYS.CLASSES, this.classes);
     saveData(STORAGE_KEYS.STUDENTS, this.students);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
 
     // Clean legacy versioned keys
     [
@@ -8043,8 +7964,6 @@ class DataService {
       saveData(STORAGE_KEYS.STUDENTS, this.students);
       saveData(STORAGE_KEYS.DELETED_CLASSES, Array.from(this.deletedClassIds));
       try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         localStorage.setItem(PERMANENT_KEYS.DELETED_CLASSES, JSON.stringify(Array.from(this.deletedClassIds)));
       } catch {}
       this.notify();
@@ -8054,9 +7973,16 @@ class DataService {
     }
 
     // Sınıftaki öğrencilerin sınıf bilgisini bulutta da temizle (başka cihazlarda eski sınıf görünmesin)
-    const unassigned = this.students.filter((s) => prevStudentsForDelete.some((p) => p.id === s.id && p.classId === id));
-    if (unassigned.length > 0) {
-      await this.syncStudentsToCloud(unassigned);
+    // Aşama 181: toplu yazım; yazılamazsa kullanıcı uyarılır ve ekran veritabanından yenilenir
+    const unassignedIds = prevStudentsForDelete.filter((p) => p.classId === id).map((p) => p.id);
+    if (unassignedIds.length > 0) {
+      const res = await this.setStudentsClassInCloud(unassignedIds, '', 'Atanmadı');
+      if (!res.success) {
+        this.showFloatingErrorToast(
+          `Sınıf silindi, ancak bazı öğrencilerin sınıf bilgisi bulutta temizlenemedi: ${res.error?.message || 'bağlantı sorunu'}`
+        );
+        this.resyncStudentsAfterPartialWrite(res.writtenIds);
+      }
     }
 
     // Sync tombstones so all devices immediately purge this class
@@ -8123,37 +8049,6 @@ class DataService {
       }
     } catch (e) {
       console.warn('Error deleting class from cloud:', e);
-    }
-  }
-
-  public async syncAllClassesToCloud(): Promise<void> {
-    try {
-      const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
-      const payload = activeClasses.map((cls) => {
-        const row: Record<string, any> = {
-          id: cls.id,
-          name: cls.name,
-          branch: cls.branch || 'Genel',
-          level: DataService.classLevelOf(cls) || 8, // Aşama 175
-          academic_year: cls.academicYear || currentAcademicYear(),
-        };
-        if (DataService.classDescriptionColumnAvailable) row.description = cls.description || null;
-        return row;
-      });
-
-      if (payload.length > 0) {
-        let { error } = await supabase.from('classes').upsert(payload);
-        if (error && DataService.classDescriptionColumnAvailable && DataService.isMissingDescriptionColumn(error)) {
-          DataService.classDescriptionColumnAvailable = false;
-          payload.forEach((r) => delete r.description);
-          ({ error } = await supabase.from('classes').upsert(payload));
-        }
-        if (error) {
-          console.warn('Error syncing all classes to cloud:', error);
-        }
-      }
-    } catch (e) {
-      console.warn('Error syncing all classes to cloud:', e);
     }
   }
 
@@ -8366,9 +8261,6 @@ class DataService {
       const createdIds = new Set(created.map((c) => c.student.id));
       this.students = [...created.map((c) => c.student), ...this.students.filter((s) => !createdIds.has(s.id))];
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
     }
     return { created, failed };
@@ -8487,9 +8379,6 @@ class DataService {
     const rollback = async (writeBack: boolean) => {
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
       if (writeBack) {
         const undo: Record<string, unknown> = {};
@@ -8523,9 +8412,6 @@ class DataService {
       }
     }
 
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
     if (session?.role === 'student' && session.user.id === id) {
       const fresh = this.students.find((s) => s.id === id);
       if (fresh) this.setAuthSession({ ...session, user: fresh });
@@ -8704,7 +8590,6 @@ class DataService {
     saveData(STORAGE_KEYS.ATTENDANCE, this.attendance);
 
     try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
       localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
     } catch {}
 
@@ -8746,7 +8631,6 @@ class DataService {
       saveData(STORAGE_KEYS.DELETED_STUDENTS, Array.from(this.deletedStudentIds));
 
       try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
         localStorage.setItem(PERMANENT_KEYS.DELETED_STUDENTS, JSON.stringify(Array.from(this.deletedStudentIds)));
       } catch {}
       this.notify();
@@ -10056,9 +9940,6 @@ class DataService {
 
     this.students[studentIdx] = updated;
     saveData(STORAGE_KEYS.STUDENTS, this.students);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
 
     // Bulut yazmasını AWAIT et ve sonucunu kontrol et
     try {
@@ -10074,9 +9955,6 @@ class DataService {
       // ROLLBACK: Buluta yazılamadıysa eski haline döndür
       this.students = prevStudents;
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
       this.notify();
 
       const errMsg =
@@ -10851,6 +10729,9 @@ class DataService {
     };
   }
 
+  private static readonly NOTIF_COLUMNS =
+    'id,student_id,type,title,message,source_id,source_title,teacher_name,created_at,read_at,link_tab';
+
   private rowToNotif(r: any): StudentNotification {
     const types = ['new_homework', 'new_etut', 'grade_added', 'general', 'praise'];
     const tabs = ['home', 'homework', 'etuts', 'grades', 'messages', 'questions'];
@@ -10910,7 +10791,8 @@ class DataService {
     this.notifLastSync = Date.now();
     try {
       if (!(await this.hasCloudSession())) return;
-      let q = supabase.from('student_notifications').select('*').order('created_at', { ascending: false });
+      // Aşama 181: yalnız ekranda kullanılan sütunlar (rowToNotif ile aynı)
+      let q = supabase.from('student_notifications').select(DataService.NOTIF_COLUMNS).order('created_at', { ascending: false });
       if (session.role === 'student') q = q.eq('student_id', session.user.id).limit(150);
       else q = q.eq('type', 'praise').limit(500);
       const { data, error } = await q;
