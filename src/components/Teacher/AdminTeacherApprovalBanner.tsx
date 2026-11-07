@@ -15,6 +15,7 @@ import {
 import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
+import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 
 interface AdminTeacherApprovalBannerProps {
   onOpenFullModal: () => void;
@@ -155,8 +156,7 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
               <div className="flex items-center space-x-3">
                 <img
                   src={
-                    teacher.avatar ||
-                    `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(teacher.name)}`
+                    profilResmi(teacher, ogretmenProfilRol(teacher))
                   }
                   alt={teacher.name}
                   className="w-10 h-10 rounded-full border border-amber-400/80 bg-surface-2 object-cover shrink-0"

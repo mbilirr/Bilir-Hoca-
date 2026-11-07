@@ -68,6 +68,7 @@ import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
 import { normalizeSubject } from '../../lib/subjects';
+import { profilResmi } from '../../lib/profilResmi';
 
 // Aşama 113: ana sayfa ve Etütler ile ortak "Benim / Tümü" kaydı
 const HOME_SCOPE_KEY = 'edu_home_scope_v1';
@@ -1228,7 +1229,7 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                                         {idx + 1}
                                       </span>
                                       <img
-                                        src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                                        src={profilResmi(std, 'student')}
                                         alt={std.name}
                                         className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
                                         referrerPolicy="no-referrer"

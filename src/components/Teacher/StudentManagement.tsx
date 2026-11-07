@@ -36,6 +36,7 @@ import {
   ArrowUpDown,
   ShieldCheck,
   KeyRound,
+  VenusAndMars,
 } from 'lucide-react';
 import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentAccountResult, StudentParent } from '../../types';
 import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue } from '../../lib/parents';
@@ -52,6 +53,8 @@ const ExcelStudentUploadModal = lazyNamed(() => import('./ExcelStudentUploadModa
 const ExcelStudentUpdateModal = lazyNamed(() => import('./ExcelStudentUpdateModal'), 'ExcelStudentUpdateModal');
 const ExcelClassUploadModal = lazyNamed(() => import('./ExcelClassUploadModal'), 'ExcelClassUploadModal');
 const StudentListExportModal = lazyNamed(() => import('./StudentListExportModal'), 'StudentListExportModal');
+// Aşama 171: cinsiyeti addan doldur (ad listesi yalnız açılınca iner)
+const CinsiyetDoldurModal = lazyNamed(() => import('../Admin/CinsiyetDoldurModal'), 'CinsiyetDoldurModal');
 const StudentWelcomeCredentialsModal = lazyNamed(() => import('./StudentWelcomeCredentialsModal'), 'StudentWelcomeCredentialsModal');
 // Aşama 142: seçilen öğrencilere giriş bilgisi SMS / e-posta (pencere ilk tıklamada yüklenir)
 const CredentialSendModal = lazyNamed(() => import('../Common/CredentialSendModal'), 'CredentialSendModal');
@@ -83,6 +86,7 @@ import {
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
+import { profilResmi } from '../../lib/profilResmi';
 
 interface StudentManagementProps {
   students: Student[];
@@ -269,6 +273,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [studentNumber, setStudentNumber] = useState('');
   const [studentPhone, setStudentPhone] = useState('');
   const [studentAvatar, setStudentAvatar] = useState<string>('');
+  // Aşama 171: cinsiyet ('' = belirtilmedi). Elle seçilmediyse ad yazıldıkça addan tahmin edilir.
+  const [studentGender, setStudentGender] = useState<'' | 'K' | 'E'>('');
+  const genderTouchedRef = React.useRef(false);
+  const [genderFilter, setGenderFilter] = useState<'all' | 'K' | 'E' | 'none'>('all');
+  const [isGenderFillOpen, setIsGenderFillOpen] = useState(false);
   const [isProcessingStudentPhoto, setIsProcessingStudentPhoto] = useState(false);
   const [studentFormError, setStudentFormError] = useState<string | null>(null);
   const [studentEmailError, setStudentEmailError] = useState<string | null>(null);
@@ -310,7 +319,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     studentNumber: string;
     phone: string;
     parents: StudentParent[];
-    avatar: string;
+    avatar?: string;
+    gender?: 'K' | 'E';
     password: string;
   }
   // Aynı ad ve numarayla kayıtlı öğrenci uyarısı
@@ -511,7 +521,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       } else {
         matchesClass = s.classId === selectedClassFilter;
       }
-      return matchesSearch && matchesClass;
+      // Aşama 171: cinsiyet süzgeci
+      const matchesGender =
+        genderFilter === 'all' || (genderFilter === 'none' ? !s.gender : s.gender === genderFilter);
+      return matchesSearch && matchesClass && matchesGender;
     });
 
     const dupMap = duplicateStudentGroups.dupMap;
@@ -563,7 +576,16 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
 
     return list;
-  }, [students, classes, deferredSearch, selectedClassFilter, sortOrder, duplicateStudentGroups]);
+  }, [students, classes, deferredSearch, selectedClassFilter, genderFilter, sortOrder, duplicateStudentGroups]);
+  // Aşama 171: cinsiyet sayıları (süzgeç seçeneklerinde)
+  const genderCounts = useMemo(() => {
+    let k = 0, e = 0;
+    for (const s of students) {
+      if (s.gender === 'K') k++;
+      else if (s.gender === 'E') e++;
+    }
+    return { k, e, none: students.length - k - e };
+  }, [students]);
   // Aşama 15: liste parça parça çizilir; telefonda yalnız kart listesi, bilgisayarda yalnız tablo çizilir
   const isPhoneList = useMediaQuery('(max-width: 767px)');
   // Aşama 84: satırlardaki sınıf seçiminin seçenekleri bir kez hazırlanır (her satırda yeniden süzülmez)
@@ -728,10 +750,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       studentNumber: cleanNumber,
       phone: phoneNorm.value,
       parents: cleanParents(parents),
-      avatar:
-        studentAvatar ||
-        editingStudent?.avatar ||
-        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
+      avatar: studentAvatar || editingStudent?.avatar || undefined,
+      gender: studentGender || undefined,
       password: cleanPassword,
     };
 
@@ -782,6 +802,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             phone: payload.phone,
             parents: payload.parents,
             avatar: payload.avatar,
+            gender: payload.gender,
           },
           { newPassword: payload.password || undefined }
         );
@@ -801,6 +822,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           email: payload.email,
           phone: payload.phone,
           avatar: payload.avatar,
+          gender: payload.gender,
           password: payload.password,
         });
         const tcMsg = credential?.student?.id ? await saveTc(credential.student.id) : '';
@@ -839,6 +861,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           phone: newStudentPayload.phone,
           parents: newStudentPayload.parents,
           avatar: newStudentPayload.avatar,
+          gender: newStudentPayload.gender,
         },
         { newPassword: newStudentPayload.password || undefined }
       );
@@ -867,6 +890,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setParents([{}]);
     setParentErrors([]);
     setStudentAvatar('');
+    setStudentGender('');
+    genderTouchedRef.current = false;
     setStudentClassId(studentClassOptions[0]?.id || '');
     setStudentFormError(null);
     setStudentEmailError(null);
@@ -905,6 +930,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setParents(student.parents && student.parents.length ? cleanParents(student.parents) : [{}]);
     setParentErrors([]);
     setStudentAvatar(student.avatar || '');
+    setStudentGender(student.gender || '');
+    genderTouchedRef.current = !!student.gender;
     setStudentFormError(null);
     setStudentEmailError(null);
     setStudentPhoneError(null);
@@ -1335,6 +1362,18 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   <FileSpreadsheet className="w-4 h-4 text-brand-fg" />
                   <span>Excel ile Güncelle</span>
                 </button>
+                {/* Aşama 171 */}
+                <button
+                  type="button"
+                  id="ogrenci-cinsiyet-doldur-btn"
+                  onClick={() => setIsGenderFillOpen(true)}
+                  className="ui-btn ui-btn-secondary"
+                  title="Cinsiyeti boş öğrencileri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)"
+                >
+                  <VenusAndMars className="w-4 h-4 text-brand-fg" />
+                  <span>Cinsiyeti Doldur</span>
+                  {genderCounts.none > 0 && <span className="ui-chip ui-chip-warning !py-0 !px-1.5 text-[10px] tabular-nums">{genderCounts.none}</span>}
+                </button>
                 <button
                   onClick={() => {
                     resetStudentForm();
@@ -1453,7 +1492,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               />
             </div>
 
-            <div className="grid grid-cols-2 md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
+            <div className="grid grid-cols-3 md:flex items-center gap-2 md:gap-3 w-full md:w-auto">
               {/* Sınıf Filtresi (Tanımsız seçeneği dahil) */}
               <div className="flex items-center gap-2 min-w-0">
                 <span className="hidden lg:inline text-xs text-muted font-semibold whitespace-nowrap">Sınıf:</span>
@@ -1472,6 +1511,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       {formatClassDisplayName(cls.name, cls.branch, cls.gradeLevel)} ({classCountMap.get(cls.id) || 0})
                     </option>
                   ))}
+                </select>
+              </div>
+
+              {/* Aşama 171: Cinsiyet süzgeci */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="hidden lg:inline text-xs text-muted font-semibold whitespace-nowrap">Cinsiyet:</span>
+                <select
+                  id="ogrenci-cinsiyet-suzgeci"
+                  aria-label="Cinsiyete göre süz"
+                  value={genderFilter}
+                  onChange={(e) => setGenderFilter(e.target.value as 'all' | 'K' | 'E' | 'none')}
+                  className="w-full md:w-auto min-w-0 bg-surface-2/80 border border-line text-fg-2 text-xs font-semibold rounded-xl px-3 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Tümü ({students.length})</option>
+                  <option value="K">Kız ({genderCounts.k})</option>
+                  <option value="E">Erkek ({genderCounts.e})</option>
+                  <option value="none">Belirtilmemiş ({genderCounts.none})</option>
                 </select>
               </div>
 
@@ -1575,7 +1631,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         aria-label={`${std.name} seç`}
                       />
                       <img loading="lazy" decoding="async"
-                        src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                        src={profilResmi(std, 'student')}
                         alt=""
                         className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-line shrink-0"
                       />
@@ -1702,10 +1758,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                         <div className="flex items-center space-x-3">
                           <img loading="lazy" decoding="async"
                             src={
-                              std.avatar ||
-                              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                                std.name
-                              )}`
+                              profilResmi(std, 'student')
                             }
                             alt={std.name}
                             className={`w-10 h-10 rounded-full object-cover ring-2 ${
@@ -2074,7 +2127,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         <form id="student-form" onSubmit={handleSaveStudent} noValidate className="space-y-2.5">
           {/* Aşama 70: Ad Soyad, Öğrenci No ve Sınıf yan yana, eşit genişlikte ve aynı yükseklikte */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5" id="student-form-main">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5" id="student-form-main">
             <div className="min-w-0">
               <label htmlFor="student-form-name" className="block text-xs font-bold text-fg-2 mb-1 truncate">Ad Soyad *</label>
               <input autoComplete="off"
@@ -2082,9 +2135,36 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 type="text"
                 required
                 value={studentName}
-                onChange={(e) => setStudentName(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStudentName(v);
+                  // Aşama 171: cinsiyet elle seçilmediyse addan tahmin (liste yalnız gerektiğinde yüklenir)
+                  if (!genderTouchedRef.current) {
+                    void import('../../lib/cinsiyetTahmin').then(({ cinsiyetTahmin }) => {
+                      if (!genderTouchedRef.current) setStudentGender(cinsiyetTahmin(v) || '');
+                    });
+                  }
+                }}
                 className={cx(inputCls, SF)}
               />
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="student-form-gender" className="block text-xs font-bold text-fg-2 mb-1 truncate">
+                Cinsiyet
+              </label>
+              <select
+                id="student-form-gender"
+                value={studentGender}
+                onChange={(e) => {
+                  genderTouchedRef.current = true;
+                  setStudentGender(e.target.value as '' | 'K' | 'E');
+                }}
+                className={cx(inputCls, SF, 'font-semibold cursor-pointer')}
+              >
+                <option value="">Seçiniz</option>
+                <option value="K">Kız</option>
+                <option value="E">Erkek</option>
+              </select>
             </div>
             <div className="min-w-0">
               <label htmlFor="student-form-number" className="block text-xs font-bold text-fg-2 mb-1 truncate">
@@ -2386,11 +2466,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-lg bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
-                {studentAvatar ? (
-                  <img loading="lazy" decoding="async" src={studentAvatar} alt="Öğrenci" className="w-full h-full object-cover" />
-                ) : (
-                  <Users className="w-5 h-5 text-subtle" />
-                )}
+                {/* Aşama 171: fotoğraf yoksa cinsiyete göre otomatik çizim önizlenir */}
+                <img
+                  decoding="async"
+                  src={profilResmi({ id: editingStudent?.id, name: studentName, avatar: studentAvatar, gender: studentGender || undefined }, 'student')}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               </div>
 
               <div className="flex-1">
@@ -2748,6 +2830,20 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       {isListExportOpen && (
         <Suspense fallback={null}>
           <StudentListExportModal open={isListExportOpen} onClose={() => setIsListExportOpen(false)} students={students} classes={classes} />
+        </Suspense>
+      )}
+      {/* Aşama 171: cinsiyeti addan doldur */}
+      {isGenderFillOpen && (
+        <Suspense fallback={null}>
+          <CinsiyetDoldurModal
+            open
+            kind="student"
+            onClose={() => setIsGenderFillOpen(false)}
+            people={students
+              .filter((s) => dataService.canManageStudent(s))
+              .map((s) => ({ id: s.id, name: s.name, gender: s.gender, avatar: s.avatar, sub: s.className }))}
+            onDone={(msg: string) => setStudentSuccessFeedback(msg)}
+          />
         </Suspense>
       )}
       {everExcelUpdateOpen && (
@@ -3141,7 +3237,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                             <td className="py-2.5 px-3">
                               <div className="flex items-center space-x-2.5">
                                 <img loading="lazy" decoding="async"
-                                  src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                                  src={profilResmi(std, 'student')}
                                   alt={std.name}
                                   className={`w-7 h-7 rounded-full object-cover border ${
                                     isDuplicate
@@ -3451,10 +3547,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           />
                           <img loading="lazy" decoding="async"
                             src={
-                              std.avatar ||
-                              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                                std.name
-                              )}`
+                              profilResmi(std, 'student')
                             }
                             alt={std.name}
                             className="w-9 h-9 rounded-full bg-surface-2 object-cover border border-line"

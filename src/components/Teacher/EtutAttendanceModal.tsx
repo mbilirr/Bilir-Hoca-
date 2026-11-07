@@ -18,6 +18,7 @@ import { Etut, Student, EtutStudentAttendance } from '../../types';
 import { dataService } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { profilResmi } from '../../lib/profilResmi';
 
 interface EtutAttendanceModalProps {
   isOpen: boolean;
@@ -342,8 +343,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                   <div className="flex items-center space-x-3">
                     <img
                       src={
-                        std.avatar ||
-                        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`
+                        profilResmi(std, 'student')
                       }
                       alt={std.name}
                       className="w-9 h-9 rounded-full bg-surface-2 border border-line shrink-0"

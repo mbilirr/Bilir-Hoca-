@@ -70,6 +70,7 @@ const EtutDetayModal = lazyNamed(() => import('./EtutTakipView'), 'EtutDetayModa
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useSeenIds } from '../../lib/useSeenIds';
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { profilResmi } from '../../lib/profilResmi';
 
 // Aşama 24: tarih süzgeci
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'upcoming' | 'past' | 'range';
@@ -1238,7 +1239,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
                               {idx + 1}
                             </span>
                             <img
-                              src={std.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(std.name)}`}
+                              src={profilResmi(std, 'student')}
                               alt={std.name}
                               className="w-8 h-8 rounded-full bg-surface-2 object-cover border border-line shrink-0"
                               referrerPolicy="no-referrer"

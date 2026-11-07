@@ -23,6 +23,7 @@ import { ParentAnnouncements } from './ParentAnnouncements';
 import { EtutNotesInbox, useEtutNotes } from './EtutNotesInbox';
 import { StudentMessage } from '../../types';
 import { dataService } from '../../services/dataService';
+import { profilResmi } from '../../lib/profilResmi';
 import { useHistoryState } from '../../lib/useHistoryState';
 
 // Aşama 111: kurumun tüm mesajlarını gören (genel yönetici, idare, Rehberlik) için süzgeçler.
@@ -271,10 +272,10 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   >
                     <img
                       src={
-                        msg.studentAvatar ||
-                        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                          msg.studentName
-                        )}`
+                        profilResmi(
+                          { id: msg.studentId, name: msg.studentName, avatar: msg.studentAvatar, gender: dataService.studentById(msg.studentId)?.gender },
+                          'student'
+                        )
                       }
                       alt={msg.studentName}
                       className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-indigo-500/20 flex-shrink-0"
@@ -343,10 +344,10 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   <div className="flex items-center space-x-3">
                     <img
                       src={
-                        activeMessage.studentAvatar ||
-                        `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                          activeMessage.studentName
-                        )}`
+                        profilResmi(
+                          { id: activeMessage.studentId, name: activeMessage.studentName, avatar: activeMessage.studentAvatar, gender: dataService.studentById(activeMessage.studentId)?.gender },
+                          'student'
+                        )
                       }
                       alt={activeMessage.studentName}
                       className="w-12 h-12 rounded-full bg-surface-2 ring-2 ring-indigo-500/30"

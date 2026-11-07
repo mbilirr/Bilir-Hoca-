@@ -21,6 +21,7 @@ import { Teacher, ClassGroup } from '../../types';
 import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
+import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 
 interface TeacherApprovalModalProps {
   isOpen: boolean;
@@ -267,7 +268,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                   >
                     <div className="flex items-center space-x-3.5 min-w-0">
                       <img
-                        src={t.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(t.name)}`}
+                        src={profilResmi(t, ogretmenProfilRol(t))}
                         alt={t.name}
                         className="w-11 h-11 rounded-2xl bg-surface-2 border border-line shrink-0 object-cover"
                       />
@@ -361,8 +362,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                       <div className="flex items-center space-x-3 min-w-0">
                         <img
                           src={
-                            teacher.avatar ||
-                            `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(teacher.name)}`
+                            profilResmi(teacher, ogretmenProfilRol(teacher))
                           }
                           alt={teacher.name}
                           className="w-10 h-10 rounded-2xl bg-surface-2 border border-line shrink-0 object-cover"

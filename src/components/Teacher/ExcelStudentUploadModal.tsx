@@ -50,6 +50,7 @@ interface ParsedStudentRow {
   email: string;
   phone: string;
   password: string;
+  gender?: '' | 'K' | 'E'; // Aşama 171: Excel'de Cinsiyet sütunu varsa
   isNewClass: boolean;
   isValid: boolean;
   validationError?: string;
@@ -225,6 +226,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         email: f.email,
         phone: phone.valid ? phone.value : f.phone,
         password: f.password,
+        gender: f.gender,
         isNewClass: false,
         isValid: false,
         tc: tcHeader ? String(rows[index]?.values[tcHeader] || '').replace(/\D/g, '') : '',
@@ -395,6 +397,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                 email: row.email ? row.email.trim() : '',
                 phone: normalizeTurkishPhone(row.phone).value,
                 password: row.password?.trim() || undefined,
+                gender: row.gender || undefined, // boşsa addan tahmin edilir (Aşama 171)
               }))
             )
           : { created: [], failed: [] };

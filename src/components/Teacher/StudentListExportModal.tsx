@@ -18,6 +18,7 @@ type ColKey =
   | 'ad'
   | 'sinif'
   | 'kademe'
+  | 'cinsiyet'
   | 'kullanici'
   | 'eposta'
   | 'telefon'
@@ -33,6 +34,7 @@ const COLUMNS: Array<{ key: ColKey; label: string; group: 'ogrenci' | 'veli' }> 
   { key: 'ad', label: 'Ad Soyad', group: 'ogrenci' },
   { key: 'sinif', label: 'Sınıf', group: 'ogrenci' },
   { key: 'kademe', label: 'Kademe', group: 'ogrenci' },
+  { key: 'cinsiyet', label: 'Cinsiyet', group: 'ogrenci' }, // Aşama 171
   { key: 'kullanici', label: 'Kullanıcı Adı', group: 'ogrenci' },
   { key: 'eposta', label: 'E-posta', group: 'ogrenci' },
   { key: 'telefon', label: 'Telefon', group: 'ogrenci' },
@@ -130,6 +132,9 @@ export const StudentListExportModal: React.FC<{
             break;
           case 'kademe':
             r.push(s.schoolLevel || '');
+            break;
+          case 'cinsiyet':
+            r.push(s.gender === 'K' ? 'Kız' : s.gender === 'E' ? 'Erkek' : '');
             break;
           case 'kullanici':
             r.push(s.username || '');

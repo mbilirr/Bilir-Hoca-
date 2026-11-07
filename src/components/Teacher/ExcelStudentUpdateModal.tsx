@@ -37,13 +37,14 @@ interface Props {
   onDone?: (message: string) => void;
 }
 
-type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'parents' | 'tc';
+type Field = 'name' | 'classId' | 'studentNumber' | 'phone' | 'email' | 'gender' | 'parents' | 'tc';
 const FIELD_LABEL: Record<Field, string> = {
   name: 'Ad soyad',
   classId: 'Sınıf',
   studentNumber: 'Okul no',
   phone: 'Telefon',
   email: 'E-posta',
+  gender: 'Cinsiyet', // Aşama 171
   parents: 'Veliler', // Aşama 69
   tc: 'TC kimlik (parmak izi)',
 };
@@ -168,12 +169,13 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
   const students = useMemo(() => allStudents.filter((s) => dataService.canManageStudent(s)), [allStudents]);
 
   const [parsed, setParsed] = useState<
-    Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; tc: string; parents: StudentParent[] }>
+    Array<{ rowNumber: number; name: string; number: string; className: string; phone: string; email: string; gender: '' | 'K' | 'E'; tc: string; parents: StudentParent[] }>
   >([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, parents: true, tc: true });
+  const [fields, setFields] = useState<Record<Field, boolean>>({ name: true, classId: true, studentNumber: false, phone: true, email: true, gender: true, parents: true, tc: true });
   const hasParentColumn = parsed.some((p) => p.parents.length > 0); // Aşama 69
+  const hasGenderColumn = parsed.some((p) => !!p.gender); // Aşama 171
   // Aşama 50: TC parmak izleri (TC'nin kendisi yalnızca bu pencere açıkken bellekte durur, ekranda gösterilmez)
   const canTc = dataService.canUseDeneme();
   const [tcHashes, setTcHashes] = useState<Array<string | null> | null>(null); // parsed ile aynı sıra
@@ -325,6 +327,11 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           else if (p.email.trim().toLowerCase() !== (s.email || '').trim().toLowerCase())
             r.changes.push({ field: 'email', from: s.email || '—', to: p.email.trim(), value: p.email.trim() });
         }
+        // Aşama 171: cinsiyet (boş hücre kayıtlı cinsiyeti silmez)
+        if (fields.gender && p.gender && p.gender !== (s.gender || '')) {
+          const ad = (g?: string) => (g === 'K' ? 'Kız' : g === 'E' ? 'Erkek' : '—');
+          r.changes.push({ field: 'gender', from: ad(s.gender), to: ad(p.gender), value: p.gender });
+        }
         // Aşama 69: veliler (Excel'deki boş hücre kayıtlı veli bilgisini silmez; aynı sıradaki veli güncellenir)
         if (fields.parents && p.parents.length) {
           const merged = mergeParents(s.parents, p.parents, r.notes);
@@ -411,6 +418,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
             className: f.className,
             phone: f.phone,
             email: f.email,
+            gender: f.gender,
             tc: tcHeader ? String(sheetRows[i]?.values[tcHeader] || '').replace(/\D/g, '') : '',
             parents: cleanParents(extractParents(headers, sheetRows[i]?.values || {})),
           }))
@@ -438,6 +446,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         Sınıf: s.className || '',
         Telefon: s.phone || '',
         'E-Posta': s.email || '',
+        Cinsiyet: s.gender === 'K' ? 'Kız' : s.gender === 'E' ? 'Erkek' : '', // Aşama 171
         // Aşama 69: veliler (K12 listesiyle aynı sütun adları; düzenleyip geri yükleyebilirsiniz)
         ...Object.fromEntries(
           [0, 1, 2].flatMap((k) => {
@@ -469,6 +478,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
     let ok = 0;
     const failed: Array<{ name: string; error: string }> = [];
     const tcList: Array<{ id: string; hash: string; name: string }> = [];
+    const genderList: Array<{ id: string; gender: 'K' | 'E' }> = []; // Aşama 171: tek istekte toplu
     for (let i = 0; i < list.length; i++) {
       const r = list[i];
       const s = r.student!;
@@ -476,6 +486,8 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
       for (const c of r.changes) {
         if (c.field === 'tc') {
           tcList.push({ id: s.id, hash: c.value, name: s.name }); // yalnızca parmak izi
+        } else if (c.field === 'gender') {
+          genderList.push({ id: s.id, gender: c.value as 'K' | 'E' });
         } else if (c.field === 'parents') {
           upd.parents = JSON.parse(c.value) as StudentParent[];
         } else if (c.field === 'classId') {
@@ -497,6 +509,10 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         if (k >= 0) tcList.splice(k, 1);
       }
       setProgress({ done: i + 1, total: list.length });
+    }
+    if (genderList.length) {
+      const res = await dataService.saveGenders('student', genderList);
+      if (res.failed) failed.push({ name: `${res.failed} öğrenci`, error: res.error || 'Cinsiyet kaydedilemedi' });
     }
     if (tcList.length) {
       try {
@@ -664,7 +680,7 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
           <div className="p-4 bg-surface-2/60 rounded-xl border border-line space-y-3">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <span className="font-semibold text-fg">Güncellenecek bilgiler:</span>
-              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => (f !== 'tc' || (canTc && hasTcColumn)) && (f !== 'parents' || hasParentColumn)).map((f) => (
+              {(Object.keys(FIELD_LABEL) as Field[]).filter((f) => (f !== 'tc' || (canTc && hasTcColumn)) && (f !== 'parents' || hasParentColumn) && (f !== 'gender' || hasGenderColumn)).map((f) => (
                 <label key={f} className="flex items-center gap-1.5 cursor-pointer text-fg-2 hover:text-fg">
                   <input
                     type="checkbox"

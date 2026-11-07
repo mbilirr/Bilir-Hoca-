@@ -20,7 +20,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
-import { createEmojiSvgDataUrl } from './TeacherAvatarModal';
+import { profilResmi, ogretmenProfilRol, cizimSecenekleri } from '../../lib/profilResmi'; // Aşama 171
 import { compressImageToDataUrl } from '../../lib/imageCompressor';
 import { trFold } from '../../lib/importNormalize'; // Aşama 154
 
@@ -213,16 +213,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
             <div className="p-4 bg-canvas/80 border border-line rounded-2xl space-y-3">
               <div className="flex items-center space-x-4">
                 <div className="relative group shrink-0">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-500 ring-2 ring-indigo-400/50 flex items-center justify-center overflow-hidden shadow-md">
-                    {avatar ? (
-                      avatar.startsWith('http') || avatar.startsWith('data:') ? (
-                        <img src={avatar} alt={name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-3xl select-none leading-none">{avatar}</span>
-                      )
-                    ) : (
-                      <span className="text-lg font-extrabold text-white tracking-wider">{initials}</span>
-                    )}
+                  <div className="w-16 h-16 rounded-full ring-2 ring-line flex items-center justify-center overflow-hidden shadow-md bg-surface-2">
+                    {/* Aşama 171: kendi resmi yoksa cinsiyet ve role göre çizim */}
+                    <img src={profilResmi({ id: teacher.id, name, avatar, gender: teacher.gender }, ogretmenProfilRol({ ...teacher, branch }))} alt={name} className="w-full h-full object-cover" />
                   </div>
                   <button
                     type="button"
@@ -235,9 +228,9 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-fg mb-0.5">Profil Fotoğrafı & Öğretmen Emojileri</p>
+                  <p className="text-xs font-bold text-fg mb-0.5">Profil Resmi</p>
                   <p className="text-[11px] text-muted mb-2">
-                    Bilgisayarınızdan fotoğraf yükleyin veya branşınıza uygun öğretmen emojisi seçin:
+                    Fotoğrafınızı yükleyin ya da aşağıdaki çizimlerden birini seçin:
                   </p>
 
                   <input
@@ -255,7 +248,7 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      <span>💻 Bilgisayardan Resim Seç</span>
+                      <span>Fotoğraf Yükle</span>
                     </button>
                     {avatar && (
                       <button
@@ -264,55 +257,33 @@ export const TeacherProfileEditModal: React.FC<TeacherProfileEditModalProps> = (
                         className="px-2.5 py-1.5 text-rose-600 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center space-x-1 cursor-pointer transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>Kaldır ({initials})</span>
+                        <span>Kaldır</span>
                       </button>
                     )}
                   </div>
                 </div>
               </div>
 
-            {/* Öğretmen Profiline Uygun Emojiler */}
+            {/* Aşama 171: emojiler yerine çizimler (cinsiyete göre; yalnız kendi unvanının rozetli çizimi) */}
             <div className="pt-2.5 border-t border-line space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-fg-2">Öğretmen Profiline Uygun Emojiler</span>
-              </div>
-              
-              {/* Emojiler Gruplu / Yatay Liste */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
-                {[
-                  { em: '👨‍🏫', name: 'Erkek Öğretmen' },
-                  { em: '👩‍🏫', name: 'Kadın Öğretmen' },
-                  { em: '🧑‍🏫', name: 'Eğitmen' },
-                  { em: '👨‍🎓', name: 'Akademisyen' },
-                  { em: '🔬', name: 'Fen & Biyoloji' },
-                  { em: '🧪', name: 'Kimya & Deney' },
-                  { em: '📐', name: 'Matematik & Geometri' },
-                  { em: '📚', name: 'Edebiyat & Türkçe' },
-                  { em: '✍️', name: 'Türkçe & Yazarlık' },
-                  { em: '🌍', name: 'Coğrafya' },
-                  { em: '📜', name: 'Tarih' },
-                  { em: '🇬🇧', name: 'İngilizce & Dil' },
-                  { em: '💻', name: 'Bilişim & Kodlama' },
-                  { em: '🎨', name: 'Görsel Sanatlar' },
-                  { em: '🎓', name: 'Mezuniyet & Kep' },
-                  { em: '🏆', name: 'Başarı & Kupa' },
-                  { em: '⭐', name: 'Yıldız Öğretmen' },
-                  { em: '🦉', name: 'Bilge Baykuş' },
-                  { em: '💡', name: 'Fikir & İlham' },
-                  { em: '🧠', name: 'Analitik Zihin' },
-                  { em: '🎯', name: 'Hedef Odaklı' },
-                  { em: '🚀', name: 'Gelecek Vizyonu' },
-                ].map((item) => (
-                  <button
-                    key={item.em}
-                    type="button"
-                    onClick={() => setAvatar(createEmojiSvgDataUrl(item.em))}
-                    className="p-1.5 rounded-xl bg-surface hover:bg-indigo-50 dark:hover:bg-indigo-900/40 border border-line hover:border-indigo-400 text-lg leading-none transition-all cursor-pointer hover:scale-115 shrink-0 flex items-center justify-center shadow-sm"
-                    title={`${item.name} (${item.em})`}
-                  >
-                    <span>{item.em}</span>
-                  </button>
-                ))}
+              <span className="text-[11px] font-bold text-fg-2">Çizimler</span>
+              <div className="grid grid-cols-6 gap-1.5" id="ogretmen-profil-cizimler">
+                {cizimSecenekleri('teacher', ogretmenProfilRol({ ...teacher, branch }), teacher.gender || 'all')
+                  .slice(0, 12)
+                  .map((src) => (
+                    <button
+                      key={src}
+                      type="button"
+                      aria-pressed={avatar === src}
+                      aria-label="Bu çizimi seç"
+                      onClick={() => setAvatar(src)}
+                      className={`aspect-square rounded-full p-0.5 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                        avatar === src ? 'ring-2 ring-brand ring-offset-2 ring-offset-surface' : 'hover:ring-2 hover:ring-line-strong'
+                      }`}
+                    >
+                      <img src={src} alt="" loading="lazy" decoding="async" className="w-full h-full rounded-full object-cover" />
+                    </button>
+                  ))}
               </div>
             </div>
           </div>
