@@ -3,6 +3,7 @@ import { UserPlus, Check, X, RefreshCw, Inbox, AlertTriangle, Clock } from 'luci
 import { ClassGroup, StudentApplication } from '../../types';
 import { dataService } from '../../services/dataService';
 import { formatClassDisplayName } from '../../constants/schoolConstants';
+import { profilResmi } from '../../lib/profilResmi';
 
 interface StudentApplicationsPanelProps {
   classes: ClassGroup[];
@@ -175,7 +176,7 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="flex items-center space-x-3">
                   <img
-                    src={app.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(app.name)}`}
+                    src={profilResmi({ name: app.name, avatar: app.avatar }, 'student')}
                     alt=""
                     className="w-10 h-10 rounded-xl bg-surface-2 border border-line"
                   />

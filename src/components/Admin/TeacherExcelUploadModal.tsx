@@ -135,7 +135,7 @@ const TeacherExcelUploadContent: React.FC<Omit<TeacherExcelUploadModalProps, 'op
       // Kullanıcı adı başka okulda alınmışsa sonuna rakam eklenerek en çok 3 kez denenir
       for (let attempt = 0; attempt < 3 && !res; attempt++) {
         try {
-          res = await dataService.createTeacherAccount({ name: r.name, username, branch: r.branch, email: r.email, password });
+          res = await dataService.createTeacherAccount({ name: r.name, username, branch: r.branch, email: r.email, password, gender: r.gender || undefined });
         } catch (er: any) {
           const msg = er?.message || 'Hesap açılamadı';
           if (attempt < 2 && usernameTaken(msg)) {

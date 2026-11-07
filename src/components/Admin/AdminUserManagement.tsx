@@ -35,6 +35,7 @@ import {
   BadgeCheck,
   FileSpreadsheet, // Aşama 144
   Send,
+  VenusAndMars,
 } from 'lucide-react';
 import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student, StudentCredential } from '../../types';
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
@@ -50,8 +51,11 @@ import { lazyNamed } from '../../lib/lazyLoad'; // Aşama 144
 import { fetchTeacherContacts, saveTeacherContact, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
 import { normalizeTurkishPhone, PHONE_ERROR, trFold } from '../../lib/importNormalize';
 import { birthDateLabel } from '../../lib/teacherImport';
+import { profilResmi, ogretmenProfilRol } from '../../lib/profilResmi';
 // Aşama 144: Excel ile toplu öğretmen ekleme (xlsx kütüphanesi yalnız pencere açılınca yüklenir)
 const TeacherExcelUploadModal = lazyNamed(() => import('./TeacherExcelUploadModal'), 'TeacherExcelUploadModal');
+// Aşama 171: cinsiyeti addan doldur (ad listesi yalnız açılınca iner)
+const CinsiyetDoldurModal = lazyNamed(() => import('./CinsiyetDoldurModal'), 'CinsiyetDoldurModal');
 const TeacherCredentialSendModal = lazyNamed(() => import('./TeacherCredentialSendModal'), 'TeacherCredentialSendModal');
 // Aşama 149: Yönetim › Öğrenciler — öğrencilere giriş bilgisi (pencereler yalnız açılınca yüklenir)
 const StudentCredentialPickModal = lazyNamed(() => import('./StudentCredentialPickModal'), 'StudentCredentialPickModal');
@@ -137,6 +141,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     email: string;
     phone: string;
     birthDate: string; // Aşama 144 (yalnız öğretmen)
+    gender: '' | 'K' | 'E'; // Aşama 171
     branch: string;
     classId: string;
     className: string;
@@ -152,6 +157,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     email: '',
     phone: '',
     birthDate: '',
+    gender: '',
     branch: '',
     classId: '',
     className: '',
@@ -168,6 +174,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   const [selectedTargetRole, setSelectedTargetRole] = useState<SystemRole>('teacher');
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
   const [isExcelTeacherOpen, setIsExcelTeacherOpen] = useState(false); // Aşama 144
+  const [isGenderFillOpen, setIsGenderFillOpen] = useState(false); // Aşama 171
   const [isCredSendOpen, setIsCredSendOpen] = useState(false); // Aşama 144: giriş bilgisi SMS / e-posta
   // Aşama 149: öğrencilere giriş bilgisi (Yönetim › Öğrenciler): toplu seçim penceresi / tek öğrenci / yeni şifreler
   const [stuPickOpen, setStuPickOpen] = useState(false);
@@ -390,6 +397,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       email: user.email || '',
       phone: phoneOf(user),
       birthDate: birthOf(user),
+      gender: user.gender || '',
       branch: user.branch || '',
       classId: user.classId || (classes[0]?.id || ''),
       className: user.className || '',
@@ -423,6 +431,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         username: editFormData.username,
         email: editFormData.email,
         phone: editFormData.phone,
+        gender: editFormData.gender || null, // Aşama 171: '' = belirtilmedi
         branch: editFormData.branch,
         classId: editFormData.classId,
         className: editFormData.className,
@@ -996,6 +1005,18 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 {canManageTeachers && roleLock !== 'student' && (
                   <button
                     type="button"
+                    onClick={() => setIsGenderFillOpen(true)}
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
+                    title="Cinsiyeti boş öğretmenleri adlarından tahmin edip doldur (kaydetmeden önce kontrol edersiniz)"
+                    id="yonetim-ogretmen-cinsiyet"
+                  >
+                    <VenusAndMars className="w-3.5 h-3.5" />
+                    <span>Cinsiyet</span>
+                  </button>
+                )}
+                {canManageTeachers && roleLock !== 'student' && (
+                  <button
+                    type="button"
                     onClick={() => setIsCredSendOpen(true)}
                     className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28 justify-center"
                     title="Öğretmenlere giriş bilgisini SMS / e-postayla gönder"
@@ -1163,22 +1184,15 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                         <div className="flex items-center space-x-3">
                           <div className="relative shrink-0">
                             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-surface-2 ring-2 ring-line overflow-hidden flex items-center justify-center">
-                              {u.avatar ? (
-                                <img loading="lazy" decoding="async" src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="text-xs font-bold text-fg-2">
-                                  {u.name.slice(0, 2).toLocaleUpperCase('tr-TR')}
-                                </span>
-                              )}
+                              {/* Aşama 171: kendi resmi yoksa cinsiyet + unvana göre çizim */}
+                              <img
+                                loading="lazy"
+                                decoding="async"
+                                src={profilResmi(u, u.role === 'student' ? 'student' : ogretmenProfilRol(u, unvanlar.get(u.id)))}
+                                alt={u.name}
+                                className="w-full h-full object-cover"
+                              />
                             </div>
-                            {u.role === 'admin' && (
-                              <span
-                                className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-slate-950 rounded-full flex items-center justify-center text-[9px] shadow-sm font-black"
-                                title="Yönetici (Admin)"
-                              >
-                                👑
-                              </span>
-                            )}
                           </div>
 
                           <div className="min-w-0">
@@ -1527,6 +1541,21 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                     onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs text-fg focus:outline-none focus:border-indigo-500"
                   />
+                </div>
+
+                {/* Aşama 171: cinsiyet (öğretmen + öğrenci) */}
+                <div>
+                  <label htmlFor="kullanici-duzen-cinsiyet" className="block text-xs font-bold text-fg-2 mb-1">Cinsiyet</label>
+                  <select
+                    id="kullanici-duzen-cinsiyet"
+                    value={editFormData.gender}
+                    onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value as '' | 'K' | 'E' })}
+                    className="w-full px-3.5 py-2.5 bg-canvas border border-line rounded-xl text-xs font-semibold text-fg focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="">Seçiniz</option>
+                    <option value="K">{editModalUser.role === 'student' ? 'Kız' : 'Kadın'}</option>
+                    <option value="E">Erkek</option>
+                  </select>
                 </div>
 
                 {/* Aşama 144: doğum tarihi (öğretmen) */}
@@ -2226,6 +2255,23 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
           <StudentWelcomeCredentialsModal isOpen onClose={() => setStuNewCreds(null)} credentials={stuNewCreds} failures={[]} title="Yeni Giriş Bilgileri" />
         </React.Suspense>
       )}
+      {/* Aşama 171: ÖĞRETMEN CİNSİYETİNİ ADDAN DOLDUR */}
+      {isGenderFillOpen && (
+        <React.Suspense fallback={null}>
+          <CinsiyetDoldurModal
+            open
+            kind="teacher"
+            onClose={() => setIsGenderFillOpen(false)}
+            people={users
+              .filter((u) => u.role !== 'student' && rowManageable(u))
+              .map((u) => ({ id: u.id, name: u.name, gender: u.gender, avatar: u.avatar, branch: u.branch, isAdmin: u.isAdmin, sub: u.branch }))}
+            onDone={(msg: string) => {
+              showToast(`✓ ${msg}`, 'success');
+              loadData();
+            }}
+          />
+        </React.Suspense>
+      )}
       {/* Aşama 144: EXCEL İLE TOPLU ÖĞRETMEN */}
       {isExcelTeacherOpen && (
         <React.Suspense fallback={null}>
@@ -2276,6 +2322,9 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   // Aşama 144: telefon ve doğum tarihi korumalı tabloya yazılır (Excel ile eklemeyle aynı veri)
   const [phone, setPhone] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  // Aşama 171: cinsiyet (elle seçilmediyse addan tahmin)
+  const [gender, setGender] = useState<'' | 'K' | 'E'>('');
+  const genderTouched = React.useRef(false);
   const [contactNote, setContactNote] = useState<string | null>(null);
   const [password, setPassword] = useState(() => dataService.generatePassword());
   const [error, setError] = useState<string | null>(null);
@@ -2324,7 +2373,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
     setIsSaving(true);
     try {
       const wanted = roleUi ? roles.filter((r) => r !== 'zumre_baskani' || branch.trim()) : [];
-      const res = await dataService.createTeacherAccount({ name, username, branch, email, password });
+      const res = await dataService.createTeacherAccount({ name, username, branch, email, password, gender: gender || undefined });
       // Roller hesapla birlikte verilir; verilemezse hesap yine açılmış olur (Unvanlar ve Roller'den verilir)
       if (wanted.length) {
         try {
@@ -2469,8 +2518,14 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => {
-                  setName(e.target.value);
-                  if (!usernameTouched) setUsername(toUsernameSuggestion(e.target.value));
+                  const v = e.target.value;
+                  setName(v);
+                  if (!usernameTouched) setUsername(toUsernameSuggestion(v));
+                  if (!genderTouched.current) {
+                    void import('../../lib/cinsiyetTahmin').then(({ cinsiyetTahmin }) => {
+                      if (!genderTouched.current) setGender(cinsiyetTahmin(v) || '');
+                    });
+                  }
                 }}
                 placeholder="Örn: Ayşe Demir"
                 className={inputCls}
@@ -2503,7 +2558,23 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
                 <input autoComplete="off" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="isteğe bağlı" className={inputCls} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label htmlFor="teacher-create-gender" className="block text-[11px] font-bold text-fg-2 mb-1">Cinsiyet</label>
+                <select
+                  id="teacher-create-gender"
+                  value={gender}
+                  onChange={(e) => {
+                    genderTouched.current = true;
+                    setGender(e.target.value as '' | 'K' | 'E');
+                  }}
+                  className={`${inputCls} cursor-pointer`}
+                >
+                  <option value="">Seçiniz</option>
+                  <option value="K">Kadın</option>
+                  <option value="E">Erkek</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-[11px] font-bold text-fg-2 mb-1">Telefon</label>
                 <input autoComplete="off" type="tel" id="teacher-create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05XX XXX XX XX" className={inputCls} />

@@ -228,6 +228,7 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
           'E-posta',
           'Telefon',
           'Doğum Tarihi', // Aşama 144
+          'Cinsiyet', // Aşama 171
           'Şifre Verilme Tarihi',
         ];
         // Aşama 144: öğretmen telefonu / doğum tarihi korumalı tablodan (SQL 144 yoksa boş)
@@ -249,6 +250,7 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
             t.email || '',
             contacts.get(t.id)?.phone || t.phone || '',
             birthDateLabel(contacts.get(t.id)?.birthDate),
+            t.gender === 'K' ? 'Kadın' : t.gender === 'E' ? 'Erkek' : '',
             fmtDate(cred?.setAt),
           ];
         });
