@@ -984,8 +984,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </div>
                 <p className="text-sm font-bold text-fg">Kontrol edilecek sınıfı seçin</p>
                 <p className="text-xs text-muted max-w-sm mx-auto">
-                  Yukarıdaki <strong>Sınıf Seçiniz</strong> kutusundan sınıfı, isterseniz dersi de seçin. O sınıfın ödevleri
-                  burada şerit hâlinde listelenir; kontrol etmek için ödevin üzerine tıklayın.
+                  {/* Aşama 185: kısaltıldı */}
+                  Yukarıdan <strong>sınıfı</strong> seçin, ödevler burada listelenir. Kontrol için ödeve tıklayın.
                 </p>
               </div>
             ) : stripHomeworks.length === 0 ? (

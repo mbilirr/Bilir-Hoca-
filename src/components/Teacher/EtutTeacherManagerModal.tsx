@@ -3,6 +3,7 @@ import { Users, UserPlus, Pencil, Trash2, Save, X, Mail, Phone, AlertCircle, Eye
 import { dataService, type EtutTeacherRow } from '../../services/dataService';
 import type { Teacher } from '../../types';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { ALL_SUBJECTS, ORTAOKUL_SUBJECTS, LISE_SUBJECTS, subjectsForBranch } from '../../lib/subjects';
 import { inputCls, chipCls, FieldLabel } from './FormParts';
 
@@ -418,9 +419,10 @@ export const EtutTeacherManagerModal: React.FC<{ open: boolean; onClose: () => v
               ))}
             </div>
           )}
-          <p className="text-[11px] text-muted">
-            Kayıtlı öğretmenin dersi, profilindeki branştan otomatik gelir. Kalem simgesiyle ek ders veya (profilinde yoksa) e-posta ekleyebilirsiniz.
-            Çöp simgesi öğretmeni yalnızca etüt listesinden çıkarır; hesabı silinmez, göz simgesiyle geri eklenir.
+          {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+          <p className="text-[11px] text-muted flex items-center gap-1">
+            Çöp simgesi yalnız etüt listesinden çıkarır, hesap silinmez.
+            <InfoTip text="Kayıtlı öğretmenin dersi, profilindeki branştan otomatik gelir. Kalem simgesiyle ek ders ya da (profilinde yoksa) e-posta ekleyebilirsiniz. Listeden çıkarılan öğretmen göz simgesiyle geri eklenir." />
           </p>
         </section>
       </div>

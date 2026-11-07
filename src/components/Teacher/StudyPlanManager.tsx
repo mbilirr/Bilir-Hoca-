@@ -52,6 +52,7 @@ import {
 } from '../../services/studyPlanService';
 import { normalizeSubject, subjectsForLevel } from '../../lib/subjects';
 import { cx, EmptyState, Modal, Panel, Segmented } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { ConfirmDeleteModal } from '../Common/ConfirmDeleteModal';
 import { FieldLabel, StudentPicker, classLevel, inputCls, chipCls, PICKER_BOX_CLS, PICKER_CTRL_CLS, SelectBox } from './FormParts';
 import { StudyPlanTaskModal } from './StudyPlanTaskModal';
@@ -1010,9 +1011,10 @@ const ApplyPlanModal: React.FC<{
           </div>
           {result.students > 0 && (
             <div className="rounded-xl border border-line px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted">
-                Planı ayrıca e-posta (PDF ekli) veya WhatsApp ile de gönderebilirsiniz. E-postayla gönderilirse son görev günü 20:00'de size
-                {classIds.length === 1 ? ' sınıfın toplu karnesi' : ' rapor'} gelir.
+              {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+              <p className="text-xs text-muted flex items-center gap-1">
+                E-posta (PDF ekli) ya da WhatsApp ile de gönderebilirsiniz.
+                <InfoTip text={`E-postayla gönderilirse son görev günü 20:00'de size${classIds.length === 1 ? ' sınıfın toplu karnesi' : ' rapor'} gelir.`} />
               </p>
               <button type="button" id="plan-apply-dispatch" className="ui-btn ui-btn-primary ui-btn-sm" onClick={openDispatch}>
                 <Send className="w-3.5 h-3.5" /> E-posta / WhatsApp ile gönder

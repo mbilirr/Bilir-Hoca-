@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, ListChecks, Users } from 'lucide-react';
 import type { ClassGroup, Etut, Student } from '../../types';
 import { EmptyState, Modal, Segmented } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import {
   SORT_LABEL,
   addDaysYmd,
@@ -191,18 +192,22 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
             </div>
           )}
           {byTeacher && (
-            <p className="text-[11px] text-muted mt-1.5" id="etut-schedule-teacher-help">
-              {pageMode === 'each'
-                ? 'Her öğretmen ayrı sayfa olur: en üstte öğretmenin adı ve dönem; altında o öğretmenin her etüdü için bir tablo (tarih ve ders, saat ve yer, konu, öğrenciler ve sınıfları). Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez, tek tabloda çıkar. Sayfa gerekirse yazı küçültülüp iki sütuna dizilerek sığdırılır.'
-                : 'Bütün öğretmenlerin tabloları art arda dizilir ve sığdığı kadar az sayfaya yerleşir (gerekirse yazı küçültülür, iki sütun kullanılır). Her tabloda öğretmenin adı da yazar. Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez.'}
+            /* Aşama 185: uzun açıklama ⓘ içinde */
+            <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1" id="etut-schedule-teacher-help">
+              {pageMode === 'each' ? 'Her öğretmen ayrı sayfada.' : 'Bütün öğretmenler art arda, en az sayfada.'}
+              <InfoTip
+                text={
+                  pageMode === 'each'
+                    ? 'Her öğretmen ayrı sayfa olur: en üstte öğretmenin adı ve dönem; altında o öğretmenin her etüdü için bir tablo (tarih ve ders, saat ve yer, konu, öğrenciler ve sınıfları). Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez, tek tabloda çıkar. Sayfa gerekirse yazı küçültülüp iki sütuna dizilerek sığdırılır.'
+                    : 'Bütün öğretmenlerin tabloları art arda dizilir ve sığdığı kadar az sayfaya yerleşir (gerekirse yazı küçültülür, iki sütun kullanılır). Her tabloda öğretmenin adı da yazar. Farklı sınıflardan öğrencisi olan etüt sınıflara bölünmez.'
+                }
+              />
             </p>
           )}
           {layout === 'teacher' && split === 'class' && (
-            <p className="text-[11px] text-muted mt-1.5">
-              Her ders ve gün ayrı sayfa olur: en üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo
-              (öğretmen, etüt saati ve yeri, etüt konusu ve öğrencilerin adı soyadı). Yazdırmaya uygun A4 PDF; her ders/gün listesi
-              tek sayfaya sığdırılır (gerekirse yazı küçültülür ve tablolar iki sütuna dizilir). "Tüm sınıflar" seçilirse liste
-              sınıf sınıf ayrılır: her sayfada yalnızca bir sınıfın öğrencileri olur.
+            <p className="text-[11px] text-muted mt-1.5 flex items-center gap-1">
+              Her ders ve gün ayrı sayfada, A4 PDF.
+              <InfoTip text='En üstte ders adı (ör. "FEN BİLİMLERİ DERSİ ETÜTÜ"), altında tarih ve gün; sonra her öğretmen için ayrı tablo (öğretmen, etüt saati ve yeri, konu, öğrencilerin adı soyadı). Her ders/gün listesi tek sayfaya sığdırılır (gerekirse yazı küçültülür, tablolar iki sütuna dizilir). "Tüm sınıflar" seçilirse her sayfada yalnız bir sınıfın öğrencileri olur.' />
             </p>
           )}
         </div>

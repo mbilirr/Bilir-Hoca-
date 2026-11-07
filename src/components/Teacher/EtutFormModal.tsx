@@ -4,6 +4,7 @@ import { CalendarDays, Copy, Edit3, Save, AlertCircle, AlertTriangle, Users, Rep
 import type { ClassGroup, Etut, Student } from '../../types';
 import { dataService, type EtutTeacherOption } from '../../services/dataService';
 import { Modal, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { normalizeSubject, subjectsForBranch, subjectsForLevel, zumreOf } from '../../lib/subjects';
 import { EtutTeacherSelect, type TeacherGroup } from './EtutTeacherSelect';
@@ -771,12 +772,18 @@ const EtutFormContent: React.FC<Props> = ({
                 Etüdü öğretmen adına planlıyorsunuz; etüt seçilen öğretmenin takviminde görünür ve ona e-posta gider.
               </p>
             )}
-            <p className="text-[11px] text-muted mt-1">
-              Kutucuklarla birden çok öğretmen seçebilirsiniz; seçilen her öğretmene etüt tanımlanır ve e-posta gider.
-              {assignAll &&
-                (zumre.subjects.length > 1
-                  ? ` Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
-                  : ' Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.')}
+            {/* Aşama 185: kısaltıldı, zümre ayrıntısı ⓘ içinde */}
+            <p className="text-[11px] text-muted mt-1 flex items-center gap-1">
+              Birden çok öğretmen seçebilirsiniz; her birine etüt ve e-posta gider.
+              {assignAll && (
+                <InfoTip
+                  text={
+                    zumre.subjects.length > 1
+                      ? `Listede ${zumre.name} zümresinin (${zumre.subjects.join(', ')}) öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.`
+                      : 'Listede seçilen dersin öğretmenleri var; başka dersin öğretmeni için önce dersi değiştirin.'
+                  }
+                />
+              )}
             </p>
           </div>
           {(() => {
@@ -1022,8 +1029,10 @@ const EtutFormContent: React.FC<Props> = ({
         </FormSection>
 
         {editScheduled ? (
-          <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5 text-[11px] text-muted">
-            Bu etüt kopyalanarak tanımlandığı için e-posta etüt gününde otomatik gider. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir.
+          <div id="etut-scheduled-note" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[11px] text-muted flex items-center gap-1">
+            {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+            <span className="flex-1">E-posta etüt günü güncel bilgilerle otomatik gider.</span>
+            <InfoTip text="Bu etüt kopyalanarak tanımlandı. Değişiklik yapsanız bile ayrıca e-posta gönderilmez; gün geldiğinde güncel bilgiler gönderilir." />
           </div>
         ) : (
           <MailOptIn

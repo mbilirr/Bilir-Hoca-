@@ -3,6 +3,7 @@ import { User, Search, Plus, Target, ChevronDown, BarChart3 } from 'lucide-react
 import type { Student, ClassGroup, WeeklyQuestionTarget, StudentQuestionLog } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented, EmptyState } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { inputCls, localDateStr } from './FormParts';
 import { targetForDay, isPlanMirrorTarget } from '../../utils/targetDays';
 import { PERIOD_ITEMS, TargetPeriodFilter, periodOf, targetPeriodText, ownerText, ProgressBar, TargetRowActions } from './TargetListParts';
@@ -159,9 +160,10 @@ export const StudentTargetsModal: React.FC<Props> = ({ isOpen, onClose, students
             />
           ) : (
             <div className="space-y-3" id="next-plan-targets">
-              <p className="text-[11px] text-muted">
-                Bu hedefler haftalık plandaki gün gün soru sayılarından otomatik açıldı. Bir dersin sayılarını değiştirmek için kalem düğmesine basın;
-                değiştirdiğiniz sayılar plan güncellense de korunur.
+              {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                Haftalık plandan otomatik açıldı. Değiştirmek için kaleme basın.
+                <InfoTip text="Bu hedefler haftalık plandaki gün gün soru sayılarından açıldı. Değiştirdiğiniz sayılar plan güncellense de korunur." />
               </p>
               {planGroups.map((g) => {
                 const dates = weekDatesOf(g.start);

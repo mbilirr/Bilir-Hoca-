@@ -163,14 +163,10 @@ biliredu`.trim();
         {/* Modal Body */}
         <div className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Automatic System Delivery Banner */}
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-start space-x-3 text-xs text-emerald-700 dark:text-emerald-200 shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <span className="font-bold text-emerald-700 dark:text-emerald-300">E-Posta Sistemi Tarafından Otomatik Gönderildi:</span>
-              <p className="text-[11.5px] text-fg-2">
-                Bu etüt kaydı oluşturulduğunda sistem bilgilendirme e-postasını ve bildirim kartını otomatik olarak ilgili öğrencilerin e-posta adresine ve öğrenci portalına ulaştırdı.
-              </p>
-            </div>
+          {/* Aşama 185: büyük kutu tek satıra indi */}
+          <div className="px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <span className="font-semibold">E-posta ve bildirim öğrencilere otomatik gönderildi.</span>
           </div>
 
           {/* Etut Summary Card */}

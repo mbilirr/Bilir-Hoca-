@@ -3,6 +3,7 @@ import { Target, Save, Trash2, User, Users, Info, AlertCircle, X, Plus, Divide, 
 import type { Student, ClassGroup, WeeklyQuestionTarget } from '../../types';
 import { dataService } from '../../services/dataService';
 import { Modal, Segmented } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import { normalizeSubject, sameSubjectName, shortSubjectName, subjectsForLevel, targetSubjectList } from '../../lib/subjects';
 import { addDaysYmd, loadPlanQuestionCountsMany, weekStartOf, type PlanQuestionCounts } from '../../services/studyPlanService';
 import { SubjectMultiSelect } from './SubjectMultiSelect';
@@ -993,9 +994,9 @@ const TargetFormContent: React.FC<Props> = ({
               <ClipboardList className="w-4 h-4 mt-0.5 shrink-0" />
               <span className="min-w-0 flex-1">
                 <b>Gün gün sayılar haftalık plandan dolduruldu</b>
-                {effectiveSubject ? ` (${effectiveSubject})` : ' (bütün dersler)'}: planda soru verilmeyen günler 0. İsterseniz değiştirebilirsiniz.
-                Hedef <b>kendiliğinden kaydedilip öğrenciye gönderilir</b>; bu derslerin plandan gelen sayıları ayrıca sayılmaz.
-                Düzeltmek isterseniz günleri değiştirip <b>Hedefi Güncelle</b>'ye basın.
+                {effectiveSubject ? ` (${effectiveSubject})` : ' (bütün dersler)'}. Hedef <b>kendiliğinden kaydedilip öğrenciye gönderilir</b>.{' '}
+                {/* Aşama 185: ayrıntı ⓘ içinde */}
+                <InfoTip className="align-middle" text="Planda soru verilmeyen günler 0 olur. Bu derslerin plandan gelen sayıları ayrıca sayılmaz. Düzeltmek isterseniz günleri değiştirip Hedefi Güncelle'ye basın." />
                 {planEdited && <span className="block mt-0.5 font-semibold">Bazı günleri elle değiştirdiniz: kaydetmek için Hedefi Güncelle / Kaydet'e basın.</span>}
                 {autoStatus && (
                   <span

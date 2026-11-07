@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Mail, MessageCircle, Send, Smartphone } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { Modal, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 185
 import {
   createPlanGroup,
   loadPlansFor,
@@ -261,8 +262,9 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
                 sentSet={sentSet}
               />
               <p className="text-[11px] text-muted" id="plan-send-mine-note">
-                {students.length ? `Seçilen ${students.length} öğrenciye` : 'Seçtiğiniz öğrencilere'} yalnız sizin görevleriniz gider. Diğer öğretmenlerin görevleri onların
-                gönderimine bağlıdır. Seçilmeyenlerde görevleriniz taslak kalır; sonra gönderebilirsiniz.
+                {/* Aşama 185: kısaltıldı, ayrıntı ⓘ içinde */}
+                {students.length ? `Seçilen ${students.length} öğrenciye` : 'Seçtiğiniz öğrencilere'} yalnız sizin görevleriniz gider.{' '}
+                <InfoTip className="align-middle" text="Diğer öğretmenlerin görevleri onların gönderimine bağlıdır. Seçilmeyenlerde görevleriniz taslak kalır; sonra gönderebilirsiniz." />
               </p>
             </div>
           )}
@@ -270,9 +272,9 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
             <input type="checkbox" checked disabled className="mt-0.5 w-4 h-4" />
             <span className="text-sm">
               <span className="font-semibold text-fg">Öğrencinin uygulamasında göster ve Soru Kaydet'e aktar</span>
-              <span className="block text-[11px] text-muted">
-                Öğrenci ana sayfasında her gün "Bugün yapılması gerekenler" olarak görür ve işaretler. Görevler Soru Kaydet bölümünde ilgili günün ders satırına
-                kendiliğinden yazılır; soru sayıları gün gün soru hedefine eklenir.
+              <span className="flex items-center gap-1 text-[11px] text-muted">
+                Öğrenci her gün ana sayfasında görür ve işaretler.
+                <InfoTip text='Ana sayfada "Bugün yapılması gerekenler" olarak çıkar. Görevler Soru Kaydet bölümünde ilgili günün ders satırına kendiliğinden yazılır; soru sayıları gün gün soru hedefine eklenir.' />
               </span>
             </span>
           </label>
@@ -282,8 +284,9 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
               <span className="font-semibold text-fg inline-flex items-center gap-1.5">
                 <Mail className="w-4 h-4" /> E-posta ile de gönder (PDF ekli)
               </span>
-              <span className="block text-[11px] text-muted">
-                Yalnız sizin görevleriniz yazılır; e-postanın içinde ve PDF eki olarak gider. Öğrenci e-postadaki kişisel bağlantıdan görevlerini "yaptım" diye işaretleyebilir; işaretler sisteme kaydedilir.
+              <span className="flex items-center gap-1 text-[11px] text-muted">
+                Sizin görevleriniz e-postada ve PDF ekinde gider.
+                <InfoTip text='Öğrenci e-postadaki kişisel bağlantıdan görevlerini "yaptım" diye işaretleyebilir; işaretler sisteme kaydedilir.' />
               </span>
               <span className="block text-[11px] text-muted mt-1" id="plan-send-email-count">
                 {withEmail === students.length
@@ -306,8 +309,9 @@ export const StudyPlanSendModal: React.FC<StudyPlanSendModalProps> = ({
               <span className="font-semibold text-fg inline-flex items-center gap-1.5">
                 <MessageCircle className="w-4 h-4" /> WhatsApp mesajı hazırla
               </span>
-              <span className="block text-[11px] text-muted">
-                Gönderdikten sonra her öğrenci için bir WhatsApp düğmesi çıkar; tıklayınca sizin görevlerinizin özeti ve işaretleme bağlantısı hazır mesaj olarak açılır, siz gönderirsiniz. Telefonu kayıtlı değilse kişiyi WhatsApp'ta siz seçersiniz.
+              <span className="flex items-center gap-1 text-[11px] text-muted">
+                Her öğrenci için hazır mesaj düğmesi çıkar.
+                <InfoTip text="Gönderdikten sonra her öğrenci için bir WhatsApp düğmesi çıkar; tıklayınca görevlerinizin özeti ve işaretleme bağlantısı hazır mesaj olarak açılır, siz gönderirsiniz. Telefonu kayıtlı değilse kişiyi WhatsApp'ta siz seçersiniz." />
               </span>
             </span>
           </label>
