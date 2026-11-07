@@ -73,7 +73,7 @@ import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
 import { PageHeader, Segmented, Modal, cx } from '../ui/kit';
-import { CompactRow } from '../ui/Compact'; // Aşama 182
+import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182, 184
 import {
   STUDENT_COLUMNS,
   matrixToRows,
@@ -1474,7 +1474,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </span>
                 </div>
                 <p className="text-xs text-amber-950/90 dark:text-amber-200/90 mt-1.5 leading-relaxed">
-                  Sistemde <strong>aynı isim, sınıf ve okul numarasına</strong> sahip kayıtlı öğrenciler bulunmaktadır. Bu öğrenciler aşağıdaki listede <strong>otomatik olarak yan yana getirilmiş</strong> olup, isimleri ve satırları <strong>farklı renklerde (1. Kayıt: Turuncu, 2. Kayıt: Kırmızı)</strong> ve çakışma uyarı etiketiyle gösterilmektedir.
+                  {/* Aşama 184: kısaltıldı */}
+                  <strong>Aynı ad, sınıf ve numaralı</strong> kayıtlar listede yan yana gösteriliyor (1. kayıt turuncu, 2. kayıt kırmızı).
                 </p>
               </div>
             </div>
@@ -1960,13 +1961,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         /* CLASSES VIEW */
         <div className="space-y-4">
           {!isAdmin && (
-            <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 text-indigo-600 dark:text-indigo-200 text-xs flex items-center gap-3 shadow-xs">
-              <div className="p-2 bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-xl shrink-0">
-                <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div className="flex-1">
-                <strong className="font-bold text-fg">Yönetici İzinli Sınıf Görünümü:</strong> Yalnızca Kurum Yöneticisinin erişim yetkisi verdiği sınıflar ({classes.length}) görüntülenmektedir. Sınıf ekleme, düzenleme ve silme yetkileri yalnızca yöneticiye aittir.
-              </div>
+            /* Aşama 184: büyük bilgi kutusu tek satıra indi, ayrıntı ⓘ içinde */
+            <div className="px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 text-indigo-600 dark:text-indigo-200 text-xs flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
+              <span className="flex-1">Yetkili olduğunuz {classes.length} sınıf görünüyor.</span>
+              <InfoTip text="Yalnız kurum yöneticisinin size yetki verdiği sınıflar listelenir. Sınıf ekleme, düzenleme ve silme yöneticiye aittir." />
             </div>
           )}
           <div className="space-y-2" id="class-strips">
@@ -3236,7 +3235,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     </div>
                     <h4 className="text-sm font-bold text-fg mb-1">Bu Sınıfa Kayıtlı Öğrenci Yok</h4>
                     <p className="text-xs text-muted max-w-sm mx-auto mb-4">
-                      "{viewingClassStudents.name}" sınıfına henüz hiçbir öğrenci kaydedilmemiş. Hemen yeni bir öğrenci ekleyebilir veya sistemdeki öğrencileri bu sınıfa aktarabilirsiniz.
+                      Yeni öğrenci ekleyin ya da var olan öğrencileri bu sınıfa aktarın.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2.5">
                       {dataService.canAddStudentToClass(viewingClassStudents) && (
@@ -3724,8 +3723,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               </div>
             </div>
             <p className="text-xs text-fg-2 leading-relaxed">
-              Öğrenci numarası giriş adı olarak kullanıldığı için aynı numarayla ikinci bir kayıt açılamaz. Kayıtlı öğrenciyi
-              yeni bilgilerle güncelleyebilir veya geri dönüp numarayı düzeltebilirsiniz.
+              Öğrenci numarası giriş adı olduğu için aynı numarayla ikinci kayıt açılamaz. Kayıtlı öğrenciyi güncelleyin ya da numarayı düzeltin.
             </p>
           </div>
         )}

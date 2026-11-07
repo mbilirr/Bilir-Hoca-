@@ -9,13 +9,14 @@
 // ============================================================================
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, HelpCircle, RefreshCw, ShieldCheck, Upload, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, RefreshCw, ShieldCheck, Upload, UserCheck } from 'lucide-react';
 import type { ClassGroup, Student, StudentParent } from '../../types';
 import { cleanParents, extractParents, mergeParents, parentsKey, parentsSummary } from '../../lib/parents';
 import { dataService } from '../../services/dataService';
 import { listStudentTcHashes, setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { Modal, cx } from '../ui/kit';
+import { HelpDisclosure, InfoTip } from '../ui/Compact';
 import {
   STUDENT_COLUMNS,
   currentAcademicYear,
@@ -627,9 +628,10 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         {!result && (
           <>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <p className="text-xs text-muted max-w-2xl">
-                Önce mevcut listeyi indirip Excel'de düzeltebilir ya da e-Okul listesini doğrudan yükleyebilirsiniz. Öğrenciler okul numarasıyla,
-                numara yoksa ad soyadla bulunur.
+              {/* Aşama 184: uzun açıklama ⓘ içine alındı */}
+              <p className="text-xs text-muted flex items-center gap-1">
+                Mevcut listeyi indirip düzeltin ya da e-Okul listesini yükleyin.
+                <InfoTip text="Öğrenciler okul numarasıyla, numara yoksa ad soyadla bulunur. Yalnız dosyada olan bilgiler güncellenir." />
               </p>
               <button type="button" onClick={downloadCurrent} className="ui-btn ui-btn-ghost ui-btn-sm shrink-0" title="Yetkili olduğunuz öğrencilerin listesini Excel olarak indirin">
                 <Download className="w-3.5 h-3.5 text-success-fg" />
@@ -695,9 +697,11 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
             {canTc && hasTcColumn && (
               <p className="p-2.5 bg-info-soft rounded-lg text-[11px] text-info-fg flex items-start gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>
-                  Dosyada TC sütunu var. TC numaraları <b>hiçbir yere kaydedilmez ve ekranda gösterilmez</b>: sunucu her TC'den geri çevrilemez bir parmak izi üretir,
-                  yalnızca o saklanır ve deneme optiklerinde öğrenciyi doğru bulmak için kullanılır.
+                <span className="flex-1">
+                  <span className="inline-flex items-center gap-1">
+                    TC sütunu bulundu. TC numarası <b>saklanmaz</b>.
+                    <InfoTip text="Sunucu her TC'den geri çevrilemez bir parmak izi üretir; yalnız o saklanır ve deneme optiklerinde öğrenciyi doğru bulmak için kullanılır. TC ekranda gösterilmez." />
+                  </span>
                   {tcState.busy && ' TC numaraları doğrulanıyor…'}
                   {tcState.error && <b className="block text-danger-fg mt-0.5">{tcState.error}</b>}
                 </span>
@@ -823,11 +827,9 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
         )}
 
         {!result && (
-          <div className="bg-surface-2/50 p-4 rounded-xl border border-line text-xs text-muted space-y-2">
-            <div className="flex items-center gap-1.5 text-brand-fg font-semibold">
-              <HelpCircle className="w-4 h-4" />
-              <span>Nasıl çalışır?</span>
-            </div>
+          <div className="space-y-2">
+            {/* Aşama 184: rehber kapalı başlar; TC silme düğmesi dışarıda, her zaman görünür */}
+            <HelpDisclosure>
             <ul className="list-disc list-inside space-y-1 pl-1">
               <li>
                 Sütunlar: <strong>Öğrenci No</strong>, <strong>Ad Soyad</strong> (ya da <strong>Ad</strong> + <strong>Soyad</strong>), <strong>Sınıf</strong>,{' '}
@@ -853,8 +855,9 @@ export const ExcelStudentUpdateModal: React.FC<Props> = ({ isOpen, onClose, clas
                 </li>
               )}
             </ul>
+            </HelpDisclosure>
             {canTc && (
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
                 {confirmTcDelete ? (
                   <>
                     <span className="text-[11px] font-semibold text-danger-fg">Yetkili olduğunuz bütün öğrencilerin TC parmak izleri silinsin mi?</span>

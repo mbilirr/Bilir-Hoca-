@@ -11,6 +11,7 @@ import {
   formatClassDisplayName,
 } from '../../constants/schoolConstants';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact';
 import {
   CLASS_COLUMNS,
   SheetRow,
@@ -413,7 +414,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
               veya bilgisayarınızdan seçmek için <span className="text-success-fg underline">tıklayın</span>
             </p>
             <p className="mt-3 text-[11px] text-muted">
-              Desteklenen sütunlar: Okul, Sınıf, Şube, Sınıf Adı, Eğitim Yılı, Açıklama. Başlık satırı üstte başka satırlar olsa da bulunur.
+              Sütunlar: Okul, Sınıf, Şube, Sınıf Adı, Eğitim Yılı, Açıklama.
             </p>
           </div>
         )}
@@ -421,8 +422,11 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
         {activeInputMode === 'paste' && (
           <div className="space-y-3">
             <div className="text-xs text-muted flex flex-wrap items-center justify-between gap-2">
-              <span>Excel'den kopyaladığınız hücreleri (başlık satırıyla veya başlıksız) bu alana yapıştırın:</span>
-              <span className="text-[11px]">Başlıksız sıra: Okul | Sınıf | Şube | Yıl | Açıklama</span>
+              {/* Aşama 184: başlıksız sıra bilgisi ⓘ içine alındı */}
+              <span className="inline-flex items-center gap-1">
+                Excel'den kopyaladığınız hücreleri yapıştırın.
+                <InfoTip text="Başlık satırıyla ya da başlıksız yapıştırabilirsiniz. Başlıksız sıra: Okul, Sınıf, Şube, Yıl, Açıklama." />
+              </span>
             </div>
             <textarea
               rows={5}

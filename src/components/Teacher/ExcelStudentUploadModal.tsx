@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, School, Trash2, Sparkles, Clipboard, HelpCircle } from 'lucide-react';
+import { FileSpreadsheet, Upload, Download, CheckCircle2, AlertCircle, Users, School, Trash2, Sparkles, Clipboard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ClassGroup, Student, StudentAccountResult, StudentAccountFailure, StudentParent } from '../../types';
 import { cleanParents, extractParents } from '../../lib/parents';
@@ -8,6 +8,7 @@ import { setStudentTcHashes } from '../../services/denemeService';
 import { hashTcs, validTc } from '../../lib/tcApi';
 import { detectSchoolLevelFromGrade, formatClassDisplayName } from '../../constants/schoolConstants';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { HelpDisclosure, InfoTip } from '../ui/Compact';
 import { sifreSorunu } from '../../lib/sifreKurali';
 import {
   STUDENT_COLUMNS,
@@ -607,8 +608,11 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-              <span>Excel veya Google E-Tablolar'dan kopyaladığınız satırları (başlık satırıyla birlikte) buraya yapıştırın:</span>
-              <span className="font-mono">Başlıksız sıra: Ad [Tab] Soyad [Tab] Sınıf [Tab] No</span>
+              {/* Aşama 184: başlıksız sıra bilgisi ⓘ içine alındı */}
+              <span className="inline-flex items-center gap-1">
+                Excel'den kopyaladığınız satırları başlığıyla birlikte yapıştırın.
+                <InfoTip text="Excel ya da Google E-Tablolar'dan kopyalayabilirsiniz. Başlık satırı yoksa sıra: Ad, Soyad, Sınıf, No (sekmeyle ayrılmış)." />
+              </span>
             </div>
             <textarea
               rows={5}
@@ -682,8 +686,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                     </label>
                   ) : (
                     <p className="text-fg-2">
-                      Bu sınıflar sistemde yok veya yetkiniz bulunmuyor. Satırlardaki sınıf adını yetkili olduğunuz bir
-                      sınıfla değiştiriniz ya da yöneticinizden sınıf açmasını isteyiniz.
+                      Bu sınıflar yok ya da yetkiniz yok. Satırdaki sınıfı değiştirin ya da yöneticinizden açmasını isteyin.
                     </p>
                   )}
                 </div>
@@ -698,7 +701,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               <span className="text-xs font-semibold text-muted uppercase tracking-wider">
                 Yüklenecek Öğrenci Listesi ({validCount} Geçerli)
               </span>
-              <span className="text-[11px] text-muted">Tablodaki alanları doğrudan tıklayarak düzenleyebilirsiniz.</span>
+              <span className="text-[11px] text-muted">Hücreye tıklayıp düzenleyebilirsiniz.</span>
             </div>
 
             <div className="border border-line rounded-xl overflow-auto max-h-80">
@@ -814,11 +817,8 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
           </div>
         )}
 
-        <div className="bg-surface-2/50 p-4 rounded-xl border border-line text-xs text-muted space-y-2">
-          <div className="flex items-center gap-1.5 text-brand-fg font-semibold">
-            <HelpCircle className="w-4 h-4" />
-            <span>Excel Dosyası Hazırlama Rehberi</span>
-          </div>
+        {/* Aşama 184: rehber kapalı başlar, tıklayınca açılır */}
+        <HelpDisclosure title="Excel dosyası nasıl hazırlanır?">
           <ul className="list-disc list-inside space-y-1 pl-1">
             <li>
               Sütun başlıkları olarak <strong>Ad</strong> (veya <strong>Öğrenci Adı</strong>, <strong>İsim</strong>),{' '}
@@ -852,7 +852,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               </li>
             )}
           </ul>
-        </div>
+        </HelpDisclosure>
       </div>
     </Modal>
   );
