@@ -679,6 +679,14 @@ html, body {
       radial-gradient(260px 260px at 0 0, rgb(52 211 153 / 0.32), transparent 70%);
   }
 }
+/* Aşama 188: "biliredu" ve kurum adı — küçük harf / uzun adlar için dar harf aralığı */
+.auth-word-plain {
+  letter-spacing: 0.02em;
+}
+.auth-word-kurum {
+  letter-spacing: 0.03em;
+  overflow-wrap: anywhere;
+}
 .auth-sub b {
   display: inline-block;
   width: 7px;

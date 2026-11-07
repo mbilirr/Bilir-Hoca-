@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, Suspense, startTransition } from 'react';
+import { saveLoginBrand } from './lib/loginBrand'; // Aşama 188
 import { GraduationCap, Bell, ArrowLeft, Eye, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { CommandPalette } from './components/Layout/CommandPalette';
@@ -428,9 +429,12 @@ export default function App() {
 
   // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
   const brandTitle = authSession ? dataService.getBrand().name : '';
+  const brandLogo = authSession ? dataService.getBrand().logo : '';
   useEffect(() => {
     document.title = brandTitle ? `${brandTitle} · biliredu` : 'biliredu';
-  }, [brandTitle]);
+    // Aşama 188: cihaz son kurumu hatırlar; bir sonraki açılışta giriş ekranında bu ad ve logo görünür
+    if (brandTitle) saveLoginBrand({ name: brandTitle, logo: brandLogo });
+  }, [brandTitle, brandLogo]);
 
   if (!authSession) {
     return (
