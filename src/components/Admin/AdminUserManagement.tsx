@@ -2432,7 +2432,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
   };
 
   const credentialText = created
-    ? `Merhaba ${created.name},\nEğitim & Öğrenci Takip Sistemi öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${created.username}\nŞifre: ${created.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
+    ? `Merhaba ${created.name},\nbiliredu öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${created.username}\nŞifre: ${created.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
     : '';
 
   const inputCls =

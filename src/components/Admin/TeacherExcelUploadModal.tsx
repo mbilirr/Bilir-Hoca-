@@ -50,7 +50,7 @@ type MailState = 'idle' | 'sending' | 'done';
 
 const inputCls = 'h-8 w-full px-2.5 bg-canvas border border-line rounded-lg text-fg text-xs focus:outline-none focus:border-indigo-500';
 const credentialText = (c: TeacherCredential) =>
-  `Merhaba ${c.name},\nEğitim & Öğrenci Takip Sistemi öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${c.username}\nŞifre: ${c.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`;
+  `Merhaba ${c.name},\nbiliredu öğretmen giriş bilgileriniz:\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${c.username}\nŞifre: ${c.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`;
 
 const usernameTaken = (msg: string) => /kullanıcı adı.*(kullanılıyor|başka)/i.test(msg);
 

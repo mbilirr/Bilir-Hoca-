@@ -94,7 +94,7 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
   };
 
   const credText = done
-    ? `Merhaba ${done.adminName},\n"${done.kurumName}" kurumunuz Eğitim & Öğrenci Takip Sistemi'nde açıldı.\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${done.username}\nŞifre: ${done.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
+    ? `Merhaba ${done.adminName},\n"${done.kurumName}" kurumunuz biliredu'da açıldı.\nAdres: ${window.location.origin}\nGiriş ekranında "Öğretmen" sekmesini seçiniz.\nKullanıcı adı: ${done.username}\nŞifre: ${done.password}\nGiriş yaptıktan sonra profil menüsünden şifrenizi değiştiriniz.`
     : '';
   const copy = async () => {
     try {
