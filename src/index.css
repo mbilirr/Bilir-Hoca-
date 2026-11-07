@@ -181,6 +181,12 @@
     @apply bg-danger-soft text-danger-fg hover:brightness-95 dark:hover:brightness-125;
   }
 
+  /* Aşama 190: pencere alt düğmeleri her yerde aynı boy (h-8, en az w-28, küçük yazı).
+     Katman içinde olduğu için bir düğmeye özel verilen genişlik / yükseklik sınıfı yine geçerlidir. */
+  .ui-modal-footer .ui-btn:not(.ui-btn-icon) {
+    @apply h-8 min-w-28 px-2.5 py-0 text-xs leading-4 gap-1 rounded-md justify-center;
+  }
+
   /* Dokunmatik ekranlarda parmakla rahat basılabilsin (görünüm yine kompakt) */
   @media (pointer: coarse) {
     .ui-btn {
@@ -549,6 +555,11 @@ html, body {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
+}
+/* Aşama 190: pencere alt düğmelerinde simge küçük düğmeyle aynı boy */
+.ui-modal-footer .ui-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
 }
 /* Aşama 45b: küçük düğmelerde simge yazıyla aynı boyda */
 .ui-btn-sm svg {
