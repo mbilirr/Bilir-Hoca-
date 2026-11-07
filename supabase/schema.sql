@@ -1,6 +1,7 @@
 -- =============================================================================
 -- biliredu veritabanı şeması: BAŞVURU DOSYASI (Aşama 194)
 -- 7 Kasım 2026 Supabase dışa aktarımından (181a-d) üretildi; 188 ve 193 SQL'lerinin eklediği işlev / sütunlar dahil.
+-- Aşama 199: initial_credentials_eski_160 yedek tablosu silindi, bu dosyadan da çıkarıldı.
 -- BU DOSYAYI ÇALIŞTIRMAYIN. Değişiklikler her zaman numaralı paket SQL'leriyle yapılır; bu dosya yalnız
 -- "veritabanında ne var" sorusunun cevabıdır ve şema değişince yeniden üretilir.
 -- =============================================================================
@@ -370,18 +371,6 @@ CREATE TABLE public.initial_credentials (
   CONSTRAINT initial_credentials_pkey PRIMARY KEY (account_type, record_id)
 );
 ALTER TABLE public.initial_credentials ENABLE ROW LEVEL SECURITY;
-
-CREATE TABLE public.initial_credentials_eski_160 (
-  account_type text,
-  record_id text,
-  login_id text,
-  password text,
-  must_change boolean,
-  set_at timestamp with time zone,
-  set_by uuid,
-  changed_at timestamp with time zone
-);
-ALTER TABLE public.initial_credentials_eski_160 ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE public.karne_links (
   id uuid default gen_random_uuid() not null,
@@ -6266,8 +6255,6 @@ $$;
 -- sütun yetkisi | etuts_yedek_178 | null
 -- sütun yetkisi | etuts_yedek_178 | null
 -- sütun yetkisi | initial_credentials | null
--- sütun yetkisi | initial_credentials_eski_160 | null
--- sütun yetkisi | initial_credentials_eski_160 | null
 -- sütun yetkisi | karne_links | null
 -- sütun yetkisi | karne_links | null
 -- sütun yetkisi | kurum_class_grants | null
@@ -6346,8 +6333,6 @@ $$;
 -- tablo yetkisi | homeworks | authenticated: SELECT, INSERT, UPDATE, DELETE
 -- tablo yetkisi | initial_credentials | anon: 
 -- tablo yetkisi | initial_credentials | authenticated: SELECT
--- tablo yetkisi | initial_credentials_eski_160 | anon: 
--- tablo yetkisi | initial_credentials_eski_160 | authenticated: 
 -- tablo yetkisi | karne_links | anon: 
 -- tablo yetkisi | karne_links | authenticated: 
 -- tablo yetkisi | kurum_class_grants | anon: 
