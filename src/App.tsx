@@ -16,7 +16,6 @@ import { dataService } from './services/dataService';
 import { lazyNamed, PageLoading, prefetchModules } from './lib/lazyLoad';
 // Aşama 103: nadiren açılan pencereler ana dosyada taşınmaz
 const TeacherApprovalModal = lazyNamed(() => import('./components/Teacher/TeacherApprovalModal'), 'TeacherApprovalModal');
-const SupabaseGuideModal = lazyNamed(() => import('./components/SupabaseGuideModal'), 'SupabaseGuideModal');
 import { supabase } from './lib/supabase';
 import {
   Student,
@@ -114,7 +113,6 @@ export default function App() {
   const currentTeacher = authSession?.role === 'teacher' ? (authSession.user as Teacher) : null;
 
   // Modals
-  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
   const [isAdminApprovalModalOpen, setIsAdminApprovalModalOpen] = useState(false);
   const [isAsama25GuideOpen, setIsAsama25GuideOpen] = useState(false);
 
@@ -476,7 +474,6 @@ export default function App() {
         role={role}
         authSession={authSession}
         onRoleChange={handleRoleChange}
-        onOpenSupabaseGuide={() => setIsSupabaseModalOpen(true)}
         currentStudent={currentStudent}
         onLogout={handleLogout}
         onStudentLogout={handleLogout}
@@ -753,11 +750,7 @@ export default function App() {
       )}
 
       {/* MODALS */}
-      {isSupabaseModalOpen && (
-        <Suspense fallback={null}>
-          <SupabaseGuideModal isOpen onClose={() => setIsSupabaseModalOpen(false)} />
-        </Suspense>
-      )}
+      {/* Aşama 173: eski "Veritabanı Kurulum Rehberi" kaldırıldı (herkese açık kural SQL'i içeriyordu) */}
 
       {/* Admin Teacher Approvals & Permissions Modal */}
       {isAdminApprovalModalOpen && (
