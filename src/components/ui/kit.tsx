@@ -203,6 +203,42 @@ export function Segmented<T extends string>({
 const modalStack: number[] = [];
 let modalSeq = 0;
 
+/**
+ * Aşama 191: ortak pencere katmanı. Modal ve eski usul (fixed inset-0) pencereler aynı yığını kullanır:
+ * Esc yalnız en üstteki pencereyi kapatır, pencere açıkken arka plan kaymaz.
+ * onClose verilmezse (zorunlu pencere) Esc hiçbir şeyi kapatmaz ama alttaki pencerelere de geçmez.
+ */
+export function useOverlayLayer(open: boolean, onClose?: (() => void) | null, opts?: { lockScroll?: boolean }) {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const lockScroll = opts?.lockScroll !== false;
+  useEffect(() => {
+    if (!open) return;
+    const token = ++modalSeq;
+    modalStack.push(token);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token) return;
+      const fn = onCloseRef.current;
+      if (fn) fn();
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    if (lockScroll) document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      const i = modalStack.indexOf(token);
+      if (i >= 0) modalStack.splice(i, 1);
+      if (lockScroll) document.body.style.overflow = modalStack.length ? 'hidden' : prev;
+    };
+  }, [open, lockScroll]);
+}
+
+/** Aşama 191: eski usul pencerelerin içine konur; pencere açıkken (bu parça görünürken) katmana katılır. */
+export const OverlayLayer: React.FC<{ onClose?: (() => void) | null; lockScroll?: boolean }> = ({ onClose, lockScroll }) => {
+  useOverlayLayer(true, onClose, { lockScroll });
+  return null;
+};
+
 // Açılır pencere (Esc ile kapanır, arka plan kaydırılmaz)
 export const Modal: React.FC<{
   open: boolean;
@@ -222,29 +258,13 @@ export const Modal: React.FC<{
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // onClose her çizimde yeni bir işlev olabilir; efekt onu yeniden başlatmasın (yoksa her harfte odak kutudan alınır)
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+  // Aşama 191: Esc ve kaydırma kilidi ortak katmandan (useOverlayLayer); onClose her çizimde yeni olabilir, katman onu ref ile tutar
+  useOverlayLayer(open, onClose);
 
   useEffect(() => {
     if (!open) return;
-    const token = ++modalSeq;
-    modalStack.push(token);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || modalStack[modalStack.length - 1] !== token) return;
-      onCloseRef.current();
-    };
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     // Odağı yalnızca pencere ilk açıldığında ve içinde henüz bir şey odaklı değilse pencereye ver
     if (panelRef.current && !panelRef.current.contains(document.activeElement)) panelRef.current.focus();
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      const i = modalStack.indexOf(token);
-      if (i >= 0) modalStack.splice(i, 1);
-      document.body.style.overflow = modalStack.length ? 'hidden' : prev;
-    };
   }, [open]);
 
   if (!open) return null;
