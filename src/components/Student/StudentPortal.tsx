@@ -194,7 +194,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
   // Notification center modal state
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
-  const [studentAvatar, setStudentAvatar] = useState<string>(currentStudent.avatar || '');
+  // Aşama 171: null = kayıttaki resim; '' = resim kaldırıldı (otomatik çizim), diğer = yeni seçilen
+  const [studentAvatar, setStudentAvatar] = useState<string | null>(null);
   // Aşama 165: kapalı bölümün okunmamış bildirimi sayılmaz
   const acikRef = React.useRef(acik);
   acikRef.current = acik;
@@ -505,7 +506,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
           {/* Aşama 66: "Bugün" (soru hedefi, plan görevleri, ödev/etüt, duyurular) ve "Bu hafta"
               (gün gün mini görünüm, haftanın durumu, son deneme, notlar) yan yana eş duvarlar */}
           <StudentHomeToday
-            student={{ ...currentStudent, avatar: studentAvatar || currentStudent.avatar }}
+            student={{ ...currentStudent, avatar: studentAvatar !== null ? studentAvatar || undefined : currentStudent.avatar }}
             homeworks={myHomeworks}
             etuts={myEtuts}
             submissions={getSubmissionsList()}

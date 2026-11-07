@@ -30,6 +30,7 @@ import { formatDateISO, getWeekStartOf } from '../../utils/questionAnalytics';
 import { useLiveNow } from '../../lib/useLiveNow';
 import { useDataVersion } from '../../lib/useDataVersion';
 import { Panel, cx } from '../ui/kit';
+import { profilResmi } from '../../lib/profilResmi';
 
 // ============================================================================
 // ÖĞRENCİ ANA SAYFASI — "BUGÜN" ve "BU HAFTA" (Aşama 66)
@@ -300,7 +301,7 @@ export const StudentHomeToday: React.FC<{
   }, [student.id, showDeneme]);
 
   const dateText = now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const avatarUrl = student.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
+  const avatarUrl = profilResmi(student, 'student');
   const summary = [
     showQ && q.todayGoal > 0 ? (goalDone ? 'soru hedefi tamam' : `${fmt(Math.max(0, q.todayGoal - q.todayGoalSolved))} soru kaldı`) : '',
     dueHomeworks.length ? `${dueHomeworks.length} ödev teslimi` : '',

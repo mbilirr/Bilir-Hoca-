@@ -19,6 +19,7 @@ import { homeworkStateFor } from './StudentHomeUtils';
 import { buildStudentQuestionSummary } from '../../utils/studentQuestionSummary';
 import { useLiveNow } from '../../lib/useLiveNow';
 import { useDataVersion } from '../../lib/useDataVersion';
+import { profilResmi } from '../../lib/profilResmi';
 
 export type StudentTabType = 'home' | 'homework' | 'etuts' | 'grades' | 'messages' | 'questions' | 'deneme';
 
@@ -325,7 +326,7 @@ export const StudentHeroBanner: React.FC<StudentHeroBannerProps> = ({
   })();
 
   const studentAvatarUrl =
-    student.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(student.name)}`;
+    profilResmi(student, 'student');
 
   return (
     <div id="student-agenda-wall" data-v={dataVersion} className="@container w-full bg-surface border border-line rounded-2xl p-3 sm:p-4 shadow-xl relative overflow-hidden">
