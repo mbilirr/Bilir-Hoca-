@@ -2216,21 +2216,16 @@ class DataService {
         return false;
       }
 
-      // Aşama 179: yoklama ve yorumlar ayrı yerde (sql/178). Tablonun varlığı kesin bilinmiyorsa eski yol
-      // (bütün notes) kullanılır: sql/178 kuruluyken de doğru çalışır, kurulu değilken veri kaybettirmez.
-      if (DataService.etutYoklamaTable === 'unknown') await this.probeEtutYoklama();
-      const legacy = DataService.etutYoklamaTable !== 'yes';
-      if (!legacy && opts.commentsOnly) {
+      // Aşama 179: yoklama ve yorumlar ayrı yerde (sql/178).
+      // Aşama 196: eski yol (yoklama ve yorumları notes içine yazmak) kaldırıldı. Yoklama yalnız etut_yoklama
+      // tablosuna, yorumlar yalnız kendi sütunlarına yazılır; tablo / sütun yoksa yazma başarısız sayılır.
+      if (opts.commentsOnly) {
         // yalnız yorum değişti: yalnız o sütun yazılır, etüt tanımı yeniden gönderilmez
-        const r = await this.writeEtutComments(etut, opts.comments || []);
-        if (r === 'legacy') return this.pushEtutToSupabase(etut, opts);
-        return r === 'ok';
+        return (await this.writeEtutComments(etut, opts.comments || [])) === 'ok';
       }
-      if (!legacy && opts.attendanceOnly) {
+      if (opts.attendanceOnly) {
         // yalnız yoklama değişti: yalnız değişen öğrencilerin satırı yazılır
-        const r = await this.writeEtutYoklama(etut.id, opts.attendance || {});
-        if (r === 'legacy') return this.pushEtutToSupabase(etut, opts);
-        return r === 'ok';
+        return (await this.writeEtutYoklama(etut.id, opts.attendance || {})) === 'ok';
       }
 
       const attendanceStudentIds = Object.keys(etut.studentAttendance || {});
@@ -2242,16 +2237,9 @@ class DataService {
       }
 
       // Aşama 179: notes yalnız etüt tanımını taşır; gönderilmeyen yoklama / yorum anahtarlarını sunucu korur
+      // Aşama 196: yoklama ve yorum anahtarları notes'a hiç yazılmaz (eski yol kaldırıldı)
       const meta = JSON.stringify({
         __etut_meta__: true,
-        ...(legacy
-          ? {
-              userNotes: etut.notes || '',
-              teacherFeedback: etut.teacherFeedback || '',
-              studentAttendance: etut.studentAttendance || {},
-              attendanceTakenBy: etut.attendanceTakenBy || undefined,
-            }
-          : {}),
         teacherId: etut.teacherId,
         teacherName: etut.teacherName,
         teacherIds: etut.teacherIds && etut.teacherIds.length > 1 ? etut.teacherIds : undefined,
@@ -2281,12 +2269,10 @@ class DataService {
         assigned_student_ids: finalAssigned,
         notes: meta,
       };
-      if (!legacy) {
-        const c = opts.comments || [];
-        if (c.includes('teacherFeedback')) row.teacher_feedback = etut.teacherFeedback || '';
-        if (c.includes('notes')) row.user_notes = etut.notes || '';
-        if (c.includes('attendanceTakenBy')) row.attendance_taken_by = etut.attendanceTakenBy || null;
-      }
+      const c = opts.comments || [];
+      if (c.includes('teacherFeedback')) row.teacher_feedback = etut.teacherFeedback || '';
+      if (c.includes('notes')) row.user_notes = etut.notes || '';
+      if (c.includes('attendanceTakenBy')) row.attendance_taken_by = etut.attendanceTakenBy || null;
       // Aşama 9: etüde atanan öğretmen ayrı sütunda (13 numaralı SQL). SQL henüz çalıştırılmadıysa sütunsuz kaydet.
       if (DataService.etutTeacherColumnAvailable) row.etut_teacher_id = etut.teacherId || null;
       // Aşama 14: birden çok öğretmen (15 numaralı SQL). Sütun yoksa yalnızca bu alan çıkarılır.
@@ -2299,10 +2285,10 @@ class DataService {
         // yetki ya da tetik hatası etüt öğretmenini oturum boyunca silmez
         const missingCol = /42703|PGRST204/.test(String(error.code || '')) || /column|schema cache/i.test(msg);
         if (!missingCol) break;
-        if (!legacy && DataService.isEtutCommentColumnMissing(error)) {
-          // sql/178 kurulmamış: eski yolla (yoklama ve yorumlar notes içinde) yeniden yazılır
-          DataService.etutYoklamaTable = 'no';
-          return this.pushEtutToSupabase(etut, opts);
+        if (DataService.isEtutCommentColumnMissing(error)) {
+          // Aşama 196: sql/178 kurulmamış; eski yola düşülmez, kayıt başarısız sayılır
+          console.warn('[EtutSync] Etüt yorum sütunları bulunamadı (sql/178 gerekli):', msg);
+          return false;
         }
         if (row.etut_teacher_ids !== undefined && /etut_teacher_ids/.test(msg)) {
           DataService.etutTeacherIdsColumnAvailable = false;
@@ -2324,10 +2310,8 @@ class DataService {
         return false;
       }
       // Aşama 179: etüt satırı yazıldıktan sonra (yeni öğrenci etüde eklenmiş olur) yoklama yazılır
-      if (!legacy && opts.attendance && Object.keys(opts.attendance).length) {
-        const r = await this.writeEtutYoklama(etut.id, opts.attendance);
-        if (r === 'legacy') return this.pushEtutToSupabase(etut, opts);
-        if (r === 'fail') return false;
+      if (opts.attendance && Object.keys(opts.attendance).length) {
+        if ((await this.writeEtutYoklama(etut.id, opts.attendance)) !== 'ok') return false;
       }
       return true;
     } catch (err: any) {
@@ -2521,6 +2505,10 @@ class DataService {
 
   /** Sunucudaki etüt satırını uygulama nesnesine çevirir (tam okuma, artımlı okuma ve ortak takvim aynı yolu kullanır) */
   private remoteRowToEtut(re: any): Etut {
+    // Aşama 196: etuts tablosundan gelen satır (öğretmen: tam okuma, artımlı okuma, anlık kanal) yorum sütunlarını
+    // taşır; onda yoklama yalnız etut_yoklama'dan, yorumlar yalnız sütunlardan okunur. Sunucu işlevlerinden gelen
+    // satırlar (öğrenci, zümre, ortak takvim) bu sütunları taşımaz; onların notes'unu sunucu yeni yapıdan üretir (sql/178).
+    const fromTable = !!re && Object.prototype.hasOwnProperty.call(re, 'user_notes');
     let parsedMeta: any = {};
     try {
       if (typeof re.notes === 'object' && re.notes !== null) {
@@ -2529,14 +2517,17 @@ class DataService {
         parsedMeta = JSON.parse(re.notes);
       }
     } catch (err) {}
+    const studentAttendance = this.etutAttendanceOf(re.id, parsedMeta, fromTable);
+    // eski düz metin not (JSON olmayan notes): yorum alanı değil, etüdün kendi notudur; 198 buna dokunmaz
+    const plainNotes = typeof re.notes === 'string' && !re.notes.startsWith('{') ? re.notes : '';
 
     let incomingAssigned: 'all' | string[] = 'all';
     if (re.assigned_student_ids && Array.isArray(re.assigned_student_ids) && re.assigned_student_ids.length > 0) {
       incomingAssigned = re.assigned_student_ids;
     } else if (parsedMeta.assignedStudentIds && Array.isArray(parsedMeta.assignedStudentIds) && parsedMeta.assignedStudentIds.length > 0) {
       incomingAssigned = parsedMeta.assignedStudentIds;
-    } else if (parsedMeta.studentAttendance && Object.keys(parsedMeta.studentAttendance).length > 0) {
-      incomingAssigned = Object.keys(parsedMeta.studentAttendance);
+    } else if (Object.keys(studentAttendance).length > 0) {
+      incomingAssigned = Object.keys(studentAttendance);
     } else if (parsedMeta.assignedStudentIds === 'all' || !re.assigned_student_ids) {
       incomingAssigned = 'all';
     }
@@ -2551,15 +2542,19 @@ class DataService {
       assignedStudentIds: incomingAssigned,
       location: re.location || '',
       // Aşama 179: yorumlar ayrı sütundan (sql/178); sütun yoksa (öğrenci / zümre / ortak takvim satırı) notes'tan
-      notes:
-        typeof re.user_notes === 'string'
+      // Aşama 196: tablo satırında notes içindeki eski yorum anahtarlarına bakılmaz
+      notes: fromTable
+        ? typeof re.user_notes === 'string'
           ? re.user_notes
-          : parsedMeta.userNotes !== undefined
-          ? parsedMeta.userNotes
-          : typeof re.notes === 'string' && !re.notes.startsWith('{')
-          ? re.notes
-          : '',
-      teacherFeedback: typeof re.teacher_feedback === 'string' ? re.teacher_feedback : parsedMeta.teacherFeedback || '',
+          : plainNotes
+        : parsedMeta.userNotes !== undefined
+        ? parsedMeta.userNotes
+        : plainNotes,
+      teacherFeedback: fromTable
+        ? typeof re.teacher_feedback === 'string'
+          ? re.teacher_feedback
+          : ''
+        : parsedMeta.teacherFeedback || '',
       createdAt: re.created_at || new Date().toISOString(),
       teacherId: re.etut_teacher_id || parsedMeta.teacherId || 'teacher-1',
       teacherName: parsedMeta.teacherName || 'Öğretmen',
@@ -2569,10 +2564,13 @@ class DataService {
       lessonPeriod: parsedMeta.lessonPeriod || 'Ders',
       gradeLevel: parsedMeta.gradeLevel,
       schoolLevel: parsedMeta.schoolLevel,
-      studentAttendance: this.etutAttendanceOf(re.id, parsedMeta), // Aşama 179: yoklama tablosu + notes
+      studentAttendance, // Aşama 196: tablo satırında yalnız etut_yoklama
       attendanceTakenBy:
-        (re.attendance_taken_by && typeof re.attendance_taken_by === 'object' ? re.attendance_taken_by : parsedMeta.attendanceTakenBy) ||
-        undefined,
+        (fromTable
+          ? re.attendance_taken_by && typeof re.attendance_taken_by === 'object'
+            ? re.attendance_taken_by
+            : undefined
+          : parsedMeta.attendanceTakenBy) || undefined,
       createdById: parsedMeta.createdById || undefined,
       createdByName: parsedMeta.createdByName || undefined,
       recurrenceGroupId: parsedMeta.recurrenceGroupId || undefined,
@@ -3996,7 +3994,7 @@ class DataService {
   // Aşama 179: etüt yoklaması ayrı tabloda (sql/178 etut_yoklama), yorumlar ayrı sütunda.
   // Her işlem yalnız kendi alanını yazar: yoklama yalnız değişen öğrencinin satırını, yorum yalnız kendi
   // sütununu, etüt düzenleme yalnız tanımı. Sunucu öğrenci başına "en son değişen kazanır" kuralını uygular.
-  // 'no' = tablo yok (sql/178 kurulmamış): eski yol (yoklama ve yorumlar notes içinde) aynen çalışır.
+  // 'no' = tablo yok (sql/178 kurulmamış). Aşama 196'dan sonra eski yol (notes) yoktur: yazma başarısız sayılır.
   // =========================================================================
   public static etutYoklamaTable: 'unknown' | 'yes' | 'no' = 'unknown';
   private static readonly ETUT_YOKLAMA_COLUMNS =
@@ -4038,13 +4036,13 @@ class DataService {
     return a;
   }
 
-  /** Etüdün yoklaması: tablodaki kayıt ile notes içindeki kayıttan yeni olan (eşitse tablo) */
-  private etutAttendanceOf(id: string, meta: any): Record<string, EtutStudentAttendance> {
-    const fromNotes: Record<string, EtutStudentAttendance> =
-      meta && meta.studentAttendance && typeof meta.studentAttendance === 'object' ? meta.studentAttendance : {};
-    if (meta && meta.__redacted__ === true) return fromNotes;
-    const yk = this.etutYoklama.get(id);
-    return yk ? DataService.mergeAttendance(yk, fromNotes) : fromNotes;
+  /**
+   * Etüdün yoklaması. Aşama 196: etuts tablosu satırında yalnız etut_yoklama tablosu okunur; notes içindeki eski
+   * kopyaya bakılmaz. Sunucu işlevinin ürettiği satırda (öğrenci, zümre, ortak takvim) sunucunun verdiği yoklama.
+   */
+  private etutAttendanceOf(id: string, meta: any, fromTable: boolean): Record<string, EtutStudentAttendance> {
+    if (fromTable && !(meta && meta.__redacted__ === true)) return { ...(this.etutYoklama.get(id) || {}) };
+    return meta && meta.studentAttendance && typeof meta.studentAttendance === 'object' ? meta.studentAttendance : {};
   }
 
   private etutYoklamaIds(): string[] {
@@ -4053,19 +4051,8 @@ class DataService {
     return out;
   }
 
-  /** Tablo var mı? (yalnız ilk yazmadan önce, okuma henüz yapılmadıysa; tek satırlık hafif istek) */
-  private async probeEtutYoklama(): Promise<void> {
-    try {
-      const { error } = await supabase.from('etut_yoklama').select('id').limit(1);
-      if (!error) DataService.etutYoklamaTable = 'yes';
-      else if (DataService.isEtutYoklamaMissing(error)) DataService.etutYoklamaTable = 'no';
-    } catch {
-      /* ağ hatası: bilinmiyor kalır, bu yazma eski yolla yapılır */
-    }
-  }
-
   /** Yalnız verilen öğrencilerin yoklaması yazılır; başka öğrencinin kaydına dokunulmaz */
-  private async writeEtutYoklama(etutId: string, entries: Record<string, EtutStudentAttendance>): Promise<'ok' | 'legacy' | 'fail'> {
+  private async writeEtutYoklama(etutId: string, entries: Record<string, EtutStudentAttendance>): Promise<'ok' | 'fail'> {
     const now = new Date().toISOString();
     const valid = Object.entries(entries || {}).filter(([, a]) => a && DataService.ETUT_STATUSES.has(a.status));
     if (!valid.length) return 'ok';
@@ -4082,10 +4069,8 @@ class DataService {
     }));
     const { error } = await supabase.from('etut_yoklama').upsert(rows, { onConflict: 'etut_id,student_id' });
     if (error) {
-      if (DataService.isEtutYoklamaMissing(error)) {
-        DataService.etutYoklamaTable = 'no';
-        return 'legacy';
-      }
+      // Aşama 196: tablo yoksa eski yola (notes) düşülmez
+      if (DataService.isEtutYoklamaMissing(error)) DataService.etutYoklamaTable = 'no';
       console.warn('[EtutYoklama] Yoklama buluta yazılamadı:', error.message);
       return 'fail';
     }
@@ -4097,7 +4082,7 @@ class DataService {
   }
 
   /** Yalnız yorum sütunları yazılır (etüt tanımına ve yoklamaya dokunulmaz) */
-  private async writeEtutComments(etut: Etut, keys: EtutCommentKey[]): Promise<'ok' | 'legacy' | 'fail'> {
+  private async writeEtutComments(etut: Etut, keys: EtutCommentKey[]): Promise<'ok' | 'fail'> {
     const cols: Record<string, any> = {};
     if (keys.includes('teacherFeedback')) cols.teacher_feedback = etut.teacherFeedback || '';
     if (keys.includes('notes')) cols.user_notes = etut.notes || '';
@@ -4105,10 +4090,7 @@ class DataService {
     if (!Object.keys(cols).length) return 'ok';
     const { data, error } = await supabase.from('etuts').update(cols).eq('id', etut.id).select('id');
     if (error) {
-      if (DataService.isEtutCommentColumnMissing(error)) {
-        DataService.etutYoklamaTable = 'no';
-        return 'legacy';
-      }
+      // Aşama 196: sütun yoksa eski yola (notes) düşülmez
       console.warn('[EtutSync] Etüt yorumu buluta yazılamadı:', error.message);
       return 'fail';
     }
@@ -4120,7 +4102,8 @@ class DataService {
   private async syncEtutYoklama(
     isBackground: boolean
   ): Promise<{ touched: Set<string>; removed: Map<string, Set<string>> } | null> {
-    if (DataService.etutYoklamaTable === 'no' || this.getAuthSession()?.role !== 'teacher') return null;
+    // Aşama 196: yoklama yalnız bu tablodan okunduğu için her eşitlemede denenir (eskiden 'no' ise atlanıyordu)
+    if (this.getAuthSession()?.role !== 'teacher') return null;
     const columns = DataService.ETUT_YOKLAMA_COLUMNS;
     const res = await this.fetchTableSmart(
       'etut_yoklama',
