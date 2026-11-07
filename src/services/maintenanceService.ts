@@ -154,7 +154,7 @@ export async function createFullBackup(
   // Excel: her tablo ayrı sayfa + "Bilgi" sayfası
   const wb = XLSX.utils.book_new();
   const info: Array<Array<string | number>> = [
-    ['Eğitim & Öğrenci Takip Sistemi — Tam Yedek'],
+    ['biliredu — Tam Yedek'],
     ['Yedek tarihi', now.toLocaleString('tr-TR')],
     ['Yedeği alan', adminName],
     [],
