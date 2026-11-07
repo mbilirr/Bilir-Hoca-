@@ -29,8 +29,8 @@ const DOC_PREVIEW_CLASSES = [
   '[&_p]:my-2',
   '[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2',
   '[&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-sm',
-  '[&_td]:border [&_td]:border-slate-300 [&_td]:px-2 [&_td]:py-1 [&_td]:align-top',
-  '[&_th]:border [&_th]:border-slate-300 [&_th]:px-2 [&_th]:py-1 [&_th]:bg-slate-100',
+  '[&_td]:border [&_td]:border-line [&_td]:px-2 [&_td]:py-1 [&_td]:align-top', // Aşama 192: koyu temada da görünür
+  '[&_th]:border [&_th]:border-line [&_th]:px-2 [&_th]:py-1 [&_th]:bg-surface-2',
   '[&_img]:max-w-full [&_img]:h-auto',
 ].join(' ');
 
