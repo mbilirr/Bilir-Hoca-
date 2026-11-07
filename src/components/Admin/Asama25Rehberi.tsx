@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BookOpenCheck, Check, ChevronDown, Copy, ListChecks, X } from 'lucide-react';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // ============================================================================
 // AŞAMA 25 REHBERİ — yapılacaklar, tane tane (yalnızca genel yönetici görür)
@@ -411,14 +412,7 @@ const StepCard: React.FC<{ step: Step; index: number; done: boolean; onToggle: (
 export const Asama25Rehberi: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [done, setDone] = useState<Set<string>>(readDone);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+  // Aşama 191: Esc ile kapanma ortak katmandan (OverlayLayer)
 
   const total = useMemo(() => SECTIONS.reduce((n, s) => n + s.steps.length, 0), []);
   const doneCount = useMemo(() => SECTIONS.reduce((n, s) => n + s.steps.filter((st) => done.has(st.id)).length, 0), [done]);
@@ -438,7 +432,8 @@ export const Asama25Rehberi: React.FC<{ isOpen: boolean; onClose: () => void }> 
   let counter = 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Aşama 25 rehberi">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Aşama 25 rehberi">
+      <OverlayLayer onClose={onClose} />
       <div className="relative w-full max-w-3xl bg-surface border border-line rounded-3xl shadow-2xl p-5 sm:p-6 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-4 border-b border-line mb-4">
           <div className="flex items-center gap-3 min-w-0">

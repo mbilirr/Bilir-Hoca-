@@ -69,6 +69,7 @@ const wideRoleText = (rs: TeacherRole[]) => sortRoles(rs).map((r) => ROLE_BY_COD
 import { useAutoDismiss, NOTICE_HIDE_MS } from '../../lib/useAutoDismiss';
 import { appCopyFallback } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // Aşama 11: öğretmen hesabındaki değişiklikleri öğretmene e-postayla bildirir (alıcıyı sunucu bulur)
 type TeacherMailKind = 'created' | 'updated' | 'access' | 'role' | 'suspended' | 'reactivated';
@@ -1460,6 +1461,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* ========================================================================= */}
       {editModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setEditModalUser(null)} />
           <div
             className="relative w-full max-w-2xl bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1758,6 +1760,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* ========================================================================= */}
       {roleModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setRoleModalUser(null)} />
           <div
             className="relative w-full max-w-lg bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-5 my-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1876,6 +1879,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* ========================================================================= */}
       {suspendModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setSuspendModalUser(null)} />
           <div
             className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1940,6 +1944,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* ========================================================================= */}
       {deleteModalUser && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setDeleteModalUser(null)} />
           <div
             className="relative w-full max-w-md bg-surface border border-rose-500/40 rounded-3xl shadow-2xl overflow-hidden p-6 space-y-4 my-auto"
             onClick={(e) => e.stopPropagation()}
@@ -1980,6 +1985,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       {/* ========================================================================= */}
       {authModalTeacher && (
         <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-150">
+          <OverlayLayer onClose={() => setAuthModalTeacher(null)} />
           <div
             className="relative w-full max-w-2xl bg-surface border border-indigo-500/40 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
@@ -2442,6 +2448,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 flex items-center justify-center">
+      <OverlayLayer onClose={onClose} />
       <div className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl p-6 space-y-4 my-auto">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
