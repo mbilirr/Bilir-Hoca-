@@ -255,7 +255,9 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       if (rememberMe) {
         dataService.setRememberedUser({
           role: 'teacher',
-          identifier: teacher.username,
+          // Aşama 172 (155 geri geldi): hesabın GERÇEK giriş adresi saklanır. Gerçek e-postayla açılmış hesapta
+          // kullanıcı adı saklanırsa sonraki girişte tch_<ad>@okul.internal.net denenir ve "şifre hatalı" çıkar.
+          identifier: dataService.rememberIdentifierForTeacher(teacher, cleanUser),
           name: teacher.name,
           avatar: teacher.avatar,
           branch: teacher.branch,
@@ -306,14 +308,20 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       if (!session) {
         setError(
           selectedRole === 'teacher'
-            ? 'Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.'
+            ? cleanUser.includes('@')
+              ? 'Kullanıcı adı veya şifre hatalı. Lütfen kontrol edip tekrar deneyiniz.'
+              : // Aşama 172: gerçek e-postayla açılmış hesap kullanıcı adıyla bulunamaz (giriş ekranında liste boş)
+                'Kullanıcı adı veya şifre hatalı. Hesabınız e-posta adresiyle açıldıysa kutuya e-posta adresinizi yazıp tekrar deneyiniz.'
             : 'Öğrenci numarası veya şifre hatalı. Şifrenizi bilmiyorsanız öğretmeninize başvurunuz.'
         );
         return;
       }
       if (enableBio && bioAvailable) {
         // Parmak izi kaydı için ayrı bir onay adımı gösterilir (oturum bu adımdan sonra açılır)
-        setPendingBio({ session, identifier: cleanUser, name: session.user.name, password: cleanPass });
+        // Aşama 172: öğretmende parmak izi kaydına da gerçek giriş adresi yazılır (beni hatırla ile aynı kural)
+        const bioIdentifier =
+          session.role === 'teacher' ? dataService.rememberIdentifierForTeacher(session.user as Teacher, cleanUser) : cleanUser;
+        setPendingBio({ session, identifier: bioIdentifier, name: session.user.name, password: cleanPass });
         setLoginPassword('');
         return;
       }
