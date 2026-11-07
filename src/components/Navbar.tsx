@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Database, Settings2,
+import { LogOut, ShieldCheck, ChevronDown, UserCog, KeyRound, Crown, Mail, Camera, Search, Settings2,
   MailCheck,
 } from 'lucide-react';
 import { UserRole, Student, Teacher, AuthSession, TeacherTabType } from '../types';
@@ -32,7 +32,6 @@ export interface NavbarProps {
   onOpenTeacherLogin?: () => void;
   onOpenStudentLogin?: () => void;
   onOpenStudentRegister?: () => void;
-  onOpenSupabaseGuide?: () => void;
   currentStudent?: Student | null;
   onStudentLogout?: () => void;
   onLogout?: () => void;
@@ -80,7 +79,6 @@ const MenuItem: React.FC<{
 
 export const Navbar: React.FC<NavbarProps> = ({
   authSession,
-  onOpenSupabaseGuide,
   currentStudent,
   onStudentLogout,
   onLogout,
@@ -340,11 +338,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                             {dataService.canAccessUserManagement() && (
                               <MenuItem icon={Settings2} onClick={() => goTab('user_management')}>
                                 Yönetim Paneli
-                              </MenuItem>
-                            )}
-                            {onOpenSupabaseGuide && dataService.isHeadAdmin() && (
-                              <MenuItem icon={Database} onClick={closeAnd(onOpenSupabaseGuide)}>
-                                Veritabanı Kurulum Rehberi
                               </MenuItem>
                             )}
                           </>
