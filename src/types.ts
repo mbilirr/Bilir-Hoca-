@@ -31,8 +31,6 @@ export interface Teacher {
   status?: 'pending' | 'approved' | 'rejected' | 'suspended';
   isSuspended?: boolean; // Hesabın yönetici tarafından geçici olarak dondurulması
   isAdmin?: boolean; // Kurum Yöneticisi / Admin yetkisi (tüm sınıfları ve öğrencileri görebilir)
-  assignedClassIds?: string[]; // Admin tarafından izin verilen sınıfların ID listesi
-  canViewAllStudentsAndClasses?: boolean; // Yöneticinin önceden eklenmiş sınıf ve öğrenci listelerini görme izni vermesi
   kurumId?: string | null; // Aşama 18: bağlı olduğu kurum (genel yöneticinin öğretmenleri için boş)
 }
 
@@ -65,7 +63,6 @@ export interface Student {
   isSuspended?: boolean; // Hesabın dondurulması / askıya alınması
   createdTeacherId?: string; // Bu öğrenciyi kaydeden öğretmenin ID'si
   mustChangePassword?: boolean; // İlk girişte zorunlu şifre güncelleme bayrağı
-  authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
   kurumId?: string | null; // Aşama 18: öğrencinin kurumu (genel yöneticinin öğrencileri için boş)
 }
 
@@ -96,8 +93,6 @@ export interface UnifiedUser {
   // Öğretmen / Yönetici alanları
   branch?: string;
   isAdmin?: boolean;
-  assignedClassIds?: string[];
-  canViewAllStudentsAndClasses?: boolean;
   // Öğrenci alanları
   className?: string;
   classId?: string;
@@ -105,7 +100,6 @@ export interface UnifiedUser {
   schoolLevel?: 'Ortaokul' | 'Lise';
   gradeLevel?: string;
   mustChangePassword?: boolean;
-  authorizedTeacherIds?: string[];
   kurumId?: string | null;
 }
 
@@ -118,7 +112,6 @@ export interface ClassGroup {
   academicYear: string;
   description?: string;
   createdTeacherId?: string; // Sınıfı oluşturan öğretmenin ID'si
-  authorizedTeacherIds?: string[]; // Yönetici tarafından yetkilendirilen öğretmenlerin ID listesi
   kurumId?: string | null; // Aşama 18: sınıfı açan kurum (genel yöneticinin sınıfları için boş)
 }
 
