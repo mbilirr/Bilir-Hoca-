@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { TeacherDocument } from '../../../types';
 import { sanitizeHtml } from '../../../lib/sanitizeHtml';
+import { OverlayLayer } from '../../ui/kit'; // Aşama 191
 import { matchTurkishSearch } from '../../../utils/turkishSearch'; // Aşama 154
 
 // Word'den gelen önizlemenin okunaklı görünmesi için temel biçimler (başlıklar, listeler, tablolar)
@@ -123,8 +124,9 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
   return (
     <div
       id="document-viewer-modal"
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 md:p-6 flex items-start sm:items-center justify-center animate-in fade-in duration-200"
     >
+      <OverlayLayer onClose={onClose} />
       <div
         className={`relative my-auto bg-surface border border-line rounded-2xl flex flex-col shadow-2xl transition-all duration-300 ${
           isFullScreen
