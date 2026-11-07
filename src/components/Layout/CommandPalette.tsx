@@ -4,7 +4,7 @@ import { Search, User, School, BookOpen, CalendarDays, CornerDownLeft, X } from 
 import type { Student, ClassGroup, Homework, Etut, TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
 import { teacherNavFor } from './navItems';
-import { IconBox, cx, type Tone } from '../ui/kit';
+import { IconBox, OverlayLayer, cx, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { setQuickFocus, type QuickFocusType } from '../../lib/quickFocus';
 
 // Türkçe harfleri sadeleştirerek arama: "ogrenci" yazınca "Öğrenci" bulunur
@@ -216,6 +216,7 @@ export const CommandPalette: React.FC<{
         if (e.target === e.currentTarget) close();
       }}
     >
+      <OverlayLayer lockScroll={false} />
       <div
         id="command-palette"
         role="dialog"

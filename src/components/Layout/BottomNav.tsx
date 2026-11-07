@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreHorizontal, Search, LogOut, X, Home, BookOpen, CalendarDays, HelpCircle, Award } from 'lucide-react';
 import type { TeacherTabType } from '../../types';
 import { dataService } from '../../services/dataService';
 import { teacherNavFor, BOTTOM_NAV_PRIMARY, findTeacherNav } from './navItems';
-import { IconBox, cx } from '../ui/kit';
+import { IconBox, OverlayLayer, cx } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { openCommandPalette } from './CommandPalette';
 
 // Telefon için alt menü (yalnızca dar ekranlarda görünür)
@@ -22,12 +22,7 @@ export const TeacherBottomNav: React.FC<{
   const more = all.filter((i) => !BOTTOM_NAV_PRIMARY.includes(i.id));
   const moreActive = more.some((i) => i.id === activeTab);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMoreOpen(false);
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [moreOpen]);
+  // Aşama 191: Esc ile kapanma ortak katmandan (OverlayLayer)
 
   const pick = (tab: TeacherTabType) => {
     setMoreOpen(false);
@@ -95,6 +90,7 @@ export const TeacherBottomNav: React.FC<{
             className="md:hidden fixed inset-0 z-[70] bg-slate-950/50 backdrop-blur-[2px] flex items-end"
             onMouseDown={(e) => e.target === e.currentTarget && setMoreOpen(false)}
           >
+            <OverlayLayer onClose={() => setMoreOpen(false)} lockScroll={false} />
             <div
               id="bottom-nav-more-sheet"
               role="dialog"
