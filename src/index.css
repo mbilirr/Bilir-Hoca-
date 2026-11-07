@@ -653,30 +653,30 @@ html, body {
   background-clip: text;
   color: transparent;
 }
-/* Aşama 168: telefon ve tablette BAŞARI EĞİTİM yazısı bilgisayardaki başlık rengi (bakır-altın), & işareti turkuaz; logo yazısının arkası
-   bilgisayardaki gibi koyu kalsın diye üst ışık köşeye çekilir (yazı rengi bilgisayardakiyle aynı görünür) */
+/* Aşama 170: BAŞARI & EĞİTİM yazısı her ekranda aynı: bakır-altın (telefon ve tabletteki gibi), & işareti turkuaz.
+   Telefon ve tablette üst ışık köşeye çekilir (yazı koyu zeminde net kalsın). */
+.auth-word-main {
+  background: linear-gradient(100deg, #ffe7b8 0%, #ffc56e 28%, #f5a54a 52%, #ffd08a 74%, #e8913f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 10px rgb(255 190 100 / 0.28));
+}
+.auth-word-shadow {
+  background: linear-gradient(100deg, #8a5420, #6b3d14);
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.55;
+}
+.auth-word i {
+  background: linear-gradient(135deg, #a7f3e8, #5eead4 45%, #2dd4bf);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
 @media (max-width: 1023px) {
   .auth-aurora {
     background-image: radial-gradient(300px 300px at 100% 0, rgb(20 184 166 / 0.55), transparent 70%),
       radial-gradient(420px 420px at 60% 100%, rgb(252 211 77 / 0.3), transparent 70%),
       radial-gradient(260px 260px at 0 0, rgb(52 211 153 / 0.32), transparent 70%);
-  }
-  .auth-word-main {
-    background: linear-gradient(100deg, #ffe7b8 0%, #ffc56e 28%, #f5a54a 52%, #ffd08a 74%, #e8913f 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    filter: drop-shadow(0 0 10px rgb(255 190 100 / 0.28));
-  }
-  .auth-word-shadow {
-    background: linear-gradient(100deg, #8a5420, #6b3d14);
-    -webkit-background-clip: text;
-    background-clip: text;
-    opacity: 0.55;
-  }
-  .auth-word i {
-    background: linear-gradient(135deg, #a7f3e8, #5eead4 45%, #2dd4bf);
-    -webkit-background-clip: text;
-    background-clip: text;
   }
 }
 .auth-sub b {
@@ -687,10 +687,8 @@ html, body {
   margin-right: 5px;
 }
 .auth-headline {
-  background: linear-gradient(100deg, #f3c78d, #d9a066 50%, #c4813f);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  /* Aşama 170: başlık tek renk — logodaki E harfinin nane yeşili; yazı (bakır-altın) ve zeminle uyumlu */
+  color: #a7f3d0;
   padding-bottom: 0.1em;
 }
 

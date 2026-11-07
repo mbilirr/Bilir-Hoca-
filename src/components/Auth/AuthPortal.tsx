@@ -397,10 +397,10 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       {/* Aşama 166: zemin — bilgisayarda aurora ışıkları, tablet ve telefonda bakır parıltı */}
       <div className="auth-aurora" aria-hidden="true" />
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-[clamp(48px,calc((100vw_-_884px)/2),150px)] xl:px-[150px]">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-[clamp(132px,calc((100vw_-_884px)/2),150px)] xl:px-[150px]">
         {/* Marka: logo + (yalnız bilgisayarda) başlık, cümle, liste */}
         <section id="auth-brand-panel" className="relative flex flex-col items-center lg:items-start lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-16 lg:self-stretch">
-          <div className="mb-5 lg:mb-0">
+          <div className="mb-5 lg:mb-0 lg:-ml-[92px] xl:-ml-[98px]">
             <AuthLockup />
           </div>
           <div className="hidden lg:block">
