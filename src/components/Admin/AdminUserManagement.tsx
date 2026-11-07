@@ -41,6 +41,7 @@ import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student, Stud
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
+import { CompactRow } from '../ui/Compact'; // Aşama 182
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
@@ -166,6 +167,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [editPwOpen, setEditPwOpen] = useState(false); // Aşama 182: şifre satırı kapalı başlar
   const [copiedPassword, setCopiedPassword] = useState(false);
   const [selectedTargetRole, setSelectedTargetRole] = useState<SystemRole>('teacher');
   const [isCreateTeacherOpen, setIsCreateTeacherOpen] = useState(false);
@@ -398,6 +400,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
   // Open Edit Form
   const handleOpenEdit = (user: UnifiedUser) => {
+    setEditPwOpen(false);
     setEditModalUser(user);
     setNotifyTeacher(true);
     setEditFormData({
@@ -1634,83 +1637,92 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 )}
               </div>
 
-              {/* Şifre Güncelleme Bölümü (Admin Password Override) */}
-              <div className="pt-3 border-t border-line">
-                <div className="bg-canvas/80 border border-line rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Key className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                      <span className="text-xs font-bold text-fg">Şifre Değiştir (Admin Override)</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleGeneratePassword}
-                      className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-amber-700 dark:text-amber-400" />
-                      <span>Rastgele Şifre Üret</span>
-                    </button>
-                  </div>
-
-                  <div className="relative">
-                    <input autoComplete="off"
-                      type="text"
-                      data-lpignore="true"
-                      data-1p-ignore="true"
-                      data-form-type="other"
-                      spellCheck={false}
-                      autoCapitalize="none"
-                      placeholder="Değiştirmek istemiyorsanız boş bırakın"
-                      value={editFormData.newPassword}
-                      onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
-                      className={`w-full pl-3.5 pr-20 py-2.5 bg-surface border border-line rounded-xl text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-amber-500 ${showPassword ? '' : 'pw-mask'}`}
-                    />
-
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
-                      {editFormData.newPassword && (
-                        <button
-                          type="button"
-                          onClick={handleCopyPassword}
-                          className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
-                          title="Şifreyi Kopyala"
-                        >
-                          {copiedPassword ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5" />
-                          )}
+              {/* Aşama 182: şifre bölümü tek satır; kutu yalnız "Yeni şifre" ile açılır, açıklama ⓘ içinde */}
+              {(() => {
+                const pwOpen = editPwOpen || !!editFormData.newPassword;
+                return (
+                  <CompactRow
+                    icon={Key}
+                    title="Giriş şifresi"
+                    info="Yeni şifre yazarsanız kullanıcının şifresi bununla değişir. Boş bırakırsanız şifre değişmez. Şifreler sistemde saklanmaz."
+                    actions={
+                      pwOpen ? (
+                        <>
+                          <button type="button" onClick={handleGeneratePassword} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24" title="Rastgele şifre oluştur">
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Rastgele</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditFormData({ ...editFormData, newPassword: '' });
+                              setEditPwOpen(false);
+                              setCopiedPassword(false);
+                            }}
+                            className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-24"
+                          >
+                            Vazgeç
+                          </button>
+                        </>
+                      ) : (
+                        <button type="button" onClick={() => setEditPwOpen(true)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24">
+                          Yeni şifre
                         </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="p-1 rounded-lg hover:bg-surface-2 text-muted hover:text-fg"
-                      >
-                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {editFormData.newPassword && (
-                    <div className="flex items-center justify-between text-[11px] text-amber-700/80 dark:text-amber-300/80 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
-                      <span>Belirlenen Yeni Şifre: <strong>{editFormData.newPassword}</strong></span>
-                      {copiedPassword && <span className="text-emerald-700 dark:text-emerald-400 font-bold">✓ Panoya Kopyalandı</span>}
-                    </div>
-                  )}
-
-                  <label className="flex items-center space-x-2 text-xs text-muted cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={editFormData.mustChangePassword}
-                      onChange={(e) => setEditFormData({ ...editFormData, mustChangePassword: e.target.checked })}
-                      className="rounded bg-surface border-line text-indigo-600 dark:text-indigo-300 focus:ring-0"
-                    />
-                    <span>İlk girişte kullanıcının şifresini değiştirmesini zorunlu kıl</span>
-                  </label>
-                </div>
-              </div>
+                      )
+                    }
+                  >
+                    {pwOpen && (
+                      <div className="relative mb-2">
+                        <input autoComplete="off"
+                          type="text"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-form-type="other"
+                          spellCheck={false}
+                          autoCapitalize="none"
+                          autoFocus={editPwOpen && !editFormData.newPassword}
+                          aria-label="Yeni şifre"
+                          placeholder="En az 6 karakter"
+                          value={editFormData.newPassword}
+                          onChange={(e) => setEditFormData({ ...editFormData, newPassword: e.target.value })}
+                          className={`w-full pl-3 pr-16 h-8 bg-surface border border-line rounded-lg text-xs text-fg font-mono placeholder:font-sans focus:outline-none focus:border-brand ${showPassword ? '' : 'pw-mask'}`}
+                        />
+                        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                          {editFormData.newPassword && (
+                            <button
+                              type="button"
+                              onClick={handleCopyPassword}
+                              className="p-1 rounded-md hover:bg-surface-2 text-muted hover:text-fg"
+                              title={copiedPassword ? 'Kopyalandı' : 'Şifreyi kopyala'}
+                              aria-label="Şifreyi kopyala"
+                            >
+                              {copiedPassword ? <Check className="w-3.5 h-3.5 text-success-fg" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="p-1 rounded-md hover:bg-surface-2 text-muted hover:text-fg"
+                            title={showPassword ? 'Gizle' : 'Göster'}
+                            aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                          >
+                            {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 text-[11px] text-fg-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.mustChangePassword}
+                        onChange={(e) => setEditFormData({ ...editFormData, mustChangePassword: e.target.checked })}
+                        className="rounded border-line focus:ring-0"
+                      />
+                      <span>İlk girişte şifresini değiştirsin</span>
+                    </label>
+                  </CompactRow>
+                );
+              })()}
 
               {isTeacherAccount(editModalUser) && (
                 <MailOptIn
@@ -1728,18 +1740,12 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
 
               {/* Footer Buttons */}
               <div className="pt-3 border-t border-line flex items-center justify-end space-x-2.5">
-                <button
-                  type="button"
-                  onClick={() => setEditModalUser(null)}
-                  className="px-4 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-bold transition-colors cursor-pointer"
-                >
+                {/* Aşama 182: iki düğme eşit boyda, ortak düğme görünümü */}
+                <button type="button" onClick={() => setEditModalUser(null)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32">
                   İptal
                 </button>
-                <button
-                  type="submit"
-                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-950 cursor-pointer"
-                >
-                  Değişiklikleri Kaydet
+                <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm h-8 w-32">
+                  Kaydet
                 </button>
               </div>
             </form>
