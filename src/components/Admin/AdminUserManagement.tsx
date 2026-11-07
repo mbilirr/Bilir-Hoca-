@@ -149,8 +149,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     schoolLevel: 'Ortaokul' | 'Lise';
     newPassword: string;
     mustChangePassword: boolean;
-    assignedClassIds: string[];
-    canViewAllStudentsAndClasses: boolean;
   }>({
     name: '',
     username: '',
@@ -165,8 +163,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
     schoolLevel: 'Ortaokul',
     newPassword: '',
     mustChangePassword: false,
-    assignedClassIds: [],
-    canViewAllStudentsAndClasses: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -213,6 +209,19 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       loadData();
     });
     return () => unsub();
+  }, []);
+
+  // Aşama 180: listedeki "N sınıf · N öğrenci" etiketi veritabanındaki yetki tablolarından okunur
+  // (eskiden yalnız bu cihazda tutulan bir listeden geliyordu; başka cihazda ya da yenilemeden sonra yanlış görünüyordu)
+  const [accessCounts, setAccessCounts] = useState<Map<string, { classes: number; students: number }>>(() => new Map());
+  const reloadAccessCounts = () => {
+    dataService
+      .getTeacherAccessCounts()
+      .then(setAccessCounts)
+      .catch(() => {}); // okunamazsa etiket gösterilmez
+  };
+  useEffect(() => {
+    reloadAccessCounts();
   }, []);
 
   // Aşama 100: öğretmenin unvanları (teacher_roles) "Mevcut Rolü" sütununda görünür; rol verilince anında güncellenir
@@ -405,8 +414,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       schoolLevel: user.schoolLevel || 'Ortaokul',
       newPassword: '',
       mustChangePassword: !!user.mustChangePassword,
-      assignedClassIds: user.assignedClassIds || [],
-      canViewAllStudentsAndClasses: !!user.canViewAllStudentsAndClasses,
     });
     setShowPassword(false);
     setCopiedPassword(false);
@@ -439,8 +446,6 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
         schoolLevel: editFormData.schoolLevel,
         mustChangePassword: editFormData.mustChangePassword,
         newPassword: editFormData.newPassword ? editFormData.newPassword : undefined,
-        assignedClassIds: editFormData.assignedClassIds,
-        canViewAllStudentsAndClasses: editFormData.canViewAllStudentsAndClasses,
       });
 
       if (isTeacherEdit && (phoneN.value !== phoneOf(before) || editFormData.birthDate !== birthOf(before))) {
@@ -634,6 +639,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
       const accessTeacher = authModalTeacher;
       setAuthModalTeacher(null);
       loadData();
+      reloadAccessCounts();
       if (notifyTeacher) sendTeacherMail(accessTeacher.id, 'access');
     } catch (err: any) {
       // Hata durumunda modal KAPANMAZ, admin hatayı görüp düzeltebilir
@@ -1295,13 +1301,16 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                             <span className="font-bold text-fg block truncate max-w-[150px]">
                               {u.branch || 'Genel Branş'}
                             </span>
-                            {u.canViewAllStudentsAndClasses ? (
-                              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">Tüm Sınıflar</span>
-                            ) : u.assignedClassIds && u.assignedClassIds.length > 0 ? (
-                              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
-                                {u.assignedClassIds.length} Sınıf Yetkili
-                              </span>
-                            ) : null}
+                            {(() => {
+                              const c = accessCounts.get(u.auth_user_id || u.id);
+                              if (!c || (c.classes === 0 && c.students === 0)) return null;
+                              const parts = [c.classes ? `${c.classes} sınıf` : '', c.students ? `${c.students} öğrenci` : ''].filter(Boolean);
+                              return (
+                                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
+                                  {parts.join(' · ')} yetkili
+                                </span>
+                              );
+                            })()}
                           </div>
                         )}
                       </td>
