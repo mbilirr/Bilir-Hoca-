@@ -24,6 +24,8 @@ export interface Teacher {
   branch?: string; // e.g., Matematik, Fizik, Türkçe vb.
   phone?: string;
   avatar?: string;
+  /** Aşama 171: 'K' kadın, 'E' erkek; boş = belirtilmedi */
+  gender?: 'K' | 'E';
   createdAt: string;
   role: 'teacher';
   status?: 'pending' | 'approved' | 'rejected' | 'suspended';
@@ -56,6 +58,8 @@ export interface Student {
   /** Aşama 69: veliler (en çok 3; veritabanında students.parents, 69 numaralı SQL) */
   parents?: StudentParent[];
   avatar?: string;
+  /** Aşama 171: 'K' kız, 'E' erkek; boş = belirtilmedi */
+  gender?: 'K' | 'E';
   createdAt: string;
   status: 'active' | 'inactive' | 'suspended';
   isSuspended?: boolean; // Hesabın dondurulması / askıya alınması
@@ -83,6 +87,7 @@ export interface UnifiedUser {
   email?: string;
   phone?: string;
   avatar?: string;
+  gender?: 'K' | 'E';
   role: SystemRole;
   status: UserStatus;
   isSuspended?: boolean;
@@ -463,6 +468,7 @@ export interface StudentAccountInput {
   email?: string;
   phone?: string;
   avatar?: string;
+  gender?: 'K' | 'E'; // Aşama 171
   schoolLevel?: 'Ortaokul' | 'Lise';
   gradeLevel?: string;
   branch?: string;
