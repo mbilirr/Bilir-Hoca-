@@ -41,7 +41,7 @@ import { UnifiedUser, SystemRole, UserStatus, Teacher, ClassGroup, Student, Stud
 import { canSendCredentials, useMyGrantCred } from '../../lib/grantCred'; // Aşama 149
 import { dataService } from '../../services/dataService';
 import { StudentApplicationsPanel } from './StudentApplicationsPanel';
-import { CompactRow } from '../ui/Compact'; // Aşama 182
+import { CompactRow, InfoTip } from '../ui/Compact'; // Aşama 182
 import { callMail, describeMailResult } from '../../lib/mailApi';
 import { MailOptIn } from '../Teacher/FormParts';
 import { ROLE_DEFS, ROLE_BY_CODE, roleLabel, saveTeacherRoles, fetchTeacherRoles, onTeacherRolesSaved, sortRoles, roleFromBranch, type TeacherRole } from '../../lib/teacherRoles';
@@ -1836,7 +1836,9 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             {/* Notice */}
             <div className="p-3 bg-canvas rounded-xl border border-line text-[11px] text-muted flex items-center space-x-2">
               <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
-              <span>Yetki, kullanıcının giriş hesabına işlenir. Kullanıcı açık oturumdaysa yeni yetkisi çıkış yapıp tekrar girdiğinde (en geç 1 saat içinde) tamamen geçerli olur.</span>
+              {/* Aşama 184: kısaltıldı, ayrıntı ⓘ içinde */}
+              <span className="flex-1">Yeni yetki en geç 1 saat içinde geçerli olur.</span>
+              <InfoTip text="Yetki, kullanıcının giriş hesabına işlenir. Kullanıcı şu an açık oturumdaysa yeni yetkisi çıkış yapıp tekrar girdiğinde, en geç 1 saat içinde tamamen geçerli olur." />
             </div>
 
             {isTeacherAccount(roleModalUser) && (
@@ -2012,11 +2014,11 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
             {/* Content Body */}
             <div className="p-5 sm:p-6 space-y-5 overflow-y-auto max-h-[65vh]">
               {/* Info Alert */}
-              <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-600 dark:text-indigo-200 flex items-start space-x-2.5">
-                <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-                <p className="leading-relaxed">
-                  <strong>Güvenlik Kuralı:</strong> Bir öğretmen yalnızca burada yönetici tarafından yetkilendirilen sınıfları ve öğrencileri görebilir. Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiçbir şekilde listelenmez.
-                </p>
+              {/* Aşama 184: tek satır, ayrıntı ⓘ içinde */}
+              <div className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-600 dark:text-indigo-200 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                <span className="flex-1">Öğretmen yalnız burada işaretlenen sınıf ve öğrencileri görür.</span>
+                <InfoTip text="Yetkisi olmayan sınıflar ve öğrenciler öğretmenin panelinde hiç listelenmez. Kademe yetkisi verilirse o kademedeki bütün sınıflar da görünür." />
               </div>
 
               {/* Aşama 102: Görebileceği kademeler */}
