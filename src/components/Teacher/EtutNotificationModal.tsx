@@ -71,7 +71,7 @@ ${etut.notes ? `📝 *Öğretmen Notu:* ${etut.notes}\n` : ''}${etut.teacherFeed
 Lütfen belirtilen tarih ve saatte derslikte hazır bulununuz. Başarılar dileriz!
 
 *${effectiveTeacher}*
-Eğitim & Öğrenci Takip Sistemi`.trim();
+biliredu`.trim();
   };
 
   const universalMessage = generateWhatsAppMessage(

@@ -171,7 +171,7 @@ export const MailSettingsModal: React.FC<{ open: boolean; onClose: () => void }>
                     <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-brand-fg font-semibold hover:underline inline-flex items-center gap-1">
                       Uygulama şifreleri <ExternalLink className="w-3 h-3" />
                     </a>{' '}
-                    sayfasında bir ad yazın (ör. "Okul Takip") ve "Oluştur"a basın.
+                    sayfasında bir ad yazın (ör. "biliredu") ve "Oluştur"a basın.
                   </li>
                   <li>Çıkan 16 harfli şifreyi aşağıya yapıştırın. Normal Gmail şifreniz çalışmaz.</li>
                 </ol>

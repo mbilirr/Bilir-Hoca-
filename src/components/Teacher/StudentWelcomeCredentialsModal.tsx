@@ -23,7 +23,7 @@ function buildCredentialText(c: StudentCredential): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   return [
     `Merhaba ${c.student.name},`,
-    'Eğitim & Öğrenci Takip Sistemi giriş bilgileriniz:',
+    'biliredu giriş bilgileriniz:',
     `Adres: ${origin}`,
     'Giriş ekranında "Öğrenci Portalı" sekmesini seçiniz.',
     `Öğrenci No: ${c.student.studentNumber || '-'}`,

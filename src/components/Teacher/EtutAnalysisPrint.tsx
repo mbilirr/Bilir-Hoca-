@@ -9,7 +9,7 @@ import type { ReportTable } from './EtutAnalysisData';
 // "PDF olarak kaydet" seçeneği Türkçe karakterleri sorunsuz korur.
 // ============================================================================
 
-export const REPORT_INSTITUTION = 'Eğitim & Öğrenci Takip Sistemi';
+export const REPORT_INSTITUTION = 'biliredu';
 
 const PRINT_CSS = `
 .etut-print-area { display: none; }
