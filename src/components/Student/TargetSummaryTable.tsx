@@ -7,6 +7,7 @@ import { normalizeSubject, targetSubjectList } from '../../lib/subjects';
 import { formatDateISO } from '../../utils/questionAnalytics';
 import { computeTargetDays, isFlexibleTarget, isPlanMirrorTarget, weekDayGoal, type TargetDayRow, type TargetDaysResult } from '../../utils/targetDays';
 import { cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { loadSentPlanItemsInRange, type DatedPlanItem } from '../../services/studyPlanService';
 
 // ============================================================================
@@ -407,11 +408,12 @@ export const TargetSummaryTable: React.FC<{
           </tfoot>
         </table>
       </div>
-      <p className="px-4 sm:px-5 py-2 text-[11px] text-muted border-t border-line">
-        Hücrelerde <strong className="text-fg-2">çözülen / o günün hedefi</strong> yazar. Ders hedeflerinde yalnızca o dersin soruları sayılır.
-        "Dönem toplamı" hedefin tüm tarihlerini kapsar. "Çözülen" satırındaki sayının üzerine gelin (telefonda dokunun):
-        plandaki dersler <span className="text-emerald-600 dark:text-emerald-400 font-semibold">yeşil</span> (çözüldü) ya da{' '}
-        <span className="text-rose-600 dark:text-rose-400 font-semibold">kırmızı</span> (çözülmedi), plan dışı çözülen dersler siyah görünür.
+      <p className="px-4 sm:px-5 py-2 text-[11px] text-muted border-t border-line flex items-center gap-1">
+        Hücrelerde <strong className="text-fg-2">çözülen / o günün hedefi</strong> yazar.
+        <InfoTip
+          label="Tablo nasıl okunur?"
+          text={'Ders hedeflerinde yalnızca o dersin soruları sayılır. "Dönem toplamı" hedefin tüm tarihlerini kapsar. "Çözülen" satırındaki sayının üzerine gelin (telefonda dokunun): plandaki dersler yeşil (çözüldü) ya da kırmızı (çözülmedi), plan dışı çözülen dersler siyah görünür.'}
+        />
       </p>
     </section>
   );
