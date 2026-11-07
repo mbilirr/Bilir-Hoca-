@@ -1,5 +1,5 @@
 {
-  "name": "Eğitim & Öğrenci Takip Sistemi",
+  "name": "biliredu",
   "description": "Öğretmen ve öğrenciler için sınıf yönetimi, kazanım odaklı ödev çizelgesi, günlük/haftalık/aylık soru sayısı takibi ve grafik analizi, devamsızlık ve not takibi, etüt planlama ve mesajlaşma platformu.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
