@@ -429,7 +429,7 @@ export default function App() {
   // Aşama 83: tarayıcı sekmesinde kişinin kurumunun adı görünür
   const brandTitle = authSession ? dataService.getBrand().name : '';
   useEffect(() => {
-    document.title = brandTitle ? `${brandTitle} · Eğitim Takip` : 'Eğitim & Öğrenci Takip Sistemi';
+    document.title = brandTitle ? `${brandTitle} · biliredu` : 'biliredu';
   }, [brandTitle]);
 
   if (!authSession) {
@@ -724,7 +724,7 @@ export default function App() {
       <footer className="mt-10 border-t border-line py-5 text-center text-xs text-subtle">
         <div className="max-w-[120rem] mx-auto px-4 flex items-center justify-center gap-2">
           <GraduationCap className="w-4 h-4" />
-          <span>Eğitim Takip · {new Date().getFullYear()}</span>
+          <span>biliredu · {new Date().getFullYear()}</span>
         </div>
       </footer>
 
