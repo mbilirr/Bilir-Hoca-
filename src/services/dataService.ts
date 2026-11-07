@@ -1283,10 +1283,11 @@ class DataService {
 
       // Yönetici yetkisi yalnızca kayıttaki işaretten (is_admin / oturum rolü) ya da yönetici e-postasından gelir.
       // (Eskiden isme bakılıyordu; aynı isimde biri yönetici ekranlarını görebiliyordu.)
+      // Aşama 180: eski sürümlerin yalnız bu cihazda tuttuğu yetki alanları (assignedClassIds,
+      // canViewAllStudentsAndClasses) atılır. Görünürlüğün tek kaynağı veritabanındaki yetki tablolarıdır.
       this.teachers = this.teachers.map((t) => ({
-        ...t,
+        ...DataService.withoutLegacyAccess(t),
         isAdmin: this.isTeacherAdmin(t),
-        assignedClassIds: t.assignedClassIds || [],
       }));
 
       saveData(STORAGE_KEYS.TEACHERS, this.teachers);
@@ -4668,6 +4669,16 @@ class DataService {
     return val;
   }
 
+  // Aşama 180: eski yerel yetki alanlarını kayıttan çıkarır (veritabanına hiç yazılmıyorlardı)
+  private static withoutLegacyAccess(t: Teacher): Teacher {
+    const legacy = t as Teacher & { assignedClassIds?: unknown; canViewAllStudentsAndClasses?: unknown };
+    if (!('assignedClassIds' in legacy) && !('canViewAllStudentsAndClasses' in legacy)) return t;
+    const copy: Record<string, unknown> = { ...legacy };
+    delete copy.assignedClassIds;
+    delete copy.canViewAllStudentsAndClasses;
+    return copy as unknown as Teacher;
+  }
+
   // Yönetici: kayıtta yönetici işareti olan (giriş rolü 'admin' veya teachers.is_admin) ya da kurum yöneticisi
   // e-postasıyla giriş yapan öğretmen. Veritabanındaki is_admin() kuralıyla aynıdır.
   public isTeacherAdmin(teacher?: Teacher | null): boolean {
@@ -5614,58 +5625,8 @@ class DataService {
     return { success: true };
   }
 
-  public updateTeacherClassPermissions(teacherId: string, assignedClassIds: string[]): void {
-    const idx = this.teachers.findIndex((t) => t.id === teacherId);
-    if (idx !== -1) {
-      this.teachers[idx] = {
-        ...this.teachers[idx],
-        assignedClassIds,
-      };
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-
-      const currentSession = this.getAuthSession();
-      if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
-        this.setAuthSession({
-          ...currentSession,
-          user: this.teachers[idx],
-        });
-      }
-
-      this.syncTeacherToCloud(this.teachers[idx]);
-      this.notify();
-    }
-  }
-
   public toggleTeacherAdmin(teacherId: string, isAdmin: boolean): Promise<{ success: boolean; error?: string }> {
     return this.commitTeacherPatch(teacherId, { isAdmin }); // Aşama 173
-  }
-
-  public toggleTeacherCanViewAll(teacherId: string, canView: boolean): void {
-    const idx = this.teachers.findIndex((t) => t.id === teacherId);
-    if (idx !== -1) {
-      this.teachers[idx] = {
-        ...this.teachers[idx],
-        canViewAllStudentsAndClasses: canView,
-      };
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-      try {
-        /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-      } catch {}
-
-      const currentSession = this.getAuthSession();
-      if (currentSession?.role === 'teacher' && currentSession.user.id === teacherId) {
-        this.setAuthSession({
-          ...currentSession,
-          user: this.teachers[idx],
-        });
-      }
-
-      this.syncTeacherToCloud(this.teachers[idx]);
-      this.notify();
-    }
   }
 
   // =========================================================================
@@ -5697,8 +5658,6 @@ class DataService {
         password: t.password || '',
         branch: t.branch || (isAdmin ? 'Kurum Yöneticisi' : 'Öğretmen'),
         isAdmin,
-        assignedClassIds: t.assignedClassIds || [],
-        canViewAllStudentsAndClasses: !!t.canViewAllStudentsAndClasses,
         kurumId: t.kurumId || null,
       });
     });
@@ -5728,7 +5687,6 @@ class DataService {
         schoolLevel: s.schoolLevel,
         gradeLevel: s.gradeLevel,
         mustChangePassword: !!s.mustChangePassword,
-        authorizedTeacherIds: s.authorizedTeacherIds || [],
         kurumId: s.kurumId || null,
       });
     });
@@ -5808,8 +5766,6 @@ class DataService {
       if (updates.branch !== undefined) teacherUpdates.branch = updates.branch.trim();
       if (updates.avatar !== undefined) teacherUpdates.avatar = updates.avatar;
       if (updates.gender !== undefined) teacherUpdates.gender = DataService.normGender(updates.gender); // Aşama 171
-      if (updates.assignedClassIds !== undefined) teacherUpdates.assignedClassIds = updates.assignedClassIds;
-      if (updates.canViewAllStudentsAndClasses !== undefined) teacherUpdates.canViewAllStudentsAndClasses = updates.canViewAllStudentsAndClasses;
 
       const previousUsername = teacher.username || '';
       const isHeadAdmin = this.isHeadAdminTeacher(teacher);
@@ -6000,64 +5956,49 @@ class DataService {
       throw new Error(`Yetkiler kaydedilemedi, hiçbir değişiklik yapılmadı: ${rpcError.message || 'bilinmeyen hata'}`);
     }
 
-    // 3. Veritabanı başarıyla güncellendikten sonra yerel durumu güncelle
-    teacher.assignedClassIds = [...assignedClassIds];
-    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
-
-    // Sınıflardaki authorizedTeacherIds listesini güncelle
-    for (const cls of this.classes) {
-      const currentAuth: string[] = cls.authorizedTeacherIds ? [...cls.authorizedTeacherIds] : [];
-      const shouldHave = assignedClassIds.includes(cls.id) || assignedClassIds.includes(cls.name);
-      const has = currentAuth.includes(teacherId);
-
-      let changed = false;
-      if (shouldHave && !has) {
-        currentAuth.push(teacherId);
-        changed = true;
-      } else if (!shouldHave && has) {
-        const idx = currentAuth.indexOf(teacherId);
-        if (idx !== -1) currentAuth.splice(idx, 1);
-        changed = true;
-      }
-
-      if (changed) {
-        cls.authorizedTeacherIds = currentAuth;
-      }
-    }
-    saveData(STORAGE_KEYS.CLASSES, this.classes);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
-
-    // Öğrencilerdeki authorizedTeacherIds listesini güncelle
-    for (const std of this.students) {
-      const currentAuth: string[] = std.authorizedTeacherIds ? [...std.authorizedTeacherIds] : [];
-      const shouldHave = assignedStudentIds.includes(std.id);
-      const has = currentAuth.includes(teacherId);
-
-      let changed = false;
-      if (shouldHave && !has) {
-        currentAuth.push(teacherId);
-        changed = true;
-      } else if (!shouldHave && has) {
-        const idx = currentAuth.indexOf(teacherId);
-        if (idx !== -1) currentAuth.splice(idx, 1);
-        changed = true;
-      }
-
-      if (changed) {
-        std.authorizedTeacherIds = currentAuth;
-      }
-    }
-    saveData(STORAGE_KEYS.STUDENTS, this.students);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
-
+    // Aşama 180: yetkinin tek kaynağı veritabanıdır. Eskiden burada öğretmenin, sınıfların ve öğrencilerin
+    // yerel kopyalarına da yetki listesi yazılıyordu; bu kopyalar yalnız bu cihazda kalıyor ve bir sonraki
+    // eşitlemede kayboluyordu. Öğretmenin ekranı kendi yetkisini veritabanından okur (myTeacherAccess).
     this.notify();
+  }
+
+  // Aşama 180: yönetici listesindeki "N sınıf / N öğrenci" etiketi için tek seferde tüm öğretmenlerin yetki sayısı.
+  // Kademeden gelen sınıflar da sayılır (öğretmenin gerçekte gördüğü sınıf sayısı). Okunamazsa boş döner (etiket gösterilmez).
+  public async getTeacherAccessCounts(): Promise<Map<string, { classes: number; students: number }>> {
+    const out = new Map<string, { classes: number; students: number }>();
+    const PAGE = 1000;
+    const readAll = async (table: string, col: string): Promise<Array<Record<string, string>> | null> => {
+      const rows: Array<Record<string, string>> = [];
+      for (let from = 0; from < 200000; from += PAGE) {
+        const { data, error } = await supabase
+          .from(table)
+          .select(`teacher_auth_id,${col}`)
+          .order('teacher_auth_id', { ascending: true })
+          .order(col, { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) return null;
+        rows.push(...((data || []) as Array<Record<string, string>>));
+        if (!data || data.length < PAGE) break;
+      }
+      return rows;
+    };
+    const [cls, std] = await Promise.all([readAll('teacher_class_access', 'class_id'), readAll('teacher_student_access', 'student_id')]);
+    if (!cls || !std) return out;
+    const count = (rows: Array<Record<string, string>>, col: string, key: 'classes' | 'students') => {
+      const seen = new Set<string>();
+      for (const r of rows) {
+        const id = String(r.teacher_auth_id || '');
+        const pair = `${id}|${r[col]}`;
+        if (!id || seen.has(pair)) continue;
+        seen.add(pair);
+        const cur = out.get(id) || { classes: 0, students: 0 };
+        cur[key]++;
+        out.set(id, cur);
+      }
+    };
+    count(cls, 'class_id', 'classes');
+    count(std, 'student_id', 'students');
+    return out;
   }
 
   public async getTeacherCloudAccess(teacherAuthId: string): Promise<{ classIds: string[]; studentIds: string[]; gradeClassIds: string[] }> {
@@ -6309,8 +6250,6 @@ class DataService {
       role: 'teacher',
       status: 'approved',
       isAdmin: false,
-      assignedClassIds: [],
-      canViewAllStudentsAndClasses: false,
       kurumId: this.getMyKurumId(),
     };
 
@@ -6371,48 +6310,6 @@ class DataService {
     return { teacher, password };
   }
 
-  // Etüt ekranı: giriş hesabı OLMAYAN öğretmen kaydı (yalnızca ad/branş bilgisi). Yalnızca yönetici.
-  public addApprovedTeacher(data: { name: string; branch: string; email?: string; phone?: string }): Teacher {
-    if (!this.isCurrentUserAdmin()) {
-      throw new Error('Yeni öğretmen kaydını yalnızca sistem yöneticisi ekleyebilir.');
-    }
-    const cleanName = data.name.trim();
-    const cleanUsername = cleanName
-      .toLocaleLowerCase('tr-TR') // Aşama 154: "İsmail" -> "ismail" (eskiden "i.smail")
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ı/g, 'i')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .replace(/[^a-z0-9]/g, '.');
-
-    const newTeacher: Teacher = {
-      id: `teacher-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      name: cleanName,
-      username: cleanUsername,
-      email: data.email?.trim() || '',
-      branch: data.branch?.trim() || 'Genel Branş',
-      phone: data.phone?.trim() || '',
-      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(cleanName)}`,
-      createdAt: new Date().toISOString(),
-      role: 'teacher',
-      status: 'approved',
-      isAdmin: false,
-      assignedClassIds: [],
-      canViewAllStudentsAndClasses: false,
-    };
-
-    this.teachers.unshift(newTeacher);
-    saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-    try {
-      /* eski kalıcı yedek kopya artık yazılmaz */ void 0;
-    } catch {}
-    this.syncTeacherToCloud(newTeacher);
-    this.notify();
-    return newTeacher;
-  }
-
   // Yerel öğretmen kaydını, oturumu ve "beni hatırla" bilgisini günceller (bulut yazımı yapmaz)
   private applyTeacherLocal(teacherId: string, updates: Partial<Teacher>): { previous: Teacher; updated: Teacher } {
     const idx = this.teachers.findIndex((t) => t.id === teacherId);
@@ -6454,13 +6351,6 @@ class DataService {
     }
     this.notify();
     return { previous, updated };
-  }
-
-  // Eski çağrılar için: yereli günceller, buluta arka planda yazar
-  public updateTeacherProfile(teacherId: string, updates: Partial<Teacher>): Teacher {
-    const { updated } = this.applyTeacherLocal(teacherId, updates);
-    this.syncTeacherToCloud(updated);
-    return updated;
   }
 
   // Profil kaydetme: buluta yazılmasını BEKLER; yazılamazsa yerel değişiklik geri alınır ve hata fırlatılır
@@ -6806,13 +6696,6 @@ class DataService {
     return true;
   }
 
-  public async syncTeacherToCloud(teacher: Teacher): Promise<void> {
-    const res = await this.writeTeacherRow(teacher);
-    if (!res.success) {
-      console.warn('[TeacherSync] Öğretmen buluta yazılamadı:', res.error?.message || res.error);
-    }
-  }
-
   // Aşama 173: sonuç döner. Yetki yoksa veritabanı hata vermeden 0 satır siler; o zaman kayıt hâlâ duruyor mu bakılır.
   public async deleteTeacherFromCloud(teacherId: string): Promise<{ success: boolean; error?: any }> {
     try {
@@ -6923,8 +6806,6 @@ class DataService {
             isAdmin: remoteIsAdmin,
             isSuspended: row.status === 'suspended',
             createdAt: row.created_at || new Date().toISOString(),
-            assignedClassIds: [],
-            canViewAllStudentsAndClasses: false,
             kurumId: row.kurum_id || null,
           };
 
@@ -7164,7 +7045,6 @@ class DataService {
         status: row.status || 'approved',
         isSuspended: row.status === 'suspended',
         isAdmin: isAppAdmin,
-        assignedClassIds: teacher?.assignedClassIds || [],
       };
       teacher = fromRow;
       const idx = this.teachers.findIndex((t) => t.id === fromRow.id);
@@ -7187,7 +7067,6 @@ class DataService {
         role: 'teacher',
         status: 'approved',
         isAdmin: true,
-        assignedClassIds: [],
       };
       this.teachers.push(teacher);
     } else {
@@ -7908,21 +7787,8 @@ class DataService {
     // Rollback için önceki durumların yedeğini al
     const prevClasses = [...this.classes];
     const prevStudents = [...this.students];
-    const prevTeachers = JSON.parse(JSON.stringify(this.teachers));
 
     this.classes.push(newClass);
-
-    // If added by a teacher, automatically add this class to their assignedClassIds
-    if (currentTeacherId) {
-      const t = this.teachers.find((item) => item.id === currentTeacherId);
-      if (t) {
-        if (!t.assignedClassIds) t.assignedClassIds = [];
-        if (!t.assignedClassIds.includes(newClass.id)) {
-          t.assignedClassIds.push(newClass.id);
-          saveData(STORAGE_KEYS.TEACHERS, this.teachers);
-        }
-      }
-    }
 
     // OTOMATİK SINIF AKTARIMI:
     // Yalnızca SINIFI OLMAYAN öğrenciler (ör. kendi kaydını yapıp sınıf adını yazmış olanlar) adı eşleşirse
@@ -7980,10 +7846,8 @@ class DataService {
       // ROLLBACK: Buluta yazılamadıysa yerel state ve depolamayı tamamen eski haline döndür
       this.classes = prevClasses;
       this.students = prevStudents;
-      this.teachers = prevTeachers;
       saveData(STORAGE_KEYS.CLASSES, this.classes);
       saveData(STORAGE_KEYS.STUDENTS, this.students);
-      saveData(STORAGE_KEYS.TEACHERS, this.teachers);
       this.notify();
 
       const errMsg =
@@ -10072,11 +9936,6 @@ class DataService {
         return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
       }
 
-      // Yönetici bu öğretmene önceden eklenmiş tüm sınıf ve öğrenci listelerini görme izni vermişse görebilir
-      if (teacher?.canViewAllStudentsAndClasses) {
-        return this.students.filter((s) => !this.deletedStudentIds.has(s.id));
-      }
-
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı / Etüt Öğretmeni — veritabanının açtığı kayıtlar; veli bilgisi role göre
       // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla (mesaj, not, yoklama, teslim süzgeçleri
       // getStudents(kendi id) çağırıyordu; Rehberlik'te sınıf yetkisi yazılı olmadığı için bu kayıtlar ekranda gizleniyordu)
@@ -10098,12 +9957,8 @@ class DataService {
       const hideParentsForRole = !forTeacherId && !this.canSeeParentContacts();
       return this.students.filter((s) => {
         if (this.deletedStudentIds.has(s.id)) return false;
+        // Aşama 180: bireysel ve sınıf yetkisi yalnız veritabanından (teacher_student_access / teacher_class_access)
         if (this.myTeacherAccess.studentIds.has(s.id)) return true;
-        // Bireysel öğrenci yetkilendirmesi
-        if (s.authorizedTeacherIds && Array.isArray(s.authorizedTeacherIds) && s.authorizedTeacherIds.includes(teacherId!)) {
-          return true;
-        }
-        // Sınıf bazlı yetkilendirme
         if (s.classId && permittedClassIds.has(s.classId)) return true;
         if (s.className) {
           const normS = s.className.trim().toLowerCase().replace(/[\s\-_/\\.]/g, '');
@@ -10139,11 +9994,6 @@ class DataService {
         return this.deduplicateClasses(this.classes);
       }
 
-      // Yönetici bu öğretmene önceden eklenmiş sınıf listelerini görme izni vermişse görebilir
-      if (teacher?.canViewAllStudentsAndClasses) {
-        return this.deduplicateClasses(this.classes);
-      }
-
       // Aşama 82: Rehberlik / Ölçme / Zümre Başkanı — veritabanının açtığı sınıflar; Etüt Öğretmeni sınıf görmez
       // Aşama 113: oturum sahibinin kendi kimliğiyle istenen liste de aynı kuralla
       if ((!forTeacherId || forTeacherId === session?.user.id) && this.roleTrustsDb()) {
@@ -10151,17 +10001,9 @@ class DataService {
         return this.deduplicateClasses(this.classes.filter((c) => !this.deletedClassIds.has(c.id)));
       }
 
-      // Normal öğretmen: SADECE admin'in yetkilendirdiği (authorizedTeacherIds veya assignedClassIds içinde bulunan) sınıfları görebilir
-      const rawAssigned = teacher?.assignedClassIds || [];
-      const assignedClassIds = new Set(rawAssigned);
-
-      const filtered = this.classes.filter((c) => {
-        if (this.deletedClassIds.has(c.id)) return false;
-        if (this.myTeacherAccess.classIds.has(c.id)) return true;
-        if (c.authorizedTeacherIds && Array.isArray(c.authorizedTeacherIds) && c.authorizedTeacherIds.includes(teacherId!)) return true;
-        if (assignedClassIds.has(c.id) || (c.name && assignedClassIds.has(c.name))) return true;
-        return false;
-      });
+      // Normal öğretmen: SADECE yöneticinin veritabanında yetkilendirdiği sınıfları görür (teacher_class_access,
+      // kademeden gelenler dahil). Aşama 180: yalnız bu cihazda tutulan eski yetki listeleri artık okunmaz.
+      const filtered = this.classes.filter((c) => !this.deletedClassIds.has(c.id) && this.myTeacherAccess.classIds.has(c.id));
 
       return this.deduplicateClasses(filtered);
     }
