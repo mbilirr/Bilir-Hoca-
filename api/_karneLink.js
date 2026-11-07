@@ -98,7 +98,7 @@ export async function storageRemove(e, paths) {
 
 /** Süresi dolmuş / iptal edilmiş link sayfası (dış kaynak yok) */
 export function expiredPage(appName) {
-  const name = String(appName || 'BilirEdu').replace(/[<>&"]/g, '');
+  const name = String(appName || 'biliredu').replace(/[<>&"]/g, '');
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${name} karne</title>
 <style>body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f8fafc;color:#1e1b4b;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:16px}main{max-width:360px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;text-align:center}h1{font-size:16px;margin:0 0 8px}p{font-size:13px;color:#475569;margin:0;line-height:1.5}</style></head>
 <body><main><h1>${name}</h1><p>Bu karne bağlantısının süresi doldu ya da bağlantı kapatıldı. Yeni karne için kurumunuza başvurun.</p></main></body></html>`;

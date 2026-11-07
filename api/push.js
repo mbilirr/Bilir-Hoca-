@@ -1079,7 +1079,7 @@ export default async function handler(req, res) {
       case 'test': {
         const r = await sendToUsers([caller.authId], {
           title: 'Bildirimler açık ✓',
-          body: `${caller.name}, bu cihaza Eğitim Takip bildirimleri gelecek.`,
+          body: `${caller.name}, bu cihaza biliredu bildirimleri gelecek.`,
           url: caller.role === 'teacher' ? '/#/teacher/home' : '/#/student',
           tag: 'test',
         });

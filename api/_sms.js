@@ -35,7 +35,7 @@ export function smsEnv() {
     netgsmPass: String(process.env.NETGSM_PASSWORD || '').trim(),
     imKey: String(process.env.ILETIMERKEZI_KEY || '').trim(),
     imHash: String(process.env.ILETIMERKEZI_HASH || '').trim(),
-    appName: String(process.env.SMS_APP_NAME || 'BilirEdu').trim().slice(0, 20),
+    appName: String(process.env.SMS_APP_NAME || 'biliredu').trim().slice(0, 20),
   };
 }
 

@@ -89,7 +89,7 @@ function env() {
     // Aşama 87: SCHOOL_NAME ayarına yanlışlıkla bir site adresi yazılmışsa (ör. bilir-hoca.vercel.app) e-postada görünmez
     schoolName: (() => {
       const n = String(process.env.SCHOOL_NAME || '').trim();
-      return n && !/vercel\.app|https?:\/\/|\.(com|net|org|app)\b/i.test(n) ? n : 'Eğitim & Öğrenci Takip Sistemi';
+      return n && !/vercel\.app|https?:\/\/|\.(com|net|org|app)\b/i.test(n) ? n : 'biliredu';
     })(),
     cronSecret: process.env.CRON_SECRET || '',
   };
@@ -557,7 +557,7 @@ ${rowsHtml ? `<table role="presentation" width="100%" cellpadding="0" cellspacin
 ${extraHtml}
 ${url && buttonLabel ? `<p style="margin:20px 0 4px"><a href="${esc(url)}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:11px 20px;border-radius:10px">${esc(buttonLabel)}</a></p>` : ''}
 </td></tr>
-<tr><td style="padding:16px 24px 22px;color:#94a3b8;font-size:12px;line-height:1.5">${esc(footer || 'Bu e-posta okul takip sistemi tarafından otomatik gönderilmiştir.')}</td></tr>
+<tr><td style="padding:16px 24px 22px;color:#94a3b8;font-size:12px;line-height:1.5">${esc(footer || 'Bu e-posta biliredu tarafından otomatik gönderilmiştir.')}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [
     heading,
@@ -569,7 +569,7 @@ ${url && buttonLabel ? `<p style="margin:20px 0 4px"><a href="${esc(url)}" style
     extraText ? `\n${extraText}` : '',
     url ? `\n${buttonLabel || 'Sisteme git'}: ${url}` : '',
     '',
-    footer || 'Bu e-posta okul takip sistemi tarafından otomatik gönderilmiştir.',
+    footer || 'Bu e-posta biliredu tarafından otomatik gönderilmiştir.',
   ]
     .filter((x) => x !== undefined && x !== null)
     .join('\n');
@@ -1666,8 +1666,8 @@ function credentialMail(role, st, password, url, kurumName, parentName) {
       heading: isVeli ? 'Öğrencinizin giriş bilgileri' : 'Giriş bilgileriniz',
       greeting: isVeli ? `Sayın ${who},` : `Merhaba ${who},`,
       intro: isVeli
-        ? `${clean(st.name)} için öğrenci takip sistemi giriş bilgileri aşağıdadır.`
-        : 'Öğrenci takip sistemi giriş bilgilerin aşağıdadır.',
+        ? `${clean(st.name)} için biliredu giriş bilgileri aşağıdadır.`
+        : 'biliredu giriş bilgilerin aşağıdadır.',
       rows: [
         ['Kurum', kurumName],
         ...(isVeli ? [['Öğrenci', clean(st.name)]] : []),
@@ -2053,7 +2053,7 @@ async function actionTeacherCredentialsSend(caller, body, raw, sendId, req, dead
       ...layout({
         heading: 'Öğretmen giriş bilgileriniz',
         greeting: `Merhaba ${clean(m.t.name)},`,
-        intro: 'Eğitim & Öğrenci Takip Sistemi öğretmen giriş bilgileriniz aşağıdadır.',
+        intro: 'biliredu öğretmen giriş bilgileriniz aşağıdadır.',
         rows: [
           ['Giriş adresi', url],
           ['Giriş', 'Giriş ekranında "Öğretmen" sekmesini seçin'],
@@ -2696,7 +2696,7 @@ async function actionTest(caller, body, req) {
         to,
         toName: caller.name,
         role: 'ogretmen',
-        subject: 'Deneme e-postası – Okul Takip Sistemi',
+        subject: 'Deneme e-postası – biliredu',
         ...mail,
       },
     ],
@@ -3336,7 +3336,7 @@ function teacherMail(kind, t, ctx) {
       ...layout({
         heading: 'Öğretmen hesabınız açıldı',
         greeting,
-        intro: `${adminName} sizin için Eğitim & Öğrenci Takip Sistemi'nde bir öğretmen hesabı açtı. Giriş bilgileriniz aşağıdadır.`,
+        intro: `${adminName} sizin için biliredu'da bir öğretmen hesabı açtı. Giriş bilgileriniz aşağıdadır.`,
         rows: [...loginRows, ['Branş', t.branch]],
         buttonLabel: 'Sisteme giriş yap',
         url,
@@ -4155,7 +4155,7 @@ async function karneLinkOpen(res, token) {
   res.setHeader('Referrer-Policy', 'no-referrer');
   const kl = await karneLinkMod();
   const sm = await smsMod();
-  const appName = sm ? sm.smsEnv().appName : 'BilirEdu';
+  const appName = sm ? sm.smsEnv().appName : 'biliredu';
   const gone = () => res.status(410).setHeader('Content-Type', 'text/html; charset=utf-8').send(kl ? kl.expiredPage(appName) : 'Bağlantı geçersiz.');
   const e = env();
   if (!kl || !e.service || !kl.isTokenShape(token)) return gone();
