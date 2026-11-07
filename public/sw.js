@@ -1,5 +1,5 @@
 // ============================================================================
-// Eğitim Takip — bildirim çalışanı (Aşama 34)
+// biliredu — bildirim çalışanı (Aşama 34)
 // Yalnızca telefon / bilgisayar bildirimlerini gösterir ve bildirime dokununca uygulamayı açar.
 // Sayfaları (index.html) önbelleğe ALMAZ: site her zaman sunucudaki güncel sürümle açılır.
 // Aşama 124: YALNIZ /assets/ altındaki sürüm adlı dosyalar (adlarında içerik özeti var, hiç değişmez)
@@ -69,9 +69,9 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'Eğitim Takip', body: event.data ? event.data.text() : '' };
+    data = { title: 'biliredu', body: event.data ? event.data.text() : '' };
   }
-  const title = data.title || 'Eğitim Takip';
+  const title = data.title || 'biliredu';
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
