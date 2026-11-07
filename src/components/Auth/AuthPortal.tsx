@@ -255,9 +255,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       if (rememberMe) {
         dataService.setRememberedUser({
           role: 'teacher',
-          // Aşama 172 (155 geri geldi): hesabın GERÇEK giriş adresi saklanır. Gerçek e-postayla açılmış hesapta
-          // kullanıcı adı saklanırsa sonraki girişte tch_<ad>@okul.internal.net denenir ve "şifre hatalı" çıkar.
-          identifier: dataService.rememberIdentifierForTeacher(teacher, cleanUser),
+          // Aşama 173: kutuda kullanıcı adı görünür (yazılan kullanıcı adı, e-postayla girildiyse hesabın kullanıcı adı).
+          // Gerçek e-postayla açılmış hesapta giriş adresi gizli `loginEmail` alanında saklanır; kullanıcı adıyla
+          // girişte authenticateTeacher bu adresi kullanır (172'deki gibi kutuya e-posta yazılmaz).
+          identifier: cleanUser.includes('@') ? teacher.username || cleanUser : cleanUser,
+          loginEmail: dataService.realTeacherLoginEmail() || undefined,
           name: teacher.name,
           avatar: teacher.avatar,
           branch: teacher.branch,
