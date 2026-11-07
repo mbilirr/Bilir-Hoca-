@@ -81,7 +81,6 @@ async function teacherOfCurrentAuth(): Promise<Teacher> {
     status: row.status || 'approved',
     isSuspended: row.status === 'suspended',
     isAdmin: appRole === 'admin' || authUser.app_metadata?.is_admin === true || !!row.is_admin,
-    assignedClassIds: [],
     kurumId: row.kurum_id || undefined,
   } as Teacher;
 }
