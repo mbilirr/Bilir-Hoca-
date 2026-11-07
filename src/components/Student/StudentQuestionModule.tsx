@@ -2435,7 +2435,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       <span className="font-bold text-indigo-700 dark:text-indigo-300 shrink-0">{it.subject}</span>
                       <span className="truncate">{text || '—'}</span>
                       {it.questionCount > 0 && <span className="shrink-0 font-bold text-indigo-700 dark:text-indigo-300">· {it.questionCount} soru</span>}
-                      {it.doneAt && <Check className="w-3 h-3 text-emerald-600 shrink-0" aria-label="yapıldı" />}
+                      {it.doneAt && <Check className="w-3 h-3 text-success-fg shrink-0" aria-label="yapıldı" />}
                       <Plus className="w-3 h-3 text-indigo-600 dark:text-indigo-300 shrink-0" />
                     </button>
                   );
