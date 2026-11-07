@@ -10,6 +10,7 @@ import { teacherNavFor } from './Layout/navItems';
 import { openCommandPalette } from './Layout/CommandPalette';
 import { ThemeToggle, cx } from './ui/kit';
 import { KurumSecici, KurumGecisSeridi } from './Layout/KurumSecici';
+import { profilResmi, ogretmenProfilRol, type ProfilKisi, type ProfilRol } from '../lib/profilResmi';
 
 // Aşama 103: profil / şifre / avatar / e-posta pencereleri ana dosyada taşınmaz; açılınca indirilir
 const TeacherProfileEditModal = lazyNamed(() => import('./Teacher/TeacherProfileModals'), 'TeacherProfileEditModal');
@@ -45,36 +46,12 @@ export interface NavbarProps {
   documentsCount?: number;
 }
 
-const initialsOf = (name?: string) =>
-  (name || '')
-    .split(' ')
-    .filter(Boolean)
-    .map((n) => n[0] || '')
-    .join('')
-    .slice(0, 2)
-    .toLocaleUpperCase('tr-TR') || '?';
-
-// Yuvarlak profil resmi (fotoğraf, emoji veya baş harfler)
-const Avatar: React.FC<{ name?: string; avatar?: string; size?: 'sm' | 'md' }> = ({ name, avatar, size = 'sm' }) => {
-  const box = size === 'md' ? 'w-10 h-10 text-sm' : 'w-8 h-8 text-xs';
-  const isImg = !!avatar && (avatar.startsWith('http') || avatar.startsWith('data:'));
-  return (
-    <span
-      className={cx(
-        'rounded-full overflow-hidden flex items-center justify-center shrink-0 font-bold text-white bg-gradient-to-br from-indigo-500 to-violet-500 ring-2 ring-surface',
-        box
-      )}
-    >
-      {isImg ? (
-        <img src={avatar} alt={name || ''} className="w-full h-full object-cover" />
-      ) : avatar ? (
-        <span className="leading-none select-none text-base">{avatar}</span>
-      ) : (
-        initialsOf(name)
-      )}
-    </span>
-  );
-};
+// Yuvarlak profil resmi (Aşama 171: fotoğraf / seçilen çizim; yoksa cinsiyet ve role göre otomatik çizim)
+const Avatar: React.FC<{ person?: ProfilKisi | null; rol: ProfilRol; size?: 'sm' | 'md' }> = ({ person, rol, size = 'sm' }) => (
+  <span className={cx('rounded-full overflow-hidden flex shrink-0 ring-2 ring-surface bg-surface-2', size === 'md' ? 'w-10 h-10' : 'w-8 h-8')}>
+    <img src={profilResmi(person, rol)} alt={person?.name || ''} decoding="async" className="w-full h-full object-cover" />
+  </span>
+);
 
 const MenuItem: React.FC<{
   icon: React.ComponentType<{ className?: string }>;
@@ -129,6 +106,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const currentTeacher = isTeacherSession ? (authSession!.user as Teacher) : null;
+  // Aşama 171: profil resminin rolü (unvan isteği yok: branş + yönetici bilgisi yeter)
+  const avatarRol: ProfilRol = currentTeacher ? ogretmenProfilRol(currentTeacher) : 'student';
   const activeStudent = isStudentSession ? (authSession!.user as Student) : currentStudent;
 
   // Yönetici kontrolü tek yerden yapılır (isim değil, kayıttaki yönetici yetkisi esas alınır)
@@ -282,10 +261,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   title="Hesap menüsü"
                 >
                   <span className="relative">
-                    <Avatar
-                      name={isTeacherSession ? currentTeacher?.name : activeStudent?.name}
-                      avatar={isTeacherSession ? currentTeacher?.avatar : activeStudent?.avatar}
-                    />
+                    <Avatar person={isTeacherSession ? currentTeacher : activeStudent} rol={avatarRol} />
                     {isTeacherSession && currentTeacher?.isAdmin && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-warning text-white flex items-center justify-center ring-2 ring-surface" title="Yönetici">
                         <Crown className="w-2.5 h-2.5" />
@@ -309,11 +285,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     {/* Kim olduğu */}
                     <div className="flex items-center gap-3 px-2 py-2 mb-1">
-                      <Avatar
-                        size="md"
-                        name={isTeacherSession ? currentTeacher?.name : activeStudent?.name}
-                        avatar={isTeacherSession ? currentTeacher?.avatar : activeStudent?.avatar}
-                      />
+                      <Avatar size="md" person={isTeacherSession ? currentTeacher : activeStudent} rol={avatarRol} />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-fg truncate">
                           {isTeacherSession ? currentTeacher?.name : activeStudent?.name}
