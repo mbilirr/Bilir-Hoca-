@@ -337,7 +337,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
       className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-line text-[11px] font-bold text-fg-2 cursor-pointer"
       aria-label="Komutu kopyala"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <Check className="w-3.5 h-3.5 text-success-fg" /> : <Copy className="w-3.5 h-3.5" />}
       {copied ? 'Kopyalandı' : 'Kopyala'}
     </button>
   );
