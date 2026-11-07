@@ -281,7 +281,8 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
               {dueDate ? ` · Son: ${shortTrDate(dueDate)} ${dueTime}` : ''}
             </span>
             <span className="flex gap-2 ml-auto">
-              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary">
+              {/* Aşama 186: alt düğmeler ortak ölçüde */}
+              <button type="button" onClick={requestClose} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-28">
                 İptal
               </button>
               <button
@@ -289,9 +290,9 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
                 id="hw-form-save"
                 onClick={() => handleSubmit()}
                 disabled={isSaving || isUploadBusy}
-                className="ui-btn ui-btn-primary"
+                className="ui-btn ui-btn-primary ui-btn-sm h-8 min-w-28"
               >
-                <Save className="w-4 h-4" />
+                <Save className="w-3.5 h-3.5" />
                 {isSaving ? 'Kaydediliyor…' : isUploadBusy ? 'Dosya yükleniyor…' : isEdit ? 'Değişiklikleri Kaydet' : 'Ödevi Kaydet'}
               </button>
             </span>
@@ -300,7 +301,7 @@ const HomeworkFormContent: React.FC<Props> = ({ mode, source, students, classes,
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-        <FormSection title="1. Sınıf ve öğrenciler" hint="Sınıf seçince tüm öğrencileri işaretlenir; istemediklerinizi kaldırın">
+        <FormSection title="1. Sınıf ve öğrenciler" hint="Sınıf seçince bütün öğrenciler işaretlenir">
           <StudentPicker
             variant="classes"
             idPrefix="hw"
