@@ -1702,6 +1702,7 @@ class DataService {
           phone: row.phone || cur.phone,
           parents: 'parents' in row ? cleanParents(row.parents) : cur.parents,
           avatar: row.avatar || cur.avatar,
+          gender: 'gender' in row ? DataService.normGender(row.gender) : cur.gender,
           schoolLevel: cur.schoolLevel || detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
           kurumId: 'kurum_id' in row ? row.kurum_id || null : cur.kurumId,
         };
@@ -1720,9 +1721,8 @@ class DataService {
           studentNumber: row.student_number || '',
           phone: row.phone || '',
           parents: cleanParents(row.parents),
-          avatar:
-            row.avatar ||
-            `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(row.name)}`,
+          avatar: row.avatar || undefined,
+          gender: DataService.normGender(row.gender),
           createdAt: row.registered_at || new Date().toISOString(),
           status: 'active',
           createdTeacherId: 'teacher-1',
@@ -2657,6 +2657,8 @@ class DataService {
       email: s.email || null,
       phone: s.phone || null,
       avatar: s.avatar || null,
+      // Aşama 171: cinsiyet (sütun yoksa hiç gönderilmez)
+      ...(DataService.genderMissing.students ? {} : { gender: s.gender || null }),
       // Aşama 69: veliler (en çok 3). Sütun yoksa patchStudentRow bunu çıkarıp tekrar dener.
       parents: cleanParents(s.parents),
     };
@@ -2681,7 +2683,20 @@ class DataService {
   // students tablosunun email / phone / parents sütunları uygulama kullanıcılarına kapalıdır; bilgi
   // student_contacts'tan, veritabanının izin verdiği kadar okunur. SQL çalıştırılmadıysa eski yol sürer.
   // ===========================================================================
-  private static readonly STUDENT_SAFE_COLUMNS = 'id,name,student_number,class_id,class_name,avatar,registered_at,auth_user_id,status,kurum_id';
+  private static readonly STUDENT_BASE_COLUMNS = 'id,name,student_number,class_id,class_name,avatar,registered_at,auth_user_id,status,kurum_id';
+  // Aşama 171: cinsiyet sütunu (sql/171). SQL kurulmadan dosyalar yüklenirse sütun atlanır, site bozulmaz.
+  private static genderMissing = { students: false, teachers: false };
+  private static get STUDENT_SAFE_COLUMNS(): string {
+    return DataService.STUDENT_BASE_COLUMNS + (DataService.genderMissing.students ? '' : ',gender');
+  }
+  private isMissingGenderColumn(error: any): boolean {
+    const msg = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`;
+    return /\bgender\b/i.test(msg) && /PGRST204|42703|column|schema cache|permission/i.test(msg);
+  }
+  /** Yalnız 'K' / 'E' kabul edilir; diğer her şey "belirtilmedi" */
+  private static normGender(v: unknown): 'K' | 'E' | undefined {
+    return v === 'K' || v === 'E' ? v : undefined;
+  }
   private static contactsMode: 'unknown' | 'table' | 'legacy' = 'unknown';
   /** İletişim bilgisi veritabanından okunabilen öğrenciler (yalnızca bunların bilgisi geri yazılır) */
   private contactKnown = new Set<string>();
@@ -2699,6 +2714,10 @@ class DataService {
       ]);
       if (!contacts.error) {
         DataService.contactsMode = 'table';
+        if (rows.error && !DataService.genderMissing.students && this.isMissingGenderColumn(rows.error)) {
+          DataService.genderMissing.students = true; // Aşama 171: SQL henüz kurulmadı
+          return this.fetchStudentRowsWithContacts();
+        }
         if (rows.error) return rows;
         const byId = new Map<string, any>((contacts.data || []).map((c: any) => [String(c.id), c]));
         const known = new Set<string>();
@@ -2794,6 +2813,13 @@ class DataService {
       }
       if (Object.keys(patch).length === 0) return { success: true };
       let { data, error } = await supabase.from('students').update(patch).eq('id', id).select('id');
+      if (error && 'gender' in patch && this.isMissingGenderColumn(error)) {
+        DataService.genderMissing.students = true; // Aşama 171: SQL kurulmadı, cinsiyet atlanır
+        const { gender: _g, ...rest } = patch as Record<string, unknown>;
+        patch = rest;
+        if (Object.keys(patch).length === 0) return { success: true };
+        ({ data, error } = await supabase.from('students').update(patch).eq('id', id).select('id'));
+      }
       if (error && this.isMissingParentColumn(error)) {
         DataService.parentColumnsMissing = true;
         const { parents, ...rest } = patch as Record<string, unknown>;
@@ -2893,6 +2919,7 @@ class DataService {
             phone: rs.phone || '',
             parents: 'parents' in rs ? cleanParents(rs.parents) : existing.parents,
             avatar: rs.avatar || existing.avatar,
+            gender: 'gender' in rs ? DataService.normGender(rs.gender) : existing.gender,
             auth_user_id: rs.auth_user_id || undefined,
             status: remoteSuspended ? 'suspended' : 'active',
             isSuspended: remoteSuspended,
@@ -2914,9 +2941,8 @@ class DataService {
             studentNumber: rs.student_number || '',
             phone: rs.phone || '',
             parents: cleanParents(rs.parents),
-            avatar:
-              rs.avatar ||
-              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(rs.name)}`,
+            avatar: rs.avatar || undefined,
+            gender: DataService.normGender(rs.gender),
             createdAt: rs.registered_at || new Date().toISOString(),
             status: remoteSuspended ? 'suspended' : 'active',
             isSuspended: remoteSuspended,
@@ -4078,6 +4104,10 @@ class DataService {
   // taranıyordu (20.000 not × 2.000 öğrenci). Dizin, liste değişince kendiliğinden yeniden kurulur; yerinde
   // güncellenen öğrencinin her zaman güncel hâli döner.
   private studentIndex: { src: Student[] | null; len: number; map: Map<string, number> } = { src: null, len: -1, map: new Map() };
+  /** Aşama 171: ekranlar için hızlı öğrenci bulma (Map, döngü yok) */
+  public studentById(id: string | null | undefined): Student | undefined {
+    return this.findStudentFast(id);
+  }
   private findStudentFast(id: string | null | undefined): Student | undefined {
     if (!id) return undefined;
     const list = this.students;
@@ -5350,6 +5380,7 @@ class DataService {
         email: t.email,
         phone: t.phone || '',
         avatar: t.avatar,
+        gender: t.gender,
         role: isAdmin ? 'admin' : 'teacher',
         status: isSuspended ? 'suspended' : (t.status || 'approved'),
         isSuspended,
@@ -5376,6 +5407,7 @@ class DataService {
         email: s.email || '',
         phone: s.phone || '',
         avatar: s.avatar,
+        gender: s.gender,
         role: 'student',
         status: isSuspended ? 'suspended' : (s.status || 'active'),
         isSuspended,
@@ -5446,7 +5478,7 @@ class DataService {
 
   public async adminUpdateUserProfile(
     userId: string,
-    updates: Partial<UnifiedUser> & { newPassword?: string }
+    updates: Omit<Partial<UnifiedUser>, 'gender'> & { newPassword?: string; gender?: 'K' | 'E' | null }
   ): Promise<void> {
     const newPassword = updates.newPassword?.trim() || '';
 
@@ -5466,6 +5498,7 @@ class DataService {
       if (updates.phone !== undefined) teacherUpdates.phone = updates.phone.trim();
       if (updates.branch !== undefined) teacherUpdates.branch = updates.branch.trim();
       if (updates.avatar !== undefined) teacherUpdates.avatar = updates.avatar;
+      if (updates.gender !== undefined) teacherUpdates.gender = DataService.normGender(updates.gender); // Aşama 171
       if (updates.assignedClassIds !== undefined) teacherUpdates.assignedClassIds = updates.assignedClassIds;
       if (updates.canViewAllStudentsAndClasses !== undefined) teacherUpdates.canViewAllStudentsAndClasses = updates.canViewAllStudentsAndClasses;
 
@@ -5516,6 +5549,7 @@ class DataService {
       if (updates.phone !== undefined) studentUpdates.phone = updates.phone.trim();
       if (updates.studentNumber !== undefined) studentUpdates.studentNumber = updates.studentNumber.trim();
       if (updates.avatar !== undefined) studentUpdates.avatar = updates.avatar;
+      if (updates.gender !== undefined) studentUpdates.gender = DataService.normGender(updates.gender); // Aşama 171
       if (updates.classId !== undefined) {
         studentUpdates.classId = updates.classId;
         const cls = this.classes.find((c) => c.id === updates.classId);
@@ -5532,6 +5566,54 @@ class DataService {
     }
 
     throw new Error('Güncellenecek kullanıcı kaydı bulunamadı.');
+  }
+
+  // Aşama 171: toplu cinsiyet kaydı ("Cinsiyeti addan doldur" ve Excel ile güncelle).
+  // Aynı cinsiyetliler tek istekte yazılır (200'erli); yetki dışı satırlar veritabanınca atlanır.
+  public async saveGenders(
+    kind: 'student' | 'teacher',
+    changes: Array<{ id: string; gender: 'K' | 'E' | null }>
+  ): Promise<{ saved: number; failed: number; error?: string }> {
+    const table = kind === 'student' ? 'students' : 'teachers';
+    if (DataService.genderMissing[table]) {
+      return { saved: 0, failed: changes.length, error: 'Cinsiyet için 171 numaralı SQL dosyasının Supabase\'te çalıştırılması gerekiyor.' };
+    }
+    const groups = new Map<string, string[]>();
+    for (const c of changes) {
+      const g = c.gender === 'K' || c.gender === 'E' ? c.gender : '';
+      const arr = groups.get(g) || [];
+      arr.push(c.id);
+      groups.set(g, arr);
+    }
+    const okIds = new Set<string>();
+    let lastError = '';
+    for (const [g, ids] of groups) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const part = ids.slice(i, i + 200);
+        const { data, error } = await supabase.from(table).update({ gender: g || null }).in('id', part).select('id');
+        if (error) {
+          if (this.isMissingGenderColumn(error)) {
+            DataService.genderMissing[table] = true;
+            return { saved: okIds.size, failed: changes.length - okIds.size, error: 'Cinsiyet için 171 numaralı SQL dosyasının Supabase\'te çalıştırılması gerekiyor.' };
+          }
+          lastError = error.message;
+          continue;
+        }
+        (data || []).forEach((r: any) => okIds.add(String(r.id)));
+      }
+    }
+    if (okIds.size) {
+      const byId = new Map(changes.map((c) => [c.id, DataService.normGender(c.gender)]));
+      if (kind === 'student') {
+        this.students = this.students.map((s) => (okIds.has(s.id) ? { ...s, gender: byId.get(s.id) } : s));
+        saveData(STORAGE_KEYS.STUDENTS, this.students);
+      } else {
+        this.teachers = this.teachers.map((t) => (okIds.has(t.id) ? { ...t, gender: byId.get(t.id) } : t));
+        saveData(STORAGE_KEYS.TEACHERS, this.teachers);
+      }
+      this.notify();
+    }
+    return { saved: okIds.size, failed: changes.length - okIds.size, error: lastError || undefined };
   }
 
   // Hesabı askıya alma / açma: giriş hesabı sunucuda kilitlenir (giriş yapılamaz) ve
@@ -5938,6 +6020,7 @@ class DataService {
     phone?: string;
     password: string;
     isAdmin?: boolean;
+    gender?: 'K' | 'E';
   }): Promise<{ teacher: Teacher; password: string }> {
     if (!this.canManageTeachers()) {
       throw new Error('Öğretmen hesabını yalnızca yönetici açabilir.');
@@ -5960,6 +6043,14 @@ class DataService {
       throw new Error(`"${username}" kullanıcı adı başka bir öğretmende kullanılıyor.`);
     }
 
+    // Aşama 171: cinsiyet verilmediyse addan tahmin (ad listesi gerektiğinde iner)
+    if (!DataService.normGender(data.gender)) {
+      try {
+        data = { ...data, gender: (await import('../lib/cinsiyetTahmin')).cinsiyetTahmin(name) };
+      } catch {
+        /* tahmin edilemezse boş kalır */
+      }
+    }
     const teacher: Teacher = {
       id: `teacher-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name,
@@ -5967,7 +6058,8 @@ class DataService {
       email: (data.email || '').trim(),
       branch: (data.branch || '').trim() || 'Öğretmen',
       phone: (data.phone || '').trim(),
-      avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
+      avatar: undefined, // Aşama 171: resim seçilene kadar cinsiyete/role göre çizim gösterilir
+      gender: DataService.normGender(data.gender),
       createdAt: new Date().toISOString(),
       role: 'teacher',
       status: 'approved',
@@ -5977,19 +6069,26 @@ class DataService {
       kurumId: this.getMyKurumId(),
     };
 
-    const { error: insertError } = await supabase.from('teachers').insert({
-      id: teacher.id,
-      name: teacher.name,
-      username: teacher.username,
-      email: teacher.email || null,
-      branch: teacher.branch,
-      avatar: teacher.avatar,
-      role: 'teacher',
-      status: 'approved',
-      is_admin: false,
-      created_at: teacher.createdAt,
-      ...(teacher.kurumId ? { kurum_id: teacher.kurumId } : {}),
-    });
+    const insertTeacher = () =>
+      supabase.from('teachers').insert({
+        id: teacher.id,
+        name: teacher.name,
+        username: teacher.username,
+        email: teacher.email || null,
+        branch: teacher.branch,
+        avatar: teacher.avatar || null,
+        role: 'teacher',
+        status: 'approved',
+        is_admin: false,
+        created_at: teacher.createdAt,
+        ...(teacher.kurumId ? { kurum_id: teacher.kurumId } : {}),
+        ...(DataService.genderMissing.teachers || !teacher.gender ? {} : { gender: teacher.gender }),
+      });
+    let { error: insertError } = await insertTeacher();
+    if (insertError && teacher.gender && this.isMissingGenderColumn(insertError)) {
+      DataService.genderMissing.teachers = true; // Aşama 171
+      ({ error: insertError } = await insertTeacher());
+    }
     if (insertError) {
       throw new Error(`Öğretmen kaydı oluşturulamadı: ${insertError.code === '42501' ? 'Bu işlem için yetkiniz yok' : insertError.message}`);
     }
@@ -6387,9 +6486,11 @@ class DataService {
             branch: teacher.branch || null,
             avatar: teacher.avatar || null,
             status: teacher.status || 'approved',
+            ...this.teacherGenderCol(teacher),
           })
           .eq('id', teacher.id)
           .select('id');
+        if (error && this.retryWithoutTeacherGender(error)) return this.writeTeacherRow(teacher);
         if (error) return { success: false, error };
         if (!data || data.length === 0) {
           return { success: false, error: { code: '42501', message: 'Bu öğretmenin bilgilerini değiştirme yetkiniz yok' } };
@@ -6409,11 +6510,13 @@ class DataService {
           status: teacher.status || 'approved',
           is_admin: Boolean(teacher.isAdmin),
           created_at: teacher.createdAt || new Date().toISOString(),
+          ...this.teacherGenderCol(teacher),
         };
         if (teacher.auth_user_id && uuidRegex.test(teacher.auth_user_id)) {
           payload.auth_user_id = teacher.auth_user_id;
         }
         const { error } = await supabase.from('teachers').upsert(payload);
+        if (error && this.retryWithoutTeacherGender(error)) return this.writeTeacherRow(teacher);
         return error ? { success: false, error } : { success: true };
       }
 
@@ -6439,6 +6542,16 @@ class DataService {
     } catch (e: any) {
       return { success: false, error: e };
     }
+  }
+
+  // Aşama 171: öğretmen cinsiyeti yalnız yönetici yollarında yazılır (öğretmenin kendi satırında değil)
+  private teacherGenderCol(teacher: Teacher): Record<string, unknown> {
+    return DataService.genderMissing.teachers ? {} : { gender: teacher.gender || null };
+  }
+  private retryWithoutTeacherGender(error: any): boolean {
+    if (DataService.genderMissing.teachers || !this.isMissingGenderColumn(error)) return false;
+    DataService.genderMissing.teachers = true;
+    return true;
   }
 
   public async syncTeacherToCloud(teacher: Teacher): Promise<void> {
@@ -6540,6 +6653,7 @@ class DataService {
             email: row.email || '',
             branch: row.branch || 'Öğretmen',
             avatar: row.avatar || undefined,
+            gender: DataService.normGender(row.gender),
             role: (row.role as 'teacher') || 'teacher',
             status: (row.status as any) || 'approved',
             isAdmin: remoteIsAdmin,
@@ -6578,6 +6692,10 @@ class DataService {
           }
           if (row.avatar && row.avatar !== localT.avatar) {
             localT.avatar = row.avatar;
+            updated = true;
+          }
+          if ('gender' in row && DataService.normGender(row.gender) !== localT.gender) {
+            localT.gender = DataService.normGender(row.gender); // Aşama 171
             updated = true;
           }
           if (row.auth_user_id && row.auth_user_id !== localT.auth_user_id) {
@@ -6758,6 +6876,7 @@ class DataService {
         email: row.email || '',
         branch: row.branch || teacher?.branch || 'Öğretmen',
         avatar: row.avatar || teacher?.avatar,
+        gender: DataService.normGender(row.gender) ?? teacher?.gender,
         createdAt: row.created_at || teacher?.createdAt || authUser.created_at,
         role: 'teacher',
         status: row.status || 'approved',
@@ -6853,11 +6972,15 @@ class DataService {
 
     // Öğrencinin kendi kaydını veritabanından oku (sınıf, numara, durum güncel gelir)
     // Aşama 85: iletişim bilgisi korumalı tablodan (sql/85); SQL çalıştırılmadıysa eski yol
-    const first = await supabase
+    let first = await supabase
       .from('students')
       .select(DataService.STUDENT_SAFE_COLUMNS)
       .eq('auth_user_id', authUser.id)
       .maybeSingle();
+    if (first.error && this.isMissingGenderColumn(first.error)) {
+      DataService.genderMissing.students = true; // Aşama 171
+      first = await supabase.from('students').select(DataService.STUDENT_SAFE_COLUMNS).eq('auth_user_id', authUser.id).maybeSingle();
+    }
     let row: any = first.data;
     const rowError = first.error;
     if (row && !rowError) {
@@ -6897,7 +7020,8 @@ class DataService {
       studentNumber: row.student_number || '',
       email: cleanStudentEmail(row.email),
       phone: row.phone || '',
-      avatar: row.avatar || local?.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(row.name)}`,
+      avatar: row.avatar || local?.avatar || undefined,
+      gender: DataService.normGender(row.gender) ?? local?.gender,
       classId: row.class_id || 'class-default',
       className: row.class_name || 'Atanmadı',
       schoolLevel: cls?.schoolLevel || local?.schoolLevel || detectSchoolLevelFromGrade(row.class_name) || 'Ortaokul',
@@ -7963,6 +8087,15 @@ class DataService {
     const failed: StudentAccountFailure[] = [];
     const prepared: Array<{ student: Student; password: string }> = [];
     const seenNumbers = new Set<string>();
+    // Aşama 171: cinsiyet verilmediyse addan tahmin (ad listesi yalnız burada, gerektiğinde iner)
+    let tahmin: ((n: string) => 'K' | 'E' | undefined) | null = null;
+    if (items.some((it) => !it.gender)) {
+      try {
+        tahmin = (await import('../lib/cinsiyetTahmin')).cinsiyetTahmin;
+      } catch {
+        tahmin = null; // liste inemezse cinsiyet boş kalır
+      }
+    }
 
     for (const item of items) {
       const name = (item.name || '').trim().replace(/\s+/g, ' ');
@@ -7999,7 +8132,8 @@ class DataService {
         branch: item.branch || cls?.branch,
         studentNumber,
         phone: (item.phone || '').trim(),
-        avatar: item.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
+        avatar: item.avatar || undefined,
+        gender: DataService.normGender(item.gender) ?? (tahmin ? tahmin(name) : undefined),
         createdAt: new Date().toISOString(),
         status: 'active',
         createdTeacherId: currentTeacherId,
@@ -8014,13 +8148,19 @@ class DataService {
     const inserted: Array<{ student: Student; password: string }> = [];
     for (let i = 0; i < prepared.length; i += 10) {
       const chunk = prepared.slice(i, i + 10);
-      const { error } = await supabase.from('students').insert(
-        chunk.map(({ student }) => ({
-          id: student.id,
-          ...this.studentToRow(student, true),
-          registered_at: student.createdAt,
-        }))
-      );
+      const insertRows = () =>
+        supabase.from('students').insert(
+          chunk.map(({ student }) => ({
+            id: student.id,
+            ...this.studentToRow(student, true),
+            registered_at: student.createdAt,
+          }))
+        );
+      let { error } = await insertRows();
+      if (error && !DataService.genderMissing.students && this.isMissingGenderColumn(error)) {
+        DataService.genderMissing.students = true; // Aşama 171
+        ({ error } = await insertRows());
+      }
       if (error) {
         const reason =
           error.code === '42501'
@@ -8107,6 +8247,7 @@ class DataService {
       email: studentData.email,
       phone: studentData.phone,
       avatar: studentData.avatar,
+      gender: studentData.gender,
       schoolLevel: studentData.schoolLevel,
       gradeLevel: studentData.gradeLevel,
       branch: studentData.branch,
@@ -8127,6 +8268,7 @@ class DataService {
         email: d.email,
         phone: d.phone,
         avatar: d.avatar,
+        gender: d.gender,
         password: d.password,
       }))
     );
@@ -8334,7 +8476,7 @@ class DataService {
       className: r.class_name,
       email: r.email || '',
       phone: r.phone || '',
-      avatar: r.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(r.name || 'ogrenci')}`,
+      avatar: r.avatar || undefined,
       createdAt: new Date().toISOString(),
       status: 'active',
       auth_user_id: r.auth_user_id,
