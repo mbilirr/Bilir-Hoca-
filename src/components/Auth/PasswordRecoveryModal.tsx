@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { supabase, isPasswordRecoveryActive, onPasswordRecovery, clearPasswordRecovery } from '../../lib/supabase';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // "Şifremi unuttum" e-postasındaki bağlantıyla siteye gelindiğinde açılan yeni şifre belirleme penceresi.
 export const PasswordRecoveryModal: React.FC = () => {
@@ -67,6 +68,7 @@ export const PasswordRecoveryModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5">
+      <OverlayLayer />
       <div className="min-h-full flex items-center justify-center py-4">
         <div className="w-full max-w-md bg-surface border border-line rounded-2xl shadow-2xl p-5 space-y-4 text-fg">
           <div className="flex items-center space-x-2">
