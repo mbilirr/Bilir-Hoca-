@@ -1,9 +1,9 @@
-# Eğitim & Öğrenci Takip Sistemi
+# biliredu
 
 Öğretmen, öğrenci ve yönetici için sınıf yönetimi; ödev, soru sayısı, etüt, not ve devamsızlık takibi;
 mesajlaşma ve e-posta bildirimleri.
 
-Canlı adres: https://bilir-hoca.vercel.app
+Canlı adres: https://www.biliredu.com
 
 ## Kullanılan teknolojiler
 
