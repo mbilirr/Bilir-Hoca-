@@ -81,6 +81,7 @@ import { addDaysYmd, dateOfDay, loadMyCurrentWeek, type PlanItem } from '../../s
 import { normalizeSubject, shortSubjectName, targetSubjectList } from '../../lib/subjects';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
 import { matchTurkishSearch } from '../../utils/turkishSearch';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 // =============================================================================
 // Ortak yardımcılar (öğrenci ve öğretmen soru grafikleri aynı kuralları kullanır)
@@ -537,18 +538,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
   const [weekSearchQuery, setWeekSearchQuery] = useState<string>('');
   const [monthSearchQuery, setMonthSearchQuery] = useState<string>('');
 
-  // Esc ile hafta / ay seçim pencerelerini kapatma
-  useEffect(() => {
-    if (!isWeekModalOpen && !isMonthModalOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsWeekModalOpen(false);
-        setIsMonthModalOpen(false);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isWeekModalOpen, isMonthModalOpen]);
+  // Aşama 191: hafta / ay pencerelerinde Esc ortak katmandan (OverlayLayer)
 
   // Form input mode: 'list' (Tüm derslerin karşısına yazma) or 'single' (Tek ders seçip yazma)
   const [inputMode, setInputMode] = useState<'list' | 'single'>('list');
@@ -3025,7 +3015,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* MODAL 1: GEÇMİŞ HAFTALAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)       */}
       {/* ========================================================================= */}
       {isWeekModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <OverlayLayer onClose={() => setIsWeekModalOpen(false)} />
           <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="p-5 border-b border-line flex items-center justify-between bg-gradient-to-r from-orange-50/70 dark:from-orange-500/10 via-surface to-surface-2">
@@ -3176,7 +3167,8 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
       {/* MODAL 2: GEÇMİŞ AYLAR AÇILIR PENCERESİ (YALNIZCA SORU ÇÖZÜLENLER)          */}
       {/* ========================================================================= */}
       {isMonthModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <OverlayLayer onClose={() => setIsMonthModalOpen(false)} />
           <div className="bg-surface rounded-3xl shadow-2xl border border-line w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="p-5 border-b border-line flex items-center justify-between bg-gradient-to-r from-orange-50/70 dark:from-orange-500/10 via-surface to-surface-2">

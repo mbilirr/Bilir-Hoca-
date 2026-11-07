@@ -50,7 +50,7 @@ import { isEtutForStudent } from './StudentHomeUtils';
 import { StudentProfileEditModal, StudentPasswordModal } from './StudentProfileModals';
 import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 import { StudentBottomNav } from '../Layout/BottomNav';
-import { IconBox, type Tone } from '../ui/kit';
+import { IconBox, OverlayLayer, type Tone } from '../ui/kit'; // Aşama 191: OverlayLayer
 import { timeGreeting, firstNameOf } from '../../lib/greeting';
 import { readStudentTab, pushStudentTab } from '../../lib/studentRoute';
 import { PushOptInCard } from '../Common/PushOptInCard';
@@ -293,6 +293,21 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
   });
 
   // Handle Homework Submission
+  // Aşama 191: teslim penceresini vazgeçerek kapatma (Vazgeç düğmesi ve Esc aynı işi yapar)
+  const cancelSubmittingHw = () => {
+    if (isSubmittingHw || !submittingHw) return;
+    // Bu pencerede yüklenip teslim edilmeyen dosyalar depodan silinir
+    const prev = getStudentSubmission(submittingHw);
+    const saved = new Set(storedPathsOf(prev?.resources));
+    const unsaved = storedPathsOf(submissionResources).filter((p) => !saved.has(p));
+    if (unsaved.length > 0) removeStoredFiles(unsaved);
+    setSubmittingHw(null);
+    setSubmissionResources([]);
+    setSubmissionNotes('');
+    setPendingSubmissionResource(null);
+    setSubmitError(null);
+  };
+
   const handleSubmitHomework = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!submittingHw || isSubmittingHw) return;
@@ -1088,7 +1103,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
 
       {/* SUBMISSION MODAL */}
       {submittingHw && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+          <OverlayLayer onClose={cancelSubmittingHw} />
           <div className="relative w-full max-w-xl bg-surface border border-line rounded-2xl shadow-2xl p-6 my-8 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-fg mb-2">Ödevi Teslim Et</h3>
             <p className="text-xs text-muted mb-4">
@@ -1133,19 +1149,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
               <div className="pt-4 border-t border-line flex justify-end space-x-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (isSubmittingHw) return;
-                    // Bu pencerede yüklenip teslim edilmeyen dosyalar depodan silinir
-                    const prev = getStudentSubmission(submittingHw);
-                    const saved = new Set(storedPathsOf(prev?.resources));
-                    const unsaved = storedPathsOf(submissionResources).filter((p) => !saved.has(p));
-                    if (unsaved.length > 0) removeStoredFiles(unsaved);
-                    setSubmittingHw(null);
-                    setSubmissionResources([]);
-                    setSubmissionNotes('');
-                    setPendingSubmissionResource(null);
-                    setSubmitError(null);
-                  }}
+                  onClick={cancelSubmittingHw}
                   className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium"
                 >
                   Vazgeç

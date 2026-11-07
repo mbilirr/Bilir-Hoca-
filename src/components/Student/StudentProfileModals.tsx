@@ -17,6 +17,7 @@ import {
 import confetti from 'canvas-confetti';
 import { Student } from '../../types';
 import { dataService } from '../../services/dataService';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface StudentProfileEditModalProps {
   isOpen: boolean;
@@ -99,6 +100,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div
         className="relative w-full max-w-lg bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}
@@ -332,6 +334,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
       className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-sm p-3 sm:p-5 flex items-center justify-center animate-in fade-in duration-200"
       onClick={isMandatory ? undefined : onClose}
     >
+      <OverlayLayer onClose={isMandatory ? undefined : onClose} />
       <div
         className="relative w-full max-w-md bg-surface border border-line rounded-3xl shadow-2xl overflow-hidden flex flex-col my-auto"
         onClick={(e) => e.stopPropagation()}

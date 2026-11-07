@@ -12,6 +12,7 @@ import {
   Check,
 } from 'lucide-react';
 import { createMailtoLink } from '../../lib/emailTemplates';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface EmailPreviewModalProps {
   isOpen: boolean;
@@ -66,6 +67,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
       className="fixed inset-0 z-[10000] overflow-y-auto bg-slate-950/85 backdrop-blur-md p-3 sm:p-5 animate-fade-in"
       onClick={onClose}
     >
+      <OverlayLayer onClose={onClose} />
       <div className="min-h-full flex items-center justify-center py-4 sm:py-6">
         <div
           className="bg-surface border border-line rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-fg"
