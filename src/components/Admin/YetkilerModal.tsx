@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { ShieldCheck, Save, Loader2, Lock, AlertTriangle, Info } from 'lucide-react';
 import type { Teacher } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -309,8 +310,10 @@ export const YetkilerModal: React.FC<{
 
         {tab === 'bolum' && (
           <>
-            <p className="text-[11px] text-muted">
-              <b>Rolden</b>: unvanına göre; unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Kurumda kapalı olan bölüm yine açılmaz.
+            {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+            <p className="text-[11px] text-muted flex items-center gap-1">
+              <span><b>Rolden</b>: unvanına göre. <b>Açık</b> / <b>Kapalı</b>: unvandan bağımsız.</span>
+              <InfoTip text="Rolden seçiliyken unvanın verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. Kurumda kapalı olan bölüm yine açılmaz." />
             </p>
             <ul className="rounded-lg border border-line divide-y divide-line" role="group" aria-label="Bölümler">
               {SECTION_DEFS.map((d) => (
@@ -335,9 +338,9 @@ export const YetkilerModal: React.FC<{
                 <span>Kurum yöneticisi, Müdür ve Müdür Yardımcısında bütün işlemler açıktır; kişiye özel işlem izni uygulanmaz.</span>
               </p>
             ) : (
-              <p className="text-[11px] text-muted">
-                <b>Rolden</b>: unvanına göre (yetki tablosu); unvanının verdiği yetki Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. <b>Açık</b> / <b>Kapalı</b> seçilirse unvanından bağımsız olur. Ekrandaki düğmeler ve sunucu aynı kuralı
-                uygular; kişi sayfayı yenileyince geçerli olur.
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                <span><b>Rolden</b>: unvanına göre. <b>Açık</b> / <b>Kapalı</b>: unvandan bağımsız.</span>
+                <InfoTip text="Rolden seçiliyken unvanın verdiği yetki (yetki tablosu) Açık düğmesinde yeşil, vermediği Kapalı düğmesinde kırmızı işaretlidir. Ekrandaki düğmeler ve sunucu aynı kuralı uygular; kişi sayfayı yenileyince geçerli olur." />
               </p>
             )}
             <ul className="rounded-lg border border-line divide-y divide-line" role="group" aria-label="İşlemler">

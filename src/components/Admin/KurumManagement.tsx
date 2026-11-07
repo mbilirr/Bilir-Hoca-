@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ChevronDown, Save, RefreshCw, Info, CheckCircle2, AlertTriangle, Search, Plus } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import type { ClassGroup, KurumInfo, KurumModule, Student, Teacher } from '../../types';
@@ -225,12 +226,11 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
     >
       <div className={cx('flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2.5 text-xs mb-4', onlyKurumId && 'hidden')}>
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>
-          Yeni kurumu <strong>"Yeni kurum"</strong> düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve
-          logo tek pencerede kaydedilir. Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu
-          ve sizin izin verdiğiniz sınıfları görür. Kurumların öğrenci, etüt, ödev ve notları sizin panelinize inmez; bir
-          kurumu incelemek için üst menüdeki <strong>kurum seçiciyle</strong> o kuruma geçin.
+        {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+        <span className="flex-1">
+          Kurumu incelemek için üst menüdeki <strong>kurum seçiciyle</strong> o kuruma geçin.
         </span>
+        <InfoTip text='Yeni kurumu "Yeni kurum" düğmesiyle açın: kurum adı, kurum yöneticisinin giriş hesabı, bölümler ve logo tek pencerede kaydedilir. Kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler; yalnız kendi kurumunu ve sizin izin verdiğiniz sınıfları görür. Kurumların öğrenci, etüt, ödev ve notları sizin panelinize inmez.' />
       </div>
 
       {error && (
@@ -335,9 +335,9 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
 
                   <fieldset>
                     <legend className="text-xs font-bold text-fg-2 mb-1">İzin verdiğiniz sınıflar ({d.grantedClassIds.length})</legend>
-                    <p className="text-xs text-muted mb-2">
-                      Seçtiğiniz sınıfları kurum da görür ve kullanır (ödev, etüt, soru hedefi, not, yoklama). Bu sınıflara öğrenci
-                      ekleme, çıkarma ve düzenleme yalnızca sizde kalır.
+                    <p className="text-xs text-muted mb-2 flex items-center gap-1">
+                      Kurum bu sınıfları görür ve kullanır; öğrenci düzenleme sizde kalır.
+                      <InfoTip text="Seçtiğiniz sınıfları kurum da görür ve kullanır (ödev, etüt, soru hedefi, not, yoklama). Bu sınıflara öğrenci ekleme, çıkarma ve düzenleme yalnızca sizde kalır." />
                     </p>
                     {ownClasses.length > 8 && (
                       <div className="relative mb-2 sm:max-w-xs">
@@ -401,9 +401,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         onChange={(e) => setCredDraft((p) => ({ ...p, [k.id]: e.target.checked }))}
                       />
                       <span>
-                        <strong className="text-fg">Açtığım sınıflara giriş bilgisi gönderebilir ve yeni ilk şifre verebilir.</strong> Kurumun yöneticileri,
-                        Rehberlik, Ölçme ve "Öğrenci düzenleme" izni olanlar bu sınıfların öğrencilerine SMS / e-posta ile giriş bilgisi gönderir;
-                        öğrenci numarası ve diğer bilgiler yine yalnız sizde değişir.
+                        <strong className="text-fg">Açtığım sınıflara giriş bilgisi gönderebilir ve yeni ilk şifre verebilir.</strong>{' '}
+                        <InfoTip className="align-middle" text='Kurumun yöneticileri, Rehberlik, Ölçme ve "Öğrenci düzenleme" izni olanlar bu sınıfların öğrencilerine SMS / e-posta ile giriş bilgisi gönderir; öğrenci numarası ve diğer bilgiler yine yalnız sizde değişir.' />
                       </span>
                     </label>
                     {/* Aşama 161: açılan sınıflarda sınıf değiştirme izni — yalnız genel yönetici değiştirir */}
@@ -425,9 +424,8 @@ export const KurumManagement: React.FC<{ classes: ClassGroup[]; onlyKurumId?: st
                         onChange={(e) => setMoveDraft((p) => ({ ...p, [k.id]: e.target.checked }))}
                       />
                       <span>
-                        <strong className="text-fg">Açtığım sınıflardaki öğrencilerin sınıfını değiştirebilir.</strong> Aynı kişiler bu öğrencileri
-                        Öğrenciler listesindeki sınıf kutusundan yalnız açtığınız sınıflar arasında taşır; öğrenci sizin kaydınız olarak kalır,
-                        adı, numarası ve silme yine yalnız sizde.
+                        <strong className="text-fg">Açtığım sınıflardaki öğrencilerin sınıfını değiştirebilir.</strong>{' '}
+                        <InfoTip className="align-middle" text="Aynı kişiler bu öğrencileri Öğrenciler listesindeki sınıf kutusundan yalnız açtığınız sınıflar arasında taşır; öğrenci sizin kaydınız olarak kalır, adı, numarası ve silme yine yalnız sizde." />
                       </span>
                     </label>
                   </fieldset>

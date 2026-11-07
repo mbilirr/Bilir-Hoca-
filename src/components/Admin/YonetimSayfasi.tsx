@@ -1,4 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import {
   ShieldCheck,
   Building2,
@@ -212,9 +213,10 @@ export const YonetimSayfasi: React.FC<{
           (isHead ? (
             <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-ogrenci-gecis">
               <Info className="w-5 h-5 text-info-fg shrink-0" />
+              {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
               <p className="text-xs text-fg-2 flex-1">
-                Kurumların öğrenci bilgileri, kurum ayrımı kuralı gereği sizin panelinize inmez. <b>{kurumName}</b> öğrencilerini görmek, eklemek
-                ya da düzenlemek için kuruma geçin; işiniz bitince üst menüden "Kendi panelime dön" ile geri gelirsiniz.
+                <b>{kurumName}</b> öğrencileri için kuruma geçin.{' '}
+                <InfoTip className="align-middle" text='Kurumların öğrenci bilgileri, kurum ayrımı kuralı gereği sizin panelinize inmez. İşiniz bitince üst menüden "Kendi panelime dön" ile geri gelirsiniz.' />
               </p>
               <button type="button" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={enter} disabled={entering || !kid} id="yonetim-kuruma-gec">
                 <LogIn className="w-3.5 h-3.5" /> {entering ? 'Geçiliyor…' : 'Kuruma geç'}

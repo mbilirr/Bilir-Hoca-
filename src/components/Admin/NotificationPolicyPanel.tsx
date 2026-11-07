@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { HelpDisclosure } from '../ui/Compact'; // Aşama 187
 import { BellRing, Loader2, Save, RotateCcw, CheckCircle2, AlertTriangle, Info, MessageSquareText, Send, RefreshCw, Trash2 } from 'lucide-react';
 import { callMail } from '../../lib/mailApi';
 import { supabase } from '../../lib/supabase';
@@ -230,6 +231,8 @@ export const NotificationPolicyPanel: React.FC = () => {
 
           <SmsStatusBox />
 
+          {/* Aşama 187: açıklamalar kapalı kutuda */}
+          <HelpDisclosure title="Bu ayarlar nasıl çalışır?">
           <ul className="text-[11px] text-muted space-y-1">
             <li className="flex gap-1.5">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -257,6 +260,7 @@ export const NotificationPolicyPanel: React.FC = () => {
               <span>Giriş bilgileri, şifre ve hesap e-postaları bu ayardan etkilenmez; her zaman gönderilir.</span>
             </li>
           </ul>
+          </HelpDisclosure>
 
           {msg && (
             <div

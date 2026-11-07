@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { fetchTeacherContacts, type TeacherContact } from '../../lib/teacherContacts'; // Aşama 144
 import { birthDateLabel } from '../../lib/teacherImport';
 import { FileSpreadsheet, Download, Info, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react';
@@ -302,11 +303,9 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
     >
       <div className="flex items-start gap-2 rounded-xl bg-info-soft text-info-fg px-3 py-2.5 text-xs mb-4">
         <Info className="w-4 h-4 shrink-0 mt-0.5" />
-        <span>
-          Yeni açılan hesapların ve şifresi sıfırlanan hesapların ilk şifresi listeye kendiliğinden yazılır. Kullanıcı kendi
-          şifresini değiştirince ilk şifre listeden kalkar. Bu özellikten önce verilmiş şifreler geri okunamaz; onlar için
-          aşağıdaki "yeni ilk şifre oluştur" seçeneğini kullanabilirsiniz.
-        </span>
+        {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+        <span className="flex-1">Listede yalnız henüz değiştirilmemiş ilk şifreler yazar.</span>
+        <InfoTip text='Yeni açılan ve şifresi sıfırlanan hesapların ilk şifresi listeye kendiliğinden yazılır. Kullanıcı kendi şifresini değiştirince ilk şifre listeden kalkar. Bu özellikten önce verilmiş şifreler geri okunamaz; onlar için aşağıdaki "yeni ilk şifre oluştur" seçeneğini kullanabilirsiniz.' />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 mb-3">
@@ -346,8 +345,8 @@ export const UserCredentialsExport: React.FC<{ classes: ClassGroup[] }> = ({ cla
           }}
         />
         <span>
-          <strong className="text-fg">Şifresi kayıtlı olmayan hesaplara yeni ilk şifre oluştur.</strong> Bu hesapların mevcut şifresi
-          değişir ve ilk girişte yeni şifre belirlemeleri istenir. Şifresini kendisi değiştirmiş kullanıcılara dokunulmaz.
+          <strong className="text-fg">Şifresi kayıtlı olmayan hesaplara yeni ilk şifre oluştur.</strong> Bu hesapların mevcut şifresi değişir.{' '}
+          <InfoTip className="align-middle" text="İlk girişte yeni şifre belirlemeleri istenir. Şifresini kendisi değiştirmiş kullanıcılara dokunulmaz." />
         </span>
       </label>
 

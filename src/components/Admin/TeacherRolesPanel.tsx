@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { BadgeCheck, Table2, RefreshCw, Search, Lock, History, Info, Loader2, ShieldCheck } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import type { Teacher } from '../../types';
@@ -175,10 +176,11 @@ export const TeacherRolesPanel: React.FC<{ kurumId?: string | null; roleSettings
       <div className="space-y-3">
         <div className="flex items-start gap-2 rounded-lg bg-info-soft text-info-fg px-3 py-2 text-xs">
           <Info className="w-4 h-4 shrink-0 mt-px" />
-          <span>
-            Roller, kurumda <b>Rol yetkileri</b> açıkken uygulanır (Kurum Ayarları bölümü; yalnızca genel yönetici açar). Kapalıyken roller
-            kayıtlı kalır, kimsenin yetkisi değişmez. Kim neyi görür: <b>Yetki tablosu</b>.
+          {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+          <span className="flex-1">
+            Roller, kurumda <b>Rol yetkileri</b> açıkken uygulanır. Kim neyi görür: <b>Yetki tablosu</b>.
           </span>
+          <InfoTip text="Rol yetkileri Kurum Ayarları bölümünde açılır; bunu yalnızca genel yönetici yapar. Kapalıyken roller kayıtlı kalır, kimsenin yetkisi değişmez." />
         </div>
         {rolesOff && <RolesOffWarning id="roles-panel-off-warning" />}
 

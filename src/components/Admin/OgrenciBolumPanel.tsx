@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { GraduationCap, Info, Loader2, RotateCcw, Save } from 'lucide-react';
 import type { ClassGroup } from '../../types';
 import { cx } from '../ui/kit';
@@ -169,9 +170,10 @@ export const OgrenciBolumPanel: React.FC<{
         </span>
         <div className="min-w-0">
           <h3 className="text-xs font-bold text-fg">Öğrenci bölümleri</h3>
-          <p className="text-[11px] text-muted">
-            Öğrencinin ekranında hangi bölümlerin açık olacağını seçin. Kapalı bölümde öğretmen o sınıfa ödev, etüt, soru hedefi ve haftalık plan
-            veremez; Not-Devamsızlık ve Deneme yalnız öğrenciden gizlenir. Sınıfsız öğrenciler varsayılanı kullanır.
+          {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+          <p className="text-[11px] text-muted flex items-center gap-1">
+            Öğrencinin ekranında hangi bölümlerin açık olacağını seçin.
+            <InfoTip text="Kapalı bölümde öğretmen o sınıfa ödev, etüt, soru hedefi ve haftalık plan veremez; Not-Devamsızlık ve Deneme yalnız öğrenciden gizlenir. Sınıfsız öğrenciler varsayılanı kullanır." />
           </p>
         </div>
       </div>

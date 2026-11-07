@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
@@ -359,7 +360,11 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                   {savingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
                 </button>
               </div>
-              <p className="text-[11px] text-muted">Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. Yüksek çözünürlüklü PNG (saydam zeminli) önerilir; boş kenarlar kendiliğinden kırpılır.</p>
+              {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                Saydam zeminli PNG önerilir.
+                <InfoTip text="Logo üst menüde ve karnelerde, kurum adı ayrıca e-posta başlıklarında görünür. Yüksek çözünürlüklü PNG (saydam zeminli) önerilir; boş kenarlar kendiliğinden kırpılır." />
+              </p>
             </section>
             )}
 
@@ -390,8 +395,9 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                   {mailBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />} {mailAccount ? 'Değiştir' : 'Bağla'}
                 </button>
               </div>
-              <p className="text-[11px] text-muted">
-                Bağlanınca kurumdaki bütün e-postalar bu adresten gider; veli ya da öğrenci "Yanıtla"ya basarsa yanıt öğretmene gider. Gmail'de iki adımlı doğrulama açık olmalı ve "Uygulama şifresi" alınmalıdır.
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                Gmail'de iki adımlı doğrulama ve "Uygulama şifresi" gerekir.
+                <InfoTip text='Bağlanınca kurumdaki bütün e-postalar bu adresten gider; veli ya da öğrenci "Yanıtla"ya basarsa yanıt öğretmene gider.' />
               </p>
             </section>
             )}

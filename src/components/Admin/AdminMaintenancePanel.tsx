@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { DatabaseBackup, Download, FolderSync, Loader2, CheckCircle2, AlertTriangle, Search, Info } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { supabase } from '../../lib/supabase';
@@ -128,12 +129,11 @@ export const AdminMaintenancePanel: React.FC = () => {
         <p className={`text-xs ${backupOverdue ? 'text-amber-700 dark:text-amber-300' : 'text-fg-2'}`}>
           Son yedek: <strong>{lastText}</strong>
         </p>
-        <p className="text-[11px] text-muted flex gap-1.5">
-          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <span>
-            İki dosya iner: <strong>Excel</strong> (okumak için) ve <strong>JSON</strong> (tam yedek; geri yükleme gerekirse bu kullanılır).
-            Her ikisini de bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın. Haftada bir yedek almanız önerilir.
-          </span>
+        {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+        <p className="text-[11px] text-muted flex items-center gap-1.5">
+          <Info className="w-3.5 h-3.5 shrink-0" />
+          <span>Excel ve JSON iner. Haftada bir yedek alın.</span>
+          <InfoTip text="Excel okumak içindir. JSON tam yedektir; geri yükleme gerekirse bu kullanılır. İkisini de bilgisayarınızda ve ayrıca Google Drive gibi ikinci bir yerde saklayın." />
         </p>
         <button
           type="button"
@@ -170,9 +170,9 @@ export const AdminMaintenancePanel: React.FC = () => {
             <p className="text-xs text-muted">Eski sürümde kayıtların içine gömülen dosyalar (ödev, teslim, arşiv)</p>
           </div>
         </div>
-        <p className="text-[11px] text-muted">
-          Bu dosyalar her eşitlemede yeniden indirildiği için sistemi yavaşlatır. Taşındıktan sonra aynı şekilde açılırlar;
-          öğretmen ve öğrenciler fark görmez. İşlem tekrar çalıştırılabilir, bir şeyi silmez.
+        <p className="text-[11px] text-muted flex items-center gap-1">
+          Taşımak sistemi hızlandırır, hiçbir şeyi silmez.
+          <InfoTip text="Bu dosyalar her eşitlemede yeniden indirildiği için sistemi yavaşlatır. Taşındıktan sonra aynı şekilde açılırlar; öğretmen ve öğrenciler fark görmez. İşlem tekrar çalıştırılabilir." />
         </p>
         <div className="flex flex-wrap gap-2">
           <button

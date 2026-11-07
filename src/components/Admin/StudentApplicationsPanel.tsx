@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { UserPlus, Check, X, RefreshCw, Inbox, AlertTriangle, Clock } from 'lucide-react';
 import { ClassGroup, StudentApplication } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -125,8 +126,10 @@ export const StudentApplicationsPanel: React.FC<StudentApplicationsPanelProps> =
                 </span>
               )}
             </h3>
-            <p className="text-[11px] text-muted">
-              Öğrenci kaydı kapatıldı; burada yalnızca daha önce gelmiş başvurular sonuçlandırılır. Onaylanan öğrenci, başvuruda yazdığı numara ve kendi belirlediği şifreyle giriş yapar.
+            {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
+            <p className="text-[11px] text-muted flex items-center gap-1">
+              Yalnız önceden gelmiş başvurular sonuçlandırılır.
+              <InfoTip text="Öğrenci kaydı kapatıldı. Onaylanan öğrenci, başvuruda yazdığı numara ve kendi belirlediği şifreyle giriş yapar." />
             </p>
           </div>
         </div>

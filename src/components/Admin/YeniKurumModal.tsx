@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { InfoTip } from '../ui/Compact'; // Aşama 187
 import { Building2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
@@ -169,7 +170,8 @@ export const YeniKurumModal: React.FC<{ open: boolean; onClose: () => void; onDo
             </p>
           ))}
           <p className="text-muted">
-            Sonraki adım: kurum yöneticisi kendi öğretmen, sınıf ve öğrencilerini ekler. Rol yetkileri anahtarını roller verildikten sonra "Kurum Ayarları"ndan açın.
+            {/* Aşama 187: kısaltıldı */}
+            Sonraki adım: kurum yöneticisi öğretmen, sınıf ve öğrencilerini ekler. Roller verilince "Kurum Ayarları"ndan Rol yetkilerini açın.
           </p>
         </div>
       ) : (
