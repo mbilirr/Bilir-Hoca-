@@ -158,7 +158,7 @@ export function textToMatrix(text: string): string[][] {
 }
 
 // ----------------------------------------------------------------------------- Öğrenci sütunları
-export type StudentField = 'fullName' | 'firstName' | 'lastName' | 'studentNumber' | 'className' | 'email' | 'phone' | 'password';
+export type StudentField = 'fullName' | 'firstName' | 'lastName' | 'studentNumber' | 'className' | 'email' | 'phone' | 'password' | 'gender';
 
 export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
   fullName: {
@@ -205,7 +205,21 @@ export const STUDENT_COLUMNS: Record<StudentField, ColumnSpec> = {
     exact: ['şifre', 'parola', 'password', 'giriş şifresi'],
     partial: ['şifre', 'parola'],
   },
+  // Aşama 171
+  gender: {
+    exact: ['cinsiyet', 'cinsiyeti', 'cins', 'öğrenci cinsiyeti', 'öğrencinin cinsiyeti', 'gender', 'sex'],
+    partial: ['cinsiyet'],
+  },
 };
+
+/** Aşama 171: Excel'deki cinsiyet yazısı → 'K' / 'E' / '' (Kız, Kadın, K, Bayan, F… / Erkek, E, Bay, M…) */
+export function parseGender(raw: string): '' | 'K' | 'E' {
+  const v = trFold(String(raw || '')).replace(/[^a-z]/g, '');
+  if (!v) return '';
+  if (['k', 'kiz', 'kadin', 'bayan', 'kz', 'f', 'female', 'woman', 'girl'].includes(v)) return 'K';
+  if (['e', 'erkek', 'bay', 'm', 'male', 'man', 'boy'].includes(v)) return 'E';
+  return '';
+}
 
 export interface ParsedStudentFields {
   rowNumber: number;
@@ -217,6 +231,8 @@ export interface ParsedStudentFields {
   email: string;
   phone: string;
   password: string;
+  /** Aşama 171: '' = sütun yok ya da boş */
+  gender: '' | 'K' | 'E';
 }
 
 // Satırdan öğrenci alanlarını çıkarır. Ad soyad tek sütundaysa o kullanılır;
@@ -266,6 +282,7 @@ export function extractStudentRows(headers: string[], rows: SheetRow[]): ParsedS
       email: get(row, 'email'),
       phone: get(row, 'phone'),
       password: get(row, 'password'),
+      gender: parseGender(get(row, 'gender')),
     };
   });
 }

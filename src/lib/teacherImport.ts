@@ -5,9 +5,9 @@
 // TC sütunu hiç okunmaz (TC kimlik no saklanmaz).
 // Bu dosya saf işlevlerdir: ekran ve veritabanı bilgisi yok, kolay sınanır.
 // ============================================================================
-import { emailIssue, matrixToRows, resolveColumns, normalizeTurkishPhone, PHONE_ERROR, trFold, trNormalizeHeader, type ColumnSpec } from './importNormalize';
+import { emailIssue, matrixToRows, resolveColumns, normalizeTurkishPhone, PHONE_ERROR, trFold, trNormalizeHeader, parseGender, type ColumnSpec } from './importNormalize';
 
-export type TeacherField = 'fullName' | 'firstName' | 'lastName' | 'branch' | 'birthDate' | 'phone' | 'email';
+export type TeacherField = 'fullName' | 'firstName' | 'lastName' | 'branch' | 'birthDate' | 'phone' | 'email' | 'gender';
 
 export const TEACHER_COLUMNS: Record<TeacherField, ColumnSpec> = {
   fullName: { exact: ['ADI SOYADI', 'Ad Soyad', 'Adı Soyadı', 'Ad Soyadı', 'Öğretmen', 'Öğretmen Adı Soyadı', 'İsim Soyisim', 'Ad-Soyad'], partial: ['adisoyadi', 'adsoyad', 'isimsoyisim'] },
@@ -17,6 +17,7 @@ export const TEACHER_COLUMNS: Record<TeacherField, ColumnSpec> = {
   birthDate: { exact: ['DOĞUM TARİHİ', 'Doğum Tarihi', 'D. Tarihi', 'Doğum'], partial: ['dogum'] },
   phone: { exact: ['TELEFON NO', 'Telefon', 'Telefon Numarası', 'Cep Telefonu', 'Cep', 'GSM', 'Tel'], partial: ['telefon', 'gsm'] },
   email: { exact: ['MAİL ADRESİ', 'E-Posta', 'E-posta Adresi', 'Mail', 'E-Mail', 'Eposta'], partial: ['mail', 'eposta'] },
+  gender: { exact: ['CİNSİYET', 'Cinsiyeti', 'Cins'], partial: ['cinsiyet'] }, // Aşama 171 (isteğe bağlı)
 };
 
 /** Şablon başlıkları: kurumun kendi Excel'iyle aynı sıra (TC sütunu boş bırakılabilir, okunmaz) */
@@ -31,6 +32,8 @@ export interface ParsedTeacherRow {
   birthDate: string;
   phone: string;
   email: string;
+  /** Aşama 171: '' = sütun yok ya da boş (hesap açılırken addan tahmin edilir) */
+  gender: '' | 'K' | 'E';
   username: string;
   /** Satır atlanır (kırmızı) */
   error?: string;
@@ -158,6 +161,7 @@ export function parseTeacherMatrix(
       birthDate: birth || '',
       phone: phoneN.valid ? phoneN.value : v('phone'),
       email,
+      gender: parseGender(v('gender')),
       username: '',
     };
     const nk = nameKey(name);
