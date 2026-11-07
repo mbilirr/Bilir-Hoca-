@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { HomeworkResource } from '../../types';
 import { getSignedFileUrl, isStoredFileUrl, safeBlobMime, safeHttpUrl, storagePathFromUrl } from '../../lib/fileStorage';
+import { OverlayLayer } from '../ui/kit'; // Aşama 191
 
 interface HomeworkResourceViewerProps {
   resources?: HomeworkResource[];
@@ -193,6 +194,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
   const kindLabel = isImage ? 'Fotoğraf' : 'PDF';
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md" onClick={onClose}>
+      <OverlayLayer onClose={onClose} />
       <div
         role="dialog"
         aria-label={`${res.title} önizleme`}
@@ -353,6 +355,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                 className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md"
                 onClick={() => setActiveVideoModal(null)}
               >
+                <OverlayLayer onClose={() => setActiveVideoModal(null)} />
                 <div
                   className="relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-2xl overflow-hidden"
                   onClick={(e) => e.stopPropagation()}
