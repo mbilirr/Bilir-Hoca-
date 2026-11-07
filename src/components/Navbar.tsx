@@ -155,7 +155,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Aşama 82-83: öğretmende ve öğrencide kendi kurumunun adı ve logosu görünür
   const kurumBrand = dataService.getBrand();
-  const brandName = kurumBrand.name || 'biliredu'; // Aşama 188
+  const brandName = kurumBrand.name || 'BAŞARI & EĞİTİM';
   const brandLogo = kurumBrand.logo || '';
 
   const brand = (
