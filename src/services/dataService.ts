@@ -6176,6 +6176,13 @@ class DataService {
     return teacher.username || typed;
   }
 
+  // Aşama 173: son öğretmen girişinin GERÇEK e-postası (sistem adresi …@okul.internal.net ise boş döner).
+  // "Beni hatırla" kaydına gizli alan olarak yazılır; kutuda kullanıcı adı görünür, giriş bu adresle yapılır.
+  public realTeacherLoginEmail(): string {
+    const e = this.lastTeacherLoginEmail;
+    return e && e.includes('@') && !e.endsWith('@okul.internal.net') ? e : '';
+  }
+
   public static readonly MIN_PASSWORD_LENGTH = 6;
 
   // Sistemin öğretmen/öğrenci hesapları için ürettiği giriş adresi (create-user fonksiyonu ile aynı kural)
@@ -6763,6 +6770,13 @@ class DataService {
       );
       if (known?.email) candidates.push(known.email);
       if (known) candidates.push(this.canonicalAuthEmail('teacher', known.username || known.id));
+      // Aşama 173: giriş ekranında öğretmen listesi boştur; gerçek e-postayla açılmış hesap kullanıcı adıyla
+      // ancak bu cihazdaki "beni hatırla" kaydındaki gizli adresle bulunur (sunucuya soru yok, e-posta sızmaz).
+      const rem = this.getRememberedUser('teacher');
+      const remId = (rem?.identifier || '').trim();
+      if (rem?.loginEmail && remId && (remId.toLowerCase() === term || DataService.trLoginFold(remId) === folded)) {
+        candidates.unshift(rem.loginEmail); // önce gerçek adres: boşa giden istek olmaz
+      }
     }
 
     // Giriş YALNIZCA Supabase Auth üzerinden yapılır (yerel şifre / arka kapı yoktur).
@@ -7232,6 +7246,7 @@ class DataService {
     className?: string;
     savedPassword?: string;
     deviceId?: string;
+    loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
   } | null {
     const currentDeviceId = getLocalDeviceId();
     let saved: {
@@ -7243,6 +7258,7 @@ class DataService {
       className?: string;
       savedPassword?: string;
       deviceId?: string;
+      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
     } | null = null;
 
     if (role === 'teacher') {
@@ -7257,6 +7273,7 @@ class DataService {
           className?: string;
           savedPassword?: string;
           deviceId?: string;
+          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'teacher') saved = general;
       }
@@ -7272,6 +7289,7 @@ class DataService {
           className?: string;
           savedPassword?: string;
           deviceId?: string;
+          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'student') saved = general;
       }
@@ -7326,6 +7344,7 @@ class DataService {
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
           deviceId: saved.deviceId,
+          loginEmail: saved.loginEmail, // Aşama 173
         };
       }
     } else if (saved.role === 'student') {
@@ -7372,6 +7391,7 @@ class DataService {
       className?: string;
       savedPassword?: string;
       deviceId?: string;
+      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
     } | null,
     targetRole?: UserRole
   ): void {
