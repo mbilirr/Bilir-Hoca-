@@ -210,10 +210,10 @@ export const StudentListExportModal: React.FC<{
       id="student-list-export-modal"
       footer={
         <>
-          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary h-10">
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary">
             Kapat
           </button>
-          <button type="button" onClick={handleDownload} disabled={!scope || !ordered.length} className="ui-btn ui-btn-primary h-10" id="student-list-download">
+          <button type="button" onClick={handleDownload} disabled={!scope || !ordered.length} className="ui-btn ui-btn-primary" id="student-list-download">
             <Download className="w-4 h-4" />
             <span>Excel Olarak İndir</span>
           </button>
