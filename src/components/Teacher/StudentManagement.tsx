@@ -37,6 +37,7 @@ import {
   ShieldCheck,
   KeyRound,
   VenusAndMars,
+  RefreshCw,
 } from 'lucide-react';
 import { Student, ClassGroup, StudentCredential, StudentAccountFailure, StudentAccountResult, StudentParent } from '../../types';
 import { MAX_PARENTS, PARENT_RELATIONS, cleanParents, hasParentInfo, parentIssue } from '../../lib/parents';
@@ -72,6 +73,7 @@ import confetti from 'canvas-confetti';
 import { useQuickFocus } from '../../lib/quickFocus';
 import { inputCls } from './FormParts';
 import { PageHeader, Segmented, Modal, cx } from '../ui/kit';
+import { CompactRow } from '../ui/Compact'; // Aşama 182
 import {
   STUDENT_COLUMNS,
   matrixToRows,
@@ -294,6 +296,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const canTc = dataService.canUseDeneme();
   const [studentTc, setStudentTc] = useState('');
   const [studentTcSaved, setStudentTcSaved] = useState<boolean | null>(null);
+  // Aşama 182: TC ve şifre bölümleri kapalı satır olarak durur, yalnız gerekince açılır
+  const [tcEditOpen, setTcEditOpen] = useState(false);
+  const [pwEditOpen, setPwEditOpen] = useState(false);
   const [studentTcRemove, setStudentTcRemove] = useState(false);
   const [studentTcError, setStudentTcError] = useState<string | null>(null);
   const [quickClassChangeFeedback, setQuickClassChangeFeedback] = useState<string | null>(null);
@@ -712,7 +717,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       return;
     }
     if (editingStudent && cleanPassword && cleanPassword.length < 6) {
-      setStudentFormError('Yeni şifre en az 6 karakter olmalıdır (şifreyi değiştirmeyecekseniz alanı boş bırakınız).');
+      setStudentFormError('Yeni şifre en az 6 karakter olmalıdır (şifreyi değiştirmeyecekseniz Vazgeç düğmesine basın).');
       return;
     }
     // Aşama 145: basit şifre (123456, yaygın şifre, öğrencinin kendi numarası/adı) kabul edilmez
@@ -900,6 +905,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentTcSaved(null);
     setStudentTcRemove(false);
     setStudentTcError(null);
+    setTcEditOpen(false);
+    setPwEditOpen(false);
   };
 
   const openEditStudent = (student: Student) => {
@@ -908,6 +915,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setStudentTcRemove(false);
     setStudentTcError(null);
     setStudentTcSaved(null);
+    setTcEditOpen(false);
+    setPwEditOpen(false);
     if (canTc) {
       void getStudentTcHash(student.id)
         .then((h) => setStudentTcSaved(!!h))
@@ -2109,11 +2118,12 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         title={editingStudent ? 'Öğrenci Bilgilerini Düzenle' : 'Yeni Öğrenci Ekle'}
         footer={
           <>
-            <button type="button" onClick={() => setIsAddStudentOpen(false)} className="ui-btn ui-btn-secondary">
+            {/* Aşama 182: iki düğme eşit boyda */}
+            <button type="button" onClick={() => setIsAddStudentOpen(false)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-32">
               İptal
             </button>
-            <button type="submit" form="student-form" disabled={isSavingStudent} className="ui-btn ui-btn-primary">
-              {isSavingStudent ? 'Kaydediliyor...' : editingStudent ? 'Değişiklikleri Kaydet' : 'Öğrenciyi Ekle ve Hesap Aç'}
+            <button type="submit" form="student-form" disabled={isSavingStudent} className="ui-btn ui-btn-primary ui-btn-sm h-8 w-32">
+              {isSavingStudent ? 'Kaydediliyor…' : editingStudent ? 'Kaydet' : 'Öğrenciyi ekle'}
             </button>
           </>
         }
@@ -2370,145 +2380,204 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             ))}
           </div>
 
-          {/* Aşama 50: TC kimlik (isteğe bağlı) — yalnızca geri çevrilemez parmak izi saklanır */}
-          {canTc && (
-            <div className="p-2.5 rounded-xl border border-line bg-surface-2/50 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <label htmlFor="student-form-tc" className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-brand-fg" /> TC Kimlik No (isteğe bağlı, deneme eşleştirmesi için)
-                </label>
-                {studentTcSaved && <span className="ui-chip ui-chip-success">TC kayıtlı</span>}
-              </div>
-              <input
-                autoComplete="off"
-                id="student-form-tc"
-                inputMode="numeric"
-                maxLength={11}
-                value={studentTc}
-                onChange={(e) => {
-                  setStudentTc(e.target.value.replace(/\D/g, '').slice(0, 11));
-                  if (studentTcError) setStudentTcError(null);
-                }}
-                placeholder={studentTcSaved ? 'Değiştirmek için yeni TC yazın' : '11 haneli TC kimlik numarası'}
-                aria-invalid={!!studentTcError}
-                className={cx(inputCls, SF, studentTcError && 'border-danger focus:border-danger')}
-              />
-              {studentTcError && <p className="text-[11px] font-semibold text-danger-fg">{studentTcError}</p>}
-              {studentTcSaved && !studentTc && (
-                <label className="flex items-center gap-1.5 text-[11px] text-fg-2 cursor-pointer">
-                  <input type="checkbox" checked={studentTcRemove} onChange={(e) => setStudentTcRemove(e.target.checked)} /> Kayıtlı TC parmak izini sil
-                </label>
-              )}
-              <p className="text-[11px] text-muted">
-                TC numarası hiçbir yerde saklanmaz ve sonradan görüntülenemez; yalnızca geri çevrilemez parmak izi saklanır ve optikteki TC ile karşılaştırılır.
-              </p>
-            </div>
-          )}
+          {/* Aşama 182: TC, şifre ve fotoğraf tek satırlık kompakt bölümler; açıklamalar ⓘ içinde */}
+          <div className="space-y-2">
+            {/* Aşama 50: TC kimlik (isteğe bağlı) — yalnızca geri çevrilemez parmak izi saklanır */}
+            {canTc && (() => {
+              const tcOpen = tcEditOpen || !!studentTc || !!studentTcError;
+              return (
+                <CompactRow
+                  icon={ShieldCheck}
+                  title="TC kimlik"
+                  status={
+                    studentTcRemove ? (
+                      <span className="ui-chip ui-chip-warning">Silinecek</span>
+                    ) : studentTcSaved ? (
+                      <span className="ui-chip ui-chip-success">Kayıtlı</span>
+                    ) : studentTcSaved === false ? (
+                      <span className="ui-chip ui-chip-neutral">Kayıtlı değil</span>
+                    ) : null
+                  }
+                  info="İsteğe bağlı; deneme sonuçlarını öğrenciyle eşleştirmek için kullanılır. TC numarası saklanmaz ve sonradan görüntülenemez, yalnız geri çevrilemez parmak izi tutulur."
+                  actions={
+                    tcOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudentTc('');
+                          setStudentTcError(null);
+                          setTcEditOpen(false);
+                        }}
+                        className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-24"
+                      >
+                        Vazgeç
+                      </button>
+                    ) : studentTcRemove ? (
+                      <button type="button" onClick={() => setStudentTcRemove(false)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24">
+                        Geri al
+                      </button>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => setTcEditOpen(true)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24">
+                          {studentTcSaved ? 'Değiştir' : 'Ekle'}
+                        </button>
+                        {studentTcSaved && (
+                          <button type="button" onClick={() => setStudentTcRemove(true)} className="ui-btn ui-btn-danger-soft ui-btn-sm h-8 w-24">
+                            Sil
+                          </button>
+                        )}
+                      </>
+                    )
+                  }
+                >
+                  {tcOpen ? (
+                    <>
+                      <input
+                        autoComplete="off"
+                        id="student-form-tc"
+                        inputMode="numeric"
+                        maxLength={11}
+                        autoFocus={tcEditOpen && !studentTc}
+                        value={studentTc}
+                        onChange={(e) => {
+                          setStudentTc(e.target.value.replace(/\D/g, '').slice(0, 11));
+                          if (studentTcError) setStudentTcError(null);
+                          if (studentTcRemove) setStudentTcRemove(false);
+                        }}
+                        placeholder="11 haneli TC kimlik numarası"
+                        aria-label="TC kimlik numarası"
+                        aria-invalid={!!studentTcError}
+                        className={cx(inputCls, SF, studentTcError && 'border-danger focus:border-danger')}
+                      />
+                      {studentTcError && <p className="mt-1 text-[11px] font-semibold text-danger-fg">{studentTcError}</p>}
+                    </>
+                  ) : null}
+                </CompactRow>
+              );
+            })()}
 
-          {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir */}
-          <div className="p-2.5 bg-brand-soft rounded-xl space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label htmlFor="student-form-password" className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-brand-fg" />
-                <span>{editingStudent ? 'Yeni Giriş Şifresi (isteğe bağlı)' : 'Giriş Şifresi *'}</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setStudentPassword(dataService.generatePassword());
-                  setShowStudentPassword(true);
-                }}
-                className="text-[11px] text-brand-fg font-bold underline cursor-pointer"
-              >
-                🎲 Rastgele Şifre Oluştur
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                id="student-form-password"
-                type="text"
-                spellCheck={false}
-                autoCapitalize="none"
-                required={!editingStudent}
-                minLength={6}
-                autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
-                value={studentPassword}
-                onChange={(e) => setStudentPassword(e.target.value)}
-                placeholder={editingStudent ? 'Değiştirmeyecekseniz boş bırakınız' : 'En az 6 karakter'}
-                className={cx(inputCls, SF, 'pr-10 font-mono font-bold tracking-wider', !showStudentPassword && 'pw-mask')}
-              />
-              <button
-                type="button"
-                onClick={() => setShowStudentPassword(!showStudentPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-subtle hover:text-muted cursor-pointer"
-                title={showStudentPassword ? 'Gizle' : 'Göster'}
-                aria-label={showStudentPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
-              >
-                {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-muted leading-relaxed">
-              Öğrenci, giriş ekranında <strong>Öğrenci Portalı</strong> sekmesinden <strong>öğrenci numarası</strong> ve bu
-              şifreyle giriş yapar; ilk girişte şifresini değiştirmesi istenir. Kaydettikten sonra giriş bilgilerini
-              WhatsApp/e-posta ile iletebileceğiniz bir pencere açılır. Şifreler sistemde saklanmaz.
-            </p>
-          </div>
+            {/* Giriş şifresi: gerçek giriş hesabı bu şifreyle açılır / güncellenir (yeni öğrencide zorunlu, hep açık) */}
+            {(() => {
+              const pwOpen = !editingStudent || pwEditOpen || !!studentPassword;
+              return (
+                <CompactRow
+                  icon={Key}
+                  title={editingStudent ? 'Giriş şifresi' : 'Giriş şifresi *'}
+                  info="Öğrenci, giriş ekranındaki Öğrenci Portalı'ndan öğrenci numarası ve bu şifreyle girer; ilk girişte şifresini değiştirir. Kaydedince giriş bilgilerini WhatsApp / e-posta ile iletebileceğiniz pencere açılır. Şifreler sistemde saklanmaz."
+                  actions={
+                    pwOpen ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudentPassword(dataService.generatePassword());
+                            setShowStudentPassword(true);
+                          }}
+                          className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24"
+                          title="Rastgele şifre oluştur"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Rastgele</span>
+                        </button>
+                        {editingStudent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStudentPassword('');
+                              setPwEditOpen(false);
+                            }}
+                            className="ui-btn ui-btn-ghost ui-btn-sm h-8 w-24"
+                          >
+                            Vazgeç
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => setPwEditOpen(true)} className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24">
+                        Yeni şifre
+                      </button>
+                    )
+                  }
+                >
+                  {pwOpen ? (
+                    <div className="relative">
+                      <input
+                        id="student-form-password"
+                        type="text"
+                        spellCheck={false}
+                        autoCapitalize="none"
+                        required={!editingStudent}
+                        minLength={6}
+                        autoFocus={!!editingStudent && pwEditOpen && !studentPassword}
+                        autoComplete="off" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+                        value={studentPassword}
+                        onChange={(e) => setStudentPassword(e.target.value)}
+                        placeholder="En az 6 karakter"
+                        aria-label="Giriş şifresi"
+                        className={cx(inputCls, SF, 'pr-10 font-mono font-bold tracking-wider', !showStudentPassword && 'pw-mask')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowStudentPassword(!showStudentPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-subtle hover:text-muted cursor-pointer"
+                        title={showStudentPassword ? 'Gizle' : 'Göster'}
+                        aria-label={showStudentPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                      >
+                        {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  ) : null}
+                </CompactRow>
+              );
+            })()}
 
-          {/* Öğrenci Fotoğrafı / Bilgisayardan Resim Seç */}
-          <div className="p-2.5 bg-surface-2 rounded-xl border border-line space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-fg-2 flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5 text-brand-fg" />
-                <span>Öğrenci Profil Fotoğrafı</span>
-              </span>
-              <span className="text-[10px] text-muted font-medium">İsteğe Bağlı</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-surface border border-line overflow-hidden shrink-0 flex items-center justify-center">
-                {/* Aşama 171: fotoğraf yoksa cinsiyete göre otomatik çizim önizlenir */}
-                <img
-                  decoding="async"
-                  src={profilResmi({ id: editingStudent?.id, name: studentName, avatar: studentAvatar, gender: studentGender || undefined }, 'student')}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-
-              <div className="flex-1">
-                <input
-                  ref={studentFileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/jpg"
-                  onChange={handleStudentPhotoChange}
-                  className="hidden"
-                />
-                <div className="flex items-center gap-2">
+            {/* Öğrenci fotoğrafı: önizleme, seç ve kaldır tek satırda */}
+            <CompactRow
+              lead={
+                <div className="w-8 h-8 rounded-lg bg-surface-2 border border-line overflow-hidden shrink-0">
+                  {/* Aşama 171: fotoğraf yoksa cinsiyete göre otomatik çizim önizlenir */}
+                  <img
+                    decoding="async"
+                    src={profilResmi({ id: editingStudent?.id, name: studentName, avatar: studentAvatar, gender: studentGender || undefined }, 'student')}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              }
+              title="Profil fotoğrafı"
+              info="İsteğe bağlı. PNG, JPG veya WebP; resim otomatik küçültülür."
+              actions={
+                <>
+                  <input
+                    ref={studentFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/jpg"
+                    onChange={handleStudentPhotoChange}
+                    className="hidden"
+                  />
                   <button
                     type="button"
                     onClick={() => studentFileInputRef.current?.click()}
                     disabled={isProcessingStudentPhoto}
-                    className="ui-btn ui-btn-secondary ui-btn-sm"
+                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-24"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>{isProcessingStudentPhoto ? 'İşleniyor...' : 'Bilgisayardan Resim Seç'}</span>
+                    <span>{isProcessingStudentPhoto ? 'İşleniyor…' : 'Resim seç'}</span>
                   </button>
-
                   {studentAvatar && (
                     <button
                       type="button"
                       onClick={() => setStudentAvatar('')}
-                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
-                      title="Fotoğrafı Kaldır"
-                      aria-label="Fotoğrafı Kaldır"
+                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon h-8 w-8 hover:text-danger-fg"
+                      title="Fotoğrafı kaldır"
+                      aria-label="Fotoğrafı kaldır"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
-                </div>
-                <p className="text-[10px] text-muted mt-1">PNG, JPG veya WebP • Otomatik optimize edilir</p>
-              </div>
-            </div>
+                </>
+              }
+            />
           </div>
         </form>
       </Modal>
