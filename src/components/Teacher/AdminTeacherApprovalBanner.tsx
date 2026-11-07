@@ -54,17 +54,18 @@ export const AdminTeacherApprovalBanner: React.FC<AdminTeacherApprovalBannerProp
     return null;
   }
 
-  const handleQuickApprove = (teacherId: string, name: string) => {
-    dataService.approveTeacher(teacherId);
-    setActionFeedback(`✓ ${name} hesabı başarıyla onaylandı. Artık giriş yapabilir.`);
+  // Aşama 173: buluta yazılamazsa onay geri alınır ve neden söylenir
+  const handleQuickApprove = async (teacherId: string, name: string) => {
+    const res = await dataService.approveTeacher(teacherId);
+    setActionFeedback(res.success ? `✓ ${name} hesabı başarıyla onaylandı. Artık giriş yapabilir.` : `${name}: ${res.error}`);
   };
 
   const handleQuickReject = async (teacherId: string, name: string) => {
     // Aşama 105: onay penceresi ana dosyada taşınmaz, ilk kullanımda indirilir
     const { appConfirm } = await import('../../lib/appDialog');
     if (await appConfirm({ title: 'Başvuru reddedilsin mi?', message: `${name} isimli öğretmenin kayıt başvurusunu reddetmek istediğinizden emin misiniz?`, confirmText: 'Evet, reddet' })) {
-      dataService.rejectTeacher(teacherId);
-      setActionFeedback(`✗ ${name} başvurusu reddedildi.`);
+      const res = await dataService.rejectTeacher(teacherId);
+      setActionFeedback(res.success ? `✗ ${name} başvurusu reddedildi.` : `${name}: ${res.error}`);
     }
   };
 

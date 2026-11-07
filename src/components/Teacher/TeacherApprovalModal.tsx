@@ -10,14 +10,10 @@ import {
   Trash2,
   Clock,
   Users,
-  Check,
   Crown,
-  Layers,
-  CheckSquare,
-  Square,
   RotateCw,
 } from 'lucide-react';
-import { Teacher, ClassGroup } from '../../types';
+import { Teacher } from '../../types';
 import { dataService, ADMIN_EMAIL } from '../../services/dataService';
 import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
@@ -32,7 +28,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   const [activeTab, setActiveTab] = useState<'pending' | 'teachers'>('pending');
   const [pendingTeachers, setPendingTeachers] = useState<Teacher[]>([]);
   const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
-  const [allClasses, setAllClasses] = useState<ClassGroup[]>([]);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   useAutoDismiss(actionMsg, () => setActionMsg(null)); // Aşama 32: 15 sn sonra kaybolur
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -44,7 +39,6 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
     const own = (t: Teacher) => !head || !t.kurumId;
     setPendingTeachers(dataService.getPendingTeachers().filter(own));
     setAllTeachers(dataService.getTeachers().filter(own));
-    setAllClasses(dataService.getAllClasses().filter((c) => !head || !c.kurumId));
   };
 
   const handleCloudSync = async () => {
@@ -58,10 +52,7 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
   useEffect(() => {
     if (isOpen) {
       refreshData();
-      Promise.all([
-        dataService.forceSyncTeachers(),
-        dataService.syncClassesFromSupabase(),
-      ]).then(() => refreshData());
+      dataService.forceSyncTeachers().then(() => refreshData());
       const unsubscribe = dataService.subscribe(() => {
         refreshData();
       });
@@ -71,15 +62,16 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
 
   if (!isOpen) return null;
 
+  // Aşama 173: işlemler buluta yazılana kadar beklenir; yazılamazsa ekrandaki değişiklik geri alınır ve neden söylenir
   const handleApprove = async (teacherId: string, name: string) => {
-    dataService.approveTeacher(teacherId);
-    setActionMsg(`✓ ${name} isimli öğretmen hesabı onaylandı. Artık sisteme giriş yapabilir.`);
+    const res = await dataService.approveTeacher(teacherId);
+    setActionMsg(res.success ? `✓ ${name} isimli öğretmen hesabı onaylandı. Artık sisteme giriş yapabilir.` : `${name}: ${res.error}`);
     refreshData();
   };
 
   const handleReject = async (teacherId: string, name: string) => {
-    dataService.rejectTeacher(teacherId);
-    setActionMsg(`✗ ${name} isimli öğretmen hesabı reddedildi.`);
+    const res = await dataService.rejectTeacher(teacherId);
+    setActionMsg(res.success ? `✗ ${name} isimli öğretmen hesabı reddedildi.` : `${name}: ${res.error}`);
     refreshData();
   };
 
@@ -90,47 +82,10 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
       return;
     }
     if (await appConfirm({ title: 'Öğretmen kaydı silinsin mi?', message: `${name} isimli öğretmen kaydını silmek istediğinizden emin misiniz?` })) {
-      dataService.deleteTeacher(teacherId);
-      setActionMsg(`${name} kaydı silindi.`);
+      const res = await dataService.deleteTeacher(teacherId);
+      setActionMsg(res.success ? `${name} kaydı silindi.` : `${name}: ${res.error}`);
       refreshData();
     }
-  };
-
-  const handleToggleClassPermission = async (teacher: Teacher, classId: string) => {
-    const currentList = teacher.assignedClassIds || [];
-    let updatedList: string[];
-    if (currentList.includes(classId)) {
-      updatedList = currentList.filter((id) => id !== classId);
-    } else {
-      updatedList = [...currentList, classId];
-    }
-    dataService.updateTeacherClassPermissions(teacher.id, updatedList);
-    setActionMsg(`✓ ${teacher.name} için sınıf izinleri güncellendi.`);
-    refreshData();
-  };
-
-  const handleAssignAllClasses = async (teacher: Teacher) => {
-    const allIds = allClasses.map((c) => c.id);
-    dataService.updateTeacherClassPermissions(teacher.id, allIds);
-    setActionMsg(`✓ ${teacher.name} için tüm sınıflara erişim izni verildi.`);
-    refreshData();
-  };
-
-  const handleClearClasses = async (teacher: Teacher) => {
-    dataService.updateTeacherClassPermissions(teacher.id, []);
-    setActionMsg(`✓ ${teacher.name} için sınıf izinleri temizlendi (yalnızca kendi eklediği öğrencileri görebilir).`);
-    refreshData();
-  };
-
-  const handleToggleCanViewAll = async (teacher: Teacher) => {
-    const newVal = !teacher.canViewAllStudentsAndClasses;
-    dataService.toggleTeacherCanViewAll(teacher.id, newVal);
-    setActionMsg(
-      newVal
-        ? `✓ ${teacher.name} için önceden eklenmiş tüm sınıf ve öğrenci listelerini görme izni verildi.`
-        : `✓ ${teacher.name} için genel liste izni kapatıldı (Yalnızca kendi eklediklerini ve izinli sınıfları görür).`
-    );
-    refreshData();
   };
 
   const handleToggleAdmin = async (teacher: Teacher) => {
@@ -146,11 +101,13 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
         return;
       }
     }
-    dataService.toggleTeacherAdmin(teacher.id, newStatus);
+    const res = await dataService.toggleTeacherAdmin(teacher.id, newStatus);
     setActionMsg(
-      newStatus
-        ? `👑 ${teacher.name} Kurum Yöneticisi (Admin) yapıldı.`
-        : `✓ ${teacher.name} standart öğretmen yetkisine çevrildi.`
+      !res.success
+        ? `${teacher.name}: ${res.error}`
+        : newStatus
+          ? `👑 ${teacher.name} Kurum Yöneticisi (Admin) yapıldı.`
+          : `✓ ${teacher.name} standart öğretmen yetkisine çevrildi.`
     );
     refreshData();
   };
@@ -341,13 +298,12 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                 <div>
                   <span className="font-bold">Veri Gizliliği & Yetkilendirme Kuralı:</span>
                   <p className="mt-0.5 text-fg-2 text-[11px] leading-relaxed">
-                    Standart öğretmenler yalnızca <strong>kendi kaydettikleri öğrencileri</strong> veya burada <strong>admin tarafından izin verilen sınıfları</strong> görebilir. Öğretmenler birbirlerinin özel verilerini göremez.
+                    Standart öğretmenler yalnızca <strong>kendi kaydettikleri öğrencileri</strong> ve <strong>yöneticinin izin verdiği sınıf / öğrencileri</strong> görebilir. Sınıf ve öğrenci erişimi <strong>Yönetim › Öğretmenler</strong> bölümündeki <strong>Erişim Matrisi</strong> düğmesinden verilir.
                   </p>
                 </div>
               </div>
 
               {allTeachers.map((teacher) => {
-                const assigned = teacher.assignedClassIds || [];
                 return (
                   <div
                     key={teacher.id}
@@ -429,89 +385,11 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
                           </span>
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {/* Yönetici İzni: Önceden Eklenmiş Sınıf ve Öğrenci Listelerini Görme */}
-                          <div className="p-3 bg-surface-2 rounded-xl border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                            <div>
-                              <div className="text-xs font-bold text-fg flex items-center space-x-1.5">
-                                <Users className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                                <span>Önceden Eklenmiş Sınıf & Öğrenci Listelerini Görme İzni</span>
-                              </div>
-                              <p className="text-[11px] text-muted mt-0.5 leading-relaxed">
-                                {teacher.canViewAllStudentsAndClasses
-                                  ? 'Öğretmen sistemdeki önceden oluşturulmuş tüm sınıfları ve kayıtlı öğrencileri görebilir.'
-                                  : 'Öğretmen yalnızca kendi eklediklerini ve aşağıda seçilen sınıfları görebilir.'}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleToggleCanViewAll(teacher)}
-                              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
-                                teacher.canViewAllStudentsAndClasses
-                                  ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-500/30 hover:bg-emerald-200 dark:hover:bg-emerald-500/20'
-                                  : 'bg-surface text-muted hover:bg-surface-2 hover:text-fg border border-line shadow-xs'
-                              }`}
-                            >
-                              <Check className={`w-3.5 h-3.5 ${teacher.canViewAllStudentsAndClasses ? 'text-emerald-600 dark:text-emerald-300' : 'text-subtle'}`} />
-                              <span>{teacher.canViewAllStudentsAndClasses ? 'Genel Liste İzni Açık' : 'İzin Kapalı (Korumalı)'}</span>
-                            </button>
-                          </div>
-
-                          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                            <label className="text-xs font-bold text-fg-2 flex items-center space-x-1.5">
-                              <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-300" />
-                              <span>Erişime İzin Verilen Sınıflar ({assigned.length}/{allClasses.length}):</span>
-                            </label>
-                            <div className="flex items-center space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => handleAssignAllClasses(teacher)}
-                                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors cursor-pointer"
-                              >
-                                Tümünü Seç
-                              </button>
-                              <span className="text-subtle text-xs">|</span>
-                              <button
-                                type="button"
-                                onClick={() => handleClearClasses(teacher)}
-                                className="text-[11px] font-semibold text-muted hover:text-fg-2 transition-colors cursor-pointer"
-                              >
-                                Temizle
-                              </button>
-                            </div>
-                          </div>
-
-                          {allClasses.length === 0 ? (
-                            <p className="text-xs text-subtle italic">Sistemde kayıtlı sınıf bulunmuyor.</p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {allClasses.map((cls) => {
-                                const isPermitted = assigned.includes(cls.id);
-                                return (
-                                  <button
-                                    key={cls.id}
-                                    type="button"
-                                    onClick={() => handleToggleClassPermission(teacher, cls.id)}
-                                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                                      isPermitted
-                                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-500/30 shadow-xs'
-                                        : 'bg-surface-2 text-muted border border-line hover:border-line-strong hover:text-fg'
-                                    }`}
-                                  >
-                                    {isPermitted ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-300" />
-                                    ) : (
-                                      <Square className="w-3.5 h-3.5 text-subtle" />
-                                    )}
-                                    <span>{cls.name}</span>
-                                    {cls.branch && (
-                                      <span className="text-[10px] opacity-70">({cls.branch})</span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
+                        <div className="flex items-center space-x-2 text-xs text-fg-2 bg-surface-2 p-2.5 rounded-xl border border-line" data-k="onay-erisim-matrisi-notu">
+                          <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-300 shrink-0" />
+                          <span>
+                            Sınıf ve öğrenci erişimi <strong>Yönetim › Öğretmenler › Erişim Matrisi</strong> ile verilir (kaydedilen yetki öğretmende hemen görünür).
+                          </span>
                         </div>
                       )}
                     </div>
