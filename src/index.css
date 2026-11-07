@@ -106,11 +106,28 @@
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Aşama 195: zemin deseni aşağıdaki sabit katmanda; body kendi katmanını oluşturur ki desen içeriğin altında kalsın */
+    isolation: isolate;
+  }
+  /* Aşama 195 (HIZ): zemin deseni eskiden body'de "background-attachment: fixed" idi. Tarayıcı bu durumda kaydırılan
+     HER karede bütün ekranın zeminini yeniden boyar; uzun sayfalarda kaydırma takılıyordu. Desen artık ayrı, sabit
+     ve kendi katmanında duran bir parçada: kaydırırken yeniden boyanmaz, görünüm birebir aynı. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(1200px 420px at 50% -120px, color-mix(in oklab, var(--color-brand) 9%, transparent), transparent 70%),
       radial-gradient(color-mix(in oklab, var(--color-fg) 5%, transparent) 1px, transparent 1px);
     background-size: 100% 100%, 22px 22px;
-    background-attachment: fixed, fixed;
+    transform: translateZ(0);
+  }
+  @media print {
+    body::before {
+      display: none;
+    }
   }
 
   ::selection {
