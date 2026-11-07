@@ -129,11 +129,27 @@ interface EtutManagementProps {
   classes: ClassGroup[];
 }
 
+const ATT_ETUT_KEY = 'bilir.etut.yoklama.secili.v1';
+
 export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students, classes }) => {
   const [viewMode, setViewMode] = useHistoryState<'calendar' | 'cards' | 'attendance' | 'takip'>('etut.view', 'calendar'); // Aşama 52: geri tuşu
   const [expandedEtutId, setExpandedEtutId] = useState<string | null>(null);
   const [viewEtut, setViewEtut] = useState<Etut | null>(null); // Aşama 111: salt okunur yoklama / yorum // Aşama 21: açık etüt şeridi
-  const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(etuts[0]?.id || '');
+  // Aşama 179: yoklama ekranında seçili etüt sayfa yenilenince korunur (yalnız bu sekmede; etüt silindiyse ilk etüt)
+  const [selectedAttendanceEtutId, setSelectedAttendanceEtutId] = useState<string>(() => {
+    try {
+      return sessionStorage.getItem(ATT_ETUT_KEY) || etuts[0]?.id || '';
+    } catch {
+      return etuts[0]?.id || '';
+    }
+  });
+  useEffect(() => {
+    try {
+      if (selectedAttendanceEtutId) sessionStorage.setItem(ATT_ETUT_KEY, selectedAttendanceEtutId);
+    } catch {
+      /* gizli sekme / depolama kapalı: seçim yalnız bu açılışta kalır */
+    }
+  }, [selectedAttendanceEtutId]);
   const [attendanceSearchQuery, setAttendanceSearchQuery] = useState<string>('');
   const [attendanceFeedback, setAttendanceFeedback] = useState<string | null>(null);
   useAutoDismiss(attendanceFeedback, () => setAttendanceFeedback(null)); // Aşama 32: 15 sn sonra kaybolur
