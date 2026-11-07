@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Pause, Search, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { EmptyState, Modal, Panel, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { dataService } from '../../services/dataService';
 import {
   applyBankToSavedExams,
@@ -574,12 +575,15 @@ export const KazanimBankasi: React.FC = () => {
       <Panel
         icon={Sparkles}
         title="Öğretim programından yükle (yapay zekâ)"
-        description="MEB öğretim programı PDF'lerini seçin: tek ders ya da hepsi birden. Yapay zekâ 8. sınıf kazanımlarını kodu, metni ve konusuyla çıkarır; siz kontrol edip kaydedersiniz."
+        description="MEB öğretim programı PDF'lerini seçin; kazanımları kontrol edip kaydedersiniz."
       >
         <div className="space-y-3">
           <p className="text-[11px] text-muted flex items-start gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-success-fg" />
-            <span>PDF bilgisayarınızda metne çevrilir; yapay zekâya yalnızca 8. sınıf kazanımlarının geçtiği sayfaların metni gider. Kazanımlar bir kez çıkarılıp bankaya kaydedilir, sonraki denemelerde yeniden yükleme gerekmez.</span>
+            <span className="inline-flex items-center gap-1">
+              Yapay zekâya yalnız kazanım sayfalarının metni gider.
+              <InfoTip text="PDF bilgisayarınızda metne çevrilir; yapay zekâya yalnızca 8. sınıf kazanımlarının geçtiği sayfaların metni gider. Tek ders ya da hepsi birden seçilebilir; yapay zekâ kazanımları kodu, metni ve konusuyla çıkarır. Kazanımlar bir kez çıkarılıp bankaya kaydedilir, sonraki denemelerde yeniden yükleme gerekmez." />
+            </span>
           </p>
           {noKeys && (
             <p className="text-xs font-semibold rounded-xl px-3 py-2 bg-warning-soft text-warning-fg">
@@ -821,8 +825,9 @@ export const KazanimBankasi: React.FC = () => {
                   setPreview(null);
                 }}
               />
-              <p className="text-[11px] text-muted mt-1">
-                Her kazanım kendi koduyla başlamalı. Kısa kodlu satırlar (ör. F.8.1.1.) ve kodsuz başlıklar konu olarak kullanılır. "a)", "b)" ile başlayan açıklamalar atlanır.
+              <p className="text-[11px] text-muted mt-1 flex items-center gap-1">
+                Her kazanım kendi koduyla başlamalı.
+                <InfoTip text={'Kısa kodlu satırlar (ör. F.8.1.1.) ve kodsuz başlıklar konu olarak kullanılır. "a)", "b)" ile başlayan açıklamalar atlanır.'} />
               </p>
             </div>
             {isHead && (

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeftRight, FileText, Sparkles } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ExamQuestions, ExamSubject } from '../../lib/deneme/lgs';
 import { extractPdfItems, openKitapcik } from '../../lib/deneme/kitapcik';
 import { applyMatch, bookletFromAi, bookletQuestions, coverage, matchSubject, type BookletQuestions, type SubjectMatch } from '../../lib/deneme/kitapcikEslestir';
@@ -239,14 +240,16 @@ export const KitapcikEslestirModal: React.FC<{
           {pick('A')}
           {pick('B')}
         </div>
-        <p className="text-[11px] text-muted">
-          Sözel ve sayısal ayrı dosyaysa ikisini birlikte seçin. Dijital kitapçık bu bilgisayarda okunur. Taranmış kitapçıkta sayfa resimleri yapay zekâya gönderilir (yalnızca kitapçık; öğrenci bilgisi gitmez).
+        <p className="text-[11px] text-muted flex items-center gap-1">
+          Öğrenci bilgisi yapay zekâya gitmez.
+          <InfoTip text="Sözel ve sayısal ayrı dosyaysa ikisini birlikte seçin. Dijital kitapçık bu bilgisayarda okunur. Taranmış kitapçıkta yalnızca kitapçığın sayfa resimleri yapay zekâya gönderilir." />
         </p>
         {offer && !res && (
           <div className="rounded-lg bg-warning-soft px-2.5 py-2 text-xs text-warning-fg space-y-1" id="kit-ai-oneri">
             <p className="font-semibold">{offer}</p>
-            <p>
-              "Yapay zekâ" düğmesiyle sayfa resimlerinden her sorunun numarası ve metninin başı okunur; eşleştirme ve cevap harfi kontrolü yine bu bilgisayarda yapılır. İki kitapçık için birkaç dakika sürebilir.
+            <p className="flex items-center gap-1">
+              "Yapay zekâ" düğmesiyle deneyin; birkaç dakika sürebilir.
+              <InfoTip text="Sayfa resimlerinden her sorunun numarası ve metninin başı okunur; eşleştirme ve cevap harfi kontrolü yine bu bilgisayarda yapılır." />
             </p>
           </div>
         )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronDown, ChevronUp, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { Panel, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { dataService } from '../../services/dataService';
 import { deleteYillikPlan, listYillikPlan, saveYillikPlan, type YillikPlanInfo } from '../../services/denemeService';
 import { LGS_SUBJECTS } from '../../lib/deneme/lgs';
@@ -86,7 +87,12 @@ export const YillikPlanPanel: React.FC = () => {
     <Panel
       icon={CalendarDays}
       title="Yıllık planlar (Fen, Matematik, İnkılap)"
-      description="Plan yüklüyse kitapçıktan kazanım bulmada ve cevap anahtarı eşleştirmesinde deneme tarihine (+1 hafta) kadar işlenmemiş kazanımlar önerilmez. Türkçe, Din ve İngilizce süzülmez."
+      description={
+        <span className="inline-flex items-center gap-1">
+          Henüz işlenmemiş kazanımlar önerilmez.
+          <InfoTip text="Plan yüklüyse kitapçıktan kazanım bulmada ve cevap anahtarı eşleştirmesinde deneme tarihine (+1 hafta) kadar işlenmemiş kazanımlar önerilmez. Türkçe, Din ve İngilizce süzülmez." />
+        </span>
+      }
       actions={
         <button type="button" className="ui-btn ui-btn-ghost ui-btn-sm" onClick={() => setOpen((v) => !v)} aria-expanded={open} id="kb-plan-toggle">
           {open ? <ChevronUp /> : <ChevronDown />} {open ? 'Gizle' : 'Aç'}
@@ -211,9 +217,9 @@ export const YillikPlanPanel: React.FC = () => {
               {msg.text}
             </p>
           )}
-          <p className="text-[11px] text-muted">
-            Planın Excel hâlini seçin (AY, HAFTA, ÜNİTE, KONU, KAZANIM sütunları; açıklama sütunları olsa da olur). Haftalar "1. Hafta: 14-18 Eylül" gibi yazılmalı. Deneme tarihi girilmemişse ya da
-            deneme başka bir eğitim yılına aitse süzgeç kullanılmaz.
+          <p className="text-[11px] text-muted flex items-center gap-1">
+            Planın Excel hâlini seçin.
+            <InfoTip text={'AY, HAFTA, ÜNİTE, KONU, KAZANIM sütunları olmalı; açıklama sütunları olsa da olur. Haftalar "1. Hafta: 14-18 Eylül" gibi yazılmalı. Deneme tarihi girilmemişse ya da deneme başka bir eğitim yılına aitse süzgeç kullanılmaz.'} />
           </p>
         </div>
       )}

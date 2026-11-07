@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { BarChart3, BookOpen, Building2, ChevronRight, FileBarChart, ListOrdered, Pencil, Plus, Save, ShieldCheck, Undo2, Users } from 'lucide-react';
 import { EmptyState, Modal, PageHeader, Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { dataService } from '../../services/dataService';
 import { getExam, isDraftExam, isSetupError, listExams, updateExamInfo, type DenemeExam } from '../../services/denemeService';
@@ -566,8 +567,12 @@ export const DenemeAnalizi: React.FC<{ students: Student[]; classes: ClassGroup[
       {tab === 'etut' && etutTabOk && (exams.length ? <DenemeEtut exams={exams} students={students} classes={classes} branchOnly={plain} /> : <p className="text-sm text-muted">Etüt listesi için önce deneme ekleyin.</p>)}
       {tab === 'kazanim' && !readOnly && <KazanimBankasi />}
 
-      <p className="text-[11px] text-muted">
-        Mahremiyet: TC kimlik numarası hiçbir yerde saklanmaz ve gösterilmez; eşleştirme için yalnızca geri çevrilemez parmak izi kullanılır. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.
+      <p className="text-[11px] text-muted flex items-center gap-1">
+        TC kimlik numarası saklanmaz ve gösterilmez.
+        <InfoTip
+          label="Mahremiyet"
+          text={'Eşleştirme için yalnızca geri çevrilemez parmak izi kullanılır. Öğrenciler yalnızca "öğrencilere açık" denemelerdeki kendi sonuçlarını görür; kurum yöneticileri yalnızca kendi kurumlarının denemelerini görür.'}
+        />
       </p>
     </div>
   );

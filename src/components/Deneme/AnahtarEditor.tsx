@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, BookOpen, ChevronDown, ChevronUp, FileSpreadsheet, Sparkles } from 'lucide-react';
 import { cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { questionsFromKeyString, type ExamQuestion, type ExamQuestions, type ExamSubject } from '../../lib/deneme/lgs';
 import { hasSourceKazanim, readKeyExcel, readKeyPdf, splitKazanim, type ExcelKeyResult } from '../../lib/deneme/anahtarExcel';
 import { listEslesmeler, listKazanimlar, listYillikPlan, saveEslesme, type BankRow } from '../../services/denemeService';
@@ -370,8 +371,9 @@ export const AnahtarEditor: React.FC<{
           </button>
         )}
       </div>
-      <p className="text-[11px] text-muted">
-        Sistem yalnızca <b>Kazanım bankasındaki</b> MEB kazanımlarını kullanır. Excel'deki kazanımlar bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir.
+      <p className="text-[11px] text-muted flex items-center gap-1">
+        Kazanımlar <b>Kazanım bankasından</b> gelir.
+        <InfoTip text="Sistem yalnızca Kazanım bankasındaki MEB kazanımlarını kullanır. Excel'deki kazanımlar bankadaki karşılığını bulmak için kullanılır; kazanım metni ve konu bankadan gelir." />
       </p>
       {busy && busyText && <p className="text-xs text-muted">{busyText}</p>}
       {aiOpen && (
@@ -811,10 +813,12 @@ export const AnahtarEditor: React.FC<{
           );
         })}
       </div>
-      <p className="text-[11px] text-muted">
-        Kazanımı listeden seçince konusu bankadan otomatik gelir; yalnız konu da seçilebilir. Elle yapılan seçim hatırlanır, sonraki denemelerde aynı ifade kendiliğinden eşleşir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış
-        kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. "İptal" seçilen soru herkes için doğru sayılır. Fen, Matematik ve İnkılap için yıllık plan
-        yüklüyse ad benzerliği ve yapay zekâ yalnız deneme tarihine kadar işlenen kazanımları önerir; yayınevinin açık kodu ise korunur ve "planda henüz işlenmedi" diye işaretlenir.
+      <p className="text-[11px] text-muted flex items-center gap-1">
+        "İptal" seçilen soru herkes için doğru sayılır.
+        <InfoTip
+          label="Kazanım seçimi"
+          text={'Kazanımı listeden seçince konusu bankadan otomatik gelir; yalnız konu da seçilebilir. Elle yapılan seçim hatırlanır, sonraki denemelerde aynı ifade kendiliğinden eşleşir; alt kazanım, o kazanımın açıklama maddelerinden seçilir. Excel yoksa "Kitapçıktan kazanım bul" ile taranmış kitapçıktaki sorular yapay zekâ yardımıyla bankadaki kazanımlarla eşleştirilir. Fen, Matematik ve İnkılap için yıllık plan yüklüyse ad benzerliği ve yapay zekâ yalnız deneme tarihine kadar işlenen kazanımları önerir; yayınevinin açık kodu ise korunur ve "planda henüz işlenmedi" diye işaretlenir.'}
+        />
       </p>
     </div>
   );

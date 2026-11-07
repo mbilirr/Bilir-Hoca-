@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Download, Info } from 'lucide-react';
 import { Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { DenemeExam, DenemeResult } from '../../services/denemeService';
 import { LEVEL_INFO, levelOf } from '../../lib/deneme/analiz';
 import { discLabel, fmtDisc, itemAnalysis, itemWatchList, type ItemStat, type KazTone } from '../../lib/deneme/kazanimKarne';
@@ -67,7 +68,13 @@ export const MaddeAnalizi: React.FC<{ exam: DenemeExam; results: DenemeResult[];
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
         <span>
           <b>{groupName}</b> ({group.length} öğrenci{isGroup ? `; kurum ${results.length} öğrenci` : ''}). Şıklarda <b>yeşil</b> doğru cevap, <b>kırmızı</b> en çok seçilen yanlış şıktır (çeldirici).{' '}
-          <b>Ayırt edicilik</b>: derste en başarılı %27 ile en başarısız %27'nin doğru oranı farkı (0,40+ çok iyi · 0,30 iyi · 0,20 orta · altı zayıf; eksi değer cevap anahtarı hatasına işaret edebilir; en az 10 öğrenci gerekir).
+          <span className="inline-flex items-center gap-1 align-middle">
+            <b>Ayırt edicilik</b>
+            <InfoTip
+              label="Ayırt edicilik"
+              text="Derste en başarılı %27 ile en başarısız %27'nin doğru oranı farkı: 0,40+ çok iyi · 0,30 iyi · 0,20 orta · altı zayıf. Eksi değer cevap anahtarı hatasına işaret edebilir. En az 10 öğrenci gerekir."
+            />
+          </span>
           {isGroup ? ' Kurum çizgisi ve "Fark" sütunu sınıfı kurumla karşılaştırır: 25 puan ve üstü geride kalınan sorular işaretlenir.' : ' Sınıfı kurumla karşılaştırmak için yukarıdan sınıf seçin.'}
         </span>
       </div>

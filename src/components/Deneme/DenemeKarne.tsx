@@ -11,6 +11,7 @@ import { KurumOzetView, OncelikKarneView, VeliKarneView } from './VeliKurumKarne
 import { kurumOzet, priorityKarne, veliKarneData } from '../../lib/deneme/veliKurumKarne';
 import { dataService } from '../../services/dataService';
 import { Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { byUploadOrder, getExamsFull, getTarget, listKazanimlar, listResultsFor, listResultsLite, setTarget, type BankRow, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import {
@@ -550,8 +551,12 @@ const TopluKarneGonder: React.FC<{
                   );
                 })}
               </ul>
-              <p className="px-3 py-2 text-[11px] text-muted">
-                Telefonda dosya doğrudan WhatsApp'a eklenir; bilgisayarda PDF iner ve öğrencinin WhatsApp sohbeti açılır, dosyayı sürükleyip gönderirsiniz. WhatsApp otomatik toplu gönderime izin vermediği için her öğrenci tek dokunuşla gönderilir.
+              <p className="px-3 py-2 text-[11px] text-muted flex items-center gap-1">
+                Her öğrenci tek dokunuşla gönderilir.
+                <InfoTip
+                  label="WhatsApp ile gönderim"
+                  text="Telefonda dosya doğrudan WhatsApp'a eklenir; bilgisayarda PDF iner ve öğrencinin WhatsApp sohbeti açılır, dosyayı sürükleyip gönderirsiniz. WhatsApp otomatik toplu gönderime izin vermediği için her öğrenci ayrı gönderilir."
+                />
               </p>
             </>
           )}

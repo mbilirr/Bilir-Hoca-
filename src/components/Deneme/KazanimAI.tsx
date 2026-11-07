@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, FileText, ImagePlus, Pause, RefreshCw, ShieldCheck, Sparkles, ZoomIn } from 'lucide-react';
 import { Modal, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ExamQuestion, ExamQuestions, ExamSubject } from '../../lib/deneme/lgs';
 import { listKazanimlar, type BankRow } from '../../services/denemeService';
 import { bankSubjectKey, codeKey } from '../../lib/deneme/kazanimBank';
@@ -661,9 +662,9 @@ export const KazanimAI: React.FC<{
                 </div>
               )}
               {!book && !opening && (
-                <p className="text-xs text-muted">
-                  Kitapçığın tamamını seçin; sözel ve sayısal kitapçıkları birlikte seçebilirsiniz. A kitapçığı olmalı (soru numaraları cevap anahtarındaki A sırasıyla eşleşir).
-                  Yapay zekâ önce hangi sayfanın hangi derse ait olduğunu bulur.
+                <p className="text-xs text-muted flex items-center gap-1">
+                  A kitapçığının tamamını seçin.
+                  <InfoTip text="Sözel ve sayısal kitapçıkları birlikte seçebilirsiniz. A kitapçığı olmalı (soru numaraları cevap anahtarındaki A sırasıyla eşleşir). Yapay zekâ önce hangi sayfanın hangi derse ait olduğunu bulur." />
                 </p>
               )}
             </>
@@ -691,9 +692,9 @@ export const KazanimAI: React.FC<{
                   </button>
                 </div>
               )}
-              <p className="text-[11px] text-muted">
-                Konu = seçilen MEB kazanımı (parantez içinde konu başlığıyla); alt kazanım = o kazanımın açıklama maddelerinden biri. Güveni %50'nin altındakiler ve zaten kazanımı olan
-                sorular işaretsiz gelir.
+              <p className="text-[11px] text-muted flex items-center gap-1">
+                Güveni düşük ve zaten kazanımı olan sorular işaretsiz gelir.
+                <InfoTip text="Konu = seçilen MEB kazanımı (parantez içinde konu başlığıyla); alt kazanım = o kazanımın açıklama maddelerinden biri. Güveni %50'nin altındakiler ve zaten kazanımı olan sorular işaretsiz gelir." />
               </p>
               {reviewSubjects.map((s) => {
                 const list = questions[s.key] || [];
@@ -823,7 +824,7 @@ export const KazanimAI: React.FC<{
                 );
               })}
               <p className="text-[11px] text-muted">
-                Uygulamadan sonra cevap anahtarı penceresindeki "Kaydet" ile değişiklikler kalıcı olur. Yapay zekâ yanılabilir: özellikle güveni düşük satırları kontrol edin.
+                Uyguladıktan sonra cevap anahtarında "Kaydet"e basın. Güveni düşük satırları kontrol edin.
               </p>
             </div>
           )}

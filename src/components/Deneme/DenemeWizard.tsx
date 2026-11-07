@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, FileText, Link2, Save, Trash2, Upload, Users } from 'lucide-react';
 import { Modal, Panel, Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import type { ClassGroup, Student } from '../../types';
 import { OptikFormatEditor } from './OptikFormatEditor';
 import { AnahtarEditor } from './AnahtarEditor';
@@ -933,7 +934,12 @@ export const DenemeWizard: React.FC<{
         <>
           <Panel
             title="Optik formatı"
-            description="FMT dosyasını yükleyin, kayıtlı bir formatı seçin ya da alanları elle girin. Sözel ve sayısal için ayrı FMT varsa ikisini de ayrı adla kaydedin; her TXT kendi formatıyla okunur."
+            description={
+              <span className="inline-flex items-center gap-1">
+                FMT yükleyin, kayıtlı formatı seçin ya da elle girin.
+                <InfoTip text="Sözel ve sayısal için ayrı FMT varsa ikisini de ayrı adla kaydedin; her TXT kendi formatıyla okunur." />
+              </span>
+            }
             icon={FileText}
             tone="info"
           >
@@ -998,7 +1004,12 @@ export const DenemeWizard: React.FC<{
 
           <Panel
             title="Optik sonuç dosyaları (TXT)"
-            description="Sözel ve sayısal TXT'leri birlikte yükleyin; her dosya kendi formatıyla okunur (uyan kayıtlı format kendiliğinden seçilir), aynı öğrencinin satırları birleştirilir."
+            description={
+              <span className="inline-flex items-center gap-1">
+                Sözel ve sayısal TXT'leri birlikte yükleyin.
+                <InfoTip text="Her dosya kendi formatıyla okunur (uyan kayıtlı format kendiliğinden seçilir), aynı öğrencinin satırları birleştirilir." />
+              </span>
+            }
             icon={Upload}
             tone="success"
             actions={
@@ -1159,7 +1170,12 @@ export const DenemeWizard: React.FC<{
       {step === 3 && (
         <Panel
           title="Öğrenci eşleştirme"
-          description="Öğrenciler önce TC ile, TC hatalıysa numarayla, o da yoksa ad soyadla bulunur; sınıf ve şube kontrol edilir. Emin olunamayanları siz onaylarsınız."
+          description={
+            <span className="inline-flex items-center gap-1">
+              Emin olunamayan eşleşmeleri siz onaylarsınız.
+              <InfoTip text="Öğrenciler önce TC ile, TC hatalıysa numarayla, o da yoksa ad soyadla bulunur; sınıf ve şube kontrol edilir." />
+            </span>
+          }
           icon={Users}
           tone="brand"
         >

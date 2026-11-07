@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { FileSpreadsheet, ListOrdered } from 'lucide-react';
 import type { ClassGroup, Student } from '../../types';
 import { Modal, Segmented, cx } from '../ui/kit';
+import { InfoTip } from '../ui/Compact'; // Aşama 189
 import { byUploadOrder, listResultsLite, type DenemeExam, type DenemeResult } from '../../services/denemeService';
 import { dateTr, pickScope, scopeLabel, type ScopeKey } from '../../lib/deneme/karneModel';
 import { buildSiralama, downloadSiralamaExcel } from '../../lib/deneme/ortalamaSiralama';
@@ -219,9 +220,9 @@ export const OrtalamaSiralamaModal: React.FC<{
             'Bu kademede deneme yok.'
           )}
         </p>
-        <p className="text-[11px] text-muted">
-          Sıralama ortalama puana göredir (eşitlikte toplam net). Ortalama, öğrencinin girdiği denemelerden alınır; Excel'deki "Deneme" sütunu kaç denemeye girdiğini gösterir.
-          {duzen === 'sinif' ? ' Her sınıf ayrı sayfadır.' : ' Tüm öğrenciler tek sayfada genel sıraya göre listelenir.'}
+        <p className="text-[11px] text-muted flex items-center gap-1">
+          Sıralama ortalama puana göredir.{duzen === 'sinif' ? ' Her sınıf ayrı sayfadır.' : ' Tüm öğrenciler tek sayfadadır.'}
+          <InfoTip text={'Eşitlikte toplam nete bakılır. Ortalama, öğrencinin girdiği denemelerden alınır; Excel\'deki "Deneme" sütunu kaç denemeye girdiğini gösterir.'} />
         </p>
       </div>
     </Modal>
