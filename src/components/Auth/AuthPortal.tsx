@@ -20,6 +20,7 @@ import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types
 import { dataService } from '../../services/dataService';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { profilResmi } from '../../lib/profilResmi';
 import {
   getBiometricSupport,
   getBiometricProfile,
@@ -555,12 +556,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
                       <div className="flex items-center justify-between flex-wrap gap-3">
                         <div className="flex items-center space-x-3 min-w-0">
                           <img
-                            src={
-                              activeRememberedUser.avatar ||
-                              `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(
-                                activeRememberedUser.name
-                              )}`
-                            }
+                            src={profilResmi(activeRememberedUser, selectedRole === 'teacher' ? 'teacher' : 'student')}
                             alt={activeRememberedUser.name}
                             className="w-11 h-11 rounded-xl bg-surface border border-line shadow-xs object-cover shrink-0"
                           />
