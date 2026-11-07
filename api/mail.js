@@ -889,40 +889,31 @@ async function actionAttendanceSave(body) {
     if (!next[id].topic) delete next[id].topic;
   }
   const takenBy = { name: teacherName, at: now, via: 'link' };
-  if (Array.isArray(c.row.etut_yoklama)) {
-    // Aşama 179: yalnız bu bağlantıyla işaretlenen öğrencilerin satırı yazılır; diğer öğrencilerin yoklamasına,
-    // öğretmen görüşüne ve etüt notuna dokunulmaz (eskiden bütün notes yeniden yazılıyordu)
-    await rest('etut_yoklama?on_conflict=etut_id,student_id', {
-      token: 'service',
-      method: 'POST',
-      body: entries.map(([id]) => ({
-        etut_id: c.etut.id,
-        student_id: id,
-        student_name: next[id].studentName || null,
-        status: next[id].status,
-        note: next[id].note || '',
-        topic: next[id].topic || '',
-        marked_by: teacherName,
-        marked_at: now,
-        changed_at: now,
-      })),
-      prefer: 'resolution=merge-duplicates,return=minimal',
-    });
-    await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
-      token: 'service',
-      method: 'PATCH',
-      body: { attendance_taken_by: takenBy },
-      prefer: 'return=minimal',
-    });
-  } else {
-    const meta = { ...(c.meta || {}), __etut_meta__: true, studentAttendance: next, attendanceTakenBy: takenBy };
-    await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
-      token: 'service',
-      method: 'PATCH',
-      body: { notes: JSON.stringify(meta) },
-      prefer: 'return=minimal',
-    });
-  }
+  // Aşama 196: yoklama yalnız etut_yoklama tablosuna yazılır; eski yol (bütün notes'u yeniden yazmak) kaldırıldı
+  // Aşama 179: yalnız bu bağlantıyla işaretlenen öğrencilerin satırı yazılır; diğer öğrencilerin yoklamasına,
+  // öğretmen görüşüne ve etüt notuna dokunulmaz (eskiden bütün notes yeniden yazılıyordu)
+  await rest('etut_yoklama?on_conflict=etut_id,student_id', {
+    token: 'service',
+    method: 'POST',
+    body: entries.map(([id]) => ({
+      etut_id: c.etut.id,
+      student_id: id,
+      student_name: next[id].studentName || null,
+      status: next[id].status,
+      note: next[id].note || '',
+      topic: next[id].topic || '',
+      marked_by: teacherName,
+      marked_at: now,
+      changed_at: now,
+    })),
+    prefer: 'resolution=merge-duplicates,return=minimal',
+  });
+  await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
+    token: 'service',
+    method: 'PATCH',
+    body: { attendance_taken_by: takenBy },
+    prefer: 'return=minimal',
+  });
   // Öğrencinin genel devamsızlık kaydına da yansıt (sistemdeki yoklama penceresiyle aynı kural)
   try {
     const first = c.students.find((s) => next[s.id]);
@@ -2376,20 +2367,10 @@ async function homeworkStudents(hw, token) {
   return studentsByClasses(arr(hw.target_class_ids), token);
 }
 // Aşama 179: yoklama ayrı tabloda, yorumlar ayrı sütunda (sql/178). Etüt satırı yoklamasıyla tek istekte okunur.
+// Aşama 196: tablosuz eski okuma kaldırıldı; etut_yoklama yoksa hata olduğu gibi döner.
 const ETUT_YOKLAMA_EMBED = 'etut_yoklama(student_id,student_name,status,note,topic,marked_by,marked_at,changed_at)';
-let etutYoklamaEmbed = true;
 async function restEtuts(filter) {
-  if (etutYoklamaEmbed) {
-    try {
-      return await rest(`etuts?select=*,${ETUT_YOKLAMA_EMBED}&${filter}`, { token: 'service' });
-    } catch (err) {
-      // yalnız "tablo / ilişki yok" hatasında (sql/178 kurulmamış) eski okumaya geçilir; başka hata aynen döner
-      const t = `${(err && err.code) || ''} ${(err && err.message) || ''}`;
-      if (!/etut_yoklama/.test(t) || !/PGRST200|PGRST205|42P01|relationship|does not exist|Could not find/i.test(t)) throw err;
-      etutYoklamaEmbed = false;
-    }
-  }
-  return rest(`etuts?select=*&${filter}`, { token: 'service' });
+  return rest(`etuts?select=*,${ETUT_YOKLAMA_EMBED}&${filter}`, { token: 'service' });
 }
 function isoOf(v) {
   const t = Date.parse(String(v || ''));
@@ -2417,14 +2398,17 @@ function parseEtutMeta(row) {
     if (row.notes && typeof row.notes === 'object') meta = { ...row.notes };
     else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) meta = JSON.parse(row.notes);
   } catch {}
-  if (!meta || typeof meta !== 'object') meta = { userNotes: typeof row.notes === 'string' ? row.notes : '' };
-  // Aşama 179: yeni yapı okunduysa o geçerlidir (notes geçiş boyunca aynı veriyi taşır)
-  if (Array.isArray(row.etut_yoklama)) {
-    const base = meta.studentAttendance && typeof meta.studentAttendance === 'object' ? meta.studentAttendance : {};
-    meta.studentAttendance = { ...base, ...yoklamaRowsToAttendance(row.etut_yoklama) };
-  }
-  if (typeof row.user_notes === 'string') meta.userNotes = row.user_notes;
-  if (typeof row.teacher_feedback === 'string') meta.teacherFeedback = row.teacher_feedback;
+  // eski düz metin not (JSON olmayan notes) etüdün kendi notudur; yalnız user_notes boşsa kullanılır
+  const plainNotes = !meta || typeof meta !== 'object' ? (typeof row.notes === 'string' ? row.notes : '') : '';
+  if (!meta || typeof meta !== 'object') meta = {};
+  // Aşama 196: yoklama yalnız etut_yoklama tablosundan, yorumlar yalnız sütunlardan; notes içindeki eski kopyalara bakılmaz
+  delete meta.studentAttendance;
+  delete meta.userNotes;
+  delete meta.teacherFeedback;
+  delete meta.attendanceTakenBy;
+  meta.studentAttendance = yoklamaRowsToAttendance(row.etut_yoklama);
+  meta.userNotes = typeof row.user_notes === 'string' ? row.user_notes : plainNotes;
+  meta.teacherFeedback = typeof row.teacher_feedback === 'string' ? row.teacher_feedback : '';
   if (row.attendance_taken_by && typeof row.attendance_taken_by === 'object') meta.attendanceTakenBy = row.attendance_taken_by;
   return meta;
 }

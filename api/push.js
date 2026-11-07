@@ -363,23 +363,12 @@ function parseEtutMeta(row) {
   return {};
 }
 // Aşama 179: yoklama ayrı tabloda (sql/178). Yoklama var mı bilgisi etütle tek istekte okunur.
-let etutYoklamaEmbed = true;
+// Aşama 196: tablosuz eski okuma kaldırıldı; etut_yoklama yoksa hata olduğu gibi döner.
 async function restEtuts(filter) {
-  if (etutYoklamaEmbed) {
-    try {
-      return await rest(`etuts?select=*,etut_yoklama(student_id)&${filter}`, { token: 'service' });
-    } catch (err) {
-      // yalnız "tablo / ilişki yok" hatasında (sql/178 kurulmamış) eski okumaya geçilir
-      const t = String((err && err.message) || '');
-      if (!/etut_yoklama/.test(t) || !/PGRST200|PGRST205|42P01|relationship|does not exist|Could not find/i.test(t)) throw err;
-      etutYoklamaEmbed = false;
-    }
-  }
-  return rest(`etuts?select=*&${filter}`, { token: 'service' });
+  return rest(`etuts?select=*,etut_yoklama(student_id)&${filter}`, { token: 'service' });
 }
 export function etutInfo(row) {
   const meta = parseEtutMeta(row);
-  const att = meta.studentAttendance;
   const m = /^(\d{1,2}):(\d{2})/.exec(String(row.time || ''));
   return {
     id: row.id,
@@ -392,7 +381,8 @@ export function etutInfo(row) {
     location: row.location || '',
     teacherIds: uniq([row.etut_teacher_id || meta.teacherId, ...arr(row.etut_teacher_ids), ...arr(meta.teacherIds)]),
     studentIds: arr(row.assigned_student_ids),
-    hasAttendance: (Array.isArray(row.etut_yoklama) && row.etut_yoklama.length > 0) || (!!att && typeof att === 'object' && Object.keys(att).length > 0),
+    // Aşama 196: yalnız etut_yoklama tablosu (notes içindeki eski kopyaya bakılmaz)
+    hasAttendance: Array.isArray(row.etut_yoklama) && row.etut_yoklama.length > 0,
     expectsAttendance: arr(row.assigned_student_ids).length > 0 || meta.assignedStudentIds === 'all' || (Array.isArray(meta.assignedStudentIds) && meta.assignedStudentIds.length > 0),
   };
 }
