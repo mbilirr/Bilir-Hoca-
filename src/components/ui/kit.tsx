@@ -290,7 +290,8 @@ export const Modal: React.FC<{
           </div>
         )}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-line bg-surface-2/60 rounded-b-2xl">{footer}</div>}
+        {/* Aşama 190: ui-modal-footer, içindeki düğmeleri eşit boy yapar (index.css) */}
+        {footer && <div className="ui-modal-footer flex flex-wrap justify-end gap-2 px-5 py-3 border-t border-line bg-surface-2/60 rounded-b-2xl">{footer}</div>}
       </div>
     </div>,
     document.body
