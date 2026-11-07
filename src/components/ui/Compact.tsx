@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Info } from 'lucide-react';
+import { ChevronDown, HelpCircle, Info } from 'lucide-react';
 import { cx } from './kit';
 
 // ============================================================================
@@ -9,6 +9,7 @@ import { cx } from './kit';
 //   Bilgisayarda üzerine gelince, telefonda dokununca açılır; Esc / dışarı dokunma kapatır.
 // - CompactRow: "TC kimlik · Kayıtlı [Değiştir] [Sil]" gibi tek satırlık ayar satırı.
 //   Ayrıntı (giriş kutusu vb.) yalnız gerektiğinde satırın altında açılır.
+// - HelpDisclosure (Aşama 184): uzun "Nasıl çalışır?" rehberleri kapalı başlar, tıklayınca açılır.
 // ============================================================================
 
 const POP_W = 256; // 16rem
@@ -134,3 +135,34 @@ export const CompactRow: React.FC<{
     {children && <div className="pt-2">{children}</div>}
   </div>
 );
+
+/** Aşama 184: kapalı başlayan "Nasıl çalışır?" kutusu. İçerik yalnız açılınca çizilir. */
+export const HelpDisclosure: React.FC<{
+  title?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}> = ({ title = 'Nasıl çalışır?', defaultOpen = false, children, className }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
+  return (
+    <div className={cx('rounded-xl border border-line bg-surface-2/50', className)}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-3 h-9 text-xs font-semibold text-brand-fg hover:text-fg rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      >
+        <HelpCircle className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left">{title}</span>
+        <ChevronDown className={cx('w-4 h-4 shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div id={id} className="px-3 pb-3 text-xs text-muted space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
