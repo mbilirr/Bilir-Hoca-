@@ -113,13 +113,13 @@ export const PushOptInCard: React.FC<{ role: 'student' | 'teacher' }> = ({ role 
               <li>
                 <PlusSquare className="inline w-3.5 h-3.5 -mt-0.5" /> <strong>Ana Ekrana Ekle</strong>'yi seçin.
               </li>
-              <li>Ana ekrandaki <strong>Eğitim Takip</strong> simgesinden açıp giriş yapın; bu kartta "Bildirimleri aç"a dokunun.</li>
+              <li>Ana ekrandaki <strong>blrEdu</strong> simgesinden açıp giriş yapın; bu kartta "Bildirimleri aç"a dokunun.</li>
             </ol>
           )}
 
           {state === 'denied' && (
             <p className="text-xs text-danger-fg">
-              Bu cihazda bildirim izni kapalı. Telefon ayarlarından (Ayarlar › Bildirimler › tarayıcı ya da Eğitim Takip) izin verip sayfayı yenileyin.
+              Bu cihazda bildirim izni kapalı. Telefon ayarlarından (Ayarlar › Bildirimler › tarayıcı ya da blrEdu) izin verip sayfayı yenileyin.
             </p>
           )}
 
