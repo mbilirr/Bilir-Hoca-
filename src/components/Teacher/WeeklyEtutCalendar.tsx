@@ -667,7 +667,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                       <button
                         type="button"
                         onClick={() => onAddEtutForDate(day.dateKey)}
-                        className="p-1 hover:bg-surface-2 text-muted hover:text-indigo-600 rounded-md cursor-pointer"
+                        className="p-1 hover:bg-surface-2 text-muted hover:text-brand-fg rounded-md cursor-pointer"
                         title={`${day.dayName} gününe etüt ekle`}
                         aria-label={`${day.dayName} gününe etüt ekle`}
                       >

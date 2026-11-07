@@ -350,7 +350,7 @@ export const TeacherAnnouncements: React.FC = () => {
                   {confirmDeleteId === g.groupId ? (
                     <span className="inline-flex items-center gap-2 text-xs">
                       <span className="text-rose-700 dark:text-rose-300 font-semibold">Öğrencilerden de kaldırılsın mı?</span>
-                      <button type="button" onClick={() => handleDelete(g.groupId)} className="font-bold text-rose-600 hover:underline cursor-pointer">
+                      <button type="button" onClick={() => handleDelete(g.groupId)} className="font-bold text-danger-fg hover:underline cursor-pointer">
                         Evet, sil
                       </button>
                       <button type="button" onClick={() => setConfirmDeleteId(null)} className="font-semibold text-muted hover:underline cursor-pointer">
@@ -361,7 +361,7 @@ export const TeacherAnnouncements: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(g.groupId)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-rose-600 cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-danger-fg cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Sil
                     </button>

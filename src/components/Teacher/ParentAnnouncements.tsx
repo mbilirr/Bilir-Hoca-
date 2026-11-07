@@ -329,7 +329,7 @@ export const ParentAnnouncements: React.FC = () => {
               </span>
             </label>
           </div>
-          {!toParents && !toStudents && <p className="text-[11px] text-rose-600">En az bir alıcı seçin.</p>}
+          {!toParents && !toStudents && <p className="text-[11px] text-danger-fg">En az bir alıcı seçin.</p>}
           {single && (
             <div className="space-y-1.5" id="pa-veli-sec">
               <span className="text-xs font-semibold text-fg-2">Hangi velilere? ({single.name})</span>
@@ -404,7 +404,7 @@ export const ParentAnnouncements: React.FC = () => {
               <label htmlFor="pa-text" className="block text-xs font-semibold text-fg-2">
                 Mesaj
               </label>
-              <span className={`text-[10px] tabular-nums ${smsTooLong ? 'text-rose-600 font-bold' : 'text-muted'}`}>
+              <span className={`text-[10px] tabular-nums ${smsTooLong ? 'text-danger-fg font-bold' : 'text-muted'}`}>
                 {message.length}/{limit}
               </span>
             </div>
@@ -417,7 +417,7 @@ export const ParentAnnouncements: React.FC = () => {
               placeholder="Duyuru metnini yazın…"
               className="w-full px-3 py-2.5 bg-surface-2 border border-line rounded-xl text-sm text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
             />
-            {smsTooLong && <p className="text-[11px] text-rose-600 mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
+            {smsTooLong && <p className="text-[11px] text-danger-fg mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
           </div>
         </div>
 

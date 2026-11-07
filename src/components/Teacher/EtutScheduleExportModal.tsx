@@ -291,7 +291,7 @@ export const EtutScheduleExportModal: React.FC<Props> = ({ onClose, etuts, stude
 
         {result.missingCount > 0 && (
           <div role="alert" id="etut-schedule-missing" className="flex items-start gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2 text-xs text-fg-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <AlertTriangle className="w-4 h-4 shrink-0 text-warning-fg" />
             <span>
               Etütlere atanmış {result.missingCount} öğrenci kaydına ulaşılamadı (kayıt silinmiş olabilir ya da bu öğrenciyi görme yetkiniz yok). Bu kayıtlar listeye alınamadı.
             </span>
