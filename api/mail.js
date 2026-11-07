@@ -787,7 +787,7 @@ function istanbulToday() {
 }
 async function loadAttendanceContext(token) {
   const { etutId, teacherId } = readAttendanceToken(token);
-  const rows = await rest(`etuts?select=*&id=eq.${encodeURIComponent(etutId)}`, { token: 'service' });
+  const rows = await restEtuts(`id=eq.${encodeURIComponent(etutId)}`);
   const row = rows && rows[0];
   if (!row) throw new HttpError(404, 'Bu etüt silinmiş ya da bulunamadı.');
   const etut = etutView(row);
@@ -888,13 +888,41 @@ async function actionAttendanceSave(body) {
     };
     if (!next[id].topic) delete next[id].topic;
   }
-  const meta = { ...(c.meta || {}), __etut_meta__: true, studentAttendance: next, attendanceTakenBy: { name: teacherName, at: now, via: 'link' } };
-  await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
-    token: 'service',
-    method: 'PATCH',
-    body: { notes: JSON.stringify(meta) },
-    prefer: 'return=minimal',
-  });
+  const takenBy = { name: teacherName, at: now, via: 'link' };
+  if (Array.isArray(c.row.etut_yoklama)) {
+    // Aşama 179: yalnız bu bağlantıyla işaretlenen öğrencilerin satırı yazılır; diğer öğrencilerin yoklamasına,
+    // öğretmen görüşüne ve etüt notuna dokunulmaz (eskiden bütün notes yeniden yazılıyordu)
+    await rest('etut_yoklama?on_conflict=etut_id,student_id', {
+      token: 'service',
+      method: 'POST',
+      body: entries.map(([id]) => ({
+        etut_id: c.etut.id,
+        student_id: id,
+        student_name: next[id].studentName || null,
+        status: next[id].status,
+        note: next[id].note || '',
+        topic: next[id].topic || '',
+        marked_by: teacherName,
+        marked_at: now,
+        changed_at: now,
+      })),
+      prefer: 'resolution=merge-duplicates,return=minimal',
+    });
+    await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
+      token: 'service',
+      method: 'PATCH',
+      body: { attendance_taken_by: takenBy },
+      prefer: 'return=minimal',
+    });
+  } else {
+    const meta = { ...(c.meta || {}), __etut_meta__: true, studentAttendance: next, attendanceTakenBy: takenBy };
+    await rest(`etuts?id=eq.${encodeURIComponent(c.etut.id)}`, {
+      token: 'service',
+      method: 'PATCH',
+      body: { notes: JSON.stringify(meta) },
+      prefer: 'return=minimal',
+    });
+  }
   // Öğrencinin genel devamsızlık kaydına da yansıt (sistemdeki yoklama penceresiyle aynı kural)
   try {
     const first = c.students.find((s) => next[s.id]);
@@ -2347,12 +2375,58 @@ async function homeworkStudents(hw, token) {
   if (ids.length) return studentsByIds(ids, token);
   return studentsByClasses(arr(hw.target_class_ids), token);
 }
+// Aşama 179: yoklama ayrı tabloda, yorumlar ayrı sütunda (sql/178). Etüt satırı yoklamasıyla tek istekte okunur.
+const ETUT_YOKLAMA_EMBED = 'etut_yoklama(student_id,student_name,status,note,topic,marked_by,marked_at,changed_at)';
+let etutYoklamaEmbed = true;
+async function restEtuts(filter) {
+  if (etutYoklamaEmbed) {
+    try {
+      return await rest(`etuts?select=*,${ETUT_YOKLAMA_EMBED}&${filter}`, { token: 'service' });
+    } catch (err) {
+      // yalnız "tablo / ilişki yok" hatasında (sql/178 kurulmamış) eski okumaya geçilir; başka hata aynen döner
+      const t = `${(err && err.code) || ''} ${(err && err.message) || ''}`;
+      if (!/etut_yoklama/.test(t) || !/PGRST200|PGRST205|42P01|relationship|does not exist|Could not find/i.test(t)) throw err;
+      etutYoklamaEmbed = false;
+    }
+  }
+  return rest(`etuts?select=*&${filter}`, { token: 'service' });
+}
+function isoOf(v) {
+  const t = Date.parse(String(v || ''));
+  return Number.isNaN(t) ? undefined : new Date(t).toISOString();
+}
+function yoklamaRowsToAttendance(list) {
+  const out = {};
+  for (const y of Array.isArray(list) ? list : []) {
+    if (!y || !y.student_id) continue;
+    const a = { studentId: y.student_id, status: y.status, note: y.note || '' };
+    if (y.student_name) a.studentName = y.student_name;
+    if (y.topic) a.topic = y.topic;
+    if (y.marked_by) a.markedBy = y.marked_by;
+    const at = isoOf(y.marked_at);
+    if (at) a.markedAt = at;
+    const ch = isoOf(y.changed_at);
+    if (ch) a.updatedAt = ch;
+    out[y.student_id] = a;
+  }
+  return out;
+}
 function parseEtutMeta(row) {
+  let meta = null;
   try {
-    if (row.notes && typeof row.notes === 'object') return row.notes;
-    if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) return JSON.parse(row.notes);
+    if (row.notes && typeof row.notes === 'object') meta = { ...row.notes };
+    else if (typeof row.notes === 'string' && row.notes.trim().startsWith('{')) meta = JSON.parse(row.notes);
   } catch {}
-  return { userNotes: typeof row.notes === 'string' ? row.notes : '' };
+  if (!meta || typeof meta !== 'object') meta = { userNotes: typeof row.notes === 'string' ? row.notes : '' };
+  // Aşama 179: yeni yapı okunduysa o geçerlidir (notes geçiş boyunca aynı veriyi taşır)
+  if (Array.isArray(row.etut_yoklama)) {
+    const base = meta.studentAttendance && typeof meta.studentAttendance === 'object' ? meta.studentAttendance : {};
+    meta.studentAttendance = { ...base, ...yoklamaRowsToAttendance(row.etut_yoklama) };
+  }
+  if (typeof row.user_notes === 'string') meta.userNotes = row.user_notes;
+  if (typeof row.teacher_feedback === 'string') meta.teacherFeedback = row.teacher_feedback;
+  if (row.attendance_taken_by && typeof row.attendance_taken_by === 'object') meta.attendanceTakenBy = row.attendance_taken_by;
+  return meta;
 }
 function etutView(row) {
   const meta = parseEtutMeta(row);
@@ -2821,7 +2895,7 @@ function safeEqual(a, b) {
 
 async function actionEtutReminders(req, deadline) {
   const now = istanbulNow();
-  const rows = await rest(`etuts?select=*&date=like.${now.date}*`, { token: 'service' });
+  const rows = await restEtuts(`date=like.${now.date}*`);
   const url = appUrl(req);
   const out = { ok: true, date: now.date, scheduled: 0, due: 0, leftover: 0, total: null };
   const due = [];
@@ -2959,7 +3033,7 @@ async function actionNoAttendanceAlerts(req, deadline) {
   const from = addDaysStr(now.date, -NOATT_LOOKBACK_DAYS);
   const to = addDaysStr(now.date, 1);
   const out = { checked: 0, due: 0, sent: 0, failed: 0, skipped: 0, noEmail: 0 };
-  const rows = await rest(`etuts?select=*&date=gte.${from}&date=lt.${to}`, { token: 'service' });
+  const rows = await restEtuts(`date=gte.${from}&date=lt.${to}`);
   const url = appUrl(req);
   const cache = { teacherKurum: new Map(), admins: new Map() };
   const items = [];

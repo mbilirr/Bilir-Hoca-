@@ -362,6 +362,21 @@ function parseEtutMeta(row) {
   } catch {}
   return {};
 }
+// Aşama 179: yoklama ayrı tabloda (sql/178). Yoklama var mı bilgisi etütle tek istekte okunur.
+let etutYoklamaEmbed = true;
+async function restEtuts(filter) {
+  if (etutYoklamaEmbed) {
+    try {
+      return await rest(`etuts?select=*,etut_yoklama(student_id)&${filter}`, { token: 'service' });
+    } catch (err) {
+      // yalnız "tablo / ilişki yok" hatasında (sql/178 kurulmamış) eski okumaya geçilir
+      const t = String((err && err.message) || '');
+      if (!/etut_yoklama/.test(t) || !/PGRST200|PGRST205|42P01|relationship|does not exist|Could not find/i.test(t)) throw err;
+      etutYoklamaEmbed = false;
+    }
+  }
+  return rest(`etuts?select=*&${filter}`, { token: 'service' });
+}
 export function etutInfo(row) {
   const meta = parseEtutMeta(row);
   const att = meta.studentAttendance;
@@ -377,7 +392,7 @@ export function etutInfo(row) {
     location: row.location || '',
     teacherIds: uniq([row.etut_teacher_id || meta.teacherId, ...arr(row.etut_teacher_ids), ...arr(meta.teacherIds)]),
     studentIds: arr(row.assigned_student_ids),
-    hasAttendance: !!att && typeof att === 'object' && Object.keys(att).length > 0,
+    hasAttendance: (Array.isArray(row.etut_yoklama) && row.etut_yoklama.length > 0) || (!!att && typeof att === 'object' && Object.keys(att).length > 0),
     expectsAttendance: arr(row.assigned_student_ids).length > 0 || meta.assignedStudentIds === 'all' || (Array.isArray(meta.assignedStudentIds) && meta.assignedStudentIds.length > 0),
   };
 }
@@ -399,7 +414,7 @@ const QUIET_END = 7 * 60 + 30;
 
 async function tickEtutSoon(now, deadline) {
   let out = EMPTY;
-  const rows = await rest(`etuts?select=*&date=like.${now.date}*`, { token: 'service' });
+  const rows = await restEtuts(`date=like.${now.date}*`);
   for (const row of rows || []) {
     if (!row || typeof row.id !== 'string' || row.id.startsWith('__')) continue;
     const e = etutInfo(row);
@@ -421,7 +436,7 @@ async function tickEtutSoon(now, deadline) {
 async function tickNoAttendance(now, deadline) {
   let out = EMPTY;
   const nowAbs = absMinutes(now.date, now.minutes);
-  const rows = await rest(`etuts?select=*&date=gte.${addDaysStr(now.date, -1)}&date=lt.${addDaysStr(now.date, 1)}`, { token: 'service' });
+  const rows = await restEtuts(`date=gte.${addDaysStr(now.date, -1)}&date=lt.${addDaysStr(now.date, 1)}`);
   for (const row of rows || []) {
     if (!row || typeof row.id !== 'string' || row.id.startsWith('__')) continue;
     const e = etutInfo(row);
