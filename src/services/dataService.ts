@@ -1091,6 +1091,9 @@ type EtutPushOpts = {
 };
 const ETUT_COMMENT_KEYS: EtutCommentKey[] = ['teacherFeedback', 'notes', 'attendanceTakenBy'];
 
+// Aşama 193: ham satırları bellekte tutulup artımlı okunan tablolar (fetchRowsSmart)
+type RawTable = 'students' | 'student_contacts' | 'teachers' | 'classes' | 'deleted_records';
+
 class DataService {
   private static instance: DataService;
 
@@ -1870,7 +1873,8 @@ class DataService {
     this.tombstonesFetchedAt = Date.now();
     try {
       if (DataService.deletedRecordsTable !== 'no') {
-        const { data, error } = await this.fetchAllRows('deleted_records', undefined, { columns: 'id,kind,record_id' });
+        // Aşama 193: liste artımlı okunur (yalnız yeni silinenler iner; ilk okuma tam)
+        const { data, error } = await this.fetchRowsSmart('deleted_records', true, 'id,kind,record_id');
         if (!error && Array.isArray(data)) {
           DataService.deletedRecordsTable = 'yes';
           const pick = (k: string) => data.filter((r: any) => r.kind === k).map((r: any) => String(r.record_id));
@@ -2759,18 +2763,18 @@ class DataService {
     return /student_contacts/i.test(msg) && /Could not find the table|relation .* does not exist/i.test(msg);
   }
   /** Öğrenci satırlarını iletişim bilgisiyle birlikte okur (korumalı tablo varsa ondan) */
-  private async fetchStudentRowsWithContacts(): Promise<{ data: any[] | null; error: any }> {
+  private async fetchStudentRowsWithContacts(isBackground = false): Promise<{ data: any[] | null; error: any }> {
     if (DataService.contactsMode !== 'legacy') {
-      // hız: iki okuma aynı anda yapılır
+      // hız: iki okuma aynı anda yapılır. Aşama 193: ikisi de artımlı (yalnız değişen satırlar iner)
       const [contacts, rows] = await Promise.all([
-        this.fetchAllRows('student_contacts', undefined, { columns: 'id,email,phone,parents' }),
-        this.fetchAllRows('students', undefined, { columns: DataService.STUDENT_SAFE_COLUMNS }),
+        this.fetchRowsSmart('student_contacts', isBackground, 'id,email,phone,parents'),
+        this.fetchRowsSmart('students', isBackground, DataService.STUDENT_SAFE_COLUMNS),
       ]);
       if (!contacts.error) {
         DataService.contactsMode = 'table';
         if (rows.error && !DataService.genderMissing.students && this.isMissingGenderColumn(rows.error)) {
           DataService.genderMissing.students = true; // Aşama 171: SQL henüz kurulmadı
-          return this.fetchStudentRowsWithContacts();
+          return this.fetchStudentRowsWithContacts(isBackground);
         }
         if (rows.error) return rows;
         const byId = new Map<string, any>((contacts.data || []).map((c: any) => [String(c.id), c]));
@@ -2958,7 +2962,7 @@ class DataService {
       await this.syncTombstonesFromCloud();
 
       // 1. Fetch individual rows from students table
-      const { data: remoteStudents, error: errStd } = await this.fetchStudentRowsWithContacts(); // Aşama 85
+      const { data: remoteStudents, error: errStd } = await this.fetchStudentRowsWithContacts(isBackground); // Aşama 85, 193
       if (errStd) {
         console.warn('Error fetching students from Supabase:', errStd);
         return this.students;
@@ -3311,7 +3315,7 @@ class DataService {
   }
 
   private async fetchTableSmart(
-    table: 'messages' | 'grades' | 'attendance' | 'etuts' | 'etut_yoklama',
+    table: 'messages' | 'grades' | 'attendance' | 'etuts' | 'etut_yoklama' | RawTable,
     isBackground: boolean,
     localIds: () => Iterable<string>,
     opts: { order?: string; ascending?: boolean; columns?: string },
@@ -3343,7 +3347,9 @@ class DataService {
     let removed: Set<string> | null = null;
     // Aşama 112: etüt başka öğretmene verilince eski öğretmene "değişti" olayı gelmez (satır artık ona görünmez);
     // etütlerde kimlik listesi her yenilemede sorulur (yalnız "id" sütunu; 111 öncesindeki tam okumadan çok küçük)
-    if (table === 'etuts' || Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
+    // Aşama 193: öğrenci / öğretmen / sınıf / iletişim satırları da yetki değişince görünür ya da görünmez olur
+    // (satırın kendisi değişmeden); bunlarda da kimlik listesi her yenilemede sorulur (yalnız "id" sütunu)
+    if (table === 'etuts' || DataService.IDS_EVERY_SYNC.has(table) || Date.now() - st.idsAt >= DataService.DELTA_RECONCILE_MS) {
       const ids = await this.fetchAllRows(table, undefined, { columns: 'id' });
       if (!ids.error && Array.isArray(ids.data)) {
         const server = new Set<string>(ids.data.map((r: any) => String(r.id)));
@@ -3367,6 +3373,40 @@ class DataService {
     for (const row of rows) if (row && typeof row.updated_at === 'string' && row.updated_at > mark) mark = row.updated_at;
     st.mark = mark;
     return { mode: 'delta', data: rows, removed };
+  }
+
+  // ===========================================================================
+  // Aşama 193: ÖĞRENCİ / ÖĞRETMEN / SINIF / İLETİŞİM / SİLİNEN KAYIT LİSTELERİ DE ARTIMLI (sql/193)
+  // Sunucudan gelen ham satırlar tablo başına bellekte tutulur; sonraki eşitlemelerde yalnız değişen satırlar
+  // (ve kimlik listesi) indirilip bu listeye işlenir. Çağıran yine TAM satır listesini alır, böylece ekranlara
+  // giden birleştirme kodu değişmez ve sonuç tam okumayla aynıdır. sql/193 kurulu değilse her şey eskisi gibi
+  // tam okunur. Öğrenci rolü her zaman tam okur.
+  // ===========================================================================
+  private rawRows = new Map<string, Map<string, any>>();
+  private static readonly IDS_EVERY_SYNC = new Set<string>(['students', 'student_contacts', 'teachers', 'classes']);
+
+  private async fetchRowsSmart(table: RawTable, isBackground: boolean, columns: string): Promise<{ data: any[] | null; error: any }> {
+    const delta = this.getAuthSession()?.role !== 'student' && (await this.deltaTables()).has(table);
+    const cols = delta && columns !== '*' && !columns.split(',').includes('updated_at') ? `${columns},updated_at` : columns;
+    const full = () => this.fetchAllRows(table, undefined, { columns: cols });
+    if (!delta) {
+      this.rawRows.delete(table);
+      this.deltaState.delete(table);
+      return full();
+    }
+    const cache = this.rawRows.get(table);
+    if (!cache) this.deltaState.delete(table); // bellekte liste yoksa ilk okuma tam yapılır
+    const res = await this.fetchTableSmart(table, isBackground, () => (cache ? cache.keys() : []), { columns: cols }, full);
+    if (res.mode === 'error') return { data: null, error: res.error };
+    if (res.mode === 'full' || !cache) {
+      const m = new Map<string, any>();
+      for (const r of res.data) if (r && r.id != null) m.set(String(r.id), r);
+      this.rawRows.set(table, m);
+      return { data: res.data, error: null };
+    }
+    if (res.removed) for (const id of res.removed) cache.delete(id);
+    for (const r of res.data) if (r && r.id != null) cache.set(String(r.id), r);
+    return { data: Array.from(cache.values()), error: null };
   }
 
   /** Değişen satırları listeye uygular (aynı kalan kayıt eski nesnesiyle kalır). Değişiklik yoksa null. */
@@ -6679,15 +6719,23 @@ class DataService {
     }
   }
 
+  // Aşama 193: öğretmen eşitlemesinin okuduğu sütunlar (eskiden select('*'))
+  private static get TEACHER_COLUMNS(): string {
+    return 'id,name,username,email,branch,avatar,role,status,is_admin,created_at,auth_user_id,kurum_id' + (DataService.genderMissing.teachers ? '' : ',gender');
+  }
+
   public async syncTeachersFromSupabase(isBackground = false): Promise<Teacher[]> {
     // Gerçek (Supabase Auth) oturum yoksa buluttan okuma yapma: RLS boş liste döndürür
     // ve yerel veriler yanlışlıkla silinmiş gibi görünür.
     if (!(await this.hasCloudSession())) return this.teachers;
     try {
       // Doğrudan public.teachers tablosundan sorgula (homeworks hack'i kullanılmaz)
-      const { data: remoteRows, error } = await supabase
-        .from('teachers')
-        .select('*');
+      // Aşama 193: sütunlar açıkça yazılır ve yalnız değişen satırlar iner (sql/193)
+      let { data: remoteRows, error } = await this.fetchRowsSmart('teachers', isBackground, DataService.TEACHER_COLUMNS);
+      if (error && !DataService.genderMissing.teachers && this.isMissingGenderColumn(error)) {
+        DataService.genderMissing.teachers = true; // Aşama 171 SQL'i kurulmamış
+        ({ data: remoteRows, error } = await this.fetchRowsSmart('teachers', isBackground, DataService.TEACHER_COLUMNS));
+      }
 
       if (error) {
         if (!isBackground) {
@@ -7344,6 +7392,7 @@ class DataService {
     this.rtFlushTimer = null;
     this.rtQueue = { messages: [], grades: [], attendance: [] };
     this.deltaState.clear();
+    this.rawRows.clear(); // Aşama 193
     this.deltaReady = null;
     this.students = [];
     this.classes = [];
@@ -8061,7 +8110,7 @@ class DataService {
       await this.syncTombstonesFromCloud();
 
       // 1. Fetch from Supabase classes table (Central DB is source of truth)
-      const { data: remoteClasses, error: errCls } = await this.fetchAllRows('classes');
+      const { data: remoteClasses, error: errCls } = await this.fetchRowsSmart('classes', isBackground, '*'); // Aşama 193: artımlı
       if (errCls) {
         if (!isBackground) {
           console.warn('Error fetching classes from Supabase:', errCls);
