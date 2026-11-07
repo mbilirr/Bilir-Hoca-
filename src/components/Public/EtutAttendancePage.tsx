@@ -147,7 +147,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
           </span>
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-fg">Etüt Yoklaması</h1>
-            <p className="text-xs text-muted truncate">{data ? `Merhaba ${data.teacherName || 'öğretmenim'}` : 'Eğitim Takip'}</p>
+            <p className="text-xs text-muted truncate">{data ? `Merhaba ${data.teacherName || 'öğretmenim'}` : 'biliredu'}</p>
           </div>
         </div>
       </header>

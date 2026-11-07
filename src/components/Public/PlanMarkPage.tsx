@@ -102,7 +102,7 @@ export const PlanMarkPage: React.FC<{ token: string }> = ({ token }) => {
           <div className="min-w-0">
             <h1 className="text-lg font-bold text-fg">Haftalık Çalışma Planım</h1>
             <p className="text-xs text-muted truncate">
-              {data ? `${data.studentName}${data.className ? ` · ${data.className}` : ''} · ${data.weekLabel}` : 'Eğitim Takip'}
+              {data ? `${data.studentName}${data.className ? ` · ${data.className}` : ''} · ${data.weekLabel}` : 'biliredu'}
             </p>
           </div>
         </div>
