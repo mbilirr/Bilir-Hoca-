@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InfoTip } from '../ui/Compact'; // Aşama 187
-import { loginLinkFor } from '../../lib/loginBrand'; // Aşama 188
 import { Building2, ImagePlus, Trash2, Save, Mail, Link2, Unlink, ShieldCheck, Loader2, Info, LayoutGrid, AlertTriangle } from 'lucide-react';
 import { dataService, KURUM_MODULES } from '../../services/dataService';
 import { Panel, Modal, cx } from '../ui/kit';
@@ -360,28 +359,6 @@ export const KurumSettingsPanel: React.FC<{ kurumId?: string; part?: 'all' | 'ge
                 <button type="button" className={cx(BTN, 'ui-btn-primary')} onClick={saveIdentity} disabled={!idDirty || savingId || name.trim().length < 2}>
                   {savingId ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Kaydet
                 </button>
-              </div>
-              {/* Aşama 188: kuruma özel giriş bağlantısı */}
-              <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-2/50 px-2.5 py-1.5" id="kurum-login-link">
-                <Link2 className="w-3.5 h-3.5 text-brand-fg shrink-0" />
-                <span className="text-[11px] font-semibold text-fg-2 shrink-0">Giriş bağlantısı</span>
-                <span className="text-[11px] text-muted truncate flex-1 min-w-0" title={loginLinkFor(kurum.id)}>
-                  {loginLinkFor(kurum.id)}
-                </span>
-                <button
-                  type="button"
-                  className={cx(BTN, 'ui-btn-secondary shrink-0')}
-                  onClick={() => {
-                    const link = loginLinkFor(kurum.id);
-                    navigator.clipboard?.writeText(link).then(
-                      () => dataService.showToast('Giriş bağlantısı kopyalandı.', 'success'),
-                      () => dataService.showToast('Kopyalanamadı; bağlantıyı elle seçip kopyalayın.', 'error')
-                    );
-                  }}
-                >
-                  Kopyala
-                </button>
-                <InfoTip text="Bu bağlantıyla açılan giriş ekranında, ilk girişten önce de kurumunuzun adı ve logosu görünür. Velilere ve öğrencilere WhatsApp ya da e-postayla gönderebilirsiniz." />
               </div>
               {/* Aşama 187: kısaltıldı, ayrıntı ⓘ içinde */}
               <p className="text-[11px] text-muted flex items-center gap-1">
