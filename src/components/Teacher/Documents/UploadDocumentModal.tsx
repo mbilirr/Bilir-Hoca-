@@ -259,10 +259,10 @@ const UploadDocumentModalContent: React.FC<UploadDocumentModalProps> = ({
       id="upload-document-modal"
       footer={
         <>
-          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary h-10">
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-secondary">
             İptal
           </button>
-          <button type="submit" form="upload-document-form" disabled={isProcessing || !selectedFile} className="ui-btn ui-btn-primary h-10">
+          <button type="submit" form="upload-document-form" disabled={isProcessing || !selectedFile} className="ui-btn ui-btn-primary">
             {isProcessing ? (
               <>
                 <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" aria-hidden />
