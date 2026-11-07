@@ -99,7 +99,7 @@ ${params.outcomes && params.outcomes.length > 0 ? `KAZANIMLAR:\n${params.outcome
 Ödevinizi hazırlayıp zamanında teslim etmenizi rica eder, iyi çalışmalar dileriz.
 
 ${params.teacherName}
-Eğitim & Öğrenci Takip Sistemi
+biliredu
 `.trim();
 
   const hp = escapeParams(params);
@@ -191,7 +191,7 @@ Eğitim & Öğrenci Takip Sistemi
     </div>
 
     <div class="footer">
-      <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
+      <div>Bu bilgilendirme e-postası <strong>biliredu</strong> tarafından otomatik olarak oluşturulmuştur.</div>
       <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>
@@ -224,7 +224,7 @@ ${params.notes ? `NOTLAR: ${params.notes}\n` : ''}${params.teacherFeedback ? `Ö
 Lütfen belirtilen tarih ve saatte derslikte hazır bulununuz.
 
 ${params.teacherName}
-Eğitim & Öğrenci Takip Sistemi
+biliredu
 `.trim();
 
   const hp = escapeParams(params);
@@ -323,7 +323,7 @@ Eğitim & Öğrenci Takip Sistemi
     </div>
 
     <div class="footer">
-      <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
+      <div>Bu bilgilendirme e-postası <strong>biliredu</strong> tarafından otomatik olarak oluşturulmuştur.</div>
       <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>
@@ -475,7 +475,7 @@ Eğitim Portalı Yönetimi
     </div>
 
     <div class="footer">
-      <div>Bu bilgilendirme e-postası <strong>Eğitim & Öğrenci Takip Sistemi</strong> tarafından otomatik olarak oluşturulmuştur.</div>
+      <div>Bu bilgilendirme e-postası <strong>biliredu</strong> tarafından otomatik olarak oluşturulmuştur.</div>
       <div class="teacher-sig">${hp.teacherName} • Danışman / Branş Öğretmeni</div>
     </div>
   </div>

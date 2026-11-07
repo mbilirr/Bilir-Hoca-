@@ -66,7 +66,7 @@ export function downloadIcsFile(filename: string, title: string, description: st
   const icsContent = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Egitim Takip Sistemi//TR',
+    'PRODID:-//biliredu//TR',
     'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT',
     `SUMMARY:${title}`,

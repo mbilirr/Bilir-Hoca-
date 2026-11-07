@@ -29,7 +29,7 @@ export interface BiometricProfile {
 }
 
 const STORE_KEY = (role: BiometricRole) => `edu_biometric_login_${role}_v1`;
-const RP_NAME = 'Eğitim & Öğrenci Takip Sistemi';
+const RP_NAME = 'biliredu';
 
 // ---------------------------------------------------------------------------- yardımcılar
 const toB64u = (buf: ArrayBuffer | Uint8Array): string => {
