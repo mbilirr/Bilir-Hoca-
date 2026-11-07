@@ -2700,14 +2700,9 @@ class DataService {
   private static contactsMode: 'unknown' | 'table' | 'legacy' = 'unknown';
   /** İletişim bilgisi veritabanından okunabilen öğrenciler (yalnızca bunların bilgisi geri yazılır) */
   private contactKnown = new Set<string>();
-  // Aşama 175: yalnız "student_contacts tablosu yok" hatası eski yola düşürür. Eskiden "does not exist" / "schema cache"
-  // geçen her hata (ör. bir kuralın içindeki işlev) oturum boyunca eski yola geçirip students için select('*')
-  // yaptırıyordu; kapalı sütunlar yüzünden o okuma da reddedilince öğrenci listesi boş kalıyordu.
   private isMissingTable(error: any): boolean {
-    const code = String(error?.code || '');
-    if (code === 'PGRST205' || code === '42P01') return true;
-    const msg = String(error?.message || '');
-    return /student_contacts/i.test(msg) && /Could not find the table|relation .* does not exist/i.test(msg);
+    const msg = `${error?.code || ''} ${error?.message || ''}`;
+    return /PGRST205|PGRST202|42P01|Could not find the table|schema cache|does not exist/i.test(msg);
   }
   /** Öğrenci satırlarını iletişim bilgisiyle birlikte okur (korumalı tablo varsa ondan) */
   private async fetchStudentRowsWithContacts(): Promise<{ data: any[] | null; error: any }> {
@@ -6181,7 +6176,7 @@ class DataService {
     return teacher.username || typed;
   }
 
-  // Aşama 173: son öğretmen girişinin GERÇEK e-postası (sistem adresi …@okul.internal.net ise boş döner).
+  // Aşama 174: son öğretmen girişinin GERÇEK e-postası (sistem adresi …@okul.internal.net ise boş döner).
   // "Beni hatırla" kaydına gizli alan olarak yazılır; kutuda kullanıcı adı görünür, giriş bu adresle yapılır.
   public realTeacherLoginEmail(): string {
     const e = this.lastTeacherLoginEmail;
@@ -6584,10 +6579,6 @@ class DataService {
       let newPendingCount = 0;
       const localTeacherMap = new Map<string, Teacher>();
       this.teachers.forEach((t) => localTeacherMap.set(t.id, t));
-      // Aşama 175: kayıtlar yerinde değiştirilmez; değişen öğretmen için yeni nesne üretilir, değişmeyen eski
-      // nesnesini korur (ekranlar yalnız değişeni yeniden çizer). Hiçbir şey değişmediyse liste aynı kalır.
-      const newcomers: Teacher[] = [];
-      const replaced = new Map<string, Teacher>();
 
       for (const row of remoteRows) {
         if (!row.id || this.deletedTeacherIds.has(row.id)) continue;
@@ -6616,76 +6607,71 @@ class DataService {
             kurumId: row.kurum_id || null,
           };
 
-          newcomers.push(newTeacher);
+          this.teachers.unshift(newTeacher);
           localTeacherMap.set(row.id, newTeacher);
           changed = true;
           if (newTeacher.status === 'pending') {
             newPendingCount++;
           }
         } else {
-          // Mevcut öğretmen: veritabanı verileriyle güncelle (kopya üzerinde)
+          // Mevcut öğretmen: veritabanı verileriyle güncelle
           let updated = false;
-          const prev = localT;
-          const localT2: Teacher = { ...prev };
 
-          if (row.name && row.name !== localT2.name) {
-            localT2.name = row.name;
+          if (row.name && row.name !== localT.name) {
+            localT.name = row.name;
             updated = true;
           }
-          if (row.username && row.username !== localT2.username) {
-            localT2.username = row.username;
+          if (row.username && row.username !== localT.username) {
+            localT.username = row.username;
             updated = true;
           }
-          // Aşama 175: başka cihazda silinen e-posta / fotoğraf da taşınır (eskiden boş değer atlanıyordu)
-          if ('email' in row && (row.email || '') !== (localT2.email || '')) {
-            localT2.email = row.email || '';
+          if (row.email && row.email !== localT.email) {
+            localT.email = row.email;
             updated = true;
           }
-          if (row.branch && row.branch !== localT2.branch) {
-            localT2.branch = row.branch;
+          if (row.branch && row.branch !== localT.branch) {
+            localT.branch = row.branch;
             updated = true;
           }
-          if ('avatar' in row && (row.avatar || undefined) !== (localT2.avatar || undefined)) {
-            localT2.avatar = row.avatar || undefined;
+          if (row.avatar && row.avatar !== localT.avatar) {
+            localT.avatar = row.avatar;
             updated = true;
           }
-          if ('gender' in row && DataService.normGender(row.gender) !== localT2.gender) {
-            localT2.gender = DataService.normGender(row.gender); // Aşama 171
+          if ('gender' in row && DataService.normGender(row.gender) !== localT.gender) {
+            localT.gender = DataService.normGender(row.gender); // Aşama 171
             updated = true;
           }
-          if (row.auth_user_id && row.auth_user_id !== localT2.auth_user_id) {
-            localT2.auth_user_id = row.auth_user_id;
+          if (row.auth_user_id && row.auth_user_id !== localT.auth_user_id) {
+            localT.auth_user_id = row.auth_user_id;
             updated = true;
           }
-          if (row.status && row.status !== localT2.status) {
-            localT2.status = row.status;
+          if (row.status && row.status !== localT.status) {
+            localT.status = row.status;
             updated = true;
           }
           const remoteSuspended = row.status === 'suspended';
-          if (!!localT2.isSuspended !== remoteSuspended) {
-            localT2.isSuspended = remoteSuspended;
+          if (!!localT.isSuspended !== remoteSuspended) {
+            localT.isSuspended = remoteSuspended;
             updated = true;
           }
-          if (localT2.isAdmin !== remoteIsAdmin) {
-            localT2.isAdmin = remoteIsAdmin;
+          if (localT.isAdmin !== remoteIsAdmin) {
+            localT.isAdmin = remoteIsAdmin;
             updated = true;
           }
-          if ('kurum_id' in row && (row.kurum_id || null) !== (localT2.kurumId || null)) {
-            localT2.kurumId = row.kurum_id || null;
+          if ('kurum_id' in row && (row.kurum_id || null) !== (localT.kurumId || null)) {
+            localT.kurumId = row.kurum_id || null;
             updated = true;
           }
 
           if (updated) {
             changed = true;
-            replaced.set(row.id, localT2);
-            localTeacherMap.set(row.id, localT2);
             const currentSession = this.getAuthSession();
             if (currentSession?.role === 'teacher' && currentSession.user.id === row.id) {
               this.setAuthSession({
                 ...currentSession,
                 user: {
                   ...currentSession.user,
-                  ...localT2,
+                  ...localT,
                 },
               });
             }
@@ -6697,11 +6683,10 @@ class DataService {
       // (ör. her yeni cihazda yerelde otomatik oluşturulan 'teacher-1' yönetici kopyası)
       // artık buluta YÜKLENMEZ, yerelden kaldırılır. Önceki davranış çift admin kaydı üretiyordu.
       const remoteIdSet = new Set(remoteRows.map((r: any) => r.id));
-      const kept = this.teachers.filter((lt) => remoteIdSet.has(lt.id));
-      if (kept.length !== this.teachers.length) changed = true;
-      if (changed) {
-        const merged = kept.map((t) => replaced.get(t.id) || t);
-        this.teachers = newcomers.length ? [...newcomers.reverse(), ...merged] : merged;
+      const teacherCountBefore = this.teachers.length;
+      this.teachers = this.teachers.filter((lt) => remoteIdSet.has(lt.id));
+      if (this.teachers.length !== teacherCountBefore) {
+        changed = true;
       }
 
       if (changed) {
@@ -6785,13 +6770,18 @@ class DataService {
       );
       if (known?.email) candidates.push(known.email);
       if (known) candidates.push(this.canonicalAuthEmail('teacher', known.username || known.id));
-      // Aşama 173: giriş ekranında öğretmen listesi boştur; gerçek e-postayla açılmış hesap kullanıcı adıyla
+      // Aşama 174: giriş ekranında öğretmen listesi boştur; gerçek e-postayla açılmış hesap kullanıcı adıyla
       // ancak bu cihazdaki "beni hatırla" kaydındaki gizli adresle bulunur (sunucuya soru yok, e-posta sızmaz).
       const rem = this.getRememberedUser('teacher');
       const remId = (rem?.identifier || '').trim();
       if (rem?.loginEmail && remId && (remId.toLowerCase() === term || DataService.trLoginFold(remId) === folded)) {
         candidates.unshift(rem.loginEmail); // önce gerçek adres: boşa giden istek olmaz
       }
+      // Aşama 177: gerçek e-postalı TEK hesap genel yöneticidir (7 Kasım tanı CSV'si; create-user her zaman
+      // …@okul.internal.net üretir). Adresi zaten ADMIN_EMAIL olarak bu dosyada açık durur, yeni bilgi sızmaz.
+      // Beni hatırla kaydı olmayan cihazda da kullanıcı adıyla girilebilsin diye EN SONA eklenir:
+      // önce sistem adresleri denenir, yalnız onlar tutmazsa bir istek daha gider.
+      candidates.push(ADMIN_EMAIL);
     }
 
     // Giriş YALNIZCA Supabase Auth üzerinden yapılır (yerel şifre / arka kapı yoktur).
@@ -7261,7 +7251,7 @@ class DataService {
     className?: string;
     savedPassword?: string;
     deviceId?: string;
-    loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
+    loginEmail?: string; // Aşama 174: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
   } | null {
     const currentDeviceId = getLocalDeviceId();
     let saved: {
@@ -7273,7 +7263,7 @@ class DataService {
       className?: string;
       savedPassword?: string;
       deviceId?: string;
-      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
+      loginEmail?: string; // Aşama 174: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
     } | null = null;
 
     if (role === 'teacher') {
@@ -7288,7 +7278,7 @@ class DataService {
           className?: string;
           savedPassword?: string;
           deviceId?: string;
-          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
+          loginEmail?: string; // Aşama 174: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'teacher') saved = general;
       }
@@ -7304,7 +7294,7 @@ class DataService {
           className?: string;
           savedPassword?: string;
           deviceId?: string;
-          loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
+          loginEmail?: string; // Aşama 174: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
         } | null>(STORAGE_KEYS.REMEMBER_ME, null);
         if (general?.role === 'student') saved = general;
       }
@@ -7359,7 +7349,7 @@ class DataService {
           avatar: liveTeacher.avatar,
           branch: liveTeacher.branch,
           deviceId: saved.deviceId,
-          loginEmail: saved.loginEmail, // Aşama 173
+          loginEmail: saved.loginEmail, // Aşama 174
         };
       }
     } else if (saved.role === 'student') {
@@ -7406,7 +7396,7 @@ class DataService {
       className?: string;
       savedPassword?: string;
       deviceId?: string;
-      loginEmail?: string; // Aşama 173: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
+      loginEmail?: string; // Aşama 174: gerçek giriş e-postası (yalnız bu cihazda, kutuda görünmez)
     } | null,
     targetRole?: UserRole
   ): void {
@@ -7890,26 +7880,24 @@ class DataService {
     return (code === 'PGRST204' || code === '42703' || /column/i.test(msg)) && /description/i.test(msg);
   }
 
-  // Aşama 175: sınıf düzeyi (1–12). Önce "8. Sınıf" gibi düzey bilgisi, yoksa addaki ayrı duran 1–12 sayısı
-  // ("8/A", "8A", "11-B"); "LGS 2026", "Mezun", "Hazırlık" gibi adlarda 0 döner.
-  private static classLevelOf(cls: { gradeLevel?: string; name?: string }): number {
-    const pick = (t?: string) => {
-      const m = /(?:^|\D)(1[0-2]|[1-9])(?!\d)/.exec(String(t || ''));
-      return m ? parseInt(m[1], 10) : 0;
-    };
-    return pick(cls.gradeLevel) || pick(cls.name);
-  }
-
   public async syncClassToCloud(cls: ClassGroup): Promise<{ success: boolean; error?: any }> {
     try {
-      // Aşama 175: düzey yalnız 1–12 olarak okunur ("LGS 2026" artık 2026. sınıf olmaz). Bulunamazsa eskisi gibi 8
-      // (veritabanında level zorunlu; buluttan gelen sınıfta düzey zaten gradeLevel'da durur).
-      // student_count artık yazılmaz: cihazdaki (yetkiye göre eksik olabilen) listeden sayılıyordu ve hiçbir yerde okunmuyor.
+      const studentCount = this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length;
+      let levelNum = 8;
+      if (cls.gradeLevel) {
+        const m = cls.gradeLevel.match(/\d+/);
+        if (m) levelNum = parseInt(m[0], 10);
+      } else if (cls.name) {
+        const m = cls.name.match(/\d+/);
+        if (m) levelNum = parseInt(m[0], 10);
+      }
+
       const row: Record<string, any> = {
         id: cls.id,
         name: cls.name,
         branch: cls.branch || 'Genel',
-        level: DataService.classLevelOf(cls) || 8,
+        level: levelNum,
+        student_count: studentCount,
         academic_year: cls.academicYear || currentAcademicYear(),
       };
       // classes.description sütunu ayrı bir SQL ile eklenir; henüz eklenmemişse sütunsuz kaydet.
@@ -7948,11 +7936,20 @@ class DataService {
     try {
       const activeClasses = this.classes.filter((c) => !this.deletedClassIds.has(c.id));
       const payload = activeClasses.map((cls) => {
+        let levelNum = 8;
+        if (cls.gradeLevel) {
+          const m = cls.gradeLevel.match(/\d+/);
+          if (m) levelNum = parseInt(m[0], 10);
+        } else if (cls.name) {
+          const m = cls.name.match(/\d+/);
+          if (m) levelNum = parseInt(m[0], 10);
+        }
         const row: Record<string, any> = {
           id: cls.id,
           name: cls.name,
           branch: cls.branch || 'Genel',
-          level: DataService.classLevelOf(cls) || 8, // Aşama 175
+          level: levelNum,
+          student_count: this.students.filter((s) => s.classId === cls.id || s.className === cls.name).length,
           academic_year: cls.academicYear || currentAcademicYear(),
         };
         if (DataService.classDescriptionColumnAvailable) row.description = cls.description || null;
