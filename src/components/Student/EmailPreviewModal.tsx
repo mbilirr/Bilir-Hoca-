@@ -195,7 +195,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             <button
               type="button"
               onClick={handleCopyText}
-              className="flex-1 sm:flex-none flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-semibold border border-line transition-colors"
+              className="ui-btn ui-btn-sm flex-1 sm:flex-none bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line"
             >
               {copied ? (
                 <>
@@ -230,7 +230,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
                   onClose();
                   email.onNavigateAction?.();
                 }}
-                className="flex-1 sm:flex-none px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg shadow-md transition-colors"
+                className="ui-btn ui-btn-sm flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-500 text-white"
               >
                 {email.actionLabel || 'İlgili Bölüme Git'}
               </button>
@@ -239,7 +239,7 @@ export const EmailPreviewModal: React.FC<EmailPreviewModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 bg-surface-2 hover:bg-surface-3 text-fg-2 text-xs font-semibold rounded-lg transition-colors border border-line cursor-pointer"
+              className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 border border-line min-w-24"
             >
               Kapat
             </button>

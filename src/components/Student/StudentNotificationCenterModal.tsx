@@ -226,7 +226,7 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
               <button
                 type="button"
                 onClick={handleEnableBrowserNotifications}
-                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg shrink-0 shadow transition-colors"
+                className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 min-w-24"
               >
                 Bildirimleri Aç
               </button>

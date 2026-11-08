@@ -1535,7 +1535,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <button
                 id="btn-student-looker-pdf-weekly"
                 onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
               >
                 <Download className="w-3.5 h-3.5 text-orange-400" />
                 <span>Haftalık Raporu İndir (PDF)</span>
@@ -1545,7 +1545,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <button
                 id="btn-student-looker-pdf-monthly"
                 onClick={() => downloadMonthlyPDF(monthlyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                className="px-3.5 py-2 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
               >
                 <Download className="w-3.5 h-3.5 text-orange-400" />
                 <span>Aylık Raporu İndir (PDF)</span>
@@ -1567,7 +1567,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 type="button"
                 id="btn-student-tab-entry"
                 onClick={() => setActiveTab('entry')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'entry'
                     ? 'bg-orange-600 text-white shadow-xs'
                     : 'text-muted hover:text-orange-600 dark:hover:text-orange-300'
@@ -1579,7 +1579,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 type="button"
                 id="btn-student-tab-history"
                 onClick={() => setActiveTab('history')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'history'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1591,7 +1591,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 type="button"
                 id="btn-student-tab-weekly"
                 onClick={() => setActiveTab('weekly')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'weekly'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1603,7 +1603,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 type="button"
                 id="btn-student-tab-monthly"
                 onClick={() => setActiveTab('monthly')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${
+                className={`ui-btn ui-btn-sm flex-1 ${
                   activeTab === 'monthly'
                     ? 'bg-fg text-surface shadow-xs'
                     : 'text-muted hover:text-fg'
@@ -1693,7 +1693,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                 <button
                   type="button"
                   onClick={() => setWeekOffset(0)}
-                  className="px-3 py-2 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 min-w-24"
                   title="Güncel Haftaya Dön"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1705,7 +1705,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={openTodayEntry}
-                className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                className="ui-btn ui-btn-sm bg-orange-600 hover:bg-orange-500 text-white shadow-sm min-w-24"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Bugünün Sorularını Ekle</span>
@@ -2090,7 +2090,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <div className="pt-3 border-t border-line">
                 <button
                   onClick={() => downloadWeeklyPDF(weeklyAnalytics, activeStudent, { logs: allLogs, getTargets: (a, b) => dataService.getQuestionTargetsForStudent(activeStudent.id, a, b) })}
-                  className="px-3 py-1.5 bg-fg hover:bg-fg text-surface rounded-lg text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm min-w-24"
                 >
                   <Download className="w-3.5 h-3.5 text-orange-400" />
                   <span>Haftalık Raporumu İndir</span>
@@ -2182,7 +2182,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     const now = new Date();
                     setMonthDate({ year: now.getFullYear(), month: now.getMonth() });
                   }}
-                  className="px-3 py-2 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  className="ui-btn ui-btn-sm bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 text-orange-700 dark:text-orange-300 min-w-24"
                   title="Güncel Aya Dön"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -2354,7 +2354,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   setEntryDateTouched(true);
                   setEntryDate(e.target.value);
                 }}
-                className={`w-full bg-surface border rounded-lg px-3 py-1.5 text-xs font-bold text-fg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 ${
+                className={`ui-field w-full font-bold ${
                   dateError ? 'border-rose-500' : 'border-line-strong'
                 }`}
               />
@@ -2383,7 +2383,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   clearMessages();
                   setEntryNotes(e.target.value);
                 }}
-                className="w-full bg-surface border border-line-strong rounded-lg px-3 py-1.5 text-xs text-fg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+                className="ui-field w-full"
               />
             </div>
           </div>
@@ -2631,7 +2631,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                             data-testid="qe-topic"
                             value={row.topic}
                             onChange={(e) => updateListRow(idx, 'topic', e.target.value)}
-                            className="w-full min-w-0 bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 sm:py-1 text-xs text-fg focus:border-orange-500 focus:outline-none"
+                            className="ui-field w-full min-w-0"
                           />
                           {rowPlanTasks.length > 0 && (
                             <button
@@ -2699,7 +2699,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                     id="qe-single-subject"
                     value={singleSubject}
                     onChange={(e) => setSingleSubject(e.target.value)}
-                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs font-bold text-fg"
+                    className="ui-field w-full font-bold"
                   >
                     {activeSubjects.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -2724,7 +2724,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       setSingleError('');
                       setSingleCount(e.target.value);
                     }}
-                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs font-bold text-fg"
+                    className="ui-field w-full font-bold"
                   />
                   {subjectDayTarget(singleSubject) !== null && (
                     <span className="block mt-1 text-[10px] font-bold text-orange-700 dark:text-orange-300" id="qe-single-target-hint">
@@ -2750,7 +2750,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       setSingleError('');
                       setSingleCorrect(e.target.value);
                     }}
-                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-emerald-700 dark:text-emerald-300 font-semibold"
+                    className="ui-field w-full text-emerald-700 dark:text-emerald-300 font-semibold"
                   />
                 </div>
 
@@ -2771,7 +2771,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       setSingleError('');
                       setSingleWrong(e.target.value);
                     }}
-                    className="w-full bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-300 font-semibold"
+                    className="ui-field w-full text-rose-700 dark:text-rose-300 font-semibold"
                   />
                 </div>
 
@@ -2785,7 +2785,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                       placeholder="Konu adı..."
                       value={singleTopic}
                       onChange={(e) => setSingleTopic(e.target.value)}
-                      className="w-full min-w-0 bg-surface border border-line-strong rounded-lg px-2.5 py-1.5 text-xs text-fg"
+                      className="ui-field w-full min-w-0"
                     />
                     {planTasksFor(singleSubject).length > 0 && (
                       <button
@@ -2794,7 +2794,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         onClick={() => transferPlanTasks(singleSubject, planTasksFor(singleSubject))}
                         title="Günlük plandaki görevi aktar"
                         aria-label="Günlük plandaki görevi konu kutusuna aktar"
-                        className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1.5 rounded-md border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold cursor-pointer"
+                        className="ui-btn ui-btn-sm shrink-0 border border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 min-w-24"
                       >
                         <ClipboardList className="w-3 h-3" />
                         Plan
@@ -2807,7 +2807,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   <button
                     type="submit"
                     id="qe-single-add"
-                    className="w-full py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1"
+                    className="ui-btn ui-btn-sm w-full bg-orange-600 hover:bg-orange-500 text-white"
                   >
                     <Plus className="w-3.5 h-3.5" /> Ekle
                   </button>
@@ -2905,7 +2905,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               data-yazma
               onClick={handleSaveQuestionLog}
               disabled={isSaving}
-              className="px-3.5 py-1.5 bg-fg hover:bg-fg text-surface rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+              className="ui-btn ui-btn-sm bg-fg hover:bg-fg text-surface shadow-sm disabled:opacity-60 disabled:cursor-wait min-w-24"
             >
               <Check className="w-3.5 h-3.5 text-orange-400" />
               <span>{isSaving ? 'Kaydediliyor…' : isEditMode ? 'Kaydı Güncelle' : 'Soru Kaydını Tamamla ve Gönder'}</span>
@@ -2960,7 +2960,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                               ? 'Bu günün kaydını düzenle'
                               : `${QUESTION_ENTRY_MAX_PAST_DAYS} günden eski kayıtlar düzenlenemez`
                           }
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold border border-line-strong text-fg-2 bg-surface hover:bg-surface-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="ui-btn ui-btn-sm border border-line-strong text-fg-2 bg-surface hover:bg-surface-3 disabled:opacity-50 disabled:cursor-not-allowed min-w-24"
                         >
                           Düzenle
                         </button>
@@ -3052,7 +3052,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   value={weekSearchQuery}
                   onChange={(e) => setWeekSearchQuery(e.target.value)}
                   placeholder="Tarih veya hafta ara..."
-                  className="w-full pl-9 pr-8 py-2 bg-surface border border-line-strong rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                  className="ui-field w-full pl-9 pr-8"
                 />
                 {weekSearchQuery && (
                   <button
@@ -3133,7 +3133,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                         <button
                           type="button"
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                          className={`ui-btn ui-btn-sm ${
                             isSelected
                               ? 'bg-orange-600 text-white'
                               : 'bg-surface-2 hover:bg-orange-500 hover:text-white text-fg-2'
@@ -3204,7 +3204,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   value={monthSearchQuery}
                   onChange={(e) => setMonthSearchQuery(e.target.value)}
                   placeholder="Ay veya yıl ara..."
-                  className="w-full pl-9 pr-8 py-2 bg-surface border border-line-strong rounded-xl text-xs text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all"
+                  className="ui-field w-full pl-9 pr-8"
                 />
                 {monthSearchQuery && (
                   <button
@@ -3287,7 +3287,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                         </div>
                         <button
                           type="button"
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                          className={`ui-btn ui-btn-sm ${
                             isSelected
                               ? 'bg-orange-600 text-white'
                               : 'bg-surface-2 hover:bg-orange-500 hover:text-white text-fg-2'

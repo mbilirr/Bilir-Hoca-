@@ -148,13 +148,13 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
               Ad Soyad <span className="text-rose-600 dark:text-rose-400">*</span>
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+              <User className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="ui-field w-full pl-10 pr-3"
                 placeholder="Adınız ve Soyadınız"
               />
             </div>
@@ -164,14 +164,14 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-fg-2">Öğrenci Numarası (giriş adınız)</label>
               <div className="relative">
-                <Hash className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+                <Hash className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={studentNumber}
                   readOnly
                   aria-readonly="true"
                   title="Öğrenci numaranızı yalnızca öğretmeniniz veya okul yöneticiniz değiştirebilir"
-                  className="w-full pl-10 pr-3 py-2 bg-surface/80 border border-line rounded-xl text-muted text-xs sm:text-sm cursor-not-allowed"
+                  className="ui-field w-full pl-10 pr-3 bg-surface-2 text-muted cursor-not-allowed"
                 />
               </div>
               <p className="text-[10px] text-muted">Numaranızı yalnızca öğretmeniniz değiştirebilir.</p>
@@ -184,7 +184,7 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
                   type="text"
                   disabled
                   value={student.className || 'Atanmadı'}
-                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-muted text-xs sm:text-sm cursor-not-allowed"
+                  className="ui-field w-full bg-surface-2 text-muted cursor-not-allowed"
                 />
               </div>
               <p className="text-[10px] text-muted">Sınıfınızı öğretmeniniz belirler.</p>
@@ -195,12 +195,12 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-fg-2">E-Posta Adresi</label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+                <Mail className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="ui-field w-full pl-10 pr-3"
                   placeholder="ogrenci@okul.com"
                 />
               </div>
@@ -209,12 +209,12 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-fg-2">İletişim / Veli Telefonu</label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-muted absolute left-3.5 top-3" />
+                <Phone className="w-4 h-4 text-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="ui-field w-full pl-10 pr-3"
                   placeholder="05XX XXX XX XX"
                 />
               </div>
@@ -226,14 +226,14 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-xl transition-colors cursor-pointer"
+              className="ui-btn ui-btn-sm text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 min-w-24"
             >
               Vazgeç
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
+              className="ui-btn ui-btn-sm text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 min-w-24"
             >
               <Check className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Kaydediliyor...' : 'Bilgileri Güncelle'}</span>
@@ -396,13 +396,13 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
                   required
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 pr-10"
+                  className="ui-field w-full pr-10"
                   placeholder="Mevcut şifrenizi girin"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
-                  className="absolute right-3 top-2.5 text-muted hover:text-fg cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg cursor-pointer"
                 >
                   {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -420,13 +420,13 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500 pr-10"
+                className="ui-field w-full pr-10"
                 placeholder="Yeni şifrenizi girin (en az 6 karakter)"
               />
               <button
                 type="button"
                 onClick={() => setShowNew(!showNew)}
-                className="absolute right-3 top-2.5 text-muted hover:text-fg cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-fg cursor-pointer"
               >
                 {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -443,7 +443,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-2/80 border border-line rounded-xl text-fg text-xs sm:text-sm focus:ring-2 focus:ring-indigo-500"
+                className="ui-field w-full"
                 placeholder="Yeni şifrenizi doğrulayın"
               />
             </div>
@@ -460,7 +460,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 rounded-xl transition-colors cursor-pointer"
+                className="ui-btn ui-btn-sm text-fg-2 hover:text-fg bg-surface-2 hover:bg-surface-3 min-w-24"
               >
                 Vazgeç
               </button>
@@ -468,7 +468,7 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             <button
               type="submit"
               disabled={isSaving}
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-xl shadow-lg shadow-amber-600/30 flex items-center space-x-1.5 transition-all cursor-pointer"
+              className="ui-btn ui-btn-sm text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 min-w-24"
             >
               <Check className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Güncelleniyor...' : 'Şifreyi Değiştir'}</span>

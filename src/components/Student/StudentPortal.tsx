@@ -663,10 +663,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                         setSubmitError(null);
                         setSubmittingHw(hw);
                       }}
-                      className={`py-1.5 px-3 rounded-lg text-xs font-bold transition-all inline-flex items-center justify-center space-x-1.5 ${
+                      className={`ui-btn ui-btn-sm ${
                         mySubmission
                           ? 'bg-surface-2 hover:bg-surface-3 text-fg'
-                          : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                          : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                       }`}
                     >
                       <UploadCloud className="w-3.5 h-3.5" />
@@ -948,7 +948,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                     id="student-message-to"
                     value={messageTo}
                     onChange={(e) => setMessageTo(e.target.value)}
-                    className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs focus:ring-2 focus:ring-indigo-500"
+                    className="ui-field w-full"
                   >
                     <option value="">Bütün öğretmenlerim</option>
                     {myTeachers.map((t) => (
@@ -973,7 +973,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Örn: Limit ve Süreklilik Soru 4 Çözümü"
                   value={messageSubject}
                   onChange={(e) => setMessageSubject(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500"
+                  className="ui-field w-full"
                 />
               </div>
 
@@ -996,13 +996,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   Soru Linki / Görsel Bağlantısı (İsteğe bağlı)
                 </label>
                 <div className="relative">
-                  <LinkIcon className="w-3.5 h-3.5 text-muted absolute left-3 top-2.5" />
+                  <LinkIcon className="w-3.5 h-3.5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="url"
                     placeholder="https://drive.google.com/... veya resim linki"
                     value={messageLink}
                     onChange={(e) => setMessageLink(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500"
+                    className="ui-field w-full pl-9 pr-3"
                   />
                 </div>
               </div>
@@ -1012,7 +1012,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 data-yazma
                 id="student-message-send"
                 disabled={isSendingMessage}
-                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="ui-btn ui-btn-sm w-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isSendingMessage ? 'Gönderiliyor…' : 'Öğretmene İlet'}</span>
@@ -1150,14 +1150,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                 <button
                   type="button"
                   onClick={cancelSubmittingHw}
-                  className="px-4 py-2 bg-surface-2 hover:bg-surface-3 text-fg-2 rounded-xl text-xs font-medium"
+                  className="ui-btn ui-btn-sm bg-surface-2 hover:bg-surface-3 text-fg-2 min-w-24"
                 >
                   Vazgeç
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingHw || isSubmissionUploadBusy}
-                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60"
+                  className="ui-btn ui-btn-sm bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-60 min-w-24"
                 >
                   {isSubmittingHw ? 'Gönderiliyor…' : isSubmissionUploadBusy ? 'Dosya yükleniyor…' : 'Teslim Et'}
                 </button>
