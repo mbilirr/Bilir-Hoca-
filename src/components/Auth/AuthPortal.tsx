@@ -502,9 +502,11 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     <div className="auth-v2 relative min-h-[100dvh] w-full font-sans flex flex-col md:p-5 lg:grid lg:grid-cols-12 lg:gap-4 lg:p-4">
       {/* Aşama 224: telefonda ilk taslaktaki gibi üç satır başlık (40px) ve geniş üst boşluk */}
       {/* Aşama 222: marka paneli — telefonda üstte kısa, tablette üstte geniş, bilgisayarda solda tam boy */}
+      {/* Aşama 227: telefonda artan ekran boyu marka paneli ile form arasında paylaşılır (panel en çok ekranın %40'ı;
+          logo üstte, başlık forma yakın). Form altında büyük boşluk kalmaz; kısa telefonda panel içeriği kadar küçülür. */}
       <section
         id="auth-brand-panel"
-        className="auth-brand relative overflow-hidden flex flex-col gap-[30px] px-7 pb-9 pt-[max(24px,env(safe-area-inset-top))] md:rounded-[32px] md:gap-12 md:px-12 md:pt-12 md:pb-[124px] lg:col-span-7 lg:rounded-[24px] lg:justify-between lg:gap-8 lg:px-14 lg:py-12"
+        className="auth-brand relative overflow-hidden flex flex-col justify-between grow min-h-[260px] max-h-[max(40dvh,290px)] gap-[30px] px-7 pb-10 pt-[max(28px,env(safe-area-inset-top))] md:flex-none md:min-h-0 md:max-h-none md:justify-start md:rounded-[32px] md:gap-12 md:px-12 md:pt-12 md:pb-[124px] lg:col-span-7 lg:rounded-[24px] lg:justify-between lg:gap-8 lg:px-14 lg:py-12"
       >
         <AuthStrokes />
         <div className="relative flex items-center gap-2.5 md:gap-3">
@@ -538,7 +540,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
       </section>
 
       {/* Aşama 222: form — telefonda alttan açılan açık panel, tablette panelin üstüne taşan kart, bilgisayarda sağda açık zemin */}
-      <main className="auth-sheet relative z-10 flex-1 flex flex-col px-6 pt-6 pb-[max(20px,env(safe-area-inset-bottom))] md:flex-none md:-mt-24 md:px-0 md:pt-0 lg:mt-0 lg:col-span-5 lg:justify-center lg:px-[clamp(32px,4vw,56px)] lg:py-8">
+      <main className="auth-sheet relative z-10 grow flex flex-col px-6 pt-7 md:flex-none pb-[max(20px,env(safe-area-inset-bottom))] md:-mt-24 md:px-0 md:pt-0 lg:mt-0 lg:col-span-5 lg:justify-center lg:px-[clamp(32px,4vw,56px)] lg:py-8">
         <div className="auth-card w-full md:mx-auto md:w-[520px] md:p-9 lg:w-full lg:max-w-[400px] lg:p-0">
           <div className="hidden md:block mb-5">
             <h2 className="text-[26px] lg:text-[28px] font-bold text-fg tracking-tight leading-tight">Giriş yap</h2>
