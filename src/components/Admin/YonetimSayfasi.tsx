@@ -41,9 +41,10 @@ const AdminUserManagement = lazyNamed(() => import('./AdminUserManagement'), 'Ad
 const UserCredentialsExport = lazyNamed(() => import('./UserCredentialsExport'), 'UserCredentialsExport');
 const YeniKurumModal = lazyNamed(() => import('./YeniKurumModal'), 'YeniKurumModal');
 const OgrenciBolumPanel = lazyNamed(() => import('./OgrenciBolumPanel'), 'OgrenciBolumPanel'); // Aşama 165
+const DersYonetimi = lazyNamed(() => import('./DersYonetimi'), 'DersYonetimi'); // Aşama 217
 
 type UstSekme = 'kurumlar' | 'bildirim' | 'yedek' | 'kendi';
-type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler';
+type KurumSekme = 'genel' | 'ogretmen' | 'ogrenci' | 'roller' | 'bolumler' | 'dersler'; // Aşama 217: dersler
 
 const STORE_KEY = 'edu_yonetim_v1';
 interface Saved {
@@ -174,6 +175,7 @@ export const YonetimSayfasi: React.FC<{
     { value: 'ogrenci', label: 'Öğrenciler', id: 'yonetim-alt-ogrenci' },
     { value: 'roller', label: 'Roller ve yetkiler', id: 'yonetim-alt-roller' },
     { value: 'bolumler', label: 'Bölümler ve sınıflar', id: 'yonetim-alt-bolumler' },
+    { value: 'dersler', label: 'Ders programı', id: 'yonetim-alt-dersler' }, // Aşama 217
   ];
 
   // ---------------------------------------------------------------- kurumun içeriği (alt sekmeler)
@@ -259,6 +261,21 @@ export const YonetimSayfasi: React.FC<{
               </div>
               <p className="text-[11px] text-muted">Bölümleri ve izinli sınıfları genel yönetici açar.</p>
             </div>
+          ))}
+        {alt === 'dersler' &&
+          // Aşama 217: ders saatleri / sınıf öğretmenleri / program kurumun içinden düzenlenir (kurum ayrımı)
+          (isHead ? (
+            <div className="ui-card ui-card-pad flex flex-col sm:flex-row sm:items-center gap-3" id="yonetim-dersler-gecis">
+              <Info className="w-5 h-5 text-info-fg shrink-0" />
+              <p className="text-xs text-fg-2 flex-1">
+                <b>{kurumName}</b> ders programı için kuruma geçin.
+              </p>
+              <button type="button" className={cx(BTN, 'ui-btn-primary shrink-0')} onClick={enter} disabled={entering || !kid}>
+                <LogIn className="w-3.5 h-3.5" /> {entering ? 'Geçiliyor…' : 'Kuruma geç'}
+              </button>
+            </div>
+          ) : (
+            <DersYonetimi key={`d-${kid}`} kurumId={kid} classes={classes} />
           ))}
         {alt === 'bolumler' && (
           // Aşama 165: öğrenci bölümleri (genel yönetici: kurum varsayılanı; kuruma geçince ve kurum yöneticisinde sınıflar da)
