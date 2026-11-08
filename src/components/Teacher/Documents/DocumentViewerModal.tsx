@@ -210,7 +210,8 @@ const DocumentViewerModalContent: React.FC<DocumentViewerModalProps & { document
             {/* Close */}
             <button
               onClick={onClose}
-              className="p-2 bg-surface-2 hover:bg-rose-500/20 text-muted hover:text-rose-600 dark:hover:text-rose-400 rounded-xl border border-line transition-colors"
+              aria-label="Kapat"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-rose-500/20 hover:text-rose-600 dark:hover:text-rose-400"
               title="Kapat"
             >
               <X className="w-4 h-4" />
