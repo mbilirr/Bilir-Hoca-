@@ -624,6 +624,17 @@ html, body {
   text-security: disc;
 }
 
+/* HIZ (Aşama 225): kaydırma sırasında sürekli dönen ışıklar duraklar (main.tsx data-scrolling işareti koyar).
+   Duraklatılan animasyon her karede yeniden hesaplanmaz; kaydırma bitince kaldığı yerden sürer. */
+html[data-scrolling] .notify-blink::after,
+html[data-scrolling] .notify-badge,
+html[data-scrolling] .notify-flash,
+html[data-scrolling] .animate-ping,
+html[data-scrolling] .animate-pulse,
+html[data-scrolling] .animate-beacon::after {
+  animation-play-state: paused;
+}
+
 /* HIZ (Aşama 84): uzun listelerde ekranın dışında kalan satırlar çizilmez (kaydırınca çizilir).
    Görünüm aynıdır; telefonda sayfanın ilk açılışı ve kaydırma hafifler. */
 .cv-row {

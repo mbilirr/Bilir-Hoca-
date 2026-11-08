@@ -92,6 +92,7 @@ import { useAutoDismiss } from '../../lib/useAutoDismiss';
 import { useHistoryState } from '../../lib/useHistoryState';
 import { OverlayLayer } from '../ui/kit'; // Aşama 191
 import { appConfirm } from '../../lib/appDialog'; // Aşama 105
+import { usePagedList, ShowMoreBar } from '../../lib/listPaging'; // Aşama 225
 
 const NO_LOGS: StudentQuestionLog[] = [];
 
@@ -702,6 +703,21 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
       };
     }).sort((a, b) => b.weeklyTotal - a.weeklyTotal);
   }, [activeClass, classStudents, logsByStudent, targetWeekDate, monthDate]);
+
+  // Aşama 225 (HIZ): sıralama tablosu ve öğrenci kartları parça parça çizilir (önce 15, hemen ardından 50; sonra
+  // "daha fazla göster"). "Tüm Sınıflar"da yüzlerce satır bir anda çizilip telefonu donduruyordu. Sıralama değişmez.
+  const overviewById = useMemo(() => new Map(classOverviewData.map((d) => [d.student.id, d])), [classOverviewData]);
+  const ovPage = usePagedList(classOverviewData, selectedClassId, 50, 15);
+  const cardPage = usePagedList(classStudents, selectedClassId, 50, 15);
+  // Aşama 225: "Bugün soru çözen öğrenciler" kartları da parça parça (kalabalık okulda hepsi bir anda çiziliyordu)
+  const todaySolvedStudents = useMemo(
+    () =>
+      students
+        .map((s) => ({ student: s, todayQuestions: todayCountByStudent.get(s.id) || 0 }))
+        .filter((x) => x.todayQuestions > 0),
+    [students, todayCountByStudent]
+  );
+  const todayPage = usePagedList(todaySolvedStudents, 'today', 50, 15);
 
   // Sınıf genel istatistik özeti
   const classSummaryStats = useMemo(() => {
@@ -1350,7 +1366,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
-                      {classOverviewData.map((row, idx) => {
+                      {ovPage.visible.map((row, idx) => {
                         const todayCount = getStudentTodayQuestionCount(row.student.id);
                         return (
                           <tr
@@ -1439,6 +1455,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       })}
                     </tbody>
                   </table>
+                  <ShowMoreBar remaining={ovPage.remaining} total={ovPage.total} shown={ovPage.visible.length} onMore={ovPage.showMore} onAll={ovPage.showAll} />
                 </div>
               )}
             </div>
@@ -1453,9 +1470,9 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {classStudents.map((s) => {
+                {cardPage.visible.map((s) => {
                   const todayCount = getStudentTodayQuestionCount(s.id);
-                  const overviewItem = classOverviewData.find((d) => d.student.id === s.id);
+                  const overviewItem = overviewById.get(s.id);
                   const weeklyTotal = overviewItem?.weeklyTotal || 0;
 
                   return (
@@ -1492,6 +1509,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   );
                 })}
               </div>
+              <ShowMoreBar remaining={cardPage.remaining} total={cardPage.total} shown={cardPage.visible.length} onMore={cardPage.showMore} onAll={cardPage.showAll} />
             </div>
           </div>
         ) : (
@@ -1511,13 +1529,6 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
 
             {/* Bugün Soru Çözen Öğrenciler Hızlı Erişim Kartları */}
             {(() => {
-              const todaySolvedStudents = students
-                .map((s) => ({
-                  student: s,
-                  todayQuestions: getStudentTodayQuestionCount(s.id),
-                }))
-                .filter((x) => x.todayQuestions > 0);
-
               if (todaySolvedStudents.length === 0) {
                 return (
                   <div className="bg-surface-2 rounded-xl p-6 text-center text-xs text-subtle border border-dashed border-line">
@@ -1536,7 +1547,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {todaySolvedStudents.map(({ student: s, todayQuestions }) => (
+                    {todayPage.visible.map(({ student: s, todayQuestions }) => (
                       <button
                         key={s.id}
                         type="button"
@@ -1560,6 +1571,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                       </button>
                     ))}
                   </div>
+                  <ShowMoreBar remaining={todayPage.remaining} total={todayPage.total} shown={todayPage.visible.length} onMore={todayPage.showMore} onAll={todayPage.showAll} />
                 </div>
               );
             })()}
@@ -2592,7 +2604,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {classOverviewData.map((row, idx) => (
+                    {ovPage.visible.map((row, idx) => (
                       <tr
                         key={row.student.id}
                         className={`hover:bg-surface-2 transition-colors ${
@@ -2653,6 +2665,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                     ))}
                   </tbody>
                 </table>
+                <ShowMoreBar remaining={ovPage.remaining} total={ovPage.total} shown={ovPage.visible.length} onMore={ovPage.showMore} onAll={ovPage.showAll} />
               </div>
             </div>
           )}

@@ -16,6 +16,26 @@ installIntlCache();
 installAvatarGuard();
 installEscClose();
 
+// Aşama 225 (HIZ): sayfa kaydırılırken sürekli yanıp sönen ışıklar (yeni bilgi parıltısı, canlı nokta) duraklatılır;
+// kaydırma bitince ~0,2 sn sonra kaldıkları yerden devam eder. Ölçümde bu ışıklar kaydırırken her karede yeniden
+// hesaplanıyordu (telefonda ana sayfa kaydırmasında boşa iş). Görünüm aynı.
+(() => {
+  if (typeof window === 'undefined') return;
+  const root = document.documentElement;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = () => {
+    timer = null;
+    root.removeAttribute('data-scrolling');
+  };
+  const onScroll = () => {
+    if (!timer) root.setAttribute('data-scrolling', '');
+    else clearTimeout(timer);
+    timer = setTimeout(stop, 200);
+  };
+  // capture: sayfa içindeki kaydırılan kutular (listeler, pencereler) da sayılır
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+})();
+
 // Aşama 136: arama ve form kutularında tarayıcı kayıtlı e-posta/şifre önermesin (giriş ekranı hariç)
 installAutofillGuard();
 

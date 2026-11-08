@@ -1627,6 +1627,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           )}
 
           {/* Telefon: kart listesi */}
+          {/* Aşama 225 (HIZ): satırlarda "ekran dışını çizme" (cv-row) kaldırıldı; liste zaten 50'şer satır. Ölçümde
+              kaydırma sırasında her yeni satır için ayrıca yerleşim/boyama yaptırıp telefonda takılmayı artırıyordu. */}
           {isPhoneList && (
           <ul className="md:hidden divide-y divide-line" id="students-mobile-list">
             {filteredStudents.length === 0 ? (
@@ -1637,7 +1639,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 const isSelected = selectedStudentIds.includes(std.id);
                 const suspended = std.isSuspended || std.status === 'suspended';
                 return (
-                  <li key={std.id} className={`cv-row px-4 py-3 ${isSelected ? 'bg-brand-soft' : ''}`}>
+                  <li key={std.id} className={`px-4 py-3 ${isSelected ? 'bg-brand-soft' : ''}`}>
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
