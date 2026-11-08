@@ -100,7 +100,7 @@ const SF = 'h-8 text-xs px-2.5 py-1 rounded-lg';
 
 // Aşama 202: Sınıf Ekle / Düzenle penceresi; alanlar aynı boy, düğmeler aynı en ve boy (h-8 w-24, kısa yazı)
 const classLabelCls = 'block text-xs font-semibold text-fg-2 mb-1';
-const classCtrlCls = cx(inputCls, 'h-9 py-0 text-xs');
+const classCtrlCls = inputCls; // Aşama 205: ortak 32 px
 const classBtnCls = (variant: string, extra?: string) =>
   cx('ui-btn ui-btn-sm h-8 w-24 min-w-0 px-2 py-0 justify-center', variant, extra);
 

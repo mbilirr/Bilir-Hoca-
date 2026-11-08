@@ -33,13 +33,13 @@ export const FieldLabel: React.FC<{ htmlFor?: string; children: React.ReactNode;
   </label>
 );
 
-export const inputCls =
-  'w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:opacity-60 disabled:cursor-not-allowed';
+// Aşama 205: görünüm index.css .ui-field kuralında (tek satırlık kutu / açılır liste 32 px, 12 px yazı; textarea boyunu korur)
+export const inputCls = 'ui-field';
 
 // Aşama 60: Sınıf / Öğrenci seçim kutuları (Soru hedefi, Haftalık Plan, Karneler aynı ölçüde):
 // iki kutu yan yana aynı genişlik ve yükseklikte; yazı text-sm, yükseklik 2.5rem (ekran boyunca uzamaz)
 export const PICKER_BOX_CLS = 'w-full sm:w-72';
-export const PICKER_CTRL_CLS = `${inputCls} h-10 cursor-pointer`;
+export const PICKER_CTRL_CLS = `${inputCls} cursor-pointer`; // Aşama 205: h-10 yerine ortak 32 px
 
 /** Açılır liste (select) — sağdaki ok simgesi öğrenci seçicisiyle aynı */
 export const SelectBox: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({ className, children, ...rest }) => (
@@ -53,7 +53,7 @@ export const SelectBox: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> 
 
 export const chipCls = (active: boolean) =>
   cx(
-    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-colors cursor-pointer select-none',
+    'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold transition-colors cursor-pointer select-none', // Aşama 205: h-8
     active ? 'bg-brand text-white border-brand' : 'bg-surface text-fg-2 border-line hover:border-line-strong hover:bg-surface-2'
   );
 

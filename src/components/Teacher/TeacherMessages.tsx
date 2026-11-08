@@ -16,8 +16,9 @@ import {
   Megaphone,
   NotebookPen,
   Users,
+  SlidersHorizontal,
 } from 'lucide-react';
-import { PageHeader, Segmented } from '../ui/kit';
+import { PageHeader, Segmented, cx } from '../ui/kit';
 import { TeacherAnnouncements } from './TeacherAnnouncements';
 import { ParentAnnouncements } from './ParentAnnouncements';
 import { EtutNotesInbox, useEtutNotes } from './EtutNotesInbox';
@@ -43,6 +44,8 @@ function readMsgFilters(uid: string): MsgFilters {
   return DEFAULT_MSG_FILTERS;
 }
 const msgSelectCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-2 text-xs text-fg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500';
+// Aşama 206: arama ve cevap kutusu süzgeç kutularıyla aynı ölçü
+const msgInputCls = 'h-8 w-full rounded-lg border border-line bg-surface-2 px-3 text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
 interface TeacherMessagesProps {
   messages: StudentMessage[];
@@ -53,6 +56,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   // Aşama 116: ilk açılışta seçim yok; ayrıntı paneli süzülmüş listenin ilk mesajını gösterir
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false); // Aşama 206: telefonda süzgeçler düğmeyle açılır
   const [isSendingReply, setIsSendingReply] = useState(false);
   // Aşama 28: 'inbox' = öğrencilerden gelenler, 'announce' = öğrencilere duyuru / not gönder
   // Aşama 32: 'etutNotes' = etüt yoklamasında öğrenciye anlatılan farklı konu ve öğrenci notları
@@ -122,6 +126,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
     });
   }, [messages, term, wide, idare, filters, meId, effKime, effSinif]);
   const filtersActive = wide && ((idare && effKime !== 'all') || filters.durum !== 'all' || !!effSinif || filters.donem !== 'all');
+  const activeFilterCount = wide ? [idare && effKime !== 'all', filters.durum !== 'all', !!effSinif, filters.donem !== 'all'].filter(Boolean).length : 0;
   // Aşama 15: uzun mesaj listesi parça parça çizilir (Aşama 111: telefonda ilk 15)
   const pagedMessages = usePagedList(filteredMessages, `${term}|${effKime}|${filters.durum}|${effSinif}|${filters.donem}`, 50, phone ? 15 : undefined);
 
@@ -152,37 +157,36 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
   return (
     <div className="space-y-6">
       {/* Sayfa başlığı */}
+      {/* Aşama 206: başlık tek satır, sekmeler başlığın yanında ve kısa adlarla */}
       <PageHeader
         icon={MessageSquare}
         tone="danger"
         title="Mesajlar"
-        description={
-          unreadCount
-            ? `${unreadCount} okunmamış mesaj`
-            : 'Öğrencilerinizden gelen sorular ve mesajlar'
-        }
-      />
-
+        description={unreadCount ? `${unreadCount} okunmamış mesaj` : undefined}
+        actions={
       <Segmented
+        size="sm"
         value={section}
         onChange={setSection}
         items={[
-          { value: 'inbox', label: `Gelen Mesajlar${unreadCount ? ` (${unreadCount})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
+          { value: 'inbox', label: `Gelen${unreadCount ? ` (${unreadCount})` : ''}`, icon: Inbox, id: 'messages-section-inbox' },
           ...(dataService.canSeeEtutNotesTab()
             ? [
                 {
                   value: 'etutNotes' as const,
-                  label: `Etüt Notları${etutNotes.unseen ? ` (${etutNotes.unseen} yeni)` : ''}`,
+                  label: `Etüt notları${etutNotes.unseen ? ` (${etutNotes.unseen} yeni)` : ''}`,
                   icon: NotebookPen,
                   id: 'messages-section-etut-notes',
                 },
               ]
             : []),
-          { value: 'announce', label: 'Duyuru / Not Gönder', icon: Megaphone, id: 'messages-section-announce' },
+          { value: 'announce', label: 'Duyuru gönder', icon: Megaphone, id: 'messages-section-announce' },
           ...(dataService.canSendParentAnnouncements()
-            ? [{ value: 'parents' as const, label: 'Veli / Öğrenci Duyurusu', icon: Users, id: 'messages-section-parents' }]
+            ? [{ value: 'parents' as const, label: 'Veli duyurusu', icon: Users, id: 'messages-section-parents' }]
             : []),
         ]}
+      />
+        }
       />
 
       {section === 'announce' && <TeacherAnnouncements />}
@@ -195,19 +199,39 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         {/* Left List Column */}
         <div className="lg:col-span-5 border-r border-line flex flex-col bg-surface/50">
           {/* Search bar */}
-          <div className="p-4 border-b border-line">
-            <div className="relative">
-              <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
-              <input
-                type="text"
-                placeholder="Öğrenci veya konu ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          <div className="p-3 border-b border-line">
+            {/* Aşama 206: arama 32 px; telefonda süzgeçler "Süzgeç" düğmesiyle açılır, bilgisayarda tek satır */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  aria-label="Mesaj ara"
+                  placeholder="Öğrenci veya konu ara"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={cx(msgInputCls, 'pl-8')}
+                />
+              </div>
+              {wide && (
+                <button
+                  type="button"
+                  id="messages-filters-toggle"
+                  aria-expanded={filtersOpen}
+                  aria-controls="messages-filters"
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  className="sm:hidden ui-btn ui-btn-secondary ui-btn-sm w-28"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Süzgeç{activeFilterCount ? ` (${activeFilterCount})` : ''}
+                </button>
+              )}
             </div>
             {wide && (
-              <div className={`mt-3 grid ${idare ? 'grid-cols-2' : 'grid-cols-3'} gap-2`} id="messages-filters">
+              <div
+                className={cx('mt-2 grid grid-cols-2 gap-2', idare ? 'sm:grid-cols-4' : 'sm:grid-cols-3', !filtersOpen && 'hidden sm:grid')}
+                id="messages-filters"
+              >
                 {idare && (
                   <select id="messages-filter-kime" aria-label="Kime" value={effKime} onChange={(e) => setFilter('kime', e.target.value)} className={msgSelectCls}>
                     <option value="me">Bana gelenler</option>
@@ -251,7 +275,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                     type="button"
                     id="messages-filters-clear"
                     onClick={() => setFilters({ kime: 'all', durum: 'all', sinif: '', donem: 'all' })}
-                    className="ui-btn ui-btn-secondary ui-btn-sm h-8 w-36 mx-auto"
+                    className="ui-btn ui-btn-secondary ui-btn-sm w-28 mx-auto"
                   >
                     Tümünü göster
                   </button>
@@ -264,11 +288,10 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                   <button
                     key={msg.id}
                     onClick={() => handleSelectMessage(msg)}
-                    className={`w-full p-4 text-left transition-all flex items-start space-x-3 ${
-                      isSelected
-                        ? 'bg-indigo-600/10 border-l-4 border-indigo-500'
-                        : 'hover:bg-surface-2/40'
-                    }`}
+                    className={cx(
+                      'w-full px-3 py-2.5 text-left transition-colors flex items-start gap-2.5',
+                      isSelected ? 'bg-indigo-600/10 shadow-[inset_3px_0_0_var(--color-brand)]' : 'hover:bg-surface-2/40'
+                    )}
                   >
                     <img
                       src={
@@ -278,15 +301,15 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         )
                       }
                       alt={msg.studentName}
-                      className="w-10 h-10 rounded-full object-cover bg-surface-2 ring-2 ring-indigo-500/20 flex-shrink-0"
+                      className="w-8 h-8 rounded-full object-cover bg-surface-2 flex-shrink-0"
                     />
 
+                    {/* Aşama 206: iki satır — ad · sınıf · tarih / konu; durum sağda küçük işaret */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-semibold text-xs text-fg truncate">
-                          {msg.studentName}
-                        </span>
-                        <span className="text-[10px] text-muted font-mono">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={cx('text-xs text-fg truncate', msg.read ? 'font-semibold' : 'font-bold')}>{msg.studentName}</span>
+                        {msg.studentClass && <span className="text-[11px] text-muted shrink-0">{msg.studentClass}</span>}
+                        <span className="ml-auto text-[11px] text-muted shrink-0">
                           {new Date(msg.createdAt).toLocaleDateString('tr-TR', {
                             day: 'numeric',
                             month: 'short',
@@ -294,7 +317,7 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         </span>
                       </div>
 
-                      <p className="text-xs font-medium text-fg truncate mb-1">
+                      <p className="text-xs text-fg-2 truncate mt-0.5" title={msg.text}>
                         {msg.toTeacherId && (
                           <span className="mr-1 rounded bg-indigo-50 dark:bg-indigo-950/40 px-1 py-px text-[9px] font-bold text-indigo-700 dark:text-indigo-300" title="Öğrenci bu soruyu yalnızca bu öğretmene yazdı">
                             Özel{msg.toTeacherName ? ` → ${msg.toTeacherName}` : ''}
@@ -302,24 +325,20 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         )}
                         {msg.subject}
                       </p>
-
-                      <p className="text-[11px] text-muted line-clamp-1">{msg.text}</p>
-
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[10px] bg-surface-2 text-fg-2 px-2 py-0.5 rounded border border-line">
-                          {msg.studentClass}
-                        </span>
-
-                        {msg.teacherReply ? (
-                          <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center space-x-1" title={msg.repliedByName ? `Cevaplayan: ${msg.repliedByName}` : undefined}>
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>{wide && msg.repliedByName ? `Cevaplandı · ${msg.repliedByName}` : 'Cevaplandı'}</span>
-                          </span>
-                        ) : !msg.read ? (
-                          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                        ) : null}
-                      </div>
                     </div>
+                    <span className="shrink-0 mt-1 flex items-center">
+                      {msg.teacherReply ? (
+                        <span
+                          className="text-emerald-700 dark:text-emerald-400"
+                          title={wide && msg.repliedByName ? `Cevaplandı · ${msg.repliedByName}` : 'Cevaplandı'}
+                          aria-label="Cevaplandı"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </span>
+                      ) : !msg.read ? (
+                        <span className="w-2 h-2 rounded-full bg-red-600" aria-label="Okunmadı"></span>
+                      ) : null}
+                    </span>
                   </button>
                 );
               })
@@ -335,12 +354,12 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
         </div>
 
         {/* Right Message Detail Column */}
-        <div className="lg:col-span-7 flex flex-col justify-between p-6 bg-surface/30">
+        <div className="lg:col-span-7 flex flex-col justify-between p-4 sm:p-5 bg-surface/30">
           {activeMessage ? (
             <div className="space-y-6 flex-1 flex flex-col justify-between">
               {/* Message Header */}
               <div>
-                <div className="flex items-center justify-between pb-4 border-b border-line">
+                <div className="flex items-center justify-between pb-3 border-b border-line">
                   <div className="flex items-center space-x-3">
                     <img
                       src={
@@ -350,12 +369,13 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         )
                       }
                       alt={activeMessage.studentName}
-                      className="w-12 h-12 rounded-full bg-surface-2 ring-2 ring-indigo-500/30"
+                      className="w-9 h-9 rounded-full bg-surface-2"
                     />
                     <div>
-                      <h3 className="text-base font-bold text-fg">
+                      <h3 className="text-sm font-bold text-fg">
                         {activeMessage.studentName}
                       </h3>
+                      {activeMessage.studentClass && <p className="text-[11px] text-muted">{activeMessage.studentClass}</p>}
                     </div>
                   </div>
 
@@ -371,8 +391,8 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                 </div>
 
                 {/* Subject & Text */}
-                <div className="mt-5 space-y-4">
-                  <h4 className="text-lg font-bold text-fg tracking-tight">
+                <div className="mt-4 space-y-3">
+                  <h4 className="text-sm font-bold text-fg">
                     {activeMessage.subject}
                   </h4>
 
@@ -398,9 +418,9 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
                         href={safeHttpUrl(activeMessage.linkUrl) || undefined}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0 ml-3"
+                        className="ui-btn ui-btn-primary ui-btn-sm w-28 flex-shrink-0 ml-3"
                       >
-                        Bağlantıyı Aç
+                        Bağlantıyı aç
                       </a>
                     </div>
                   )}
@@ -429,33 +449,34 @@ export const TeacherMessages: React.FC<TeacherMessagesProps> = ({ messages }) =>
 
               {/* Reply Form */}
               <form onSubmit={handleSendReply} className="pt-4 border-t border-line space-y-3">
-                <label className="block text-xs font-semibold text-fg-2 uppercase tracking-wider">
-                  {activeMessage.teacherReply ? 'Yanıtı Güncelle / Yeni Mesaj Yaz:' : 'Öğrenciye Cevap Yaz:'}
+                <label htmlFor="teacher-reply-text" className="block text-xs font-semibold text-fg-2">
+                  {activeMessage.teacherReply ? 'Yanıtı güncelle' : 'Öğrenciye cevap yaz'}
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <input
+                    id="teacher-reply-text"
                     type="text"
                     required
-                    placeholder="Açıklamanızı ve yönlendirmenizi buraya yazın..."
+                    placeholder="Cevabınızı yazın"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="flex-1 px-4 py-2.5 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className={cx(msgInputCls, 'flex-1')}
                   />
                   <button
                     type="submit"
                     id="teacher-reply-send"
                     disabled={isSendingReply}
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-1.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="ui-btn ui-btn-primary ui-btn-sm w-28 shrink-0"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{isSendingReply ? 'Gönderiliyor…' : 'Gönder'}</span>
+                    <span>{isSendingReply ? 'Gönderiliyor' : 'Gönder'}</span>
                   </button>
                 </div>
               </form>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-muted text-sm">
-              İncelemek için sol listeden bir mesaj seçin.
+            <div className="h-full flex items-center justify-center text-muted text-xs">
+              İncelemek için soldan bir mesaj seçin.
             </div>
           )}
         </div>

@@ -65,7 +65,7 @@ const DURATIONS = [30, 40, 45, 60, 80, 90];
 const DEFAULT_DURATION = 40;
 // Aşama 157: penceredeki tek satırlık tüm kutular (yazı, tarih, saat, sayı, açılır liste) aynı yükseklikte.
 // Açılır listeler SelectBox ile çizilir (tarayıcının küçük yerli görünümü yerine aynı kutu + ok simgesi).
-const ctrlCls = cx(inputCls, 'h-10');
+const ctrlCls = inputCls; // Aşama 205: ortak 32 px (157'deki eşit yükseklik kuralı korunur)
 
 const toMin = (t: string) => {
   const m = /^(\d{1,2}):(\d{2})/.exec(t || '');
@@ -740,7 +740,7 @@ const EtutFormContent: React.FC<Props> = ({
                 {subjectOptions.length <= 1 ? (
                   <div>
                   <FieldLabel>Ders</FieldLabel>
-                  <div id="etut-subject-fixed" className="flex items-center gap-2 h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm font-semibold text-fg">
+                  <div id="etut-subject-fixed" className="flex items-center gap-2 h-8 px-3 rounded-lg bg-surface-2 border border-line text-xs font-semibold text-fg">
                     <CalendarDays className="w-4 h-4 text-info-fg" />
                     {effectiveSubject || 'Branş bilgisi yok'}
                   </div>
