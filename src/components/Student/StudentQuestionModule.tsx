@@ -2542,7 +2542,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
                   const rowMet = rowTarget !== null && rowEntered && (check.count || 0) >= rowTarget;
                   const rowPlanTasks = planTasksFor(row.subject);
                   const inputBase =
-                    'w-full bg-surface border rounded-lg px-2 py-1.5 sm:py-1 text-xs text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20';
+                    'w-full h-8 bg-surface border rounded-lg px-2 py-0 text-xs text-center focus:outline-none focus:ring-2 focus:ring-orange-500/20'; // Aşama 212: ortak 32 px
                   return (
                     <div
                       key={row.subject}
@@ -3036,7 +3036,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setIsWeekModalOpen(false)}
-                className="p-2 text-subtle hover:text-muted hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
+                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 title="Kapat"
               >
                 <X className="w-5 h-5" />
@@ -3188,7 +3188,7 @@ export const StudentQuestionModule: React.FC<StudentQuestionModuleProps> = ({
               <button
                 type="button"
                 onClick={() => setIsMonthModalOpen(false)}
-                className="p-2 text-subtle hover:text-muted hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
+                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 title="Kapat"
               >
                 <X className="w-5 h-5" />

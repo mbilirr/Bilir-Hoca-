@@ -210,7 +210,8 @@ export const StudentNotificationCenterModal: React.FC<StudentNotificationCenterM
 
             <button
               onClick={onClose}
-              className="p-2 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+              aria-label="Kapat"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
             >
               <X className="w-5 h-5" />
             </button>

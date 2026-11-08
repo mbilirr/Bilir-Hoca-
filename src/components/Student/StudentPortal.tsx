@@ -987,7 +987,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Hocam, türevin geometrik yorumunda bu adımda takıldım..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="ui-field w-full resize-none"
                 />
               </div>
 
@@ -1136,7 +1136,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({
                   placeholder="Tüm sorular çözüldü, çözümler ekteki PDF dosyasındadır..."
                   value={submissionNotes}
                   onChange={(e) => setSubmissionNotes(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface-2 border border-line rounded-xl text-fg text-xs placeholder-subtle focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="ui-field w-full resize-none"
                 />
               </div>
 

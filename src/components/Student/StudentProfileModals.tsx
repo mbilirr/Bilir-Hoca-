@@ -121,7 +121,8 @@ export const StudentProfileEditModal: React.FC<StudentProfileEditModalProps> = (
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
+            aria-label="Kapat"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -362,7 +363,8 @@ export const StudentPasswordModal: React.FC<StudentPasswordModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-xl transition-colors cursor-pointer"
+              aria-label="Kapat"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
