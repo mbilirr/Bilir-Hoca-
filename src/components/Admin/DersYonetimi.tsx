@@ -10,14 +10,15 @@ import { lazyNamed, PageLoading } from '../../lib/lazyLoad';
 
 const DersSaatleriPanel = lazyNamed(() => import('./DersSaatleriPanel'), 'DersSaatleriPanel');
 const SinifOgretmenleriPanel = lazyNamed(() => import('./SinifOgretmenleriPanel'), 'SinifOgretmenleriPanel'); // Aşama 218
+const ProgramPanel = lazyNamed(() => import('./ProgramPanel'), 'ProgramPanel'); // Aşama 219
 
-type Bolum = 'saatler' | 'ogretmenler';
+type Bolum = 'saatler' | 'ogretmenler' | 'program';
 
 const STORE_KEY = 'edu_ders_yonetim_v1';
 const okunan = (): Bolum => {
   try {
     const v = window.sessionStorage.getItem(STORE_KEY);
-    return v === 'saatler' || v === 'ogretmenler' ? v : 'saatler';
+    return v === 'saatler' || v === 'ogretmenler' || v === 'program' ? v : 'saatler';
   } catch {
     return 'saatler';
   }
@@ -36,6 +37,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
   const bolumler: Array<{ value: Bolum; label: string; id: string }> = [
     { value: 'saatler', label: 'Ders saatleri', id: 'ders-yonetim-saatler' },
     { value: 'ogretmenler', label: 'Sınıf öğretmenleri', id: 'ders-yonetim-ogretmenler' }, // Aşama 218
+    { value: 'program', label: 'Program', id: 'ders-yonetim-program' }, // Aşama 219
   ];
 
   return (
@@ -44,6 +46,7 @@ export const DersYonetimi: React.FC<{ kurumId: string; classes: ClassGroup[] }> 
       <Suspense fallback={<PageLoading />}>
         {bolum === 'saatler' && <DersSaatleriPanel kurumId={kurumId} />}
         {bolum === 'ogretmenler' && <SinifOgretmenleriPanel kurumId={kurumId} classes={classes} />}
+        {bolum === 'program' && <ProgramPanel kurumId={kurumId} classes={classes} />}
       </Suspense>
     </div>
   );
