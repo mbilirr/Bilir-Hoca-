@@ -18,7 +18,6 @@ import {
   Calendar,
   FileSpreadsheet,
   Download,
-  Sparkles,
   Upload,
   Camera,
   AlertCircle,
@@ -98,6 +97,12 @@ interface StudentManagementProps {
 
 /** Aşama 72: öğrenci bilgileri penceresindeki kutular küçük ve sıkı (pencere dikdörtgen kalır) */
 const SF = 'h-8 text-xs px-2.5 py-1 rounded-lg';
+
+// Aşama 202: Sınıf Ekle / Düzenle penceresi; alanlar aynı boy, düğmeler aynı en ve boy (h-8 w-24, kısa yazı)
+const classLabelCls = 'block text-xs font-semibold text-fg-2 mb-1';
+const classCtrlCls = cx(inputCls, 'h-9 py-0 text-xs');
+const classBtnCls = (variant: string, extra?: string) =>
+  cx('ui-btn ui-btn-sm h-8 w-24 min-w-0 px-2 py-0 justify-center', variant, extra);
 
 // HIZ (Aşama 84): tablo satırındaki "sınıf değiştir" kutusu, kişi kutuya dokunana / tıklayana kadar yalnızca
 // mevcut sınıfı içerir; seçenekler o anda eklenir. 50 satır × tüm sınıflar yüzlerce gereksiz öğe demekti
@@ -2597,25 +2602,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               type="button"
               onClick={() => setIsAddClassOpen(false)}
               disabled={isSavingClass}
-              className="ui-btn ui-btn-secondary"
+              className={classBtnCls('ui-btn-secondary')}
             >
               İptal
             </button>
-            <button type="submit" form="class-form" disabled={isSavingClass} className="ui-btn ui-btn-primary">
-              {isSavingClass ? (
-                <span>Kaydediliyor...</span>
-              ) : classExcelValidRows.length > 0 ? (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>
-                    {editingClass
-                      ? `Kaydet ve ${classExcelValidRows.length} Öğrenciyi Ekle`
-                      : `Sınıfı & ${classExcelValidRows.length} Öğrenciyi Oluştur`}
-                  </span>
-                </>
-              ) : (
-                <span>{editingClass ? 'Kaydet' : 'Sınıfı Oluştur'}</span>
-              )}
+            {/* Aşama 202: kısa, sabit yazı; Excel'den gelecek öğrenci sayısı yukarıdaki "Öğrenci Hazır" etiketinde görünür */}
+            <button type="submit" form="class-form" disabled={isSavingClass} className={classBtnCls('ui-btn-primary')}>
+              {isSavingClass ? 'Kaydediliyor' : editingClass ? 'Kaydet' : 'Oluştur'}
             </button>
           </>
         }
@@ -2628,168 +2621,157 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         )}
 
         <form id="class-form" onSubmit={handleSaveClass} className="space-y-4">
-          {/* Okul, Sınıf ve Şube Seçimleri - MECBURİ */}
-          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-line">
-              <span className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <School className="w-4 h-4 text-brand-fg" />
-                <span>Kademe & Şube Belirleme (Mecburi)</span>
-              </span>
-              <span className="ui-chip ui-chip-warning">* Zorunlu</span>
+          {/* Aşama 202: sade düzen — kutu, "Mecburi" başlığı, "Zorunlu" etiketi, yıldızlar ve emojiler kalktı; bütün alanlar aynı boyda */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label htmlFor="class-form-school" className={classLabelCls}>
+                Okul
+              </label>
+              <select
+                id="class-form-school"
+                required
+                value={classSchoolLevel}
+                onChange={(e) => {
+                  const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
+                  setClassSchoolLevel(newSchool);
+                  const firstGrade = newSchool === 'Lise' ? '9. Sınıf' : '5. Sınıf';
+                  setClassGradeLevel(firstGrade);
+                  setClassName(formatClassDisplayName('', branchValue(classBranch), firstGrade));
+                }}
+                className={cx(classCtrlCls, 'cursor-pointer')}
+              >
+                <option value="">Okul seçin</option>
+                <option value="Ortaokul">Ortaokul</option>
+                <option value="Lise">Lise</option>
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label htmlFor="class-form-school" className="block text-[11px] font-bold text-fg-2 mb-1">
-                  Okul *
-                </label>
-                <select
-                  id="class-form-school"
-                  required
-                  value={classSchoolLevel}
-                  onChange={(e) => {
-                    const newSchool = e.target.value as 'Ortaokul' | 'Lise' | '';
-                    setClassSchoolLevel(newSchool);
-                    const firstGrade = newSchool === 'Lise' ? '9. Sınıf' : '5. Sınıf';
-                    setClassGradeLevel(firstGrade);
-                    setClassName(formatClassDisplayName('', branchValue(classBranch), firstGrade));
-                  }}
-                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
-                >
-                  <option value="">Okul Seçiniz *</option>
-                  <option value="Ortaokul">{'\u{1F3EB}'} Ortaokul</option>
-                  <option value="Lise">🎓 Lise</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="class-form-grade" className="block text-[11px] font-bold text-fg-2 mb-1">
-                  Sınıf *
-                </label>
-                <select
-                  id="class-form-grade"
-                  required
-                  value={classGradeLevel}
-                  onChange={(e) => {
-                    const newGrade = e.target.value;
-                    setClassGradeLevel(newGrade);
-                    setClassName(formatClassDisplayName('', branchValue(classBranch), newGrade));
-                  }}
-                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
-                >
-                  {!classSchoolLevel ? (
-                    <option value="">Önce Okul Seçiniz *</option>
-                  ) : (
-                    getGradesForSchoolLevel(classSchoolLevel).map((g) => (
-                      <option key={g} value={g}>
-                        {g}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="class-form-branch" className="block text-[11px] font-bold text-fg-2 mb-1">
-                  Şube *
-                </label>
-                <select
-                  id="class-form-branch"
-                  required
-                  value={classBranch}
-                  onChange={(e) => {
-                    const newBranch = e.target.value;
-                    setClassBranch(newBranch);
-                    setClassName(formatClassDisplayName('', branchValue(newBranch), classGradeLevel));
-                  }}
-                  className={cx(inputCls, 'text-xs font-semibold cursor-pointer')}
-                >
-                  <option value="">Şube Seçiniz *</option>
-                  {BRANCH_OPTIONS.map((b) => (
-                    <option key={b.id} value={b.label}>
-                      {b.label}
+            <div>
+              <label htmlFor="class-form-grade" className={classLabelCls}>
+                Sınıf
+              </label>
+              <select
+                id="class-form-grade"
+                required
+                value={classGradeLevel}
+                onChange={(e) => {
+                  const newGrade = e.target.value;
+                  setClassGradeLevel(newGrade);
+                  setClassName(formatClassDisplayName('', branchValue(classBranch), newGrade));
+                }}
+                className={cx(classCtrlCls, 'cursor-pointer')}
+              >
+                {!classSchoolLevel ? (
+                  <option value="">Önce okul seçin</option>
+                ) : (
+                  getGradesForSchoolLevel(classSchoolLevel).map((g) => (
+                    <option key={g} value={g}>
+                      {g}
                     </option>
-                  ))}
-                  <option value={NO_BRANCH}>Şubesiz (yalnızca sınıf)</option>
-                </select>
-              </div>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="class-form-branch" className={classLabelCls}>
+                Şube
+              </label>
+              <select
+                id="class-form-branch"
+                required
+                value={classBranch}
+                onChange={(e) => {
+                  const newBranch = e.target.value;
+                  setClassBranch(newBranch);
+                  setClassName(formatClassDisplayName('', branchValue(newBranch), classGradeLevel));
+                }}
+                className={cx(classCtrlCls, 'cursor-pointer')}
+              >
+                <option value="">Şube seçin</option>
+                {BRANCH_OPTIONS.map((b) => (
+                  <option key={b.id} value={b.label}>
+                    {b.label}
+                  </option>
+                ))}
+                <option value={NO_BRANCH}>Şubesiz (yalnızca sınıf)</option>
+              </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="class-form-name" className="block text-xs font-bold text-fg-2 mb-1">Sınıf Adı *</label>
-              <input autoComplete="off"
+              <label htmlFor="class-form-name" className={cx(classLabelCls, 'flex items-center gap-1')}>
+                <span>Sınıf adı</span>
+                <InfoTip text="Okul, sınıf ve şubeye göre kendiliğinden yazılır; isterseniz değiştirebilirsiniz." />
+              </label>
+              <input
+                autoComplete="off"
                 id="class-form-name"
                 type="text"
                 required
-                placeholder="Örn: 8/A, 8/B, 6/C, 11/B"
+                placeholder="Örn: 8/A"
                 value={className}
                 onChange={(e) => setClassName(e.target.value)}
-                className={inputCls}
+                className={classCtrlCls}
               />
             </div>
 
             <div>
-              <label htmlFor="class-form-year" className="block text-xs font-bold text-fg-2 mb-1">Eğitim Yılı</label>
-              <input autoComplete="off"
+              <label htmlFor="class-form-year" className={classLabelCls}>
+                Eğitim yılı
+              </label>
+              <input
+                autoComplete="off"
                 id="class-form-year"
                 type="text"
                 value={classAcademicYear}
                 onChange={(e) => setClassAcademicYear(e.target.value)}
                 placeholder={currentAcademicYear()}
-                className={inputCls}
+                className={classCtrlCls}
               />
             </div>
           </div>
 
           <div>
-            <label htmlFor="class-form-description" className="flex items-center justify-between text-xs font-bold text-fg-2 mb-1">
+            <label htmlFor="class-form-description" className={cx(classLabelCls, 'flex items-center justify-between')}>
               <span>Açıklama</span>
-              <span className="text-[10px] font-normal text-subtle">isteğe bağlı</span>
+              <span className="font-normal text-subtle">isteğe bağlı</span>
             </label>
-            <textarea
+            <input
+              autoComplete="off"
               id="class-form-description"
-              rows={2}
+              type="text"
               maxLength={300}
               value={classDescription}
               onChange={(e) => setClassDescription(e.target.value)}
               placeholder="Örn: LGS hazırlık sınıfı"
-              className={cx(inputCls, 'resize-y')}
+              className={classCtrlCls}
             />
           </div>
 
-          {/* Toplu Öğrenci Yükleme Bölümü */}
-          <div className="p-4 bg-surface-2 rounded-xl border border-line space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-fg flex items-center gap-1.5">
-                <FileSpreadsheet className="w-4 h-4 text-success-fg" />
-                <span>Toplu Öğrenci Yükle</span>
-              </span>
-              <button
-                type="button"
-                onClick={downloadSampleClassExcel}
-                className="text-[11px] text-brand-fg hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                title="Excel şablonunu bilgisayarınıza indirin"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Örnek Şablon İndir</span>
-              </button>
-            </div>
-
-            {classExcelError && (
-              <div role="alert" className="p-2.5 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>{classExcelError}</span>
-              </div>
-            )}
-
-            {classExcelStudents.length === 0 ? (
-              <div>
-                <label
-                  htmlFor="class-excel-upload"
-                  className="border-2 border-dashed border-line-strong hover:border-success bg-surface rounded-xl px-3 py-2.5 flex items-center justify-center gap-2 cursor-pointer transition-all group"
-                >
+          {/* Toplu Öğrenci Yükleme Bölümü — Aşama 202: tek satırlık kompakt bölüm, sütun bilgisi ⓘ içinde */}
+          <CompactRow
+            icon={FileSpreadsheet}
+            title="Excel ile öğrenci ekle"
+            status={<span className="text-[11px] font-normal text-subtle">isteğe bağlı</span>}
+            info="Sütunlar: Ad Soyad (veya Ad + Soyad), Öğrenci No, E-posta, Telefon. Dosya türü: .xlsx, .xls ya da .csv. Önce şablonu indirip doldurabilirsiniz."
+            actions={
+              classExcelStudents.length === 0 ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={downloadSampleClassExcel}
+                    className={classBtnCls('ui-btn-ghost')}
+                    title="Excel şablonunu bilgisayarınıza indirin"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Şablon</span>
+                  </button>
+                  <label htmlFor="class-excel-upload" className={classBtnCls('ui-btn-secondary', 'cursor-pointer')}>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>{isReadingClassExcel ? 'Okunuyor' : 'Dosya seç'}</span>
+                  </label>
                   <input
                     id="class-excel-upload"
                     type="file"
@@ -2801,14 +2783,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       e.target.value = '';
                     }}
                   />
-                  <Upload className="w-3.5 h-3.5 shrink-0 text-success-fg" />
-                  <span className="text-xs font-bold text-fg-2 group-hover:text-success-fg">
-                    {isReadingClassExcel ? 'Excel Okunuyor...' : 'Excel Dosyası Seç (.xlsx, .xls, .csv)'}
-                  </span>
-                  <span className="text-[11px] text-muted mt-0.5">Sütunlar: Ad Soyad (veya Ad + Soyad), Öğrenci No, E-posta, Telefon</span>
-                </label>
-              </div>
-            ) : (
+                </>
+              ) : null
+            }
+          >
+            {classExcelError || classExcelStudents.length > 0 ? (
+              <div className="space-y-2">
+                {classExcelError && (
+                  <div role="alert" className="p-2.5 bg-danger-soft rounded-xl flex items-center gap-2 text-xs font-semibold text-danger-fg">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{classExcelError}</span>
+                  </div>
+                )}
+                {classExcelStudents.length > 0 && (
               <div className="space-y-2 bg-surface p-3 rounded-xl border border-line">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -2822,14 +2809,15 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowExcelStudentList(!showExcelStudentList)}
-                      className="text-[11px] text-brand-fg font-bold cursor-pointer"
+                      className={classBtnCls('ui-btn-ghost')}
+                      aria-expanded={showExcelStudentList}
                     >
-                      {showExcelStudentList ? 'Gizle' : 'Öğrencileri Gör'}
+                      {showExcelStudentList ? 'Gizle' : 'Listeyi gör'}
                     </button>
                     <button
                       type="button"
                       onClick={resetClassExcelState}
-                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon hover:text-danger-fg"
+                      className="ui-btn ui-btn-ghost ui-btn-sm ui-btn-icon h-8 w-8 p-0 hover:text-danger-fg"
                       title="Listeyi Temizle"
                       aria-label="Listeyi Temizle"
                     >
@@ -2862,7 +2850,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <button
                             type="button"
                             onClick={() => setClassExcelStudents((prev) => validateClassExcelRows(prev.filter((_, idx) => idx !== i)))}
-                            className="p-0.5 text-subtle hover:text-danger-fg rounded cursor-pointer"
+                            className="inline-flex items-center justify-center w-6 h-6 text-subtle hover:text-danger-fg rounded cursor-pointer"
                             title="Satırı kaldır"
                             aria-label={`${st.rowNumber}. satırı kaldır`}
                           >
@@ -2874,8 +2862,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                   </ul>
                 )}
               </div>
-            )}
-          </div>
+                )}
+              </div>
+            ) : null}
+          </CompactRow>
         </form>
       </Modal>
 
