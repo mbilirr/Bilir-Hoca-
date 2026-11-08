@@ -120,7 +120,7 @@ export const UnattendedEtutBanner: React.FC<{ onOpenEtuts: () => void }> = ({ on
             type="button"
             onClick={dismiss}
             aria-label="Uyarıyı kapat"
-            className="p-1.5 rounded-lg hover:bg-rose-500/20 cursor-pointer"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 hover:bg-rose-500/20"
           >
             <X className="w-4 h-4" />
           </button>

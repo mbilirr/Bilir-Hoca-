@@ -445,7 +445,7 @@ export const Asama25Rehberi: React.FC<{ isOpen: boolean; onClose: () => void }> 
               <p className="text-xs text-muted">Adım adım rehber · yaptığınız adımı işaretleyin</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-1 text-muted hover:text-fg rounded-lg cursor-pointer" aria-label="Kapat">
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" aria-label="Kapat">
             <X className="w-5 h-5" />
           </button>
         </div>

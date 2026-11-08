@@ -1500,7 +1500,8 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditModalUser(null)}
-                  className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
+                  aria-label="Kapat"
+                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1780,7 +1781,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setRoleModalUser(null)}
-                className="text-muted hover:text-fg"
+                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2011,7 +2012,7 @@ export const AdminUserManagement: React.FC<AdminUserManagementProps> = ({
               <button
                 type="button"
                 onClick={() => setAuthModalTeacher(null)}
-                className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
+                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2460,7 +2461,7 @@ const CreateTeacherAccountContent: React.FC<CreateTeacherAccountModalProps> = ({
               <p className="text-xs text-muted">Öğretmen, kullanıcı adı ve bu şifreyle giriş yapar.</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-muted hover:text-fg" aria-label="Kapat">
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" aria-label="Kapat">
             <X className="w-5 h-5" />
           </button>
         </div>

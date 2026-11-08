@@ -53,7 +53,7 @@ export const AdminBackupReminder: React.FC<{ onOpenBackup: () => void }> = ({ on
           type="button"
           onClick={() => setDismissed(true)}
           aria-label="Hatırlatmayı kapat"
-          className="p-1.5 rounded-lg text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/20 cursor-pointer"
+          className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-emerald-700 dark:text-emerald-200 hover:bg-emerald-500/20"
         >
           <X className="w-4 h-4" />
         </button>
