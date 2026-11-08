@@ -43,7 +43,7 @@ const PAGE_LOADERS = {
   etuts: () => import('./components/Teacher/EtutManagement'),
   messages: () => import('./components/Teacher/TeacherMessages'),
   archive: () => import('./components/Teacher/Documents/TeacherDocumentsArchive'),
-  grades: () => import('./components/Teacher/GradeAttendance'),
+  grades: () => import('./components/Teacher/DerslerSayfasi'), // Aşama 220: Dersler (Program + Notlar)
   question_tracking: () => import('./components/Teacher/QuestionTrackingView'),
   deneme: () => import('./components/Deneme/DenemeAnalizi'),
 } as const;
@@ -58,7 +58,7 @@ const EtutManagement = lazyNamed(PAGE_LOADERS.etuts, 'EtutManagement');
 const TeacherMessages = lazyNamed(PAGE_LOADERS.messages, 'TeacherMessages');
 const TeacherHome = lazyNamed(PAGE_LOADERS.home, 'TeacherHome');
 const TeacherDocumentsArchive = lazyNamed(PAGE_LOADERS.archive, 'TeacherDocumentsArchive');
-const GradeAttendance = lazyNamed(PAGE_LOADERS.grades, 'GradeAttendance');
+const DerslerSayfasi = lazyNamed(PAGE_LOADERS.grades, 'DerslerSayfasi'); // Aşama 220
 const QuestionTrackingView = lazyNamed(PAGE_LOADERS.question_tracking, 'QuestionTrackingView');
 const DenemeAnalizi = lazyNamed(PAGE_LOADERS.deneme, 'DenemeAnalizi');
 const YonetimSayfasi = lazyNamed(() => import('./components/Admin/YonetimSayfasi'), 'YonetimSayfasi'); // Aşama 143
@@ -657,7 +657,7 @@ export default function App() {
                   )}
 
                   {teacherTab === 'grades' && (
-                    <GradeAttendance students={students} classes={classes} grades={grades} attendance={attendance} />
+                    <DerslerSayfasi students={students} classes={classes} grades={grades} attendance={attendance} />
                   )}
 
                   {teacherTab === 'question_tracking' && (

@@ -31,6 +31,7 @@ import { useArrivalFlash } from '../../lib/useArrivalFlash';
 import { etutTeacherNames } from '../../lib/etutStatus';
 import { PushOptInCard } from '../Common/PushOptInCard';
 import { KurumNameBadge } from './KurumNameBadge';
+import { DersBekleyenSatiri } from './DersBekleyenSatiri'; // Aşama 220
 
 // ============================================================================
 // ÖĞRETMEN ANA SAYFASI (Aşama 8)
@@ -113,6 +114,7 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
     questions: dataService.canUseTab('question_tracking'),
     messages: dataService.canUseTab('messages'),
     students: dataService.canUseTab('students'),
+    grades: dataService.canUseTab('grades'), // Aşama 220: Dersler
   };
   const canGiveHomework = dataService.canGiveHomework();
   const canPlanEtut = dataService.canPlanEtut();
@@ -474,6 +476,9 @@ export const TeacherHome: React.FC<TeacherHomeProps> = ({
       </div>
 
       <PushOptInCard role="teacher" />
+
+      {/* ===== Aşama 220: yalnız kendi dersinin yoklaması bekliyorsa tek satır (yoksa hiç görünmez) ===== */}
+      {can.grades && <DersBekleyenSatiri onAc={(b) => go('grades', ['ders', `${b.classId}|${b.tarih}|${b.sira}`, `${b.classAd} · ${b.sira}. ders`])} />}
 
       {/* ===== Aşama 98: idare için Kurum Özeti ===== */}
       {idare && (

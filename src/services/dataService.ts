@@ -148,7 +148,7 @@ export const KURUM_MODULES: Array<{ key: KurumModule; title: string; description
   { key: 'homework', title: 'Ödevler', description: 'Ödev verme ve ödev kontrolü' },
   { key: 'etut', title: 'Etütler', description: 'Etüt planlama ve etüt yoklaması' },
   { key: 'questions', title: 'Soru Takibi', description: 'Soru sayıları ve öğrenciye soru hedefi verme' },
-  { key: 'grades', title: 'Not & Yoklama', description: 'Sınav notu ve ders yoklaması girme' },
+  { key: 'grades', title: 'Dersler', description: 'Ders programı, ders yoklaması ve sınav notu' } /* Aşama 220 */,
   { key: 'messages', title: 'Mesajlar', description: 'Öğrenci mesajlarını cevaplama' },
   { key: 'archive', title: 'Arşiv', description: 'Plan ve zümre evrakı yükleme' },
   { key: 'manage_students', title: 'Öğrenci ve sınıf yönetimi', description: 'Kurum yöneticisi kendi sınıf ve öğrencilerini ekler, düzenler, siler' },

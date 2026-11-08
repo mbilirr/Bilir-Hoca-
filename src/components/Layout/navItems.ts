@@ -21,8 +21,8 @@ export const TEACHER_NAV: TeacherNavItem[] = [
   { id: 'etuts', title: 'Etütler', description: 'Etüt ve birebir çalışma takibi', icon: CalendarDays, tone: 'info', keywords: 'etüt birebir takvim yoklama' },
   { id: 'messages', title: 'Mesajlar', description: 'Öğrenci soruları ve mesajlaşma', icon: MessageSquare, tone: 'danger', keywords: 'mesaj soru cevap' },
   { id: 'archive', title: 'Arşiv', description: 'Plan ve zümre evrakları', icon: FolderArchive, tone: 'warning', keywords: 'evrak belge plan zümre yıllık' },
-  // Aşama 17 (rapor Ö13): not ve devamsızlık girişi menüye bağlandı
-  { id: 'grades', title: 'Not & Yoklama', description: 'Sınav notları ve ders yoklaması', icon: ClipboardCheck, tone: 'success', keywords: 'not yazılı sınav puan yoklama devamsızlık' },
+  // Aşama 17 (rapor Ö13): not ve devamsızlık girişi menüye bağlandı · Aşama 220: adı "Dersler" (program + yoklama + notlar)
+  { id: 'grades', title: 'Dersler', description: 'Ders programı, yoklama ve notlar', icon: ClipboardCheck, tone: 'success', keywords: 'ders program yoklama saat not yazılı sınav puan devamsızlık' },
   { id: 'question_tracking', title: 'Soru Takibi', description: 'Çözülen soru sayıları ve analiz', icon: HelpCircle, tone: 'info', keywords: 'soru sayısı analiz hedef grafik' },
   // Aşama 47: yalnızca genel yönetici ve izinli kurum yöneticileri görür (dataService.canUseTab)
   { id: 'deneme', title: 'Deneme Analizi', description: 'Optik sonuçları, LGS puanı ve kazanım analizi', icon: BarChart3, tone: 'brand', keywords: 'deneme lgs optik txt fmt karne net puan kazanım' },

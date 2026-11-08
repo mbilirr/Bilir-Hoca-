@@ -57,7 +57,7 @@ export const SECTION_DEFS: Array<{ key: SectionKey; label: string }> = [
   { key: 'homework', label: 'Ödevler ve Plan' },
   { key: 'etuts', label: 'Etütler' },
   { key: 'question_tracking', label: 'Soru Takibi' },
-  { key: 'grades', label: 'Not & Yoklama' },
+  { key: 'grades', label: 'Dersler' } /* Aşama 220 */,
   { key: 'messages', label: 'Mesajlar' },
   { key: 'archive', label: 'Arşiv' },
   { key: 'deneme', label: 'Deneme Analizi' },

@@ -507,7 +507,7 @@ export const GradeAttendance: React.FC<GradeAttendanceProps> = ({
           onChange={(v) => setActiveMainSection(v)}
           items={[
             { value: 'grades', label: `Not çizelgesi (${classGrades.length})`, icon: Award, id: 'grades-tab-grades' },
-            { value: 'attendance', label: `Devamsızlık (${classAttendanceRecords.length})`, icon: UserX, id: 'grades-tab-attendance' },
+            { value: 'attendance', label: `Eski devamsızlık (${classAttendanceRecords.length})` /* Aşama 220: ders yoklaması artık Program'da */, icon: UserX, id: 'grades-tab-attendance' },
           ]}
         />
 

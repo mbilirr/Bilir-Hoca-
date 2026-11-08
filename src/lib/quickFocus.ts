@@ -5,7 +5,8 @@ import { useEffect, useRef } from 'react';
 // consumeQuickFocus('student') ile seçilen öğrenciyi alıp listeyi süzer.
 // 'action': ana sayfadaki kısayollar (ör. id = 'homework-create' -> Ödev oluşturma penceresini aç)
 // 'teacher' (Aşama 98): Kurum Özeti'nden bir öğretmenin çalışmalarına git (Ödevler / Etütler / Not & Yoklama süzülür)
-export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher';
+// 'ders' (Aşama 220): ana sayfadaki "yoklama bekliyor" satırı → Dersler › Program, o dersin yoklaması açılır (id = classId|tarih|sira)
+export type QuickFocusType = 'student' | 'class' | 'homework' | 'etut' | 'action' | 'teacher' | 'ders';
 
 export interface QuickFocus {
   type: QuickFocusType;
