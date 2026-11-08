@@ -1,22 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  GraduationCap,
-  ShieldCheck,
-  BookOpen,
-  User,
-  Lock,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  CheckCircle2,
-  Briefcase,
-  ArrowRight,
-  CalendarCheck,
-  BarChart3,
-} from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Teacher, Student, ClassGroup, AuthSession, UserRole } from '../../types';
 import { dataService } from '../../services/dataService';
-import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { profilResmi } from '../../lib/profilResmi';
 import {
@@ -60,33 +45,87 @@ const Fingerprint: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-// Aşama 166: yeni logo — B-E simgesi + "BAŞARI & EĞİTİM" yazısı (turkuaz-yeşil geçiş) + ÖĞRENCİ – ÖĞRETMEN – VELİ satırı.
-// Telefonda dikey, tablet ve bilgisayarda yatay dizilir; yazı bloğu simgeyle dikey ortalıdır. Resim dosyası yalnızca /logo.svg.
-const AuthLockup: React.FC = () => (
-  <div className="auth-lockup flex flex-col items-center md:flex-row md:items-center gap-0 md:gap-5 xl:gap-[22px]">
-    <div className="relative shrink-0 w-[76px] h-[76px] md:w-[92px] md:h-[92px] xl:w-[98px] xl:h-[98px]">
-      <img src="/logo.svg?v=167" alt="Başarı ve Eğitim" className="w-full h-full" draggable={false} />
-    </div>
-    <div className="mt-4 md:mt-0 flex flex-col justify-center md:h-[92px] xl:h-[98px] w-max">
-      <h1 className="auth-word relative leading-none whitespace-nowrap text-[24.8px] md:text-[30px] lg:text-[28px] xl:text-[32px]" aria-label="Başarı ve Eğitim">
-        <span aria-hidden="true" className="auth-word-shadow absolute left-[3px] top-[3px]">BAŞARI <i>&amp;</i> EĞİTİM</span>
-        <span className="auth-word-main relative">BAŞARI <i>&amp;</i> EĞİTİM</span>
-      </h1>
-      <div className="auth-sub mt-2 md:mt-2.5 w-full flex items-center justify-between whitespace-nowrap font-semibold text-slate-400 text-[9.5px] tracking-[.1em] md:text-[11.5px] md:tracking-[.14em] xl:text-xs">
-        <span className="inline-flex items-center"><b className="bg-amber-400" />ÖĞRENCİ</span>
-        <span className="opacity-50">–</span>
-        <span className="inline-flex items-center"><b className="bg-white" />ÖĞRETMEN</span>
-        <span className="opacity-50">–</span>
-        <span className="inline-flex items-center"><b className="bg-emerald-300" />VELİ</span>
-      </div>
-    </div>
-  </div>
+// Aşama 222: yeni giriş ekranı (Fikir 1) — koyu marka paneli + açık form. Logo dosyası aynı (/logo.svg), yanında "bilirEdu".
+// Başlık yazı tipi (Instrument Serif) yalnız bu ekranda ve yalnız başlıktaki harfler için yüklenir (birkaç KB);
+// gelene kadar başlık Georgia ile görünür, giriş kutuları hiç beklemez.
+const AUTH_HEADLINE = 'Her öğrencinin yolculuğu, tek bakışta.';
+const AUTH_SERIF_ID = 'auth-serif-font';
+const loadAuthSerif = () => {
+  try {
+    if (document.getElementById(AUTH_SERIF_ID)) return;
+    const link = document.createElement('link');
+    link.id = AUTH_SERIF_ID;
+    link.rel = 'stylesheet';
+    link.href =
+      'https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap&text=' + encodeURIComponent(AUTH_HEADLINE);
+    document.head.appendChild(link);
+  } catch {
+    /* yazı tipi gelmezse başlık Georgia ile görünür */
+  }
+};
+
+// Logonun çizgileri: marka panelinin arkasında büyük ve silik (resim dosyası değil, sayfanın içinde küçük bir çizim)
+const AuthStrokes: React.FC = () => (
+  <svg viewBox="0 0 64 64" aria-hidden="true" className="auth-strokes">
+    <defs>
+      <linearGradient id="auth-st-e" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#5eead4" stopOpacity="0.55" />
+        <stop offset="1" stopColor="#0f766e" stopOpacity="0.12" />
+      </linearGradient>
+      <linearGradient id="auth-st-b" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#f4f1ea" stopOpacity="0.22" />
+        <stop offset="1" stopColor="#f4f1ea" stopOpacity="0.03" />
+      </linearGradient>
+      <linearGradient id="auth-st-c" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#f3c78d" />
+        <stop offset="1" stopColor="#b9763c" />
+      </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="60" height="60" rx="13" fill="none" stroke="url(#auth-st-c)" strokeWidth="0.25" opacity="0.6" />
+    <path d="M51 11H27V50H51M27 30.5H46.68" fill="none" stroke="url(#auth-st-e)" strokeWidth="8.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M11 24V50M11 24H19.5Q25.5 24 25.5 30Q25.5 37 19.5 37H11M19.5 37Q27.5 37 27.5 42.9Q27.5 50 19.5 50H11"
+      fill="none"
+      stroke="url(#auth-st-b)"
+      strokeWidth="6.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M49 42v10M44 47h10" fill="none" stroke="url(#auth-st-c)" strokeWidth="3.2" strokeLinecap="round" />
+  </svg>
 );
-const CHALK_FEATURES = [
-  { icon: BookOpen, text: 'Ödev ve haftalık plan' },
-  { icon: CalendarCheck, text: 'Etüt ve yoklama' },
-  { icon: BarChart3, text: 'Deneme analizi ve karne' },
-];
+
+// Aşama 222: giriş kutusu (etiket üstte, hata altta). Ortak Input yerine burada: bu ekran her zaman açık zemindir,
+// sistem koyu temadayken bile kutular ve hata yazıları açık zemine göre renklenir.
+type AuthFieldProps = React.InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; right?: React.ReactNode };
+const AuthField = React.forwardRef<HTMLInputElement, AuthFieldProps>(({ label, error, right, id, className = '', ...rest }, ref) => {
+  const gid = React.useId();
+  const iid = id || gid;
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={iid} className="block text-[13px] lg:text-xs font-semibold text-fg-2">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          ref={ref}
+          id={iid}
+          aria-invalid={error ? 'true' : 'false'}
+          aria-describedby={error ? `${iid}-error` : undefined}
+          className={`auth-input ${right ? 'pr-12' : ''} ${error ? 'is-err' : ''} ${className}`}
+          {...rest}
+        />
+        {right}
+      </div>
+      {error && (
+        <p id={`${iid}-error`} className="auth-err-text text-xs font-medium">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+});
+AuthField.displayName = 'AuthField';
 
 interface AuthPortalProps {
   onAuthSuccess: (session: AuthSession) => void;
@@ -170,6 +209,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
 
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const usernameInputRef = useRef<HTMLInputElement | null>(null);
+  // Aşama 222: başlık yazı tipi yalnız giriş ekranında yüklenir; telefonda tarayıcı üst çubuğu koyu panelle aynı renk olur
+  // (ekrandan çıkınca eski rengine döner)
+  useEffect(() => {
+    loadAuthSerif();
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute('content') ?? null;
+    meta?.setAttribute('content', '#0f241b');
+    return () => {
+      if (meta && prev !== null) meta.setAttribute('content', prev);
+    };
+  }, []);
 
   // Aşama 201: ekran açılınca (ve rol değişince) imleç ilk boş alanda. Yalnız fare / dokunmatik yüzey olan cihazlarda:
   // telefonda kendiliğinden açılan klavye ekranın yarısını kapatırdı.
@@ -440,308 +490,329 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({
     setSuccessMsg('Bu cihazdaki parmak izi girişi kaldırıldı.');
   };
 
+  // Aşama 222: şifre formundayken (parmak izi kayıtlıysa) yandaki kare düğme parmak izi girişine geri döner
+  const goBioLogin = () => {
+    setBioFallback(false);
+    setError(null);
+    setFieldErr({});
+  };
+  const canBioLogin = !!activeBioProfile && bioAvailable;
+
   return (
-    <div className="auth-v2 relative min-h-screen w-full overflow-hidden font-sans" data-theme="dark">
-      {/* Aşama 166: zemin — bilgisayarda aurora ışıkları, tablet ve telefonda bakır parıltı */}
-      <div className="auth-aurora" aria-hidden="true" />
-
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center gap-7 px-6 py-8 lg:flex-row lg:justify-between lg:gap-12 lg:px-[clamp(132px,calc((100vw_-_884px)/2),150px)] xl:px-[150px]">
-        {/* Marka: logo + (yalnız bilgisayarda) başlık, cümle, liste */}
-        <section id="auth-brand-panel" className="relative flex flex-col items-center lg:items-start lg:flex-1 lg:min-w-0 lg:justify-center lg:gap-16 lg:self-stretch">
-          <div className="mb-5 lg:mb-0 lg:-ml-[92px] xl:-ml-[98px]">
-            <AuthLockup />
+    <div className="auth-v2 relative min-h-[100dvh] w-full font-sans flex flex-col md:p-5 lg:grid lg:grid-cols-12 lg:gap-4 lg:p-4">
+      {/* Aşama 222: marka paneli — telefonda üstte kısa, tablette üstte geniş, bilgisayarda solda tam boy */}
+      <section
+        id="auth-brand-panel"
+        className="auth-brand relative overflow-hidden flex flex-col gap-6 px-7 pb-8 pt-[max(20px,env(safe-area-inset-top))] md:rounded-[32px] md:gap-12 md:px-12 md:pt-12 md:pb-[124px] lg:col-span-7 lg:rounded-[24px] lg:justify-between lg:gap-8 lg:px-14 lg:py-12"
+      >
+        <AuthStrokes />
+        <div className="relative flex items-center gap-2.5 md:gap-3">
+          <img src="/logo.svg?v=167" alt="" className="w-[30px] h-[30px] md:w-10 md:h-10" draggable={false} />
+          <span className="auth-wordmark text-lg md:text-[22px]" aria-label="bilirEdu">
+            bilir<span>Edu</span>
+          </span>
+        </div>
+        <div className="relative flex flex-col gap-7">
+          <h1 className="auth-serif m-0 text-[30px] leading-[1.05] md:text-[66px] md:leading-[0.98] lg:text-[clamp(56px,6vw,84px)] lg:leading-[0.95]">
+            Her öğrencinin
+            <br className="hidden md:inline" /> <span className="auth-gold">yolculuğu</span>,
+            <br />
+            tek bakışta.
+          </h1>
+          <div className="hidden md:flex items-center gap-2.5" aria-hidden="true">
+            <span className="auth-pill">
+              <b className="bg-amber-400" />
+              Öğrenci
+            </span>
+            <span className="auth-pill">
+              <b className="bg-[#f4f1ea]" />
+              Öğretmen
+            </span>
+            <span className="auth-pill">
+              <b className="bg-emerald-300" />
+              Veli
+            </span>
           </div>
-          <div className="hidden lg:block">
-            <p className="auth-headline text-[34px] xl:text-[38px] font-extrabold leading-[1.15] tracking-tight">
-              Ödevden karneye
-              <br />
-              her adım takipte
-            </p>
-            <p className="mt-3 text-sm text-white/70">Ödev, etüt, yoklama ve deneme sonuçları tek yerde.</p>
-            <ul className="mt-8 space-y-3.5">
-              {CHALK_FEATURES.map((f) => (
-                <li key={f.text} className="flex items-center gap-3 text-sm text-white/85">
-                  <span className="w-8 h-8 rounded-lg bg-amber-300/15 border border-amber-300/35 text-amber-300 flex items-center justify-center">
-                    <f.icon className="w-4 h-4" />
-                  </span>
-                  {f.text}
-                </li>
-              ))}
-            </ul>
+        </div>
+      </section>
+
+      {/* Aşama 222: form — telefonda alttan açılan açık panel, tablette panelin üstüne taşan kart, bilgisayarda sağda açık zemin */}
+      <main className="auth-sheet relative z-10 flex-1 flex flex-col px-6 pt-6 pb-[max(20px,env(safe-area-inset-bottom))] md:flex-none md:-mt-24 md:px-0 md:pt-0 lg:mt-0 lg:col-span-5 lg:justify-center lg:px-[clamp(32px,4vw,56px)] lg:py-8">
+        <div className="auth-card w-full md:mx-auto md:w-[520px] md:p-9 lg:w-full lg:max-w-[400px] lg:p-0">
+          <div className="hidden md:block mb-5">
+            <h2 className="text-[26px] lg:text-[28px] font-bold text-fg tracking-tight leading-tight">Giriş yap</h2>
+            <p className="text-sm text-muted mt-1">Kaldığınız yerden devam edin.</p>
           </div>
-          <p className="hidden lg:block absolute left-0 bottom-8 text-[11px] text-white/70">© {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM</p>
-        </section>
 
-        {/* Giriş formu */}
-        <main className="w-full max-w-[342px] md:max-w-[520px] lg:max-w-[420px] lg:w-[420px] lg:flex-none">
-          <div className="auth-card w-full p-[22px] md:p-9 lg:p-[34px]">
-            <h2 className="text-[22px] md:text-[26px] lg:text-2xl font-bold text-fg tracking-tight">
-              Hoş geldiniz
-            </h2>
-            <p className="text-xs text-muted mt-1 mb-5">Hesabınızla devam edin</p>
+          {/* Rol seçimi (tek şerit) */}
+          <div className="auth-seg grid grid-cols-2 gap-1 p-1 mb-5" role="tablist" aria-label="Giriş yapılacak rol">
+            {(
+              [
+                { role: 'teacher', label: 'Öğretmen' },
+                { role: 'student', label: 'Öğrenci' },
+              ] as const
+            ).map((r) => {
+              const on = selectedRole === r.role;
+              return (
+                <button
+                  key={r.role}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  id={`auth-role-${r.role}`}
+                  onClick={() => handleSelectRole(r.role)}
+                  className={`auth-seg-btn inline-flex items-center justify-center text-sm lg:text-[13px] font-semibold cursor-pointer ${on ? 'is-on' : ''}`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Rol seçimi (tek şerit) */}
-            <div className="auth-seg grid grid-cols-2 gap-1 p-1 mb-5" role="tablist" aria-label="Giriş yapılacak rol">
-              {(
-                [
-                  { role: 'teacher', label: 'Öğretmen', icon: ShieldCheck },
-                  { role: 'student', label: 'Öğrenci', icon: BookOpen },
-                ] as const
-              ).map((r) => {
-                const on = selectedRole === r.role;
-                return (
-                  <button
-                    key={r.role}
-                    type="button"
-                    role="tab"
-                    aria-selected={on}
-                    id={`auth-role-${r.role}`}
-                    onClick={() => handleSelectRole(r.role)}
-                    className={`auth-seg-btn h-9 inline-flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer ${
-                      on ? 'is-on' : 'text-muted hover:text-fg'
-                    }`}
-                  >
-                    <r.icon className="w-3.5 h-3.5" />
-                    {r.label}
-                  </button>
-                );
-              })}
+          {/* Genel hata ve bilgi kutuları */}
+          {error && (
+            <div className="auth-alert is-err mb-5" role="alert">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="flex-1">{error}</div>
             </div>
+          )}
 
-              {/* Error & Success Feedback Alerts */}
-              {error && (
-                <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl flex items-start space-x-3 text-red-700 dark:text-red-300 text-xs sm:text-sm">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
-                  <div className="flex-1">{error}</div>
+          {successMsg && (
+            <div className="auth-alert is-ok mb-5" role="status">
+              <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-relaxed">{successMsg}</div>
+            </div>
+          )}
+
+          {/* ================= PARMAK İZİ KAYIT ADIMI ================= */}
+          {pendingBio && (
+            <div id="biometric-enroll" className="space-y-4 p-5 rounded-2xl border border-line bg-surface">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-brand text-white flex items-center justify-center shrink-0">
+                  <Fingerprint className="w-7 h-7" />
                 </div>
-              )}
-
-              {successMsg && (
-                <div className="mb-5 p-3.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl flex items-start space-x-3 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm">
-                  <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-700 dark:text-emerald-400 mt-0.5" />
-                  <div className="flex-1 leading-relaxed">{successMsg}</div>
+                <div>
+                  <h3 className="text-base font-bold text-fg">Parmak izinizi kaydedin</h3>
+                  <p className="text-xs text-muted leading-relaxed mt-1">
+                    Şifreniz doğrulandı. Düğmeye basınca cihazınız parmak izinizi (veya yüz tanımayı) ister. Bundan sonra bu cihazda
+                    şifre yazmadan girersiniz. Parmak iziniz cihazınızdan çıkmaz.
+                  </p>
                 </div>
-              )}
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleEnableBiometric}
+                  disabled={isLoading}
+                  isLoading={isLoading}
+                  loadingText="Parmak izi bekleniyor..."
+                  leftIcon={<Fingerprint className="w-4 h-4" />}
+                  className="auth-cta flex-1"
+                >
+                  Parmak izimi kaydet
+                </Button>
+                <Button type="button" variant="ghost" onClick={handleSkipBiometric} disabled={isLoading} className="auth-ghost sm:w-40">
+                  Şimdi değil
+                </Button>
+              </div>
+            </div>
+          )}
 
-              {/* ================= MODE 1: LOGIN ================= */}
-              {/* ================= PARMAK İZİ KAYIT ADIMI ================= */}
-              {pendingBio && (
-                <div id="biometric-enroll" className="space-y-4 p-5 rounded-2xl border border-line bg-brand-soft">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-brand text-white flex items-center justify-center shrink-0">
-                      <Fingerprint className="w-7 h-7" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold text-fg">Parmak izinizi kaydedin</h3>
-                      <p className="text-xs text-muted leading-relaxed mt-1">
-                        Şifreniz doğrulandı. Aşağıdaki düğmeye basınca cihazınız parmak izinizi (veya yüz tanımayı) isteyecek.
-                        Bundan sonra bu cihazda şifre yazmadan, parmak izinizle giriş yapabilirsiniz. Parmak iziniz cihazınızdan çıkmaz.
-                      </p>
+          {!pendingBio && (
+            <div className="space-y-5">
+              {/* Aşama 42 + 222: PARMAK İZİ AÇIKSA profil satırı + büyük parmak izi düğmesi; sorun olursa şifre formu */}
+              {bioMode && activeBioProfile && (
+                <div id="biometric-login" className="space-y-5">
+                  <div className="auth-profile">
+                    <span className="auth-avatar">
+                      <Fingerprint className="w-5 h-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-bold text-fg truncate">{activeBioProfile.name || activeBioProfile.identifier}</p>
+                      <p className="text-xs text-muted">{selectedRole === 'teacher' ? 'Öğretmen' : 'Öğrenci'}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      onClick={handleEnableBiometric}
-                      disabled={isLoading}
-                      isLoading={isLoading}
-                      loadingText="Parmak izi bekleniyor..."
-                      leftIcon={<Fingerprint className="w-4 h-4" />}
-                      className="auth-cta flex-1"
-                    >
-                      Parmak izimi kaydet
-                    </Button>
-                    <Button type="button" variant="ghost" onClick={handleSkipBiometric} disabled={isLoading} className="sm:w-40">
-                      Şimdi değil
-                    </Button>
+                  <button
+                    type="button"
+                    id="biometric-login-btn"
+                    onClick={handleBiometricLogin}
+                    disabled={isLoading}
+                    className="auth-bio-big mx-auto flex flex-col items-center gap-2.5 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    <span className="auth-bio-tile">
+                      <Fingerprint className="w-10 h-10" />
+                    </span>
+                    <span className="text-[15px] font-bold text-fg">{isLoading ? 'Parmak izi bekleniyor...' : 'Parmak izi ile giriş'}</span>
+                  </button>
+                  <div className="flex items-center justify-between text-xs text-muted">
+                    <button type="button" id="biometric-use-password" onClick={goPasswordLogin} className="auth-link-btn">
+                      Şifreyle gir
+                    </button>
+                    <button type="button" onClick={handleRemoveBiometric} className="auth-link-btn is-danger">
+                      Parmak izini kaldır
+                    </button>
                   </div>
                 </div>
               )}
 
-              {!pendingBio && (
-                <div className="space-y-5">
-                  {/* Aşama 42: PARMAK İZİ AÇIKSA tek "Giriş" düğmesi — önce parmak izi, sorun olursa şifre formu */}
-                  {bioMode && activeBioProfile && (
-                    <div id="biometric-login" className="space-y-3">
-                      <div className="flex items-center gap-3 p-3 rounded-2xl border border-line bg-surface">
-                        <span className="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center shrink-0">
-                          <Fingerprint className="w-5 h-5" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-bold text-fg truncate">{activeBioProfile.name || activeBioProfile.identifier}</p>
-                          <p className="text-[11px] text-muted">{selectedRole === 'teacher' ? 'Öğretmen hesabı' : 'Öğrenci hesabı'}</p>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="primary"
-                        id="biometric-login-btn"
-                        onClick={handleBiometricLogin}
-                        disabled={isLoading}
-                        isLoading={isLoading}
-                        loadingText="Parmak izi bekleniyor..."
-                        leftIcon={<Fingerprint className="w-4 h-4" />}
-                        className="auth-cta w-full"
-                      >
-                        Giriş
-                      </Button>
-                      <div className="flex items-center justify-between text-[11px] text-muted">
-                        <button type="button" id="biometric-use-password" onClick={goPasswordLogin} className="font-semibold hover:text-fg cursor-pointer">
-                          Şifreyle gir
-                        </button>
-                        <button type="button" onClick={handleRemoveBiometric} className="font-semibold hover:text-red-600 dark:hover:text-red-300 cursor-pointer">
-                          Parmak izini kaldır
-                        </button>
-                      </div>
-                    </div>
-                  )}
+              {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
+              {/* Aşama 201: tek satır — fotoğraf, ad ve "Başka hesap" (kayıtlı profili kaldırır, kutuyu boşaltır) */}
+              {!bioMode && activeRememberedUser && (
+                <div className="auth-profile" id="auth-kayitli-profil">
+                  <img
+                    src={profilResmi(activeRememberedUser, selectedRole === 'teacher' ? 'teacher' : 'student')}
+                    alt=""
+                    className="w-10 h-10 rounded-full bg-surface-2 border border-line object-cover shrink-0"
+                  />
+                  <div className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
+                    {activeRememberedUser.name}
+                    {(activeRememberedUser.branch || activeRememberedUser.className) && (
+                      <span className="font-normal text-muted"> · {activeRememberedUser.branch || activeRememberedUser.className}</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    id="auth-baska-hesap"
+                    onClick={handleForgetRememberedUser}
+                    title="Kayıtlı profili bu cihazdan kaldırır"
+                    className="auth-link-btn shrink-0 h-9 px-2"
+                  >
+                    Başka hesap
+                  </button>
+                </div>
+              )}
 
-                  {/* ROL İLE TAM UYUMLU BENİ HATIRLA - HIZLI GİRİŞ KARTI */}
-                  {/* Aşama 201: tek satır — fotoğraf, ad ve "Başka hesap" (kayıtlı profili kaldırır, kutuyu boşaltır) */}
-                  {!bioMode && activeRememberedUser && (
-                    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl border bg-brand-soft border-line" id="auth-kayitli-profil">
-                      <img
-                        src={profilResmi(activeRememberedUser, selectedRole === 'teacher' ? 'teacher' : 'student')}
-                        alt=""
-                        className="w-9 h-9 rounded-xl bg-surface border border-line object-cover shrink-0"
-                      />
-                      <div className="min-w-0 flex-1 truncate text-sm font-semibold text-fg">
-                        {activeRememberedUser.name}
-                        {(activeRememberedUser.branch || activeRememberedUser.className) && (
-                          <span className="font-normal text-muted"> · {activeRememberedUser.branch || activeRememberedUser.className}</span>
-                        )}
-                      </div>
+              {!bioMode && (
+                <form onSubmit={handleLoginSubmit} className="space-y-4" noValidate>
+                  <AuthField
+                    ref={usernameInputRef}
+                    label={selectedRole === 'teacher' ? 'Kullanıcı adı veya e-posta' : 'Öğrenci numarası'}
+                    type="text"
+                    aria-required="true"
+                    autoComplete="username"
+                    error={fieldErr.user}
+                    value={loginUsername}
+                    onChange={(e) => {
+                      setLoginUsername(e.target.value);
+                      if (fieldErr.user || fieldErr.pass) setFieldErr({});
+                    }}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder={selectedRole === 'teacher' ? 'Kullanıcı adınız' : 'Örn: 1042'}
+                  />
+
+                  <AuthField
+                    ref={passwordInputRef}
+                    label="Şifre"
+                    type={showPassword ? 'text' : 'password'}
+                    aria-required="true"
+                    autoComplete="current-password"
+                    error={fieldErr.pass}
+                    value={loginPassword}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      if (fieldErr.pass) setFieldErr((f) => ({ ...f, pass: undefined }));
+                    }}
+                    onKeyDown={capsOf}
+                    onKeyUp={capsOf}
+                    onBlur={() => setCapsOn(false)}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="Şifreniz"
+                    right={
                       <button
                         type="button"
-                        id="auth-baska-hesap"
-                        onClick={handleForgetRememberedUser}
-                        title="Kayıtlı profili bu cihazdan kaldırır"
-                        className="shrink-0 h-8 px-2.5 rounded-lg text-xs font-semibold text-brand-fg hover:bg-surface-3 cursor-pointer"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                        className="auth-eye"
                       >
-                        Başka hesap
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
-                    </div>
+                    }
+                  />
+                  {capsOn && (
+                    <p className="auth-caps -mt-2 flex items-center gap-1.5 text-xs font-semibold" id="auth-caps-uyari" role="status">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Büyük harf kilidi (Caps Lock) açık
+                    </p>
                   )}
 
-                  {!bioMode && (
-                  <form onSubmit={handleLoginSubmit} className="space-y-4">
-                    <Input
-                      ref={usernameInputRef}
-                      label={selectedRole === 'teacher' ? 'Kullanıcı adı veya e-posta' : 'Öğrenci numarası'}
-                      type="text"
-                      aria-required="true"
-                      autoComplete="username"
-                      error={fieldErr.user}
-                      value={loginUsername}
-                      onChange={(e) => {
-                        setLoginUsername(e.target.value);
-                        if (fieldErr.user || fieldErr.pass) setFieldErr({});
-                      }}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      placeholder={
-                        selectedRole === 'teacher'
-                          ? 'Kullanıcı adı veya e-posta'
-                          : 'Örn: 1042'
-                      }
-                      leftIcon={<User className="w-4 h-4" />}
-                    />
-
-                    <Input
-                      ref={passwordInputRef}
-                      label="Şifre"
-                      type={showPassword ? 'text' : 'password'}
-                      aria-required="true"
-                      autoComplete="current-password"
-                      error={fieldErr.pass}
-                      value={loginPassword}
-                      onChange={(e) => {
-                        setLoginPassword(e.target.value);
-                        if (fieldErr.pass) setFieldErr((f) => ({ ...f, pass: undefined }));
-                      }}
-                      onKeyDown={capsOf}
-                      onKeyUp={capsOf}
-                      onBlur={() => setCapsOn(false)}
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      placeholder="••••••••"
-                      leftIcon={<Lock className="w-4 h-4" />}
-                      rightIcon={showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      onRightIconClick={() => setShowPassword(!showPassword)}
-                      rightIconLabel="Şifreyi göster/gizle"
-                    />
-                    {capsOn && (
-                      <p className="-mt-2 flex items-center gap-1.5 text-xs font-semibold text-amber-300" id="auth-caps-uyari" role="status">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                        Büyük harf kilidi (Caps Lock) açık
-                      </p>
-                    )}
-
-                    {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <label className="flex items-center space-x-2.5 cursor-pointer text-xs font-semibold text-muted select-none">
+                  {/* BENİ HATIRLA ONAY KUTUSU (Remember Me) */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 min-h-8">
+                    <label className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="auth-check"
+                      />
+                      <span>Beni hatırla</span>
+                    </label>
+                    {!activeBioProfile && bioAvailable && (
+                      <label
+                        className="flex items-center gap-2.5 cursor-pointer text-sm lg:text-[13px] text-fg-2 select-none"
+                        id="biometric-optin"
+                        title="Girişten sonra parmak izinizi kaydedersiniz"
+                      >
                         <input
                           type="checkbox"
-                          checked={rememberMe}
-                          onChange={(e) => setRememberMe(e.target.checked)}
-                          className="w-4 h-4 rounded border-line-strong accent-[var(--color-brand)] cursor-pointer"
+                          checked={enableBio && bioAvailable}
+                          onChange={(e) => setEnableBio(e.target.checked)}
+                          className="auth-check"
                         />
-                        <span>Beni Hatırla</span>
+                        <Fingerprint className="w-4 h-4 text-brand-fg" />
+                        <span>Parmak izi ile girişi aç</span>
                       </label>
-                      {!activeBioProfile && bioAvailable && (
-                        <label
-                          className={`flex items-center space-x-2.5 text-xs font-semibold select-none ${bioAvailable ? 'cursor-pointer text-muted' : 'cursor-not-allowed text-subtle'}`}
-                          id="biometric-optin"
-                          title={bioAvailable ? 'Girişten sonra parmak izinizi kaydedersiniz' : bioSupport.reason || 'Cihaz denetleniyor'}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={enableBio && bioAvailable}
-                            disabled={!bioAvailable}
-                            onChange={(e) => setEnableBio(e.target.checked)}
-                            className="w-4 h-4 rounded border-line-strong accent-[var(--color-brand)] cursor-pointer"
-                          />
-                          <Fingerprint className="w-4 h-4 text-brand-fg" />
-                          <span>Parmak izi ile girişi aç</span>
-                        </label>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleForgotPassword}
-                        disabled={isLoading}
-                        className="ml-auto text-xs font-semibold text-brand-fg hover:underline cursor-pointer disabled:opacity-50"
-                      >
-                        Şifremi unuttum
-                      </button>
-                    </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={isLoading}
+                      className="auth-link-btn ml-auto text-sm lg:text-[13px] disabled:opacity-50"
+                    >
+                      Şifremi unuttum
+                    </button>
+                  </div>
 
-                    {/* Submit Button */}
+                  {/* Giriş düğmesi; parmak izi kayıtlıysa yanında kare parmak izi düğmesi */}
+                  <div className="flex gap-2">
                     <Button
                       type="submit"
                       variant="primary"
                       disabled={isLoading}
                       isLoading={isLoading}
-                      loadingText="Giriş Yapılıyor..."
-                      rightIcon={<ArrowRight className="w-4 h-4" />}
-                      className="auth-cta w-full"
+                      loadingText="Giriş yapılıyor..."
+                      className="auth-cta flex-1"
                     >
-                      Giriş Yap
+                      Giriş yap
                     </Button>
-                  </form>
-                  )}
-                </div>
+                    {canBioLogin && (
+                      <button
+                        type="button"
+                        id="biometric-back-btn"
+                        onClick={goBioLogin}
+                        disabled={isLoading}
+                        aria-label="Parmak izi ile giriş"
+                        title="Parmak izi ile giriş"
+                        className="auth-icon-btn"
+                      >
+                        <Fingerprint className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                </form>
               )}
+            </div>
+          )}
+        </div>
 
-          </div>
-        </main>
-
-        <footer className="lg:hidden text-center text-[11px] text-white/70">
-          © {new Date().getFullYear()} • BAŞARI &amp; EĞİTİM
+        <footer className="mt-auto pt-6 text-center text-[11px] text-muted md:mt-6 lg:mt-0 lg:absolute lg:left-0 lg:right-0 lg:bottom-6 lg:pt-0">
+          © {new Date().getFullYear()} bilirEdu
         </footer>
-      </div>
+      </main>
     </div>
   );
 };
