@@ -229,7 +229,7 @@ const FileViewerModal: React.FC<{ res: HomeworkResource; onClose: () => void }> 
               type="button"
               onClick={onClose}
               aria-label="Kapat"
-              className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -369,7 +369,7 @@ export const HomeworkResourceViewer: React.FC<HomeworkResourceViewerProps> = ({
                       type="button"
                       onClick={() => setActiveVideoModal(null)}
                       aria-label="Kapat"
-                      className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors"
+                      className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                     >
                       <X className="w-5 h-5" />
                     </button>
