@@ -53,7 +53,7 @@ type SinifTur = 'genel' | 'birlesik' | 'brans'; // Aşama 130: brans = branş (d
 type PdfOrientation = 'portrait' | 'landscape';
 // Aşama 59: Karneler › Sınıf ve Öğrenci seçim kutuları (ikisi aynı boyda; yazı text-sm, yükseklik 2.5rem)
 const PICKER_BOX = 'w-full sm:w-72';
-const PICKER_CTRL = 'ui-input h-10 text-sm cursor-pointer';
+const PICKER_CTRL = 'ui-input cursor-pointer'; // Aşama 211: h-10 / text-sm yerine ortak 32 px, 12 px
 
 /** Aşama 55: branş öğretmeni ısı haritasını kendi dersiyle açar (yönetici bütün derslerle) */
 function branchSubjectKey(): string {

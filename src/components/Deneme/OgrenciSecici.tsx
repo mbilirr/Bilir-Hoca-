@@ -123,7 +123,7 @@ export const OgrenciSecici: React.FC<{
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className={cx('ui-input py-1 text-xs flex items-center gap-2 text-left w-full', !sel && 'text-muted')}
+        className={cx('ui-input text-xs flex items-center gap-2 text-left w-full', !sel && 'text-muted')}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label="Sistemdeki öğrenci"
