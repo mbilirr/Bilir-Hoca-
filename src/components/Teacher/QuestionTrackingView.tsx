@@ -3481,7 +3481,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
               <button
                 type="button"
                 onClick={() => setPraiseTargetDay(null)}
-                className="p-1 rounded-lg text-subtle hover:text-muted hover:bg-surface-2 cursor-pointer"
+                aria-label="Kapat" className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -3544,7 +3544,7 @@ export const QuestionTrackingView: React.FC<QuestionTrackingViewProps> = ({
                 rows={3}
                 value={praiseCustomMessage}
                 onChange={(e) => setPraiseCustomMessage(e.target.value)}
-                className="w-full p-2.5 bg-surface border border-line-strong rounded-xl text-xs text-fg font-medium focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                className="ui-field w-full font-medium"
                 placeholder="Öğrenciye iletilecek tebrik mesajını yazınız..."
               />
               <span className="text-[10px] text-muted block mt-1">

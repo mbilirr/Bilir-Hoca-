@@ -415,7 +415,7 @@ export const ParentAnnouncements: React.FC = () => {
               rows={5}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Duyuru metnini yazın…"
-              className="w-full px-3 py-2.5 bg-surface-2 border border-line rounded-xl text-sm text-fg placeholder-subtle focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"
+              className="ui-field w-full resize-y"
             />
             {smsTooLong && <p className="text-[11px] text-danger-fg mt-1">SMS için mesaj en çok {SMS_MAX} karakter olabilir. Mesajı kısaltın ya da SMS’i kapatın.</p>}
           </div>

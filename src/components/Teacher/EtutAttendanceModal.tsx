@@ -212,7 +212,8 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+            aria-label="Kapat"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -266,20 +267,22 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setAllStatus('present')}
-              className="text-xs font-semibold px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg transition-colors cursor-pointer"
+              className="ui-btn ui-btn-sm w-28 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+              title="Bütün öğrencileri 'Geldi' yap"
             >
-              ✓ Tümünü Geldi Yap
+              ✓ Hepsi geldi
             </button>
             <button
               type="button"
               onClick={() => setAllStatus('absent')}
-              className="text-xs font-semibold px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30 rounded-lg transition-colors cursor-pointer"
+              className="ui-btn ui-btn-sm w-28 bg-rose-600/20 hover:bg-rose-600/30 text-rose-600 dark:text-rose-300 border border-rose-500/30"
+              title="Bütün öğrencileri 'Gelmedi' yap"
             >
-              ✕ Tümünü Gelmedi Yap
+              ✕ Hepsi gelmedi
             </button>
           </div>
         </div>
@@ -296,7 +299,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
             onChange={(e) => setFeedback(e.target.value)}
             maxLength={1000}
             placeholder="Etüt nasıl geçti, öğrencilerin eksikleri, sonraki adım…"
-            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-xl text-xs text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand resize-y"
+            className="ui-field w-full resize-y"
           />
         </div>
 
@@ -386,7 +389,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStatusChange(std.id, std.name, 'late')}
-                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`ui-btn ui-btn-sm ${
                           currentStatus === 'late'
                             ? 'bg-amber-600 text-white shadow-sm'
                             : 'text-muted hover:text-amber-700 dark:hover:text-amber-400'
@@ -397,7 +400,7 @@ export const EtutAttendanceModal: React.FC<EtutAttendanceModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStatusChange(std.id, std.name, 'excused')}
-                        className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        className={`ui-btn ui-btn-sm ${
                           currentStatus === 'excused'
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'text-muted hover:text-blue-600 dark:hover:text-blue-400'

@@ -155,7 +155,8 @@ biliredu`.trim();
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-muted hover:text-fg rounded-lg hover:bg-surface-2 transition-colors cursor-pointer"
+            aria-label="Kapat"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
             title="Kapat"
           >
             <X className="w-5 h-5" />

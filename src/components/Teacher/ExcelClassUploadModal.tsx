@@ -433,7 +433,7 @@ export const ExcelClassUploadModal: React.FC<ExcelClassUploadModalProps> = ({ is
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
               placeholder={`Ortaokul\t5. Sınıf\tŞube A\t${currentAcademicYear()}\t5-A Temel Sınıf\nLise\t9. Sınıf\tŞube B\t${currentAcademicYear()}\t9-B Hazırlık`}
-              className="w-full p-3 bg-surface border border-line-strong rounded-xl text-xs text-fg font-mono focus:ring-2 focus:ring-brand/25 focus:outline-none"
+              className="ui-field w-full font-mono"
             />
             <button type="button" onClick={handleTextParse} className="ui-btn ui-btn-success ui-btn-sm">
               <Sparkles className="w-3.5 h-3.5" />

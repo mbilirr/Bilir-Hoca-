@@ -1321,7 +1321,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </div>
           <button
             onClick={() => setStudentSuccessFeedback(null)}
-            className="p-1 text-emerald-700 dark:text-emerald-400 hover:text-fg rounded-lg cursor-pointer"
+            aria-label="Kapat"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0 text-emerald-700 dark:text-emerald-400"
           >
             <X className="w-4 h-4" />
           </button>
@@ -3142,7 +3143,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setViewingClassStudents(null)}
-                  className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                  aria-label="Kapat"
+                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -3505,7 +3507,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <button
                   type="button"
                   onClick={() => setTransferTargetClass(null)}
-                  className="p-1.5 text-muted hover:text-fg hover:bg-surface-2 rounded-lg transition-colors cursor-pointer"
+                  aria-label="Kapat"
+                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>

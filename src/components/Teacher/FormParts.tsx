@@ -312,7 +312,7 @@ export const StudentPicker: React.FC<{
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Öğrenci adı veya numarası ara"
-                className="w-full bg-surface-2 border border-line rounded-lg pl-8 pr-2 py-1.5 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+                className="ui-field w-full pl-8 pr-2"
               />
             </div>
             <span className="text-[11px] text-muted">{selectedIds.length} seçili</span>

@@ -98,7 +98,7 @@ export const SubmissionViewModal: React.FC<SubmissionViewModalProps> = ({ homewo
               type="button"
               onClick={onClose}
               aria-label="Kapat"
-              className="p-1.5 text-subtle hover:text-fg-2 hover:bg-surface-2 rounded-lg transition-colors cursor-pointer shrink-0"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
             >
               <X className="w-5 h-5" />
             </button>

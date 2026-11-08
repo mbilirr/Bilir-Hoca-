@@ -148,7 +148,8 @@ export const TeacherApprovalModal: React.FC<TeacherApprovalModalProps> = ({ isOp
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-muted hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer"
+            aria-label="Kapat"
+            className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

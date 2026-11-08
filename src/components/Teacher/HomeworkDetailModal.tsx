@@ -210,7 +210,8 @@ export const HomeworkDetailModal: React.FC<HomeworkDetailModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 bg-surface-2 hover:bg-surface-3 text-muted hover:text-fg rounded-xl border border-line transition-colors"
+              aria-label="Kapat"
+              className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
               title="Kapat"
             >
               <X className="w-4 h-4" />

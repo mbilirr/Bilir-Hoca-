@@ -992,7 +992,7 @@ const EtutFormContent: React.FC<Props> = ({
                           id="etut-repeat-count"
                           value={repeatWeeks}
                           onChange={(e) => setRepeatWeeks(Number(e.target.value))}
-                          className="h-7.5 bg-surface border border-line rounded-full px-3 text-xs font-semibold text-fg-2 cursor-pointer"
+                          className="h-8 py-0 bg-surface border border-line rounded-full px-3 text-xs font-semibold text-fg-2 cursor-pointer"
                         >
                           {Array.from({ length: 11 }, (_, i) => i + 2).map((n) => (
                             <option key={n} value={n}>

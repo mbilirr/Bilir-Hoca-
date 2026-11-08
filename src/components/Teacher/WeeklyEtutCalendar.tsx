@@ -781,7 +781,7 @@ export const WeeklyEtutCalendar: React.FC<WeeklyEtutCalendarProps> = ({
                   </div>
                   {openEtut.topic && <p className="text-sm text-fg-2 mt-1">{openEtut.topic}</p>}
                 </div>
-                <button type="button" onClick={() => setOpenId(null)} className="p-1.5 rounded-lg hover:bg-surface-2 text-muted cursor-pointer" aria-label="Kapat" autoFocus>
+                <button type="button" onClick={() => setOpenId(null)} className="ui-btn ui-btn-ghost ui-btn-icon shrink-0" aria-label="Kapat" autoFocus>
                   <X className="w-4 h-4" />
                 </button>
               </div>

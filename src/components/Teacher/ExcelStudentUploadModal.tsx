@@ -619,7 +619,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
               placeholder={`Ad\tSoyad\tSınıf\tNo\nAhmet\tYılmaz\t12-A Sayısal\t1051\nZeynep\tKaya\t12-B Eşit Ağırlık\t1052\nMustafa\tÇelik\t11-A Fen\t1053`}
-              className="w-full p-4 bg-surface border border-line-strong rounded-xl text-fg font-mono text-xs focus:ring-2 focus:ring-brand/25 focus:outline-none placeholder:text-subtle leading-relaxed"
+              className="ui-field w-full font-mono leading-relaxed"
             />
             <div className="flex justify-end">
               <button type="button" onClick={handleParsePastedText} className="ui-btn ui-btn-primary ui-btn-sm">
@@ -654,7 +654,7 @@ export const ExcelStudentUploadModal: React.FC<ExcelStudentUploadModalProps> = (
                       )
                     );
                   }}
-                  className="bg-surface border border-line text-fg text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-brand/25 focus:outline-none"
+                  className="ui-field w-auto"
                 >
                   {classes.map((cls) => (
                     <option key={cls.id} value={cls.id}>

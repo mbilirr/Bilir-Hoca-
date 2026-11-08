@@ -114,7 +114,7 @@ export const SentCommunicationsModal: React.FC<SentCommunicationsModalProps> = (
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Alıcı, konu veya ödev/etüt adı ara"
-              className="w-full bg-surface-2 border border-line rounded-xl pl-9 pr-3 py-2 text-xs text-fg placeholder:text-subtle focus:outline-none focus:border-brand"
+              className="ui-field w-full pl-9 pr-3"
             />
           </div>
           {(

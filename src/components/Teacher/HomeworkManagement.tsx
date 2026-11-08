@@ -1724,7 +1724,8 @@ export const HomeworkManagement: React.FC<HomeworkManagementProps> = ({
                 </div>
                 <button
                   onClick={closeEditResourcesModal}
-                  className="p-1 text-muted hover:text-fg rounded-lg cursor-pointer"
+                  aria-label="Kapat"
+                  className="ui-btn ui-btn-ghost ui-btn-icon shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
