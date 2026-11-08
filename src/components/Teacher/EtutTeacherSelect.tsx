@@ -105,13 +105,14 @@ export const EtutTeacherSelect: React.FC<{
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          'w-full min-h-10 flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-surface text-left cursor-pointer transition-colors',
+          // Aşama 211: ortak ölçü (en az 32 px, 12 px yazı, rounded-lg); tek öğretmen seçiliyken rozet satırı için yükseklik büyüyebilir
+          'w-full min-h-8 flex items-center gap-2 px-3 py-1 rounded-lg border bg-surface text-left cursor-pointer transition-colors',
           open ? 'border-brand ring-2 ring-brand/20' : 'border-line hover:border-line-strong'
         )}
       >
-        <UserCheck className="w-4 h-4 text-info-fg shrink-0" />
+        <UserCheck className="w-3.5 h-3.5 text-info-fg shrink-0" />
         <span className="min-w-0 flex-1">
-          <span className={cx('block text-sm truncate', selected.length ? 'font-semibold text-fg' : 'text-muted')} id="etut-teacher-selected">
+          <span className={cx('block text-xs truncate', selected.length ? 'font-semibold text-fg' : 'text-muted')} id="etut-teacher-selected">
             {label}
           </span>
           {selected.length === 1 && badges(selected[0])}
@@ -119,7 +120,7 @@ export const EtutTeacherSelect: React.FC<{
         {selected.length > 1 && (
           <span className="text-[11px] font-semibold px-1.5 py-px rounded-full bg-info-soft text-info-fg shrink-0">{selected.length} öğretmen</span>
         )}
-        <ChevronDown className={cx('w-4 h-4 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cx('w-3.5 h-3.5 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
@@ -152,7 +153,7 @@ export const EtutTeacherSelect: React.FC<{
                   }
                 }}
                 placeholder="Öğretmen ara"
-                className="w-full bg-surface-2 border border-line rounded-lg pl-8 pr-2 py-1.5 text-sm text-fg focus:outline-none focus:border-brand"
+                className="ui-field w-full pl-8 pr-2"
               />
             </div>
           </div>

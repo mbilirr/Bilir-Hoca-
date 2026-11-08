@@ -54,18 +54,19 @@ export const SubjectMultiSelect: React.FC<{
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className={cx(
-          'w-full h-10 flex items-center gap-2.5 px-3 rounded-xl border bg-surface text-left cursor-pointer transition-colors',
+          // Aşama 211: ortak ölçü (32 px, 12 px yazı, rounded-lg)
+          'w-full h-8 flex items-center gap-2 px-3 rounded-lg border bg-surface text-left cursor-pointer transition-colors',
           open ? 'border-brand ring-2 ring-brand/20' : 'border-line hover:border-line-strong'
         )}
       >
-        <BookOpen className="w-4 h-4 text-warning-fg shrink-0" />
-        <span className="min-w-0 flex-1 text-sm font-semibold text-fg truncate" id={`${id}-label`}>
+        <BookOpen className="w-3.5 h-3.5 text-warning-fg shrink-0" />
+        <span className="min-w-0 flex-1 text-xs font-semibold text-fg truncate" id={`${id}-label`}>
           {label}
         </span>
         {value.length > 1 && (
           <span className="text-[11px] font-semibold px-1.5 py-px rounded-full bg-warning-soft text-warning-fg shrink-0">{value.length} ders</span>
         )}
-        <ChevronDown className={cx('w-4 h-4 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cx('w-3.5 h-3.5 text-muted shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (

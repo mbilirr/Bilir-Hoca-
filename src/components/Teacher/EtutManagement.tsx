@@ -1555,6 +1555,7 @@ export const EtutManagement: React.FC<EtutManagementProps> = ({ etuts, students,
 
 // ---------------------------------------------------------------------------
 // Öğretmen süzgeci — özel açılır liste (Aşama 32)
+// Aşama 211: kutu diğer süzgeçlerle aynı ortak ölçüde (ui-field: 32 px, 12 px yazı); liste maddeleri 12 px
 // Yoklama görünümünde, biten etüdünün yoklamasını almamış öğretmenler kırmızı yanıp söner.
 // ---------------------------------------------------------------------------
 const TeacherPicker: React.FC<{
@@ -1609,7 +1610,7 @@ const TeacherPicker: React.FC<{
         aria-expanded={open}
         aria-labelledby="etut-list-teacher-label etut-list-teacher"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full h-10 flex items-center justify-between gap-2 bg-surface border border-line rounded-xl px-3 text-sm text-fg text-left cursor-pointer focus:outline-none focus:border-brand ${
+        className={`ui-field w-full flex items-center justify-between gap-2 text-left cursor-pointer ${
           triggerBlink ? 'notify-blink notify-blink-rose' : ''
         }`}
       >
@@ -1628,14 +1629,14 @@ const TeacherPicker: React.FC<{
               ⚠ {missingTeachers}
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 text-muted transition-transform ${open ? 'rotate-180' : ''}`} />
         </span>
       </button>
       {open && (
         <ul
           role="listbox"
           aria-labelledby="etut-list-teacher-label"
-          className="absolute z-40 mt-1.5 left-0 right-0 max-h-72 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1.5 space-y-1"
+          className="absolute z-40 mt-1 left-0 right-0 max-h-72 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop p-1.5 space-y-0.5"
         >
           <li>
             <button
@@ -1643,7 +1644,7 @@ const TeacherPicker: React.FC<{
               role="option"
               aria-selected={value === 'all'}
               onClick={() => pick('all')}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm cursor-pointer ${value === 'all' ? 'bg-brand-soft text-brand-fg font-semibold' : 'hover:bg-surface-2 text-fg'}`}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs cursor-pointer ${value === 'all' ? 'bg-brand-soft text-brand-fg font-semibold' : 'hover:bg-surface-2 text-fg'}`}
             >
               {allLabel}
             </button>
@@ -1660,7 +1661,7 @@ const TeacherPicker: React.FC<{
                   aria-selected={value === t}
                   data-missing-attendance={miss || undefined}
                   onClick={() => pick(t)}
-                  className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg text-sm cursor-pointer border border-transparent ${
+                  className={`w-full flex items-center justify-between gap-2 text-left px-2.5 py-1.5 rounded-lg text-xs cursor-pointer border border-transparent ${
                     flag ? 'notify-blink notify-blink-rose font-semibold text-fg' : value === t ? 'bg-brand-soft text-brand-fg font-semibold' : 'hover:bg-surface-2 text-fg'
                   }`}
                 >
