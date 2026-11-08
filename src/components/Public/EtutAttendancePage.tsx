@@ -293,7 +293,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                             disabled={!data.canSave}
                             onChange={(e) => setNote(s.id, { topic: e.target.value })}
                             placeholder={data.etut.topic ? `Etüt konusu: ${data.etut.topic}` : 'Örn: Üslü sayılar tekrarı'}
-                            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-lg text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand disabled:opacity-70"
+                            className="ui-field w-full"
                           />
                         </label>
                         <label className="block">
@@ -306,7 +306,7 @@ export const EtutAttendancePage: React.FC<{ token: string }> = ({ token }) => {
                             disabled={!data.canSave}
                             onChange={(e) => setNote(s.id, { note: e.target.value })}
                             placeholder="Örn: Konuyu iyi anladı, ek alıştırma verildi / 10 dk geç geldi"
-                            className="w-full px-3 py-2 bg-surface border border-line-strong rounded-lg text-sm text-fg placeholder:text-subtle focus:outline-none focus:ring-2 focus:ring-brand/25 focus:border-brand resize-y disabled:opacity-70"
+                            className="ui-field w-full resize-y"
                           />
                         </label>
                         <p className="text-[11px] text-muted">Bu notu yalnızca öğretmenler görür; öğrenci görmez. Kaydetmek için alttaki "Yoklamayı Kaydet"e basın.</p>
